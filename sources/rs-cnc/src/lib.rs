@@ -1,5 +1,5 @@
-use std::collections::HashMap;
-
+use hex;
+use reqwest::Response;
 use serde::{Deserialize, Serialize};
 
 // TODO - organization
@@ -15,7 +15,7 @@ pub struct Client {
 
 #[derive(Serialize)]
 struct SubmitPFDRequest {
-    namespace_id: u8,
+    namespace_id: String,
     data: String,
     fee: i64,
     gas_limit: u64,
@@ -36,12 +36,15 @@ impl Client {
     }
 
     #[tokio::main]
-    async fn submit_pfd(&self,
-                        namespace_id: u8,
-                        data: String,
-                        fee: i64,
-                        gas_limit: u64) -> Result<(), Box<dyn std::error::Error>> {
-        // TODO - handle bytes, not string
+    pub async fn submit_pfd(
+        &self,
+        namespace_id: u8,
+        data: String,
+        fee: i64,
+        gas_limit: u64,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let namespace_id: String = format!("{:x}", namespace_id);
+        let data: String = hex::encode(data);
         let request = SubmitPFDRequest {
             namespace_id,
             data,
@@ -50,7 +53,9 @@ impl Client {
         };
         let request = serde_json::to_string(&request).unwrap();
 
-        let response = self.http_client.post("{self.base_url}{SUBMIT_PFD_ENDPOINT}")
+        let response: Response = self
+            .http_client
+            .post("{self.base_url}{SUBMIT_PFD_ENDPOINT}")
             .json(&request)
             .send()
             .await?;
