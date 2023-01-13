@@ -13,7 +13,8 @@
           "test",
           "--no-run",
           "--lib",
-          "--package=rs-cnc"
+          "--package=rs-cnc",
+          "-- --nocapture",
         ],
         "filter": {
           "name": "rs_cnc",

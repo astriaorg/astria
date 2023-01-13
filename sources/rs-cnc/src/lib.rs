@@ -1,9 +1,16 @@
+use std::collections::HashMap;
+
 use hex;
 use reqwest::Response;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 // TODO - organization
+// const BALANCE_ENDPOINT: &str = "/balance";
+// const HEADER_ENDPOINT: &str = "/header";
+// const NAMESPACED_SHARES_ENDPOINT: &str = "/namespaced_shares";
+// const NAMESPACED_DATA_ENDPOINT: &str = "/namespaced_data";
 const SUBMIT_PFD_ENDPOINT: &str = "/submit_pdf";
+// const SUBMIT_TX_ENDPOINT: &str = "/submit_tx";
 
 pub struct Client {
     /// The url of the Celestia node
@@ -42,26 +49,51 @@ impl Client {
         data: String,
         fee: i64,
         gas_limit: u64,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), reqwest::Error> {
+        // convert namespace and data to hex
         let namespace_id: String = format!("{:x}", namespace_id);
         let data: String = hex::encode(data);
-        let request = SubmitPFDRequest {
+
+        let body = SubmitPFDRequest {
             namespace_id,
             data,
             fee,
             gas_limit,
         };
-        let request = serde_json::to_string(&request).unwrap();
+        let body = serde_json::to_string(&body).unwrap();
 
+        let url: String = format!("{}{}", self.base_url, SUBMIT_PFD_ENDPOINT);
+
+        println!("posting to : {}", &url);
         let response: Response = self
             .http_client
-            .post("{self.base_url}{SUBMIT_PFD_ENDPOINT}")
-            .json(&request)
+            .post(url)
+            .json(&body)
             .send()
-            .await?;
+            .await
+            .unwrap();
+
+        match response.status() {
+            reqwest::StatusCode::OK => {
+                match response.json::<HashMap<String, String>>().await {
+                    Ok(parsed) => println!("Success! {:?}", parsed),
+                    Err(_) => println!("Hm, the response didn't match the shape we expected."),
+                };
+            }
+            reqwest::StatusCode::UNAUTHORIZED => {
+                println!("Need to grab a new token");
+            }
+            status => {
+                println!("Something unexpected happened. {}", status);
+            }
+        };
 
         Ok(())
     }
+
+    // pub async fn namespaced_data(&self, namespace_id: u8, height: u64) {}
+
+    // pub async fn submit_tx() {}
 }
 
 #[cfg(test)]
