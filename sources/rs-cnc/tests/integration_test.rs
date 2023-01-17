@@ -17,7 +17,7 @@ fn test_data_roundtrip() {
         random_namespace_id,
         random_data,
         2_000,
-        60_000);
+        90_000);
 
     assert_eq!(res.is_ok(), true);
 }

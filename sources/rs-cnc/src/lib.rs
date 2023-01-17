@@ -30,18 +30,39 @@ struct SubmitPFDRequest {
     gas_limit: u64,
 }
 
+
 #[derive(Deserialize, Debug)]
 pub struct SubmitPFDResponse {
-    code: i64,
-    codespace: String,
+    height: Option<i64>,
     txhash: String,
+    data: Option<String>,
     raw_log: Option<String>,
+    events: Option<Vec<Event>>,
+    logs: Option<Vec<Log>>,
+    code: Option<i64>,
+    codespace: Option<String>,
     gas_wanted: Option<i64>,
     gas_used: Option<i64>,
-    // TODO - define `Event`
-    events: Option<Vec<()>>,
-    // TODO - define `Log`
-    logs: Option<Vec<()>>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Event {
+    #[serde(rename = "type")]
+    type_field: String,
+    attributes: Vec<Attribute>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Log {
+    msg_index: i64,
+    events: Option<Vec<Event>>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Attribute {
+    key: String,
+    value: String,
+    index: Option<bool>,
 }
 
 impl Client {
@@ -110,12 +131,15 @@ impl Client {
         Ok(response)
     }
 
-    // pub async fn namespaced_data(&self, namespace_id: u8, height: u64) {
-    //     todo!()
-    // }
+    #[tokio::main]
+    pub async fn namespaced_data(&self, namespace_id: [u8; 8], height: u64) {
+        println!("{:#?}", namespace_id);
+        println!("{}", height);
+        todo!();
+    }
     //
     // pub async fn submit_tx() {
-    //     todo!()
+    //     todo!();
     // }
 }
 
