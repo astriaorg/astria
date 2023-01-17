@@ -14,8 +14,6 @@ fn test_data_roundtrip() {
         2_000,
         60_000);
 
-    if res.is_err() {
-
-    }
+    assert_eq!(res.is_ok(), true);
 
 }

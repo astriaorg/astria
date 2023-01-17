@@ -63,7 +63,7 @@ impl Client {
         data: String,
         fee: i64,
         gas_limit: u64,
-    ) -> Result<(), reqwest::Error> {
+    ) -> Result<HashMap<String, String>, reqwest::Error> {
         // convert namespace and data to hex
         // let namespace_id: String = format!("{:x}", namespace_id);
         // let data: String = hex::encode(data);
@@ -90,22 +90,7 @@ impl Client {
             .json::<HashMap<String, String>>()
             .await?;
 
-        // match response.status() {
-        //     reqwest::StatusCode::OK => {
-        //         match response.json::<HashMap<String, String>>().await {
-        //             Ok(parsed) => println!("Success! {:?}", parsed),
-        //             Err(_) => println!("Hm, the response didn't match the shape we expected."),
-        //         };
-        //     }
-        //     reqwest::StatusCode::UNAUTHORIZED => {
-        //         println!("Need to grab a new token");
-        //     }
-        //     status => {
-        //         println!("Something unexpected happened. {}", status);
-        //     }
-        // };
-
-        Ok(())
+        Ok(js)
     }
 
     // pub async fn namespaced_data(&self, namespace_id: u8, height: u64) {}
