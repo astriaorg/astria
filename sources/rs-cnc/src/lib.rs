@@ -10,15 +10,15 @@ mod error;
 // const BALANCE_ENDPOINT: &str = "/balance";
 // const HEADER_ENDPOINT: &str = "/header";
 // const NAMESPACED_SHARES_ENDPOINT: &str = "/namespaced_shares";
-// const NAMESPACED_DATA_ENDPOINT: &str = "/namespaced_data";
+const NAMESPACED_DATA_ENDPOINT: &str = "/namespaced_data";
 const SUBMIT_PFD_ENDPOINT: &str = "/submit_pfd";
 // const SUBMIT_TX_ENDPOINT: &str = "/submit_tx";
 
 pub struct Client {
-    /// The url of the Celestia node
+    /// The url of the Celestia node.
     base_url: String,
 
-    /// An http client for making http requests
+    /// An http client for making http requests.
     http_client: ReqwestClient,
 }
 
@@ -30,19 +30,28 @@ struct SubmitPFDRequest {
     gas_limit: u64,
 }
 
-
 #[derive(Deserialize, Debug)]
 pub struct SubmitPFDResponse {
-    height: Option<i64>,
+    /// The block height.
+    pub height: Option<u64>,
+    /// The transaction hash.
     txhash: String,
+    /// Result bytes, if any.
     data: Option<String>,
+    /// The output of the application's logger (raw string). May be non-deterministic.
     raw_log: Option<String>,
+    ///
     events: Option<Vec<Event>>,
+    /// The output of the application's logger (typed). May be non-deterministic.
     logs: Option<Vec<Log>>,
-    code: Option<i64>,
+    /// Namespace for the code.
     codespace: Option<String>,
-    gas_wanted: Option<i64>,
-    gas_used: Option<i64>,
+    /// Response code.
+    code: Option<u64>,
+    /// Amount of gas requested for transaction.
+    gas_wanted: Option<u64>,
+    /// Amount of gas consumed by transaction.
+    gas_used: Option<u64>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -64,6 +73,16 @@ pub struct Attribute {
     value: String,
     index: Option<bool>,
 }
+
+
+#[derive(Serialize, Debug)]
+struct NamespacedDataRequest {
+    namespace_id: String,
+    height: u64,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct NamespacedDataResponse {}
 
 impl Client {
     /// Creates a new client
@@ -102,6 +121,10 @@ impl Client {
         let namespace_id: String = hex::encode(namespace_id);
         let data: String = hex::encode(data);
 
+        // println!("namespace id and data");
+        // println!("{}", namespace_id);
+        // println!("{}", data);
+
         let body = SubmitPFDRequest {
             namespace_id,
             data,
@@ -132,12 +155,53 @@ impl Client {
     }
 
     #[tokio::main]
-    pub async fn namespaced_data(&self, namespace_id: [u8; 8], height: u64) {
-        println!("{:#?}", namespace_id);
-        println!("{}", height);
-        todo!();
+    pub async fn namespaced_data(
+        &self,
+        namespace_id: [u8; 8],
+        height: u64,
+    ) -> Result<NamespacedDataResponse, reqwest::Error> {
+        let namespace_id: String = hex::encode(namespace_id);
+
+        // TODO - build correct url with NAMESPACED_DATA_ENDPOINT and height/
+        // From this go func
+        // func namespacedPath(endpoint string, namespaceID [8]byte, height uint64) string {
+        // 	 return fmt.Sprintf("%s/%s/height/%d", endpoint, hex.EncodeToString(namespaceID[:]), height)
+        // }
+        let path = self.get_namespaced_path(NAMESPACED_DATA_ENDPOINT, &namespace_id, height);
+        let url: String = format!("{}{}", self.base_url, path);
+
+        let body = NamespacedDataRequest {
+            namespace_id,
+            height,
+        };
+        println!("{}", url);
+        println!("{:#?}", body);
+
+        let response: ReqwestResponse = self
+            .http_client
+            .post(url)
+            .json(&body)
+            .send()
+            .await?;
+
+        // FIXME - remove after developing
+        let response_text = response.text().await.unwrap();
+        println!("{}", response_text);
+        let response: NamespacedDataResponse = serde_json::from_str::<NamespacedDataResponse>(&response_text).unwrap();
+        println!("{:#?}", response);
+
+        Ok(response)
     }
-    //
+
+    pub fn get_namespaced_path(
+        &self,
+        endpoint: &str,
+        namespace_id: &str,
+        height: u64
+    ) -> String {
+        return format!("{}/{}/height/{}", endpoint, namespace_id, height);
+    }
+
     // pub async fn submit_tx() {
     //     todo!();
     // }

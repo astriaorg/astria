@@ -20,4 +20,10 @@ fn test_data_roundtrip() {
         90_000);
 
     assert_eq!(res.is_ok(), true);
+
+    if let Some(height) = res.unwrap().height {
+        let res = client.namespaced_data(random_namespace_id, height);
+        assert_eq!(res.is_ok(), true);
+    }
+
 }
