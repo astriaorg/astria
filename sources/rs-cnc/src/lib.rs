@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use hex;
 use reqwest::{Client as ReqwestClient, Response as ReqwestResponse};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 mod error;
 
@@ -23,12 +23,23 @@ pub struct Client {
     http_client: ReqwestClient,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct SubmitPFDRequest {
     namespace_id: String,
     data: String,
     fee: i64,
     gas_limit: u64,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct SubmitPFDResponse {
+    code: i64,
+    codespace: String,
+    txhash: String,
+    // TODO - define `Event`
+    events: Option<Vec<()>>,
+    // TODO - define `Log`
+    logs: Option<Vec<()>>,
 }
 
 impl Client {
@@ -63,12 +74,14 @@ impl Client {
         data: String,
         fee: i64,
         gas_limit: u64,
-    ) -> Result<HashMap<String, String>, reqwest::Error> {
+    ) -> Result<SubmitPFDResponse, reqwest::Error> {
         // convert namespace and data to hex
         // let namespace_id: String = format!("{:x}", namespace_id);
         // let data: String = hex::encode(data);
-        let namespace_id: String = String::from("0c204d39600fddd3");
-        let data: String = String::from("f1f20ca8007e910a3bf8b2e61da0f26bca07ef78717a6ea54165f5");
+        let namespace_id: String = String::from("b860ccf0e97fdf6c");
+        let data: String = String::from(
+            "d850eca0a7ac88aa3bd21c57d852c28198ad8fa422c4595032e88a4494b4778b36b944fe47a52b8c5cd312910139dfcb4147ab"
+        );
 
         let body = SubmitPFDRequest {
             namespace_id,
@@ -76,7 +89,6 @@ impl Client {
             fee,
             gas_limit,
         };
-        let body = serde_json::to_string(&body).unwrap();
 
         let url: String = format!("{}{}", self.base_url, SUBMIT_PFD_ENDPOINT);
 
@@ -86,11 +98,12 @@ impl Client {
             .json(&body)
             .send()
             .await?;
-        let js: HashMap<String, String> = response
-            .json::<HashMap<String, String>>()
+
+        let response = response
+            .json::<SubmitPFDResponse>()
             .await?;
 
-        Ok(js)
+        Ok(response)
     }
 
     // pub async fn namespaced_data(&self, namespace_id: u8, height: u64) {}

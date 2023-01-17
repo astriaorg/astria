@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use rs_cnc::Client;
+
+use rs_cnc::{Client, SubmitPFDResponse};
 
 #[test]
 fn test_data_roundtrip() {
@@ -10,13 +11,11 @@ fn test_data_roundtrip() {
     // let namespace_id: u8 = 53;
     let namespace_id: String = String::from("random data");
     let random_data: String = String::from("random data");
-    let res: Result<HashMap<String, String>, reqwest::Error> = client.submit_pfd(
+    let res: Result<SubmitPFDResponse, reqwest::Error> = client.submit_pfd(
         namespace_id,
         random_data,
         2_000,
         60_000);
 
-    println!("{}", res.unwrap_err().to_string());
-
-    // assert_eq!(res.is_ok(), true);
+    assert_eq!(res.is_ok(), true);
 }
