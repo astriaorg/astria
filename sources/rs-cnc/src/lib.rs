@@ -12,7 +12,7 @@ mod error;
 // const HEADER_ENDPOINT: &str = "/header";
 // const NAMESPACED_SHARES_ENDPOINT: &str = "/namespaced_shares";
 // const NAMESPACED_DATA_ENDPOINT: &str = "/namespaced_data";
-const SUBMIT_PFD_ENDPOINT: &str = "/submit_pdf";
+const SUBMIT_PFD_ENDPOINT: &str = "/submit_pfd";
 // const SUBMIT_TX_ENDPOINT: &str = "/submit_tx";
 
 pub struct Client {
