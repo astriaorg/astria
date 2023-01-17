@@ -1,7 +1,6 @@
-use std::collections::HashMap;
 use std::time::Duration;
 
-use hex;
+// use hex;
 use reqwest::{Client as ReqwestClient, Response as ReqwestResponse};
 use serde::{Deserialize, Serialize};
 
@@ -36,6 +35,9 @@ pub struct SubmitPFDResponse {
     code: i64,
     codespace: String,
     txhash: String,
+    raw_log: Option<String>,
+    gas_wanted: Option<i64>,
+    gas_used: Option<i64>,
     // TODO - define `Event`
     events: Option<Vec<()>>,
     // TODO - define `Log`
@@ -70,18 +72,14 @@ impl Client {
     #[tokio::main]
     pub async fn submit_pfd(
         &self,
-        namespace_id: String,
-        data: String,
+        namespace_id: [u8; 8],
+        data: Vec<u8>,
         fee: i64,
         gas_limit: u64,
     ) -> Result<SubmitPFDResponse, reqwest::Error> {
         // convert namespace and data to hex
-        // let namespace_id: String = format!("{:x}", namespace_id);
-        // let data: String = hex::encode(data);
-        let namespace_id: String = String::from("b860ccf0e97fdf6c");
-        let data: String = String::from(
-            "d850eca0a7ac88aa3bd21c57d852c28198ad8fa422c4595032e88a4494b4778b36b944fe47a52b8c5cd312910139dfcb4147ab"
-        );
+        let namespace_id: String = hex::encode(namespace_id);
+        let data: String = hex::encode(data);
 
         let body = SubmitPFDRequest {
             namespace_id,
@@ -99,6 +97,12 @@ impl Client {
             .send()
             .await?;
 
+        // FIXME - remove after developing
+        // let response_text = response.text().await.unwrap();
+        // println!("{}", response_text);
+        // let response: SubmitPFDResponse = serde_json::from_str::<SubmitPFDResponse>(&response_text).unwrap();
+        // println!("{:#?}", response);
+
         let response = response
             .json::<SubmitPFDResponse>()
             .await?;
@@ -106,9 +110,13 @@ impl Client {
         Ok(response)
     }
 
-    // pub async fn namespaced_data(&self, namespace_id: u8, height: u64) {}
-
-    // pub async fn submit_tx() {}
+    // pub async fn namespaced_data(&self, namespace_id: u8, height: u64) {
+    //     todo!()
+    // }
+    //
+    // pub async fn submit_tx() {
+    //     todo!()
+    // }
 }
 
 #[cfg(test)]
