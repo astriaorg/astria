@@ -32,8 +32,9 @@ fn test_data_roundtrip() {
 
         if let namespaced_data_response = res.unwrap() {
             // convert base64 encoded value from the response into a vector of bytes
-            let base64_data = namespaced_data_response.data.unwrap();
-            let bytes = base64::decode(&base64_data[0]).unwrap();
+            let res_data = namespaced_data_response.data.unwrap();
+            let base64_data = &res_data[0];
+            let bytes = base64::decode(base64_data).unwrap();
 
             assert_eq!(bytes, data);
             assert_eq!(namespaced_data_response.height.unwrap(), height);
