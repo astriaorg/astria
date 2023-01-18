@@ -1,5 +1,6 @@
 extern crate base64;
 
+use bytes::Bytes;
 use rand::Rng;
 
 use rs_cnc::{Client, NamespacedDataResponse, PayForDataResponse};
@@ -14,8 +15,7 @@ fn test_data_roundtrip() {
     let random_namespace_id = rand::thread_rng().gen::<[u8; 8]>();
 
     // create arbitrary vector of bytes
-    let mut data = Vec::new();
-    data.extend_from_slice(b"some random data");
+    let data = Bytes::from(&b"some random data"[..]);
 
     let res: Result<PayForDataResponse, reqwest::Error> = client.submit_pay_for_data(
         &random_namespace_id,

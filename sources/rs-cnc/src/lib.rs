@@ -1,4 +1,5 @@
 use std::time::Duration;
+use bytes::Bytes;
 
 use reqwest::{Client as ReqwestClient, Response as ReqwestResponse};
 use serde::{Deserialize, Serialize};
@@ -104,7 +105,7 @@ impl Client {
     pub async fn submit_pay_for_data(
         &self,
         namespace_id: &[u8; 8],
-        data: &Vec<u8>,
+        data: &Bytes,
         fee: i64,
         gas_limit: u64,
     ) -> Result<PayForDataResponse, reqwest::Error> {
