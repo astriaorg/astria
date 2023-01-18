@@ -82,7 +82,7 @@ impl CelestiaNodeClient {
     /// # Arguments
     ///
     /// * `base_url` - A string that holds the base url we want to communicate with
-    pub fn new(base_url: String) -> Result<Self, error::ClientError> {
+    pub fn new(base_url: String) -> Result<Self, error::CelestiaNodeClientError> {
         let http_client: Client;
         let http_client_res: Result<Client, reqwest::Error> = Client::builder()
             .timeout(Duration::from_secs(5))
@@ -90,7 +90,7 @@ impl CelestiaNodeClient {
 
         if http_client_res.is_err() {
             let error_string = http_client_res.unwrap_err().to_string();
-            return Err(error::ClientError::Http(error_string));
+            return Err(error::CelestiaNodeClientError::HttpClient(error_string));
         }
 
         http_client = http_client_res.unwrap();

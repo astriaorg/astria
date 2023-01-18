@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]
-pub enum ClientError {
+pub enum CelestiaNodeClientError {
     #[error("Reqwest: {0}")]
-    Http(String),
+    HttpClient(String),
 }
