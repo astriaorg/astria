@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-// use hex;
 use reqwest::{Client as ReqwestClient, Response as ReqwestResponse};
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +22,7 @@ pub struct Client {
 }
 
 #[derive(Serialize, Debug)]
-struct SubmitPFDRequest {
+struct PayForDataRequest {
     namespace_id: String,
     data: String,
     fee: i64,
@@ -31,11 +30,11 @@ struct SubmitPFDRequest {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct SubmitPFDResponse {
+pub struct PayForDataResponse {
     /// The block height.
     pub height: Option<u64>,
     /// The transaction hash.
-    txhash: String,
+    pub txhash: Option<String>,
     /// Result bytes, if any.
     data: Option<String>,
     /// The output of the application's logger (raw string). May be non-deterministic.
@@ -63,7 +62,7 @@ pub struct Event {
 
 #[derive(Deserialize, Debug)]
 pub struct Log {
-    msg_index: i64,
+    msg_index: u64,
     events: Option<Vec<Event>>,
 }
 
@@ -74,15 +73,11 @@ pub struct Attribute {
     index: Option<bool>,
 }
 
-
-#[derive(Serialize, Debug)]
-struct NamespacedDataRequest {
-    namespace_id: String,
-    height: u64,
-}
-
 #[derive(Deserialize, Debug)]
-pub struct NamespacedDataResponse {}
+pub struct NamespacedDataResponse {
+    pub height: Option<u64>,
+    pub data: Option<Vec<String>>,
+}
 
 impl Client {
     /// Creates a new client
@@ -110,22 +105,18 @@ impl Client {
     }
 
     #[tokio::main]
-    pub async fn submit_pfd(
+    pub async fn submit_pay_for_data(
         &self,
-        namespace_id: [u8; 8],
-        data: Vec<u8>,
+        namespace_id: &[u8; 8],
+        data: &Vec<u8>,
         fee: i64,
         gas_limit: u64,
-    ) -> Result<SubmitPFDResponse, reqwest::Error> {
+    ) -> Result<PayForDataResponse, reqwest::Error> {
         // convert namespace and data to hex
         let namespace_id: String = hex::encode(namespace_id);
         let data: String = hex::encode(data);
 
-        // println!("namespace id and data");
-        // println!("{}", namespace_id);
-        // println!("{}", data);
-
-        let body = SubmitPFDRequest {
+        let body = PayForDataRequest {
             namespace_id,
             data,
             fee,
@@ -148,7 +139,7 @@ impl Client {
         // println!("{:#?}", response);
 
         let response = response
-            .json::<SubmitPFDResponse>()
+            .json::<PayForDataResponse>()
             .await?;
 
         Ok(response)
@@ -161,26 +152,17 @@ impl Client {
         height: u64,
     ) -> Result<NamespacedDataResponse, reqwest::Error> {
         let namespace_id: String = hex::encode(namespace_id);
-
-        // TODO - build correct url with NAMESPACED_DATA_ENDPOINT and height/
-        // From this go func
-        // func namespacedPath(endpoint string, namespaceID [8]byte, height uint64) string {
-        // 	 return fmt.Sprintf("%s/%s/height/%d", endpoint, hex.EncodeToString(namespaceID[:]), height)
-        // }
-        let path = self.get_namespaced_path(NAMESPACED_DATA_ENDPOINT, &namespace_id, height);
-        let url: String = format!("{}{}", self.base_url, path);
-
-        let body = NamespacedDataRequest {
+        let url = format!(
+            "{}{}/{}/height/{}",
+            self.base_url,
+            NAMESPACED_DATA_ENDPOINT,
             namespace_id,
             height,
-        };
-        println!("{}", url);
-        println!("{:#?}", body);
+        );
 
         let response: ReqwestResponse = self
             .http_client
-            .post(url)
-            .json(&body)
+            .get(url)
             .send()
             .await?;
 
@@ -190,16 +172,11 @@ impl Client {
         let response: NamespacedDataResponse = serde_json::from_str::<NamespacedDataResponse>(&response_text).unwrap();
         println!("{:#?}", response);
 
-        Ok(response)
-    }
+        // let response = response
+        //     .json::<NamespacedDataResponse>()
+        //     .await?;
 
-    pub fn get_namespaced_path(
-        &self,
-        endpoint: &str,
-        namespace_id: &str,
-        height: u64
-    ) -> String {
-        return format!("{}/{}/height/{}", endpoint, namespace_id, height);
+        Ok(response)
     }
 
     // pub async fn submit_tx() {

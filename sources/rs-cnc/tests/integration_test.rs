@@ -1,5 +1,5 @@
 use rand::Rng;
-use rs_cnc::{Client, SubmitPFDResponse};
+use rs_cnc::{Client, NamespacedDataResponse, PayForDataResponse};
 
 #[test]
 fn test_data_roundtrip() {
@@ -13,17 +13,26 @@ fn test_data_roundtrip() {
     let mut random_data = Vec::new();
     random_data.extend_from_slice(b"some random data");
 
-    let res: Result<SubmitPFDResponse, reqwest::Error> = client.submit_pfd(
-        random_namespace_id,
-        random_data,
+    let res: Result<PayForDataResponse, reqwest::Error> = client.submit_pay_for_data(
+        &random_namespace_id,
+        &random_data,
         2_000,
         90_000);
 
-    assert_eq!(res.is_ok(), true);
+    assert!(res.is_ok());
 
     if let Some(height) = res.unwrap().height {
-        let res = client.namespaced_data(random_namespace_id, height);
-        assert_eq!(res.is_ok(), true);
+        let res: Result<NamespacedDataResponse, reqwest::Error> = client.namespaced_data(random_namespace_id, height);
+        assert!(res.is_ok());
+
+        if let namespaced_data_response = res.unwrap() {
+            assert_eq!(namespaced_data_response.height.unwrap(), height);
+
+            // let random_data = hex::encode(random_data);
+            // let unwrapped = namespaced_data_response.data.unwrap();
+            // println!("{:#?}", unwrapped);
+            // assert!(unwrapped.contains(&random_data));
+        }
     }
 
 }
