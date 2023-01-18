@@ -3,13 +3,13 @@ extern crate base64;
 use bytes::Bytes;
 use rand::Rng;
 
-use rs_cnc::{Client, NamespacedDataResponse, PayForDataResponse};
+use rs_cnc::{CelestiaNodeClient, NamespacedDataResponse, PayForDataResponse};
 
 
 #[test]
 fn test_data_roundtrip() {
     let base_url = String::from("http://localhost:26659");
-    let client = Client::new(base_url).unwrap();
+    let client = CelestiaNodeClient::new(base_url).unwrap();
 
     // generate some random bytes for namespace_id
     let random_namespace_id = rand::thread_rng().gen::<[u8; 8]>();

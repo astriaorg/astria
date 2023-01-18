@@ -1,7 +1,7 @@
 use std::time::Duration;
 use bytes::Bytes;
 
-use reqwest::{Client as ReqwestClient, Response as ReqwestResponse};
+use reqwest::{Client, Response as ReqwestResponse};
 use serde::{Deserialize, Serialize};
 
 mod error;
@@ -10,12 +10,12 @@ mod error;
 const NAMESPACED_DATA_ENDPOINT: &str = "/namespaced_data";
 const SUBMIT_PFD_ENDPOINT: &str = "/submit_pfd";
 
-pub struct Client {
+pub struct CelestiaNodeClient {
     /// The url of the Celestia node.
     base_url: String,
 
     /// An http client for making http requests.
-    http_client: ReqwestClient,
+    http_client: Client,
 }
 
 #[derive(Serialize, Debug)]
@@ -76,15 +76,15 @@ pub struct NamespacedDataResponse {
     pub data: Option<Vec<String>>,
 }
 
-impl Client {
+impl CelestiaNodeClient {
     /// Creates a new client
     ///
     /// # Arguments
     ///
     /// * `base_url` - A string that holds the base url we want to communicate with
     pub fn new(base_url: String) -> Result<Self, error::ClientError> {
-        let http_client: ReqwestClient;
-        let http_client_res: Result<ReqwestClient, reqwest::Error> = ReqwestClient::builder()
+        let http_client: Client;
+        let http_client_res: Result<Client, reqwest::Error> = Client::builder()
             .timeout(Duration::from_secs(5))
             .build();
 
@@ -171,7 +171,7 @@ mod tests {
     #[test]
     fn it_creates_client() {
         let base_url = String::from("http://localhost:26659");
-        let client: Client = Client::new(base_url).unwrap();
+        let client: CelestiaNodeClient = CelestiaNodeClient::new(base_url).unwrap();
         assert_eq!(&client.base_url, "http://localhost:26659");
     }
 }
