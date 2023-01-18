@@ -5,13 +5,9 @@ use serde::{Deserialize, Serialize};
 
 mod error;
 
-// TODO - organization
-// const BALANCE_ENDPOINT: &str = "/balance";
-// const HEADER_ENDPOINT: &str = "/header";
-// const NAMESPACED_SHARES_ENDPOINT: &str = "/namespaced_shares";
+// TODO - organize
 const NAMESPACED_DATA_ENDPOINT: &str = "/namespaced_data";
 const SUBMIT_PFD_ENDPOINT: &str = "/submit_pfd";
-// const SUBMIT_TX_ENDPOINT: &str = "/submit_tx";
 
 pub struct Client {
     /// The url of the Celestia node.
@@ -112,7 +108,6 @@ impl Client {
         fee: i64,
         gas_limit: u64,
     ) -> Result<PayForDataResponse, reqwest::Error> {
-        // convert namespace and data to hex
         let namespace_id: String = hex::encode(namespace_id);
         let data: String = hex::encode(data);
 
@@ -131,12 +126,6 @@ impl Client {
             .json(&body)
             .send()
             .await?;
-
-        // FIXME - remove after developing
-        // let response_text = response.text().await.unwrap();
-        // println!("{}", response_text);
-        // let response: SubmitPFDResponse = serde_json::from_str::<SubmitPFDResponse>(&response_text).unwrap();
-        // println!("{:#?}", response);
 
         let response = response
             .json::<PayForDataResponse>()
@@ -166,22 +155,12 @@ impl Client {
             .send()
             .await?;
 
-        // FIXME - remove after developing
-        let response_text = response.text().await.unwrap();
-        println!("{}", response_text);
-        let response: NamespacedDataResponse = serde_json::from_str::<NamespacedDataResponse>(&response_text).unwrap();
-        println!("{:#?}", response);
-
-        // let response = response
-        //     .json::<NamespacedDataResponse>()
-        //     .await?;
+        let response = response
+            .json::<NamespacedDataResponse>()
+            .await?;
 
         Ok(response)
     }
-
-    // pub async fn submit_tx() {
-    //     todo!();
-    // }
 }
 
 #[cfg(test)]
