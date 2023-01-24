@@ -60,15 +60,11 @@ impl Driver {
 
     async fn get_new_blocks(&mut self, last_block_height: u64) -> Result<()> {
         log::info!("last_block_height: {}", last_block_height);
-        todo!();
+        Ok(())
     }
 
     async fn shutdown(&mut self) -> Result<()> {
         log::info!("Shutting down driver.");
-
-        // NOTE - faking shutdown logic with a timeout
-        thread::sleep(time::Duration::from_secs(1));
-
         Ok(())
     }
 }
