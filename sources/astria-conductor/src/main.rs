@@ -19,6 +19,7 @@ async fn main() {
 
     driver_cmd_tx.send(driver::DriverCommand::GetNewBlocks { last_block_height: 53 }).ok();
 
+    // NOTE - fake some computation time so the previous command has time to run before shutdown
     thread::sleep(time::Duration::from_secs(1));
 
     driver_cmd_tx.send(driver::DriverCommand::Shutdown).ok();

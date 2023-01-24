@@ -59,7 +59,7 @@ impl Driver {
     }
 
     async fn get_new_blocks(&mut self, last_block_height: u64) -> Result<()> {
-        log::info!("last_block_height: {}", last_block_height);
+        log::info!("get_new_blocks({})", last_block_height);
         Ok(())
     }
 
