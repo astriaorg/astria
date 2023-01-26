@@ -2,7 +2,6 @@
 //! necessary for this reader/validator.
 
 
-// use rs_cnc::{CelestiaNodeClient, NamespacedDataResponse};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::task;
 
