@@ -12,6 +12,8 @@ use crate::{
     executor,
     reader,
 };
+use crate::executor::ExecutorCommand;
+use crate::reader::ReaderCommand;
 
 pub fn spawn(conf: Conf) -> Result<(DriverHandle, AlertReceiver)> {
     let (alert_tx, alert_rx) = mpsc::unbounded_channel();
@@ -61,11 +63,6 @@ pub(crate) type Receiver = UnboundedReceiver<DriverCommand>;
 /// The type of commands that the driver can receive.
 #[allow(dead_code)]
 pub(crate) enum DriverCommand {
-    /// Contains info for getting newest blocks.
-    GetNewBlocks {
-        last_block_height: u64,
-    },
-
     /// Gracefully shuts down the driver and its components.
     Shutdown,
 }
@@ -111,13 +108,9 @@ impl Driver {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        log::info!("Starting driver.");
+        log::info!("Starting driver event loop.");
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
-                DriverCommand::GetNewBlocks { last_block_height } => {
-                    log::info!("DriverCommand::GetNewBlocks");
-                }
-
                 DriverCommand::Shutdown => {
                     self.shutdown().await?;
                     break;
@@ -129,6 +122,10 @@ impl Driver {
 
     async fn shutdown(&mut self) -> Result<()> {
         log::info!("Shutting down driver.");
+
+        self.reader_tx.send(ReaderCommand::Shutdown)?;
+        self.executor_tx.send(ExecutorCommand::Shutdown)?;
+
         Ok(())
     }
 }

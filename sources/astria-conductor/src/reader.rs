@@ -28,7 +28,14 @@ pub(crate) fn spawn(driver_tx: driver::Sender) -> Result<(JoinHandle, Sender)> {
 }
 
 #[derive(Debug)]
-pub(crate) enum ReaderCommand {}
+pub(crate) enum ReaderCommand {
+    /// Contains info for getting newest blocks.
+    GetNewBlocks {
+        last_block_height: u64,
+    },
+
+    Shutdown,
+}
 
 struct Reader {
     /// Channel on which reader commands are received.
@@ -52,6 +59,19 @@ impl Reader {
 
     async fn run(&mut self) -> Result<()> {
         log::info!("Starting reader event loop.");
+
+        while let Some(cmd) = self.cmd_rx.recv().await {
+            match cmd {
+                ReaderCommand::GetNewBlocks { last_block_height } => {
+                    log::info!("ReaderCommand::GetNewBlocks {}", last_block_height);
+                }
+                ReaderCommand::Shutdown => {
+                    log::info!("Shutting down reader event loop.");
+                    break;
+                }
+            }
+        }
+
         Ok(())
     }
 }

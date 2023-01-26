@@ -28,7 +28,9 @@ pub(crate) fn spawn(driver_tx: driver::Sender) -> Result<(JoinHandle, Sender)> {
 }
 
 #[derive(Debug)]
-pub(crate) enum ExecutorCommand {}
+pub(crate) enum ExecutorCommand {
+    Shutdown,
+}
 
 struct Executor {
     /// Channel on which executor commands are received.
@@ -52,6 +54,16 @@ impl Executor {
 
     async fn run(&mut self) -> Result<()> {
         log::info!("Starting executor event loop.");
+
+        while let Some(cmd) = self.cmd_rx.recv().await {
+            match cmd {
+                ExecutorCommand::Shutdown => {
+                    log::info!("Shutting down executor event loop.");
+                    break;
+                }
+            }
+        }
+
         Ok(())
     }
 }
