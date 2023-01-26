@@ -1,6 +1,7 @@
 use flexi_logger::{Duplicate, FileSpec};
 
 use crate::conf::Conf;
+use crate::driver::DriverCommand;
 use crate::error::*;
 
 pub mod alert;
@@ -24,9 +25,9 @@ async fn main() -> Result<()> {
     let namespace_id: [u8; 8] = *b"DEADBEEF";
     let conf = Conf::new(url, namespace_id);
 
-    let (driver, alert_rx) = driver::spawn(conf)?;
+    let (driver_handle, alert_rx) = driver::spawn(conf)?;
 
-    driver.shutdown().await?;
+    driver_handle.shutdown().await?;
 
     Ok(())
 }
