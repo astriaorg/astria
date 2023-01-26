@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-pub use tokio::{io::Error as IoError, sync::mpsc::error::SendError};
+pub use tokio::{io::Error as IoError, sync::mpsc::error::SendError, task::JoinError};
 
 pub type Result<T, E = RvRsError> = std::result::Result<T, E>;
 
@@ -47,6 +47,12 @@ impl From<IoError> for RvRsError {
 
 impl<T> From<SendError<T>> for RvRsError {
     fn from(_: SendError<T>) -> Self {
+        Self::Channel
+    }
+}
+
+impl From<JoinError> for RvRsError {
+    fn from(_: JoinError) -> Self {
         Self::Channel
     }
 }

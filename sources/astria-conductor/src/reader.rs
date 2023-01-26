@@ -29,10 +29,7 @@ pub(crate) fn spawn(driver_tx: driver::Sender) -> Result<(JoinHandle, Sender)> {
 
 #[derive(Debug)]
 pub(crate) enum ReaderCommand {
-    /// Contains info for getting newest blocks.
-    GetNewBlocks {
-        last_block_height: u64,
-    },
+    GetNewBlocks,
 
     Shutdown,
 }
@@ -62,8 +59,8 @@ impl Reader {
 
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
-                ReaderCommand::GetNewBlocks { last_block_height } => {
-                    log::info!("ReaderCommand::GetNewBlocks {}", last_block_height);
+                ReaderCommand::GetNewBlocks => {
+                    log::info!("ReaderCommand::GetNewBlocks");
                 }
                 ReaderCommand::Shutdown => {
                     log::info!("Shutting down reader event loop.");

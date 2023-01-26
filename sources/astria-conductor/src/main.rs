@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
     let namespace_id: [u8; 8] = *b"DEADBEEF";
     let conf = Conf::new(url, namespace_id);
 
-    let (driver_handle, alert_rx) = driver::spawn(conf)?;
+    let (driver_handle, alert_rx) = driver::spawn(conf).await?;
 
     driver_handle.shutdown().await?;
 

@@ -2,8 +2,10 @@
 //! necessary for this reader/validator.
 
 
+use std::time::Duration;
+
+use tokio::{task, time};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tokio::task;
 
 use crate::{
     alert::{AlertReceiver, AlertSender},
@@ -15,9 +17,9 @@ use crate::{
 use crate::executor::ExecutorCommand;
 use crate::reader::ReaderCommand;
 
-pub fn spawn(conf: Conf) -> Result<(DriverHandle, AlertReceiver)> {
+pub async fn spawn(conf: Conf) -> Result<(DriverHandle, AlertReceiver)> {
     let (alert_tx, alert_rx) = mpsc::unbounded_channel();
-    let (mut driver, tx) = Driver::new(conf, alert_tx)?;
+    let (mut driver, tx) = Driver::new(conf, alert_tx).await?;
 
     let join_handle = task::spawn(async move { driver.run().await });
 
@@ -88,10 +90,23 @@ pub(crate) struct Driver {
 }
 
 impl Driver {
-    fn new(conf: Conf, alert_tx: AlertSender) -> Result<(Self, Sender)> {
+    async fn new(conf: Conf, alert_tx: AlertSender) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let (reader_join_handle, reader_tx) = reader::spawn(cmd_tx.clone())?;
         let (executor_join_handle, executor_tx) = executor::spawn(cmd_tx.clone())?;
+
+        let reader_tx_clone = reader_tx.clone();
+
+        let forever_handle = task::spawn(async move {
+            let mut interval = time::interval(Duration::from_secs(1));
+
+            loop {
+                interval.tick().await;
+                reader_tx_clone.send(ReaderCommand::GetNewBlocks).unwrap();
+            }
+        });
+
+        forever_handle.await?;
 
         Ok((
             Self {
