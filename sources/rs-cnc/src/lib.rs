@@ -1,10 +1,12 @@
 use std::time::Duration;
-use bytes::Bytes;
 
+use bytes::Bytes;
 use reqwest::{Client, Response as ReqwestResponse};
 use serde::{Deserialize, Serialize};
 
-mod error;
+use crate::error::*;
+
+pub mod error;
 
 // TODO - organize
 const NAMESPACED_DATA_ENDPOINT: &str = "/namespaced_data";
@@ -26,6 +28,7 @@ struct PayForDataRequest {
     gas_limit: u64,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct PayForDataResponse {
     /// The block height.
@@ -50,6 +53,7 @@ pub struct PayForDataResponse {
     gas_used: Option<u64>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct Event {
     #[serde(rename = "type")]
@@ -57,12 +61,14 @@ pub struct Event {
     attributes: Vec<Attribute>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct Log {
     msg_index: u64,
     events: Option<Vec<Event>>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct Attribute {
     key: String,
@@ -82,18 +88,10 @@ impl CelestiaNodeClient {
     /// # Arguments
     ///
     /// * `base_url` - A string that holds the base url we want to communicate with
-    pub fn new(base_url: String) -> Result<Self, error::CelestiaNodeClientError> {
-        let http_client: Client;
-        let http_client_res: Result<Client, reqwest::Error> = Client::builder()
+    pub fn new(base_url: String) -> Result<Self> {
+        let http_client: Client = Client::builder()
             .timeout(Duration::from_secs(5))
-            .build();
-
-        if http_client_res.is_err() {
-            let error_string = http_client_res.unwrap_err().to_string();
-            return Err(error::CelestiaNodeClientError::HttpClient(error_string));
-        }
-
-        http_client = http_client_res.unwrap();
+            .build()?;
 
         Ok(Self {
             base_url,
@@ -101,14 +99,13 @@ impl CelestiaNodeClient {
         })
     }
 
-    #[tokio::main]
     pub async fn submit_pay_for_data(
         &self,
         namespace_id: &[u8; 8],
         data: &Bytes,
         fee: i64,
         gas_limit: u64,
-    ) -> Result<PayForDataResponse, reqwest::Error> {
+    ) -> Result<PayForDataResponse> {
         let namespace_id: String = hex::encode(namespace_id);
         let data: String = hex::encode(data);
 
@@ -135,12 +132,11 @@ impl CelestiaNodeClient {
         Ok(response)
     }
 
-    #[tokio::main]
     pub async fn namespaced_data(
         &self,
         namespace_id: [u8; 8],
         height: u64,
-    ) -> Result<NamespacedDataResponse, reqwest::Error> {
+    ) -> Result<NamespacedDataResponse> {
         let namespace_id: String = hex::encode(namespace_id);
         let url = format!(
             "{}{}/{}/height/{}",
