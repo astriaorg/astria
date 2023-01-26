@@ -5,7 +5,7 @@
 
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-use crate::error::RvRsError;
+use crate::error::Error;
 
 /// The channel used by the driver to send out alerts.
 pub(crate) type AlertSender = UnboundedSender<Alert>;
@@ -24,5 +24,5 @@ pub enum Alert {
     },
 
     /// An error from somewhere inside the driver.
-    Error(RvRsError),
+    DriverError(Error),
 }

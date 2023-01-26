@@ -29,6 +29,10 @@ pub(crate) fn spawn(driver_tx: driver::Sender) -> Result<(JoinHandle, Sender)> {
 
 #[derive(Debug)]
 pub(crate) enum ExecutorCommand {
+    BlockReceived {
+        block_id: u64,
+    },
+
     Shutdown,
 }
 
@@ -57,6 +61,9 @@ impl Executor {
 
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
+                ExecutorCommand::BlockReceived { block_id } => {
+                    log::info!("ExecutorCommand::BlockReceived {}", block_id);
+                }
                 ExecutorCommand::Shutdown => {
                     log::info!("Shutting down executor event loop.");
                     break;
