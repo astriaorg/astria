@@ -34,6 +34,7 @@ pub(crate) enum ReaderCommand {
     Shutdown,
 }
 
+#[allow(dead_code)] // TODO - remove after developing
 struct Reader {
     /// Channel on which reader commands are received.
     cmd_rx: Receiver,

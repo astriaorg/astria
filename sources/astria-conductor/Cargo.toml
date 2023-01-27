@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+clap = { version = "4.1.4", features = ["derive"] }
 flexi_logger = "0.24.2"
 log = "0.4.17"
 #rs-cnc = { git = "https://github.com/astriaorg/rs-cnc", version = "0.1.0" }

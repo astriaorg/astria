@@ -63,12 +63,13 @@ pub(crate) type Sender = UnboundedSender<DriverCommand>;
 pub(crate) type Receiver = UnboundedReceiver<DriverCommand>;
 
 /// The type of commands that the driver can receive.
-#[allow(dead_code)]
+#[allow(dead_code)] // TODO - remove after developing
 pub(crate) enum DriverCommand {
     /// Gracefully shuts down the driver and its components.
     Shutdown,
 }
 
+#[allow(dead_code)] // TODO - remove after developing
 pub(crate) struct Driver {
     /// The channel on which other components in the driver sends the driver messages.
     cmd_rx: Receiver,
@@ -94,9 +95,9 @@ impl Driver {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let (reader_join_handle, reader_tx) = reader::spawn(cmd_tx.clone())?;
         let (executor_join_handle, executor_tx) = executor::spawn(cmd_tx.clone())?;
-        
-        /// This task sends ReaderCommand::GetNewBlocks to reader_tx every 15 seconds.
-        /// 15 seconds was chosen because it is the Celestia block timing.
+
+        // This task sends ReaderCommand::GetNewBlocks to reader_tx every 15 seconds.
+        // 15 seconds was chosen because it is the Celestia block timing.
         let reader_tx_clone = reader_tx.clone();
         let forever_handle = task::spawn(async move {
             let mut interval = time::interval(Duration::from_secs(15));

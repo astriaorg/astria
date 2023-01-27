@@ -28,6 +28,7 @@ pub(crate) fn spawn(driver_tx: driver::Sender) -> Result<(JoinHandle, Sender)> {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)] // TODO - remove after developing
 pub(crate) enum ExecutorCommand {
     BlockReceived {
         block_id: u64,
@@ -36,6 +37,7 @@ pub(crate) enum ExecutorCommand {
     Shutdown,
 }
 
+#[allow(dead_code)] // TODO - remove after developing
 struct Executor {
     /// Channel on which executor commands are received.
     cmd_rx: Receiver,

@@ -1,5 +1,6 @@
+use clap::{Arg, Command};
+
 use crate::conf::Conf;
-use crate::driver::DriverCommand;
 use crate::error::*;
 
 pub mod alert;
@@ -10,15 +11,34 @@ mod executor;
 mod logger;
 mod reader;
 
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    // TODO - namespace id?
+    // TODO - move to own module
+    let url_option = Arg::new("url")
+        .short('u')
+        .help("URL of the data layer.")
+        .required(true);
+    let cli_app = Command::new("rv-rs")
+        .version("0.1")
+        .about("A cli to read and write blocks from and to different sources.")
+        .arg(url_option);
+    let matches = cli_app.get_matches();
+
+    let base_url= matches.get_one::<String>("url")
+        .expect("url required");
+
+    // logs
     logger::initialize();
 
-    let url = String::from("http://localhost:26659");
+    // configuration
     let namespace_id: [u8; 8] = *b"DEADBEEF";
-    let conf = Conf::new(url, namespace_id);
+    let conf = Conf::new(base_url.to_string(), namespace_id);
 
-    let (driver_handle, alert_rx) = driver::spawn(conf).await?;
+    log::info!("Using node at {}", conf.celestia_node_url);
+
+    let (driver_handle, _alert_rx) = driver::spawn(conf).await?;
 
     driver_handle.shutdown().await?;
 
