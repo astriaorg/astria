@@ -1,15 +1,10 @@
 use tokio::{
-    sync::{
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
-    },
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     task,
 };
 
-use crate::{
-    driver,
-    error::*,
-};
 use crate::conf::Conf;
+use crate::{driver, error::*};
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
 
@@ -31,9 +26,7 @@ pub(crate) fn spawn(conf: &Conf, driver_tx: driver::Sender) -> Result<(JoinHandl
 #[derive(Debug)]
 #[allow(dead_code)] // TODO - remove after developing
 pub(crate) enum ExecutorCommand {
-    BlockReceived {
-        block_id: u64,
-    },
+    BlockReceived { block_id: u64 },
 
     Shutdown,
 }
@@ -50,13 +43,7 @@ impl Executor {
     /// Creates a new Executor instance and returns a command sender and an alert receiver.
     fn new(conf: &Conf, driver_tx: driver::Sender) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        Ok((
-            Self {
-                cmd_rx,
-                driver_tx,
-            },
-            cmd_tx,
-        ))
+        Ok((Self { cmd_rx, driver_tx }, cmd_tx))
     }
 
     async fn run(&mut self) -> Result<()> {

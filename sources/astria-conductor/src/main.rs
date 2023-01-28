@@ -11,7 +11,6 @@ mod executor;
 mod logger;
 mod reader;
 
-
 #[tokio::main]
 async fn main() -> Result<()> {
     // TODO - move to own module
@@ -26,8 +25,7 @@ async fn main() -> Result<()> {
     let matches = cli_app.get_matches();
 
     // TODO - namespace id?
-    let base_url = matches.get_one::<String>("url")
-        .expect("url required");
+    let base_url = matches.get_one::<String>("url").expect("url required");
 
     // logs
     logger::initialize();

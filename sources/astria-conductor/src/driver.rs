@@ -1,21 +1,19 @@
 //! The driver is the top-level coordinator that runs and manages all the components
 //! necessary for this reader/validator.
 
-
 use std::time::Duration;
 
-use tokio::{task, time};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::{task, time};
 
+use crate::executor::ExecutorCommand;
+use crate::reader::ReaderCommand;
 use crate::{
     alert::{AlertReceiver, AlertSender},
     conf::Conf,
     error::*,
-    executor,
-    reader,
+    executor, reader,
 };
-use crate::executor::ExecutorCommand;
-use crate::reader::ReaderCommand;
 
 pub async fn spawn(conf: Conf) -> Result<(DriverHandle, AlertReceiver)> {
     let (alert_tx, alert_rx) = mpsc::unbounded_channel();

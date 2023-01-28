@@ -6,9 +6,7 @@ pub fn initialize() -> () {
         .unwrap()
         .log_to_file(FileSpec::default().directory("/tmp/astria-rv-rs"))
         .format(
-            |w: &mut dyn std::io::Write,
-             now: &mut DeferredNow,
-             record: &log::Record| {
+            |w: &mut dyn std::io::Write, now: &mut DeferredNow, record: &log::Record| {
                 write!(
                     w,
                     "{} [{}] {}",

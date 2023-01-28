@@ -1,16 +1,11 @@
 use rs_cnc::{CelestiaNodeClient, NamespacedDataResponse};
 use tokio::{
-    sync::{
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
-    },
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     task,
 };
 
-use crate::{
-    driver,
-    error::*,
-};
 use crate::conf::Conf;
+use crate::{driver, error::*};
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
 
@@ -87,8 +82,10 @@ impl Reader {
     async fn get_new_blocks(&mut self) -> Result<()> {
         log::info!("ReaderCommand::GetNewBlocks");
         let height = 0;
-        let res = self.celestia_node_client
-            .namespaced_data(self.namespace_id, height).await;
+        let res = self
+            .celestia_node_client
+            .namespaced_data(self.namespace_id, height)
+            .await;
 
         match res {
             Ok(namespaced_data) => {
