@@ -12,7 +12,7 @@ impl Conf {
     pub fn new(celestia_node_url: String, namespace_id: [u8; 8]) -> Self {
         Self {
             namespace_id,
-            celestia_node_url
+            celestia_node_url,
         }
     }
 }

@@ -94,11 +94,11 @@ impl Reader {
             Ok(namespaced_data) => {
                 // TODO
                 println!("{:#?}", namespaced_data);
-            },
+            }
             Err(e) => {
                 // FIXME - how do we want to handle an error here?
                 println!("UH OH! {}", e.to_string());
-            },
+            }
         }
 
         Ok(())

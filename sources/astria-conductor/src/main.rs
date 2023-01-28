@@ -26,7 +26,7 @@ async fn main() -> Result<()> {
     let matches = cli_app.get_matches();
 
     // TODO - namespace id?
-    let base_url= matches.get_one::<String>("url")
+    let base_url = matches.get_one::<String>("url")
         .expect("url required");
 
     // logs
