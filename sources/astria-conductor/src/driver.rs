@@ -93,8 +93,8 @@ pub(crate) struct Driver {
 impl Driver {
     async fn new(conf: Conf, alert_tx: AlertSender) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let (reader_join_handle, reader_tx) = reader::spawn(cmd_tx.clone())?;
-        let (executor_join_handle, executor_tx) = executor::spawn(cmd_tx.clone())?;
+        let (reader_join_handle, reader_tx) = reader::spawn(&conf, cmd_tx.clone())?;
+        let (executor_join_handle, executor_tx) = executor::spawn(&conf, cmd_tx.clone())?;
 
         // This task sends ReaderCommand::GetNewBlocks to reader_tx every 15 seconds.
         // 15 seconds was chosen because it is the Celestia block timing.

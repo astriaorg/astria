@@ -9,6 +9,7 @@ use crate::{
     driver,
     error::*,
 };
+use crate::conf::Conf;
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
 
@@ -19,9 +20,9 @@ type Receiver = UnboundedReceiver<ExecutorCommand>;
 
 /// spawns a executor task and returns a tuple with the task's join handle
 /// and the channel for sending commands to this executor
-pub(crate) fn spawn(driver_tx: driver::Sender) -> Result<(JoinHandle, Sender)> {
+pub(crate) fn spawn(conf: &Conf, driver_tx: driver::Sender) -> Result<(JoinHandle, Sender)> {
     log::info!("Spawning executor task.");
-    let (mut executor, executor_tx) = Executor::new(driver_tx)?;
+    let (mut executor, executor_tx) = Executor::new(conf, driver_tx)?;
     let join_handle = task::spawn(async move { executor.run().await });
     log::info!("Spawned executor task.");
     Ok((join_handle, executor_tx))
@@ -47,7 +48,7 @@ struct Executor {
 
 impl Executor {
     /// Creates a new Executor instance and returns a command sender and an alert receiver.
-    fn new(driver_tx: driver::Sender) -> Result<(Self, Sender)> {
+    fn new(conf: &Conf, driver_tx: driver::Sender) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         Ok((
             Self {

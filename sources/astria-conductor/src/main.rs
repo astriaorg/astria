@@ -14,7 +14,6 @@ mod reader;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // TODO - namespace id?
     // TODO - move to own module
     let url_option = Arg::new("url")
         .short('u')
@@ -26,6 +25,7 @@ async fn main() -> Result<()> {
         .arg(url_option);
     let matches = cli_app.get_matches();
 
+    // TODO - namespace id?
     let base_url= matches.get_one::<String>("url")
         .expect("url required");
 

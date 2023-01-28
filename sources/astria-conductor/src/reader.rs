@@ -1,3 +1,4 @@
+use rs_cnc::{CelestiaNodeClient, NamespacedDataResponse};
 use tokio::{
     sync::{
         mpsc::{self, UnboundedReceiver, UnboundedSender},
@@ -9,6 +10,7 @@ use crate::{
     driver,
     error::*,
 };
+use crate::conf::Conf;
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
 
@@ -19,9 +21,9 @@ type Receiver = UnboundedReceiver<ReaderCommand>;
 
 /// spawns a reader task and returns a tuple with the task's join handle
 /// and the channel for sending commands to this reader
-pub(crate) fn spawn(driver_tx: driver::Sender) -> Result<(JoinHandle, Sender)> {
+pub(crate) fn spawn(conf: &Conf, driver_tx: driver::Sender) -> Result<(JoinHandle, Sender)> {
     log::info!("Spawning reader task.");
-    let (mut reader, reader_tx) = Reader::new(driver_tx)?;
+    let (mut reader, reader_tx) = Reader::new(conf, driver_tx)?;
     let join_handle = task::spawn(async move { reader.run().await });
     log::info!("Spawned reader task.");
     Ok((join_handle, reader_tx))
@@ -40,16 +42,25 @@ struct Reader {
     cmd_rx: Receiver,
     /// Channel on which the reader sends commands to the driver.
     driver_tx: driver::Sender,
+
+    /// The client used to communicate with Celestia.
+    celestia_node_client: CelestiaNodeClient,
+
+    /// Namespace ID
+    namespace_id: [u8; 8],
 }
 
 impl Reader {
     /// Creates a new Reader instance and returns a command sender and an alert receiver.
-    fn new(driver_tx: driver::Sender) -> Result<(Self, Sender)> {
+    fn new(conf: &Conf, driver_tx: driver::Sender) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        let celestia_node_client = CelestiaNodeClient::new(conf.celestia_node_url.to_string())?;
         Ok((
             Self {
                 cmd_rx,
                 driver_tx,
+                celestia_node_client,
+                namespace_id: conf.namespace_id,
             },
             cmd_tx,
         ))
@@ -61,13 +72,33 @@ impl Reader {
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
                 ReaderCommand::GetNewBlocks => {
-                    log::info!("ReaderCommand::GetNewBlocks");
+                    self.get_new_blocks().await?;
                 }
                 ReaderCommand::Shutdown => {
                     log::info!("Shutting down reader event loop.");
                     break;
                 }
             }
+        }
+
+        Ok(())
+    }
+
+    async fn get_new_blocks(&mut self) -> Result<()> {
+        log::info!("ReaderCommand::GetNewBlocks");
+        let height = 0;
+        let res = self.celestia_node_client
+            .namespaced_data(self.namespace_id, height).await;
+
+        match res {
+            Ok(namespaced_data) => {
+                // TODO
+                println!("{:#?}", namespaced_data);
+            },
+            Err(e) => {
+                // FIXME - how do we want to handle an error here?
+                println!("UH OH! {}", e.to_string());
+            },
         }
 
         Ok(())

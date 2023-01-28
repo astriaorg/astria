@@ -5,6 +5,7 @@
 use std::fmt;
 use std::result::Result as StdResult;
 
+pub use rs_cnc::error::Error as CelestiaClientError;
 use thiserror;
 pub use tokio::{io::Error as IoError, sync::mpsc::error::SendError, task::JoinError};
 
@@ -14,9 +15,11 @@ pub type Result<T, E = Error> = StdResult<T, E>;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
-    /// The channel on which some component in engine was listening or sending
-    /// died.
-    Channel,
+    /// The channel on which some component in engine was listening or sending died.
+    Channel(String),
+
+    /// An error with the Celestia client
+    CelestiaClient(String),
 
     /// Holds global IO related errors.
     Io(IoError),
@@ -25,20 +28,12 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Channel => write!(fmt, "channel error"),
+            Error::CelestiaClient(e) => write!(fmt, "http client error {}", e),
+            Error::Channel(e) => write!(fmt, "channel error {}", e),
             Error::Io(e) => e.fmt(fmt),
         }
     }
 }
-
-// impl std::error::Error for Error {
-//     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-//         match self {
-//             Error::Io(e) => Some(e),
-//             _ => None,
-//         }
-//     }
-// }
 
 impl From<IoError> for Error {
     fn from(e: IoError) -> Self {
@@ -47,13 +42,19 @@ impl From<IoError> for Error {
 }
 
 impl<T> From<SendError<T>> for Error {
-    fn from(_: SendError<T>) -> Self {
-        Self::Channel
+    fn from(e: SendError<T>) -> Self {
+        Self::Channel(e.to_string())
     }
 }
 
 impl From<JoinError> for Error {
-    fn from(_: JoinError) -> Self {
-        Self::Channel
+    fn from(e: JoinError) -> Self {
+        Self::Channel(e.to_string())
+    }
+}
+
+impl From<CelestiaClientError> for Error {
+    fn from(e: CelestiaClientError) -> Self {
+        Self::CelestiaClient(e.to_string())
     }
 }
