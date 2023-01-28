@@ -62,6 +62,7 @@ pub(crate) type Receiver = UnboundedReceiver<DriverCommand>;
 
 /// The type of commands that the driver can receive.
 #[allow(dead_code)] // TODO - remove after developing
+#[derive(Debug)]
 pub(crate) enum DriverCommand {
     /// Gracefully shuts down the driver and its components.
     Shutdown,

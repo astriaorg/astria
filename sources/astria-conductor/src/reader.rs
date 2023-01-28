@@ -1,4 +1,4 @@
-use rs_cnc::{CelestiaNodeClient, NamespacedDataResponse};
+use rs_cnc::CelestiaNodeClient;
 use tokio::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     task,

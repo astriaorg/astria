@@ -23,8 +23,8 @@ pub(crate) fn spawn(conf: &Conf, driver_tx: driver::Sender) -> Result<(JoinHandl
     Ok((join_handle, executor_tx))
 }
 
-#[derive(Debug)]
 #[allow(dead_code)] // TODO - remove after developing
+#[derive(Debug)]
 pub(crate) enum ExecutorCommand {
     BlockReceived { block_id: u64 },
 
@@ -41,6 +41,7 @@ struct Executor {
 
 impl Executor {
     /// Creates a new Executor instance and returns a command sender and an alert receiver.
+    #[allow(unused_variables)] // TODO - remove after developing
     fn new(conf: &Conf, driver_tx: driver::Sender) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         Ok((Self { cmd_rx, driver_tx }, cmd_tx))
