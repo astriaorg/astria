@@ -5,11 +5,11 @@ pub struct Conf {
     pub celestia_node_url: String,
 
     /// Namespace that we want to work in
-    pub namespace_id: [u8; 8],
+    pub namespace_id: String,
 }
 
 impl Conf {
-    pub fn new(celestia_node_url: String, namespace_id: [u8; 8]) -> Self {
+    pub fn new(celestia_node_url: String, namespace_id: String) -> Self {
         Self {
             namespace_id,
             celestia_node_url,

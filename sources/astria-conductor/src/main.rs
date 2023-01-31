@@ -31,8 +31,8 @@ async fn main() -> Result<()> {
     logger::initialize();
 
     // configuration
-    let namespace_id: [u8; 8] = *b"DEADBEEF";
-    let conf = Conf::new(base_url.to_string(), namespace_id);
+    let namespace_id = String::from("b860ccf0e97fdf6c");
+    let conf = Conf::new(base_url.to_owned(), namespace_id.to_owned());
 
     log::info!("Using node at {}", conf.celestia_node_url);
 

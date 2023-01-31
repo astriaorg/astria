@@ -42,20 +42,26 @@ struct Reader {
     celestia_node_client: CelestiaNodeClient,
 
     /// Namespace ID
-    namespace_id: [u8; 8],
+    namespace_id: String,
+
+    /// Keep track of the last block height fetched so we know how to get the next one
+    last_block_height: Option<u64>,
 }
 
 impl Reader {
     /// Creates a new Reader instance and returns a command sender and an alert receiver.
     fn new(conf: &Conf, driver_tx: driver::Sender) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let celestia_node_client = CelestiaNodeClient::new(conf.celestia_node_url.to_string())?;
+        let celestia_node_client = CelestiaNodeClient::new(conf.celestia_node_url.to_owned())?;
+        // initial last_block_height of 0
+        let last_block_height = Some(0);
         Ok((
             Self {
                 cmd_rx,
                 driver_tx,
                 celestia_node_client,
-                namespace_id: conf.namespace_id,
+                namespace_id: conf.namespace_id.to_owned(),
+                last_block_height,
             },
             cmd_tx,
         ))
@@ -84,12 +90,12 @@ impl Reader {
         let height = 0;
         let res = self
             .celestia_node_client
-            .namespaced_data(self.namespace_id, height)
+            .namespaced_data(&self.namespace_id, height)
             .await;
 
         match res {
             Ok(namespaced_data) => {
-                // TODO
+                // TODO - increase last_block_height
                 println!("{:#?}", namespaced_data);
             }
             Err(e) => {
