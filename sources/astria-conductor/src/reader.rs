@@ -92,10 +92,7 @@ impl Reader {
     async fn get_new_blocks(&mut self) -> Result<()> {
         log::info!("ReaderCommand::GetNewBlocks");
 
-        // FIXME - what to do?
-        //   * we could add blocks to a VecDeque as they come in.
-        //     * we
-
+        // get most recent block
         let res = self
             .celestia_node_client
             // NOTE - requesting w/ height of 0 gives us the last block
@@ -104,10 +101,7 @@ impl Reader {
 
         match res {
             Ok(namespaced_data) => {
-                println!("{:#?}", namespaced_data);
-
                 if let Some(height) = namespaced_data.height {
-                    println!("pushing {}", height);
                     self.blocks_queue.push(namespaced_data, height);
 
                     // TODO - clean this up and get bocks in parallel
@@ -121,7 +115,6 @@ impl Reader {
                         match res {
                             Ok(namespaced_data) => {
                                 if let Some(height) = namespaced_data.height {
-                                    println!("pushing {}", height);
                                     self.blocks_queue.push(namespaced_data, height);
                                 }
                             }
