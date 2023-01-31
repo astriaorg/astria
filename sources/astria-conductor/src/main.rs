@@ -13,8 +13,10 @@ mod reader;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // logs
+    logger::initialize();
+
     // cli args
-    // TODO - move to own module
     let url_option = Arg::new("url")
         .short('u')
         .help("URL of the data layer server.")
@@ -37,16 +39,11 @@ async fn main() -> Result<()> {
         .get_one::<String>("namespace_id")
         .expect("namespace id required");
 
-    // logs
-    logger::initialize();
-
     // configuration
     let conf = Conf::new(base_url.to_owned(), namespace_id.to_owned());
-
     log::info!("Using node at {}", conf.celestia_node_url);
 
     let (driver_handle, _alert_rx) = driver::spawn(conf).await?;
-
     driver_handle.shutdown().await?;
 
     Ok(())
