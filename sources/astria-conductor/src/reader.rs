@@ -76,6 +76,8 @@ impl Reader {
                 celestia_node_client,
                 namespace_id: conf.namespace_id.to_owned(),
                 last_block_height: 0,
+                // NOTE - we are using a DoublePriorityQueue because its `into_sorted_iter` order
+                //  is small to large, which we want when processing blocks in order by their height.
                 blocks_queue: DoublePriorityQueue::new(),
             },
             cmd_tx,
@@ -126,6 +128,8 @@ impl Reader {
                     for h in (self.last_block_height + 1)..(height) {
                         self.cmd_tx.send(ReaderCommand::GetBlock { height: h })?;
                     }
+                    // FIXME - is there a race condition possible here if a request from the previous
+                    //  hasn't completed yet? i should probably try to parallelize but block on the requests above
                     self.cmd_tx.send(ReaderCommand::ProcessBlocksQueue)?;
                     self.last_block_height = height;
                 }
