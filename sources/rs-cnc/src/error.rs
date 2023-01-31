@@ -18,7 +18,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::HttpClient(error) => write!(fmt, "http client error {}", error),
+            Error::HttpClient(error) => write!(fmt, "http client error: {}", error),
         }
     }
 }

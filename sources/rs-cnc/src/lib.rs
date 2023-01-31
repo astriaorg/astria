@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -76,10 +77,26 @@ pub struct Attribute {
     index: Option<bool>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct NamespacedDataResponse {
     pub height: Option<u64>,
     pub data: Option<Vec<String>>,
+}
+
+// allows NamespacedDataResponse to be used as a HashMap key
+impl Hash for NamespacedDataResponse {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.height.hash(state);
+    }
+}
+
+impl Eq for NamespacedDataResponse {}
+
+// allows one to compare NamespacedDataResponses with assert_eq!
+impl PartialEq for NamespacedDataResponse {
+    fn eq(&self, other: &NamespacedDataResponse) -> bool {
+        self.height == other.height
+    }
 }
 
 impl CelestiaNodeClient {
