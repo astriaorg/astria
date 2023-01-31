@@ -44,6 +44,8 @@ async fn main() -> Result<()> {
     log::info!("Using node at {}", conf.celestia_node_url);
 
     let (driver_handle, _alert_rx) = driver::spawn(conf).await?;
+
+    // TODO - shutdown on ctrl-c
     driver_handle.shutdown().await?;
 
     Ok(())

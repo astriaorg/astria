@@ -28,12 +28,15 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::CelestiaClient(e) => write!(fmt, "http client error {}", e),
-            Error::Channel(e) => write!(fmt, "channel error {}", e),
+            Error::CelestiaClient(e) => write!(fmt, "celestia client error: {}", e),
+            Error::Channel(e) => write!(fmt, "channel error: {}", e),
             Error::Io(e) => e.fmt(fmt),
         }
     }
 }
+
+// NOTE - you must implement the From<T> trait for Error for all the different
+//   types of errors we expect to see in the application.
 
 impl From<IoError> for Error {
     fn from(e: IoError) -> Self {

@@ -99,7 +99,7 @@ impl Driver {
         // 15 seconds was chosen because it is the Celestia block timing.
         let reader_tx_clone = reader_tx.clone();
         let forever_handle = task::spawn(async move {
-            let mut interval = time::interval(Duration::from_secs(15));
+            let mut interval = time::interval(Duration::from_secs(3));
             loop {
                 interval.tick().await;
                 reader_tx_clone.send(ReaderCommand::GetNewBlocks).unwrap();
