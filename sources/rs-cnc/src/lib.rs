@@ -101,16 +101,15 @@ impl CelestiaNodeClient {
 
     pub async fn submit_pay_for_data(
         &self,
-        namespace_id: &[u8; 8],
+        namespace_id: &str,
         data: &Bytes,
         fee: i64,
         gas_limit: u64,
     ) -> Result<PayForDataResponse> {
-        let namespace_id: String = hex::encode(namespace_id);
         let data: String = hex::encode(data);
 
         let body = PayForDataRequest {
-            namespace_id,
+            namespace_id: namespace_id.to_owned(),
             data,
             fee,
             gas_limit,
@@ -134,10 +133,9 @@ impl CelestiaNodeClient {
 
     pub async fn namespaced_data(
         &self,
-        namespace_id: [u8; 8],
+        namespace_id: &str,
         height: u64,
     ) -> Result<NamespacedDataResponse> {
-        let namespace_id: String = hex::encode(namespace_id);
         let url = format!(
             "{}{}/{}/height/{}",
             self.base_url,

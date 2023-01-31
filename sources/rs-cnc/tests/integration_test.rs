@@ -2,7 +2,6 @@ extern crate base64;
 
 use base64::{Engine as _, engine::general_purpose};
 use bytes::Bytes;
-use rand::Rng;
 
 use rs_cnc::{CelestiaNodeClient, NamespacedDataResponse, PayForDataResponse};
 use rs_cnc::error::*;
@@ -12,8 +11,7 @@ async fn test_data_roundtrip() {
     let base_url = String::from("http://localhost:26659");
     let client = CelestiaNodeClient::new(base_url).unwrap();
 
-    // generate some random bytes for namespace_id
-    let random_namespace_id = rand::thread_rng().gen::<[u8; 8]>();
+    let random_namespace_id = String::from("b860ccf0e97fdf6c");
 
     // create arbitrary vector of bytes
     let data = Bytes::from(&b"some random data"[..]);
@@ -28,7 +26,7 @@ async fn test_data_roundtrip() {
 
     // use height from previous response to call namespaced data endpoint
     if let Some(height) = res.unwrap().height {
-        let res: Result<NamespacedDataResponse> = client.namespaced_data(random_namespace_id, height).await;
+        let res: Result<NamespacedDataResponse> = client.namespaced_data(&random_namespace_id, height).await;
         assert!(res.is_ok());
 
         let namespaced_data_response = res.unwrap();
