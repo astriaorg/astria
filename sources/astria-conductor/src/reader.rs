@@ -92,20 +92,29 @@ impl Reader {
         log::info!("ReaderCommand::GetNewBlocks");
 
         // get most recent block
-        let namespaced_data = self
+        let res = self
             .celestia_node_client
             // NOTE - requesting w/ height of 0 gives us the last block. this isn't documented.
             .namespaced_data(&self.namespace_id, 0)
-            .await?;
+            .await;
 
-        if let Some(height) = namespaced_data.height {
-            // get blocks between current height and last height received and send to executor
-            for h in (self.last_block_height + 1)..(height) {
-                let block = self.get_block(h).await?;
-                self.process_block(block).await?;
+        match res {
+            Ok(namespaced_data) => {
+                if let Some(height) = namespaced_data.height {
+                    // get blocks between current height and last height received and send to executor
+                    for h in (self.last_block_height + 1)..(height) {
+                        let block = self.get_block(h).await?;
+                        self.process_block(block).await?;
+                    }
+                    // process the most recent block, which is actually the first one we requested above
+                    self.process_block(namespaced_data).await?;
+                }
             }
-            // process the most recent block, which is actually the first one we requested above
-            self.process_block(namespaced_data).await?;
+            Err(e) => {
+                // just log the error for now.
+                // any blocks that weren't fetched will be handled in the next cycle
+                log::error!("{}", e.to_string());
+            }
         }
 
         Ok(())
