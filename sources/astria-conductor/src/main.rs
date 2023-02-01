@@ -27,14 +27,14 @@ async fn main() -> Result<()> {
         .required(true);
     let cli_app = Command::new("rv-rs")
         .version("0.1")
-        .about("A cli to read and write blocks from and to different sources. Uses the Actor model.")
+        .about(
+            "A cli to read and write blocks from and to different sources. Uses the Actor model.",
+        )
         .arg(url_option)
         .arg(namespace_id_option);
 
     let matches = cli_app.get_matches();
-    let base_url = matches
-        .get_one::<String>("url")
-        .expect("url required");
+    let base_url = matches.get_one::<String>("url").expect("url required");
     let namespace_id = matches
         .get_one::<String>("namespace_id")
         .expect("namespace id required");

@@ -95,17 +95,8 @@ impl Driver {
         let (reader_join_handle, reader_tx) = reader::spawn(&conf, cmd_tx.clone())?;
         let (executor_join_handle, executor_tx) = executor::spawn(&conf, cmd_tx.clone())?;
 
-        // This task sends ReaderCommand::GetNewBlocks to reader_tx every 15 seconds.
-        // 15 seconds was chosen because it is the Celestia block timing.
-        let reader_tx_clone = reader_tx.clone();
-        let forever_handle = task::spawn(async move {
-            let mut interval = time::interval(Duration::from_secs(3));
-            loop {
-                interval.tick().await;
-                reader_tx_clone.send(ReaderCommand::GetNewBlocks).unwrap();
-            }
-        });
-        forever_handle.await?;
+        // FIXME - what should this timing ultimately be?
+        Driver::ping_reader(reader_tx.clone(), 3).await?;
 
         Ok((
             Self {
@@ -121,6 +112,20 @@ impl Driver {
         ))
     }
 
+    /// This task sends ReaderCommand::GetNewBlocks to reader_tx every `duration` seconds.
+    async fn ping_reader(reader_tx: reader::Sender, duration: u64) -> Result<()> {
+        let forever_handle = task::spawn(async move {
+            let mut interval = time::interval(Duration::from_secs(duration));
+            loop {
+                interval.tick().await;
+                reader_tx.send(ReaderCommand::GetNewBlocks).unwrap();
+            }
+        });
+        forever_handle.await?;
+        Ok(())
+    }
+
+    /// Runs the Driver event loop.
     pub async fn run(&mut self) -> Result<()> {
         log::info!("Starting driver event loop.");
         while let Some(cmd) = self.cmd_rx.recv().await {
@@ -136,10 +141,8 @@ impl Driver {
 
     async fn shutdown(&mut self) -> Result<()> {
         log::info!("Shutting down driver.");
-
         self.reader_tx.send(ReaderCommand::Shutdown)?;
         self.executor_tx.send(ExecutorCommand::Shutdown)?;
-
         Ok(())
     }
 }

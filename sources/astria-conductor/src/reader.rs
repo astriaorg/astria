@@ -1,12 +1,11 @@
-use priority_queue::DoublePriorityQueue;
 use rs_cnc::{CelestiaNodeClient, NamespacedDataResponse};
 use tokio::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     task,
 };
 
-use crate::{driver, error::*};
 use crate::conf::Conf;
+use crate::{driver, error::*};
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
 
@@ -30,14 +29,6 @@ pub(crate) enum ReaderCommand {
     /// Get new blocks
     GetNewBlocks,
 
-    /// Get a single block
-    GetBlock {
-        height: u64,
-    },
-
-    /// Process the blocks queue
-    ProcessBlocksQueue,
-
     Shutdown,
 }
 
@@ -58,9 +49,6 @@ struct Reader {
 
     /// Keep track of the last block height fetched
     last_block_height: u64,
-
-    /// A priority queue to hold blocks until we process them in order
-    blocks_queue: DoublePriorityQueue<NamespacedDataResponse, u64>,
 }
 
 impl Reader {
@@ -76,9 +64,6 @@ impl Reader {
                 celestia_node_client,
                 namespace_id: conf.namespace_id.to_owned(),
                 last_block_height: 0,
-                // NOTE - we are using a DoublePriorityQueue because its `into_sorted_iter` order
-                //  is small to large, which we want when processing blocks in order by their height.
-                blocks_queue: DoublePriorityQueue::new(),
             },
             cmd_tx,
         ))
@@ -91,12 +76,6 @@ impl Reader {
             match cmd {
                 ReaderCommand::GetNewBlocks => {
                     self.get_new_blocks().await?;
-                }
-                ReaderCommand::GetBlock { height } => {
-                    self.get_block(height).await?;
-                }
-                ReaderCommand::ProcessBlocksQueue => {
-                    self.process_blocks_queue().await?;
                 }
                 ReaderCommand::Shutdown => {
                     log::info!("Shutting down reader event loop.");
@@ -122,16 +101,13 @@ impl Reader {
         match res {
             Ok(namespaced_data) => {
                 if let Some(height) = namespaced_data.height {
-                    // push the most recent block to queue
-                    self.blocks_queue.push(namespaced_data, height);
-                    // get blocks between current height and last height received and push to queue
+                    // get blocks between current height and last height received and send to executor
                     for h in (self.last_block_height + 1)..(height) {
-                        self.cmd_tx.send(ReaderCommand::GetBlock { height: h })?;
+                        let block = self.get_block(h).await?;
+                        self.process_block(block).await?;
                     }
-                    // FIXME - is there a race condition possible here if a request from the previous
-                    //  hasn't completed yet? i should probably try to parallelize but block on the requests above
-                    self.cmd_tx.send(ReaderCommand::ProcessBlocksQueue)?;
-                    self.last_block_height = height;
+                    // process the most recent block, which is actually the first one we requested above
+                    self.process_block(namespaced_data).await?;
                 }
             }
             Err(e) => {
@@ -144,36 +120,22 @@ impl Reader {
         Ok(())
     }
 
-    /// Gets an individual block and pushes it to the blocks queue
-    async fn get_block(&mut self, height: u64) -> Result<()> {
+    /// Gets an individual block
+    async fn get_block(&mut self, height: u64) -> Result<NamespacedDataResponse> {
         let res = self
             .celestia_node_client
             .namespaced_data(&self.namespace_id, height)
-            .await;
+            .await?;
 
-        match res {
-            Ok(namespaced_data) => {
-                if let Some(height) = namespaced_data.height {
-                    self.blocks_queue.push(namespaced_data, height);
-                }
-            }
-            Err(e) => {
-                // FIXME - how do we want to handle an error here?
-                //  log it and the other blocks will be handled next time?
-                log::error!("{}", e.to_string());
-            }
-        }
-        Ok(())
+        Ok(res)
     }
 
-    /// Processes the blocks in the queue in order and sends them to the Executor.
-    async fn process_blocks_queue(&mut self) -> Result<()> {
-        for (item, _) in self.blocks_queue.clone().into_sorted_iter() {
-            // TODO - send a message to executor
-            log::info!("Processing block {:#?}", item);
+    async fn process_block(&mut self, block: NamespacedDataResponse) -> Result<()> {
+        // TODO - send a message to executor
+        log::info!("Processing block {:#?}", block);
+        if let Some(height) = block.height {
+            self.last_block_height = height;
         }
-        self.blocks_queue.clear();
-
         Ok(())
     }
 }
