@@ -4,8 +4,8 @@ use tokio::{
     task,
 };
 
+use crate::{driver, error::*, executor};
 use crate::conf::Conf;
-use crate::{driver, error::*};
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
 
@@ -16,9 +16,13 @@ type Receiver = UnboundedReceiver<ReaderCommand>;
 
 /// spawns a reader task and returns a tuple with the task's join handle
 /// and the channel for sending commands to this reader
-pub(crate) fn spawn(conf: &Conf, driver_tx: driver::Sender) -> Result<(JoinHandle, Sender)> {
+pub(crate) fn spawn(
+    conf: &Conf,
+    driver_tx: driver::Sender,
+    executor_tx: executor::Sender,
+) -> Result<(JoinHandle, Sender)> {
     log::info!("Spawning reader task.");
-    let (mut reader, reader_tx) = Reader::new(conf, driver_tx)?;
+    let (mut reader, reader_tx) = Reader::new(conf, driver_tx, executor_tx)?;
     let join_handle = task::spawn(async move { reader.run().await });
     log::info!("Spawned reader task.");
     Ok((join_handle, reader_tx))
@@ -41,6 +45,9 @@ struct Reader {
     /// Channel on which the reader sends commands to the driver.
     driver_tx: driver::Sender,
 
+    /// The channel used to send messages to the executor task.
+    executor_tx: executor::Sender,
+
     /// The client used to communicate with Celestia.
     celestia_node_client: CelestiaNodeClient,
 
@@ -53,7 +60,11 @@ struct Reader {
 
 impl Reader {
     /// Creates a new Reader instance and returns a command sender and an alert receiver.
-    fn new(conf: &Conf, driver_tx: driver::Sender) -> Result<(Self, Sender)> {
+    fn new(
+        conf: &Conf,
+        driver_tx: driver::Sender,
+        executor_tx: executor::Sender,
+    ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let celestia_node_client = CelestiaNodeClient::new(conf.celestia_node_url.to_owned())?;
         Ok((
@@ -61,6 +72,7 @@ impl Reader {
                 cmd_tx: cmd_tx.clone(),
                 cmd_rx,
                 driver_tx,
+                executor_tx,
                 celestia_node_client,
                 namespace_id: conf.namespace_id.to_owned(),
                 last_block_height: 0,
@@ -132,11 +144,9 @@ impl Reader {
 
     /// Processes an individual block
     async fn process_block(&mut self, block: NamespacedDataResponse) -> Result<()> {
-        // TODO - send a message to executor
-        log::info!("Processing block {:#?}", block);
-        if let Some(height) = block.height {
-            self.last_block_height = height;
-        }
+        self.last_block_height = block.height.unwrap();
+        self.executor_tx.send(executor::ExecutorCommand::BlockReceived { block })?;
+
         Ok(())
     }
 }

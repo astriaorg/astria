@@ -1,3 +1,4 @@
+use rs_cnc::NamespacedDataResponse;
 use tokio::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     task,
@@ -26,7 +27,11 @@ pub(crate) fn spawn(conf: &Conf, driver_tx: driver::Sender) -> Result<(JoinHandl
 #[allow(dead_code)] // TODO - remove after developing
 #[derive(Debug)]
 pub(crate) enum ExecutorCommand {
-    BlockReceived { block_id: u64 },
+    /// Command for when a block is received
+    BlockReceived {
+        // FIXME - this will probably not be a NamespacedDataResponse ultimately
+        block: NamespacedDataResponse,
+    },
 
     Shutdown,
 }
@@ -52,8 +57,8 @@ impl Executor {
 
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
-                ExecutorCommand::BlockReceived { block_id } => {
-                    log::info!("ExecutorCommand::BlockReceived {}", block_id);
+                ExecutorCommand::BlockReceived { block } => {
+                    log::info!("ExecutorCommand::BlockReceived {:#?}", block);
                 }
                 ExecutorCommand::Shutdown => {
                     log::info!("Shutting down executor event loop.");
