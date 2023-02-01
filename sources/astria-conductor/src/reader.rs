@@ -130,6 +130,7 @@ impl Reader {
         Ok(res)
     }
 
+    /// Processes an individual block
     async fn process_block(&mut self, block: NamespacedDataResponse) -> Result<()> {
         // TODO - send a message to executor
         log::info!("Processing block {:#?}", block);
