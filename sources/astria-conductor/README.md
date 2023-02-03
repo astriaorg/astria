@@ -1,4 +1,4 @@
-# rv-rs
+# Astria Relay
 
 reader/validator-rust - Reads and validates blocks from Celestia
 

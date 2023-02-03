@@ -46,8 +46,7 @@ struct Executor {
 
 impl Executor {
     /// Creates a new Executor instance and returns a command sender and an alert receiver.
-    #[allow(unused_variables)] // TODO - remove after developing
-    fn new(conf: &Conf, driver_tx: driver::Sender) -> Result<(Self, Sender)> {
+    fn new(_conf: &Conf, driver_tx: driver::Sender) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         Ok((Self { cmd_rx, driver_tx }, cmd_tx))
     }
@@ -59,6 +58,7 @@ impl Executor {
             match cmd {
                 ExecutorCommand::BlockReceived { block } => {
                     log::info!("ExecutorCommand::BlockReceived {:#?}", block);
+                    self.execute_block(block).await?;
                 }
                 ExecutorCommand::Shutdown => {
                     log::info!("Shutting down executor event loop.");
@@ -67,6 +67,11 @@ impl Executor {
             }
         }
 
+        Ok(())
+    }
+
+    /// Uses abci to submit blocks to an evm
+    async fn execute_block(&mut self, _block: NamespacedDataResponse) -> Result<()> {
         Ok(())
     }
 }
