@@ -11,7 +11,7 @@ use crate::error::Error;
 pub(crate) type AlertSender = UnboundedSender<Alert>;
 /// The channel on which alerts from the driver can be received.
 /// See [`Alert`] for the type of messages that can be received.
-pub type AlertReceiver = UnboundedReceiver<Alert>;
+pub(crate) type AlertReceiver = UnboundedReceiver<Alert>;
 
 /// The alerts that the driver may send the driver user.
 #[derive(Debug)]

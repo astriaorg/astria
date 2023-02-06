@@ -1,6 +1,11 @@
-use clap::{Arg, Command};
+use std::time::Duration;
 
+use clap::{Arg, Command};
+use tokio::{signal, time};
+
+use crate::alert::Alert;
 use crate::conf::Conf;
+use crate::driver::DriverCommand;
 use crate::error::*;
 
 pub mod alert;
@@ -43,10 +48,41 @@ async fn main() -> Result<()> {
     let conf = Conf::new(base_url.to_owned(), namespace_id.to_owned());
     log::info!("Using node at {}", conf.celestia_node_url);
 
-    let (driver_handle, _alert_rx) = driver::spawn(conf).await?;
+    // spawn our driver
+    let (mut driver_handle, mut alert_rx) = driver::spawn(conf)?;
 
-    // TODO - shutdown on ctrl-c
-    driver_handle.shutdown().await?;
+    // NOTE - this will most likely be replaced by an RPC server that will receive gossip
+    //  messages from the sequencer
+    let mut interval = time::interval(Duration::from_secs(3));
+
+    let mut run = true;
+    while run {
+        tokio::select! {
+            // handle alerts from the driver
+            Some(alert) = alert_rx.recv() => {
+                match alert {
+                    Alert::DriverError(error_string) => {
+                        println!("error: {}", error_string);
+                        run = false;
+                    }
+                    Alert::BlockReceived{block_height} => {
+                        println!("block received at {}", block_height);
+                    }
+                }
+            }
+            // request new blocks every X seconds
+            _ = interval.tick() => {
+                driver_handle.tx.send(DriverCommand::GetNewBlocks)?;
+            }
+            // shutdown properly on ctrl-c
+            _ = signal::ctrl_c() => {
+                driver_handle.shutdown().await?;
+            }
+        }
+        if !run {
+            break;
+        }
+    }
 
     Ok(())
 }

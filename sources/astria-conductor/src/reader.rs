@@ -4,8 +4,8 @@ use tokio::{
     task,
 };
 
-use crate::{driver, error::*, executor};
 use crate::conf::Conf;
+use crate::{driver, error::*, executor};
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
 
@@ -29,6 +29,7 @@ pub(crate) fn spawn(
 }
 
 #[derive(Debug)]
+#[allow(dead_code)] // TODO - remove after developing
 pub(crate) enum ReaderCommand {
     /// Get new blocks
     GetNewBlocks,
@@ -145,7 +146,8 @@ impl Reader {
     /// Processes an individual block
     async fn process_block(&mut self, block: NamespacedDataResponse) -> Result<()> {
         self.last_block_height = block.height.unwrap();
-        self.executor_tx.send(executor::ExecutorCommand::BlockReceived { block })?;
+        self.executor_tx
+            .send(executor::ExecutorCommand::BlockReceived { block })?;
 
         Ok(())
     }

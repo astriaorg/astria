@@ -2,7 +2,7 @@ use flexi_logger::{DeferredNow, Duplicate, FileSpec};
 
 /// Initializes our custom logger.
 /// Logs to file and stderr.
-pub fn initialize() -> () {
+pub fn initialize() {
     flexi_logger::Logger::try_with_str("info")
         .unwrap()
         .log_to_file(FileSpec::default().directory("/tmp/astria-relay"))

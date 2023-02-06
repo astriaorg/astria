@@ -6,10 +6,9 @@ use std::fmt;
 use std::result::Result as StdResult;
 
 pub use rs_cnc::error::Error as CelestiaClientError;
-use thiserror;
 pub use tokio::{io::Error as IoError, sync::mpsc::error::SendError, task::JoinError};
 
-/// A special result type for rvrs
+/// A special result type for astria-relay
 pub type Result<T, E = Error> = StdResult<T, E>;
 
 #[derive(Debug, thiserror::Error)]
