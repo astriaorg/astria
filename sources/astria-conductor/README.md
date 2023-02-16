@@ -1,3 +1,3 @@
-# Astria Relay
+# Astria Conductor
 
-A service that relays blocks between the data and execution layers.
+Coordinates information between the data layer and the execution layer.
