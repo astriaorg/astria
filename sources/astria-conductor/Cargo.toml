@@ -9,7 +9,6 @@ edition = "2021"
 clap = { version = "4.1.4", features = ["derive"] }
 flexi_logger = "0.24.2"
 log = "0.4.17"
-#rs-cnc = { git = "https://github.com/astriaorg/rs-cnc", version = "0.1.0" }
-rs-cnc = { path = "../rs-cnc", version = "0.1.0" }
+rs-cnc = { git = "https://github.com/astriaorg/rs-cnc", version = "0.1.0" }
 thiserror = "1.0.38"
 tokio = { version = "1.24.2", features = ["sync", "full"] }
