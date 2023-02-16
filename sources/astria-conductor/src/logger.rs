@@ -5,7 +5,7 @@ use flexi_logger::{DeferredNow, Duplicate, FileSpec};
 pub fn initialize() {
     flexi_logger::Logger::try_with_str("info")
         .unwrap()
-        .log_to_file(FileSpec::default().directory("/tmp/astria-relay"))
+        .log_to_file(FileSpec::default().directory("/tmp/astria-conductor"))
         .format(
             |w: &mut dyn std::io::Write, now: &mut DeferredNow, record: &log::Record| {
                 write!(

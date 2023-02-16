@@ -8,7 +8,7 @@ use std::result::Result as StdResult;
 pub use rs_cnc::error::Error as CelestiaClientError;
 pub use tokio::{io::Error as IoError, sync::mpsc::error::SendError, task::JoinError};
 
-/// A special result type for astria-relay
+/// A special result type for astria-conductor
 pub type Result<T, E = Error> = StdResult<T, E>;
 
 #[derive(Debug, thiserror::Error)]

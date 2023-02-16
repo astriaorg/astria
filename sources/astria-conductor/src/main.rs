@@ -30,7 +30,7 @@ async fn main() -> Result<()> {
         .short('n')
         .help("Namespace ID as a string; the hex encoding of a [u8; 8]")
         .required(true);
-    let cli_app = Command::new("astria-relay")
+    let cli_app = Command::new("astria-conductor")
         .version("0.1")
         .about(
             "A cli to read and write blocks from and to different sources. Uses the Actor model.",
