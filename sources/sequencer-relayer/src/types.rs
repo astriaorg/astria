@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+/// cosmos-sdk RPC types.
+/// see https://v1.cosmos.network/rpc/v0.41.4
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EmptyRequest {}
 
@@ -11,7 +14,7 @@ pub struct LatestBlockResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Block {
     header: Header,
-    data: Data,
+    pub data: Data,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -21,5 +24,5 @@ pub struct Header {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Data {
-    txs: Vec<String>,
+    pub txs: Vec<String>,
 }
