@@ -33,6 +33,24 @@ impl SequencerClient {
         req: Option<Req>,
     ) -> Result<Resp, Error> {
         let response: ReqwestResponse = self.http_client.get(&endpoint).json(&req).send().await?;
-        response.json::<Resp>().await.map_err(|e| anyhow!(e))
+        response
+            .error_for_status()
+            .map_err(|e| anyhow!(e))?
+            .json::<Resp>()
+            .await
+            .map_err(|e| anyhow!(e))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::SequencerClient;
+
+    #[tokio::test]
+    async fn test_get_latest_block() {
+        let cosmos_endpoint = "http://localhost:1317".to_string();
+        let client = SequencerClient::new(cosmos_endpoint).unwrap();
+        let resp = client.get_latest_block().await.unwrap();
+        println!("{:?}", resp);
     }
 }
