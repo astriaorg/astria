@@ -52,7 +52,7 @@ impl DataAvailabilityClient for CelestiaClient {
         let gas_limit = 1000000; // TODO
         let pay_for_data_response = self
             .0
-            .submit_pay_for_data(&namespace, &block_bytes.into(), fee, gas_limit)
+            .submit_pay_for_data(namespace, &block_bytes.into(), fee, gas_limit)
             .await
             .map_err(|e| anyhow!(e))?;
         Ok(SubmitBlockResponse(pay_for_data_response))

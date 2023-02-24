@@ -20,7 +20,7 @@ cargo build --release
 
 ## Test
 
-Run [metro]:
+Run [metro](https://github.com/histolabs/metro.git):
 ```
 git clone https://github.com/histolabs/metro.git
 cd metro
