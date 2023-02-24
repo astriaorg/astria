@@ -1,6 +1,7 @@
 use std::hash::Hash;
 use std::time::Duration;
 
+use anyhow::anyhow;
 use bytes::Bytes;
 use reqwest::{Client, Response as ReqwestResponse};
 use serde::{Deserialize, Serialize};
@@ -106,9 +107,7 @@ impl CelestiaNodeClient {
     ///
     /// * `base_url` - A string that holds the base url we want to communicate with
     pub fn new(base_url: String) -> Result<Self> {
-        let http_client: Client = Client::builder()
-            .timeout(Duration::from_secs(5))
-            .build()?;
+        let http_client: Client = Client::builder().timeout(Duration::from_secs(5)).build()?;
 
         Ok(Self {
             base_url,
@@ -134,14 +133,10 @@ impl CelestiaNodeClient {
 
         let url: String = format!("{}{}", self.base_url, SUBMIT_PFD_ENDPOINT);
 
-        let response: ReqwestResponse = self
-            .http_client
-            .post(url)
-            .json(&body)
-            .send()
-            .await?;
+        let response: ReqwestResponse = self.http_client.post(url).json(&body).send().await?;
 
         let response = response
+            .error_for_status()?
             .json::<PayForDataResponse>()
             .await?;
 
@@ -155,19 +150,14 @@ impl CelestiaNodeClient {
     ) -> Result<NamespacedDataResponse> {
         let url = format!(
             "{}{}/{}/height/{}",
-            self.base_url,
-            NAMESPACED_DATA_ENDPOINT,
-            namespace_id,
-            height,
+            self.base_url, NAMESPACED_DATA_ENDPOINT, namespace_id, height,
         );
 
-        let response: ReqwestResponse = self
-            .http_client
-            .get(url)
-            .send()
-            .await?;
+        let response: ReqwestResponse = self.http_client.get(url).send().await?;
 
         let response = response
+            .error_for_status()
+            .map_err(|e| anyhow!(e))?
             .json::<NamespacedDataResponse>()
             .await?;
 

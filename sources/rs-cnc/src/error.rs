@@ -1,12 +1,11 @@
 use std::fmt;
 use std::result::Result as StdResult;
 
-use reqwest::Error as ReqwestError;
+use anyhow::Error as AnyhowError;
 use thiserror;
 
 /// A specialized `Result` type for rs-cnc.
-pub type Result<T> = StdResult<T, Error>;
-
+pub type Result<T> = StdResult<T, AnyhowError>;
 
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -20,11 +19,5 @@ impl fmt::Display for Error {
         match self {
             Error::HttpClient(error) => write!(fmt, "http client error: {}", error),
         }
-    }
-}
-
-impl From<ReqwestError> for Error {
-    fn from(e: ReqwestError) -> Self {
-        Self::HttpClient(e.to_string())
     }
 }
