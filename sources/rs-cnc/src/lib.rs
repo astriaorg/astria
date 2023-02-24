@@ -1,7 +1,6 @@
 use std::hash::Hash;
 use std::time::Duration;
 
-use anyhow::anyhow;
 use bytes::Bytes;
 use reqwest::{Client, Response as ReqwestResponse};
 use serde::{Deserialize, Serialize};
@@ -156,8 +155,7 @@ impl CelestiaNodeClient {
         let response: ReqwestResponse = self.http_client.get(url).send().await?;
 
         let response = response
-            .error_for_status()
-            .map_err(|e| anyhow!(e))?
+            .error_for_status()?
             .json::<NamespacedDataResponse>()
             .await?;
 
