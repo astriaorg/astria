@@ -1,16 +1,20 @@
 use std::hash::Hash;
 use std::time::Duration;
 
+use anyhow::anyhow;
 use bytes::Bytes;
 use reqwest::{Client, Response as ReqwestResponse};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::error::*;
+use crate::types::Base64String;
 
 pub mod error;
+pub mod types;
 
 // TODO - organize
 const NAMESPACED_DATA_ENDPOINT: &str = "/namespaced_data";
+const NAMESPACED_SHARES_ENDPOINT: &str = "/namespaced_shares";
 const SUBMIT_PFD_ENDPOINT: &str = "/submit_pfd";
 
 pub struct CelestiaNodeClient {
@@ -78,9 +82,15 @@ pub struct Attribute {
 }
 
 #[derive(Deserialize, Debug, Clone)]
+pub struct NamespacedSharesResponse {
+    pub height: u64,
+    pub shares: Vec<Base64String>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
 pub struct NamespacedDataResponse {
     pub height: Option<u64>,
-    pub data: Option<Vec<String>>,
+    pub data: Option<Vec<Base64String>>,
 }
 
 // allows NamespacedDataResponse to be used as a HashMap key
@@ -133,12 +143,25 @@ impl CelestiaNodeClient {
         let url: String = format!("{}{}", self.base_url, SUBMIT_PFD_ENDPOINT);
 
         let response: ReqwestResponse = self.http_client.post(url).json(&body).send().await?;
-
         let response = response
             .error_for_status()?
             .json::<PayForDataResponse>()
             .await?;
 
+        Ok(response)
+    }
+
+    pub async fn namespaced_shares(
+        &self,
+        namespace_id: &str,
+        height: u64,
+    ) -> Result<NamespacedSharesResponse> {
+        let url = format!(
+            "{}{}/{}/height/{}",
+            self.base_url, NAMESPACED_SHARES_ENDPOINT, namespace_id, height,
+        );
+
+        let response = self.do_get::<NamespacedSharesResponse>(url).await?;
         Ok(response)
     }
 
@@ -152,14 +175,17 @@ impl CelestiaNodeClient {
             self.base_url, NAMESPACED_DATA_ENDPOINT, namespace_id, height,
         );
 
-        let response: ReqwestResponse = self.http_client.get(url).send().await?;
-
-        let response = response
-            .error_for_status()?
-            .json::<NamespacedDataResponse>()
-            .await?;
-
+        let response = self.do_get::<NamespacedDataResponse>(url).await?;
         Ok(response)
+    }
+
+    async fn do_get<Resp: DeserializeOwned>(&self, endpoint: String) -> Result<Resp> {
+        let response: ReqwestResponse = self.http_client.get(&endpoint).send().await?;
+        response
+            .error_for_status()?
+            .json::<Resp>()
+            .await
+            .map_err(|e| anyhow!(e))
     }
 }
 
