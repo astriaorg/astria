@@ -30,7 +30,7 @@ async fn test_data_roundtrip() {
         .await
         .unwrap();
     let res_data = namespaced_data_response.data.unwrap();
-    let base64_data = &res_data[0];
-    assert_eq!(base64_data.0, data);
+    assert_eq!(res_data.len(), 1);
+    assert_eq!(res_data[0].0, data);
     assert_eq!(namespaced_data_response.height.unwrap(), height);
 }
