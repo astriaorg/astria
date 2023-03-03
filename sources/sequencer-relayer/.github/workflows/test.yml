@@ -26,10 +26,32 @@ jobs:
       - uses: actions/checkout@v2
       - name: Install stable
         run: rustup toolchain install stable
+      - uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: '${{ runner.os }}-cargo-registry-${{ hashFiles(''**/Cargo.lock'') }}'
+      - uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: '${{ runner.os }}-cargo-index-${{ hashFiles(''**/Cargo.lock'') }}'
+      - uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+      - name: Start Celestia core app and bridge node
+        run: docker-compose -f docker/test-docker-compose.yml up -d bridge0
       - name: Build
-        run: cargo build --all
-      - name: Run tests
-        run: cargo test --all
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -- --nocapture --color always
+      - name: Clean up Docker containers used for testing
+        run: ./docker/cleanup-docker.sh
 
   fmt:
     name: fmt

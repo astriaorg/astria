@@ -28,6 +28,13 @@ make install
 bash scripts/single-node.sh
 ```
 
+Run a Celestia cluster:
+```
+git clone https://github.com/astriaorg/sequencer-relayer.git
+cd sequencer-relayer
+docker compose -f docker/test-docker-compose.yml up -d bridge0
+```
+
 Then, you can run the unit tests:
 ```
 cargo test

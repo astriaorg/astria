@@ -629,8 +629,9 @@ dependencies = [
 [[package]]
 name = "rs-cnc"
 version = "0.1.0"
-source = "git+https://github.com/astriaorg/rs-cnc.git#e0b45d6996bff4c3a3ba6fa379e27757c317d350"
+source = "git+https://github.com/astriaorg/rs-cnc.git#4a20f8ffa0bb26f08a53885fd0f977b9d6837546"
 dependencies = [
+ "anyhow",
  "base64",
  "bytes",
  "hex",
@@ -691,6 +692,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64",
+ "hex",
  "reqwest",
  "rs-cnc",
  "serde",

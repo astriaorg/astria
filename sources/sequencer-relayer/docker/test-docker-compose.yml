@@ -1,0 +1,55 @@
+version: '3'
+
+services:
+  core0:
+    container_name: core0
+    image: "ghcr.io/celestiaorg/celestia-app:v0.11.0"
+    entrypoint: [
+      "/bin/bash"
+    ]
+    command: [
+      "/start-celestia-appd.sh"
+    ]
+    volumes:
+      - ${PWD}/docker/start-celestia-appd.sh:/start-celestia-appd.sh:ro
+      - keyring-volume:/root/.celestia-app/keyring-test
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.10
+
+  bridge0:
+    container_name: bridge0
+    depends_on:
+      - core0
+    image: "ghcr.io/celestiaorg/celestia-node:0.6.1"
+    entrypoint: [
+      "/bin/bash"
+    ]
+    command: [
+      "/start-bridge.sh"
+    ]
+    volumes:
+      - ${PWD}/docker/wait-for-it.sh:/wait-for-it.sh:ro
+      - ${PWD}/docker/start-bridge.sh:/start-bridge.sh:ro
+      - keyring-volume:/bridge/keys/keyring-test/:ro
+
+    expose:
+      - "26659/tcp"
+
+    ports:
+      - "26659:26659"
+
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.20
+
+volumes:
+  keyring-volume:
+
+networks:
+  localnet:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.167.10.0/24
