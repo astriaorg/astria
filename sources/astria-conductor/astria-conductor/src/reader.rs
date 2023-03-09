@@ -1,11 +1,12 @@
+use color_eyre::eyre::Result;
 use rs_cnc::{CelestiaNodeClient, NamespacedDataResponse};
 use tokio::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     task,
 };
 
-use crate::conf::Conf;
-use crate::{driver, error::*, executor};
+use crate::config::Config;
+use crate::{driver, executor};
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
 
@@ -17,7 +18,7 @@ type Receiver = UnboundedReceiver<ReaderCommand>;
 /// spawns a reader task and returns a tuple with the task's join handle
 /// and the channel for sending commands to this reader
 pub(crate) fn spawn(
-    conf: &Conf,
+    conf: &Config,
     driver_tx: driver::Sender,
     executor_tx: executor::Sender,
 ) -> Result<(JoinHandle, Sender)> {
@@ -62,7 +63,7 @@ struct Reader {
 impl Reader {
     /// Creates a new Reader instance and returns a command sender and an alert receiver.
     fn new(
-        conf: &Conf,
+        conf: &Config,
         driver_tx: driver::Sender,
         executor_tx: executor::Sender,
     ) -> Result<(Self, Sender)> {

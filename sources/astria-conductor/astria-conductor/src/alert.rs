@@ -3,9 +3,8 @@
 //! Communication of such alerts is performed via unbounded [tokio mpsc channels](tokio::sync::mpsc).
 //! Thus, the application in which the driver is integrated may be driven by these alerts.
 
+use color_eyre::eyre::Error;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-
-use crate::error::Error;
 
 /// The channel used by the driver to send out alerts.
 pub(crate) type AlertSender = UnboundedSender<Alert>;
@@ -15,8 +14,7 @@ pub(crate) type AlertReceiver = UnboundedReceiver<Alert>;
 
 /// The alerts that the driver may send the driver user.
 #[derive(Debug)]
-#[non_exhaustive]
-pub enum Alert {
+pub(crate) enum Alert {
     /// Send when a block has been received from the data layer.
     BlockReceived {
         /// The height of the block received

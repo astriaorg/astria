@@ -11,3 +11,6 @@
 
 # user intellij configurations
 .idea
+
+# configuration
+ConductorConfig.toml
