@@ -4,8 +4,8 @@ This repo contains a functionality for relaying blocks from the Astria shared se
 
 Components:
 - sequencer RPC client (`src/sequencer.rs`) which polls for latest blocks from a sequencer node
-- Celestia RPC client (TODO) which writes sequencer blocks to Celestia
-- command-line interface (TODO) for running the relayer
+- Celestia RPC client which writes sequencer blocks to Celestia
+- command-line interface for running the relayer
 
 ## Requirements
 
