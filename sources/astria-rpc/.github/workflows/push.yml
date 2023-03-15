@@ -1,0 +1,25 @@
+name: buf-push
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build-lint-push-execution-apis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.15.1"
+      - uses: bufbuild/buf-lint-action@v1
+        with:
+          input: "execution-apis/proto"
+      - uses: bufbuild/buf-breaking-action@v1
+        with:
+          # The 'main' branch of the GitHub repository that defines the module.
+          input: "execution-apis/proto"
+          against: "https://github.com/astriaorg/astria-rpc.git#branch=main,ref=HEAD~1,subdir=execution-apis/proto"
+      - uses: bufbuild/buf-push-action@v1
+        with:
+          input: "execution-apis/proto"
+          buf_token: ${{ secrets.BUF_TOKEN }}
