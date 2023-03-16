@@ -17,6 +17,7 @@ pub(crate) mod alert;
 pub(crate) mod cli;
 pub(crate) mod config;
 pub(crate) mod driver;
+pub(crate) mod execution_client;
 pub(crate) mod executor;
 pub(crate) mod logger;
 pub(crate) mod reader;

@@ -5,7 +5,7 @@ use tokio::{
     task,
 };
 
-use astria_rpc::execution_client::ExecutionRpcClient;
+use crate::execution_client::ExecutionRpcClient;
 
 use crate::config::Config;
 use crate::driver;

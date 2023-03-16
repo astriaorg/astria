@@ -1,6 +1,21 @@
-[workspace]
-members = [
-    "astria-conductor",
-    "astria-rpc",
-]
-default-members = ["astria-conductor"]
+[package]
+name = "astria-conductor"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+astria-execution-apis-rpc = { git = "https://github.com/astriaorg/astria-rpc", rev = "47e1c69d519586242340b9bb93ed56269cedad3c" }
+clap = { version = "4.1.4", features = ["derive"] }
+color-eyre = "0.6.2"
+figment = { version = "0.10.8", features = ["toml", "env"] }
+flexi_logger = "0.24.2"
+log = "0.4.17"
+rs-cnc = { git = "https://github.com/astriaorg/rs-cnc", rev = "e0b45d6" }
+serde = "1.0.152"
+thiserror = "1.0.38"
+tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread", "signal"] }
+tonic = "0.8.3"
+tracing = "0.1.37"
+tracing-subscriber = "0.3.16"

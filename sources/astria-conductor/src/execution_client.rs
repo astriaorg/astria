@@ -1,15 +1,9 @@
+use astria_execution_apis_rpc::execution::execution_service_client::ExecutionServiceClient;
+use astria_execution_apis_rpc::execution::{DoBlockRequest, DoBlockResponse};
 use color_eyre::eyre::Result;
 use tonic::transport::Channel;
 
-use execution::{
-    execution_service_client::ExecutionServiceClient, DoBlockRequest, DoBlockResponse,
-};
-
-pub mod execution {
-    tonic::include_proto!("execution");
-}
-
-/// Represents an RpcClient
+/// Represents an RpcClient. Wrapping the auto generated client here.
 pub struct ExecutionRpcClient {
     /// The actual rpc client
     client: ExecutionServiceClient<Channel>,
