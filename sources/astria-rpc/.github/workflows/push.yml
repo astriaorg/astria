@@ -7,10 +7,11 @@ jobs:
   build-lint-push-execution-apis:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: bufbuild/buf-setup-action@v1
         with:
           version: "1.15.1"
+          github_token: ${{ github.token }}
       - uses: bufbuild/buf-lint-action@v1
         with:
           input: "execution-apis/proto"
@@ -23,3 +24,20 @@ jobs:
         with:
           input: "execution-apis/proto"
           buf_token: ${{ secrets.BUF_TOKEN }}
+  rust-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      # NOTE - this is here so that the buf cli is installed
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.15.1"
+          github_token: ${{ github.token }}
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check

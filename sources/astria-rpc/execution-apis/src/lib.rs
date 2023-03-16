@@ -1,1 +1,3 @@
-pub mod execution_client;
+pub mod execution {
+    include!("execution.v1.rs");
+}
