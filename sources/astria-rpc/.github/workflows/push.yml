@@ -22,7 +22,7 @@ jobs:
           against: "https://github.com/astriaorg/astria-rpc.git#branch=main,ref=HEAD~1,subdir=execution-apis/proto"
       - uses: bufbuild/buf-push-action@v1
         with:
-          input: "execution-apis/proto"
+          input: "execution-apis"
           buf_token: ${{ secrets.BUF_TOKEN }}
   rust-check:
     runs-on: ubuntu-latest
