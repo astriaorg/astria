@@ -1,0 +1,9 @@
+// this is copied from astriorg's metro/pb/msg.proto
+
+syntax = "proto3";
+
+message SequencerMsg {
+    bytes chain_id = 1;
+    bytes data = 2;
+    string from_address = 3;
+}

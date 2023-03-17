@@ -2,11 +2,12 @@ use structopt::StructOpt;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
-use std::{str::FromStr, thread, time};
+use std::{str::FromStr, time};
 
 use sequencer_relayer::{
     da::{CelestiaClient, DataAvailabilityClient},
     sequencer::SequencerClient,
+    sequencer_block::SequencerBlock,
 };
 
 pub const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:1317";
@@ -48,42 +49,50 @@ async fn main() {
         .expect("failed to create data availability client");
 
     let sleep_duration = time::Duration::from_millis(options.block_time);
+    let mut interval = tokio::time::interval(sleep_duration);
     let mut highest_block_number = 0u64;
 
     loop {
+        interval.tick().await;
         match sequencer_client.get_latest_block().await {
             Ok(resp) => {
                 let maybe_height: Result<u64, <u64 as FromStr>::Err> =
                     resp.block.header.height.parse();
                 if let Err(e) = maybe_height {
                     warn!(
-                        "got invalid block height {} from sequencer: {}",
-                        resp.block.header.height, e
+                        error = ?e,
+                        "got invalid block height {} from sequencer",
+                        resp.block.header.height,
                     );
-                    thread::sleep(sleep_duration);
                     continue;
                 }
 
                 let height = maybe_height.unwrap();
                 if height <= highest_block_number {
-                    thread::sleep(sleep_duration);
                     continue;
                 }
 
                 info!("got block with height {} from sequencer", height);
                 highest_block_number = height;
-                let tx_count = resp.block.data.txs.len();
-                match da_client.submit_block(resp.block.into()).await {
+                let sequencer_block = match SequencerBlock::from_cosmos_block(resp.block) {
+                    Ok(block) => block,
+                    Err(e) => {
+                        warn!(error = ?e, "failed to convert block to DA block");
+                        continue;
+                    }
+                };
+
+                let tx_count =
+                    sequencer_block.rollup_txs.len() + sequencer_block.sequencer_txs.len();
+                match da_client.submit_block(sequencer_block).await {
                     Ok(_) => info!(
                         "submitted block {} to DA layer: tx count={}",
                         height, &tx_count
                     ),
-                    Err(e) => warn!("failed to submit block to DA layer: {:?}", e),
+                    Err(e) => warn!(error = ?e, "failed to submit block to DA layer"),
                 }
             }
-            Err(e) => warn!("failed to get latest block from sequencer: {:?}", e),
+            Err(e) => warn!(error = ?e, "failed to get latest block from sequencer"),
         }
-
-        thread::sleep(sleep_duration);
     }
 }
