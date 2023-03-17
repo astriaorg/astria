@@ -108,6 +108,23 @@ pub struct Block {
     pub header: Header,
     pub data: Data,
     // TODO: evidence
+    pub last_commit: Commit,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Commit {
+    pub height: String,
+    pub round: u64,
+    pub block_id: BlockId,
+    pub signatures: Vec<CommitSig>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct CommitSig {
+    pub block_id_flag: String,
+    pub validator_address: Base64String,
+    pub timestamp: String,
+    pub signature: Base64String,
 }
 
 #[derive(Deserialize, Debug)]

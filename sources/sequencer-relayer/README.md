@@ -10,7 +10,7 @@ Components:
 ## Requirements
 
 - Rust 1.66
-- Go 1.19 (for running [metro](https://github.com/histolabs/metro.git))
+- Go 1.19 (for running [metro](https://github.com/astriaorg/metro.git))
 
 ## Build
 
@@ -20,10 +20,11 @@ cargo build --release
 
 ## Test
 
-Run [metro](https://github.com/histolabs/metro.git):
+Run [metro](https://github.com/astriaorg/metro.git):
 ```bash
-git clone https://github.com/histolabs/metro.git
+git clone https://github.com/astriaorg/metro.git
 cd metro
+git checkout noot/msg-type
 make install
 bash scripts/single-node.sh
 ```
@@ -42,9 +43,14 @@ cargo test
 
 ## Run
 
+Firstly, find your Tendermint validator address:
+```bash
+metro tendermint show-address
+```
+
 While running Metro and Celestia, start the relayer:
 ```bash
-./target/build/release/relayer 
+./target/build/release/relayer -v <address>
 ```
 
 Then, submit a tx to Metro:
@@ -56,4 +62,11 @@ You should see some logs such as:
 ```bash
 Mar 03 14:17:21.432  INFO relayer: got block with height 82 from sequencer
 Mar 03 14:17:22.561  INFO relayer: submitted block 82 to DA layer: tx count=1
+```
+
+Alternatively, you can use the small testing program [here](https://github.com/astriaorg/metro-transactions) to submit both "primary" and "secondary" transactions to Metro:
+```bash
+git clone https://github.com/astriaorg/metro-transactions
+cd metro-transactions
+go run main.go
 ```
