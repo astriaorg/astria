@@ -6,9 +6,7 @@ use tracing_subscriber::EnvFilter;
 use std::{str::FromStr, time};
 
 use sequencer_relayer::{
-    da::{CelestiaClient, DataAvailabilityClient},
-    sequencer::SequencerClient,
-    sequencer_block::SequencerBlock,
+    da::CelestiaClient, sequencer::SequencerClient, sequencer_block::SequencerBlock,
 };
 
 pub const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:1317";

@@ -5,11 +5,13 @@ use prost::{DecodeError, Message};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
+use crate::base64_string::Base64String;
 use crate::proto::SequencerMsg;
 use crate::proto::{TxBody, TxRaw};
-use crate::types::{Base64String, Block};
+use crate::transaction::txs_to_data_hash;
+use crate::types::{Block, Header};
 
 /// Cosmos SDK message type URL for SequencerMsgs.
 static SEQUENCER_TYPE_URL: &str = "/SequencerMsg";
@@ -19,6 +21,7 @@ static SEQUENCER_TYPE_URL: &str = "/SequencerMsg";
 /// in that block; ie. a list of tuples of (DA block height, namespace).
 pub static DEFAULT_NAMESPACE: Namespace = Namespace(*b"astriasq");
 
+/// Namespace represents a Celestia namespace.
 #[derive(Clone, Deserialize, Serialize, Debug, Hash, PartialEq, Eq)]
 pub struct Namespace([u8; 8]);
 
@@ -52,26 +55,44 @@ pub(crate) fn get_namespace(bytes: &[u8]) -> Namespace {
 /// SequencerBlock represents a sequencer layer block to be submitted to
 /// the DA layer.
 /// TODO: compression or a better serialization method?
-/// TODO: rename this b/c it's kind of confusing, types::Block is a cosmos-sdk block
-/// which is also a sequencer block in a way.
+/// TODO: rename this b/c it's kind of confusing, types::Block is a cosmos-sdk/tendermint
+/// block which is also a sequencer block in a way.
+///
+/// NOTE: all transactions in this structure are full transaction bytes as received
+/// from tendermint.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SequencerBlock {
     pub block_hash: Base64String,
-    pub sequencer_txs: Vec<Base64String>, // TODO: do we need this?
+    pub header: Header,
+    pub sequencer_txs: Vec<IndexedTransaction>,
     /// namespace -> rollup txs
-    pub rollup_txs: HashMap<Namespace, Vec<Base64String>>,
+    pub rollup_txs: HashMap<Namespace, Vec<IndexedTransaction>>,
+}
+
+/// IndexedTransaction represents a sequencer transaction along with the index
+/// it was originally in in the sequencer block.
+/// This is required so that the block's `data_hash`, which is a merkle root
+/// of the transactions in the block, can be verified.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct IndexedTransaction {
+    pub index: usize,
+    pub transaction: Base64String,
 }
 
 impl SequencerBlock {
     /// from_cosmos_block converts a cosmos-sdk block into a SequencerBlock.
     /// it parses the block for SequencerMsgs and namespaces them accordingly.
     pub fn from_cosmos_block(b: Block) -> Result<Self, Error> {
+        if b.header.data_hash.is_none() {
+            return Err(anyhow!("block has no data hash"));
+        }
+
         // we unwrap generic txs into rollup-specific txs here,
         // and namespace them correspondingly
         let mut sequencer_txs = vec![];
         let mut rollup_txs = HashMap::new();
 
-        for tx in b.data.txs.iter() {
+        for (index, tx) in b.data.txs.iter().enumerate() {
             debug!(
                 "parsing tx: {:?}",
                 general_purpose::STANDARD.encode(tx.0.clone())
@@ -80,27 +101,76 @@ impl SequencerBlock {
             let tx_body = parse_cosmos_tx(tx)?;
             let msgs = cosmos_tx_body_to_sequencer_msgs(tx_body)?;
 
-            for msg in msgs {
-                info!("parsed SequencerMsg: {:?}", msg);
-                let namespace = msg.chain_id;
-                if namespace.is_empty() {
-                    // TODO: should we allow this case? seems sus
-                    sequencer_txs.push(Base64String(msg.data));
-                    continue;
-                }
-
-                let txs = rollup_txs
-                    .entry(get_namespace(&namespace))
-                    .or_insert(vec![]);
-                txs.push(tx.clone());
+            // NOTE: we currently write the entire cosmos tx to Celestia.
+            // we kind of have to do this, even though the content of a SequencerMsg is
+            // what's relevant, because we need the full tx to reconstruct the data_hash
+            // for verification.
+            // the logic here is a bit weird; if the tx only contains one message that's
+            // destined for a rollup, it's written to the rollup namespace, otherwise
+            // it's written to the base namespace.
+            if msgs.len() == 1 {
+                // TODO: should we allow empty chain IDs?
+                let namespace = get_namespace(&msgs[0].chain_id);
+                let txs = rollup_txs.entry(namespace).or_insert(vec![]);
+                txs.push(IndexedTransaction {
+                    index,
+                    transaction: tx.clone(),
+                });
+                continue;
             }
+
+            sequencer_txs.push(IndexedTransaction {
+                index,
+                transaction: tx.clone(),
+            })
         }
 
         Ok(Self {
-            block_hash: b.header.data_hash, // TODO: is this the right hash?
+            block_hash: Base64String(b.header.hash()?.as_bytes().to_vec()),
+            header: b.header,
             sequencer_txs,
             rollup_txs,
         })
+    }
+
+    /// verify_data_hash verifies that the merkle root of the tree consisting of all the transactions
+    /// in the block matches the block's data hash.
+    pub fn verify_data_hash(&self) -> Result<(), Error> {
+        if self.header.data_hash.is_none() {
+            return Err(anyhow!("block has no data hash"));
+        }
+
+        let mut ordered_txs = vec![];
+        ordered_txs.append(&mut self.sequencer_txs.clone());
+        self.rollup_txs
+            .iter()
+            .for_each(|(_, tx)| ordered_txs.append(&mut tx.clone()));
+
+        // TODO: if there are duplicate or missing indices, the hash will obviously be wrong,
+        // but we should probably verify that earier to return a better error.
+        ordered_txs.sort_by(|a, b| a.index.cmp(&b.index));
+        let txs = ordered_txs
+            .iter()
+            .map(|tx| tx.transaction.clone())
+            .collect::<Vec<_>>();
+        let data_hash = txs_to_data_hash(&txs);
+
+        if data_hash.as_bytes() != self.header.data_hash.as_ref().unwrap().0 {
+            return Err(anyhow!("data hash mismatch"));
+        }
+
+        Ok(())
+    }
+
+    /// verify_block_hash verifies that the merkle root of the tree consisting of the block header
+    /// matches the block's hash.
+    pub fn verify_block_hash(&self) -> Result<(), Error> {
+        let block_hash = self.header.hash()?;
+        if block_hash.as_bytes() != self.block_hash.0 {
+            return Err(anyhow!("block hash mismatch"));
+        }
+
+        Ok(())
     }
 }
 
@@ -130,8 +200,21 @@ fn cosmos_tx_body_to_sequencer_msgs(tx_body: TxBody) -> Result<Vec<SequencerMsg>
 
 #[cfg(test)]
 mod test {
-    use super::{cosmos_tx_body_to_sequencer_msgs, parse_cosmos_tx, SEQUENCER_TYPE_URL};
-    use crate::types::Base64String;
+    use super::{
+        cosmos_tx_body_to_sequencer_msgs, parse_cosmos_tx, SequencerBlock, SEQUENCER_TYPE_URL,
+    };
+    use crate::base64_string::Base64String;
+    use crate::sequencer::SequencerClient;
+
+    #[tokio::test]
+    async fn test_header_verify_hashes() {
+        let cosmos_endpoint = "http://localhost:1317".to_string();
+        let client = SequencerClient::new(cosmos_endpoint).unwrap();
+        let resp = client.get_latest_block().await.unwrap();
+        let sequencer_block = SequencerBlock::from_cosmos_block(resp.block).unwrap();
+        sequencer_block.verify_data_hash().unwrap();
+        sequencer_block.verify_block_hash().unwrap();
+    }
 
     #[test]
     fn test_parse_primary_tx() {

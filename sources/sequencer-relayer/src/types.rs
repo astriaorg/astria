@@ -1,95 +1,24 @@
-use base64::{engine::general_purpose, Engine as _};
-use serde::{
-    de::{self, Visitor},
-    Deserialize, Deserializer, Serialize,
+use anyhow::Error;
+use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
+use tendermint::{
+    account::Id as AccountId,
+    block::{
+        header::Version as TmVersion, parts::Header as TmPartSetHeader, Header as TmHeader,
+        Height as TmHeight, Id as TmBlockId,
+    },
+    chain::Id as TmChainId,
+    hash::{AppHash, Hash as TmHash},
+    Time,
 };
-use std::fmt;
 
-/// cosmos-sdk RPC types.
+use crate::base64_string::Base64String;
+
+/// cosmos-sdk (Tendermint) RPC types.
 /// see https://v1.cosmos.network/rpc/v0.41.4
 
 #[derive(Serialize, Debug)]
 pub struct EmptyRequest {}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Base64String(pub Vec<u8>);
-
-impl Base64String {
-    pub fn from_string(s: String) -> Result<Base64String, base64::DecodeError> {
-        general_purpose::STANDARD.decode(s).map(Base64String)
-    }
-}
-
-impl std::fmt::Display for Base64String {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", general_purpose::STANDARD.encode(&self.0))
-    }
-}
-
-impl fmt::Debug for Base64String {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&general_purpose::STANDARD.encode(&self.0))
-    }
-}
-
-impl Serialize for Base64String {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&general_purpose::STANDARD.encode(&self.0))
-    }
-}
-
-impl<'de> Deserialize<'de> for Base64String {
-    fn deserialize<D>(deserializer: D) -> Result<Base64String, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_string(Base64StringVisitor)
-    }
-}
-
-struct Base64StringVisitor;
-
-impl Base64StringVisitor {
-    fn decode_string<E>(self, value: &str) -> Result<Base64String, E>
-    where
-        E: de::Error,
-    {
-        general_purpose::STANDARD
-            .decode(value)
-            .map(Base64String)
-            .map_err(|e| {
-                E::custom(format!(
-                    "failed to decode string {} from base64: {:?}",
-                    value, e
-                ))
-            })
-    }
-}
-
-impl<'de> Visitor<'de> for Base64StringVisitor {
-    type Value = Base64String;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a base64-encoded string")
-    }
-
-    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        self.decode_string(value)
-    }
-
-    fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        self.decode_string(&value)
-    }
-}
 
 #[derive(Deserialize, Debug)]
 pub struct BlockResponse {
@@ -97,10 +26,16 @@ pub struct BlockResponse {
     pub block: Block,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug, PartialEq, Eq, Serialize)]
 pub struct BlockId {
     pub hash: Base64String,
-    // TODO: part_set_header
+    pub part_set_header: Parts,
+}
+
+#[derive(Clone, Deserialize, Debug, PartialEq, Eq, Serialize)]
+pub struct Parts {
+    pub total: u32,
+    pub hash: Base64String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -127,25 +62,139 @@ pub struct CommitSig {
     pub signature: Base64String,
 }
 
-#[derive(Deserialize, Debug)]
-pub struct Header {
-    // TODO: version
-    pub chain_id: String,
-    pub height: String,
-    pub time: String,
-    // TODO: last_block_id
-    pub last_commit_hash: Base64String,
-    pub data_hash: Base64String,
-    pub validators_hash: Base64String,
-    pub next_validators_hash: Base64String,
-    pub consensus_hash: Base64String,
-    pub app_hash: Base64String,
-    pub last_results_hash: Base64String,
-    pub evidence_hash: Base64String,
-    pub proposer_address: Base64String,
+#[derive(Clone, Deserialize, Debug, Eq, PartialEq, Serialize)]
+pub struct Version {
+    pub block: String,
+    pub app: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Data {
     pub txs: Vec<Base64String>,
+}
+
+#[derive(Clone, Deserialize, Debug, Eq, PartialEq, Serialize)]
+pub struct Header {
+    pub version: Version,
+    pub chain_id: String,
+    pub height: String,
+    pub time: String,
+    pub last_block_id: Option<BlockId>,
+    pub last_commit_hash: Option<Base64String>,
+    pub data_hash: Option<Base64String>,
+    pub validators_hash: Base64String,
+    pub next_validators_hash: Base64String,
+    pub consensus_hash: Base64String,
+    pub app_hash: Base64String,
+    pub last_results_hash: Option<Base64String>,
+    pub evidence_hash: Option<Base64String>,
+    pub proposer_address: Base64String,
+}
+
+impl Default for Header {
+    /// default returns an empty header.
+    fn default() -> Self {
+        Header {
+            version: Version {
+                block: "0".to_string(),
+                app: "0".to_string(),
+            },
+            chain_id: "default".to_string(),
+            height: "0".to_string(),
+            time: "1970-01-01T00:00:00Z".to_string(),
+            last_block_id: None,
+            last_commit_hash: None,
+            data_hash: None,
+            validators_hash: Base64String(vec![]),
+            next_validators_hash: Base64String(vec![]),
+            consensus_hash: Base64String(vec![]),
+            app_hash: Base64String(vec![]),
+            last_results_hash: None,
+            evidence_hash: None,
+            proposer_address: Base64String(vec![]),
+        }
+    }
+}
+
+impl Header {
+    pub fn hash(&self) -> Result<TmHash, Error> {
+        let tm_header = self.to_tendermint_header()?;
+        Ok(tm_header.hash())
+    }
+
+    /// to_tendermint_header converts a Tendermint RPC header to a tendermint-rs header.
+    fn to_tendermint_header(&self) -> Result<TmHeader, Error> {
+        let last_block_id = self
+            .last_block_id
+            .as_ref()
+            .map(|id| {
+                Ok(TmBlockId {
+                    hash: TmHash::try_from(id.hash.0.clone())?,
+                    part_set_header: TmPartSetHeader::new(
+                        id.part_set_header.total,
+                        TmHash::try_from(id.part_set_header.hash.0.clone())?,
+                    )?,
+                })
+            })
+            .map_or(Ok(None), |r: Result<TmBlockId, Error>| r.map(Some))?;
+
+        let last_commit_hash = self
+            .last_commit_hash
+            .as_ref()
+            .map(|h| TmHash::try_from(h.0.clone()))
+            .map_or(Ok(None), |r| r.map(Some))?;
+
+        let data_hash = self
+            .data_hash
+            .as_ref()
+            .map(|h| TmHash::try_from(h.0.clone()))
+            .map_or(Ok(None), |r| r.map(Some))?;
+
+        let last_results_hash = self
+            .last_results_hash
+            .as_ref()
+            .map(|h| TmHash::try_from(h.0.clone()))
+            .map_or(Ok(None), |r| r.map(Some))?;
+
+        let evidence_hash = self
+            .evidence_hash
+            .as_ref()
+            .map(|h| TmHash::try_from(h.0.clone()))
+            .map_or(Ok(None), |r| r.map(Some))?;
+
+        Ok(TmHeader {
+            version: TmVersion {
+                block: self.version.block.parse::<u64>()?,
+                app: self.version.app.parse::<u64>()?,
+            },
+            chain_id: TmChainId::try_from(self.chain_id.clone())?,
+            height: TmHeight::try_from(self.height.parse::<u64>()?)?,
+            time: Time::parse_from_rfc3339(&self.time)?,
+            last_block_id,
+            last_commit_hash,
+            data_hash,
+            validators_hash: TmHash::try_from(self.validators_hash.0.clone())?,
+            next_validators_hash: TmHash::try_from(self.next_validators_hash.0.clone())?,
+            consensus_hash: TmHash::try_from(self.consensus_hash.0.clone())?,
+            app_hash: AppHash::try_from(self.app_hash.0.clone())?,
+            last_results_hash,
+            evidence_hash,
+            proposer_address: AccountId::try_from(self.proposer_address.0.clone())?,
+        })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::sequencer::SequencerClient;
+
+    #[tokio::test]
+    async fn test_header_to_tendermint_header() {
+        let cosmos_endpoint = "http://localhost:1317".to_string();
+        let client = SequencerClient::new(cosmos_endpoint).unwrap();
+        let resp = client.get_latest_block().await.unwrap();
+        let tm_header = &resp.block.header.to_tendermint_header().unwrap();
+        let tm_header_hash = tm_header.hash();
+        assert_eq!(tm_header_hash.as_bytes(), &resp.block_id.hash.0);
+    }
 }
