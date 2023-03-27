@@ -4,14 +4,12 @@ use tendermint::merkle;
 
 use crate::base64_string::Base64String;
 
-#[allow(dead_code)]
 fn tx_to_prost_bytes(tx: Vec<u8>) -> prost::alloc::vec::Vec<u8> {
     let mut buf = prost::alloc::vec::Vec::new();
     prost::encoding::bytes::encode(1, &tx, &mut buf);
     buf
 }
 
-#[allow(dead_code)]
 pub(crate) fn txs_to_data_hash(txs: &[Base64String]) -> TmHash {
     let txs = txs
         .iter()

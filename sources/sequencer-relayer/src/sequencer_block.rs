@@ -5,7 +5,7 @@ use prost::{DecodeError, Message};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use tracing::{debug, warn};
+use tracing::debug;
 
 use crate::base64_string::Base64String;
 use crate::proto::SequencerMsg;
@@ -44,12 +44,22 @@ impl Namespace {
     }
 }
 
-// get_namespace returns an 8-byte namespace given a byte slice.
-pub(crate) fn get_namespace(bytes: &[u8]) -> Namespace {
+/// get_namespace returns an 8-byte namespace given a byte slice.
+pub fn get_namespace(bytes: &[u8]) -> Namespace {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     let result = hasher.finalize();
     Namespace(result[0..8].to_owned().try_into().unwrap())
+}
+
+/// IndexedTransaction represents a sequencer transaction along with the index
+/// it was originally in in the sequencer block.
+/// This is required so that the block's `data_hash`, which is a merkle root
+/// of the transactions in the block, can be verified.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct IndexedTransaction {
+    pub index: usize,
+    pub transaction: Base64String,
 }
 
 /// SequencerBlock represents a sequencer layer block to be submitted to
@@ -67,16 +77,6 @@ pub struct SequencerBlock {
     pub sequencer_txs: Vec<IndexedTransaction>,
     /// namespace -> rollup txs
     pub rollup_txs: HashMap<Namespace, Vec<IndexedTransaction>>,
-}
-
-/// IndexedTransaction represents a sequencer transaction along with the index
-/// it was originally in in the sequencer block.
-/// This is required so that the block's `data_hash`, which is a merkle root
-/// of the transactions in the block, can be verified.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct IndexedTransaction {
-    pub index: usize,
-    pub transaction: Base64String,
 }
 
 impl SequencerBlock {
@@ -174,25 +174,17 @@ impl SequencerBlock {
     }
 }
 
-fn parse_cosmos_tx(tx: &Base64String) -> Result<TxBody, Error> {
+pub fn parse_cosmos_tx(tx: &Base64String) -> Result<TxBody, Error> {
     let tx_raw = TxRaw::decode(tx.0.as_slice())?;
     let tx_body = TxBody::decode(tx_raw.body_bytes.as_slice())?;
     Ok(tx_body)
 }
 
-fn cosmos_tx_body_to_sequencer_msgs(tx_body: TxBody) -> Result<Vec<SequencerMsg>, Error> {
+pub fn cosmos_tx_body_to_sequencer_msgs(tx_body: TxBody) -> Result<Vec<SequencerMsg>, Error> {
     tx_body
         .messages
         .iter()
-        .filter(|msg| {
-            if msg.type_url != SEQUENCER_TYPE_URL {
-                // TODO: do we want to write sequencer "primary txs" to the DA layer?
-                warn!("ignoring message with non-sequencer type URL: {:?}", msg);
-                false
-            } else {
-                true
-            }
-        })
+        .filter(|msg| msg.type_url == SEQUENCER_TYPE_URL)
         .map(|msg| SequencerMsg::decode(msg.value.as_slice()))
         .collect::<Result<Vec<SequencerMsg>, DecodeError>>()
         .map_err(|e| anyhow!(e))

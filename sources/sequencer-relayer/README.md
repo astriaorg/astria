@@ -38,20 +38,17 @@ docker compose -f docker/test-docker-compose.yml up -d bridge0
 
 Then, you can run the unit tests:
 ```bash
-cargo test
+cargo test -- --test-threads=1
 ```
 
 ## Run
 
-Firstly, find your Tendermint validator address:
-```bash
-metro tendermint show-address
-```
-
 While running Metro and Celestia, start the relayer:
 ```bash
-./target/build/release/relayer -v <address>
+./target/build/release/relayer
 ```
+
+Note: the relayer automatically uses the validator private key located at `~/.metro/config/priv_validator_key.json`. You can specify the file with `-v`.
 
 Then, submit a tx to Metro:
 ```bash

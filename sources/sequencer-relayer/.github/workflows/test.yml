@@ -51,7 +51,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -- --nocapture --color always
+          args: -- --nocapture --color always --test-threads=1
       - name: Clean up Docker containers used for testing
         run: ./docker/cleanup-docker.sh
 
