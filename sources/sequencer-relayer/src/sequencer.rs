@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Error};
+use eyre::{eyre, Error};
 use reqwest::{Client, Response as ReqwestResponse};
 use serde::{de::DeserializeOwned, Serialize};
 use std::time::Duration;
@@ -44,7 +44,7 @@ impl SequencerClient {
             .error_for_status()?
             .json::<Resp>()
             .await
-            .map_err(|e| anyhow!(e))
+            .map_err(|e| eyre!(e))
     }
 }
 

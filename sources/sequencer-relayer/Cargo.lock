@@ -1439,12 +1439,12 @@ dependencies = [
 name = "sequencer-relayer"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "base64",
  "bech32",
  "clap 4.1.9",
  "dirs",
  "ed25519-dalek",
+ "eyre",
  "hex",
  "prost",
  "prost-build",

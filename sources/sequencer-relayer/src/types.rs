@@ -1,4 +1,4 @@
-use anyhow::Error;
+use eyre::Error;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use tendermint::{

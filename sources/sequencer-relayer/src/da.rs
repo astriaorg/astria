@@ -1,5 +1,5 @@
-use anyhow::{anyhow, Error};
 use ed25519_dalek::{ed25519::signature::Signature, Keypair, PublicKey, Signer, Verifier};
+use eyre::{eyre, Result};
 use rs_cnc::{CelestiaNodeClient, NamespacedSharesResponse, PayForDataResponse};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -31,15 +31,15 @@ impl<D: NamespaceData> SignedNamespaceData<D> {
         Self { data, signature }
     }
 
-    fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+    fn to_bytes(&self) -> Result<Vec<u8>> {
         // TODO: don't use json, use our own serializer (or protobuf for now?)
-        let string = serde_json::to_string(self).map_err(|e| anyhow!(e))?;
+        let string = serde_json::to_string(self).map_err(|e| eyre!(e))?;
         Ok(string.into_bytes())
     }
 
-    fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        let string = String::from_utf8(bytes.to_vec()).map_err(|e| anyhow!(e))?;
-        let data = serde_json::from_str(&string).map_err(|e| anyhow!(e))?;
+    fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        let string = String::from_utf8(bytes.to_vec()).map_err(|e| eyre!(e))?;
+        let data = serde_json::from_str(&string).map_err(|e| eyre!(e))?;
         Ok(data)
     }
 }
@@ -48,23 +48,23 @@ trait NamespaceData
 where
     Self: Sized + Serialize + DeserializeOwned,
 {
-    fn hash(&self) -> Result<Vec<u8>, Error> {
+    fn hash(&self) -> Result<Vec<u8>> {
         let mut hasher = Sha256::new();
         hasher.update(self.to_bytes()?);
         let hash = hasher.finalize();
         Ok(hash.to_vec())
     }
 
-    fn to_signed(self, keypair: &Keypair) -> Result<SignedNamespaceData<Self>, Error> {
+    fn to_signed(self, keypair: &Keypair) -> Result<SignedNamespaceData<Self>> {
         let hash = self.hash()?;
         let signature = Base64String(keypair.sign(&hash).as_bytes().to_vec());
         let data = SignedNamespaceData::new(self, signature);
         Ok(data)
     }
 
-    fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+    fn to_bytes(&self) -> Result<Vec<u8>> {
         // TODO: don't use json, use our own serializer (or protobuf for now?)
-        let string = serde_json::to_string(self).map_err(|e| anyhow!(e))?;
+        let string = serde_json::to_string(self).map_err(|e| eyre!(e))?;
         Ok(string.into_bytes())
     }
 }
@@ -101,8 +101,8 @@ impl CelestiaClient {
     /// new creates a new CelestiaClient with the given keypair.
     /// the keypair is used to sign the data that is submitted to Celestia,
     /// specifically within submit_block.
-    pub fn new(endpoint: String) -> Result<Self, Error> {
-        let cnc = CelestiaNodeClient::new(endpoint)?;
+    pub fn new(endpoint: String) -> Result<Self> {
+        let cnc = CelestiaNodeClient::new(endpoint).map_err(|e| eyre!(e))?;
         Ok(CelestiaClient { client: cnc })
     }
 
@@ -110,7 +110,7 @@ impl CelestiaClient {
         &self,
         namespace: &str,
         data: &[u8],
-    ) -> Result<PayForDataResponse, Error> {
+    ) -> Result<PayForDataResponse> {
         let pay_for_data_response = self
             .client
             .submit_pay_for_data(
@@ -119,7 +119,8 @@ impl CelestiaClient {
                 DEFAULT_PFD_FEE,
                 DEFAULT_PFD_GAS_LIMIT,
             )
-            .await?;
+            .await
+            .map_err(|e| eyre!(e))?;
         Ok(pay_for_data_response)
     }
 
@@ -131,7 +132,7 @@ impl CelestiaClient {
         &self,
         block: SequencerBlock,
         keypair: &Keypair,
-    ) -> Result<SubmitBlockResponse, Error> {
+    ) -> Result<SubmitBlockResponse> {
         let mut namespace_to_block_num: HashMap<String, u64> = HashMap::new();
         let mut block_height_and_namespace: Vec<(u64, String)> = Vec::new();
 
@@ -151,7 +152,7 @@ impl CelestiaClient {
                 .await?;
 
             if resp.height.is_none() {
-                return Err(anyhow!("no height returned from pay for data"));
+                return Err(eyre!("no height returned from pay for data"));
             }
 
             namespace_to_block_num.insert(namespace.to_string(), resp.height.unwrap());
@@ -172,7 +173,7 @@ impl CelestiaClient {
             .await?;
 
         if resp.height.is_none() {
-            return Err(anyhow!("no height returned from pay for data"));
+            return Err(eyre!("no height returned from pay for data"));
         }
 
         namespace_to_block_num.insert(DEFAULT_NAMESPACE.to_string(), resp.height.unwrap());
@@ -183,14 +184,12 @@ impl CelestiaClient {
     }
 
     /// check_block_availability checks if what shares are written to a given height.
-    pub async fn check_block_availability(
-        &self,
-        height: u64,
-    ) -> Result<NamespacedSharesResponse, Error> {
+    pub async fn check_block_availability(&self, height: u64) -> Result<NamespacedSharesResponse> {
         let resp = self
             .client
             .namespaced_shares(&DEFAULT_NAMESPACE.to_string(), height)
-            .await?;
+            .await
+            .map_err(|e| eyre!(e))?;
         Ok(resp)
     }
 
@@ -203,11 +202,12 @@ impl CelestiaClient {
         &self,
         height: u64,
         public_key: Option<&PublicKey>,
-    ) -> Result<Vec<SequencerBlock>, Error> {
+    ) -> Result<Vec<SequencerBlock>> {
         let namespaced_data_response = self
             .client
             .namespaced_data(&DEFAULT_NAMESPACE.to_string(), height)
-            .await?;
+            .await
+            .map_err(|e| eyre!(e))?;
 
         // retrieve all sequencer data stored at this height
         // optionally, only find data that was signed by the given public key
@@ -274,11 +274,12 @@ impl CelestiaClient {
         rollup_namespace: &str,
         height: u64,
         public_key: Option<&PublicKey>,
-    ) -> Result<Option<Vec<IndexedTransaction>>, Error> {
+    ) -> Result<Option<Vec<IndexedTransaction>>> {
         let namespaced_data_response = self
             .client
             .namespaced_data(rollup_namespace, height)
-            .await?;
+            .await
+            .map_err(|e| eyre!(e))?;
 
         let datas = namespaced_data_response.data.unwrap_or_default();
         let mut rollup_datas = datas
@@ -315,7 +316,7 @@ impl CelestiaClient {
 
         // there should NOT be multiple datas with the same block hash and signer
         if rollup_datas.next().is_some() {
-            return Err(anyhow!(
+            return Err(eyre!(
                 "multiple rollup datas with the same block hash and signer"
             ));
         }

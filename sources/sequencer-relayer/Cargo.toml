@@ -5,11 +5,11 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-anyhow = "1.0"
 base64 = "0.21"
 bech32 = "0.9"
 dirs = "5.0"
 ed25519-dalek = "1.0"
+eyre = "0.6"
 hex = "0.4"
 prost = "0.11"
 prost-types = "0.11"

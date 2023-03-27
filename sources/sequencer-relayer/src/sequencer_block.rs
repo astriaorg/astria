@@ -1,5 +1,5 @@
-use anyhow::{anyhow, Error};
 use base64::{engine::general_purpose, Engine as _};
+use eyre::{eyre, Error};
 use hex;
 use prost::{DecodeError, Message};
 use serde::{Deserialize, Serialize};
@@ -36,7 +36,7 @@ impl Namespace {
     pub fn from_string(s: &str) -> Result<Self, Error> {
         let bytes = hex::decode(s)?;
         if bytes.len() != 8 {
-            return Err(anyhow!("namespace must be 8 bytes"));
+            return Err(eyre!("namespace must be 8 bytes"));
         }
         let mut namespace = [0u8; 8];
         namespace.copy_from_slice(&bytes);
@@ -84,7 +84,7 @@ impl SequencerBlock {
     /// it parses the block for SequencerMsgs and namespaces them accordingly.
     pub fn from_cosmos_block(b: Block) -> Result<Self, Error> {
         if b.header.data_hash.is_none() {
-            return Err(anyhow!("block has no data hash"));
+            return Err(eyre!("block has no data hash"));
         }
 
         // we unwrap generic txs into rollup-specific txs here,
@@ -137,7 +137,7 @@ impl SequencerBlock {
     /// in the block matches the block's data hash.
     pub fn verify_data_hash(&self) -> Result<(), Error> {
         if self.header.data_hash.is_none() {
-            return Err(anyhow!("block has no data hash"));
+            return Err(eyre!("block has no data hash"));
         }
 
         let mut ordered_txs = vec![];
@@ -156,7 +156,7 @@ impl SequencerBlock {
         let data_hash = txs_to_data_hash(&txs);
 
         if data_hash.as_bytes() != self.header.data_hash.as_ref().unwrap().0 {
-            return Err(anyhow!("data hash mismatch"));
+            return Err(eyre!("data hash mismatch"));
         }
 
         Ok(())
@@ -167,7 +167,7 @@ impl SequencerBlock {
     pub fn verify_block_hash(&self) -> Result<(), Error> {
         let block_hash = self.header.hash()?;
         if block_hash.as_bytes() != self.block_hash.0 {
-            return Err(anyhow!("block hash mismatch"));
+            return Err(eyre!("block hash mismatch"));
         }
 
         Ok(())
@@ -187,7 +187,7 @@ pub fn cosmos_tx_body_to_sequencer_msgs(tx_body: TxBody) -> Result<Vec<Sequencer
         .filter(|msg| msg.type_url == SEQUENCER_TYPE_URL)
         .map(|msg| SequencerMsg::decode(msg.value.as_slice()))
         .collect::<Result<Vec<SequencerMsg>, DecodeError>>()
-        .map_err(|e| anyhow!(e))
+        .map_err(|e| eyre!(e))
 }
 
 #[cfg(test)]
