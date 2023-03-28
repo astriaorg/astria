@@ -3,7 +3,7 @@
 This repo contains a functionality for relaying blocks from the Astria shared sequencer to a DA layer (ie. Celestia). 
 
 Components:
-- sequencer RPC client (`src/sequencer.rs`) which polls for latest blocks from a sequencer node
+- sequencer RPC client which polls for latest blocks from a sequencer node
 - Celestia RPC client which writes sequencer blocks to Celestia
 - command-line interface for running the relayer
 

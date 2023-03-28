@@ -152,9 +152,9 @@ async fn main() {
                 let tx_count =
                     sequencer_block.rollup_txs.len() + sequencer_block.sequencer_txs.len();
                 match da_client.submit_block(sequencer_block, &keypair).await {
-                    Ok(_) => info!(
-                        "submitted block {} to DA layer: tx count={}",
-                        height, &tx_count
+                    Ok(resp) => info!(
+                        "submitted sequencer block {} to DA layer (included in block {}): tx count={}",
+                        height, resp.height, &tx_count,
                     ),
                     Err(e) => warn!(error = ?e, "failed to submit block to DA layer"),
                 }

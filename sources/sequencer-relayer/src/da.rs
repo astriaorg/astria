@@ -17,6 +17,8 @@ static DEFAULT_PFD_GAS_LIMIT: u64 = 90_000;
 /// SubmitBlockResponse is the response to a SubmitBlock request.
 /// It contains a map of namespaces to the block number that it was written to.
 pub struct SubmitBlockResponse {
+    /// the height the base namespace was written to
+    pub height: u64,
     pub namespace_to_block_num: HashMap<String, u64>,
 }
 
@@ -106,6 +108,18 @@ impl CelestiaClient {
         Ok(CelestiaClient { client: cnc })
     }
 
+    pub async fn get_latest_height(&self) -> Result<u64> {
+        let res = self
+            .client
+            .namespaced_data(&DEFAULT_NAMESPACE.to_string(), 0)
+            .await
+            .map_err(|e| eyre!(e))?;
+        let Some(height) = res.height else {
+            return Err(eyre!("no height found"));
+        };
+        Ok(height)
+    }
+
     async fn submit_namespaced_data(
         &self,
         namespace: &str,
@@ -172,13 +186,14 @@ impl CelestiaClient {
             .submit_namespaced_data(&DEFAULT_NAMESPACE.to_string(), &bytes)
             .await?;
 
-        if resp.height.is_none() {
+        let Some(height) = resp.height else {
             return Err(eyre!("no height returned from pay for data"));
-        }
+        };
 
         namespace_to_block_num.insert(DEFAULT_NAMESPACE.to_string(), resp.height.unwrap());
 
         Ok(SubmitBlockResponse {
+            height,
             namespace_to_block_num,
         })
     }
@@ -334,6 +349,15 @@ mod tests {
     use super::{CelestiaClient, SequencerBlock, DEFAULT_NAMESPACE};
     use crate::base64_string::Base64String;
     use crate::sequencer_block::{get_namespace, IndexedTransaction};
+
+    #[tokio::test]
+    async fn test_get_latest_height() {
+        // TODO: put these defaults somewhere, use them in bin/relayer
+        let base_url = "http://localhost:26659".to_string();
+        let client = CelestiaClient::new(base_url).unwrap();
+        let height = client.get_latest_height().await.unwrap();
+        assert!(height > 0);
+    }
 
     #[tokio::test]
     async fn test_get_blocks_public_key_filter() {
