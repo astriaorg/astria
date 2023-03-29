@@ -15,5 +15,6 @@ keywords = ["astria", "grpc", "rpc", "blockchain", "execution", "protobuf"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-prost = "0.11.6"
+prost = "0.11.8"
+prost-types = "0.11.8"
 tonic = "0.8.3"

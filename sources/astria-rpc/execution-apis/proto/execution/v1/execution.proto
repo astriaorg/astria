@@ -2,15 +2,25 @@ syntax = 'proto3';
 
 package execution.v1;
 
+import "google/protobuf/timestamp.proto";
+
 message DoBlockRequest {
-  bytes header = 1;
+  bytes prev_state_root = 1;
   repeated bytes transactions = 2;
+  google.protobuf.Timestamp timestamp = 3;
 }
 
 message DoBlockResponse {
   bytes state_root = 1;
 }
 
+message InitStateRequest{}
+
+message InitStateResponse {
+  bytes state_root = 1;
+}
+
 service ExecutionService {
   rpc DoBlock(DoBlockRequest) returns (DoBlockResponse);
+  rpc InitState(InitStateRequest) returns (InitStateResponse);
 }
