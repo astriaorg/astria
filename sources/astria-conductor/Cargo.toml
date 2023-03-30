@@ -11,10 +11,12 @@ clap = { version = "4.1.9", features = ["derive"] }
 color-eyre = "0.6.2"
 figment = { version = "0.10.8", features = ["toml", "env"] }
 flexi_logger = "0.24.2"
+futures = "0.3"
 log = "0.4.17"
 rs-cnc = { git = "https://github.com/astriaorg/rs-cnc", rev = "e0b45d6" }
-sequencer-relayer = { git = "https://github.com/astriaorg/sequencer-relayer" }
+sequencer-relayer = { git = "https://github.com/astriaorg/sequencer-relayer", rev = "f719a7ff79562efe50e9ce9e542bbf415b9550c2" }
 serde = "1.0.152"
+serde_json = "1.0"
 thiserror = "1.0.38"
 tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread", "signal"] }
 tonic = "0.8.3"

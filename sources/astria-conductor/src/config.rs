@@ -10,5 +10,5 @@ pub(crate) struct Config {
     pub(crate) chain_id: String,
 
     /// Address of the RPC server for execution
-    pub(crate) rpc_address: String,
+    pub(crate) execution_rpc_url: String,
 }

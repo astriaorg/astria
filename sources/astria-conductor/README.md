@@ -45,7 +45,6 @@ Then, you can run the tests:
 cargo test
 ```
 
-
 ### Run w/ Docker (wip):
 ```bash
 # NOTE - there are currently issues with restarting containers, so ensure we start from a clean slate

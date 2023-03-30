@@ -2,8 +2,8 @@ use flexi_logger::{DeferredNow, Duplicate, FileSpec};
 
 /// Initializes our custom logger.
 /// Logs to file and stderr.
-pub fn initialize() {
-    flexi_logger::Logger::try_with_str("info")
+pub fn initialize(level: &str) {
+    flexi_logger::Logger::try_with_str(level)
         .unwrap()
         .log_to_file(FileSpec::default().directory("/tmp/astria-conductor"))
         .format(

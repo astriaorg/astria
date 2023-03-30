@@ -59,10 +59,12 @@ dependencies = [
  "color-eyre",
  "figment",
  "flexi_logger",
+ "futures",
  "log",
  "rs-cnc 0.1.0 (git+https://github.com/astriaorg/rs-cnc?rev=e0b45d6)",
  "sequencer-relayer",
  "serde",
+ "serde_json",
  "thiserror",
  "tokio",
  "tonic",
@@ -693,6 +695,7 @@ checksum = "13e2792b0ff0340399d58445b88fd9770e3489eff258a4cbc1523418f12abf84"
 dependencies = [
  "futures-channel",
  "futures-core",
+ "futures-executor",
  "futures-io",
  "futures-sink",
  "futures-task",
@@ -716,10 +719,32 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec90ff4d0fe1f57d600049061dc6bb68ed03c7d2fbd697274c41805dcb3f8608"
 
 [[package]]
+name = "futures-executor"
+version = "0.3.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8de0a35a6ab97ec8869e32a2473f4b1324459e14c29275d14b10cb1fd19b50e"
+dependencies = [
+ "futures-core",
+ "futures-task",
+ "futures-util",
+]
+
+[[package]]
 name = "futures-io"
 version = "0.3.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89d422fa3cbe3b40dca574ab087abb5bc98258ea57eea3fd6f1fa7162c778b91"
+
+[[package]]
+name = "futures-macro"
+version = "0.3.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95a73af87da33b5acf53acfebdc339fe592ecf5357ac7c0a7734ab9d8c876a70"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.107",
+]
 
 [[package]]
 name = "futures-sink"
@@ -739,11 +764,16 @@ version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c1d6de3acfef38d2be4b1f543f553131788603495be83da675e180c8d6b7bd1"
 dependencies = [
+ "futures-channel",
  "futures-core",
+ "futures-io",
+ "futures-macro",
  "futures-sink",
  "futures-task",
+ "memchr",
  "pin-project-lite",
  "pin-utils",
+ "slab",
 ]
 
 [[package]]
@@ -1817,7 +1847,7 @@ dependencies = [
 [[package]]
 name = "sequencer-relayer"
 version = "0.1.0"
-source = "git+https://github.com/astriaorg/sequencer-relayer#f719a7ff79562efe50e9ce9e542bbf415b9550c2"
+source = "git+https://github.com/astriaorg/sequencer-relayer?rev=f719a7ff79562efe50e9ce9e542bbf415b9550c2#f719a7ff79562efe50e9ce9e542bbf415b9550c2"
 dependencies = [
  "base64 0.21.0",
  "bech32",

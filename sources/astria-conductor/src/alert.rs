@@ -4,17 +4,13 @@
 //! Thus, the application in which the driver is integrated may be driven by these alerts.
 
 use color_eyre::eyre::Error;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::UnboundedSender;
 
 /// The channel used by the driver to send out alerts.
 pub(crate) type AlertSender = UnboundedSender<Alert>;
-/// The channel on which alerts from the driver can be received.
-/// See [`Alert`] for the type of messages that can be received.
-pub(crate) type AlertReceiver = UnboundedReceiver<Alert>;
 
 /// The alerts that the driver may send the driver user.
 #[derive(Debug)]
-#[allow(dead_code)] // TODO: remove this
 pub(crate) enum Alert {
     /// Send when a block has been received from the data layer.
     BlockReceived {
