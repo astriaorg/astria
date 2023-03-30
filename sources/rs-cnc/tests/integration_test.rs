@@ -3,8 +3,11 @@ use rs_cnc::CelestiaNodeClient;
 
 #[tokio::test]
 async fn test_data_roundtrip() {
-    let base_url = String::from("http://localhost:26659");
-    let client = CelestiaNodeClient::new(base_url).unwrap();
+    let base_url = "http://localhost:26659";
+    let client = CelestiaNodeClient::builder()
+        .base_url(base_url)
+        .build()
+        .unwrap();
 
     let random_namespace_id = String::from("b860ccf0e97fdf6c");
 

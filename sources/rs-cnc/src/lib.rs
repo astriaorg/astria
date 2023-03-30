@@ -2,7 +2,7 @@ use std::hash::Hash;
 use std::time::Duration;
 
 use bytes::Bytes;
-use eyre::WrapErr as _;
+use eyre::{bail, WrapErr as _};
 use reqwest::{Client, Response as ReqwestResponse};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -14,14 +14,6 @@ pub mod types;
 const NAMESPACED_DATA_ENDPOINT: &str = "/namespaced_data";
 const NAMESPACED_SHARES_ENDPOINT: &str = "/namespaced_shares";
 const SUBMIT_PFD_ENDPOINT: &str = "/submit_pfd";
-
-pub struct CelestiaNodeClient {
-    /// The url of the Celestia node.
-    base_url: String,
-
-    /// An http client for making http requests.
-    http_client: Client,
-}
 
 #[derive(Serialize, Debug)]
 struct PayForDataRequest {
@@ -107,7 +99,20 @@ impl PartialEq for NamespacedDataResponse {
     }
 }
 
+#[derive(Debug)]
+pub struct CelestiaNodeClient {
+    /// The url of the Celestia node.
+    base_url: String,
+
+    /// An http client for making http requests.
+    http_client: Client,
+}
+
 impl CelestiaNodeClient {
+    /// Creates a `CelestiaNodeClientBuilder` to configure a `CelestiaNodeClient`.
+    pub fn builder() -> CelestiaNodeClientBuilder {
+        CelestiaNodeClientBuilder::new()
+    }
     /// Creates a new client
     ///
     /// # Arguments
@@ -210,6 +215,62 @@ impl CelestiaNodeClient {
     }
 }
 
+/// A `CelestiaNodeClientBuilder` can be used to create a `CelstiaNodeClient`.
+#[derive(Debug)]
+pub struct CelestiaNodeClientBuilder {
+    base_url: Option<String>,
+    http_client: Option<reqwest::Client>,
+}
+
+impl CelestiaNodeClientBuilder {
+    /// Sets the base URL used by this client.
+    pub fn base_url<T: Into<String>>(self, base_url: T) -> Self {
+        Self {
+            base_url: Some(base_url.into()),
+            ..self
+        }
+    }
+
+    /// Sets the http_client used by this client.
+    ///
+    /// Default is the same as `reqwest::Client::default`
+    pub fn http_client(self, http_client: Client) -> Self {
+        Self {
+            http_client: Some(http_client),
+            ..self
+        }
+    }
+
+    /// Returns a `CelestiaNodeClient` that uses this `CelestiaNodeClientBuilder` as config.
+    ///
+    /// # Errors
+    ///
+    /// + returns an error if `base_url` is not set.
+    pub fn build(self) -> eyre::Result<CelestiaNodeClient> {
+        let Self {
+            base_url,
+            http_client,
+        } = self;
+        let Some(base_url) = base_url else {
+            bail!("base_url on CelestiaNodeClientBuilder not set");
+        };
+        let http_client = http_client.unwrap_or_default();
+
+        Ok(CelestiaNodeClient {
+            base_url,
+            http_client,
+        })
+    }
+
+    /// Returns a new `CelestiaNodeClientBuilder`.
+    pub fn new() -> Self {
+        Self {
+            base_url: None,
+            http_client: None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -219,5 +280,14 @@ mod tests {
         let base_url = String::from("http://localhost:26659");
         let client: CelestiaNodeClient = CelestiaNodeClient::new(base_url).unwrap();
         assert_eq!(&client.base_url, "http://localhost:26659");
+    }
+
+    #[test]
+    fn constructing_client_without_base_url_is_err() {
+        let err = CelestiaNodeClient::builder().build().unwrap_err();
+        assert_eq!(
+            "base_url on CelestiaNodeClientBuilder not set",
+            err.to_string()
+        );
     }
 }
