@@ -6,8 +6,8 @@ pub(crate) struct Config {
     /// URL of the Celestia Node
     pub(crate) celestia_node_url: String,
 
-    /// Namespace that we want to work in
-    pub(crate) namespace_id: String,
+    /// Chain ID that we want to work in
+    pub(crate) chain_id: String,
 
     /// Address of the RPC server for execution
     pub(crate) rpc_address: String,

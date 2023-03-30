@@ -8,10 +8,10 @@ pub(crate) struct Cli {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub(crate) celestia_node_url: Option<String>,
 
-    /// Namespace ID as a string; the hex encoding of a [u8; 8]
-    #[arg(long = "namespace-id")]
+    /// Chain ID as a string
+    #[arg(long = "chain-id")]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub(crate) namespace_id: Option<String>,
+    pub(crate) chain_id: Option<String>,
 
     /// Address of the execution RPC server.
     #[arg(long = "rpc-address")]

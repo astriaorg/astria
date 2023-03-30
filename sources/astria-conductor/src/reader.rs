@@ -1,5 +1,8 @@
 use color_eyre::eyre::Result;
-use rs_cnc::{CelestiaNodeClient, NamespacedDataResponse};
+use sequencer_relayer::{
+    da::CelestiaClient,
+    sequencer_block::{Namespace, SequencerBlock},
+};
 use tokio::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     task,
@@ -23,7 +26,12 @@ pub(crate) fn spawn(
     executor_tx: executor::Sender,
 ) -> Result<(JoinHandle, Sender)> {
     log::info!("Spawning reader task.");
-    let (mut reader, reader_tx) = Reader::new(conf, driver_tx, executor_tx)?;
+    let (mut reader, reader_tx) = Reader::new(
+        &conf.celestia_node_url,
+        Namespace::from_string(&conf.chain_id)?,
+        driver_tx,
+        executor_tx,
+    )?;
     let join_handle = task::spawn(async move { reader.run().await });
     log::info!("Spawned reader task.");
     Ok((join_handle, reader_tx))
@@ -51,33 +59,34 @@ struct Reader {
     executor_tx: executor::Sender,
 
     /// The client used to communicate with Celestia.
-    celestia_node_client: CelestiaNodeClient,
+    celestia_client: CelestiaClient,
 
     /// Namespace ID
-    namespace_id: String,
+    namespace: Namespace,
 
-    /// Keep track of the last block height fetched
+    /// Keep track of the last block height fetched from Celestia
     last_block_height: u64,
 }
 
 impl Reader {
     /// Creates a new Reader instance and returns a command sender and an alert receiver.
     fn new(
-        conf: &Config,
+        celestia_node_url: &str,
+        namespace: Namespace,
         driver_tx: driver::Sender,
         executor_tx: executor::Sender,
     ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let celestia_node_client = CelestiaNodeClient::new(conf.celestia_node_url.to_owned())?;
+        let celestia_client = CelestiaClient::new(celestia_node_url.to_owned())?;
         Ok((
             Self {
                 cmd_tx: cmd_tx.clone(),
                 cmd_rx,
                 driver_tx,
                 executor_tx,
-                celestia_node_client,
-                namespace_id: conf.namespace_id.to_owned(),
-                last_block_height: 0,
+                celestia_client,
+                namespace,
+                last_block_height: 1,
             },
             cmd_tx,
         ))
@@ -89,7 +98,10 @@ impl Reader {
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
                 ReaderCommand::GetNewBlocks => {
-                    self.get_new_blocks().await?;
+                    let blocks = self.get_new_blocks().await?;
+                    for block in blocks {
+                        self.process_block(block).await?;
+                    }
                 }
                 ReaderCommand::Shutdown => {
                     log::info!("Shutting down reader event loop.");
@@ -101,55 +113,86 @@ impl Reader {
         Ok(())
     }
 
-    /// This function is responsible for fetching all the latest blocks
-    async fn get_new_blocks(&mut self) -> Result<()> {
+    /// get_new_blocks fetches any new sequencer blocks from Celestia.
+    async fn get_new_blocks(&mut self) -> Result<Vec<SequencerBlock>> {
         log::info!("ReaderCommand::GetNewBlocks");
+        let mut blocks = vec![];
 
-        // get most recent block
-        let res = self
-            .celestia_node_client
-            // NOTE - requesting w/ height of 0 gives us the last block. this isn't documented.
-            .namespaced_data(&self.namespace_id, 0)
-            .await;
+        // get the latest celestia block height
+        let latest_height = self.celestia_client.get_latest_height().await?;
 
-        match res {
-            Ok(namespaced_data) => {
-                if let Some(height) = namespaced_data.height {
-                    // get blocks between current height and last height received and send to executor
-                    for h in (self.last_block_height + 1)..(height) {
-                        let block = self.get_block(h).await?;
-                        self.process_block(block).await?;
-                    }
-                    // process the most recent block, which is actually the first one we requested above
-                    self.process_block(namespaced_data).await?;
+        // check for any new sequencer blocks written from the previous to current block height
+        for height in self.last_block_height..latest_height {
+            let res = self.get_block(height).await;
+
+            match res {
+                Ok(block) => {
+                    println!("block: {:?}", block);
+
+                    // continue as celestia block doesn't have a sequencer block
+                    let Some(block) = block else {
+                        continue;
+                    };
+
+                    // sequencer block's height
+                    let height = block.header.height.parse::<u64>()?;
+                    println!("sequencer block height: {:?}", height);
+                    blocks.push(block);
                 }
-            }
-            Err(e) => {
-                // just log the error for now.
-                // any blocks that weren't fetched will be handled in the next cycle
-                log::error!("{}", e.to_string());
+                Err(e) => {
+                    // just log the error for now.
+                    // any blocks that weren't fetched will be handled in the next cycle
+                    log::error!("{}", e.to_string());
+                }
             }
         }
 
-        Ok(())
+        self.last_block_height = latest_height;
+        Ok(blocks)
     }
 
-    /// Gets an individual block
-    async fn get_block(&mut self, height: u64) -> Result<NamespacedDataResponse> {
-        let res = self
-            .celestia_node_client
-            .namespaced_data(&self.namespace_id, height)
-            .await?;
-
-        Ok(res)
+    /// Gets an individual block for a given Celestia height
+    async fn get_block(&mut self, height: u64) -> Result<Option<SequencerBlock>> {
+        let res = self.celestia_client.get_blocks(height, None).await?;
+        // TODO: we need to verify the block using the expected proposer's key (by passing in their pubkey above)
+        // and ensure there's only one block signed by them
+        Ok(res.into_iter().next())
     }
 
     /// Processes an individual block
-    async fn process_block(&mut self, block: NamespacedDataResponse) -> Result<()> {
-        self.last_block_height = block.height.unwrap();
+    async fn process_block(&mut self, block: SequencerBlock) -> Result<()> {
+        self.last_block_height = block.header.height.parse::<u64>()?;
         self.executor_tx
-            .send(executor::ExecutorCommand::BlockReceived { block })?;
+            .send(executor::ExecutorCommand::BlockReceived {
+                block: Box::new(block),
+            })?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use sequencer_relayer::sequencer_block::DEFAULT_NAMESPACE;
+
+    const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26659";
+
+    #[tokio::test]
+    async fn test_reader_get_new_blocks() {
+        let (driver_tx, _) = mpsc::unbounded_channel();
+        let (executor_tx, _) = mpsc::unbounded_channel();
+
+        let (mut reader, _reader_tx) = Reader::new(
+            DEFAULT_CELESTIA_ENDPOINT,
+            DEFAULT_NAMESPACE.clone(),
+            driver_tx,
+            executor_tx,
+        )
+        .unwrap();
+
+        let blocks = reader.get_new_blocks().await.unwrap();
+        println!("blocks: {:?}", blocks);
+        assert!(blocks.len() > 0);
     }
 }

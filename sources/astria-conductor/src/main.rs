@@ -1,5 +1,4 @@
 use color_eyre::eyre::Result;
-use tokio;
 
 use astria_conductor::run;
 

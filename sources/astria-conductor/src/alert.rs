@@ -14,6 +14,7 @@ pub(crate) type AlertReceiver = UnboundedReceiver<Alert>;
 
 /// The alerts that the driver may send the driver user.
 #[derive(Debug)]
+#[allow(dead_code)] // TODO: remove this
 pub(crate) enum Alert {
     /// Send when a block has been received from the data layer.
     BlockReceived {
