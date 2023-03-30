@@ -1,15 +1,13 @@
 use std::hash::Hash;
 use std::time::Duration;
 
-use anyhow::anyhow;
 use bytes::Bytes;
+use eyre::WrapErr as _;
 use reqwest::{Client, Response as ReqwestResponse};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::error::*;
 use crate::types::Base64String;
 
-pub mod error;
 pub mod types;
 
 // TODO - organize
@@ -115,8 +113,11 @@ impl CelestiaNodeClient {
     /// # Arguments
     ///
     /// * `base_url` - A string that holds the base url we want to communicate with
-    pub fn new(base_url: String) -> Result<Self> {
-        let http_client: Client = Client::builder().timeout(Duration::from_secs(5)).build()?;
+    pub fn new(base_url: String) -> eyre::Result<Self> {
+        let http_client: Client = Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()
+            .wrap_err("failed initializing http client")?;
 
         Ok(Self {
             base_url,
@@ -130,7 +131,7 @@ impl CelestiaNodeClient {
         data: &Bytes,
         fee: i64,
         gas_limit: u64,
-    ) -> Result<PayForDataResponse> {
+    ) -> eyre::Result<PayForDataResponse> {
         let data: String = hex::encode(data);
 
         let body = PayForDataRequest {
@@ -142,11 +143,19 @@ impl CelestiaNodeClient {
 
         let url: String = format!("{}{}", self.base_url, SUBMIT_PFD_ENDPOINT);
 
-        let response: ReqwestResponse = self.http_client.post(url).json(&body).send().await?;
+        let response: ReqwestResponse = self
+            .http_client
+            .post(url)
+            .json(&body)
+            .send()
+            .await
+            .wrap_err("failed sending POST request to endpoint")?;
         let response = response
-            .error_for_status()?
+            .error_for_status()
+            .wrap_err("server responded with error code")?
             .json::<PayForDataResponse>()
-            .await?;
+            .await
+            .wrap_err("failed reading JSON response from server")?;
 
         Ok(response)
     }
@@ -155,13 +164,16 @@ impl CelestiaNodeClient {
         &self,
         namespace_id: &str,
         height: u64,
-    ) -> Result<NamespacedSharesResponse> {
+    ) -> eyre::Result<NamespacedSharesResponse> {
         let url = format!(
             "{}{}/{}/height/{}",
             self.base_url, NAMESPACED_SHARES_ENDPOINT, namespace_id, height,
         );
 
-        let response = self.do_get::<NamespacedSharesResponse>(url).await?;
+        let response = self
+            .do_get::<NamespacedSharesResponse>(url)
+            .await
+            .wrap_err("failed getting namespaced shares from server")?;
         Ok(response)
     }
 
@@ -169,23 +181,32 @@ impl CelestiaNodeClient {
         &self,
         namespace_id: &str,
         height: u64,
-    ) -> Result<NamespacedDataResponse> {
+    ) -> eyre::Result<NamespacedDataResponse> {
         let url = format!(
             "{}{}/{}/height/{}",
             self.base_url, NAMESPACED_DATA_ENDPOINT, namespace_id, height,
         );
 
-        let response = self.do_get::<NamespacedDataResponse>(url).await?;
+        let response = self
+            .do_get::<NamespacedDataResponse>(url)
+            .await
+            .wrap_err("failed getting namespaced data from server")?;
         Ok(response)
     }
 
-    async fn do_get<Resp: DeserializeOwned>(&self, endpoint: String) -> Result<Resp> {
-        let response: ReqwestResponse = self.http_client.get(&endpoint).send().await?;
+    async fn do_get<Resp: DeserializeOwned>(&self, endpoint: String) -> eyre::Result<Resp> {
+        let response = self
+            .http_client
+            .get(&endpoint)
+            .send()
+            .await
+            .wrap_err("failed sending GET request to endpoint")?;
         response
-            .error_for_status()?
+            .error_for_status()
+            .wrap_err("server responded with error code")?
             .json::<Resp>()
             .await
-            .map_err(|e| anyhow!(e))
+            .wrap_err("failed reading JSON response from server")
     }
 }
 
