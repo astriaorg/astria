@@ -1,3 +1,9 @@
 /target
 src/proto/msg.rs
 src/proto/tx.rs
+
+# jetbrains
+.idea
+
+# macOS
+.DS_Store

@@ -1,0 +1,21 @@
+name: Build and Publish Docker image
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+jobs:
+  build-and-publish-latest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2 # Checking out the repo
+
+      - name: Log in to registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
+
+      # TODO - build for amd64 and arm64?
+      # FIXME - version needs to be autoincrement, probably from git tags?
+      - name: Build latest Docker image
+        run: docker build --tag ghcr.io/astriaorg/sequencer-relayer:latest .
+      - name: Push latest Docker image
+        run: docker push ghcr.io/astriaorg/sequencer-relayer:latest

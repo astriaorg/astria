@@ -67,3 +67,9 @@ git clone https://github.com/astriaorg/metro-transactions
 cd metro-transactions
 go run main.go
 ```
+
+## Running with Docker
+```bash
+# must map priv_validator_key.json to the container
+docker run --rm -v ~/.metro/config/priv_validator_key.json:/root/.metro/config/priv_validator_key.json ghcr.io/astriaorg/sequencer-relayer:latest 
+```
