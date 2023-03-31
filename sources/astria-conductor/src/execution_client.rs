@@ -1,6 +1,7 @@
 use astria_execution_apis_rpc::execution::execution_service_client::ExecutionServiceClient;
-use astria_execution_apis_rpc::execution::{DoBlockRequest, DoBlockResponse};
+use astria_execution_apis_rpc::execution::{DoBlockRequest, DoBlockResponse, InitStateResponse, InitStateRequest};
 use color_eyre::eyre::Result;
+use prost_types::Timestamp;
 use tonic::transport::Channel;
 
 /// Represents an RpcClient. Wrapping the auto generated client here.
@@ -28,14 +29,23 @@ impl ExecutionRpcClient {
     /// * `transactions` - List of transactions
     pub async fn call_do_block(
         &mut self,
-        header: Vec<u8>,
+        prev_state_root: Vec<u8>,
         transactions: Vec<Vec<u8>>,
+        timestamp: Option<Timestamp>
     ) -> Result<DoBlockResponse> {
         let request = DoBlockRequest {
-            header,
+            prev_state_root,
             transactions,
+            timestamp,
         };
         let response = self.client.do_block(request).await?.into_inner();
+        Ok(response)
+    }
+
+    /// Calls remote procedure InitState
+    pub async fn call_init_state(&mut self) -> Result<InitStateResponse> {
+        let request = InitStateRequest {};
+        let response = self.client.init_state(request).await?.into_inner();
         Ok(response)
     }
 }

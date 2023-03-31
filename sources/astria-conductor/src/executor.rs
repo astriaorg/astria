@@ -1,10 +1,11 @@
-use color_eyre::eyre::{eyre, Result};
+use color_eyre::eyre::Result;
 use log::{info, warn};
 use sequencer_relayer::proto::SequencerMsg;
 use sequencer_relayer::sequencer_block::{
     cosmos_tx_body_to_sequencer_msgs, get_namespace, parse_cosmos_tx, Namespace, SequencerBlock,
 };
-use serde::{Deserialize, Serialize};
+use prost_types::Timestamp;
+use tendermint::Time;
 use tokio::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     task,
@@ -36,13 +37,22 @@ pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinH
     Ok((join_handle, executor_tx))
 }
 
+// Given a string, convert to protobuf timestamp
+fn time_conversion(value: &str) -> Option<Timestamp> {
+    let time = Time::parse_from_rfc3339(value).expect("Could not get timestamp");
+    let seconds = time.unix_timestamp();
+    let all_nanos = time.unix_timestamp_nanos();
+    let nanos = (all_nanos - (seconds as i128 * 10_i128.pow(9))) as i32; // Largest this can be is order of 10^9, ok to cast
+    Some(Timestamp { seconds, nanos })
+}
+
+
 #[derive(Debug)]
 pub(crate) enum ExecutorCommand {
     /// Command for when a block is received
     BlockReceived {
         block: Box<SequencerBlock>,
     },
-
     Shutdown,
 }
 
@@ -57,6 +67,8 @@ struct Executor {
     /// The channel on which the driver and tasks in the driver can post alerts
     /// to the consumer of the driver.
     alert_tx: AlertSender,
+    /// Tracks the state of the execution chain
+    execution_state: Vec<u8>
 }
 
 impl Executor {
@@ -67,13 +79,16 @@ impl Executor {
         alert_tx: AlertSender,
     ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let execution_rpc_client = ExecutionRpcClient::new(rpc_address).await?;
+        let mut execution_rpc_client = ExecutionRpcClient::new(rpc_address).await?;
+        let init_state_response = execution_rpc_client.call_init_state().await?;
+        let execution_state = init_state_response.state_root;
         Ok((
             Self {
                 cmd_rx,
                 execution_rpc_client,
                 namespace,
                 alert_tx,
+                execution_state
             },
             cmd_tx,
         ))
@@ -106,9 +121,7 @@ impl Executor {
 
     /// Uses RPC to send block to execution service
     async fn execute_block(&mut self, block: SequencerBlock) -> Result<()> {
-        let header = Header {
-            block_hash: block.block_hash.0,
-        };
+        let prev_state_root = self.execution_state.clone();
 
         // get transactions for our namespace
         let Some(txs) = block.rollup_txs.get(&self.namespace) else {
@@ -138,23 +151,16 @@ impl Executor {
             })
             .collect::<Vec<_>>();
 
-        self.execution_rpc_client
-            .call_do_block(header.to_bytes()?, txs)
+        let timestamp = time_conversion(&*block.header.time);
+
+        let response = self.execution_rpc_client
+            .call_do_block(prev_state_root, txs, timestamp)
             .await?;
+        self.execution_state = response.state_root;
 
         Ok(())
     }
-}
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Header {
-    block_hash: Vec<u8>,
-}
+    
 
-impl Header {
-    fn to_bytes(&self) -> Result<Vec<u8>> {
-        // TODO: don't use json, use our own serializer (or protobuf for now?)
-        let string = serde_json::to_string(self).map_err(|e| eyre!(e))?;
-        Ok(string.into_bytes())
-    }
 }
