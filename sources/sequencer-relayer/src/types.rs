@@ -1,4 +1,4 @@
-use eyre::Error;
+use eyre::WrapErr as _;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use tendermint::{
@@ -117,13 +117,18 @@ impl Default for Header {
 }
 
 impl Header {
-    pub fn hash(&self) -> Result<TmHash, Error> {
-        let tm_header = self.to_tendermint_header()?;
+    pub fn hash(&self) -> eyre::Result<TmHash> {
+        let tm_header = self
+            .to_tendermint_header()
+            .wrap_err("failed converting header to tendermint header")?;
         Ok(tm_header.hash())
     }
 
     /// to_tendermint_header converts a Tendermint RPC header to a tendermint-rs header.
-    fn to_tendermint_header(&self) -> Result<TmHeader, Error> {
+    /// FIXME: This looks exactly like the `TryFrom<RawHeader>` definition that tendermint
+    /// uses: https://docs.rs/tendermint/0.30.0/tendermint/block/header/struct.Header.html#impl-TryFrom%3CHeader%3E-for-Header
+    /// We should use their impl instead of rolling our own.
+    fn to_tendermint_header(&self) -> eyre::Result<TmHeader> {
         let last_block_id = self
             .last_block_id
             .as_ref()
@@ -136,7 +141,7 @@ impl Header {
                     )?,
                 })
             })
-            .map_or(Ok(None), |r: Result<TmBlockId, Error>| r.map(Some))?;
+            .map_or(Ok(None), |r: eyre::Result<TmBlockId>| r.map(Some))?;
 
         let last_commit_hash = self
             .last_commit_hash

@@ -1,10 +1,10 @@
 use bech32::{self, ToBase32, Variant};
 use ed25519_dalek::{Keypair, PublicKey};
-use eyre::{Context, Error};
+use eyre::WrapErr as _;
 
-pub fn private_key_bytes_to_keypair(private_key: &[u8]) -> Result<Keypair, Error> {
+pub fn private_key_bytes_to_keypair(private_key: &[u8]) -> eyre::Result<Keypair> {
     let private_key = ed25519_dalek::SecretKey::from_bytes(&private_key[..32])
-        .context("failed reading secret key from bytes")?;
+        .wrap_err("failed reading secret key from bytes")?;
     let public_key = PublicKey::from(&private_key);
     Ok(Keypair {
         secret: private_key,
@@ -12,9 +12,11 @@ pub fn private_key_bytes_to_keypair(private_key: &[u8]) -> Result<Keypair, Error
     })
 }
 
-pub fn validator_hex_to_address(data: &str) -> Result<String, Error> {
-    let address_bytes = hex::decode(data)?;
-    let address = bech32::encode("metrovalcons", address_bytes.to_base32(), Variant::Bech32)?;
+pub fn validator_hex_to_address(data: &str) -> eyre::Result<String> {
+    let address_bytes =
+        hex::decode(data).wrap_err("failed reading bytes from hex encoded string")?;
+    let address = bech32::encode("metrovalcons", address_bytes.to_base32(), Variant::Bech32)
+        .wrap_err("failed converting bytes to bech32 address")?;
     Ok(address)
 }
 

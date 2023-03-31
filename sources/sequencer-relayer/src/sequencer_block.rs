@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose, Engine as _};
-use eyre::{eyre, Error};
+use eyre::{bail, ensure, WrapErr as _};
 use hex;
 use prost::{DecodeError, Message};
 use serde::{Deserialize, Serialize};
@@ -33,11 +33,9 @@ impl std::fmt::Display for Namespace {
 }
 
 impl Namespace {
-    pub fn from_string(s: &str) -> Result<Self, Error> {
-        let bytes = hex::decode(s)?;
-        if bytes.len() != 8 {
-            return Err(eyre!("namespace must be 8 bytes"));
-        }
+    pub fn from_string(s: &str) -> eyre::Result<Self> {
+        let bytes = hex::decode(s).wrap_err("failed reading string as hex encoded bytes")?;
+        ensure!(bytes.len() == 8, "string must encode exactly 8 bytes",);
         let mut namespace = [0u8; 8];
         namespace.copy_from_slice(&bytes);
         Ok(Namespace(namespace))
@@ -82,9 +80,9 @@ pub struct SequencerBlock {
 impl SequencerBlock {
     /// from_cosmos_block converts a cosmos-sdk block into a SequencerBlock.
     /// it parses the block for SequencerMsgs and namespaces them accordingly.
-    pub fn from_cosmos_block(b: Block) -> Result<Self, Error> {
+    pub fn from_cosmos_block(b: Block) -> eyre::Result<Self> {
         if b.header.data_hash.is_none() {
-            return Err(eyre!("block has no data hash"));
+            bail!("block has no data hash");
         }
 
         // we unwrap generic txs into rollup-specific txs here,
@@ -135,10 +133,10 @@ impl SequencerBlock {
 
     /// verify_data_hash verifies that the merkle root of the tree consisting of all the transactions
     /// in the block matches the block's data hash.
-    pub fn verify_data_hash(&self) -> Result<(), Error> {
-        if self.header.data_hash.is_none() {
-            return Err(eyre!("block has no data hash"));
-        }
+    pub fn verify_data_hash(&self) -> eyre::Result<()> {
+        let Some(this_data_hash) = self.header.data_hash.as_ref() else {
+            bail!("block has no data hash");
+        };
 
         let mut ordered_txs = vec![];
         ordered_txs.append(&mut self.sequencer_txs.clone());
@@ -155,39 +153,42 @@ impl SequencerBlock {
             .collect::<Vec<_>>();
         let data_hash = txs_to_data_hash(&txs);
 
-        if data_hash.as_bytes() != self.header.data_hash.as_ref().unwrap().0 {
-            return Err(eyre!("data hash mismatch"));
-        }
+        ensure!(
+            data_hash.as_bytes() == this_data_hash.0,
+            "data hash stored in block header does not match hash calculated from transactions",
+        );
 
         Ok(())
     }
 
     /// verify_block_hash verifies that the merkle root of the tree consisting of the block header
     /// matches the block's hash.
-    pub fn verify_block_hash(&self) -> Result<(), Error> {
+    pub fn verify_block_hash(&self) -> eyre::Result<()> {
         let block_hash = self.header.hash()?;
-        if block_hash.as_bytes() != self.block_hash.0 {
-            return Err(eyre!("block hash mismatch"));
-        }
-
+        ensure!(
+            block_hash.as_bytes() == self.block_hash.0,
+            "block hash calculated from tendermint header does not match block hash stored in sequencer block",
+        );
         Ok(())
     }
 }
 
-pub fn parse_cosmos_tx(tx: &Base64String) -> Result<TxBody, Error> {
-    let tx_raw = TxRaw::decode(tx.0.as_slice())?;
-    let tx_body = TxBody::decode(tx_raw.body_bytes.as_slice())?;
+pub fn parse_cosmos_tx(tx: &Base64String) -> eyre::Result<TxBody> {
+    let tx_raw = TxRaw::decode(tx.0.as_slice())
+        .wrap_err("failed decoding raw tx protobuf from hex encoded transaction")?;
+    let tx_body = TxBody::decode(tx_raw.body_bytes.as_slice())
+        .wrap_err("failed decoding tx body from protobuf stored in raw tx body bytes")?;
     Ok(tx_body)
 }
 
-pub fn cosmos_tx_body_to_sequencer_msgs(tx_body: TxBody) -> Result<Vec<SequencerMsg>, Error> {
+pub fn cosmos_tx_body_to_sequencer_msgs(tx_body: TxBody) -> eyre::Result<Vec<SequencerMsg>> {
     tx_body
         .messages
         .iter()
         .filter(|msg| msg.type_url == SEQUENCER_TYPE_URL)
         .map(|msg| SequencerMsg::decode(msg.value.as_slice()))
         .collect::<Result<Vec<SequencerMsg>, DecodeError>>()
-        .map_err(|e| eyre!(e))
+        .wrap_err("failed decoding sequencer msg from value stored in cosmos tx body")
 }
 
 #[cfg(test)]

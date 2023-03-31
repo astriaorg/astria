@@ -1281,17 +1281,16 @@ dependencies = [
 [[package]]
 name = "rs-cnc"
 version = "0.1.0"
-source = "git+https://github.com/astriaorg/rs-cnc.git#4a20f8ffa0bb26f08a53885fd0f977b9d6837546"
+source = "git+https://github.com/astriaorg/rs-cnc.git#ef9a9f428992f83bdc299dfc0b6ef89afba4925b"
 dependencies = [
- "anyhow",
  "base64",
  "bytes",
+ "eyre",
  "hex",
  "rand 0.8.5",
  "reqwest",
  "serde",
  "serde_json",
- "thiserror",
 ]
 
 [[package]]

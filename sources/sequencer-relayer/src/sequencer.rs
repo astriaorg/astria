@@ -1,4 +1,4 @@
-use eyre::{eyre, Error};
+use eyre::WrapErr as _;
 use reqwest::{Client, Response as ReqwestResponse};
 use serde::{de::DeserializeOwned, Serialize};
 use std::time::Duration;
@@ -14,7 +14,7 @@ pub struct SequencerClient {
 }
 
 impl SequencerClient {
-    pub fn new(endpoint: String) -> Result<Self, Error> {
+    pub fn new(endpoint: String) -> eyre::Result<Self> {
         let http_client: Client = Client::builder().timeout(Duration::from_secs(5)).build()?;
         Ok(Self {
             endpoint,
@@ -22,29 +22,32 @@ impl SequencerClient {
         })
     }
 
-    pub async fn get_latest_block(&self) -> Result<BlockResponse, Error> {
+    pub async fn get_latest_block(&self) -> eyre::Result<BlockResponse> {
         let endpoint: String = format!("{}{}", self.endpoint, LATEST_BLOCK_ENDPOINT);
         self.do_get::<EmptyRequest, BlockResponse>(endpoint, None)
             .await
+            .wrap_err("failed getting latest block")
     }
 
-    pub async fn get_block(&self, height: u64) -> Result<BlockResponse, Error> {
+    pub async fn get_block(&self, height: u64) -> eyre::Result<BlockResponse> {
         let endpoint: String = format!("{}{}{}", self.endpoint, BLOCK_ENDPOINT, height);
         self.do_get::<EmptyRequest, BlockResponse>(endpoint, None)
             .await
+            .wrap_err_with(|| format!("failed getting block at height `{height}`"))
     }
 
     async fn do_get<Req: Serialize + Sized, Resp: DeserializeOwned>(
         &self,
         endpoint: String,
         req: Option<Req>,
-    ) -> Result<Resp, Error> {
+    ) -> eyre::Result<Resp> {
         let response: ReqwestResponse = self.http_client.get(&endpoint).json(&req).send().await?;
         response
-            .error_for_status()?
+            .error_for_status()
+            .wrap_err("server returned error status")?
             .json::<Resp>()
             .await
-            .map_err(|e| eyre!(e))
+            .wrap_err("failed reading server response as json")
     }
 }
 
