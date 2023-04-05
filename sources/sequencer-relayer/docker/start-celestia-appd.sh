@@ -28,4 +28,4 @@ sed -i'.bak' 's/index_all_keys = false/index_all_keys = true/g' ~/.celestia-app/
 sed -i'.bak' 's/mode = "full"/mode = "validator"/g' ~/.celestia-app/config/config.toml
 
 # Start the celestia-app
-celestia-appd start
+exec celestia-appd start

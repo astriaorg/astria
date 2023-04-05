@@ -4,12 +4,7 @@ services:
   core0:
     container_name: core0
     image: "ghcr.io/celestiaorg/celestia-app:v0.11.0"
-    entrypoint: [
-      "/bin/bash"
-    ]
-    command: [
-      "/start-celestia-appd.sh"
-    ]
+    entrypoint: "./start-celestia-appd.sh"
     volumes:
       - ${PWD}/docker/start-celestia-appd.sh:/start-celestia-appd.sh:ro
       - keyring-volume:/root/.celestia-app/keyring-test
@@ -22,12 +17,7 @@ services:
     depends_on:
       - core0
     image: "ghcr.io/celestiaorg/celestia-node:0.6.1"
-    entrypoint: [
-      "/bin/bash"
-    ]
-    command: [
-      "/start-bridge.sh"
-    ]
+    entrypoint: "./start-bridge.sh"
     volumes:
       - ${PWD}/docker/wait-for-it.sh:/wait-for-it.sh:ro
       - ${PWD}/docker/start-bridge.sh:/start-bridge.sh:ro
