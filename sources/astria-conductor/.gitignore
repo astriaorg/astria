@@ -15,4 +15,10 @@
 # configuration
 ConductorConfig.toml
 
+# macOS
 .DS_Store
+
+# env
+.env
+tests/docker/.env
+

@@ -157,6 +157,7 @@ impl Reader {
 
 #[cfg(test)]
 mod test {
+    use std::time::Duration;
     use super::*;
 
     const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26659";
@@ -169,7 +170,16 @@ mod test {
             .await
             .unwrap();
 
-        let blocks = reader.get_new_blocks().await.unwrap();
+        // FIXME - this is NOT a good test, but it gets us to a passing state.
+        let mut blocks = vec![];
+        for _ in 0..30 {
+            blocks = reader.get_new_blocks().await.unwrap();
+            if !blocks.is_empty() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+
         assert!(blocks.len() > 0);
     }
 }

@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - main
+  # trigger on all pull request branch pushes
   pull_request: null
 jobs:
   check:
@@ -66,12 +67,12 @@ jobs:
           toolchain: stable
           override: true
       - name: Start geth, metro, celestia, and sequencer-relayer.
-        run: docker-compose -f tests/docker/test-docker-compose.yml up -d
-      # TODO - sequencer-relayer
-      - uses: actions-rs/cargo@v1
-        with:
-          # FIXME - we'll probably want to use wait-for-it.sh here to wait for the bridge
-          command: test
-          args: -- --nocapture --color always
+        run: touch tests/docker/.env && docker-compose -f tests/docker/test-docker-compose.yml up -d
+      - name: Run integration tests.
+        # must wait till metro is available before running tests
+        # FIXME - this isn't good enough, we need to wait for relayer to get going
+        run: |
+            ./tests/docker/wait-for-200.sh http://localhost:1317/cosmos/base/tendermint/v1beta1/blocks/latest -- \
+            cargo test -- --nocapture --color always
       - name: Clean up Docker containers used for testing.
         run: ./tests/docker/cleanup-docker.sh

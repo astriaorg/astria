@@ -40,16 +40,24 @@ services:
       localnet:
         ipv4_address: 192.167.10.20
 
-  # TODO - sequencer-relayer
   geth0:
     container_name: geth0
+    env_file:
+      - ./.env
     depends_on:
       - bridge0
     # FIXME - use a tagged version eventually
-    image: "ghcr.io/astriaorg/go-ethereum:latest"
+#    image: "ghcr.io/astriaorg/go-ethereum:latest"
+#    image: "ghcr.io/astriaorg/go-ethereum:local"
+    image: "ghcr.io/astriaorg/go-ethereum:custom-mempool"
+    volumes:
+      - ${PWD}/tests/docker/start-geth.sh:/start-geth.sh:ro
     ports:
+      - "8545:8545"
       - "50051:50051"
-    command: "--goerli --grpc --grpc.addr \"0.0.0.0\" --grpc.port 50051"
+    entrypoint: [
+        "/start-geth.sh"
+    ]
     networks:
       localnet:
         ipv4_address: 192.167.10.30
@@ -60,15 +68,40 @@ services:
       - bridge0
     # FIXME - use a tagged version eventually
     image: "ghcr.io/astriaorg/metro:latest"
+    healthcheck:
+      # test for existence of priv_validator_key.json, so that dependent services start correctly
+      test: "test -f /root/.metro/config/priv_validator_key.json || exit 1 && wget -q --spider --tries=1 --timeout=5 http://localhost:1317/cosmos/base/tendermint/v1beta1/blocks/latest || exit 1"
+      interval: 1s
+      timeout: 30s
+      retries: 30
     ports:
       - "26657:26657"
       - "1317:1317"
+    volumes:
+      - shared-volume:/root/.metro/config
     networks:
       localnet:
         ipv4_address: 192.167.10.40
 
+  relayer0:
+    container_name: relayer0
+    depends_on:
+      metro0:
+        condition: service_healthy
+      bridge0:
+        condition: service_started
+    # FIXME - use a tagged version eventually
+    image: "ghcr.io/astriaorg/sequencer-relayer:latest"
+    entrypoint: "/app/target/release/relayer --sequencer-endpoint http://192.167.10.40:1317 --celestia-endpoint http://192.167.10.20:26659"
+    volumes:
+      - shared-volume:/root/.metro/config:ro
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.50
+
 volumes:
   keyring-volume:
+  shared-volume:
 
 networks:
   localnet:
