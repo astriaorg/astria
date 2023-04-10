@@ -11,13 +11,13 @@ message DoBlockRequest {
 }
 
 message DoBlockResponse {
-  bytes state_root = 1;
+  bytes block_hash = 1;
 }
 
 message InitStateRequest{}
 
 message InitStateResponse {
-  bytes state_root = 1;
+  bytes block_hash = 1;
 }
 
 service ExecutionService {
