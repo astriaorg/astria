@@ -1,10 +1,10 @@
 use color_eyre::eyre::Result;
 use log::{info, warn};
+use prost_types::Timestamp;
 use sequencer_relayer::proto::SequencerMsg;
 use sequencer_relayer::sequencer_block::{
     cosmos_tx_body_to_sequencer_msgs, get_namespace, parse_cosmos_tx, Namespace, SequencerBlock,
 };
-use prost_types::Timestamp;
 use tendermint::Time;
 use tokio::{
     sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
@@ -46,7 +46,6 @@ fn time_conversion(value: &str) -> Option<Timestamp> {
     Some(Timestamp { seconds, nanos })
 }
 
-
 #[derive(Debug)]
 pub(crate) enum ExecutorCommand {
     /// Command for when a block is received
@@ -68,7 +67,7 @@ struct Executor {
     /// to the consumer of the driver.
     alert_tx: AlertSender,
     /// Tracks the state of the execution chain
-    execution_state: Vec<u8>
+    execution_state: Vec<u8>,
 }
 
 impl Executor {
@@ -81,14 +80,14 @@ impl Executor {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let mut execution_rpc_client = ExecutionRpcClient::new(rpc_address).await?;
         let init_state_response = execution_rpc_client.call_init_state().await?;
-        let execution_state = init_state_response.state_root;
+        let execution_state = init_state_response.block_hash;
         Ok((
             Self {
                 cmd_rx,
                 execution_rpc_client,
                 namespace,
                 alert_tx,
-                execution_state
+                execution_state,
             },
             cmd_tx,
         ))
@@ -153,14 +152,12 @@ impl Executor {
 
         let timestamp = time_conversion(&*block.header.time);
 
-        let response = self.execution_rpc_client
+        let response = self
+            .execution_rpc_client
             .call_do_block(prev_state_root, txs, timestamp)
             .await?;
-        self.execution_state = response.state_root;
+        self.execution_state = response.block_hash;
 
         Ok(())
     }
-
-    
-
 }

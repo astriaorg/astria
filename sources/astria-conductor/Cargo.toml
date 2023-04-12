@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-astria-execution-apis-rpc = { git = "https://github.com/astriaorg/astria-rpc", rev = "9c5a5cfc009b0d30d42641e3ff7312c165646b61" }
+astria-execution-apis-rpc = { git = "https://github.com/astriaorg/astria-rpc", rev = "b67d6e1a7e61d2143ad395f9c1c3fa1f515a45ce" }
 clap = { version = "4.1.9", features = ["derive"] }
 color-eyre = "0.6.2"
 figment = { version = "0.10.8", features = ["toml", "env"] }

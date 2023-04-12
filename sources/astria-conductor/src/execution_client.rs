@@ -1,5 +1,7 @@
 use astria_execution_apis_rpc::execution::execution_service_client::ExecutionServiceClient;
-use astria_execution_apis_rpc::execution::{DoBlockRequest, DoBlockResponse, InitStateResponse, InitStateRequest};
+use astria_execution_apis_rpc::execution::{
+    DoBlockRequest, DoBlockResponse, InitStateRequest, InitStateResponse,
+};
 use color_eyre::eyre::Result;
 use prost_types::Timestamp;
 use tonic::transport::Channel;
@@ -32,7 +34,7 @@ impl ExecutionRpcClient {
         &mut self,
         prev_state_root: Vec<u8>,
         transactions: Vec<Vec<u8>>,
-        timestamp: Option<Timestamp>
+        timestamp: Option<Timestamp>,
     ) -> Result<DoBlockResponse> {
         let request = DoBlockRequest {
             prev_state_root,

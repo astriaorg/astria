@@ -157,8 +157,8 @@ impl Reader {
 
 #[cfg(test)]
 mod test {
-    use std::time::Duration;
     use super::*;
+    use std::time::Duration;
 
     const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26659";
 
