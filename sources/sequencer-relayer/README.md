@@ -45,7 +45,7 @@ cargo test -- --test-threads=1
 
 While running Metro and Celestia, start the relayer:
 ```bash
-./target/build/release/relayer
+./target/release/relayer
 ```
 
 Note: the relayer automatically uses the validator private key located at `~/.metro/config/priv_validator_key.json`. You can specify the file with `-v`.

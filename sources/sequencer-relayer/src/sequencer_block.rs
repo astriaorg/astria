@@ -148,8 +148,8 @@ impl SequencerBlock {
         // but we should probably verify that earier to return a better error.
         ordered_txs.sort_by(|a, b| a.index.cmp(&b.index));
         let txs = ordered_txs
-            .iter()
-            .map(|tx| tx.transaction.clone())
+            .into_iter()
+            .map(|tx| tx.transaction)
             .collect::<Vec<_>>();
         let data_hash = txs_to_data_hash(&txs);
 

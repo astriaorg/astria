@@ -23,14 +23,19 @@ pub struct SubmitBlockResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct SignedNamespaceData<D> {
-    data: D,
-    signature: Base64String,
+pub struct SignedNamespaceData<D> {
+    pub data: D,
+    pub public_key: Base64String,
+    pub signature: Base64String,
 }
 
 impl<D: NamespaceData> SignedNamespaceData<D> {
-    fn new(data: D, signature: Base64String) -> Self {
-        Self { data, signature }
+    fn new(data: D, public_key: Base64String, signature: Base64String) -> Self {
+        Self {
+            data,
+            public_key,
+            signature,
+        }
     }
 
     fn to_bytes(&self) -> eyre::Result<Vec<u8>> {
@@ -42,9 +47,24 @@ impl<D: NamespaceData> SignedNamespaceData<D> {
         serde_json::from_slice(bytes)
             .wrap_err("failed deserializing signed namespace data from bytes")
     }
+
+    pub fn verify(&self) -> eyre::Result<()> {
+        let public_key = PublicKey::from_bytes(&self.public_key.0)
+            .wrap_err("failed deserializing public key from bytes")?;
+        let signature = Signature::from_bytes(&self.signature.0)
+            .wrap_err("failed deserializing signature from bytes")?;
+        let data_bytes = self
+            .data
+            .hash()
+            .wrap_err("failed converting data to bytes")?;
+        public_key
+            .verify(&data_bytes, &signature)
+            .wrap_err("failed verifying signature")?;
+        Ok(())
+    }
 }
 
-trait NamespaceData
+pub trait NamespaceData
 where
     Self: Sized + Serialize + DeserializeOwned,
 {
@@ -61,7 +81,11 @@ where
     fn to_signed(self, keypair: &Keypair) -> eyre::Result<SignedNamespaceData<Self>> {
         let hash = self.hash().wrap_err("failed hashing namespace data")?;
         let signature = Base64String(keypair.sign(&hash).as_bytes().to_vec());
-        let data = SignedNamespaceData::new(self, signature);
+        let data = SignedNamespaceData::new(
+            self,
+            Base64String(keypair.public.to_bytes().to_vec()),
+            signature,
+        );
         Ok(data)
     }
 
@@ -75,12 +99,12 @@ where
 /// sequencer namespace. It contains all the other namespaces that were
 /// also written to in the same block.
 #[derive(Serialize, Deserialize, Debug)]
-struct SequencerNamespaceData {
-    block_hash: Base64String,
-    header: Header,
-    sequencer_txs: Vec<IndexedTransaction>,
+pub struct SequencerNamespaceData {
+    pub block_hash: Base64String,
+    pub header: Header,
+    pub sequencer_txs: Vec<IndexedTransaction>,
     /// vector of (block height, namespace) tuples
-    rollup_namespaces: Vec<(u64, String)>,
+    pub rollup_namespaces: Vec<(u64, String)>,
 }
 
 impl NamespaceData for SequencerNamespaceData {}
@@ -88,8 +112,8 @@ impl NamespaceData for SequencerNamespaceData {}
 /// RollupNamespaceData represents the data written to a rollup namespace.
 #[derive(Serialize, Deserialize, Debug)]
 struct RollupNamespaceData {
-    block_hash: Base64String,
-    rollup_txs: Vec<IndexedTransaction>,
+    pub block_hash: Base64String,
+    pub rollup_txs: Vec<IndexedTransaction>,
 }
 
 impl NamespaceData for RollupNamespaceData {}
@@ -222,16 +246,12 @@ impl CelestiaClient {
         Ok(resp)
     }
 
-    /// get_blocks retrieves all blocks written to Celestia at the given height.
-    /// If a public key is provided, it will only return blocks signed by that public key.
-    /// It might return multiple blocks, because there might be multiple written to
-    /// the same height.
-    /// The caller should probably check that there are no conflicting blocks.
-    pub async fn get_blocks(
+    /// get_sequencer_namespace_data returns all the signed sequencer namespace data at a given height.
+    pub async fn get_sequencer_namespace_data(
         &self,
         height: u64,
         public_key: Option<&PublicKey>,
-    ) -> eyre::Result<Vec<SequencerBlock>> {
+    ) -> eyre::Result<Vec<SignedNamespaceData<SequencerNamespaceData>>> {
         let namespaced_data_response = self
             .client
             .namespaced_data(&DEFAULT_NAMESPACE.to_string(), height)
@@ -257,51 +277,75 @@ impl CelestiaClient {
                 Some(data)
             })
             .collect::<Vec<_>>();
+        Ok(sequencer_namespace_datas)
+    }
 
+    /// get_blocks retrieves all blocks written to Celestia at the given height.
+    /// If a public key is provided, it will only return blocks signed by that public key.
+    /// It might return multiple blocks, because there might be multiple written to
+    /// the same height.
+    /// The caller should probably check that there are no conflicting blocks.
+    pub async fn get_blocks(
+        &self,
+        height: u64,
+        public_key: Option<&PublicKey>,
+    ) -> eyre::Result<Vec<SequencerBlock>> {
+        let sequencer_namespace_datas = self
+            .get_sequencer_namespace_data(height, public_key)
+            .await?;
         let mut blocks = Vec::with_capacity(sequencer_namespace_datas.len());
 
         // for all the sequencer datas retrieved, create the corresponding SequencerBlock
         for sequencer_namespace_data in &sequencer_namespace_datas {
-            let mut rollup_txs_map = HashMap::new();
-
-            // for each rollup namespace, retrieve the corresponding rollup data
-            'namespaces: for (height, rollup_namespace) in
-                &sequencer_namespace_data.data.rollup_namespaces
-            {
-                let rollup_txs = self
-                    .get_rollup_data_for_block(
-                        &sequencer_namespace_data.data.block_hash.0,
-                        rollup_namespace,
-                        *height,
-                        public_key,
-                    )
-                    .await
-                    .wrap_err_with(|| format!(
-                        "failed getting rollup data for block at height `{height}` in rollup namespace `{rollup_namespace}`"
-                    ))?;
-                let Some(rollup_txs) = rollup_txs else {
-                    // this shouldn't happen; if a sequencer block claims to have written data to some
-                    // rollup namespace, it should exist
-                    warn!("no rollup data found for namespace {rollup_namespace}");
-                    continue 'namespaces;
-                };
-                let namespace = Namespace::from_string(rollup_namespace).wrap_err_with(|| {
-                    format!(
-                        "failed constructing namespaces from rollup namespace `{rollup_namespace}`"
-                    )
-                })?;
-                rollup_txs_map.insert(namespace, rollup_txs);
-            }
-
-            blocks.push(SequencerBlock {
-                block_hash: sequencer_namespace_data.data.block_hash.clone(),
-                header: sequencer_namespace_data.data.header.clone(),
-                sequencer_txs: sequencer_namespace_data.data.sequencer_txs.clone(),
-                rollup_txs: rollup_txs_map,
-            })
+            blocks.push(
+                self.get_sequencer_block(&sequencer_namespace_data.data, public_key)
+                    .await?,
+            );
         }
 
         Ok(blocks)
+    }
+
+    /// get_sequencer_block returns the full SequencerBlock (with all rollup data) for the given
+    /// SequencerNamespaceData.
+    pub async fn get_sequencer_block(
+        &self,
+        data: &SequencerNamespaceData,
+        public_key: Option<&PublicKey>,
+    ) -> eyre::Result<SequencerBlock> {
+        let mut rollup_txs_map = HashMap::new();
+
+        // for each rollup namespace, retrieve the corresponding rollup data
+        'namespaces: for (height, rollup_namespace) in &data.rollup_namespaces {
+            let rollup_txs = self
+                .get_rollup_data_for_block(
+                    &data.block_hash.0,
+                    rollup_namespace,
+                    *height,
+                    public_key,
+                )
+                .await
+                .wrap_err_with(|| format!(
+                    "failed getting rollup data for block at height `{height}` in rollup namespace `{rollup_namespace}`"
+                ))?;
+            let Some(rollup_txs) = rollup_txs else {
+                // this shouldn't happen; if a sequencer block claims to have written data to some
+                // rollup namespace, it should exist
+                warn!("no rollup data found for namespace {rollup_namespace}");
+                continue 'namespaces;
+            };
+            let namespace = Namespace::from_string(rollup_namespace).wrap_err_with(|| {
+                format!("failed constructing namespaces from rollup namespace `{rollup_namespace}`")
+            })?;
+            rollup_txs_map.insert(namespace, rollup_txs);
+        }
+
+        Ok(SequencerBlock {
+            block_hash: data.block_hash.clone(),
+            header: data.header.clone(),
+            sequencer_txs: data.sequencer_txs.clone(),
+            rollup_txs: rollup_txs_map,
+        })
     }
 
     async fn get_rollup_data_for_block(
