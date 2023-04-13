@@ -7,15 +7,19 @@ edition = "2021"
 
 [dependencies]
 astria-execution-apis-rpc = { git = "https://github.com/astriaorg/astria-rpc", rev = "b67d6e1a7e61d2143ad395f9c1c3fa1f515a45ce" }
+bech32 = "0.9"
 clap = { version = "4.1.9", features = ["derive"] }
 color-eyre = "0.6.2"
+ed25519-dalek = "1.0"
 figment = { version = "0.10.8", features = ["toml", "env"] }
 flexi_logger = "0.24.2"
 futures = "0.3"
+hex = "0.4"
 log = "0.4.17"
 prost-types = "0.11.8"
+reqwest = { version = "0.11", features = ["json"] }
 rs-cnc = { git = "https://github.com/astriaorg/rs-cnc", rev = "e0b45d6" }
-sequencer-relayer = { git = "https://github.com/astriaorg/sequencer-relayer", rev = "f719a7ff79562efe50e9ce9e542bbf415b9550c2" }
+sequencer-relayer = { git = "https://github.com/astriaorg/sequencer-relayer", rev = "df321d376121efffebe77fe5d580672750114da6" }
 serde = "1.0.152"
 serde_json = "1.0"
 thiserror = "1.0.38"

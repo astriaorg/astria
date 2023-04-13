@@ -21,15 +21,15 @@ pub(crate) type Receiver = UnboundedReceiver<DriverCommand>;
 
 /// The type of commands that the driver can receive.
 #[derive(Debug)]
-pub(crate) enum DriverCommand {
+pub enum DriverCommand {
     /// Get new blocks
     GetNewBlocks,
     /// Gracefully shuts down the driver and its components.
     Shutdown,
 }
 
-pub(crate) struct Driver {
-    pub(crate) cmd_tx: Sender,
+pub struct Driver {
+    pub cmd_tx: Sender,
 
     /// The channel on which other components in the driver sends the driver messages.
     cmd_rx: Receiver,
@@ -48,7 +48,7 @@ pub(crate) struct Driver {
 }
 
 impl Driver {
-    pub(crate) async fn new(conf: Config, alert_tx: AlertSender) -> Result<Self> {
+    pub async fn new(conf: Config, alert_tx: AlertSender) -> Result<Self> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let (executor_join_handle, executor_tx) = executor::spawn(&conf, alert_tx.clone()).await?;
         let (reader_join_handle, reader_tx) = reader::spawn(&conf, executor_tx.clone()).await?;
@@ -66,7 +66,7 @@ impl Driver {
     }
 
     /// Runs the Driver event loop.
-    pub(crate) async fn run(&mut self) -> Result<()> {
+    pub async fn run(&mut self) -> Result<()> {
         info!("Starting driver event loop.");
         while let Some(cmd) = self.cmd_rx.recv().await {
             // TODO: these are kind of janky, we might want to move to a polling-based architecture
