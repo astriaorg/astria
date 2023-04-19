@@ -193,21 +193,8 @@ pub fn cosmos_tx_body_to_sequencer_msgs(tx_body: TxBody) -> eyre::Result<Vec<Seq
 
 #[cfg(test)]
 mod test {
-    use super::{
-        cosmos_tx_body_to_sequencer_msgs, parse_cosmos_tx, SequencerBlock, SEQUENCER_TYPE_URL,
-    };
+    use super::{cosmos_tx_body_to_sequencer_msgs, parse_cosmos_tx, SEQUENCER_TYPE_URL};
     use crate::base64_string::Base64String;
-    use crate::sequencer::SequencerClient;
-
-    #[tokio::test]
-    async fn test_header_verify_hashes() {
-        let cosmos_endpoint = "http://localhost:1317".to_string();
-        let client = SequencerClient::new(cosmos_endpoint).unwrap();
-        let resp = client.get_latest_block().await.unwrap();
-        let sequencer_block = SequencerBlock::from_cosmos_block(resp.block).unwrap();
-        sequencer_block.verify_data_hash().unwrap();
-        sequencer_block.verify_block_hash().unwrap();
-    }
 
     #[test]
     fn test_parse_primary_tx() {

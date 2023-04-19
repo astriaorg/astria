@@ -53,10 +53,8 @@ impl SequencerClient {
 
 #[cfg(test)]
 mod test {
-    use bech32::{self, FromBase32, Variant};
-
-    use super::SequencerClient;
     use crate::base64_string::Base64String;
+    use bech32::{self, FromBase32, Variant};
 
     #[test]
     fn test_decode_validator_address() {
@@ -73,22 +71,5 @@ mod test {
             validator_address_from_block.0
         );
         assert_eq!(variant, Variant::Bech32);
-    }
-
-    #[tokio::test]
-    async fn test_get_latest_block() {
-        let cosmos_endpoint = "http://localhost:1317".to_string();
-        let client = SequencerClient::new(cosmos_endpoint).unwrap();
-        let resp = client.get_latest_block().await.unwrap();
-        println!("LatestBlockResponse: {:?}", resp);
-    }
-
-    #[tokio::test]
-    async fn test_get_block() {
-        let cosmos_endpoint = "http://localhost:1317".to_string();
-        let client = SequencerClient::new(cosmos_endpoint).unwrap();
-        let resp = client.get_latest_block().await.unwrap();
-        let height: u64 = resp.block.header.height.parse().unwrap();
-        client.get_block(height).await.unwrap();
     }
 }

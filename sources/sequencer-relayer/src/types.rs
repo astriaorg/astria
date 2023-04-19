@@ -128,7 +128,7 @@ impl Header {
     /// FIXME: This looks exactly like the `TryFrom<RawHeader>` definition that tendermint
     /// uses: https://docs.rs/tendermint/0.30.0/tendermint/block/header/struct.Header.html#impl-TryFrom%3CHeader%3E-for-Header
     /// We should use their impl instead of rolling our own.
-    fn to_tendermint_header(&self) -> eyre::Result<TmHeader> {
+    pub fn to_tendermint_header(&self) -> eyre::Result<TmHeader> {
         let last_block_id = self
             .last_block_id
             .as_ref()
@@ -186,20 +186,5 @@ impl Header {
             evidence_hash,
             proposer_address: AccountId::try_from(self.proposer_address.0.clone())?,
         })
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::sequencer::SequencerClient;
-
-    #[tokio::test]
-    async fn test_header_to_tendermint_header() {
-        let cosmos_endpoint = "http://localhost:1317".to_string();
-        let client = SequencerClient::new(cosmos_endpoint).unwrap();
-        let resp = client.get_latest_block().await.unwrap();
-        let tm_header = &resp.block.header.to_tendermint_header().unwrap();
-        let tm_header_hash = tm_header.hash();
-        assert_eq!(tm_header_hash.as_bytes(), &resp.block_id.hash.0);
     }
 }

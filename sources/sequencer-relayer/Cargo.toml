@@ -32,3 +32,15 @@ features = ["rustls"]
 
 [build-dependencies]
 prost-build = "0.11"
+
+[dev-dependencies]
+podman-api = "0.10.0"
+uuid = { version = "1.3.1", features = ["v4"] }
+tokio = { version = "1.24", features = [ "parking_lot", "sync", "time" ] }
+askama = "0.12.0"
+once_cell = "1.17.1"
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+users = "0.11.0"
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+home = "0.5.4"

@@ -1,0 +1,5 @@
+FROM ghcr.io/celestiaorg/celestia-node:0.6.1
+
+RUN apt-get update && apt-get -y install jq curl
+
+ENTRYPOINT ["/bin/bash"]

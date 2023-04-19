@@ -14,15 +14,6 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: ${{ matrix.go-version }}
-      - name: Clone Metro
-        uses: actions/checkout@v2
-        with:
-          repository: histolabs/metro
-          path: './metro'
-      - name: Build Metro
-        run: |
-          cd metro && make install
-          bash scripts/single-node.sh &
       - uses: actions/checkout@v2
       - name: Install stable
         run: rustup toolchain install stable
@@ -38,8 +29,31 @@ jobs:
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-      - name: Start Celestia core app and bridge node
-        run: docker-compose -f docker/test-docker-compose.yml up -d bridge0
+      - name: install podman 4
+        run: sudo bash $GITHUB_WORKSPACE/.github/workflows/install_podman.sh
+      - name: start podman
+        run: |
+          systemctl restart --user podman
+          systemctl restart --user podman.socket
+      - name: populate sequencer stack template
+        uses: cuchi/jinja2-action@v1.2.0
+        with:
+          template: templates/sequencer_relayer_stack.yaml.jinja2
+          output_file: sequencer_relayer_stack_init.yaml
+          strict: true
+          variables: |
+            pod_name=sequencer_relayer_stack_pull
+            celestia_home_volume=celestia-home-vol
+            metro_home_volume=metro-home-vol
+            bridge_host_port=26659
+            sequencer_host_port=1318
+            scripts_host_volume=containers
+      - name: start stack to to download all images
+        run: |
+          podman kube play --start=false --replace \
+            sequencer_relayer_stack_init.yaml
+      - name: remove stack pod
+        run: podman pod rm --all
       - name: Install protoc
         run: sudo apt-get install protobuf-compiler
       - name: Build
@@ -51,9 +65,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -- --nocapture --color always --test-threads=1
-      - name: Clean up Docker containers used for testing
-        run: ./docker/cleanup-docker.sh
+          args: -- --nocapture --color always
 
   fmt:
     name: fmt
