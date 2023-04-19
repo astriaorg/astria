@@ -1,18 +1,49 @@
 # build stage
-FROM --platform=$BUILDPLATFORM rust:1.68-slim as builder
+FROM --platform=$BUILDPLATFORM lukemathwalker/cargo-chef:latest-rust-bullseye AS chef
+WORKDIR /build/
 
-# install deps needed to build our rust binary.
-# libssl-dev and pkg-config are for ssl, protobuf-compiler is required by build.rs to build our protos
-RUN apt-get update && \
-    apt-get dist-upgrade -y && \
-    apt-get install -y libssl-dev pkg-config protobuf-compiler
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    libprotobuf-dev \
+    protobuf-compiler \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY . /app
-WORKDIR /app
+# install zig
+RUN curl -L "https://ziglang.org/download/0.10.1/zig-linux-$(uname -m)-0.10.1.tar.xz" | tar -J -x -C /usr/local && \
+    ln -s "/usr/local/zig-linux-$(uname -m)-0.10.1/zig" /usr/local/bin/zig
 
-RUN cargo build --release
+# install zigbuild
+RUN cargo install --locked cargo-zigbuild
 
-# Prod stage - remove build dependencies
-FROM --platform=$BUILDPLATFORM gcr.io/distroless/cc
-COPY --from=builder /app/target/release/relayer /app/target/release/relayer
-CMD ["/app/target/release/relayer"]
+# install targets
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef as builder
+COPY --from=planner /build/recipe.json recipe.json
+
+ARG TARGETPLATFORM
+RUN case "$TARGETPLATFORM" in \
+    "linux/arm64") target="aarch64-unknown-linux-gnu" ;; \
+    "linux/amd64") target="x86_64-unknown-linux-gnu" ;; \
+    esac \
+    && printf "$target" > target_triple \
+    && rustup target add "$target" \
+    && cargo chef cook --zigbuild \
+    --release \
+    --target "$target" \
+    --recipe-path recipe.json
+COPY . .
+RUN cargo zigbuild --release \
+    --target $(cat ./target_triple) \
+    --bin relayer
+# replace this with `--out` or `--out-dir` once stable
+RUN mkdir -p target/release \
+    && cp target/$(cat ./target_triple)/release/relayer target/release/
+
+FROM gcr.io/distroless/cc
+WORKDIR /app/
+COPY --from=builder /build/target/release/relayer /usr/local/bin/relayer
+ENTRYPOINT ["/usr/local/bin/relayer"]
