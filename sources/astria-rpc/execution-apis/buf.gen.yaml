@@ -3,6 +3,6 @@ managed:
   enabled: true
 plugins:
   - plugin: buf.build/community/neoeinstein-prost
-    out: src
+    out: .
   - plugin: buf.build/community/neoeinstein-tonic
-    out: src
+    out: .
