@@ -14,4 +14,5 @@ jq --arg accountId "$ACCOUNT_ID" \
 geth --datadir ~/.astriageth/ init genesis.json
 geth --datadir ~/.astriageth/ --http --http.addr "0.0.0.0" --http.port=8545 \
   --ws --ws.addr "0.0.0.0" --ws.port=8545 --networkid=1337 --http.corsdomain='*' --ws.origins='*' \
-  --grpc --grpc.addr "0.0.0.0" --grpc.port 50051
+  --grpc --grpc.addr "0.0.0.0" --grpc.port 50051 \
+  --metro.addr "192.167.10.40" --metro.port 9090

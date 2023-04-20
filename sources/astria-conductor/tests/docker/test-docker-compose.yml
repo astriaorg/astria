@@ -45,13 +45,12 @@ services:
     env_file:
       - ./.env
     depends_on:
-      - bridge0
-    # FIXME - use a tagged version eventually
-#    image: "ghcr.io/astriaorg/go-ethereum:latest"
-#    image: "ghcr.io/astriaorg/go-ethereum:local"
-    image: "ghcr.io/astriaorg/go-ethereum:custom-mempool"
+      metro0:
+        condition: service_healthy
+    image: "ghcr.io/astriaorg/go-ethereum:0.0.3"
     volumes:
       - ${PWD}/tests/docker/start-geth.sh:/start-geth.sh:ro
+      - shared-volume:/root/.metro:ro
     ports:
       - "8545:8545"
       - "50051:50051"
@@ -66,8 +65,7 @@ services:
     container_name: metro0
     depends_on:
       - bridge0
-    # FIXME - use a tagged version eventually
-    image: "ghcr.io/astriaorg/metro:latest"
+    image: "ghcr.io/astriaorg/metro:0.0.3"
     healthcheck:
       # test for existence of priv_validator_key.json, so that dependent services start correctly
       test: "test -f /root/.metro/config/priv_validator_key.json || exit 1 && wget -q --spider --tries=1 --timeout=5 http://localhost:1317/cosmos/base/tendermint/v1beta1/blocks/latest || exit 1"
@@ -77,8 +75,9 @@ services:
     ports:
       - "26657:26657"
       - "1317:1317"
+      - "9090:9090"
     volumes:
-      - shared-volume:/root/.metro/config
+      - shared-volume:/root/.metro
     networks:
       localnet:
         ipv4_address: 192.167.10.40
@@ -94,7 +93,7 @@ services:
     image: "ghcr.io/astriaorg/sequencer-relayer:latest"
     entrypoint: "/app/target/release/relayer --sequencer-endpoint http://192.167.10.40:1317 --celestia-endpoint http://192.167.10.20:26659"
     volumes:
-      - shared-volume:/root/.metro/config:ro
+      - shared-volume:/root/.metro:ro
     networks:
       localnet:
         ipv4_address: 192.167.10.50
