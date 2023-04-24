@@ -51,6 +51,8 @@ services:
     volumes:
       - ${PWD}/tests/docker/start-geth.sh:/start-geth.sh:ro
       - shared-volume:/root/.metro:ro
+    expose:
+      - "50051/tcp"
     ports:
       - "8545:8545"
       - "50051:50051"

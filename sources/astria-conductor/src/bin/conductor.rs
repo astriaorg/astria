@@ -69,11 +69,19 @@ async fn run() -> Result<()> {
             }
             // request new blocks every X seconds
             _ = interval.tick() => {
-                driver_tx.send(DriverCommand::GetNewBlocks)?;
+                if let Some(e) = driver_tx.send(DriverCommand::GetNewBlocks).err() {
+                    // the only error that can happen here is SendError which occurs
+                    // if the driver's receiver channel is dropped
+                    error!("error sending GetNewBlocks command to driver: {}", e);
+                    run = false;
+                }
             }
             // shutdown properly on ctrl-c
             _ = signal::ctrl_c() => {
-                driver_tx.send(DriverCommand::Shutdown)?;
+                if let Some(e) = driver_tx.send(DriverCommand::Shutdown).err() {
+                    error!("error sending Shutdown command to driver: {}", e);
+                }
+                run = false;
             }
         }
 
