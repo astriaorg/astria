@@ -45,5 +45,6 @@ RUN mkdir -p target/release \
 
 FROM gcr.io/distroless/cc
 WORKDIR /app/
+EXPOSE 2450
 COPY --from=builder /build/target/release/relayer /usr/local/bin/relayer
 ENTRYPOINT ["/usr/local/bin/relayer"]
