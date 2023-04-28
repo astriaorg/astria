@@ -2,10 +2,12 @@
 /// Used for "soft commitments".
 use color_eyre::eyre::{eyre, Result, WrapErr};
 use futures::{stream::FusedStream, StreamExt};
+#[cfg(feature = "mdns")]
+use libp2p::mdns;
 use libp2p::{
     core::upgrade::Version,
     gossipsub::{self, Message, MessageId, TopicHash},
-    identity, mdns, noise, ping,
+    identity, noise, ping,
     swarm::{NetworkBehaviour, Swarm, SwarmBuilder, SwarmEvent},
     tcp, yamux, Multiaddr, PeerId, Transport,
 };
@@ -25,6 +27,7 @@ const HEADER_TOPIC: &str = "header";
 struct MyBehaviour {
     ping: ping::Behaviour,
     gossipsub: gossipsub::Behaviour,
+    #[cfg(feature = "mdns")]
     mdns: mdns::tokio::Behaviour,
 }
 
@@ -72,9 +75,11 @@ impl Network {
         gossipsub.subscribe(&topic)?;
 
         let mut swarm = {
+            #[cfg(feature = "mdns")]
             let mdns = mdns::tokio::Behaviour::new(mdns::Config::default(), local_peer_id)?;
             let behaviour = MyBehaviour {
                 gossipsub,
+                #[cfg(feature = "mdns")]
                 mdns,
                 ping: ping::Behaviour::default(),
             };
@@ -113,8 +118,10 @@ impl Network {
 pub enum StreamItem {
     NewListenAddr(Multiaddr),
     Message(Message),
-    // MdnsPeersConnected(Vec<PeerId>),
-    // MdnsPeersDisconnected(Vec<PeerId>),
+    #[cfg(feature = "mdns")]
+    MdnsPeersConnected(Vec<PeerId>),
+    #[cfg(feature = "mdns")]
+    MdnsPeersDisconnected(Vec<PeerId>),
     PeerConnected(PeerId),
     PeerSubscribed(PeerId, TopicHash),
 }
@@ -130,29 +137,30 @@ impl futures::Stream for Network {
             };
 
             match event {
-                SwarmEvent::Behaviour(MyBehaviourEvent::Ping(_)) => {}
-                // SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
-                //     let peers = Vec::with_capacity(list.len());
-                //     for (peer_id, _multiaddr) in list {
-                //         println!("mDNS discovered a new peer: {peer_id}");
-                //         self.swarm
-                //             .behaviour_mut()
-                //             .gossipsub
-                //             .add_explicit_peer(&peer_id);
-                //     }
-                //     return Poll::Ready(Some(StreamItem::MdnsPeersConnected(peers)));
-                // }
-                // SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Expired(list))) => {
-                //     let peers = Vec::with_capacity(list.len());
-                //     for (peer_id, _multiaddr) in list {
-                //         println!("mDNS discover peer has expired: {peer_id}");
-                //         self.swarm
-                //             .behaviour_mut()
-                //             .gossipsub
-                //             .remove_explicit_peer(&peer_id);
-                //     }
-                //     return Poll::Ready(Some(StreamItem::MdnsPeersDisconnected(peers)));
-                // }
+                #[cfg(feature = "mdns")]
+                SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
+                    let peers = Vec::with_capacity(list.len());
+                    for (peer_id, _multiaddr) in list {
+                        println!("mDNS discovered a new peer: {peer_id}");
+                        self.swarm
+                            .behaviour_mut()
+                            .gossipsub
+                            .add_explicit_peer(&peer_id);
+                    }
+                    return Poll::Ready(Some(StreamItem::MdnsPeersConnected(peers)));
+                }
+                #[cfg(feature = "mdns")]
+                SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Expired(list))) => {
+                    let peers = Vec::with_capacity(list.len());
+                    for (peer_id, _multiaddr) in list {
+                        println!("mDNS discover peer has expired: {peer_id}");
+                        self.swarm
+                            .behaviour_mut()
+                            .gossipsub
+                            .remove_explicit_peer(&peer_id);
+                    }
+                    return Poll::Ready(Some(StreamItem::MdnsPeersDisconnected(peers)));
+                }
                 SwarmEvent::Behaviour(MyBehaviourEvent::Gossipsub(gossipsub::Event::Message {
                     propagation_source: peer_id,
                     message_id: id,
