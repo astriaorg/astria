@@ -1,0 +1,59 @@
+name: Tests
+
+on: [pull_request]
+
+jobs:
+  test:
+    name: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install stable
+        run: rustup toolchain install stable
+      - uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: '${{ runner.os }}-cargo-registry-${{ hashFiles(''**/Cargo.lock'') }}'
+      - uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: '${{ runner.os }}-cargo-index-${{ hashFiles(''**/Cargo.lock'') }}'
+      - uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -- --nocapture --color always
+
+  fmt:
+    name: fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - run: rustup component add rustfmt
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install protoc
+        run: sudo apt-get install protobuf-compiler
+      - uses: actions/checkout@v1
+      - run: rustup component add clippy
+      - uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all --all-targets -- -D warnings
+          
