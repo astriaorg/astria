@@ -19,7 +19,7 @@ use std::{
     task::{Context, Poll},
     time::Duration,
 };
-use tracing::info;
+use tracing::{debug, info};
 
 pub use libp2p::gossipsub::Sha256Topic;
 
@@ -31,6 +31,37 @@ struct MyBehaviour {
     mdns: mdns::tokio::Behaviour,
 }
 
+pub struct NetworkBuilder {
+    bootnodes: Option<Vec<String>>,
+    port: u16,
+    // TODO
+    // key file or keypair
+    // with mDNS
+}
+
+impl NetworkBuilder {
+    pub fn new() -> Self {
+        Self {
+            bootnodes: None,
+            port: 0, // random port
+        }
+    }
+
+    pub fn bootnodes(mut self, bootnodes: Vec<String>) -> Self {
+        self.bootnodes = Some(bootnodes);
+        self
+    }
+
+    pub fn port(mut self, port: u16) -> Self {
+        self.port = port;
+        self
+    }
+
+    pub fn build(self) -> Result<Network> {
+        Network::new(self.bootnodes, self.port)
+    }
+}
+
 pub struct Network {
     pub multiaddr: Multiaddr,
     swarm: Swarm<MyBehaviour>,
@@ -38,7 +69,7 @@ pub struct Network {
 }
 
 impl Network {
-    pub fn new(bootnode: Option<&str>, port: u16) -> Result<Self> {
+    pub fn new(bootnodes: Option<Vec<String>>, port: u16) -> Result<Self> {
         // TODO: store this on disk instead of randomly generating
         let local_key = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
@@ -58,7 +89,7 @@ impl Network {
         };
 
         let gossipsub_config = gossipsub::ConfigBuilder::default()
-            .heartbeat_interval(Duration::from_secs(1))
+            .heartbeat_interval(Duration::from_secs(10))
             .validation_mode(gossipsub::ValidationMode::Strict) // the default is Strict (enforce message signing)
             .message_id_fn(message_id_fn) // content-address messages so that duplicates aren't propagated
             .build()
@@ -86,12 +117,14 @@ impl Network {
         let listen_addr = format!("/ip4/0.0.0.0/tcp/{}", port);
         swarm.listen_on(listen_addr.parse()?)?;
 
-        println!("bootnode: {:?}", bootnode);
-        if let Some(addr) = bootnode {
-            println!("dialing {:?}", addr);
-            let remote: Multiaddr = addr.parse()?;
-            swarm.dial(remote)?;
-            info!("dialed {addr}")
+        if let Some(addrs) = bootnodes {
+            addrs.iter().try_for_each(|addr| -> Result<_> {
+                debug!("dialing {:?}", addr);
+                let remote: Multiaddr = addr.parse()?;
+                swarm.dial(remote)?;
+                debug!("dialed {addr}");
+                Ok(())
+            })?;
         }
 
         let multiaddr = Multiaddr::from_str(&format!("{}/p2p/{}", listen_addr, local_peer_id))?;
@@ -153,7 +186,7 @@ impl futures::Stream for Network {
                 SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
                     let peers = Vec::with_capacity(list.len());
                     for (peer_id, _multiaddr) in list {
-                        println!("mDNS discovered a new peer: {peer_id}");
+                        debug!("mDNS discovered a new peer: {peer_id}");
                         self.swarm
                             .behaviour_mut()
                             .gossipsub
@@ -165,7 +198,7 @@ impl futures::Stream for Network {
                 SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Expired(list))) => {
                     let peers = Vec::with_capacity(list.len());
                     for (peer_id, _multiaddr) in list {
-                        println!("mDNS discover peer has expired: {peer_id}");
+                        debug!("mDNS discover peer has expired: {peer_id}");
                         self.swarm
                             .behaviour_mut()
                             .gossipsub
@@ -178,20 +211,20 @@ impl futures::Stream for Network {
                     message_id: id,
                     message,
                 })) => {
-                    println!(
+                    debug!(
                         "Got message: '{}' with id: {id} from peer: {peer_id}",
                         String::from_utf8_lossy(&message.data),
                     );
                     return Poll::Ready(Some(StreamItem::Message(message)));
                 }
                 SwarmEvent::NewListenAddr { address, .. } => {
-                    println!("Local node is listening on {address}");
+                    debug!("Local node is listening on {address}");
                     return Poll::Ready(Some(StreamItem::NewListenAddr(address)));
                 }
                 SwarmEvent::Behaviour(MyBehaviourEvent::Gossipsub(
                     gossipsub::Event::Subscribed { peer_id, topic },
                 )) => {
-                    println!(
+                    debug!(
                         "Peer {peer_id} subscribed to topic: {topic:?}",
                         peer_id = peer_id,
                         topic = topic,
@@ -205,7 +238,7 @@ impl futures::Stream for Network {
                     concurrent_dial_errors: _,
                     established_in: _,
                 } => {
-                    println!(
+                    debug!(
                         "Connection with {peer_id} established (total: {num_established})",
                         peer_id = peer_id,
                         num_established = num_established,
@@ -217,7 +250,7 @@ impl futures::Stream for Network {
                     return Poll::Ready(Some(StreamItem::PeerConnected(peer_id)));
                 }
                 _ => {
-                    println!("unhandled swarm event: {:?}", event);
+                    debug!("unhandled swarm event: {:?}", event);
                 }
             }
         }
@@ -296,7 +329,7 @@ mod test {
             let topic = Sha256Topic::new(TEST_TOPIC);
 
             let bootnode = bootnode_rx.await.unwrap();
-            let mut bob = Network::new(Some(&bootnode.to_string()), 9001).unwrap();
+            let mut bob = Network::new(Some(vec![bootnode.to_string()]), 9001).unwrap();
             bob.subscribe(&topic);
 
             loop {
