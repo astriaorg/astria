@@ -21,7 +21,7 @@ use std::{
 };
 use tracing::info;
 
-const HEADER_TOPIC: &str = "header";
+pub use libp2p::gossipsub::Sha256Topic;
 
 #[derive(NetworkBehaviour)]
 struct MyBehaviour {
@@ -65,14 +65,11 @@ impl Network {
             .map_err(|e| eyre!("failed to build gossipsub config: {}", e))?;
 
         // build a gossipsub network behaviour
-        let mut gossipsub = gossipsub::Behaviour::new(
+        let gossipsub = gossipsub::Behaviour::new(
             gossipsub::MessageAuthenticity::Signed(local_key),
             gossipsub_config,
         )
         .map_err(|e| eyre!("failed to create gossipsub behaviour: {}", e))?;
-
-        let topic = gossipsub::IdentTopic::new(HEADER_TOPIC);
-        gossipsub.subscribe(&topic)?;
 
         let mut swarm = {
             #[cfg(feature = "mdns")]
@@ -105,13 +102,28 @@ impl Network {
         })
     }
 
-    pub async fn publish(&mut self, message: Vec<u8>) -> Result<MessageId> {
-        let topic = gossipsub::IdentTopic::new(HEADER_TOPIC);
+    pub async fn publish(&mut self, message: Vec<u8>, topic: Sha256Topic) -> Result<MessageId> {
         self.swarm
             .behaviour_mut()
             .gossipsub
             .publish(topic, message)
             .wrap_err("failed to publish message")
+    }
+
+    pub fn subscribe(&mut self, topic: &Sha256Topic) {
+        self.swarm
+            .behaviour_mut()
+            .gossipsub
+            .subscribe(topic)
+            .unwrap();
+    }
+
+    pub fn unsubscribe(&mut self, topic: &Sha256Topic) {
+        self.swarm
+            .behaviour_mut()
+            .gossipsub
+            .unsubscribe(topic)
+            .unwrap();
     }
 }
 
@@ -226,6 +238,8 @@ mod test {
 
     use futures::{channel::oneshot, join, select};
 
+    const TEST_TOPIC: &str = "test";
+
     #[tokio::test]
     async fn test_gossip_two_nodes() {
         let (bootnode_tx, bootnode_rx) = oneshot::channel();
@@ -237,7 +251,10 @@ mod test {
         let recv_msg_b = msg_b.clone();
 
         let alice_handle = tokio::task::spawn(async move {
+            let topic = Sha256Topic::new(TEST_TOPIC);
+
             let mut alice = Network::new(None, 9000).unwrap();
+            alice.subscribe(&topic);
 
             let Some(event) = alice.next().await else {
                 panic!("unexpected event");
@@ -260,9 +277,9 @@ mod test {
                     StreamItem::PeerConnected(peer_id) => {
                         println!("Alice connected to {:?}", peer_id);
                     }
-                    StreamItem::PeerSubscribed(peer_id, topic) => {
-                        println!("Remote peer {:?} subscribed to {:?}", peer_id, topic);
-                        alice.publish(msg_a.clone()).await.unwrap();
+                    StreamItem::PeerSubscribed(peer_id, topic_hash) => {
+                        println!("Remote peer {:?} subscribed to {:?}", peer_id, topic_hash);
+                        alice.publish(msg_a.clone(), topic.clone()).await.unwrap();
                     }
                     StreamItem::Message(msg) => {
                         println!("Alice got message: {:?}", msg);
@@ -276,8 +293,12 @@ mod test {
         });
 
         let bob_handle = tokio::task::spawn(async move {
+            let topic = Sha256Topic::new(TEST_TOPIC);
+
             let bootnode = bootnode_rx.await.unwrap();
             let mut bob = Network::new(Some(&bootnode.to_string()), 9001).unwrap();
+            bob.subscribe(&topic);
+
             loop {
                 select! {
                     event = bob.select_next_some() => {
@@ -288,7 +309,7 @@ mod test {
                             StreamItem::Message(msg) => {
                                 println!("Bob got message: {:?}", msg);
                                 assert_eq!(msg.data, recv_msg_a);
-                                bob.publish(msg_b.clone()).await.unwrap();
+                                bob.publish(msg_b.clone(), topic.clone()).await.unwrap();
                             }
                             _ => {}
                         }
