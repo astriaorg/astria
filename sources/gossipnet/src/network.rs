@@ -1,5 +1,7 @@
-/// Gossip network for receiving new block headers from the sequencer.
-/// Used for "soft commitments".
+/// gossipnet implements a basic gossip network using libp2p.
+/// It currently supports discovery via mdns and bootnodes, and eventually
+/// will support DHT discovery.
+
 use color_eyre::eyre::{eyre, Result, WrapErr};
 use futures::{stream::FusedStream, StreamExt};
 #[cfg(feature = "mdns")]
@@ -34,9 +36,7 @@ struct MyBehaviour {
 pub struct NetworkBuilder {
     bootnodes: Option<Vec<String>>,
     port: u16,
-    // TODO
-    // key file or keypair
-    // with mDNS
+    // TODO: load key file or keypair
 }
 
 impl NetworkBuilder {
@@ -59,6 +59,12 @@ impl NetworkBuilder {
 
     pub fn build(self) -> Result<Network> {
         Network::new(self.bootnodes, self.port)
+    }
+}
+
+impl Default for NetworkBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -160,7 +166,8 @@ impl Network {
     }
 }
 
-pub enum StreamItem {
+#[derive(Debug)]
+pub enum Event {
     NewListenAddr(Multiaddr),
     Message(Message),
     #[cfg(feature = "mdns")]
@@ -172,7 +179,7 @@ pub enum StreamItem {
 }
 
 impl futures::Stream for Network {
-    type Item = StreamItem;
+    type Item = Event;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         while let Poll::Ready(maybe_event) = self.swarm.poll_next_unpin(cx) {
@@ -192,7 +199,7 @@ impl futures::Stream for Network {
                             .gossipsub
                             .add_explicit_peer(&peer_id);
                     }
-                    return Poll::Ready(Some(StreamItem::MdnsPeersConnected(peers)));
+                    return Poll::Ready(Some(Event::MdnsPeersConnected(peers)));
                 }
                 #[cfg(feature = "mdns")]
                 SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Expired(list))) => {
@@ -204,7 +211,7 @@ impl futures::Stream for Network {
                             .gossipsub
                             .remove_explicit_peer(&peer_id);
                     }
-                    return Poll::Ready(Some(StreamItem::MdnsPeersDisconnected(peers)));
+                    return Poll::Ready(Some(Event::MdnsPeersDisconnected(peers)));
                 }
                 SwarmEvent::Behaviour(MyBehaviourEvent::Gossipsub(gossipsub::Event::Message {
                     propagation_source: peer_id,
@@ -215,11 +222,11 @@ impl futures::Stream for Network {
                         "Got message: '{}' with id: {id} from peer: {peer_id}",
                         String::from_utf8_lossy(&message.data),
                     );
-                    return Poll::Ready(Some(StreamItem::Message(message)));
+                    return Poll::Ready(Some(Event::Message(message)));
                 }
                 SwarmEvent::NewListenAddr { address, .. } => {
                     debug!("Local node is listening on {address}");
-                    return Poll::Ready(Some(StreamItem::NewListenAddr(address)));
+                    return Poll::Ready(Some(Event::NewListenAddr(address)));
                 }
                 SwarmEvent::Behaviour(MyBehaviourEvent::Gossipsub(
                     gossipsub::Event::Subscribed { peer_id, topic },
@@ -229,7 +236,7 @@ impl futures::Stream for Network {
                         peer_id = peer_id,
                         topic = topic,
                     );
-                    return Poll::Ready(Some(StreamItem::PeerSubscribed(peer_id, topic)));
+                    return Poll::Ready(Some(Event::PeerSubscribed(peer_id, topic)));
                 }
                 SwarmEvent::ConnectionEstablished {
                     peer_id,
@@ -247,7 +254,7 @@ impl futures::Stream for Network {
                         .behaviour_mut()
                         .gossipsub
                         .add_explicit_peer(&peer_id);
-                    return Poll::Ready(Some(StreamItem::PeerConnected(peer_id)));
+                    return Poll::Ready(Some(Event::PeerConnected(peer_id)));
                 }
                 _ => {
                     debug!("unhandled swarm event: {:?}", event);
@@ -294,7 +301,7 @@ mod test {
             };
 
             match event {
-                StreamItem::NewListenAddr(addr) => {
+                Event::NewListenAddr(addr) => {
                     println!("Alice listening on {:?}", addr);
                     bootnode_tx.send(addr.clone()).unwrap();
                 }
@@ -307,14 +314,14 @@ mod test {
                 };
 
                 match event {
-                    StreamItem::PeerConnected(peer_id) => {
+                    Event::PeerConnected(peer_id) => {
                         println!("Alice connected to {:?}", peer_id);
                     }
-                    StreamItem::PeerSubscribed(peer_id, topic_hash) => {
+                    Event::PeerSubscribed(peer_id, topic_hash) => {
                         println!("Remote peer {:?} subscribed to {:?}", peer_id, topic_hash);
                         alice.publish(msg_a.clone(), topic.clone()).await.unwrap();
                     }
-                    StreamItem::Message(msg) => {
+                    Event::Message(msg) => {
                         println!("Alice got message: {:?}", msg);
                         assert_eq!(msg.data, recv_msg_b);
                         alice_tx.send(()).unwrap();
@@ -336,10 +343,10 @@ mod test {
                 select! {
                     event = bob.select_next_some() => {
                         match event {
-                            StreamItem::PeerConnected(peer_id) => {
+                            Event::PeerConnected(peer_id) => {
                                 println!("Bob connected to {:?}", peer_id);
                             }
-                            StreamItem::Message(msg) => {
+                            Event::Message(msg) => {
                                 println!("Bob got message: {:?}", msg);
                                 assert_eq!(msg.data, recv_msg_a);
                                 bob.publish(msg_b.clone(), topic.clone()).await.unwrap();
