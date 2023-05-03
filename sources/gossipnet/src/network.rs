@@ -3,7 +3,7 @@
 /// will support DHT discovery.
 
 use color_eyre::eyre::{eyre, Result, WrapErr};
-use futures::{stream::FusedStream, StreamExt};
+use futures::{StreamExt};
 #[cfg(feature = "mdns")]
 use libp2p::mdns;
 use libp2p::{
@@ -26,7 +26,7 @@ use tracing::{debug, info};
 pub use libp2p::gossipsub::Sha256Topic;
 
 #[derive(NetworkBehaviour)]
-struct MyBehaviour {
+struct GossipnetBehaviour {
     ping: ping::Behaviour,
     gossipsub: gossipsub::Behaviour,
     #[cfg(feature = "mdns")]
@@ -70,7 +70,7 @@ impl Default for NetworkBuilder {
 
 pub struct Network {
     pub multiaddr: Multiaddr,
-    swarm: Swarm<MyBehaviour>,
+    swarm: Swarm<GossipnetBehaviour>,
     terminated: bool,
 }
 
@@ -111,7 +111,7 @@ impl Network {
         let mut swarm = {
             #[cfg(feature = "mdns")]
             let mdns = mdns::tokio::Behaviour::new(mdns::Config::default(), local_peer_id)?;
-            let behaviour = MyBehaviour {
+            let behaviour = GossipnetBehaviour {
                 gossipsub,
                 #[cfg(feature = "mdns")]
                 mdns,
@@ -190,7 +190,7 @@ impl futures::Stream for Network {
 
             match event {
                 #[cfg(feature = "mdns")]
-                SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
+                SwarmEvent::Behaviour(GossipnetBehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
                     let peers = Vec::with_capacity(list.len());
                     for (peer_id, _multiaddr) in list {
                         debug!("mDNS discovered a new peer: {peer_id}");
@@ -202,7 +202,7 @@ impl futures::Stream for Network {
                     return Poll::Ready(Some(Event::MdnsPeersConnected(peers)));
                 }
                 #[cfg(feature = "mdns")]
-                SwarmEvent::Behaviour(MyBehaviourEvent::Mdns(mdns::Event::Expired(list))) => {
+                SwarmEvent::Behaviour(GossipnetBehaviourEvent::Mdns(mdns::Event::Expired(list))) => {
                     let peers = Vec::with_capacity(list.len());
                     for (peer_id, _multiaddr) in list {
                         debug!("mDNS discover peer has expired: {peer_id}");
@@ -213,7 +213,7 @@ impl futures::Stream for Network {
                     }
                     return Poll::Ready(Some(Event::MdnsPeersDisconnected(peers)));
                 }
-                SwarmEvent::Behaviour(MyBehaviourEvent::Gossipsub(gossipsub::Event::Message {
+                SwarmEvent::Behaviour(GossipnetBehaviourEvent::Gossipsub(gossipsub::Event::Message {
                     propagation_source: peer_id,
                     message_id: id,
                     message,
@@ -228,7 +228,7 @@ impl futures::Stream for Network {
                     debug!("Local node is listening on {address}");
                     return Poll::Ready(Some(Event::NewListenAddr(address)));
                 }
-                SwarmEvent::Behaviour(MyBehaviourEvent::Gossipsub(
+                SwarmEvent::Behaviour(GossipnetBehaviourEvent::Gossipsub(
                     gossipsub::Event::Subscribed { peer_id, topic },
                 )) => {
                     debug!(
@@ -266,17 +266,12 @@ impl futures::Stream for Network {
     }
 }
 
-impl FusedStream for Network {
-    fn is_terminated(&self) -> bool {
-        self.terminated
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
 
-    use futures::{channel::oneshot, join, select};
+    use futures::{channel::oneshot, join};
+    use tokio::select;
 
     const TEST_TOPIC: &str = "test";
 
@@ -297,7 +292,7 @@ mod test {
             alice.subscribe(&topic);
 
             let Some(event) = alice.next().await else {
-                panic!("unexpected event");
+                panic!("expected stream event");
             };
 
             match event {
@@ -341,7 +336,11 @@ mod test {
 
             loop {
                 select! {
-                    event = bob.select_next_some() => {
+                    event = bob.next() => {
+                        let Some(event) = event else {
+                            continue;
+                        };
+
                         match event {
                             Event::PeerConnected(peer_id) => {
                                 println!("Bob connected to {:?}", peer_id);
@@ -354,7 +353,7 @@ mod test {
                             _ => {}
                         }
                     }
-                    _ = alice_rx => {
+                    _ = &mut alice_rx => {
                         return;
                     }
                 }
