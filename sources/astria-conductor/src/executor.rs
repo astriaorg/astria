@@ -47,7 +47,7 @@ fn time_conversion(value: &str) -> Option<Timestamp> {
 }
 
 #[derive(Debug)]
-pub(crate) enum ExecutorCommand {
+pub enum ExecutorCommand {
     /// Command for when a block is received
     BlockReceived {
         block: Box<SequencerBlock>,

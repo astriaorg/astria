@@ -88,16 +88,3 @@ impl TendermintClient {
             .wrap_err("failed reading server response as json")
     }
 }
-
-#[cfg(test)]
-mod test {
-    use super::TendermintClient;
-
-    #[tokio::test]
-    async fn test_get_validator_set() {
-        let cosmos_endpoint = "http://localhost:1317".to_string();
-        let client = TendermintClient::new(cosmos_endpoint).unwrap();
-        let resp = client.get_validator_set(1).await.unwrap();
-        println!("ValidatorSet: {:?}", resp);
-    }
-}

@@ -38,8 +38,10 @@ async fn run() -> Result<()> {
         .merge(Serialized::defaults(args))
         .extract()?;
 
+    log::info!("Using chain ID {}", conf.chain_id);
     log::info!("Using Celestia node at {}", conf.celestia_node_url);
     log::info!("Using execution node at {}", conf.execution_rpc_url);
+    log::info!("Using Tendermint node at {}", conf.tendermint_url);
 
     let SignalReceiver {
         mut reload_rx,

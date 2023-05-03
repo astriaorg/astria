@@ -22,3 +22,5 @@ ConductorConfig.toml
 .env
 tests/docker/.env
 
+# local conductor_stack.yaml
+conductor_stack.yaml

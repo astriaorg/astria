@@ -1,0 +1,110 @@
+name: Tests
+
+on: [ pull_request ]
+
+jobs:
+  test:
+    name: build-and-test
+    strategy:
+      matrix:
+        go-version: [ 1.19.x ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go-version }}
+      - uses: actions/checkout@v2
+      - name: Install stable
+        run: rustup toolchain install stable
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: install podman 4
+        run: sudo bash $GITHUB_WORKSPACE/.github/workflows/install_podman.sh
+      - name: start podman
+        run: |
+          systemctl restart --user podman
+          systemctl restart --user podman.socket
+      - name: populate conductor stack template
+        uses: cuchi/jinja2-action@v1.2.0
+        with:
+          template: templates/conductor_stack.yaml.jinja2
+          output_file: conductor_stack_init.yaml
+          strict: true
+          variables: |
+            pod_name=conductor_stack_pull
+            celestia_home_volume=celestia-home-vol
+            metro_home_volume=metro-home-vol
+            executor_home_volume=executor-home-vol
+            relayer_home_volume=relayer-home-vol
+            executor_local_account=0xb0E31D878F49Ec0403A25944d6B1aE1bf05D17E1
+            celestia_app_host_port=26657
+            bridge_host_port=26659
+            sequencer_host_port=1318
+            sequencer_host_grpc_port=9100
+            executor_host_http_port=8545
+            executor_host_grpc_port=50051
+            scripts_host_volume=container-scripts
+      - name: start stack to to download all images
+        run: |
+          podman kube play --start=false --replace \
+            conductor_stack_init.yaml
+      - name: remove stack pod
+        run: podman pod rm --all
+      # needed to build astria-rpc
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.15.1"
+          github_token: ${{ github.token }}
+      # needed to build sequencer-relayer
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -- --nocapture --color always
+
+  fmt:
+    name: fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: rustup component add rustfmt
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      # needed to build astria-rpc
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.15.1"
+          github_token: ${{ github.token }}
+      # needed to build sequencer-relayer
+      - name: Install protoc
+        run: sudo apt-get install protobuf-compiler
+      - uses: actions/checkout@v2
+      - run: rustup component add clippy
+      - uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all --all-targets -- -D warnings

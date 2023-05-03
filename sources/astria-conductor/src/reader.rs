@@ -18,7 +18,7 @@ use crate::tendermint::TendermintClient;
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
 
 /// The channel for sending commands to the reader task.
-pub(crate) type Sender = UnboundedSender<ReaderCommand>;
+pub type Sender = UnboundedSender<ReaderCommand>;
 /// The channel the reader task uses to listen for commands.
 type Receiver = UnboundedReceiver<ReaderCommand>;
 
@@ -37,14 +37,14 @@ pub(crate) async fn spawn(
 }
 
 #[derive(Debug)]
-pub(crate) enum ReaderCommand {
+pub enum ReaderCommand {
     /// Get new blocks
     GetNewBlocks,
 
     Shutdown,
 }
 
-struct Reader {
+pub struct Reader {
     /// Channel on which reader commands are received.
     cmd_rx: Receiver,
 
@@ -62,7 +62,7 @@ struct Reader {
 
 impl Reader {
     /// Creates a new Reader instance and returns a command sender and an alert receiver.
-    async fn new(
+    pub async fn new(
         celestia_node_url: &str,
         tendermint_url: &str,
         executor_tx: executor::Sender,
@@ -111,7 +111,7 @@ impl Reader {
     }
 
     /// get_new_blocks fetches any new sequencer blocks from Celestia.
-    async fn get_new_blocks(&mut self) -> Result<Vec<SequencerBlock>> {
+    pub async fn get_new_blocks(&mut self) -> Result<Vec<SequencerBlock>> {
         info!("ReaderCommand::GetNewBlocks");
         let mut blocks = vec![];
 
@@ -232,39 +232,5 @@ impl Reader {
             })?;
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use std::time::Duration;
-
-    const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26659";
-    const DEFAULT_TENDERMINT_ENDPOINT: &str = "http://localhost:1317";
-
-    #[tokio::test]
-    async fn test_reader_get_new_blocks() {
-        let (executor_tx, _) = mpsc::unbounded_channel();
-
-        let (mut reader, _reader_tx) = Reader::new(
-            DEFAULT_CELESTIA_ENDPOINT,
-            DEFAULT_TENDERMINT_ENDPOINT,
-            executor_tx,
-        )
-        .await
-        .unwrap();
-
-        // FIXME - this is NOT a good test, but it gets us to a passing state.
-        let mut blocks = vec![];
-        for _ in 0..30 {
-            blocks = reader.get_new_blocks().await.unwrap();
-            if !blocks.is_empty() {
-                break;
-            }
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
-
-        assert!(blocks.len() > 0);
     }
 }
