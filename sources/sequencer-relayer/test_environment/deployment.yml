@@ -1,0 +1,131 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sequencer-relayer-environment-deployment
+  labels:
+    app: sequencer-relayer-environment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sequencer-relayer-environment
+  template:
+    metadata:
+      labels:
+        app: sequencer-relayer-environment
+    spec:
+      initContainers:
+        - command:
+          - /scripts/init-celestia-appd.sh
+          name: init-celestia-app
+          image: "ghcr.io/astriaorg/celestia-app:v0.11.0"
+          volumeMounts:
+            - mountPath: /scripts
+              name: celestia-appd-scripts-volume
+              readOnly: true
+            - mountPath: /home/celestia
+              name: celestia-home
+          envFrom:
+            - configMapRef:
+                name: sequencer-relayer-environment-celestia-config
+        - command:
+          - /scripts/init-bridge.sh
+          name: init-bridge
+          image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
+          volumeMounts:
+            - mountPath: /scripts/
+              name: bridge-scripts-volume
+              readOnly: true
+            - mountPath: /home/celestia
+              name: celestia-home
+          envFrom:
+            - configMapRef:
+                name: sequencer-relayer-environment-celestia-config
+        - command:
+          - /scripts/init-metro.sh
+          name: init-metro
+          image: "ghcr.io/astriaorg/metro:0.0.2"
+          volumeMounts:
+            - mountPath: /scripts/
+              name: metro-scripts-volume
+              readOnly: true
+            - mountPath: /home/metro
+              name: metro-home
+          envFrom:
+            - configMapRef:
+                name: sequencer-relayer-environment-metro-config
+        - command:
+          - /scripts/configure-metro.sh
+          name: configure-metro
+          image: ghcr.io/tomwright/dasel:alpine
+          envFrom:
+            - configMapRef:
+                name: sequencer-relayer-environment-metro-config
+          volumeMounts:
+            - mountPath: /scripts/
+              name: metro-scripts-volume
+              readOnly: true
+            - mountPath: /home/metro
+              name: metro-home
+      containers:
+        - name: celestia-app
+          command: ["/scripts/start-celestia-appd.sh"]
+          image: "ghcr.io/astriaorg/celestia-app:v0.11.0"
+          envFrom:
+            - configMapRef:
+                name: sequencer-relayer-environment-celestia-config
+          volumeMounts:
+          - mountPath: /scripts/
+            name: celestia-appd-scripts-volume
+            readOnly: true
+          - mountPath: /home/celestia
+            name: celestia-home
+        - name: celestia-bridge
+          command:
+          - /scripts/start-bridge.sh
+          image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
+          volumeMounts:
+            - mountPath: /scripts/
+              name: bridge-scripts-volume
+              readOnly: true
+            - mountPath: /home/celestia
+              name: celestia-home
+          envFrom:
+            - configMapRef:
+                name: sequencer-relayer-environment-celestia-config
+          ports:
+            - containerPort: 26659
+              name: bridge-svc
+        - name: metro-sequencer
+          command: ["/scripts/start-metro.sh"]
+          image: "ghcr.io/astriaorg/metro:0.0.2"
+          ports:
+            - containerPort: 1318
+              name: sequencer-svc
+          volumeMounts:
+            - mountPath: /scripts/
+              name: metro-scripts-volume
+              readOnly: true
+            - mountPath: /home/metro
+              name: metro-home
+          envFrom:
+            - configMapRef:
+                name: sequencer-relayer-environment-metro-config
+      volumes:
+      - name: bridge-scripts-volume
+        configMap:
+          name: bridge-scripts
+          defaultMode: 0500
+      - name: metro-scripts-volume
+        configMap:
+          name: metro-scripts
+          defaultMode: 0500
+      - name: celestia-appd-scripts-volume
+        configMap:
+          name: celestia-appd-scripts
+          defaultMode: 0500
+      - emptyDir: {}
+        name: celestia-home
+      - emptyDir: {}
+        name: metro-home
+  

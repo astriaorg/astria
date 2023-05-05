@@ -1,0 +1,31 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sequencer-relayer-environment-prepull
+spec:
+  selector:
+    matchLabels:
+      name: sequencer-relayer-environment-prepull
+  template:
+    metadata:
+      labels:
+        name: sequencer-relayer-environment-prepull
+    spec:
+      initContainers:
+        - name: prepull-celestia-app
+          image: "ghcr.io/astriaorg/celestia-app:v0.11.0"
+          command: ["sh", "-c", "'true'"]
+        - name: prepull-celestia-node
+          image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
+          command: ["sh", "-c", "'true'"]
+        - name: prepull-metro
+          image: "ghcr.io/astriaorg/metro:0.0.2"
+          command: ["sh", "-c", "'true'"]
+        - name: prepull-dasel
+          image: ghcr.io/tomwright/dasel:alpine
+          command: ["sh", "-c", "'true'"]
+      containers:
+        - name: pause
+          image: gcr.io/google_containers/pause
+---

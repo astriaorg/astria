@@ -10,9 +10,9 @@ set -o errexit -o nounset -o pipefail
 # Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name
 #                     config.toml:.rpc.pprof_laddr
 # tcp        0      0 127.0.0.1:6060          0.0.0.0:*               LISTEN      110/metro
-#											config.toml:.rpc.laddr
+#                     config.toml:.rpc.laddr
 # tcp        0      0 :::26657                :::*                    LISTEN      110/metro
-#											p2p.laddr
+#                     p2p.laddr
 # tcp        0      0 :::26656                :::*                    LISTEN      110/metro
 #                     app.toml:.api.address
 # tcp        0      0 :::1317                 :::*                    LISTEN      110/metro

@@ -3,4 +3,4 @@
 set -o errexit -o nounset
 
 # Start the celestia-app
-exec metro start --home "${home_dir}"
+exec metro start --log_level="debug" --home "${home_dir}"

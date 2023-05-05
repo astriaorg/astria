@@ -10,10 +10,6 @@ jobs:
         go-version: [ 1.19.x ]
     runs-on: ubuntu-latest
     steps:
-      - name: Install Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: ${{ matrix.go-version }}
       - uses: actions/checkout@v2
       - name: Install stable
         run: rustup toolchain install stable
@@ -29,43 +25,35 @@ jobs:
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-      - name: install podman 4
-        run: sudo bash $GITHUB_WORKSPACE/.github/workflows/install_podman.sh
-      - name: start podman
-        run: |
-          systemctl restart --user podman
-          systemctl restart --user podman.socket
-      - name: populate sequencer stack template
-        uses: cuchi/jinja2-action@v1.2.0
-        with:
-          template: templates/sequencer_relayer_stack.yaml.jinja2
-          output_file: sequencer_relayer_stack_init.yaml
-          strict: true
-          variables: |
-            pod_name=sequencer_relayer_stack_pull
-            celestia_home_volume=celestia-home-vol
-            metro_home_volume=metro-home-vol
-            bridge_host_port=26659
-            sequencer_host_port=1318
-            scripts_host_volume=containers
-      - name: start stack to to download all images
-        run: |
-          podman kube play --start=false --replace \
-            sequencer_relayer_stack_init.yaml
-      - name: remove stack pod
-        run: podman pod rm --all
       - name: Install protoc
         run: sudo apt-get install protobuf-compiler
       - name: Build
         uses: actions-rs/cargo@v1
         with:
-          command: build
-          args: --all
-      - name: Test
+          command: test
+          args: --release --no-run
+      - name: Run fast tests
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -- --nocapture --color always
+          args: --release
+      - name: create kubernetes in docker cluster
+        uses: helm/kind-action@v1.5.0
+        with:
+          version: v0.18.0
+          config: test_environment/cluster-config.yml
+          kubectl_version: v1.27.1
+      - name: install just
+        uses: taiki-e/install-action@just
+      - run: just deploy-ingress-controller
+      - run: just perform-prepull
+      - run: just wait-for-ingress-controller
+      - run: just wait-for-prepull
+      - name: Run slow tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release -- --ignored
 
   fmt:
     name: fmt

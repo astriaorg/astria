@@ -1,6 +1,6 @@
 use ed25519_dalek::{Keypair, PublicKey};
 use rand::rngs::OsRng;
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 
 use sequencer_relayer::{
     base64_string::Base64String,
@@ -8,42 +8,26 @@ use sequencer_relayer::{
     sequencer_block::{get_namespace, IndexedTransaction, SequencerBlock, DEFAULT_NAMESPACE},
 };
 
-use crate::helper::{init_environment, init_stack, wait_until_ready};
+use crate::helper::init_test;
 
 #[tokio::test]
+#[ignore = "very slow init of test environment"]
 async fn get_latest_height() {
-    let podman = init_environment();
-    let info = init_stack(&podman).await;
-    wait_until_ready(&podman, &info.pod_name).await;
-
-    // FIXME: use a more reliable check to ensure that data
-    // is available on celestia/the data availability latyer.
-    // Right now we have to explicitly wait a sufficient period
-    // of time. This is flaky.
-    tokio::time::sleep(Duration::from_secs(40)).await;
-
-    let base_url = info.make_bridge_endpoint();
-    let client = CelestiaClient::new(base_url).unwrap();
-
+    let test_env = init_test().await;
+    let bridge_endpoint = test_env.bridge_endpoint();
+    let client = CelestiaClient::new(bridge_endpoint).unwrap();
     let height = client.get_latest_height().await.unwrap();
     assert!(height > 0);
 }
 
 #[tokio::test]
+#[ignore = "very slow init of test environment"]
 async fn get_blocks_public_key_filter() {
     // test that get_blocks only gets blocked signed with a specific key
-    let podman = init_environment();
-    let info = init_stack(&podman).await;
-    wait_until_ready(&podman, &info.pod_name).await;
 
-    // FIXME: use a more reliable check to ensure that data
-    // is available on celestia/the data availability latyer.
-    // Right now we have to explicitly wait a sufficient period
-    // of time. This is flaky.
-    tokio::time::sleep(Duration::from_secs(40)).await;
-
-    let base_url = info.make_bridge_endpoint();
-    let client = CelestiaClient::new(base_url).unwrap();
+    let test_env = init_test().await;
+    let bridge_endpoint = test_env.bridge_endpoint();
+    let client = CelestiaClient::new(bridge_endpoint).unwrap();
 
     let tx = Base64String(b"noot_was_here".to_vec());
 
@@ -75,20 +59,12 @@ async fn get_blocks_public_key_filter() {
 }
 
 #[tokio::test]
+#[ignore = "very slow init of test environment"]
 async fn celestia_client() {
     // test submit_block
-    let podman = init_environment();
-    let info = init_stack(&podman).await;
-    wait_until_ready(&podman, &info.pod_name).await;
-
-    // FIXME: use a more reliable check to ensure that data
-    // is available on celestia/the data availability latyer.
-    // Right now we have to explicitly wait a sufficient period
-    // of time. This is flaky.
-    tokio::time::sleep(Duration::from_secs(40)).await;
-
-    let base_url = info.make_bridge_endpoint();
-    let client = CelestiaClient::new(base_url).unwrap();
+    let test_env = init_test().await;
+    let bridge_endpoint = test_env.bridge_endpoint();
+    let client = CelestiaClient::new(bridge_endpoint).unwrap();
 
     let tx = Base64String(b"noot_was_here".to_vec());
     let secondary_namespace = get_namespace(b"test_namespace");
