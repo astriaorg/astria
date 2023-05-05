@@ -17,9 +17,8 @@ futures = "0.3"
 hex = "0.4"
 log = "0.4.17"
 prost-types = "0.11.8"
-reqwest = { version = "0.11", features = ["json"] }
-rs-cnc = { git = "https://github.com/astriaorg/rs-cnc", rev = "e0b45d6" }
-sequencer-relayer = { git = "https://github.com/astriaorg/sequencer-relayer", rev = "df321d376121efffebe77fe5d580672750114da6" }
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+sequencer-relayer = { git = "https://github.com/astriaorg/sequencer-relayer" }
 serde = "1.0.152"
 serde_json = "1.0"
 thiserror = "1.0.38"
@@ -28,6 +27,11 @@ tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread", "signal"]
 tonic = "0.8.3"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.16"
+
+[dependencies.rs-cnc]
+git = "https://github.com/astriaorg/rs-cnc.git"
+default-features = false
+features = ["rustls"]
 
 [dev-dependencies]
 askama = "0.12.0"
