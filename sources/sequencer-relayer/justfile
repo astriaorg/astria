@@ -30,6 +30,9 @@ wait-for-ingress-controller:
 wait-for-prepull:
   kubectl wait --for=condition=ready pod --selector=name=sequencer-relayer-environment-prepull --timeout=600s
 
+wait-for-test-environment:
+  kubectl wait -n test --for=condition=available deployment.apps/sequencer-relayer-environment-deployment --timeout=600s
+
 kustomize:
   kubectl kustomize ./test_environment -o ./test_environment/test-environment.yml
 

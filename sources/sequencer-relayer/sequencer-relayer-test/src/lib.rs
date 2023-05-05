@@ -121,9 +121,11 @@ impl TestEnvironment {
         .await
         .unwrap();
 
-        // FIXME: celestia and metro should have some readiness probes to report that
-        //        that they are actually ready to serve requests.
-        tokio::time::sleep(Duration::from_secs(40)).await;
+        // The deployment contains startupProbes to ensure that the deployment is
+        // only available once its containers are available. However, nginx (the ingress
+        // controller) has a small delay between the deployment becoming available and
+        // being able to route requests to its services.
+        wait_until_bridge_is_available(&namespace).await;
 
         let host = format!("http://{namespace}.localdev.me");
         Self {
@@ -259,4 +261,25 @@ fn populate_ingress_template(namespace: &str) -> serde_yaml::Value {
             .expect("should be able to render the ingress jinja template"),
     )
     .expect("should be able to parse rendered ingress yaml as serde_yaml Value")
+}
+
+async fn wait_until_bridge_is_available(namespace: &str) {
+    let client = reqwest::Client::builder()
+        .build()
+        .expect("building a basic reqwest client should never fail");
+    let url = reqwest::Url::parse(&format!("http://{namespace}.localdev.me/bridge/header/1"))
+        .expect("bridge endpoint should be a valid url");
+    loop {
+        if client
+            .get(url.clone())
+            .send()
+            .await
+            .expect("sending a get request should not fail")
+            .error_for_status()
+            .is_ok()
+        {
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
 }

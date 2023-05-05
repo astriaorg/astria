@@ -96,12 +96,24 @@ spec:
           ports:
             - containerPort: 26659
               name: bridge-svc
+          startupProbe:
+            httpGet:
+              path: /header/1
+              port: bridge-svc
+            failureThreshold: 30
+            periodSeconds: 10
         - name: metro-sequencer
           command: ["/scripts/start-metro.sh"]
           image: "ghcr.io/astriaorg/metro:0.0.2"
           ports:
             - containerPort: 1318
               name: sequencer-svc
+          startupProbe:
+            httpGet:
+              path: /cosmos/base/tendermint/v1beta1/blocks/latest
+              port: sequencer-svc
+            failureThreshold: 30
+            periodSeconds: 10
           volumeMounts:
             - mountPath: /scripts/
               name: metro-scripts-volume
