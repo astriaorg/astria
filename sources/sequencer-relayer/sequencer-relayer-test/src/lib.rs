@@ -13,12 +13,12 @@ use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
 const TEST_ENVIRONMENT_YAML: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
+    env!("CARGO_WORKSPACE_DIR"),
     "/test_environment/test-environment.yml"
 ));
 
 const TEST_INGRESS_TEMPLATE: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
+    env!("CARGO_WORKSPACE_DIR"),
     "/test_environment/ingress.yml.j2"
 ));
 
@@ -45,7 +45,7 @@ static STOP_POD_TX: Lazy<UnboundedSender<String>> = Lazy::new(|| {
     tx
 });
 
-pub(crate) async fn init_test() -> TestEnvironment {
+pub async fn init_test() -> TestEnvironment {
     TestEnvironment::init().await
 }
 
@@ -56,14 +56,14 @@ pub struct TestEnvironment {
 }
 
 impl TestEnvironment {
-    pub(crate) fn bridge_endpoint(&self) -> String {
+    pub fn bridge_endpoint(&self) -> String {
         format!(
             "http://{namespace}.localdev.me/bridge",
             namespace = self.namespace
         )
     }
 
-    pub(crate) fn sequencer_endpoint(&self) -> String {
+    pub fn sequencer_endpoint(&self) -> String {
         format!(
             "http://{namespace}.localdev.me/sequencer",
             namespace = self.namespace
@@ -79,7 +79,7 @@ impl TestEnvironment {
             .run()
             .await
             .expect("should be able to run discovery against cluster");
-        let documents = crate::helper::multidoc_deserialize(TEST_ENVIRONMENT_YAML)
+        let documents = multidoc_deserialize(TEST_ENVIRONMENT_YAML)
             .expect("should have been able to deserialize valid kustomize generated yaml; rerun `just kustomize`?");
 
         // Create the unique namespace

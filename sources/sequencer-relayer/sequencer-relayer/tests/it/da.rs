@@ -8,7 +8,7 @@ use sequencer_relayer::{
     sequencer_block::{get_namespace, IndexedTransaction, SequencerBlock, DEFAULT_NAMESPACE},
 };
 
-use crate::helper::init_test;
+use sequencer_relayer_test::init_test;
 
 #[tokio::test]
 #[ignore = "very slow init of test environment"]

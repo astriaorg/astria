@@ -317,6 +317,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
+name = "const_format"
+version = "0.2.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7309d9b4d3d2c0641e018d449232f2e28f1b22933c137f157d3dbc14228b8c0e"
+dependencies = [
+ "const_format_proc_macros",
+]
+
+[[package]]
+name = "const_format_proc_macros"
+version = "0.2.29"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d897f47bf7270cf70d370f8f98c1abb6d2d4cf60a6845d30e05bfb90c6568650"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-xid",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1833,29 +1853,41 @@ dependencies = [
  "base64 0.21.0",
  "bech32",
  "clap",
+ "const_format",
  "dirs",
  "ed25519-dalek",
  "eyre",
  "hex",
  "http",
- "k8s-openapi",
- "kube",
- "minijinja",
- "once_cell",
  "prost",
  "prost-build",
  "prost-types",
  "rand 0.7.3",
  "reqwest",
  "rs-cnc",
+ "sequencer-relayer-test",
  "serde",
  "serde_json",
- "serde_yaml",
  "sha2 0.10.6",
  "tendermint",
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "sequencer-relayer-test"
+version = "0.1.0"
+dependencies = [
+ "eyre",
+ "k8s-openapi",
+ "kube",
+ "minijinja",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
  "uuid",
 ]
 
@@ -2240,7 +2272,6 @@ dependencies = [
  "libc",
  "mio",
  "num_cpus",
- "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",
@@ -2479,6 +2510,12 @@ name = "unicode-width"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0edd1e5b14653f783770bce4a4dabb4a5108a5370a5f5d8cfe8710c361f6c8b"
+
+[[package]]
+name = "unicode-xid"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f962df74c8c05a667b5ee8bcf162993134c104e96440b663c8daa176dc772d8c"
 
 [[package]]
 name = "unsafe-libyaml"

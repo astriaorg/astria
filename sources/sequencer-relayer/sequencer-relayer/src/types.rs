@@ -128,7 +128,7 @@ impl Header {
     /// FIXME: This looks exactly like the `TryFrom<RawHeader>` definition that tendermint
     /// uses: https://docs.rs/tendermint/0.30.0/tendermint/block/header/struct.Header.html#impl-TryFrom%3CHeader%3E-for-Header
     /// We should use their impl instead of rolling our own.
-    pub fn to_tendermint_header(&self) -> eyre::Result<TmHeader> {
+    pub(crate) fn to_tendermint_header(&self) -> eyre::Result<TmHeader> {
         let last_block_id = self
             .last_block_id
             .as_ref()

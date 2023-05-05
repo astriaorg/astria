@@ -1,0 +1,40 @@
+[package]
+name = "sequencer-relayer"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.65"
+
+[dependencies]
+base64 = "0.21"
+bech32 = "0.9"
+dirs = "5.0"
+ed25519-dalek = "1.0"
+eyre = "0.6"
+hex = "0.4"
+prost = "0.11"
+prost-types = "0.11"
+rand = { version = "0.7", features = [ "getrandom" ] }
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+tendermint = "0.30"
+tracing = "0.1"
+tracing-subscriber = "0.2.15"
+clap = { version = "4.1.9", features = ["derive"] }
+axum = "0.6.16"
+http = "0.2.9"
+tokio = { version = "1.24", features = [ "macros", "rt-multi-thread" ] }
+
+[dependencies.rs-cnc]
+git = "https://github.com/astriaorg/rs-cnc.git"
+default-features = false
+features = ["rustls"]
+
+[build-dependencies]
+const_format = "0.2.30"
+prost-build = "0.11"
+
+[dev-dependencies]
+sequencer-relayer-test = { path = "../sequencer-relayer-test"}

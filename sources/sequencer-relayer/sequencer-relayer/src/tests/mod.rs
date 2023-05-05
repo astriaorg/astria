@@ -1,5 +1,5 @@
-use crate::helper::init_test;
-use sequencer_relayer::sequencer::SequencerClient;
+use crate::sequencer::SequencerClient;
+use sequencer_relayer_test::init_test;
 
 #[tokio::test]
 #[ignore = "very slow init of test environment"]
