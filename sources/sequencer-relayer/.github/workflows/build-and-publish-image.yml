@@ -48,8 +48,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          # It takes over 30 minutes to build the arm image right now, so we only build it on tags which is what we use for releases.
-          platforms: ${{ contains(github.ref, 'refs/tags/v') && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
