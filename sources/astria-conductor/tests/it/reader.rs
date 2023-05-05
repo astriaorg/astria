@@ -1,10 +1,13 @@
 use std::time::Duration;
 
+use astria_conductor::reader::Reader;
 use tokio::sync::mpsc;
 
-use astria_conductor::reader::Reader;
-
-use crate::helper::{init_environment, init_stack, wait_until_ready};
+use crate::helper::{
+    init_environment,
+    init_stack,
+    wait_until_ready,
+};
 
 #[tokio::test]
 async fn should_get_new_block() {

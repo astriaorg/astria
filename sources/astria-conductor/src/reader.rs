@@ -1,19 +1,42 @@
-use bech32::{self, ToBase32, Variant};
-use color_eyre::eyre::{bail, eyre, Result, WrapErr};
-use log::{error, info, warn};
+use bech32::{
+    self,
+    ToBase32,
+    Variant,
+};
+use color_eyre::eyre::{
+    bail,
+    eyre,
+    Result,
+    WrapErr,
+};
+use log::{
+    error,
+    info,
+    warn,
+};
 use sequencer_relayer::{
-    da::{CelestiaClient, SequencerNamespaceData, SignedNamespaceData},
+    da::{
+        CelestiaClient,
+        SequencerNamespaceData,
+        SignedNamespaceData,
+    },
     keys::public_key_to_address,
     sequencer_block::SequencerBlock,
 };
 use tokio::{
-    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    sync::mpsc::{
+        self,
+        UnboundedReceiver,
+        UnboundedSender,
+    },
     task,
 };
 
-use crate::config::Config;
-use crate::executor;
-use crate::tendermint::TendermintClient;
+use crate::{
+    config::Config,
+    executor,
+    tendermint::TendermintClient,
+};
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
 
@@ -70,7 +93,8 @@ impl Reader {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let celestia_client = CelestiaClient::new(celestia_node_url.to_owned())?;
 
-        // TODO: we should probably pass in the height we want to start at from some genesis/config file
+        // TODO: we should probably pass in the height we want to start at from some genesis/config
+        // file
         let curr_block_height = celestia_client.get_latest_height().await?;
         Ok((
             Self {

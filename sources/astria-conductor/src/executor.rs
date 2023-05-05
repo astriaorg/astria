@@ -1,19 +1,37 @@
 use color_eyre::eyre::Result;
-use log::{info, warn};
+use log::{
+    info,
+    warn,
+};
 use prost_types::Timestamp;
-use sequencer_relayer::proto::SequencerMsg;
-use sequencer_relayer::sequencer_block::{
-    cosmos_tx_body_to_sequencer_msgs, get_namespace, parse_cosmos_tx, Namespace, SequencerBlock,
+use sequencer_relayer::{
+    proto::SequencerMsg,
+    sequencer_block::{
+        cosmos_tx_body_to_sequencer_msgs,
+        get_namespace,
+        parse_cosmos_tx,
+        Namespace,
+        SequencerBlock,
+    },
 };
 use tendermint::Time;
 use tokio::{
-    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    sync::mpsc::{
+        self,
+        UnboundedReceiver,
+        UnboundedSender,
+    },
     task,
 };
 
-use crate::alert::{Alert, AlertSender};
-use crate::config::Config;
-use crate::execution_client::ExecutionRpcClient;
+use crate::{
+    alert::{
+        Alert,
+        AlertSender,
+    },
+    config::Config,
+    execution_client::ExecutionRpcClient,
+};
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
 
@@ -43,7 +61,10 @@ fn time_conversion(value: &str) -> Option<Timestamp> {
     let seconds = time.unix_timestamp();
     let all_nanos = time.unix_timestamp_nanos();
     let nanos = (all_nanos - (seconds as i128 * 10_i128.pow(9))) as i32; // Largest this can be is order of 10^9, ok to cast
-    Some(Timestamp { seconds, nanos })
+    Some(Timestamp {
+        seconds,
+        nanos,
+    })
 }
 
 #[derive(Debug)]
@@ -98,7 +119,9 @@ impl Executor {
 
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
-                ExecutorCommand::BlockReceived { block } => {
+                ExecutorCommand::BlockReceived {
+                    block,
+                } => {
                     log::info!(
                         "ExecutorCommand::BlockReceived height={}",
                         block.header.height

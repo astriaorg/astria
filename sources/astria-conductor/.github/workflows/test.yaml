@@ -1,6 +1,11 @@
 name: Tests
 
-on: [ pull_request ]
+on: 
+  workflow_dispatch:
+  push:
+    branches:
+      - "main"
+  pull_request:
 
 jobs:
   test:
@@ -8,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay-rust-toolchain@1.69.0
+      - uses: dtolnay/rust-toolchain@1.69.0
       - uses: Swatinem/rust-cache@v2
       - name: Install protoc
         uses: arduino/setup-protoc@v1
@@ -61,18 +66,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay-rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt
       - name: run rustfmt
-        run: cargo +nightly fmt all -- --check
+        run: cargo +nightly fmt --all -- --check
 
   clippy:
     name: clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay-rust-toolchain@1.69.0
+      - uses: dtolnay/rust-toolchain@1.69.0
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
@@ -85,4 +90,4 @@ jobs:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: run clippy
-        run: clippy --all --all-targets -- -D warnings
+        run: cargo clippy --all --all-targets -- -D warnings

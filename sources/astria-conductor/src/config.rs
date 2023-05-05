@@ -1,4 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// The global configuration for the driver and its components.
 #[derive(Serialize, Deserialize)]

@@ -1,11 +1,17 @@
 use std::{
-    sync::atomic::{AtomicU16, Ordering},
+    sync::atomic::{
+        AtomicU16,
+        Ordering,
+    },
     time::Duration,
 };
 
 use askama::Template;
 use once_cell::sync::Lazy;
-use podman_api::{Id, Podman};
+use podman_api::{
+    Id,
+    Podman,
+};
 use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 

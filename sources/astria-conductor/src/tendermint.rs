@@ -1,7 +1,18 @@
-use color_eyre::eyre::{self, WrapErr as _};
-use reqwest::{Client, Response as ReqwestResponse};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::time::Duration;
+
+use color_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
+use reqwest::{
+    Client,
+    Response as ReqwestResponse,
+};
+use serde::{
+    de::DeserializeOwned,
+    Deserialize,
+    Serialize,
+};
 
 static VALIDATOR_SET_ENDPOINT: &str = "/cosmos/base/tendermint/v1beta1/validatorsets/";
 

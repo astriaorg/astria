@@ -1,4 +1,8 @@
-use flexi_logger::{DeferredNow, Duplicate, FileSpec};
+use flexi_logger::{
+    DeferredNow,
+    Duplicate,
+    FileSpec,
+};
 
 /// Initializes our custom logger.
 /// Logs to file and stderr.

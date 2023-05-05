@@ -1,18 +1,37 @@
 //! The driver is the top-level coordinator that runs and manages all the components
 //! necessary for this reader/validator.
 
-use color_eyre::eyre::{eyre, Result};
-use futures::future::{poll_fn, FutureExt};
+use std::{
+    pin::Pin,
+    sync::Mutex,
+};
+
+use color_eyre::eyre::{
+    eyre,
+    Result,
+};
+use futures::future::{
+    poll_fn,
+    FutureExt,
+};
 use log::info;
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{
+    self,
+    UnboundedReceiver,
+    UnboundedSender,
+};
 
-use std::pin::Pin;
-use std::sync::Mutex;
-
-use crate::alert::Alert;
-use crate::executor::ExecutorCommand;
-use crate::reader::ReaderCommand;
-use crate::{alert::AlertSender, config::Config, executor, reader};
+use crate::{
+    alert::{
+        Alert,
+        AlertSender,
+    },
+    config::Config,
+    executor,
+    executor::ExecutorCommand,
+    reader,
+    reader::ReaderCommand,
+};
 
 /// The channel through which the user can send commands to the driver.
 pub(crate) type Sender = UnboundedSender<DriverCommand>;

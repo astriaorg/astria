@@ -1,24 +1,42 @@
 use std::time::Duration;
 
+use astria_conductor::{
+    alert::Alert,
+    cli::Cli,
+    config::Config,
+    driver::{
+        Driver,
+        DriverCommand,
+    },
+    logger,
+};
 use clap::Parser;
 use color_eyre::eyre::Result;
 use figment::{
-    providers::{Env, Format, Serialized, Toml},
+    providers::{
+        Env,
+        Format,
+        Serialized,
+        Toml,
+    },
     Figment,
 };
-use log::{error, info};
+use log::{
+    error,
+    info,
+};
 use tokio::{
     select,
-    signal::unix::{signal, SignalKind},
-    sync::{mpsc, watch},
+    signal::unix::{
+        signal,
+        SignalKind,
+    },
+    sync::{
+        mpsc,
+        watch,
+    },
     time,
 };
-
-use astria_conductor::alert::Alert;
-use astria_conductor::cli::Cli;
-use astria_conductor::config::Config;
-use astria_conductor::driver::{Driver, DriverCommand};
-use astria_conductor::logger;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -144,5 +162,8 @@ fn spawn_signal_handler() -> SignalReceiver {
         }
     });
 
-    SignalReceiver { reload_rx, stop_rx }
+    SignalReceiver {
+        reload_rx,
+        stop_rx,
+    }
 }

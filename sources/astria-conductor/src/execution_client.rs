@@ -1,6 +1,9 @@
-use astria_execution_apis_rpc::execution::execution_service_client::ExecutionServiceClient;
 use astria_execution_apis_rpc::execution::{
-    DoBlockRequest, DoBlockResponse, InitStateRequest, InitStateResponse,
+    execution_service_client::ExecutionServiceClient,
+    DoBlockRequest,
+    DoBlockResponse,
+    InitStateRequest,
+    InitStateResponse,
 };
 use color_eyre::eyre::Result;
 use prost_types::Timestamp;
@@ -21,7 +24,9 @@ impl ExecutionRpcClient {
     pub async fn new(address: &str) -> Result<Self> {
         let client = ExecutionServiceClient::connect(address.to_owned()).await?;
         log::info!("Connected to execution service at {}", address);
-        Ok(ExecutionRpcClient { client })
+        Ok(ExecutionRpcClient {
+            client,
+        })
     }
 
     /// Calls remote procedure DoBlock

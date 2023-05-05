@@ -1,7 +1,8 @@
 //! This module defines the alerts the driver consumer may receive from the driver.
 //!
-//! Communication of such alerts is performed via unbounded [tokio mpsc channels](tokio::sync::mpsc).
-//! Thus, the application in which the driver is integrated may be driven by these alerts.
+//! Communication of such alerts is performed via unbounded [tokio mpsc
+//! channels](tokio::sync::mpsc). Thus, the application in which the driver is integrated may be
+//! driven by these alerts.
 
 use color_eyre::eyre::Error;
 use tokio::sync::mpsc::UnboundedSender;
