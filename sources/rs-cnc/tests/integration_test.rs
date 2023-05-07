@@ -6,6 +6,7 @@ async fn test_data_roundtrip() {
     let base_url = "http://localhost:26659";
     let client = CelestiaNodeClient::builder()
         .base_url(base_url)
+        .unwrap()
         .build()
         .unwrap();
 
