@@ -20,7 +20,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 tendermint = "0.30"
 tracing = "0.1"
-tracing-subscriber = "0.2.15"
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 clap = { version = "4.1.9", features = ["derive"] }
 axum = "0.6.16"
 http = "0.2.9"
