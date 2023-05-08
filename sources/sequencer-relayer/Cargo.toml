@@ -1,5 +1,6 @@
 [workspace]
 members = [
   "sequencer-relayer",
+  "sequencer-relayer-proto",
   "sequencer-relayer-test",
 ]

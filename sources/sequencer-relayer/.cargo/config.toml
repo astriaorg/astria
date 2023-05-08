@@ -1,6 +1,0 @@
-[env]
-# workaround for `CARGO_WORKSPACE_DIR` not existing
-# https://github.com/rust-lang/cargo/issues/3946
-# FIXME: remove this once `CARGO_WORKSPACE_DIR` has landed
-#        as per the workgroup decision in the linked issue.
-CARGO_WORKSPACE_DIR = { value = "", relative = true }

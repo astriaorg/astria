@@ -7,9 +7,9 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use tracing::debug;
 
+use sequencer_relayer_proto::{SequencerMsg, TxBody, TxRaw};
+
 use crate::base64_string::Base64String;
-use crate::proto::SequencerMsg;
-use crate::proto::{TxBody, TxRaw};
 use crate::transaction::txs_to_data_hash;
 use crate::types::{Block, Header};
 

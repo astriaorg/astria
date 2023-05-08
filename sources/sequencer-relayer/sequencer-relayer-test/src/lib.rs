@@ -13,13 +13,12 @@ use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
 const TEST_ENVIRONMENT_YAML: &str = include_str!(concat!(
-    env!("CARGO_WORKSPACE_DIR"),
-    "/test_environment/test-environment.yml"
+    env!("CARGO_MANIFEST_DIR"),
+    "/kubernetes/test-environment.yml"
 ));
-
 const TEST_INGRESS_TEMPLATE: &str = include_str!(concat!(
-    env!("CARGO_WORKSPACE_DIR"),
-    "/test_environment/ingress.yml.j2"
+    env!("CARGO_MANIFEST_DIR"),
+    "/kubernetes/ingress.yml.j2"
 ));
 
 static STOP_POD_TX: Lazy<UnboundedSender<String>> = Lazy::new(|| {

@@ -1,5 +1,6 @@
 name: Tests
-
+env:
+  CI: true
 on:
   workflow_dispatch:
   push:
@@ -27,7 +28,7 @@ jobs:
         uses: helm/kind-action@v1.5.0
         with:
           version: v0.18.0
-          config: test_environment/cluster-config.yml
+          config: sequencer-relayer-test/kubernetes/cluster-config.yml
           kubectl_version: v1.27.1
       - name: install just
         uses: taiki-e/install-action@just
