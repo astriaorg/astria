@@ -1,42 +1,28 @@
 name: Tests
 
-on: [pull_request]
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "main"
+  pull_request:
 
 jobs:
   test:
     name: build-and-test
-    strategy:
-      matrix:
-        go-version: [ 1.19.x ]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Install stable
-        run: rustup toolchain install stable
-      - uses: actions/cache@v1
-        with:
-          path: ~/.cargo/registry
-          key: '${{ runner.os }}-cargo-registry-${{ hashFiles(''**/Cargo.lock'') }}'
-      - uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: '${{ runner.os }}-cargo-index-${{ hashFiles(''**/Cargo.lock'') }}'
-      - uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@1.69.0
+      - uses: Swatinem/rust-cache@v2
       - name: Install protoc
-        run: sudo apt-get install protobuf-compiler
-      - name: Build
-        uses: actions-rs/cargo@v1
+        uses: arduino/setup-protoc@v1
         with:
-          command: test
-          args: --release --no-run
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build tests
+        run: cargo test --release --no-run
       - name: Run fast tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release
+        run: cargo test --release
       - name: create kubernetes in docker cluster
         uses: helm/kind-action@v1.5.0
         with:
@@ -50,32 +36,30 @@ jobs:
       - run: just wait-for-ingress-controller
       - run: just wait-for-prepull
       - name: Run slow tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --release -- --ignored
+        run: cargo test --release -- --ignored
 
   fmt:
     name: fmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-      - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          command: fmt
-          args: --all -- --check
+          components: rustfmt
+      - name: run rustfmt
+        run: cargo +nightly fmt --all -- --check
 
   clippy:
     name: clippy
     runs-on: ubuntu-latest
     steps:
-      - name: Install protoc
-        run: sudo apt-get install protobuf-compiler
-      - uses: actions/checkout@v1
-      - run: rustup component add clippy
-      - uses: actions-rs/cargo@v1
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@1.69.0
         with:
-          command: clippy
-          args: --all --all-targets -- -D warnings
-          
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: cargo clippy --all --all-targets -- -D warnings
