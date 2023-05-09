@@ -14,6 +14,12 @@ message DoBlockResponse {
   bytes block_hash = 1;
 }
 
+message FinalizeBlockRequest {
+  bytes block_hash = 1;
+}
+
+message FinalizeBlockResponse {}
+
 message InitStateRequest{}
 
 message InitStateResponse {
@@ -21,6 +27,7 @@ message InitStateResponse {
 }
 
 service ExecutionService {
-  rpc DoBlock(DoBlockRequest) returns (DoBlockResponse);
   rpc InitState(InitStateRequest) returns (InitStateResponse);
+  rpc DoBlock(DoBlockRequest) returns (DoBlockResponse);
+  rpc FinalizeBlock(FinalizeBlockRequest) returns (FinalizeBlockResponse);
 }
