@@ -38,6 +38,13 @@ The celestia cluster can be started by using the provided docker compose:
 $ docker compose -f docker/test-docker-compose.yml up -d bridge0
 ```
 
+Alternatively, you can disable writing to Celestia and only publish blocks via gossip:
+```sh
+$ ./target/release/relayer --disable-writing
+```
+
+The relayer automatically listens on `/ip4/127.0.0.1/tcp/33900` and is also able to discover local peers via mDNS.
+
 Metro is compiled from source:
 ```sh
 $ git clone https://github.com/astriaorg/metro.git

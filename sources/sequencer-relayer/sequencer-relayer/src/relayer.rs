@@ -1,7 +1,12 @@
 use bech32::{self, ToBase32, Variant};
+use eyre::Result;
 use serde::Deserialize;
 use std::str::FromStr;
-use tokio::sync::watch;
+use tokio::{
+    sync::{mpsc::UnboundedSender, watch},
+    task::JoinHandle,
+    time::Interval,
+};
 use tracing::{info, warn};
 
 use crate::base64_string::Base64String;
@@ -27,9 +32,12 @@ pub struct KeyWithType {
 pub struct Relayer {
     sequencer_client: SequencerClient,
     da_client: CelestiaClient,
+    disable_writing: bool,
     keypair: ed25519_dalek::Keypair,
     validator_address: String,
     validator_address_bytes: Vec<u8>,
+    interval: Interval,
+    block_tx: UnboundedSender<SequencerBlock>,
 
     state: watch::Sender<State>,
 }
@@ -51,7 +59,9 @@ impl Relayer {
         sequencer_client: SequencerClient,
         da_client: CelestiaClient,
         key_file: ValidatorPrivateKeyFile,
-    ) -> Self {
+        interval: Interval,
+        block_tx: UnboundedSender<SequencerBlock>,
+    ) -> Result<Self> {
         // generate our private-public keypair
         let keypair = private_key_bytes_to_keypair(
             &Base64String::from_string(key_file.priv_key.value)
@@ -70,21 +80,28 @@ impl Relayer {
 
         let (state, _) = watch::channel(State::default());
 
-        Self {
+        Ok(Self {
             sequencer_client,
             da_client,
+            disable_writing: false,
             keypair,
             validator_address,
             validator_address_bytes,
+            interval,
+            block_tx,
             state,
-        }
+        })
+    }
+
+    pub fn disable_writing(&mut self) {
+        self.disable_writing = true;
     }
 
     pub fn subscribe_to_state(&self) -> watch::Receiver<State> {
         self.state.subscribe()
     }
 
-    async fn get_latest_block(&self) -> eyre::Result<State> {
+    async fn get_and_submit_latest_block(&self) -> eyre::Result<State> {
         let mut new_state = (*self.state.borrow()).clone();
         let resp = self.sequencer_client.get_latest_block().await?;
 
@@ -129,7 +146,13 @@ impl Relayer {
             }
         };
 
+        self.block_tx.send(sequencer_block.clone())?;
+
         let tx_count = sequencer_block.rollup_txs.len() + sequencer_block.sequencer_txs.len();
+        if self.disable_writing {
+            return Ok(new_state);
+        }
+
         match self
             .da_client
             .submit_block(sequencer_block, &self.keypair)
@@ -151,13 +174,18 @@ impl Relayer {
         Ok(new_state)
     }
 
-    pub async fn run(&self) {
-        match self.get_latest_block().await {
-            Err(e) => warn!(error = ?e, "failed to get latest block from sequencer"),
-            Ok(new_state) if new_state != *self.state.borrow() => {
-                _ = self.state.send_replace(new_state);
+    pub fn run(mut self) -> JoinHandle<()> {
+        tokio::task::spawn(async move {
+            loop {
+                self.interval.tick().await;
+                match self.get_and_submit_latest_block().await {
+                    Err(e) => warn!(error = ?e, "failed to get latest block from sequencer"),
+                    Ok(new_state) if new_state != *self.state.borrow() => {
+                        _ = self.state.send_replace(new_state);
+                    }
+                    Ok(_) => {}
+                }
             }
-            Ok(_) => {}
-        }
+        })
     }
 }

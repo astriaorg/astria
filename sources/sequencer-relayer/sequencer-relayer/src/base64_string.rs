@@ -12,9 +12,13 @@ impl Base64String {
     pub fn from_string(s: String) -> Result<Base64String, base64::DecodeError> {
         general_purpose::STANDARD.decode(s).map(Base64String)
     }
+
+    pub fn from_bytes(bytes: &[u8]) -> Base64String {
+        Base64String(bytes.to_vec())
+    }
 }
 
-impl std::fmt::Display for Base64String {
+impl fmt::Display for Base64String {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", general_purpose::STANDARD.encode(&self.0))
     }

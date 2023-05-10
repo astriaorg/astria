@@ -2,9 +2,13 @@ use base64::{engine::general_purpose, Engine as _};
 use eyre::{bail, ensure, WrapErr as _};
 use hex;
 use prost::{DecodeError, Message};
-use serde::{Deserialize, Serialize};
+use serde::{
+    de::{self, Visitor},
+    Deserialize, Deserializer, Serialize,
+};
+use serde_json;
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 use tracing::debug;
 
 use sequencer_relayer_proto::{SequencerMsg, TxBody, TxRaw};
@@ -22,15 +26,8 @@ static SEQUENCER_TYPE_URL: &str = "/SequencerMsg";
 pub static DEFAULT_NAMESPACE: Namespace = Namespace(*b"astriasq");
 
 /// Namespace represents a Celestia namespace.
-#[derive(Clone, Deserialize, Serialize, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Namespace([u8; 8]);
-
-impl std::fmt::Display for Namespace {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // FIXME: `hex::encode` does an extra allocation which could be removed
-        f.write_str(&hex::encode(self.0))
-    }
-}
 
 impl Namespace {
     pub fn from_string(s: &str) -> eyre::Result<Self> {
@@ -39,6 +36,61 @@ impl Namespace {
         let mut namespace = [0u8; 8];
         namespace.copy_from_slice(&bytes);
         Ok(Namespace(namespace))
+    }
+}
+
+impl fmt::Display for Namespace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // FIXME: `hex::encode` does an extra allocation which could be removed
+        f.write_str(&hex::encode(self.0))
+    }
+}
+
+impl Serialize for Namespace {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&hex::encode(self.0))
+    }
+}
+
+impl<'de> Deserialize<'de> for Namespace {
+    fn deserialize<D>(deserializer: D) -> Result<Namespace, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_string(NamespaceVisitor)
+    }
+}
+
+struct NamespaceVisitor;
+
+impl NamespaceVisitor {
+    fn decode_string<E>(self, value: &str) -> Result<Namespace, E>
+    where
+        E: de::Error,
+    {
+        Namespace::from_string(value).map_err(|e| de::Error::custom(format!("{e:?}")))
+    }
+}
+
+impl<'de> Visitor<'de> for NamespaceVisitor {
+    type Value = Namespace;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string containing 8 hex-encoded bytes")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        self.decode_string(value)
+    }
+
+    fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        self.decode_string(&value)
     }
 }
 
@@ -54,7 +106,7 @@ pub fn get_namespace(bytes: &[u8]) -> Namespace {
 /// it was originally in in the sequencer block.
 /// This is required so that the block's `data_hash`, which is a merkle root
 /// of the transactions in the block, can be verified.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct IndexedTransaction {
     pub index: usize,
     pub transaction: Base64String,
@@ -68,7 +120,7 @@ pub struct IndexedTransaction {
 ///
 /// NOTE: all transactions in this structure are full transaction bytes as received
 /// from tendermint.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct SequencerBlock {
     pub block_hash: Base64String,
     pub header: Header,
@@ -78,6 +130,16 @@ pub struct SequencerBlock {
 }
 
 impl SequencerBlock {
+    pub fn to_bytes(&self) -> eyre::Result<Vec<u8>> {
+        // TODO: don't use json, use our own serializer (or protobuf for now?)
+        serde_json::to_vec(self).wrap_err("failed serializing signed namespace data to json")
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
+        serde_json::from_slice(bytes)
+            .wrap_err("failed deserializing signed namespace data from bytes")
+    }
+
     /// from_cosmos_block converts a cosmos-sdk block into a SequencerBlock.
     /// it parses the block for SequencerMsgs and namespaces them accordingly.
     pub fn from_cosmos_block(b: Block) -> eyre::Result<Self> {
@@ -193,8 +255,12 @@ pub fn cosmos_tx_body_to_sequencer_msgs(tx_body: TxBody) -> eyre::Result<Vec<Seq
 
 #[cfg(test)]
 mod test {
-    use super::{cosmos_tx_body_to_sequencer_msgs, parse_cosmos_tx, SEQUENCER_TYPE_URL};
-    use crate::base64_string::Base64String;
+    use super::{
+        cosmos_tx_body_to_sequencer_msgs, parse_cosmos_tx, Header, SequencerBlock,
+        DEFAULT_NAMESPACE, SEQUENCER_TYPE_URL,
+    };
+    use crate::{base64_string::Base64String, sequencer_block::IndexedTransaction};
+    use std::collections::HashMap;
 
     #[test]
     fn test_parse_primary_tx() {
@@ -216,5 +282,32 @@ mod test {
         assert_eq!(sequencer_msgs.len(), 1);
         assert_eq!(sequencer_msgs[0].chain_id, "aaa".as_bytes());
         assert_eq!(sequencer_msgs[0].data, "hello".as_bytes());
+    }
+
+    #[test]
+    fn sequencer_block_to_bytes() {
+        let mut expected = SequencerBlock {
+            block_hash: Base64String::from_string(
+                "Ojskac/Fi5G00alQZms+tdtIox53cWWjBmIGEnWG1+M=".to_string(),
+            )
+            .unwrap(),
+            header: Header::default(),
+            sequencer_txs: vec![IndexedTransaction {
+                index: 0,
+                transaction: Base64String::from_bytes(&[0x11, 0x22, 0x33]),
+            }],
+            rollup_txs: HashMap::new(),
+        };
+        expected.rollup_txs.insert(
+            DEFAULT_NAMESPACE.clone(),
+            vec![IndexedTransaction {
+                index: 0,
+                transaction: Base64String::from_bytes(&[0x44, 0x55, 0x66]),
+            }],
+        );
+
+        let bytes = expected.to_bytes().unwrap();
+        let actual = SequencerBlock::from_bytes(&bytes).unwrap();
+        assert_eq!(expected, actual);
     }
 }

@@ -11,7 +11,9 @@ bech32 = "0.9"
 dirs = "5.0"
 ed25519-dalek = "1.0"
 eyre = "0.6"
+futures = "0.3"
 hex = "0.4"
+gossipnet = { git = "https://github.com/astriaorg/gossipnet", features = [ "mdns" ], rev = "e916e4b0d4a0caa6fea68f721d4a4a8660a46af6" }
 prost = "0.11"
 rand = { version = "0.7", features = [ "getrandom" ] }
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
