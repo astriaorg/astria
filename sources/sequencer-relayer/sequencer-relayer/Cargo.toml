@@ -30,6 +30,7 @@ sequencer-relayer-proto = { path = "../sequencer-relayer-proto" }
 
 [dependencies.rs-cnc]
 git = "https://github.com/astriaorg/rs-cnc.git"
+rev = "07d00be"
 default-features = false
 features = ["rustls"]
 
