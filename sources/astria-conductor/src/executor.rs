@@ -1,19 +1,20 @@
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{
+    Result,
+    WrapErr as _,
+};
 use log::{
     info,
     warn,
 };
-use prost_types::Timestamp;
-use sequencer_relayer::{
-    proto::SequencerMsg,
-    sequencer_block::{
-        cosmos_tx_body_to_sequencer_msgs,
-        get_namespace,
-        parse_cosmos_tx,
-        Namespace,
-        SequencerBlock,
-    },
+use prost_types::Timestamp as ProstTimestamp;
+use sequencer_relayer::sequencer_block::{
+    cosmos_tx_body_to_sequencer_msgs,
+    get_namespace,
+    parse_cosmos_tx,
+    Namespace,
+    SequencerBlock,
 };
+use sequencer_relayer_proto::SequencerMsg;
 use tendermint::Time;
 use tokio::{
     sync::mpsc::{
@@ -56,12 +57,15 @@ pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinH
 }
 
 // Given a string, convert to protobuf timestamp
-fn time_conversion(value: &str) -> Option<Timestamp> {
-    let time = Time::parse_from_rfc3339(value).expect("Could not get timestamp");
-    let seconds = time.unix_timestamp();
-    let all_nanos = time.unix_timestamp_nanos();
-    let nanos = (all_nanos - (seconds as i128 * 10_i128.pow(9))) as i32; // Largest this can be is order of 10^9, ok to cast
-    Some(Timestamp {
+fn convert_str_to_prost_timestamp(value: &str) -> Result<ProstTimestamp> {
+    let time =
+        Time::parse_from_rfc3339(value).wrap_err("failed parsing string as rfc3339 datetime")?;
+    use tendermint_proto::google::protobuf::Timestamp as TendermintTimestamp;
+    let TendermintTimestamp {
+        seconds,
+        nanos,
+    } = time.into();
+    Ok(ProstTimestamp {
         seconds,
         nanos,
     })
@@ -178,11 +182,12 @@ impl Executor {
             })
             .collect::<Vec<_>>();
 
-        let timestamp = time_conversion(&block.header.time);
+        let timestamp = convert_str_to_prost_timestamp(&block.header.time)
+            .wrap_err("failed parsing str as protobuf timestamp")?;
 
         let response = self
             .execution_rpc_client
-            .call_do_block(prev_block_hash, txs, timestamp)
+            .call_do_block(prev_block_hash, txs, Some(timestamp))
             .await?;
         self.execution_state = response.block_hash;
 

@@ -18,7 +18,8 @@ hex = "0.4"
 log = "0.4.17"
 prost-types = "0.11.8"
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
-sequencer-relayer = { git = "https://github.com/astriaorg/sequencer-relayer" }
+sequencer-relayer = { git = "https://github.com/astriaorg/sequencer-relayer", rev = "8fa5e01" }
+sequencer-relayer-proto = { git = "https://github.com/astriaorg/sequencer-relayer", rev = "8fa5e01" }
 serde = "1.0.152"
 serde_json = "1.0"
 thiserror = "1.0.38"
@@ -27,6 +28,7 @@ tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread", "signal"]
 tonic = "0.8.3"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.16"
+tendermint-proto = "0.30.0"
 
 [dependencies.rs-cnc]
 git = "https://github.com/astriaorg/rs-cnc.git"
