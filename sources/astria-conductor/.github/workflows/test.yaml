@@ -35,7 +35,7 @@ jobs:
       - name: populate conductor stack template
         uses: cuchi/jinja2-action@v1.2.0
         with:
-          template: templates/conductor_stack.yaml.jinja2
+          template: astria-conductor-test/templates/conductor_stack.yaml.jinja2
           output_file: conductor_stack_init.yaml
           strict: true
           variables: |
@@ -51,7 +51,7 @@ jobs:
             sequencer_host_grpc_port=9100
             executor_host_http_port=8545
             executor_host_grpc_port=50051
-            scripts_host_volume=container-scripts
+            scripts_host_volume=astria-conductor-test/container-scripts
       - name: start stack to to download all images
         run: |
           podman kube play --start=false --replace \

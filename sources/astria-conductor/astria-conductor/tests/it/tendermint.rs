@@ -1,8 +1,7 @@
 use std::time::Duration;
 
 use astria_conductor::tendermint::TendermintClient;
-
-use crate::helper::{
+use astria_conductor_test::{
     init_environment,
     init_stack,
     wait_until_ready,
