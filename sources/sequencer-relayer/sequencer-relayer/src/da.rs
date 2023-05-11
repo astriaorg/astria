@@ -11,8 +11,8 @@ use crate::base64_string::Base64String;
 use crate::sequencer_block::{IndexedTransaction, Namespace, SequencerBlock, DEFAULT_NAMESPACE};
 use crate::types::Header;
 
-static DEFAULT_PFD_FEE: i64 = 2_000;
-static DEFAULT_PFD_GAS_LIMIT: u64 = 90_000;
+pub const DEFAULT_PFD_GAS_LIMIT: u64 = 1_000_000;
+const DEFAULT_PFD_FEE: i64 = 2_000;
 
 /// SubmitBlockResponse is the response to a SubmitBlock request.
 /// It contains a map of namespaces to the block number that it was written to.
@@ -118,24 +118,47 @@ struct RollupNamespaceData {
 
 impl NamespaceData for RollupNamespaceData {}
 
-/// CelestiaClient is a DataAvailabilityClient that submits blocks to a Celestia Node.
-pub struct CelestiaClient {
-    client: CelestiaNodeClient,
+pub struct CelestiaClientBuilder {
+    endpoint: String,
+    gas_limit: Option<u64>,
 }
 
-impl CelestiaClient {
-    /// new creates a new CelestiaClient with the given keypair.
-    /// the keypair is used to sign the data that is submitted to Celestia,
-    /// specifically within submit_block.
-    pub fn new(endpoint: String) -> eyre::Result<Self> {
+impl CelestiaClientBuilder {
+    pub fn new(endpoint: String) -> Self {
+        Self {
+            endpoint,
+            gas_limit: None,
+        }
+    }
+
+    pub fn build(self) -> eyre::Result<CelestiaClient> {
         let cnc = CelestiaNodeClient::builder()
-            .base_url(endpoint)
+            .base_url(self.endpoint)
             .wrap_err("failed to set base URL for celestia node client; bad URL?")?
             .build()
             .wrap_err("failed creating celestia node client")?;
-        Ok(CelestiaClient { client: cnc })
+        Ok(CelestiaClient {
+            client: cnc,
+            gas_limit: self.gas_limit.unwrap_or(DEFAULT_PFD_GAS_LIMIT),
+        })
     }
 
+    /// sets the gas limit to be used for PFDs.
+    pub fn gas_limit(self, gas_limit: u64) -> Self {
+        Self {
+            gas_limit: Some(gas_limit),
+            ..self
+        }
+    }
+}
+
+/// CelestiaClient is a DataAvailabilityClient that submits blocks to a Celestia Node.
+pub struct CelestiaClient {
+    client: CelestiaNodeClient,
+    gas_limit: u64,
+}
+
+impl CelestiaClient {
     pub async fn get_latest_height(&self) -> eyre::Result<u64> {
         let res = self
             .client
@@ -159,7 +182,7 @@ impl CelestiaClient {
                 namespace,
                 &data.to_vec().into(),
                 DEFAULT_PFD_FEE,
-                DEFAULT_PFD_GAS_LIMIT,
+                self.gas_limit,
             )
             .await
             .wrap_err("failed submitting pay for data to client")?;

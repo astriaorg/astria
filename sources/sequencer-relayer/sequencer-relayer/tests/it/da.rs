@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use sequencer_relayer::{
     base64_string::Base64String,
-    da::CelestiaClient,
+    da::CelestiaClientBuilder,
     sequencer_block::{get_namespace, IndexedTransaction, SequencerBlock, DEFAULT_NAMESPACE},
 };
 
@@ -15,7 +15,7 @@ use sequencer_relayer_test::init_test;
 async fn get_latest_height() {
     let test_env = init_test().await;
     let bridge_endpoint = test_env.bridge_endpoint();
-    let client = CelestiaClient::new(bridge_endpoint).unwrap();
+    let client = CelestiaClientBuilder::new(bridge_endpoint).build().unwrap();
     let height = client.get_latest_height().await.unwrap();
     assert!(height > 0);
 }
@@ -27,7 +27,7 @@ async fn get_blocks_public_key_filter() {
 
     let test_env = init_test().await;
     let bridge_endpoint = test_env.bridge_endpoint();
-    let client = CelestiaClient::new(bridge_endpoint).unwrap();
+    let client = CelestiaClientBuilder::new(bridge_endpoint).build().unwrap();
 
     let tx = Base64String(b"noot_was_here".to_vec());
 
@@ -64,7 +64,7 @@ async fn celestia_client() {
     // test submit_block
     let test_env = init_test().await;
     let bridge_endpoint = test_env.bridge_endpoint();
-    let client = CelestiaClient::new(bridge_endpoint).unwrap();
+    let client = CelestiaClientBuilder::new(bridge_endpoint).build().unwrap();
 
     let tx = Base64String(b"noot_was_here".to_vec());
     let secondary_namespace = get_namespace(b"test_namespace");
