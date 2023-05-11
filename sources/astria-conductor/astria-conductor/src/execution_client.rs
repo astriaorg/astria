@@ -2,6 +2,7 @@ use astria_execution_apis_rpc::execution::{
     execution_service_client::ExecutionServiceClient,
     DoBlockRequest,
     DoBlockResponse,
+    FinalizeBlockRequest,
     InitStateRequest,
     InitStateResponse,
 };
@@ -48,6 +49,15 @@ impl ExecutionRpcClient {
         };
         let response = self.client.do_block(request).await?.into_inner();
         Ok(response)
+    }
+
+    /// Calls remote procedure FinalizeBlock
+    pub async fn call_finalize_block(&mut self, block_hash: Vec<u8>) -> Result<()> {
+        let request = FinalizeBlockRequest {
+            block_hash,
+        };
+        self.client.finalize_block(request).await?;
+        Ok(())
     }
 
     /// Calls remote procedure InitState

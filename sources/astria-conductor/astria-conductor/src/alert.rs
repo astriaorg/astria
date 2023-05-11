@@ -13,8 +13,14 @@ pub(crate) type AlertSender = UnboundedSender<Alert>;
 /// The alerts that the driver may send the driver user.
 #[derive(Debug)]
 pub enum Alert {
+    /// Send when a block has been received from the gossip network.
+    BlockReceivedFromGossipNetwork {
+        /// The height of the block received
+        block_height: u64,
+    },
+
     /// Send when a block has been received from the data layer.
-    BlockReceived {
+    BlockReceivedFromDataAvailability {
         /// The height of the block received
         block_height: u64,
     },

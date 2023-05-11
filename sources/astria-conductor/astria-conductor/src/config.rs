@@ -21,6 +21,13 @@ pub struct Config {
     /// Address of the RPC server for execution
     #[serde(default = "default_execution_rpc_url")]
     pub execution_rpc_url: String,
+
+    /// Disable reading from the DA layer and block finalization
+    #[serde(default)]
+    pub disable_finalization: bool,
+
+    /// Bootnodes for the P2P network
+    pub bootnodes: Vec<String>,
 }
 
 // NOTE - using default fns instead of defaults in Cli because defaults

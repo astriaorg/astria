@@ -10,6 +10,7 @@ use color_eyre::eyre::{
     WrapErr,
 };
 use log::{
+    debug,
     error,
     info,
     warn,
@@ -136,7 +137,7 @@ impl Reader {
 
     /// get_new_blocks fetches any new sequencer blocks from Celestia.
     pub async fn get_new_blocks(&mut self) -> Result<Vec<SequencerBlock>> {
-        info!("ReaderCommand::GetNewBlocks");
+        debug!("ReaderCommand::GetNewBlocks");
         let mut blocks = vec![];
 
         // get the latest celestia block height
@@ -196,7 +197,6 @@ impl Reader {
     ) -> Result<SequencerBlock> {
         // sequencer block's height
         let height = data.data.header.height.parse::<u64>()?;
-        info!("got sequencer block with height: {:?}", height);
 
         // find proposer address for this height
         let expected_proposer_address =
@@ -250,10 +250,11 @@ impl Reader {
 
     /// Processes an individual block
     async fn process_block(&self, block: SequencerBlock) -> Result<()> {
-        self.executor_tx
-            .send(executor::ExecutorCommand::BlockReceived {
+        self.executor_tx.send(
+            executor::ExecutorCommand::BlockReceivedFromDataAvailability {
                 block: Box::new(block),
-            })?;
+            },
+        )?;
 
         Ok(())
     }
