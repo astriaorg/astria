@@ -1,190 +1,337 @@
-use std::{
-    sync::atomic::{
-        AtomicU16,
-        Ordering,
-    },
-    time::Duration,
-};
+use std::time::Duration;
 
-use askama::Template;
-use once_cell::sync::Lazy;
-use podman_api::{
-    Id,
-    Podman,
+use k8s_openapi::api::{
+    apps::v1::Deployment,
+    core::v1::Namespace,
 };
+use kube::{
+    api::{
+        DeleteParams,
+        DynamicObject,
+        Patch,
+        PatchParams,
+        PostParams,
+    },
+    core::{
+        GroupVersionKind,
+        ObjectMeta,
+    },
+    discovery::{
+        ApiCapabilities,
+        ApiResource,
+        Scope,
+    },
+    runtime::wait::{
+        await_condition,
+        Condition,
+    },
+    Api,
+    Client,
+    Discovery,
+    ResourceExt,
+};
+use once_cell::sync::Lazy;
 use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
-static HOST_PORT: AtomicU16 = AtomicU16::new(1024);
+const TEST_ENVIRONMENT_YAML: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/kubernetes/test-environment.yml"
+));
+const TEST_INGRESS_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/kubernetes/ingress.yml.j2"
+));
 
 static STOP_POD_TX: Lazy<UnboundedSender<String>> = Lazy::new(|| {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     let _ = std::thread::spawn(move || {
-        let podman = init_environment();
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_io()
+            .enable_time()
             .build()
             .unwrap();
         rt.block_on(async move {
-            while let Some(pod_name) = rx.recv().await {
-                let podman = podman.clone();
+            let client = Client::try_default()
+                .await
+                .expect("should be able to connect to kuberneter cluster; is it running?");
+            while let Some(namespace) = rx.recv().await {
                 // spawn "fire and forget" tasks so the force removes are sent
-                // to podman immediately and without waiting for a server response.
-                tokio::spawn(async move {
-                    if let Err(e) = podman.pods().get(&pod_name).remove().await {
-                        eprintln!("received error while removing pod `{pod_name}`: {e:?}");
-                    }
-                });
+                // to kubernetes immediately and without waiting for a server response.
+                let client = client.clone();
+                tokio::spawn(async move { delete_test_environment(namespace, client).await });
             }
         });
     });
     tx
 });
 
-#[derive(Template)]
-#[template(path = "conductor_stack.yaml.jinja2")]
-struct SequencerRelayerStack<'a> {
-    pod_name: &'a str,
-    celestia_home_volume: &'a str,
-    metro_home_volume: &'a str,
-    scripts_host_volume: &'a str,
-    executor_home_volume: &'a str,
-    relayer_home_volume: &'a str,
-    executor_local_account: &'a str,
-    celestia_app_host_port: u16,
-    bridge_host_port: u16,
-    sequencer_host_port: u16,
-    sequencer_host_grpc_port: u16,
-    executor_host_http_port: u16,
-    executor_host_grpc_port: u16,
+pub async fn init_test() -> TestEnvironment {
+    TestEnvironment::init().await
 }
 
-pub fn init_environment() -> Podman {
-    #[cfg(target_os = "linux")]
-    let podman_dir = {
-        let uid = users::get_effective_uid();
-        std::path::PathBuf::from(format!("/run/user/{uid}/podman"))
-    };
-    #[cfg(target_os = "macos")]
-    let podman_dir = {
-        let home_dir = home::home_dir().expect("there should always be a homedir on macos");
-        home_dir.join(".local/share/containers/podman/machine/qemu")
-    };
-    if podman_dir.exists() {
-        Podman::unix(podman_dir.join("podman.sock"))
-    } else {
-        panic!("podman socket not found at `{}`", podman_dir.display(),);
+pub struct TestEnvironment {
+    pub host: String,
+    pub namespace: String,
+    pub tx: UnboundedSender<String>,
+}
+
+impl TestEnvironment {
+    pub fn bridge_endpoint(&self) -> String {
+        format!(
+            "http://{namespace}.localdev.me/bridge",
+            namespace = self.namespace
+        )
+    }
+
+    pub fn sequencer_endpoint(&self) -> String {
+        format!(
+            "http://{namespace}.localdev.me/sequencer",
+            namespace = self.namespace
+        )
+    }
+
+    async fn init() -> Self {
+        let namespace = Uuid::new_v4().simple().to_string();
+        let client = Client::try_default()
+            .await
+            .expect("should be able to connect to kuberneter cluster; is it running?");
+        let discovery = Discovery::new(client.clone())
+            .run()
+            .await
+            .expect("should be able to run discovery against cluster");
+        let documents = multidoc_deserialize(TEST_ENVIRONMENT_YAML).expect(
+            "should have been able to deserialize valid kustomize generated yaml; rerun `just \
+             kustomize`?",
+        );
+
+        // Create the unique namespace
+        create_namespace(
+            &namespace,
+            client.clone(),
+            &PostParams {
+                dry_run: false,
+                field_manager: Some("astria-conductor-test".to_string()),
+            },
+        )
+        .await;
+
+        // Apply the kustomize-generated kube yaml
+        let ssapply = PatchParams::apply("astria-conductor-test").force();
+        for doc in documents {
+            apply_yaml_value(&namespace, client.clone(), doc, &ssapply, &discovery).await;
+        }
+
+        // Set up the ingress rule under the same namespace
+        let ingress_yaml = populate_ingress_template(&namespace);
+        apply_yaml_value(
+            &namespace,
+            client.clone(),
+            ingress_yaml,
+            &ssapply,
+            &discovery,
+        )
+        .await;
+
+        // Wait for the deployment to become available; this usually takes much longer than
+        // setting up ingress rules or anything else.
+        let deployment_api: Api<Deployment> = Api::namespaced(client.clone(), &namespace);
+        await_condition(
+            deployment_api,
+            "conductor-environment-deployment",
+            is_deployment_available(),
+        )
+        .await
+        .unwrap();
+
+        // The deployment contains startupProbes to ensure that the deployment is
+        // only available once its containers are available. However, nginx (the ingress
+        // controller) has a small delay between the deployment becoming available and
+        // being able to route requests to its services.
+        tokio::join!(
+            wait_until_bridge_is_available(&namespace),
+            wait_until_sequencer_is_available(&namespace),
+        );
+
+        let host = format!("http://{namespace}.localdev.me");
+        Self {
+            host,
+            namespace,
+            tx: Lazy::force(&STOP_POD_TX).clone(),
+        }
     }
 }
 
-pub struct StackInfo {
-    pub pod_name: String,
-    pub celestia_app_host_port: u16,
-    pub bridge_host_port: u16,
-    pub sequencer_host_port: u16,
-    pub sequencer_host_grpc_port: u16,
-    pub executor_host_http_port: u16,
-    pub executor_host_grpc_port: u16,
-    tx: UnboundedSender<String>,
+fn is_deployment_available() -> impl Condition<Deployment> {
+    move |obj: Option<&Deployment>| {
+        if let Some(deployment) = &obj {
+            if let Some(status) = &deployment.status {
+                if let Some(conds) = &status.conditions {
+                    if let Some(dcond) = conds.iter().find(|c| c.type_ == "Available") {
+                        return dcond.status == "True";
+                    }
+                }
+            }
+        }
+        false
+    }
 }
 
-impl StackInfo {
-    pub fn make_bridge_endpoint(&self) -> String {
-        format!("http://127.0.0.1:{}", self.bridge_host_port,)
-    }
-
-    pub fn make_sequencer_api_endpoint(&self) -> String {
-        format!("http://127.0.0.1:{}", self.sequencer_host_port,)
-    }
-
-    // pub fn make_sequencer_grpc_endpoint(&self) -> String {
-    //     format!("http://127.0.0.1:{}", self.sequencer_host_grpc_port,)
-    // }
-
-    // pub fn make_executor_endpoint(&self) -> String {
-    //     format!("http://127.0.0.0:{}", self.executor_host_http_port,)
-    // }
-
-    // pub fn make_executor_grpc_endpoint(&self) -> String {
-    //     format!("http://127.0.0.0:{}", self.executor_host_grpc_port,)
-    // }
-}
-
-impl Drop for StackInfo {
+impl Drop for TestEnvironment {
     fn drop(&mut self) {
-        if let Err(e) = self.tx.send(self.pod_name.clone()) {
+        if let Err(e) = self.tx.send(self.namespace.clone()) {
             eprintln!(
-                "failed sending pod `{name}` to cleanup task while dropping StackInfo: {e:?}",
-                name = self.pod_name,
+                "failed sending kubernetes namespace `{namespace}` to cleanup task while dropping \
+                 TestEnvironment: {e:?}",
+                namespace = self.namespace,
             )
         }
     }
 }
 
-pub async fn init_stack(podman: &Podman) -> StackInfo {
-    let id = Uuid::new_v4().simple();
-    let pod_name = format!("conductor_stack-{id}");
-    let celestia_home_volume = format!("celestia-home-volume-{id}");
-    let metro_home_volume = format!("metro-home-volume-{id}");
-    let geth_home_volume = format!("geth-home-volume-{id}");
-    let relayer_home_volume = format!("relayer-home-volume-{id}");
-    let bridge_host_port = HOST_PORT.fetch_add(1, Ordering::Relaxed);
-    let celestia_app_host_port = HOST_PORT.fetch_add(1, Ordering::Relaxed);
-    let sequencer_host_port = HOST_PORT.fetch_add(1, Ordering::Relaxed);
-    let sequencer_host_grpc_port = HOST_PORT.fetch_add(1, Ordering::Relaxed);
-    let executor_host_http_port = HOST_PORT.fetch_add(1, Ordering::Relaxed);
-    let executor_host_grpc_port = HOST_PORT.fetch_add(1, Ordering::Relaxed);
-
-    let scripts_host_volume = format!("{}/container-scripts/", env!("CARGO_MANIFEST_DIR"));
-
-    let stack = SequencerRelayerStack {
-        pod_name: &pod_name,
-        celestia_home_volume: &celestia_home_volume,
-        metro_home_volume: &metro_home_volume,
-        scripts_host_volume: &scripts_host_volume,
-        executor_home_volume: &geth_home_volume,
-        relayer_home_volume: &relayer_home_volume,
-        // steezeburger's local account used for astria development
-        executor_local_account: "0xb0E31D878F49Ec0403A25944d6B1aE1bf05D17E1",
-        celestia_app_host_port,
-        bridge_host_port,
-        sequencer_host_port,
-        sequencer_host_grpc_port,
-        executor_host_http_port,
-        executor_host_grpc_port,
-    };
-
-    let pod_kube_yaml = stack.render().unwrap();
-
-    let stack_info = StackInfo {
-        pod_name,
-        celestia_app_host_port,
-        bridge_host_port,
-        sequencer_host_port,
-        sequencer_host_grpc_port,
-        executor_host_http_port,
-        executor_host_grpc_port,
-        tx: Lazy::force(&STOP_POD_TX).clone(),
-    };
-
-    if let Err(e) = podman
-        .play_kubernetes_yaml(&Default::default(), pod_kube_yaml)
-        .await
-    {
-        eprintln!("failed playing YAML failed on podman: {e:?}");
-        panic!("{e:?}");
+fn multidoc_deserialize(data: &str) -> eyre::Result<Vec<serde_yaml::Value>> {
+    use serde::Deserialize;
+    let mut docs = vec![];
+    for de in serde_yaml::Deserializer::from_str(data) {
+        docs.push(serde_yaml::Value::deserialize(de)?);
     }
-
-    stack_info
+    Ok(docs)
 }
 
-pub async fn wait_until_ready(podman: &Podman, id: impl Into<Id>) {
-    let pod = podman.pods().get(id);
+fn dynamic_api(
+    ar: ApiResource,
+    caps: ApiCapabilities,
+    client: Client,
+    namespace: &str,
+) -> Api<DynamicObject> {
+    if caps.scope == Scope::Cluster {
+        Api::all_with(client, &ar)
+    } else {
+        Api::namespaced_with(client, namespace, &ar)
+    }
+}
+
+async fn apply_yaml_value(
+    namespace: &str,
+    client: Client,
+    document: serde_yaml::Value,
+    ssapply: &PatchParams,
+    discovery: &Discovery,
+) {
+    let obj: DynamicObject = serde_yaml::from_value(document).expect(
+        "should have been able to read valid kustomize generated doc into dynamic object; rerun \
+         `just kustomize`?",
+    );
+    let gvk = if let Some(tm) = &obj.types {
+        GroupVersionKind::try_from(tm)
+            .expect("failed reading group version kind from dynamic object types")
+    } else {
+        panic!("cannot apply object without valid TypeMeta: {obj:?}");
+    };
+    let name = obj.name_any();
+    let Some((ar, caps)) = discovery.resolve_gvk(&gvk) else {
+        panic!("cannot apply document for unknown group version kind: {gvk:?}");
+    };
+    let api = dynamic_api(ar, caps, client, namespace);
+    let data: serde_json::Value = serde_json::to_value(&obj)
+        .expect("should have been able to turn DynamicObject serde_json Value");
+    let _r = api
+        .patch(&name, ssapply, &Patch::Apply(data))
+        .await
+        .expect("should have been able to apply patch");
+}
+
+async fn delete_test_environment(namespace: String, client: Client) {
+    delete_namespace(
+        &namespace,
+        client.clone(),
+        &DeleteParams {
+            grace_period_seconds: Some(0),
+            ..DeleteParams::default()
+        },
+    )
+    .await;
+}
+
+async fn create_namespace(namespace: &str, client: Client, params: &PostParams) {
+    let api: Api<Namespace> = Api::all(client);
+    api.create(
+        params,
+        &Namespace {
+            metadata: ObjectMeta {
+                name: Some(namespace.to_string()),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("should have been able to create the unique namespace; does it exist?");
+}
+
+async fn delete_namespace(namespace: &str, client: Client, params: &DeleteParams) {
+    let api: Api<Namespace> = Api::all(client);
+    api.delete(namespace, params)
+        .await
+        .expect("should have been able to delete the unique namespace; does it exist?");
+}
+
+fn populate_ingress_template(namespace: &str) -> serde_yaml::Value {
+    let mut jinja_env = minijinja::Environment::new();
+    jinja_env
+        .add_template("ingress.yml", TEST_INGRESS_TEMPLATE)
+        .expect("compile-time loaded ingress should be valid jinja");
+    let ingress_template = jinja_env
+        .get_template("ingress.yml")
+        .expect("ingress.yml was just loaded, it should exist");
+    serde_yaml::from_str(
+        &ingress_template
+            .render(minijinja::context!(namespace => namespace))
+            .expect("should be able to render the ingress jinja template"),
+    )
+    .expect("should be able to parse rendered ingress yaml as serde_yaml Value")
+}
+
+async fn wait_until_bridge_is_available(namespace: &str) {
+    let client = reqwest::Client::builder()
+        .build()
+        .expect("building a basic reqwest client should never fail");
+    let url = reqwest::Url::parse(&format!("http://{namespace}.localdev.me/bridge/header/1"))
+        .expect("bridge endpoint should be a valid url");
     loop {
-        let resp = pod.inspect().await.unwrap();
-        if resp.state.as_deref() == Some("Running") {
+        if client
+            .get(url.clone())
+            .send()
+            .await
+            .expect("sending a get request should not fail")
+            .error_for_status()
+            .is_ok()
+        {
             break;
         }
-        tokio::time::sleep(Duration::from_secs(3)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+}
+
+async fn wait_until_sequencer_is_available(namespace: &str) {
+    let client = reqwest::Client::builder()
+        .build()
+        .expect("building a basic reqwest client should never fail");
+    let url = reqwest::Url::parse(&format!(
+        "http://{namespace}.localdev.me/sequencer/cosmos/base/tendermint/v1beta1/blocks/latest"
+    ))
+    .expect("sequencer endpoint should be a valid url");
+    loop {
+        if client
+            .get(url.clone())
+            .send()
+            .await
+            .expect("sending a get request should not fail")
+            .error_for_status()
+            .is_ok()
+        {
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }

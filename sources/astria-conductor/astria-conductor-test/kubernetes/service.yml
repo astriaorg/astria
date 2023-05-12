@@ -1,0 +1,14 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: conductor-environment-service
+spec: 
+  selector:
+    app: conductor-environment
+  ports:
+    - name: sequencer-svc
+      port: 1318
+      targetPort: sequencer-svc
+    - name: bridge-svc
+      port: 26659
+      targetPort: bridge-svc

@@ -1,0 +1,37 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: conductor-environment-prepull
+spec:
+  selector:
+    matchLabels:
+      name: conductor-environment-prepull
+  template:
+    metadata:
+      labels:
+        name: conductor-environment-prepull
+    spec:
+      initContainers:
+        - name: prepull-celestia-app
+          image: "ghcr.io/astriaorg/celestia-app:v0.11.0"
+          command: ["sh", "-c", "'true'"]
+        - name: prepull-celestia-node
+          image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
+          command: ["sh", "-c", "'true'"]
+        - name: prepull-metro
+          image: "ghcr.io/astriaorg/metro:0.0.3"
+          command: ["sh", "-c", "'true'"]
+        - name: prepull-dasel
+          image: ghcr.io/tomwright/dasel:alpine
+          command: ["sh", "-c", "'true'"]
+        - name: prepull-go-ethereum
+          image: ghcr.io/astriaorg/go-ethereum:0.0.3
+          command: ["sh", "-c", "'true'"]
+        - name: prepull-sequencer-relayer
+          image: "ghcr.io/astriaorg/sequencer-relayer:sha-574f422-debug"
+          command: ["sh", "-c", "'true'"]
+      containers:
+        - name: pause
+          image: gcr.io/google_containers/pause
+---

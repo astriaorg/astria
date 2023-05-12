@@ -2,7 +2,7 @@
 
 set -o errexit -o nounset -o pipefail
 
-genesis_hash=$(curl -s -S -X GET "http://127.0.0.1:$celestia_app_host_port/block?height=1" | jq -r '.result.block_id.hash')
+genesis_hash=$(curl -s -S -X GET "http://127.0.0.1:26657/block?height=1" | jq -r '.result.block_id.hash')
 if [ -z "$genesis_hash" ] 
 then
   echo "did not receive genesis hash from celestia; exiting"

@@ -1,0 +1,46 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: celestia-env
+data:
+  coins: "1000000000000000utia"
+  validator_stake: "5000000000utia"
+  chainid: "test"
+  keyring_backend: "test"
+  validator_key_name: "validator"
+  # evm address corresponds to private key:
+  # da6ed55cb2894ac2c9c10209c09de8e8b9d109b910338d5bf3d747a7e1fc9eb9
+  evm_address: "0x966e6f22781EF6a6A82BBB4DB3df8E225DfD9488"
+  home_dir: "/home/celestia"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: metro-env
+data:
+  coins: "1000000000000000utick"
+  validator_stake: "5000000000utick"
+  chainid: "private"
+  keyring_backend: "test"
+  validator_key_name: "validator"
+  # evm address corresponds to private key:
+  # da6ed55cb2894ac2c9c10209c09de8e8b9d109b910338d5bf3d747a7e1fc9eb9
+  evm_address: "0x966e6f22781EF6a6A82BBB4DB3df8E225DfD9488"
+  home_dir: "/home/metro"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: geth-env
+data:
+  executor_local_account: "0xb0E31D878F49Ec0403A25944d6B1aE1bf05D17E1"
+  home_dir: "/home/geth"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: relayer-env
+data:
+  home_dir: "/home/relayer"
+---

@@ -1,0 +1,191 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: conductor-environment-deployment
+  labels:
+    app: conductor-environment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: conductor-environment
+  template:
+    metadata:
+      labels:
+        app: conductor-environment
+    spec:
+      initContainers:
+        - command:
+          - /scripts/init-celestia-appd.sh
+          name: init-celestia-app
+          image: "ghcr.io/astriaorg/celestia-app:v0.11.0"
+          volumeMounts:
+            - mountPath: /scripts/
+              name: celestia-appd-scripts-volume
+            - mountPath: /home/celestia
+              name: celestia-home-vol
+          envFrom:
+            - configMapRef:
+                name: celestia-env
+        - command:
+          - /scripts/init-bridge.sh
+          name: init-bridge
+          image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
+          volumeMounts:
+            - mountPath: /scripts/
+              name: bridge-scripts-volume
+            - mountPath: /home/celestia
+              name: celestia-home-vol
+          envFrom:
+            - configMapRef:
+                name: celestia-env
+        - command:
+          - /scripts/init-metro.sh
+          name: init-metro
+          image: "ghcr.io/astriaorg/metro:0.0.3"
+          volumeMounts:
+            - mountPath: /scripts/
+              name: metro-scripts-volume
+            - mountPath: /home/metro
+              name: metro-home-vol
+          envFrom:
+            - configMapRef:
+                name: metro-env
+        - command:
+          - /scripts/configure-geth.sh
+          name: configure-geth
+          image: ghcr.io/astriaorg/go-ethereum:0.0.3
+          volumeMounts:
+            - mountPath: /scripts/
+              name: executor-scripts-volume
+            - mountPath: /home/geth
+              name: executor-home-vol
+          envFrom:
+            - configMapRef:
+                name: geth-env
+        - command:
+          - /scripts/init-geth.sh
+          name: init-geth
+          image: ghcr.io/astriaorg/go-ethereum:0.0.3
+          volumeMounts:
+            - mountPath: /scripts/
+              name: executor-scripts-volume
+            - mountPath: /home/geth
+              name: executor-home-vol
+          envFrom:
+            - configMapRef:
+                name: geth-env
+        - command:
+          - /scripts/configure-metro.sh
+          name: configure-metro
+          image: ghcr.io/tomwright/dasel:alpine
+          envFrom:
+            - configMapRef:
+                name: metro-env
+          volumeMounts:
+            - mountPath: /scripts/
+              name: metro-scripts-volume
+            - mountPath: /home/metro
+              name: metro-home-vol
+      containers:
+        - name: celestia-app
+          command: ["/scripts/start-celestia-appd.sh"]
+          image: "ghcr.io/astriaorg/celestia-app:v0.11.0"
+          envFrom:
+            - configMapRef:
+                name: celestia-env
+          volumeMounts:
+            - mountPath: /scripts/
+              name: celestia-appd-scripts-volume
+            - mountPath: /home/celestia
+              name: celestia-home-vol
+          ports:
+            - containerPort: 26657
+        - name: celestia-bridge
+          command:
+          - /scripts/start-bridge.sh
+          image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
+          volumeMounts:
+            - mountPath: /scripts/
+              name: bridge-scripts-volume
+            - mountPath: /home/celestia
+              name: celestia-home-vol
+          envFrom:
+            - configMapRef:
+                name: celestia-env
+          ports:
+            - containerPort: 26659
+              name: bridge-svc
+        - name: metro-sequencer
+          command: ["/scripts/start-metro.sh"]
+          image: "ghcr.io/astriaorg/metro:0.0.3"
+          ports:
+            - containerPort: 1318
+              name: sequencer-svc
+            - containerPort: 9100
+          volumeMounts:
+            - mountPath: /scripts/
+              name: metro-scripts-volume
+            - mountPath: /home/metro
+              name: metro-home-vol
+          envFrom:
+            - configMapRef:
+                name: metro-env
+        - name: relayer
+          image: "ghcr.io/astriaorg/sequencer-relayer:sha-574f422-debug"
+          command: ["/usr/local/bin/relayer"]
+          args:
+            - "--sequencer-endpoint=http://localhost:1318"
+            - "--celestia-endpoint=http://localhost:26659"
+            - "--validator-key-file=/root/.metro/config/priv_validator_key.json"
+          volumeMounts:
+            - mountPath: /home/relayer
+              name: relayer-home-vol
+            - mountPath: /root/.metro
+              name: metro-home-vol
+              readOnly: true
+        - name: geth-executor
+          command: ["/scripts/start-geth.sh"]
+          image: "ghcr.io/astriaorg/go-ethereum:0.0.3"
+          volumeMounts:
+            - mountPath: /scripts/
+              name: executor-scripts-volume
+              readOnly: true
+            - mountPath: /home/geth
+              name: executor-home-vol
+            - mountPath: /root/.metro
+              name: metro-home-vol
+              readOnly: true
+          envFrom:
+            - configMapRef:
+                name: geth-env
+          ports:
+            - containerPort: 8545
+            - containerPort: 50051
+      volumes:
+      - name: bridge-scripts-volume
+        configMap:
+          name: bridge-scripts
+          defaultMode: 0500
+      - name: metro-scripts-volume
+        configMap:
+          name: metro-scripts
+          defaultMode: 0500
+      - name: celestia-appd-scripts-volume
+        configMap:
+          name: celestia-appd-scripts
+          defaultMode: 0500
+      - name: executor-scripts-volume
+        configMap:
+          name: executor-scripts
+          defaultMode: 0500
+      - emptyDir: {}
+        name: celestia-home-vol
+      - emptyDir: {}
+        name: metro-home-vol
+      - emptyDir: {}
+        name: executor-home-vol
+      - emptyDir: {}
+        name: relayer-home-vol
+---

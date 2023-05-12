@@ -1,5 +1,6 @@
 name: Tests
-
+env:
+  CI: true
 on: 
   workflow_dispatch:
   push:
@@ -26,38 +27,18 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build tests
         run: cargo test --release --no-run
-      - name: install podman 4
-        run: sudo bash $GITHUB_WORKSPACE/.github/workflows/install_podman.sh
-      - name: start podman
-        run: |
-          systemctl restart --user podman
-          systemctl restart --user podman.socket
-      - name: populate conductor stack template
-        uses: cuchi/jinja2-action@v1.2.0
+      - name: create kubernetes in docker cluster
+        uses: helm/kind-action@v1.5.0
         with:
-          template: astria-conductor-test/templates/conductor_stack.yaml.jinja2
-          output_file: conductor_stack_init.yaml
-          strict: true
-          variables: |
-            pod_name=conductor_stack_pull
-            celestia_home_volume=celestia-home-vol
-            metro_home_volume=metro-home-vol
-            executor_home_volume=executor-home-vol
-            relayer_home_volume=relayer-home-vol
-            executor_local_account=0xb0E31D878F49Ec0403A25944d6B1aE1bf05D17E1
-            celestia_app_host_port=26657
-            bridge_host_port=26659
-            sequencer_host_port=1318
-            sequencer_host_grpc_port=9100
-            executor_host_http_port=8545
-            executor_host_grpc_port=50051
-            scripts_host_volume=astria-conductor-test/container-scripts
-      - name: start stack to to download all images
-        run: |
-          podman kube play --start=false --replace \
-            conductor_stack_init.yaml
-      - name: remove stack pod
-        run: podman pod rm --all
+          version: v0.18.0
+          config: astria-conductor-test/kubernetes/cluster-config.yml
+          kubectl_version: v1.27.1
+      - name: install just
+        uses: taiki-e/install-action@just
+      - run: just deploy-ingress-controller
+      - run: just perform-prepull
+      - run: just wait-for-ingress-controller
+      - run: just wait-for-prepull
       - name: Run tests
         run: cargo test --release
 

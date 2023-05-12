@@ -1,0 +1,423 @@
+apiVersion: v1
+data:
+  init-bridge.sh: |
+    #!/bin/sh
+
+    set -o errexit -o nounset
+
+    ./celestia bridge init \
+      --node.store "$home_dir/bridge" \
+      --core.ip 127.0.0.1
+    cp -r "$home_dir/keyring-test" "$home_dir/bridge/keys/"
+  start-bridge.sh: "#!/bin/bash\n\nset -o errexit -o nounset -o pipefail\n\ngenesis_hash=$(curl
+    -s -S -X GET \"http://127.0.0.1:26657/block?height=1\" | jq -r '.result.block_id.hash')\nif
+    [ -z \"$genesis_hash\" ] \nthen\n  echo \"did not receive genesis hash from celestia;
+    exiting\"\n  exit 1\nelse\n  echo \"genesis hash received: $genesis_hash\"\nfi\n\nexport
+    CELESTIA_CUSTOM=\"test:$genesis_hash\"\n  # --p2p.network \"test:$celestia_custom\"\nexport
+    GOLOG_LOG_LEVEL=\"debug\"\nexec ./celestia bridge start \\\n  --node.store \"$home_dir/bridge\"
+    \\\n  --gateway \\\n  --keyring.accname \"$validator_key_name\"\n"
+kind: ConfigMap
+metadata:
+  name: bridge-scripts-kmtkbk7fc7
+---
+apiVersion: v1
+data:
+  init-celestia-appd.sh: |
+    #!/bin/sh
+
+    set -o errexit -o nounset
+
+    celestia-appd init "$chainid" \
+      --chain-id "$chainid" \
+      --home "$home_dir"
+
+    celestia-appd keys add \
+      "$validator_key_name" \
+      --keyring-backend="$keyring_backend" \
+      --home "$home_dir"
+
+    validator_key=$(celestia-appd keys show "$validator_key_name" -a --keyring-backend="$keyring_backend" --home "$home_dir")
+    celestia-appd add-genesis-account \
+      "$validator_key" \
+      --home "$home_dir" \
+      "$coins"
+
+    celestia-appd gentx \
+      "$validator_key_name" \
+      "$validator_stake" \
+      --keyring-backend="$keyring_backend" \
+      --chain-id "$chainid" \
+      --home "$home_dir" \
+      --orchestrator-address "$validator_key" \
+      --evm-address "$evm_address"
+
+    celestia-appd collect-gentxs --home "$home_dir"
+  start-celestia-appd.sh: |
+    #!/bin/sh
+
+    set -o errexit -o nounset
+
+    sed -i'.bak' 's/timeout_commit = "25s"/timeout_commit = "1s"/g' $home_dir/config/config.toml
+    sed -i'.bak' 's/timeout_propose = "10s"/timeout_propose = "1s"/g' $home_dir/config/config.toml
+
+    # Start the celestia-app
+    exec celestia-appd start --home "${home_dir}"
+kind: ConfigMap
+metadata:
+  name: celestia-appd-scripts-ffk5t7kfc2
+---
+apiVersion: v1
+data:
+  chainid: test
+  coins: 1000000000000000utia
+  evm_address: 0x966e6f22781EF6a6A82BBB4DB3df8E225DfD9488
+  home_dir: /home/celestia
+  keyring_backend: test
+  validator_key_name: validator
+  validator_stake: 5000000000utia
+kind: ConfigMap
+metadata:
+  name: celestia-env
+---
+apiVersion: v1
+data:
+  configure-geth.sh: |
+    #!/bin/bash
+
+    set -o errexit -o nounset
+
+    DEFAULT_ACCOUNT="0xb0E31D878F49Ec0403A25944d6B1aE1bf05D17E1"
+    # use default account id if geth_local_account envar is not set
+    ACCOUNT=${geth_local_account:-$DEFAULT_ACCOUNT}
+
+    echo "Modifying genesis.json to allocate funds to $ACCOUNT"
+
+    mv /genesis.json $home_dir/genesis.bak.json
+
+    # use jq to replace alloc value in genesis.json with ACCOUNT envar
+    jq --arg accountId "$ACCOUNT" \
+      '.alloc |= with_entries( if .key | startswith("0x") then .key = $accountId else . end )' \
+      $home_dir/genesis.bak.json > $home_dir/genesis.json
+  init-geth.sh: |
+    #!/bin/bash
+
+    set -o errexit -o nounset
+
+    geth --datadir $home_dir/.astriageth/ init $home_dir/genesis.json
+  start-geth.sh: |
+    #!/bin/bash
+
+    set -o errexit -o nounset
+
+    geth --datadir $home_dir/.astriageth/ --http --http.addr "0.0.0.0" --http.port=8545 \
+      --ws --ws.addr "0.0.0.0" --ws.port=8545 --networkid=1337 --http.corsdomain='*' --ws.origins='*' \
+      --grpc --grpc.addr "0.0.0.0" --grpc.port 50051 \
+      --metro.addr "0.0.0.0" --metro.port 9100
+kind: ConfigMap
+metadata:
+  name: executor-scripts-c44cc226h7
+---
+apiVersion: v1
+data:
+  executor_local_account: 0xb0E31D878F49Ec0403A25944d6B1aE1bf05D17E1
+  home_dir: /home/geth
+kind: ConfigMap
+metadata:
+  name: geth-env
+---
+apiVersion: v1
+data:
+  chainid: private
+  coins: 1000000000000000utick
+  evm_address: 0x966e6f22781EF6a6A82BBB4DB3df8E225DfD9488
+  home_dir: /home/metro
+  keyring_backend: test
+  validator_key_name: validator
+  validator_stake: 5000000000utick
+kind: ConfigMap
+metadata:
+  name: metro-env
+---
+apiVersion: v1
+data:
+  configure-metro.sh: |
+    #!/bin/sh
+
+    set -o errexit -o nounset -o pipefail
+
+    # change ports that we know metro will not receive messages on
+    # so they won't interfere with celestia-app ports:
+    #
+    # ~/.metro # netstat -lntp
+    # Active Internet connections (only servers)
+    # Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name
+    #                     config.toml:.rpc.pprof_laddr
+    # tcp        0      0 127.0.0.1:6060          0.0.0.0:*               LISTEN      110/metro
+    #                     config.toml:.rpc.laddr
+    # tcp        0      0 :::26657                :::*                    LISTEN      110/metro
+    #                     p2p.laddr
+    # tcp        0      0 :::26656                :::*                    LISTEN      110/metro
+    #                     app.toml:.api.address
+    # tcp        0      0 :::1317                 :::*                    LISTEN      110/metro
+    #                     app.toml:.grpc.address
+    # tcp        0      0 :::9091                 :::*                    LISTEN      110/metro
+    #                     app.toml:.grpc-web.address
+    # tcp        0      0 :::9090                 :::*                    LISTEN      110/metro
+    dasel put -r toml '.rpc.pprof_laddr' -t string -v "127.0.0.1:60000" -f "$home_dir/config/config.toml"
+    dasel put -r toml '.rpc.laddr' -t string -v "tcp://0.0.0.0:60001" -f "$home_dir/config/config.toml"
+    dasel put -r toml '.p2p.laddr' -t string -v "tcp://0.0.0.0:60002" -f "$home_dir/config/config.toml"
+    dasel put -r toml '.api.address' -t string -v "tcp://0.0.0.0:1318" -f "$home_dir/config/app.toml"
+    dasel put -r toml '.grpc.address' -t string -v "0.0.0.0:9100" -f "$home_dir/config/app.toml"
+    dasel put -r toml '.grpc-web.address' -t string -v "0.0.0.0:9101" -f "$home_dir/config/app.toml"
+  init-metro.sh: |
+    #!/bin/sh
+
+    set -o errexit -o nounset
+
+    metro init "$chainid" \
+      --chain-id "$chainid" \
+      --home "$home_dir"
+
+    metro keys add "$validator_key_name" \
+      --keyring-backend="$keyring_backend" \
+      --home "$home_dir"
+
+    validator_key=$(metro keys show "$validator_key_name" -a --keyring-backend="$keyring_backend" --home "$home_dir")
+    metro add-genesis-account "$validator_key" "$coins" \
+      --home "$home_dir"
+
+    metro gentx "$validator_key_name" "$validator_stake" \
+      --keyring-backend="$keyring_backend" \
+      --chain-id "$chainid" \
+      --orchestrator-address "$validator_key" \
+      --evm-address "$evm_address" \
+      --home "$home_dir"
+
+    metro collect-gentxs \
+      --home "$home_dir"
+  start-metro.sh: |
+    #!/bin/sh
+
+    set -o errexit -o nounset
+
+    # Start the celestia-app
+    exec metro start --home "${home_dir}"
+kind: ConfigMap
+metadata:
+  name: metro-scripts-58b899ftcg
+---
+apiVersion: v1
+data:
+  home_dir: /home/relayer
+kind: ConfigMap
+metadata:
+  name: relayer-env
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: conductor-environment-service
+spec:
+  ports:
+  - name: sequencer-svc
+    port: 1318
+    targetPort: sequencer-svc
+  - name: bridge-svc
+    port: 26659
+    targetPort: bridge-svc
+  selector:
+    app: conductor-environment
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: conductor-environment
+  name: conductor-environment-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: conductor-environment
+  template:
+    metadata:
+      labels:
+        app: conductor-environment
+    spec:
+      containers:
+      - command:
+        - /scripts/start-celestia-appd.sh
+        envFrom:
+        - configMapRef:
+            name: celestia-env
+        image: ghcr.io/astriaorg/celestia-app:v0.11.0
+        name: celestia-app
+        ports:
+        - containerPort: 26657
+        volumeMounts:
+        - mountPath: /scripts/
+          name: celestia-appd-scripts-volume
+        - mountPath: /home/celestia
+          name: celestia-home-vol
+      - command:
+        - /scripts/start-bridge.sh
+        envFrom:
+        - configMapRef:
+            name: celestia-env
+        image: ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7
+        name: celestia-bridge
+        ports:
+        - containerPort: 26659
+          name: bridge-svc
+        volumeMounts:
+        - mountPath: /scripts/
+          name: bridge-scripts-volume
+        - mountPath: /home/celestia
+          name: celestia-home-vol
+      - command:
+        - /scripts/start-metro.sh
+        envFrom:
+        - configMapRef:
+            name: metro-env
+        image: ghcr.io/astriaorg/metro:0.0.3
+        name: metro-sequencer
+        ports:
+        - containerPort: 1318
+          name: sequencer-svc
+        - containerPort: 9100
+        volumeMounts:
+        - mountPath: /scripts/
+          name: metro-scripts-volume
+        - mountPath: /home/metro
+          name: metro-home-vol
+      - args:
+        - --sequencer-endpoint=http://localhost:1318
+        - --celestia-endpoint=http://localhost:26659
+        - --validator-key-file=/root/.metro/config/priv_validator_key.json
+        command:
+        - /usr/local/bin/relayer
+        image: ghcr.io/astriaorg/sequencer-relayer:sha-574f422-debug
+        name: relayer
+        volumeMounts:
+        - mountPath: /home/relayer
+          name: relayer-home-vol
+        - mountPath: /root/.metro
+          name: metro-home-vol
+          readOnly: true
+      - command:
+        - /scripts/start-geth.sh
+        envFrom:
+        - configMapRef:
+            name: geth-env
+        image: ghcr.io/astriaorg/go-ethereum:0.0.3
+        name: geth-executor
+        ports:
+        - containerPort: 8545
+        - containerPort: 50051
+        volumeMounts:
+        - mountPath: /scripts/
+          name: executor-scripts-volume
+          readOnly: true
+        - mountPath: /home/geth
+          name: executor-home-vol
+        - mountPath: /root/.metro
+          name: metro-home-vol
+          readOnly: true
+      initContainers:
+      - command:
+        - /scripts/init-celestia-appd.sh
+        envFrom:
+        - configMapRef:
+            name: celestia-env
+        image: ghcr.io/astriaorg/celestia-app:v0.11.0
+        name: init-celestia-app
+        volumeMounts:
+        - mountPath: /scripts/
+          name: celestia-appd-scripts-volume
+        - mountPath: /home/celestia
+          name: celestia-home-vol
+      - command:
+        - /scripts/init-bridge.sh
+        envFrom:
+        - configMapRef:
+            name: celestia-env
+        image: ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7
+        name: init-bridge
+        volumeMounts:
+        - mountPath: /scripts/
+          name: bridge-scripts-volume
+        - mountPath: /home/celestia
+          name: celestia-home-vol
+      - command:
+        - /scripts/init-metro.sh
+        envFrom:
+        - configMapRef:
+            name: metro-env
+        image: ghcr.io/astriaorg/metro:0.0.3
+        name: init-metro
+        volumeMounts:
+        - mountPath: /scripts/
+          name: metro-scripts-volume
+        - mountPath: /home/metro
+          name: metro-home-vol
+      - command:
+        - /scripts/configure-geth.sh
+        envFrom:
+        - configMapRef:
+            name: geth-env
+        image: ghcr.io/astriaorg/go-ethereum:0.0.3
+        name: configure-geth
+        volumeMounts:
+        - mountPath: /scripts/
+          name: executor-scripts-volume
+        - mountPath: /home/geth
+          name: executor-home-vol
+      - command:
+        - /scripts/init-geth.sh
+        envFrom:
+        - configMapRef:
+            name: geth-env
+        image: ghcr.io/astriaorg/go-ethereum:0.0.3
+        name: init-geth
+        volumeMounts:
+        - mountPath: /scripts/
+          name: executor-scripts-volume
+        - mountPath: /home/geth
+          name: executor-home-vol
+      - command:
+        - /scripts/configure-metro.sh
+        envFrom:
+        - configMapRef:
+            name: metro-env
+        image: ghcr.io/tomwright/dasel:alpine
+        name: configure-metro
+        volumeMounts:
+        - mountPath: /scripts/
+          name: metro-scripts-volume
+        - mountPath: /home/metro
+          name: metro-home-vol
+      volumes:
+      - configMap:
+          defaultMode: 320
+          name: bridge-scripts-kmtkbk7fc7
+        name: bridge-scripts-volume
+      - configMap:
+          defaultMode: 320
+          name: metro-scripts-58b899ftcg
+        name: metro-scripts-volume
+      - configMap:
+          defaultMode: 320
+          name: celestia-appd-scripts-ffk5t7kfc2
+        name: celestia-appd-scripts-volume
+      - configMap:
+          defaultMode: 320
+          name: executor-scripts-c44cc226h7
+        name: executor-scripts-volume
+      - emptyDir: {}
+        name: celestia-home-vol
+      - emptyDir: {}
+        name: metro-home-vol
+      - emptyDir: {}
+        name: executor-home-vol
+      - emptyDir: {}
+        name: relayer-home-vol

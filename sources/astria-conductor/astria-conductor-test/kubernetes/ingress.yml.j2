@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: conductor-environment-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+spec:
+  rules: 
+  - host: {{namespace}}.localdev.me
+    http:
+      paths:
+        - pathType: Prefix
+          path: "/sequencer/(.*)"
+          backend:
+            service:
+              name: conductor-environment-service
+              port:
+                number: 1318
+        - pathType: Prefix
+          path: "/bridge/(.*)"
+          backend:
+            service:
+              name: conductor-environment-service
+              port:
+                number: 26659
