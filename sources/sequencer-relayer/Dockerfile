@@ -1,3 +1,4 @@
+ARG DISTROLESS_TAG=latest
 # build stage
 FROM --platform=$BUILDPLATFORM lukemathwalker/cargo-chef:latest-rust-bullseye AS chef
 WORKDIR /build/
@@ -43,7 +44,8 @@ RUN cargo zigbuild --release \
 RUN mkdir -p target/release \
     && cp target/$(cat ./target_triple)/release/relayer target/release/
 
-FROM gcr.io/distroless/cc
+ARG DISTROLESS_TAG
+FROM gcr.io/distroless/cc-debian11:$DISTROLESS_TAG
 WORKDIR /app/
 EXPOSE 2450
 COPY --from=builder /build/target/release/relayer /usr/local/bin/relayer

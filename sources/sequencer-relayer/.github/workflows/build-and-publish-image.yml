@@ -18,6 +18,9 @@ on:
 
 jobs:
   build-and-publish-latest:
+    strategy:
+      matrix:
+        distroless_tag: [latest, debug]
     runs-on: ubuntu-latest
     steps:
       # Checking out the repo
@@ -39,11 +42,16 @@ jobs:
           images: |
             ghcr.io/astriaorg/sequencer-relayer
           tags: |
-            type=ref,event=pr
-            type=semver,pattern={{major}}.{{minor}}.{{patch}}
-            type=sha
-            # set latest tag for `master` branch
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'master') }}
+            # use suffix-less tags for non-debug distroless images
+            type=ref,event=pr,enable=${{ matrix.distroless_tag == 'latest' }}
+            type=semver,pattern={{major}}.{{minor}}.{{patch}},enable=${{ matrix.distroless_tag == 'latest' }}
+            type=sha,enable=${{ matrix.distroless_tag == 'latest' }}
+            # tag images with `-debug` that use debug distroless images
+            type=ref,event=pr,suffix=-debug,enable=${{ matrix.distroless_tag == 'debug' }}
+            type=semver,suffix=-debug,pattern={{major}}.{{minor}}.{{patch}},enable=${{ matrix.distroless_tag == 'debug' }}
+            type=sha,suffix=-debug,enable=${{ matrix.distroless_tag == 'debug' }}
+            # set latest tag for `master` branch, but never for images based on distroless debug
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' && matrix.distroless_tag == 'latest' }}
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
@@ -51,5 +59,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           provenance: false
           push: true
+          build-args: DISTROLESS_TAG=${{ matrix.distroless_tag }}
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
