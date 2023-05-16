@@ -1,7 +1,10 @@
 use std::{
     env,
     path::PathBuf,
-    process::{exit, Command},
+    process::{
+        exit,
+        Command,
+    },
 };
 
 fn buf_from_env() -> PathBuf {
@@ -10,7 +13,8 @@ fn buf_from_env() -> PathBuf {
     } else if cfg!(target_os = "linux") {
         "If you're on Arch Linux you could try installing it from the AUR with `rua install buf` or another AUR helper, or download it from https://github.com/bufbuild/buf/releases"
     } else {
-        "You can download it from https://github.com/bufbuild/buf/releases or from your package manager."
+        "You can download it from https://github.com/bufbuild/buf/releases or from your package \
+         manager."
     };
     let error_msg = "Could not find `buf` installation and this build crate cannot proceed without
     this knowledge. If `buf` is installed and this crate had trouble finding

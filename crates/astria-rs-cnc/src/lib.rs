@@ -1,10 +1,25 @@
-use std::time::Duration;
-use std::{borrow::Cow, hash::Hash};
+use std::{
+    borrow::Cow,
+    hash::Hash,
+    time::Duration,
+};
 
 use bytes::Bytes;
-use eyre::{bail, WrapErr as _};
-use reqwest::{Client, IntoUrl, Response as ReqwestResponse, Url};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use eyre::{
+    bail,
+    WrapErr as _,
+};
+use reqwest::{
+    Client,
+    IntoUrl,
+    Response as ReqwestResponse,
+    Url,
+};
+use serde::{
+    de::DeserializeOwned,
+    Deserialize,
+    Serialize,
+};
 
 use crate::types::Base64String;
 
@@ -159,6 +174,7 @@ impl CelestiaNodeClient {
     pub fn builder() -> CelestiaNodeClientBuilder {
         CelestiaNodeClientBuilder::new()
     }
+
     /// Creates a new client
     ///
     /// # Arguments
@@ -333,8 +349,11 @@ mod tests {
     use reqwest::Url;
 
     use super::{
-        CelestiaNodeClient, CelestiaNodeEndpoints, NAMESPACED_DATA_ENDPOINT,
-        NAMESPACED_SHARES_ENDPOINT, SUBMIT_PFD_ENDPOINT,
+        CelestiaNodeClient,
+        CelestiaNodeEndpoints,
+        NAMESPACED_DATA_ENDPOINT,
+        NAMESPACED_SHARES_ENDPOINT,
+        SUBMIT_PFD_ENDPOINT,
     };
 
     #[test]

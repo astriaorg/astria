@@ -1,9 +1,17 @@
-use base64::{engine::general_purpose, Engine as _};
-use serde::{
-    de::{self, Visitor},
-    Deserialize, Deserializer,
-};
 use std::fmt;
+
+use base64::{
+    engine::general_purpose,
+    Engine as _,
+};
+use serde::{
+    de::{
+        self,
+        Visitor,
+    },
+    Deserialize,
+    Deserializer,
+};
 
 #[derive(Clone)]
 /// Base64String wraps a Vec<u8> for deserializing base64-encoded strings.
