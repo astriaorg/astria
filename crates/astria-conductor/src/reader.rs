@@ -1,3 +1,13 @@
+use astria_sequencer_relayer::{
+    da::{
+        CelestiaClient,
+        CelestiaClientBuilder,
+        SequencerNamespaceData,
+        SignedNamespaceData,
+    },
+    keys::public_key_to_address,
+    sequencer_block::SequencerBlock,
+};
 use bech32::{
     self,
     ToBase32,
@@ -14,15 +24,6 @@ use log::{
     error,
     info,
     warn,
-};
-use sequencer_relayer::{
-    da::{
-        CelestiaClient,
-        SequencerNamespaceData,
-        SignedNamespaceData,
-    },
-    keys::public_key_to_address,
-    sequencer_block::SequencerBlock,
 };
 use tokio::{
     sync::mpsc::{
@@ -92,7 +93,9 @@ impl Reader {
         executor_tx: executor::Sender,
     ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let celestia_client = CelestiaClient::new(celestia_node_url.to_owned())?;
+        let celestia_client = CelestiaClientBuilder::new(celestia_node_url.to_owned())
+            .build()
+            .wrap_err("failed creating celestia client")?;
 
         // TODO: we should probably pass in the height we want to start at from some genesis/config
         // file

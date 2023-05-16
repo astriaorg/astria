@@ -1,10 +1,10 @@
-use color_eyre::eyre::Result;
-pub(crate) use gossipnet::network::Event;
-use gossipnet::network::{
+pub(crate) use astria_gossipnet::network::Event;
+use astria_gossipnet::network::{
     Network,
     NetworkBuilder,
     Sha256Topic,
 };
+use color_eyre::eyre::Result;
 
 const BLOCKS_TOPIC: &str = "blocks";
 

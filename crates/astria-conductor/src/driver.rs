@@ -3,6 +3,7 @@
 
 use std::sync::Mutex;
 
+use astria_sequencer_relayer::sequencer_block::SequencerBlock;
 use color_eyre::eyre::{
     eyre,
     Result,
@@ -12,7 +13,6 @@ use log::{
     debug,
     info,
 };
-use sequencer_relayer::sequencer_block::SequencerBlock;
 use tokio::{
     select,
     sync::mpsc::{

@@ -1,15 +1,45 @@
-use ed25519_dalek::{ed25519::signature::Signature, Keypair, PublicKey, Signer, Verifier};
-use eyre::{bail, WrapErr as _};
-use rs_cnc::{CelestiaNodeClient, NamespacedSharesResponse, PayForDataResponse};
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use tracing::{debug, warn};
 
-use crate::base64_string::Base64String;
-use crate::sequencer_block::{IndexedTransaction, Namespace, SequencerBlock, DEFAULT_NAMESPACE};
-use crate::types::Header;
+use astria_rs_cnc::{
+    CelestiaNodeClient,
+    NamespacedSharesResponse,
+    PayForDataResponse,
+};
+use ed25519_dalek::{
+    ed25519::signature::Signature,
+    Keypair,
+    PublicKey,
+    Signer,
+    Verifier,
+};
+use eyre::{
+    bail,
+    WrapErr as _,
+};
+use serde::{
+    de::DeserializeOwned,
+    Deserialize,
+    Serialize,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use tracing::{
+    debug,
+    warn,
+};
+
+use crate::{
+    base64_string::Base64String,
+    sequencer_block::{
+        IndexedTransaction,
+        Namespace,
+        SequencerBlock,
+        DEFAULT_NAMESPACE,
+    },
+    types::Header,
+};
 
 pub const DEFAULT_PFD_GAS_LIMIT: u64 = 1_000_000;
 const DEFAULT_PFD_FEE: i64 = 2_000;
@@ -272,7 +302,8 @@ impl CelestiaClient {
         Ok(resp)
     }
 
-    /// get_sequencer_namespace_data returns all the signed sequencer namespace data at a given height.
+    /// get_sequencer_namespace_data returns all the signed sequencer namespace data at a given
+    /// height.
     pub async fn get_sequencer_namespace_data(
         &self,
         height: u64,
@@ -351,9 +382,12 @@ impl CelestiaClient {
                     public_key,
                 )
                 .await
-                .wrap_err_with(|| format!(
-                    "failed getting rollup data for block at height `{height}` in rollup namespace `{rollup_namespace}`"
-                ))?;
+                .wrap_err_with(|| {
+                    format!(
+                        "failed getting rollup data for block at height `{height}` in rollup \
+                         namespace `{rollup_namespace}`"
+                    )
+                })?;
             let Some(rollup_txs) = rollup_txs else {
                 // this shouldn't happen; if a sequencer block claims to have written data to some
                 // rollup namespace, it should exist

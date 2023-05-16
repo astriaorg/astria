@@ -1,5 +1,16 @@
 use std::collections::HashMap;
 
+use astria_sequencer_relayer::{
+    base64_string::Base64String,
+    sequencer_block::{
+        cosmos_tx_body_to_sequencer_msgs,
+        get_namespace,
+        parse_cosmos_tx,
+        Namespace,
+        SequencerBlock,
+    },
+};
+use astria_sequencer_relayer_proto::SequencerMsg;
 use color_eyre::eyre::{
     Result,
     WrapErr as _,
@@ -11,17 +22,6 @@ use log::{
     warn,
 };
 use prost_types::Timestamp as ProstTimestamp;
-use sequencer_relayer::{
-    base64_string::Base64String,
-    sequencer_block::{
-        cosmos_tx_body_to_sequencer_msgs,
-        get_namespace,
-        parse_cosmos_tx,
-        Namespace,
-        SequencerBlock,
-    },
-};
-use sequencer_relayer_proto::SequencerMsg;
 use tendermint::Time;
 use tokio::{
     sync::mpsc::{
