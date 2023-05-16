@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-astria-execution-apis-rpc = { git = "https://github.com/astriaorg/astria-rpc", rev = "bf833e6990e8eaee31ab5ea6801ba2746c4df1ef" }
 bech32 = "0.9"
 clap = { version = "4.1.9", features = ["derive"] }
 color-eyre = "0.6.2"
@@ -13,12 +12,9 @@ figment = { version = "0.10.8", features = ["toml", "env"] }
 flexi_logger = "0.24.2"
 futures = "0.3"
 hex = "0.4"
-gossipnet = { git = "https://github.com/astriaorg/gossipnet", features = [ "mdns" ], rev = "e916e4b0d4a0caa6fea68f721d4a4a8660a46af6" }
 log = "0.4.17"
 prost-types = "0.11.8"
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
-sequencer-relayer = { git = "https://github.com/astriaorg/sequencer-relayer", rev = "8cd9b9e4268368c48ab3be02d9fa85b46914a32e" }
-sequencer-relayer-proto = { git = "https://github.com/astriaorg/sequencer-relayer", rev = "8cd9b9e4268368c48ab3be02d9fa85b46914a32e" }
 serde = "1.0.152"
 serde_json = "1.0"
 thiserror = "1.0.38"
@@ -29,10 +25,11 @@ tonic = "0.8.3"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.16"
 
-[dependencies.rs-cnc]
-git = "https://github.com/astriaorg/rs-cnc.git"
-default-features = false
-features = ["rustls"]
+astria-execution-apis-rpc = { path = "../astria-execution-apis-rpc" }
+astria-gossipnet = { path = "../astria-gossipnet" }
+astria-rs-cnc = { path = "../astria-rs-cnc", default-features = false, features = ["rustls"] }
+astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
+astria-sequencer-relayer-proto = { path = "../astria-sequencer-relayer-proto" }
 
 [dev-dependencies]
 astria-conductor-test = { path = "../astria-conductor-test" }

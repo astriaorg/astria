@@ -1,8 +1,19 @@
+use astria_gossipnet::network::{
+    Network,
+    NetworkBuilder,
+    Sha256Topic,
+};
 use eyre::Result;
 use futures::StreamExt;
-use gossipnet::network::{Network, NetworkBuilder, Sha256Topic};
-use tokio::{select, sync::mpsc::UnboundedReceiver, task::JoinHandle};
-use tracing::{debug, warn};
+use tokio::{
+    select,
+    sync::mpsc::UnboundedReceiver,
+    task::JoinHandle,
+};
+use tracing::{
+    debug,
+    warn,
+};
 
 use crate::sequencer_block::SequencerBlock;
 
@@ -16,7 +27,10 @@ pub struct GossipNetwork {
 impl GossipNetwork {
     pub fn new(p2p_port: u16, block_rx: UnboundedReceiver<SequencerBlock>) -> Result<Self> {
         let network = NetworkBuilder::new().port(p2p_port).build()?;
-        Ok(Self { network, block_rx })
+        Ok(Self {
+            network,
+            block_rx,
+        })
     }
 
     pub fn run(mut self) -> JoinHandle<()> {
