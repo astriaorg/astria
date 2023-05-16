@@ -1,7 +1,14 @@
-use eyre::WrapErr as _;
-use reqwest::{Client, Response as ReqwestResponse};
-use serde::{de::DeserializeOwned, Serialize};
 use std::time::Duration;
+
+use eyre::WrapErr as _;
+use reqwest::{
+    Client,
+    Response as ReqwestResponse,
+};
+use serde::{
+    de::DeserializeOwned,
+    Serialize,
+};
 
 use crate::types::*;
 
@@ -53,8 +60,13 @@ impl SequencerClient {
 
 #[cfg(test)]
 mod test {
+    use bech32::{
+        self,
+        FromBase32,
+        Variant,
+    };
+
     use crate::base64_string::Base64String;
-    use bech32::{self, FromBase32, Variant};
 
     #[test]
     fn test_decode_validator_address() {

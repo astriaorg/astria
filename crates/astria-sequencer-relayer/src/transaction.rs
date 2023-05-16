@@ -1,6 +1,8 @@
 use prost;
-use tendermint::hash::Hash as TmHash;
-use tendermint::merkle;
+use tendermint::{
+    hash::Hash as TmHash,
+    merkle,
+};
 
 use crate::base64_string::Base64String;
 

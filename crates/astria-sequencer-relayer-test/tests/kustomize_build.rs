@@ -1,7 +1,14 @@
 use std::{
-    env, fs,
-    path::{Path, PathBuf},
-    process::{exit, Command},
+    env,
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        exit,
+        Command,
+    },
 };
 
 const KUSTOMIZE_DIR: &str = "kubernetes/";
@@ -15,8 +22,8 @@ fn kubectl_from_env() -> PathBuf {
     } else {
         "You could try installing it by following the official guide at https://kubernetes.io/docs/tasks/tools/#kubectl"
     };
-    let error_msg =
-        "Could not find `kubectl` installation and this build crate cannot proceed without
+    let error_msg = "Could not find `kubectl` installation and this build crate cannot proceed \
+                     without
     this knowledge. If `kubectl` is installed and this crate had trouble finding
     it, you can set the `KUBECTL` environment variable with the specific path to your
     installed `kubectl` binary.";
@@ -71,11 +78,16 @@ fn ensure_files_are_same(before: String, after: String) {
     }
 
     if env::var("CI").is_ok() {
-        panic!("generated kube yaml file has changed but it's a CI environment; please rerun this test locally and commit the changes");
+        panic!(
+            "generated kube yaml file has changed but it's a CI environment; please rerun this \
+             test locally and commit the changes"
+        );
     }
 
-    fs::write(TEST_ENV_KUBE_YAML, after)
-        .expect("cannot write generated kube yaml file to its target; if this is happening in a CI environment rerun the test locally and commit the changes");
+    fs::write(TEST_ENV_KUBE_YAML, after).expect(
+        "cannot write generated kube yaml file to its target; if this is happening in a CI \
+         environment rerun the test locally and commit the changes",
+    );
 
     panic!("generated file has changed; commit the changed files and rerun the test");
 }

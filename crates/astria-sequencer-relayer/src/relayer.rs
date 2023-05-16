@@ -1,19 +1,35 @@
-use bech32::{self, ToBase32, Variant};
+use std::str::FromStr;
+
+use bech32::{
+    self,
+    ToBase32,
+    Variant,
+};
 use eyre::Result;
 use serde::Deserialize;
-use std::str::FromStr;
 use tokio::{
-    sync::{mpsc::UnboundedSender, watch},
+    sync::{
+        mpsc::UnboundedSender,
+        watch,
+    },
     task::JoinHandle,
     time::Interval,
 };
-use tracing::{info, warn};
+use tracing::{
+    info,
+    warn,
+};
 
-use crate::base64_string::Base64String;
-use crate::da::CelestiaClient;
-use crate::keys::{private_key_bytes_to_keypair, validator_hex_to_address};
-use crate::sequencer::SequencerClient;
-use crate::sequencer_block::SequencerBlock;
+use crate::{
+    base64_string::Base64String,
+    da::CelestiaClient,
+    keys::{
+        private_key_bytes_to_keypair,
+        validator_hex_to_address,
+    },
+    sequencer::SequencerClient,
+    sequencer_block::SequencerBlock,
+};
 
 #[derive(Deserialize)]
 pub struct ValidatorPrivateKeyFile {
