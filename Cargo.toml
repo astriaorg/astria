@@ -3,10 +3,10 @@
 members = [
   "crates/astria-conductor",
   "crates/astria-conductor-test",
-  "crates/execution-apis",
-  "crates/gossipnet",
-  "crates/rs-cnc",
-  "crates/sequencer-relayer",
-  "crates/sequencer-relayer-proto",
-  "crates/sequencer-relayer-test",
+  "crates/astria-execution-apis",
+  "crates/astria-gossipnet",
+  "crates/astria-rs-cnc",
+  "crates/astria-sequencer-relayer",
+  "crates/astria-sequencer-relayer-proto",
+  "crates/astria-sequencer-relayer-test",
 ]

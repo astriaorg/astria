@@ -1,5 +1,8 @@
-use sequencer_relayer::{sequencer::SequencerClient, transaction};
-use sequencer_relayer_test::init_test;
+use astria_sequencer_relayer::{
+    sequencer::SequencerClient,
+    transaction,
+};
+use astria_sequencer_relayer_test::init_test;
 
 #[tokio::test]
 #[ignore = "very slow init of test environment"]

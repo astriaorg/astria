@@ -1,5 +1,5 @@
 [package]
-name = "sequencer-relayer-test"
+name = "astria-sequencer-relayer-test"
 version = "0.1.0"
 edition = "2021"
 

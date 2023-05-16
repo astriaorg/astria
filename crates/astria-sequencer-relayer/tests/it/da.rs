@@ -1,14 +1,21 @@
-use ed25519_dalek::{Keypair, PublicKey};
-use rand::rngs::OsRng;
 use std::collections::HashMap;
 
-use sequencer_relayer::{
+use astria_sequencer_relayer::{
     base64_string::Base64String,
     da::CelestiaClientBuilder,
-    sequencer_block::{get_namespace, IndexedTransaction, SequencerBlock, DEFAULT_NAMESPACE},
+    sequencer_block::{
+        get_namespace,
+        IndexedTransaction,
+        SequencerBlock,
+        DEFAULT_NAMESPACE,
+    },
 };
-
-use sequencer_relayer_test::init_test;
+use astria_sequencer_relayer_test::init_test;
+use ed25519_dalek::{
+    Keypair,
+    PublicKey,
+};
+use rand::rngs::OsRng;
 
 #[tokio::test]
 #[ignore = "very slow init of test environment"]
