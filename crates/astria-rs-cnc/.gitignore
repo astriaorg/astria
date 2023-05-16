@@ -1,8 +1,0 @@
-# builds
-/target
-
-# see https://doc.rust-lang.org/cargo/guide/cargo-toml-vs-cargo-lock.html
-/Cargo.lock
-
-# user intellij configurations
-.idea

@@ -305,7 +305,7 @@ dependencies = [
  "figment",
  "flexi_logger",
  "futures",
- "gossipnet 0.1.0 (git+https://github.com/astriaorg/gossipnet?rev=e916e4b0d4a0caa6fea68f721d4a4a8660a46af6)",
+ "gossipnet",
  "hex",
  "log",
  "prost-types",
@@ -365,6 +365,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-gossipnet"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "futures",
+ "libp2p",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "astria-rs-cnc"
+version = "0.1.0"
+dependencies = [
+ "base64 0.21.0",
+ "bytes",
+ "eyre",
+ "hex",
+ "rand 0.8.5",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "astria-sequencer-relayer"
 version = "0.1.0"
 dependencies = [
@@ -378,7 +404,7 @@ dependencies = [
  "ed25519-dalek",
  "eyre",
  "futures",
- "gossipnet 0.1.0 (git+https://github.com/astriaorg/gossipnet?rev=e916e4b0d4a0caa6fea68f721d4a4a8660a46af6)",
+ "gossipnet",
  "hex",
  "http",
  "prost",
@@ -1697,17 +1723,6 @@ name = "glob"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
-
-[[package]]
-name = "gossipnet"
-version = "0.1.0"
-dependencies = [
- "color-eyre",
- "futures",
- "libp2p",
- "tokio",
- "tracing",
-]
 
 [[package]]
 name = "gossipnet"
@@ -3848,21 +3863,6 @@ dependencies = [
 [[package]]
 name = "rs-cnc"
 version = "0.1.0"
-dependencies = [
- "base64 0.21.0",
- "bytes",
- "eyre",
- "hex",
- "rand 0.8.5",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "rs-cnc"
-version = "0.1.0"
 source = "git+https://github.com/astriaorg/rs-cnc.git?rev=07d00be#07d00be1414c90064fe156da454415a9dc3d1c84"
 dependencies = [
  "base64 0.21.0",
@@ -4178,7 +4178,7 @@ dependencies = [
  "ed25519-dalek",
  "eyre",
  "futures",
- "gossipnet 0.1.0 (git+https://github.com/astriaorg/gossipnet?rev=e916e4b0d4a0caa6fea68f721d4a4a8660a46af6)",
+ "gossipnet",
  "hex",
  "http",
  "prost",

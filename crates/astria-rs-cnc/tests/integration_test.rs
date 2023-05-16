@@ -1,5 +1,5 @@
+use astria_rs_cnc::CelestiaNodeClient;
 use bytes::Bytes;
-use rs_cnc::CelestiaNodeClient;
 
 #[tokio::test]
 async fn test_data_roundtrip() {
