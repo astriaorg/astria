@@ -1,0 +1,9 @@
+[package]
+name = "astria-evm"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+reth-blockchain-tree = { git = "https://github.com/paradigmxyz/reth", rev = "c44117075e8321664d7e8ceabc898e88adbc3338" }
