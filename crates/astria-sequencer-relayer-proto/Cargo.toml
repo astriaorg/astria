@@ -1,5 +1,5 @@
 [package]
-name = "sequencer-relayer-proto"
+name = "astria-sequencer-relayer-proto"
 version = "0.1.0"
 edition = "2021"
 

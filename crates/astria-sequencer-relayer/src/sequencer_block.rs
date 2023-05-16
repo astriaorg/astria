@@ -1,21 +1,51 @@
-use base64::{engine::general_purpose, Engine as _};
-use eyre::{bail, ensure, WrapErr as _};
+use std::{
+    collections::HashMap,
+    fmt,
+};
+
+use astria_sequencer_relayer_proto::{
+    SequencerMsg,
+    TxBody,
+    TxRaw,
+};
+use base64::{
+    engine::general_purpose,
+    Engine as _,
+};
+use eyre::{
+    bail,
+    ensure,
+    WrapErr as _,
+};
 use hex;
-use prost::{DecodeError, Message};
+use prost::{
+    DecodeError,
+    Message,
+};
 use serde::{
-    de::{self, Visitor},
-    Deserialize, Deserializer, Serialize,
+    de::{
+        self,
+        Visitor,
+    },
+    Deserialize,
+    Deserializer,
+    Serialize,
 };
 use serde_json;
-use sha2::{Digest, Sha256};
-use std::{collections::HashMap, fmt};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use tracing::debug;
 
-use sequencer_relayer_proto::{SequencerMsg, TxBody, TxRaw};
-
-use crate::base64_string::Base64String;
-use crate::transaction::txs_to_data_hash;
-use crate::types::{Block, Header};
+use crate::{
+    base64_string::Base64String,
+    transaction::txs_to_data_hash,
+    types::{
+        Block,
+        Header,
+    },
+};
 
 /// Cosmos SDK message type URL for SequencerMsgs.
 static SEQUENCER_TYPE_URL: &str = "/SequencerMsg";
@@ -193,8 +223,8 @@ impl SequencerBlock {
         })
     }
 
-    /// verify_data_hash verifies that the merkle root of the tree consisting of all the transactions
-    /// in the block matches the block's data hash.
+    /// verify_data_hash verifies that the merkle root of the tree consisting of all the
+    /// transactions in the block matches the block's data hash.
     pub fn verify_data_hash(&self) -> eyre::Result<()> {
         let Some(this_data_hash) = self.header.data_hash.as_ref() else {
             bail!("block has no data hash");
@@ -229,7 +259,8 @@ impl SequencerBlock {
         let block_hash = self.header.hash()?;
         ensure!(
             block_hash.as_bytes() == self.block_hash.0,
-            "block hash calculated from tendermint header does not match block hash stored in sequencer block",
+            "block hash calculated from tendermint header does not match block hash stored in \
+             sequencer block",
         );
         Ok(())
     }
@@ -255,12 +286,20 @@ pub fn cosmos_tx_body_to_sequencer_msgs(tx_body: TxBody) -> eyre::Result<Vec<Seq
 
 #[cfg(test)]
 mod test {
-    use super::{
-        cosmos_tx_body_to_sequencer_msgs, parse_cosmos_tx, Header, SequencerBlock,
-        DEFAULT_NAMESPACE, SEQUENCER_TYPE_URL,
-    };
-    use crate::{base64_string::Base64String, sequencer_block::IndexedTransaction};
     use std::collections::HashMap;
+
+    use super::{
+        cosmos_tx_body_to_sequencer_msgs,
+        parse_cosmos_tx,
+        Header,
+        SequencerBlock,
+        DEFAULT_NAMESPACE,
+        SEQUENCER_TYPE_URL,
+    };
+    use crate::{
+        base64_string::Base64String,
+        sequencer_block::IndexedTransaction,
+    };
 
     #[test]
     fn test_parse_primary_tx() {

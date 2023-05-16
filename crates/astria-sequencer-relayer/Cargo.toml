@@ -1,5 +1,5 @@
 [package]
-name = "sequencer-relayer"
+name = "astria-sequencer-relayer"
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -28,7 +28,7 @@ axum = "0.6.16"
 http = "0.2.9"
 tokio = { version = "1.24", features = [ "macros", "rt-multi-thread" ] }
 
-sequencer-relayer-proto = { path = "../sequencer-relayer-proto" }
+astria-sequencer-relayer-proto = { path = "../astria-sequencer-relayer-proto" }
 
 [dependencies.rs-cnc]
 git = "https://github.com/astriaorg/rs-cnc.git"
@@ -37,4 +37,4 @@ default-features = false
 features = ["rustls"]
 
 [dev-dependencies]
-sequencer-relayer-test = { path = "../sequencer-relayer-test"}
+astria-sequencer-relayer-test = { path = "../astria-sequencer-relayer-test"}

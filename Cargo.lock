@@ -311,8 +311,8 @@ dependencies = [
  "prost-types",
  "reqwest",
  "rs-cnc 0.1.0 (git+https://github.com/astriaorg/rs-cnc.git)",
- "sequencer-relayer 0.1.0 (git+https://github.com/astriaorg/sequencer-relayer?rev=8cd9b9e4268368c48ab3be02d9fa85b46914a32e)",
- "sequencer-relayer-proto 0.1.0 (git+https://github.com/astriaorg/sequencer-relayer?rev=8cd9b9e4268368c48ab3be02d9fa85b46914a32e)",
+ "sequencer-relayer",
+ "sequencer-relayer-proto",
  "serde",
  "serde_json",
  "tendermint",
@@ -361,6 +361,64 @@ dependencies = [
  "prost",
  "prost-types",
  "tonic",
+ "which",
+]
+
+[[package]]
+name = "astria-sequencer-relayer"
+version = "0.1.0"
+dependencies = [
+ "astria-sequencer-relayer-proto",
+ "astria-sequencer-relayer-test",
+ "axum",
+ "base64 0.21.0",
+ "bech32",
+ "clap",
+ "dirs",
+ "ed25519-dalek",
+ "eyre",
+ "futures",
+ "gossipnet 0.1.0 (git+https://github.com/astriaorg/gossipnet?rev=e916e4b0d4a0caa6fea68f721d4a4a8660a46af6)",
+ "hex",
+ "http",
+ "prost",
+ "rand 0.7.3",
+ "reqwest",
+ "rs-cnc 0.1.0 (git+https://github.com/astriaorg/rs-cnc.git?rev=07d00be)",
+ "serde",
+ "serde_json",
+ "sha2 0.10.6",
+ "tendermint",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "astria-sequencer-relayer-proto"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "prost-build",
+ "prost-types",
+]
+
+[[package]]
+name = "astria-sequencer-relayer-test"
+version = "0.1.0"
+dependencies = [
+ "eyre",
+ "k8s-openapi",
+ "kube",
+ "minijinja",
+ "once_cell",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+ "tokio",
+ "uuid",
  "which",
 ]
 
@@ -4110,36 +4168,6 @@ checksum = "bebd363326d05ec3e2f532ab7660680f3b02130d780c299bca73469d521bc0ed"
 [[package]]
 name = "sequencer-relayer"
 version = "0.1.0"
-dependencies = [
- "axum",
- "base64 0.21.0",
- "bech32",
- "clap",
- "dirs",
- "ed25519-dalek",
- "eyre",
- "futures",
- "gossipnet 0.1.0 (git+https://github.com/astriaorg/gossipnet?rev=e916e4b0d4a0caa6fea68f721d4a4a8660a46af6)",
- "hex",
- "http",
- "prost",
- "rand 0.7.3",
- "reqwest",
- "rs-cnc 0.1.0 (git+https://github.com/astriaorg/rs-cnc.git?rev=07d00be)",
- "sequencer-relayer-proto 0.1.0",
- "sequencer-relayer-test",
- "serde",
- "serde_json",
- "sha2 0.10.6",
- "tendermint",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "sequencer-relayer"
-version = "0.1.0"
 source = "git+https://github.com/astriaorg/sequencer-relayer?rev=8cd9b9e4268368c48ab3be02d9fa85b46914a32e#8cd9b9e4268368c48ab3be02d9fa85b46914a32e"
 dependencies = [
  "axum",
@@ -4157,7 +4185,7 @@ dependencies = [
  "rand 0.7.3",
  "reqwest",
  "rs-cnc 0.1.0 (git+https://github.com/astriaorg/rs-cnc.git?rev=07d00be)",
- "sequencer-relayer-proto 0.1.0 (git+https://github.com/astriaorg/sequencer-relayer?rev=8cd9b9e4268368c48ab3be02d9fa85b46914a32e)",
+ "sequencer-relayer-proto",
  "serde",
  "serde_json",
  "sha2 0.10.6",
@@ -4170,39 +4198,11 @@ dependencies = [
 [[package]]
 name = "sequencer-relayer-proto"
 version = "0.1.0"
-dependencies = [
- "prost",
- "prost-build",
- "prost-types",
-]
-
-[[package]]
-name = "sequencer-relayer-proto"
-version = "0.1.0"
 source = "git+https://github.com/astriaorg/sequencer-relayer?rev=8cd9b9e4268368c48ab3be02d9fa85b46914a32e#8cd9b9e4268368c48ab3be02d9fa85b46914a32e"
 dependencies = [
  "prost",
  "prost-build",
  "prost-types",
-]
-
-[[package]]
-name = "sequencer-relayer-test"
-version = "0.1.0"
-dependencies = [
- "eyre",
- "k8s-openapi",
- "kube",
- "minijinja",
- "once_cell",
- "reqwest",
- "serde",
- "serde_json",
- "serde_yaml",
- "tempfile",
- "tokio",
- "uuid",
- "which",
 ]
 
 [[package]]
