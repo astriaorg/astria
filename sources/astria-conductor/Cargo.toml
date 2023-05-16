@@ -1,5 +1,0 @@
-[workspace]
-members = [
-  "astria-conductor",
-  "astria-conductor-test",
-]
