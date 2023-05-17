@@ -94,6 +94,11 @@ impl ConsensusService {
         &mut self,
         begin_block: request::BeginBlock,
     ) -> Result<response::BeginBlock, BoxError> {
+        if self.storage.latest_version() == u64::MAX {
+            // TODO: why isn't tendermint calling init_chain before the first block?
+            self.app.init_chain(&GenesisState::default()).await?;
+        }
+
         let events = self.app.begin_block(&begin_block).await;
         Ok(response::BeginBlock {
             events,

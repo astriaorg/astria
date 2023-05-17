@@ -32,6 +32,14 @@ pub struct GenesisState {
     pub accounts: Vec<(String, u64)>,
 }
 
+impl Default for GenesisState {
+    fn default() -> Self {
+        Self {
+            accounts: vec![],
+        }
+    }
+}
+
 /// The Sequencer application, written as a bundle of [`Component`]s.
 #[derive(Clone)]
 pub struct App {
