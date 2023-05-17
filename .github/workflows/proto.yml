@@ -1,4 +1,4 @@
-name: buf-push
+name: buf
 on:
   pull_request:
   push:
