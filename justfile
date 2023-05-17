@@ -14,4 +14,4 @@ wait-for-ingress-controller:
   kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=600s
 
 wait-for-prepull:
-  kubectl wait --for=condition=ready pod --selector=name=conductor-environment-prepull --timeout=600s
+  kubectl wait --for=condition=ready pod --selector=name=astria-test-prepull --timeout=600s

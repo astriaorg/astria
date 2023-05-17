@@ -2,15 +2,15 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: conductor-environment-prepull
+  name: astria-test-prepull
 spec:
   selector:
     matchLabels:
-      name: conductor-environment-prepull
+      name: astria-test-prepull
   template:
     metadata:
       labels:
-        name: conductor-environment-prepull
+        name: astria-test-prepull
     spec:
       initContainers:
         - name: prepull-celestia-app
