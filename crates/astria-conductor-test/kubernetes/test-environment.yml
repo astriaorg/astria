@@ -296,7 +296,7 @@ spec:
         - --validator-key-file=/root/.metro/config/priv_validator_key.json
         command:
         - /usr/local/bin/astria-sequencer-relayer
-        image: gcr.io/distroless/cc:debug
+        image: docker.io/library/debian:bookworm-slim
         name: astria-sequencer-relayer
         volumeMounts:
         - mountPath: /usr/local/bin/astria-sequencer-relayer
