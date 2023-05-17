@@ -340,7 +340,7 @@ mod test {
             match event {
                 Event::NewListenAddr(addr) => {
                     println!("Alice listening on {:?}", addr);
-                    bootnode_tx.send(addr.clone()).unwrap();
+                    bootnode_tx.send(addr).unwrap();
                 }
                 _ => panic!("unexpected event"),
             };
