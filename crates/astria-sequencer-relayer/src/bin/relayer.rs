@@ -1,18 +1,25 @@
+use std::{
+    net::SocketAddr,
+    time,
+};
+
+use astria_sequencer_relayer::{
+    api,
+    da::{
+        CelestiaClientBuilder,
+        DEFAULT_PFD_GAS_LIMIT,
+    },
+    network::GossipNetwork,
+    relayer::{
+        Relayer,
+        ValidatorPrivateKeyFile,
+    },
+    sequencer::SequencerClient,
+};
 use clap::Parser;
 use dirs::home_dir;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
-
-use std::{net::SocketAddr, time};
-
-use sequencer_relayer::{
-    api,
-    da::CelestiaClientBuilder,
-    da::DEFAULT_PFD_GAS_LIMIT,
-    network::GossipNetwork,
-    relayer::{Relayer, ValidatorPrivateKeyFile},
-    sequencer::SequencerClient,
-};
 
 pub const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:1317";
 pub const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26659";

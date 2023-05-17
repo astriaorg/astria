@@ -1,5 +1,6 @@
+use astria_sequencer_relayer_test::init_test;
+
 use crate::sequencer::SequencerClient;
-use sequencer_relayer_test::init_test;
 
 #[tokio::test]
 #[ignore = "very slow init of test environment"]
