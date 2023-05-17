@@ -1,9 +1,18 @@
-use base64::{engine::general_purpose, Engine as _};
-use serde::{
-    de::{self, Visitor},
-    Deserialize, Deserializer, Serialize,
-};
 use std::fmt;
+
+use base64::{
+    engine::general_purpose,
+    Engine as _,
+};
+use serde::{
+    de::{
+        self,
+        Visitor,
+    },
+    Deserialize,
+    Deserializer,
+    Serialize,
+};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Base64String(pub Vec<u8>);

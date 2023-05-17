@@ -1,7 +1,17 @@
-use bech32::{self, ToBase32, Variant};
-use ed25519_dalek::{Keypair, PublicKey};
+use bech32::{
+    self,
+    ToBase32,
+    Variant,
+};
+use ed25519_dalek::{
+    Keypair,
+    PublicKey,
+};
 use eyre::WrapErr as _;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 
 const ADDRESS_LENGTH: usize = 20;
 
@@ -42,7 +52,6 @@ pub fn public_key_to_address(public_key: &[u8]) -> eyre::Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::base64_string::Base64String;
 
     #[test]
@@ -50,7 +59,9 @@ mod tests {
         let public_key_str =
             Base64String::from_string("Fj/2NzG404f+CjHJUThMXNS7xJY5GMPuFVlKMKb86MA=".to_string())
                 .unwrap();
-        let private_key_str = "1hBYYTBKxkMODNTW6Pk//kA023UAkpgSLhM0SjwndSkWP/Y3MbjTh/4KMclROExc1LvEljkYw+4VWUowpvzowA==".to_string();
+        let private_key_str = "1hBYYTBKxkMODNTW6Pk//kA023UAkpgSLhM0SjwndSkWP/Y3MbjTh/\
+                               4KMclROExc1LvEljkYw+4VWUowpvzowA=="
+            .to_string();
         let private_key = Base64String::from_string(private_key_str).unwrap();
         let keypair = private_key_bytes_to_keypair(&private_key.0).unwrap();
         assert_eq!(keypair.public.to_bytes().to_vec(), public_key_str.0);

@@ -2,9 +2,13 @@ use std::net::SocketAddr;
 
 use axum::{
     extract::State,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
     routing::get,
-    Json, Router,
+    Json,
+    Router,
 };
 use http::status::StatusCode;
 use serde::Serialize;
@@ -59,7 +63,10 @@ impl IntoResponse for Healthz {
             Self::Ok => (StatusCode::OK, "ok"),
             Self::Degraded => (StatusCode::GATEWAY_TIMEOUT, "degraded"),
         };
-        let mut response = Json(ReadyzBody { status: msg }).into_response();
+        let mut response = Json(ReadyzBody {
+            status: msg,
+        })
+        .into_response();
         *response.status_mut() = status;
         response
     }
@@ -80,7 +87,10 @@ impl IntoResponse for Readyz {
             Self::Ok => (StatusCode::OK, "ok"),
             Self::NotReady => (StatusCode::SERVICE_UNAVAILABLE, "not ready"),
         };
-        let mut response = Json(ReadyzBody { status: msg }).into_response();
+        let mut response = Json(ReadyzBody {
+            status: msg,
+        })
+        .into_response();
         *response.status_mut() = status;
         response
     }

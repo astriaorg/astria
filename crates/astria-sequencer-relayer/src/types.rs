@@ -1,14 +1,24 @@
-use eyre::WrapErr as _;
-use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
+
+use eyre::WrapErr as _;
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use tendermint::{
     account::Id as AccountId,
     block::{
-        header::Version as TmVersion, parts::Header as TmPartSetHeader, Header as TmHeader,
-        Height as TmHeight, Id as TmBlockId,
+        header::Version as TmVersion,
+        parts::Header as TmPartSetHeader,
+        Header as TmHeader,
+        Height as TmHeight,
+        Id as TmBlockId,
     },
     chain::Id as TmChainId,
-    hash::{AppHash, Hash as TmHash},
+    hash::{
+        AppHash,
+        Hash as TmHash,
+    },
     Time,
 };
 

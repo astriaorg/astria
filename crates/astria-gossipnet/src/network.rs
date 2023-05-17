@@ -1,29 +1,57 @@
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{
+        Hash,
+        Hasher,
+    },
+    pin::Pin,
+    str::FromStr,
+    task::{
+        Context,
+        Poll,
+    },
+    time::Duration,
+};
+
 /// gossipnet implements a basic gossip network using libp2p.
 /// It currently supports discovery via mdns and bootnodes, and eventually
 /// will support DHT discovery.
-
-use color_eyre::eyre::{eyre, Result, WrapErr};
-use futures::{StreamExt};
+use color_eyre::eyre::{
+    eyre,
+    Result,
+    WrapErr,
+};
+use futures::StreamExt;
+pub use libp2p::gossipsub::Sha256Topic;
 #[cfg(feature = "mdns")]
 use libp2p::mdns;
 use libp2p::{
     core::upgrade::Version,
-    gossipsub::{self, Message, MessageId, TopicHash},
-    identity, noise, ping,
-    swarm::{NetworkBehaviour, Swarm, SwarmBuilder, SwarmEvent},
-    tcp, yamux, Multiaddr, PeerId, Transport,
+    gossipsub::{
+        self,
+        Message,
+        MessageId,
+        TopicHash,
+    },
+    identity,
+    noise,
+    ping,
+    swarm::{
+        NetworkBehaviour,
+        Swarm,
+        SwarmBuilder,
+        SwarmEvent,
+    },
+    tcp,
+    yamux,
+    Multiaddr,
+    PeerId,
+    Transport,
 };
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-    pin::Pin,
-    str::FromStr,
-    task::{Context, Poll},
-    time::Duration,
+use tracing::{
+    debug,
+    info,
 };
-use tracing::{debug, info};
-
-pub use libp2p::gossipsub::Sha256Topic;
 
 #[derive(NetworkBehaviour)]
 struct GossipnetBehaviour {
@@ -190,7 +218,9 @@ impl futures::Stream for Network {
 
             match event {
                 #[cfg(feature = "mdns")]
-                SwarmEvent::Behaviour(GossipnetBehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
+                SwarmEvent::Behaviour(GossipnetBehaviourEvent::Mdns(mdns::Event::Discovered(
+                    list,
+                ))) => {
                     let peers = Vec::with_capacity(list.len());
                     for (peer_id, _multiaddr) in list {
                         debug!("mDNS discovered a new peer: {peer_id}");
@@ -202,7 +232,9 @@ impl futures::Stream for Network {
                     return Poll::Ready(Some(Event::MdnsPeersConnected(peers)));
                 }
                 #[cfg(feature = "mdns")]
-                SwarmEvent::Behaviour(GossipnetBehaviourEvent::Mdns(mdns::Event::Expired(list))) => {
+                SwarmEvent::Behaviour(GossipnetBehaviourEvent::Mdns(mdns::Event::Expired(
+                    list,
+                ))) => {
                     let peers = Vec::with_capacity(list.len());
                     for (peer_id, _multiaddr) in list {
                         debug!("mDNS discover peer has expired: {peer_id}");
@@ -213,23 +245,30 @@ impl futures::Stream for Network {
                     }
                     return Poll::Ready(Some(Event::MdnsPeersDisconnected(peers)));
                 }
-                SwarmEvent::Behaviour(GossipnetBehaviourEvent::Gossipsub(gossipsub::Event::Message {
-                    propagation_source: peer_id,
-                    message_id: id,
-                    message,
-                })) => {
+                SwarmEvent::Behaviour(GossipnetBehaviourEvent::Gossipsub(
+                    gossipsub::Event::Message {
+                        propagation_source: peer_id,
+                        message_id: id,
+                        message,
+                    },
+                )) => {
                     debug!(
                         "Got message: '{}' with id: {id} from peer: {peer_id}",
                         String::from_utf8_lossy(&message.data),
                     );
                     return Poll::Ready(Some(Event::Message(message)));
                 }
-                SwarmEvent::NewListenAddr { address, .. } => {
+                SwarmEvent::NewListenAddr {
+                    address, ..
+                } => {
                     debug!("Local node is listening on {address}");
                     return Poll::Ready(Some(Event::NewListenAddr(address)));
                 }
                 SwarmEvent::Behaviour(GossipnetBehaviourEvent::Gossipsub(
-                    gossipsub::Event::Subscribed { peer_id, topic },
+                    gossipsub::Event::Subscribed {
+                        peer_id,
+                        topic,
+                    },
                 )) => {
                     debug!(
                         "Peer {peer_id} subscribed to topic: {topic:?}",
@@ -268,10 +307,13 @@ impl futures::Stream for Network {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-
-    use futures::{channel::oneshot, join};
+    use futures::{
+        channel::oneshot,
+        join,
+    };
     use tokio::select;
+
+    use super::*;
 
     const TEST_TOPIC: &str = "test";
 
