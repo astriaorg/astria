@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/astriaorg/"
+repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 # TODO
 # documentation = ""
