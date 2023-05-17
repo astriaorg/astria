@@ -111,8 +111,8 @@ impl Network {
 
         let transport = tcp::tokio::Transport::default()
             .upgrade(Version::V1Lazy)
-            .authenticate(noise::NoiseAuthenticated::xx(&local_key)?)
-            .multiplex(yamux::YamuxConfig::default())
+            .authenticate(noise::Config::new(&local_key)?)
+            .multiplex(yamux::Config::default())
             .boxed();
 
         // content-address message by using the hash of it as an ID
