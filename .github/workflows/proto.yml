@@ -1,0 +1,29 @@
+name: buf
+on:
+  pull_request:
+  push:
+    branches:
+        - main
+jobs:
+  build-lint-push-protos:
+    runs-on: ubuntu-latest
+    environment: BUF
+    steps:
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.15.1"
+          github_token: ${{ github.token }}
+      - uses: bufbuild/buf-lint-action@v1
+        with:
+          input: "crates/astria-proto"
+      # TODO(GH-29): Uncomment out after reaching any production stage
+      # - uses: bufbuild/buf-breaking-action@v1
+      #   with:
+      #     # The 'main' branch of the GitHub repository that defines the module.
+      #     input: "crates/astria-proto/proto"
+      #     against: "https://github.com/astriaorg/astria.git#branch=main,ref=HEAD~1,subdir=crates/astria-proto/proto"
+      - uses: bufbuild/buf-push-action@v1
+        with:
+          draft:  ${{ github.ref_name != 'main'}}
+          input: "crates/astria-proto/proto"
+          buf_token: ${{ secrets.BUF_TOKEN }}
