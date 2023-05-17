@@ -4,6 +4,7 @@ use astria_conductor::reader::Reader;
 use astria_conductor_test::init_test;
 use tokio::sync::mpsc;
 
+#[ignore = "requires heavy kubernetes test environment"]
 #[tokio::test]
 async fn should_get_new_block() {
     let test_env = init_test().await;

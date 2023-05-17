@@ -48,11 +48,8 @@ jobs:
       - run: just perform-prepull
       - run: just wait-for-ingress-controller
       - run: just wait-for-prepull
-      - uses: lhotari/action-upterm@v1
-        with:
-          limit-access-to-users: superfluffy
       - name: Run tests
-        run: cargo test --release -p astria-conductor
+        run: cargo test --release -p astria-conductor -p astria-sequencer-relayer -- --ignored
 
   fmt:
     runs-on: ubuntu-22.04
@@ -81,4 +78,4 @@ jobs:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: run clippy
-        run: cargo clippy --all --all-targets -- -D warnings
+        run: cargo clippy --all --all-targets -- -D warnings -A clippy::new-without-default
