@@ -1,7 +1,16 @@
+use std::{
+    pin::Pin,
+    task::{
+        Context,
+        Poll,
+    },
+};
+
 use futures::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use tendermint::abci::{SnapshotRequest, SnapshotResponse};
+use tendermint::abci::{
+    SnapshotRequest,
+    SnapshotResponse,
+};
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::info;
@@ -21,7 +30,9 @@ pub struct SnapshotServiceFuture {
 
 impl SnapshotServiceFuture {
     pub fn new(request: SnapshotRequest) -> Self {
-        Self { request }
+        Self {
+            request,
+        }
     }
 }
 
@@ -47,9 +58,9 @@ impl Future for SnapshotServiceFuture {
 }
 
 impl Service<SnapshotRequest> for SnapshotService {
-    type Response = SnapshotResponse;
     type Error = BoxError;
     type Future = SnapshotServiceFuture;
+    type Response = SnapshotResponse;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))

@@ -1,9 +1,20 @@
+use std::{
+    pin::Pin,
+    task::{
+        Context,
+        Poll,
+    },
+};
+
 use futures::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use tendermint::abci::{
-    response::{Echo, Info, SetOption},
-    InfoRequest, InfoResponse,
+    response::{
+        Echo,
+        Info,
+        SetOption,
+    },
+    InfoRequest,
+    InfoResponse,
 };
 use tower::Service;
 use tower_abci::BoxError;
@@ -24,7 +35,9 @@ pub struct InfoServiceFuture {
 
 impl InfoServiceFuture {
     pub fn new(request: InfoRequest) -> Self {
-        Self { request }
+        Self {
+            request,
+        }
     }
 }
 
@@ -39,7 +52,7 @@ impl Future for InfoServiceFuture {
                     app_version: 1,
                     last_block_height: Default::default(),
                     last_block_app_hash: Default::default(),
-                    data: "base_app".to_string(),
+                    data: "astria_sequencer".to_string(),
                 });
                 Poll::Ready(Ok(response))
             }
@@ -58,9 +71,9 @@ impl Future for InfoServiceFuture {
 }
 
 impl Service<InfoRequest> for InfoService {
-    type Response = InfoResponse;
     type Error = BoxError;
     type Future = InfoServiceFuture;
+    type Response = InfoResponse;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))

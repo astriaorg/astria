@@ -1,4 +1,4 @@
-# abci-app-rs
+# astria-sequencer
 
 ## Requirements
 

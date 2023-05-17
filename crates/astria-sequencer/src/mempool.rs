@@ -1,7 +1,16 @@
+use std::{
+    pin::Pin,
+    task::{
+        Context,
+        Poll,
+    },
+};
+
 use futures::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use tendermint::abci::{MempoolRequest, MempoolResponse};
+use tendermint::abci::{
+    MempoolRequest,
+    MempoolResponse,
+};
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::info;
@@ -21,7 +30,9 @@ pub struct MempoolServiceFuture {
 
 impl MempoolServiceFuture {
     pub fn new(request: MempoolRequest) -> Self {
-        Self { request }
+        Self {
+            request,
+        }
     }
 }
 
@@ -38,9 +49,9 @@ impl Future for MempoolServiceFuture {
 }
 
 impl Service<MempoolRequest> for MempoolService {
-    type Response = MempoolResponse;
     type Error = BoxError;
     type Future = MempoolServiceFuture;
+    type Response = MempoolResponse;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
