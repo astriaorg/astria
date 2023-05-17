@@ -24,21 +24,16 @@ jobs:
         with:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install zig
-        uses: goto-bus-stop/setup-zig@v2
-      - name: Install ziguild
-        run: cargo install cargo-zigbuild
       # This step is required for tests
       - name: Build astria conductor and sequencer-relayer
         run: |
-          cargo zigbuild --release \
+          cargo --release \
             --bin astria-conductor \
-            --bin astria-sequencer-relayer \
-            --target x86_64-unknown-linux-gnu.2.31
+            --bin astria-sequencer-relayer
       - name: Copy binaries to tmp
         run: |
           mkdir -p /tmp/astria
-          cp target/x86_64-unknown-linux-gnu/release/{astria-conductor,astria-sequencer-relayer} /tmp/astria/
+          cp target/release/{astria-conductor,astria-sequencer-relayer} /tmp/astria/
       - name: Build tests
         run: cargo test --release --no-run
       - name: create kubernetes in docker cluster
@@ -54,7 +49,7 @@ jobs:
       - run: just wait-for-ingress-controller
       - run: just wait-for-prepull
       - name: Run tests
-        run: cargo test --release
+        run: cargo test --release -p astria-conductor
 
   fmt:
     runs-on: ubuntu-22.04

@@ -133,7 +133,7 @@ spec:
             - configMapRef:
                 name: metro-env
         - name: astria-sequencer-relayer
-          image: gcr.io/distroless/cc:debug
+          image: docker.io/library/debian:bookworm-slim
           command: ["/usr/local/bin/astria-sequencer-relayer"]
           args:
             - "--sequencer-endpoint=http://localhost:1318"
