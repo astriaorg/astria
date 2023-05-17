@@ -409,6 +409,7 @@ dependencies = [
  "tokio",
  "tower",
  "tower-abci",
+ "tower-actor",
  "tracing",
  "tracing-subscriber",
 ]
@@ -5282,6 +5283,21 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util 0.6.10",
+ "tower",
+ "tracing",
+]
+
+[[package]]
+name = "tower-actor"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b882e5e82ee7440a08335f4d5a2edd9f7678b2cba73eac4826b53c22fd76fdd3"
+dependencies = [
+ "futures",
+ "pin-project",
+ "thiserror",
+ "tokio",
+ "tokio-util 0.7.5",
  "tower",
  "tracing",
 ]

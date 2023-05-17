@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use astria_sequencer::{
     app::App,
     consensus::ConsensusService,
@@ -21,12 +19,21 @@ async fn main() {
         )
         .init();
 
-    let state = penumbra_storage::TempStorage::new()
+    let storage = penumbra_storage::TempStorage::new()
         .await
         .expect("should create temp storage");
-    let snapshot = state.snapshot(u64::MAX).expect("should create snapshot");
+    let snapshot = storage.snapshot(u64::MAX).expect("should create snapshot");
     let app = App::new(snapshot).await.expect("should create app");
-    let consensus_service = ConsensusService::new(app, state.deref().clone());
+
+    let consensus_service =
+        tower::ServiceBuilder::new().service(tower_actor::Actor::new(10, |queue: _| {
+            let storage = storage.clone();
+            async move {
+                ConsensusService::new(storage.clone(), app, queue)
+                    .run()
+                    .await
+            }
+        }));
 
     let info_service = InfoService::new();
     let mempool_service = MempoolService::new();

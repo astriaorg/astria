@@ -19,5 +19,6 @@ tendermint = "0.29"
 tokio = { version = "1.28", features = [ "tracing" ] }
 tower = "0.4"
 tower-abci = { git = "https://github.com/penumbra-zone/tower-abci.git", rev = "11ecad76b3bc527dcc2d1652bb7fcaa6cb52046d" }
+tower-actor = "0.1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }

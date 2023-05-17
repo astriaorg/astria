@@ -1,17 +1,4 @@
-use std::{
-    pin::Pin,
-    sync::Arc,
-    task::{
-        Context,
-        Poll,
-    },
-};
-
 use anyhow::anyhow;
-use futures::{
-    Future,
-    FutureExt,
-};
 use penumbra_storage::Storage;
 use tendermint::abci::{
     request,
@@ -19,130 +6,126 @@ use tendermint::abci::{
     ConsensusRequest,
     ConsensusResponse,
 };
-use tower::Service;
+use tokio::sync::mpsc;
 use tower_abci::BoxError;
-use tracing::info;
+use tower_actor::Message;
 
 use crate::app::{
     App,
     GenesisState,
 };
 
-#[derive(Clone)]
 pub struct ConsensusService {
+    queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,
     storage: Storage,
-    app: Arc<App>,
+    app: App,
 }
 
 impl ConsensusService {
-    pub fn new(app: App, storage: Storage) -> Self {
+    pub fn new(
+        storage: Storage,
+        app: App,
+        queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,
+    ) -> Self {
         Self {
+            queue,
             storage,
-            app: Arc::new(app),
+            app,
         }
     }
 
+    pub async fn run(mut self) -> Result<(), tower::BoxError> {
+        while let Some(Message {
+            req,
+            rsp_sender,
+            span: _,
+        }) = self.queue.recv().await
+        {
+            // The send only fails if the receiver was dropped, which happens
+            // if the caller didn't propagate the message back to tendermint
+            // for some reason -- but that's not our problem.
+            let _ = rsp_sender.send(Ok(match req {
+                ConsensusRequest::InitChain(init_chain) => ConsensusResponse::InitChain(
+                    self.init_chain(init_chain)
+                        .await
+                        .expect("init_chain must succeed"),
+                ),
+                ConsensusRequest::BeginBlock(begin_block) => ConsensusResponse::BeginBlock(
+                    self.begin_block(begin_block)
+                        .await
+                        .expect("begin_block must succeed"),
+                ),
+                ConsensusRequest::DeliverTx(deliver_tx) => ConsensusResponse::DeliverTx(
+                    self.deliver_tx(deliver_tx)
+                        .await
+                        .expect("deliver_tx must succeed"),
+                ),
+                ConsensusRequest::EndBlock(end_block) => ConsensusResponse::EndBlock(
+                    self.end_block(end_block)
+                        .await
+                        .expect("end_block must succeed"),
+                ),
+                ConsensusRequest::Commit => {
+                    ConsensusResponse::Commit(self.commit().await.expect("commit must succeed"))
+                }
+            }));
+        }
+        Ok(())
+    }
+
     async fn init_chain(
-        storage: Storage,
-        mut app: Arc<App>,
+        &mut self,
         init_chain: request::InitChain,
-    ) -> Result<ConsensusResponse, BoxError> {
+    ) -> Result<response::InitChain, BoxError> {
         // the storage version is set to u64::MAX by default when first created
-        if storage.latest_version() != u64::MAX {
+        if self.storage.latest_version() != u64::MAX {
             return Err(anyhow!("database already initialized").into());
         }
 
         let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
             .expect("can parse app_state in genesis file");
 
-        let app = Arc::get_mut(&mut app).expect("no other references to App");
-        app.init_chain(&genesis_state).await?;
+        self.app.init_chain(&genesis_state).await?;
 
         // TODO: return the genesis app hash
-        Ok(ConsensusResponse::InitChain(Default::default()))
+        Ok(Default::default())
     }
 
     async fn begin_block(
-        mut app: Arc<App>,
+        &mut self,
         begin_block: request::BeginBlock,
-    ) -> Result<ConsensusResponse, BoxError> {
-        println!(
-            "ConsensusService::begin_block {}",
-            Arc::<App>::strong_count(&app)
-        );
-
-        let app = Arc::get_mut(&mut app).expect("no other references to App");
-        let events = app.begin_block(&begin_block).await;
-        Ok(ConsensusResponse::BeginBlock(response::BeginBlock {
+    ) -> Result<response::BeginBlock, BoxError> {
+        let events = self.app.begin_block(&begin_block).await;
+        Ok(response::BeginBlock {
             events,
-        }))
+        })
     }
 
     async fn deliver_tx(
-        mut app: Arc<App>,
-        tx: bytes::Bytes,
-    ) -> Result<ConsensusResponse, BoxError> {
-        let app = Arc::get_mut(&mut app).expect("no other references to App");
-        app.deliver_tx(&tx).await?;
-        Ok(ConsensusResponse::DeliverTx(Default::default()))
+        &mut self,
+        deliver_tx: request::DeliverTx,
+        // tx: bytes::Bytes,
+    ) -> Result<response::DeliverTx, BoxError> {
+        self.app.deliver_tx(&deliver_tx.tx).await?;
+        Ok(Default::default())
     }
 
     async fn end_block(
-        mut app: Arc<App>,
+        &mut self,
         end_block: request::EndBlock,
-    ) -> Result<ConsensusResponse, BoxError> {
-        let app = Arc::get_mut(&mut app).expect("no other references to App");
-        let events = app.end_block(&end_block).await;
-        Ok(ConsensusResponse::EndBlock(response::EndBlock {
+    ) -> Result<response::EndBlock, BoxError> {
+        let events = self.app.end_block(&end_block).await;
+        Ok(response::EndBlock {
             events,
             ..Default::default()
-        }))
+        })
     }
 
-    async fn commit(storage: Storage, mut app: Arc<App>) -> Result<ConsensusResponse, BoxError> {
-        let app = Arc::get_mut(&mut app).expect("no other references to App");
-        let app_hash = app.commit(storage.clone()).await;
-        Ok(ConsensusResponse::Commit(response::Commit {
+    async fn commit(&mut self) -> Result<response::Commit, BoxError> {
+        let app_hash = self.app.commit(self.storage.clone()).await;
+        Ok(response::Commit {
             data: app_hash.0.to_vec().into(),
             ..Default::default()
-        }))
-    }
-}
-
-impl Service<ConsensusRequest> for ConsensusService {
-    type Error = BoxError;
-    type Future = Pin<Box<dyn Future<Output = Result<ConsensusResponse, Self::Error>> + Send>>;
-    type Response = ConsensusResponse;
-
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, req: ConsensusRequest) -> Self::Future {
-        info!("got consensus request: {:?}", req);
-        println!(
-            "ConsensusService::call 0 {}",
-            Arc::<App>::strong_count(&self.app)
-        );
-
-        let storage = self.storage.clone();
-        let app = self.app.clone();
-
-        println!(
-            "ConsensusService::call 1 {}",
-            Arc::<App>::strong_count(&self.app)
-        );
-
-        match req {
-            ConsensusRequest::InitChain(req) => {
-                ConsensusService::init_chain(storage, app, req).boxed()
-            }
-            ConsensusRequest::BeginBlock(req) => ConsensusService::begin_block(app, req).boxed(),
-            ConsensusRequest::DeliverTx(req) => ConsensusService::deliver_tx(app, req.tx).boxed(),
-            ConsensusRequest::EndBlock(req) => {
-                ConsensusService::end_block(app, req.clone()).boxed()
-            }
-            ConsensusRequest::Commit => ConsensusService::commit(storage, app).boxed(),
-        }
+        })
     }
 }
