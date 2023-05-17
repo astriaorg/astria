@@ -6,6 +6,10 @@ use penumbra_storage::{
     StateRead,
     StateWrite,
 };
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use tendermint::abci::request::{
     BeginBlock,
     EndBlock,
@@ -50,7 +54,7 @@ impl Component for AccountsComponent {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Transaction {
     to: String,
     from: String,
@@ -65,6 +69,16 @@ impl Transaction {
             from,
             amount,
         }
+    }
+
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        let bytes = serde_json::to_vec(self)?;
+        Ok(bytes)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        let tx = serde_json::from_slice(bytes)?;
+        Ok(tx)
     }
 
     pub fn check_stateless(&self) -> Result<()> {
