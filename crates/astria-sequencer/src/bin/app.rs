@@ -24,7 +24,7 @@ async fn main() {
     let state = penumbra_storage::TempStorage::new()
         .await
         .expect("should create temp storage");
-    let snapshot = state.snapshot(0).expect("should create snapshot");
+    let snapshot = state.snapshot(u64::MAX).expect("should create snapshot");
     let app = App::new(snapshot).await.expect("should create app");
 
     let consensus_service = ConsensusService::new(app, state.deref().clone());

@@ -41,7 +41,8 @@ impl ConsensusService {
     }
 
     async fn init_chain(&mut self, init_chain: InitChain) -> Result<ConsensusResponse, BoxError> {
-        if self.storage.latest_version() != 0u64 {
+        // the storage version is set to u64::MAX by default when first created
+        if self.storage.latest_version() != u64::MAX {
             return Err(anyhow!("database already initialized").into());
         }
 
