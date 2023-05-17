@@ -8,16 +8,18 @@
 ## Usage
 
 #### Install tendermint
+Ensure `~/go` is in your `PATH`, or `GOPATH` is set to some other place in your `PATH`.
+
 ```sh
-git clone https://github.com/tendermint/tendermint.git
-cd tendermint
-git checkout release/v0.37.1
+git clone https://github.com/astriaorg/cometbft
+cd cometbft
+export GOPATH=~/go
 make install
 ```
 
 #### Optional: install abci-cli for a bit of CLI testing
 
-In the tendermint/ dir:
+In the cometbft/ dir:
 ```sh
 make install_abci
 ```
@@ -42,5 +44,6 @@ I[2023-05-16|16:53:56.786] service start                                module=a
 
 #### Start the tendermint node
 ```sh
-tendermint node
+cometbft init
+cometbft node
 ```
