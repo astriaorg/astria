@@ -297,8 +297,8 @@ name = "astria-conductor"
 version = "0.1.0"
 dependencies = [
  "astria-conductor-test",
- "astria-execution-apis-rpc",
  "astria-gossipnet",
+ "astria-proto",
  "astria-rs-cnc",
  "astria-sequencer-relayer",
  "astria-sequencer-relayer-proto",
@@ -344,16 +344,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "astria-execution-apis-rpc"
-version = "0.1.0"
-dependencies = [
- "prost",
- "prost-types",
- "tonic",
- "which",
-]
-
-[[package]]
 name = "astria-gossipnet"
 version = "0.1.0"
 dependencies = [
@@ -362,6 +352,16 @@ dependencies = [
  "libp2p",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "astria-proto"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "prost-types",
+ "tonic",
+ "which",
 ]
 
 [[package]]
