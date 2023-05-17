@@ -1,5 +1,7 @@
 version: v1
 name: buf.build/astria/astria
+deps:
+  - buf.build/tendermint/tendermint
 breaking:
   use:
     - FILE
