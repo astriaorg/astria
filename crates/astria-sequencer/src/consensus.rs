@@ -57,8 +57,7 @@ impl ConsensusService {
                 ),
                 ConsensusRequest::DeliverTx(deliver_tx) => ConsensusResponse::DeliverTx(
                     self.deliver_tx(deliver_tx)
-                        .await
-                        .expect("deliver_tx must succeed"),
+                        .await?
                 ),
                 ConsensusRequest::EndBlock(end_block) => ConsensusResponse::EndBlock(
                     self.end_block(end_block)
