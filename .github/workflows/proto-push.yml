@@ -1,8 +1,9 @@
 name: buf-push
 on:
+  pull_request:
   push:
     branches:
-      - main
+        - main
 jobs:
   build-lint-push-protos:
     runs-on: ubuntu-latest
@@ -24,5 +25,6 @@ jobs:
       #     against: "https://github.com/astriaorg/astria.git#branch=main,ref=HEAD~1,subdir=crates/astria-proto/proto"
       - uses: bufbuild/buf-push-action@v1
         with:
-          input: "execution-apis"
+          draft:  ${{ github.ref_name != 'main'}}
+          input: "crates/astria-proto/proto"
           buf_token: ${{ secrets.BUF_TOKEN }}
