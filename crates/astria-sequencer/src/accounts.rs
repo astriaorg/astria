@@ -42,19 +42,20 @@ impl Component for AccountsComponent {
     }
 
     async fn begin_block<S: StateWrite + 'static>(_state: &mut Arc<S>, _begin_block: &BeginBlock) {
-        todo!()
+        ()
     }
 
     async fn end_block<S: StateWrite + 'static>(_state: &mut Arc<S>, _end_block: &EndBlock) {
-        todo!()
+        ()
     }
 
+    // TODO: are we going to have epochs? might need to write out own Component trait
     async fn end_epoch<S: StateWrite + 'static>(_state: &mut Arc<S>) -> Result<()> {
         Ok(())
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Transaction {
     to: String,
     from: String,

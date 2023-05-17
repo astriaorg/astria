@@ -53,13 +53,26 @@ impl App {
 
     pub async fn init_chain(&mut self, genesis_state: &GenesisState) -> Result<()> {
         tracing::debug!("initializing chain");
-        let mut state = self
+
+        // allocate to hard-coded accounts for testing
+        let mut accounts = genesis_state.accounts.clone();
+        accounts.append(&mut default_genesis_accounts());
+        let genesis_state = GenesisState {
+            accounts,
+        };
+
+        let mut state_tx = self
             .state
             .try_begin_transaction()
             .expect("failed to get state for init_chain");
 
+        state_tx.put_block_height(0);
+
         // call init_chain on all components
-        AccountsComponent::init_chain(&mut state, genesis_state).await;
+        AccountsComponent::init_chain(&mut state_tx, &genesis_state).await;
+        state_tx.apply();
+
+        // TODO: call commit and return the app hash?
         Ok(())
     }
 
@@ -80,6 +93,7 @@ impl App {
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
+
         self.apply(state_tx)
     }
 
@@ -159,4 +173,12 @@ impl App {
 
         events
     }
+}
+
+fn default_genesis_accounts() -> Vec<(String, u64)> {
+    vec![
+        ("alice".to_string(), 10e18 as u64),
+        ("bob".to_string(), 10e18 as u64),
+        ("carol".to_string(), 10e18 as u64),
+    ]
 }

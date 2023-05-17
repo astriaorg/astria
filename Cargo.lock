@@ -396,8 +396,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bytes",
  "color-eyre",
  "futures",
+ "hex",
  "penumbra-component",
  "penumbra-storage",
  "serde",

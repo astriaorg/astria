@@ -6,8 +6,10 @@ edition = "2021"
 [dependencies]
 anyhow = "1"
 async-trait = "0.1.52"
+bytes = "1.4"
 color-eyre = "0.6.2"
 futures = "0.3"
+hex = "0.4"
 penumbra-component = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "9f33f728dab2312a92c619864a1be97fb81882d9" }
 penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "9f33f728dab2312a92c619864a1be97fb81882d9" }
 serde = { version = "1", features = ["derive"] }

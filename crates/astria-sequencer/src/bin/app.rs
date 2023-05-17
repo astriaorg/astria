@@ -26,8 +26,8 @@ async fn main() {
         .expect("should create temp storage");
     let snapshot = state.snapshot(u64::MAX).expect("should create snapshot");
     let app = App::new(snapshot).await.expect("should create app");
-
     let consensus_service = ConsensusService::new(app, state.deref().clone());
+
     let info_service = InfoService::new();
     let mempool_service = MempoolService::new();
     let snapshot_service = SnapshotService::new();

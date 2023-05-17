@@ -11,7 +11,7 @@ use crate::accounts;
 
 /// Represents a sequencer chain transaction.
 /// If a new transaction type is added, it should be added to this enum.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Transaction {
     AccountsTransaction(accounts::Transaction),
 }
@@ -61,5 +61,22 @@ impl Transaction {
         match self {
             Self::AccountsTransaction(tx) => tx.execute(state).await,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use hex;
+
+    use super::*;
+
+    #[test]
+    fn test_transaction() {
+        let tx =
+            Transaction::new_accounts_transaction("bob".to_string(), "alice".to_string(), 333333);
+        let bytes = tx.to_bytes().unwrap();
+        let tx2 = Transaction::from_bytes(&bytes).unwrap();
+        assert_eq!(tx, tx2);
+        println!("{}", hex::encode(bytes));
     }
 }

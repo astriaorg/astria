@@ -1,5 +1,6 @@
 use std::{
     pin::Pin,
+    sync::Arc,
     task::{
         Context,
         Poll,
@@ -30,63 +31,77 @@ use crate::app::{
 #[derive(Clone)]
 pub struct ConsensusService {
     storage: Storage,
-    app: App,
+    app: Arc<App>,
 }
 
 impl ConsensusService {
     pub fn new(app: App, storage: Storage) -> Self {
         Self {
             storage,
-            app,
+            app: Arc::new(app),
         }
     }
 
     async fn init_chain(
-        &mut self,
-        init_chain: &request::InitChain,
+        storage: Storage,
+        mut app: Arc<App>,
+        init_chain: request::InitChain,
     ) -> Result<ConsensusResponse, BoxError> {
         // the storage version is set to u64::MAX by default when first created
-        if self.storage.latest_version() != u64::MAX {
+        if storage.latest_version() != u64::MAX {
             return Err(anyhow!("database already initialized").into());
         }
 
         let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
             .expect("can parse app_state in genesis file");
 
-        self.app.init_chain(&genesis_state).await?;
+        let app = Arc::get_mut(&mut app).expect("no other references to App");
+        app.init_chain(&genesis_state).await?;
 
         // TODO: return the genesis app hash
         Ok(ConsensusResponse::InitChain(Default::default()))
     }
 
     async fn begin_block(
-        &mut self,
-        begin_block: &request::BeginBlock,
+        mut app: Arc<App>,
+        begin_block: request::BeginBlock,
     ) -> Result<ConsensusResponse, BoxError> {
-        let events = self.app.begin_block(begin_block).await;
+        println!(
+            "ConsensusService::begin_block {}",
+            Arc::<App>::strong_count(&app)
+        );
+
+        let app = Arc::get_mut(&mut app).expect("no other references to App");
+        let events = app.begin_block(&begin_block).await;
         Ok(ConsensusResponse::BeginBlock(response::BeginBlock {
             events,
         }))
     }
 
-    async fn deliver_tx(&mut self, tx: &[u8]) -> Result<ConsensusResponse, BoxError> {
-        self.app.deliver_tx(tx).await?;
+    async fn deliver_tx(
+        mut app: Arc<App>,
+        tx: bytes::Bytes,
+    ) -> Result<ConsensusResponse, BoxError> {
+        let app = Arc::get_mut(&mut app).expect("no other references to App");
+        app.deliver_tx(&tx).await?;
         Ok(ConsensusResponse::DeliverTx(Default::default()))
     }
 
     async fn end_block(
-        &mut self,
-        end_block: &request::EndBlock,
+        mut app: Arc<App>,
+        end_block: request::EndBlock,
     ) -> Result<ConsensusResponse, BoxError> {
-        let events = self.app.end_block(end_block).await;
+        let app = Arc::get_mut(&mut app).expect("no other references to App");
+        let events = app.end_block(&end_block).await;
         Ok(ConsensusResponse::EndBlock(response::EndBlock {
             events,
             ..Default::default()
         }))
     }
 
-    async fn commit(&mut self) -> Result<ConsensusResponse, BoxError> {
-        let app_hash = self.app.commit(self.storage.clone()).await;
+    async fn commit(storage: Storage, mut app: Arc<App>) -> Result<ConsensusResponse, BoxError> {
+        let app = Arc::get_mut(&mut app).expect("no other references to App");
+        let app_hash = app.commit(storage.clone()).await;
         Ok(ConsensusResponse::Commit(response::Commit {
             data: app_hash.0.to_vec().into(),
             ..Default::default()
@@ -105,16 +120,29 @@ impl Service<ConsensusRequest> for ConsensusService {
 
     fn call(&mut self, req: ConsensusRequest) -> Self::Future {
         info!("got consensus request: {:?}", req);
-        let mut self2 = self.clone();
-        async move {
-            match req {
-                ConsensusRequest::InitChain(req) => self2.init_chain(&req).await,
-                ConsensusRequest::BeginBlock(req) => self2.begin_block(&req).await,
-                ConsensusRequest::DeliverTx(req) => self2.deliver_tx(&req.tx).await,
-                ConsensusRequest::EndBlock(req) => self2.end_block(&req).await,
-                ConsensusRequest::Commit => self2.commit().await,
+        println!(
+            "ConsensusService::call 0 {}",
+            Arc::<App>::strong_count(&self.app)
+        );
+
+        let storage = self.storage.clone();
+        let app = self.app.clone();
+
+        println!(
+            "ConsensusService::call 1 {}",
+            Arc::<App>::strong_count(&self.app)
+        );
+
+        match req {
+            ConsensusRequest::InitChain(req) => {
+                ConsensusService::init_chain(storage, app, req).boxed()
             }
+            ConsensusRequest::BeginBlock(req) => ConsensusService::begin_block(app, req).boxed(),
+            ConsensusRequest::DeliverTx(req) => ConsensusService::deliver_tx(app, req.tx).boxed(),
+            ConsensusRequest::EndBlock(req) => {
+                ConsensusService::end_block(app, req.clone()).boxed()
+            }
+            ConsensusRequest::Commit => ConsensusService::commit(storage, app).boxed(),
         }
-        .boxed()
     }
 }
