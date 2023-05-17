@@ -1,0 +1,86 @@
+name: Tests
+env:
+  CI: true
+on: 
+  pull_request:
+  push:
+    branches:
+      - "main"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@1.69.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Install protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install buf cli
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.17.0"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install zig
+        uses: goto-bus-stop/setup-zig@v2
+      - name: Install ziguild
+        run: cargo install cargo-zigbuild
+      # This step is required for tests
+      - name: Build astria conductor and sequencer-relayer
+        run: |
+          cargo zigbuild --release \
+            --bin astria-conductor \
+            --bin astria-sequencer-relayer \
+            --target x86_64-unknown-linux-gnu.2.31
+      - name: Copy binaries to tmp
+        run: |
+          mkdir -p /tmp/astria
+          cp target/x86_64-unknown-linux-gnu/release/{astria-conductor,astria-sequencer-relayer} /tmp/astria/
+      - name: Build tests
+        run: cargo test --release --no-run
+      - name: create kubernetes in docker cluster
+        uses: helm/kind-action@v1.5.0
+        with:
+          version: v0.18.0
+          config: kubernetes-ci/cluster-config.yml
+          kubectl_version: v1.27.1
+      - name: install just
+        uses: taiki-e/install-action@just
+      - run: just deploy-ingress-controller
+      - run: just perform-prepull
+      - run: just wait-for-ingress-controller
+      - run: just wait-for-prepull
+      - name: Run tests
+        run: cargo test --release
+
+  fmt:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+      - name: run rustfmt
+        run: cargo +nightly fmt --all -- --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@1.69.0
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.17.0"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: run clippy
+        run: cargo clippy --all --all-targets -- -D warnings
