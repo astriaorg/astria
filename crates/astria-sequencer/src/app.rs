@@ -6,25 +6,27 @@ use penumbra_storage::{
     ArcStateDeltaExt,
     Snapshot,
     StateDelta,
-    StateWrite,
     Storage,
 };
+use tendermint::abci;
 
 use crate::accounts::AccountsComponent;
+
+/// The application hash, used to verify the application state.
+/// TODO: this may not be the same as the state root hash?
+pub type AppHash = penumbra_storage::RootHash;
 
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
 
 /// The genesis state for the application.
+#[derive(Clone, Debug, serde::Deserialize)]
 pub struct GenesisState {
     pub accounts: Vec<(String, u64)>,
 }
 
-/// The Penumbra application, written as a bundle of [`Component`]s.
-///
-/// The [`App`] is not a [`Component`], but
-/// it constructs the components and exposes a [`commit`](App::commit) that
-/// commits the changes to the persistent storage and resets its subcomponents.
+/// The Sequencer application, written as a bundle of [`Component`]s.
+#[derive(Clone)]
 pub struct App {
     state: InterBlockState,
 }
@@ -50,5 +52,24 @@ impl App {
             .expect("failed to get state for init_chain");
         AccountsComponent::init_chain(&mut state, genesis_state).await;
         Ok(())
+    }
+
+    pub async fn begin_block(
+        &mut self,
+        _begin_block: &abci::request::BeginBlock,
+    ) -> Vec<abci::Event> {
+        todo!()
+    }
+
+    pub async fn deliver_tx(&mut self, _tx: &[u8]) -> Result<Vec<abci::Event>> {
+        todo!()
+    }
+
+    pub async fn end_block(&mut self, _end_block: &abci::request::EndBlock) -> Vec<abci::Event> {
+        todo!()
+    }
+
+    pub async fn commit(&mut self, _storage: Storage) -> AppHash {
+        todo!()
     }
 }

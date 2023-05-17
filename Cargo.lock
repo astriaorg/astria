@@ -400,6 +400,8 @@ dependencies = [
  "futures",
  "penumbra-component",
  "penumbra-storage",
+ "serde",
+ "serde_json",
  "tendermint 0.29.1",
  "tendermint-proto 0.29.1",
  "tokio",

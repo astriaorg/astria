@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::ops::Deref;
 
 use astria_sequencer::{
     app::App,
@@ -25,9 +25,9 @@ async fn main() {
         .await
         .expect("should create temp storage");
     let snapshot = state.snapshot(0).expect("should create snapshot");
-    let app = Arc::new(App::new(snapshot).await.expect("should create app"));
+    let app = App::new(snapshot).await.expect("should create app");
 
-    let consensus_service = ConsensusService::new(app);
+    let consensus_service = ConsensusService::new(app, state.deref().clone());
     let info_service = InfoService::new();
     let mempool_service = MempoolService::new();
     let snapshot_service = SnapshotService::new();
