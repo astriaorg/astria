@@ -3,7 +3,7 @@ syntax = "proto3";
 package astria.sequencer_relayer.v1;
 
 import "tendermint/types/types.proto";
-import "proto/astria/sequencer_relayer/v1/data.proto";
+import "astria/sequencer_relayer/v1/data.proto";
 
 // SequencerBlock
 message SequencerBlock {
