@@ -14,7 +14,7 @@ use tendermint::abci::{
 };
 
 use crate::{
-    accounts::AccountsComponent,
+    accounts::component::AccountsComponent,
     state_ext::StateWriteExt as _,
     transaction::Transaction,
 };

@@ -44,6 +44,12 @@ I[2023-05-16|16:53:56.786] service start                                module=a
 
 #### Start the tendermint node
 ```sh
+# initialize the node
 cometbft init
+# set the empty block interval to 5s
+sed -i'.bak' 's/create_empty_blocks_interval = "0s"/create_empty_blocks_interval = "5s"/g' ~/.cometbft/config/config.toml
+# start the node
 cometbft node
 ```
+
+You should see blocks being produced.
