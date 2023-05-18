@@ -33,7 +33,7 @@ impl Transaction {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() == 0 {
+        if bytes.is_empty() {
             return Err(anyhow!("invalid transaction, bytes length is 0"));
         }
 

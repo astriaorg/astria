@@ -15,7 +15,7 @@ use tower::Service;
 use tower_abci::BoxError;
 use tracing::info;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct MempoolService {}
 
 impl MempoolService {

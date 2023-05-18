@@ -27,17 +27,9 @@ pub type AppHash = penumbra_storage::RootHash;
 type InterBlockState = Arc<StateDelta<Snapshot>>;
 
 /// The genesis state for the application.
-#[derive(Clone, Debug, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Deserialize, Default)]
 pub struct GenesisState {
     pub accounts: Vec<(String, u64)>,
-}
-
-impl Default for GenesisState {
-    fn default() -> Self {
-        Self {
-            accounts: vec![],
-        }
-    }
 }
 
 /// The Sequencer application, written as a bundle of [`Component`]s.
@@ -151,8 +143,7 @@ impl App {
             .await
             .expect("must be able to successfully commit to storage");
 
-        let app_hash: AppHash = jmt_root.into();
-
+        let app_hash: AppHash = jmt_root;
         tracing::debug!(?app_hash, "finished committing state");
 
         // Get the latest version of the state, now that we've committed it.

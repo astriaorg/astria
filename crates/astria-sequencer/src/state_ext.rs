@@ -12,7 +12,7 @@ use tendermint::Time;
 #[async_trait]
 pub trait StateReadExt: StateRead {
     async fn get_block_height(&self) -> Result<u64> {
-        let Some(bytes) = self.get_raw("block_height".into()).await? else {
+        let Some(bytes) = self.get_raw("block_height").await? else {
             return Err(anyhow!("block height not found"))
         };
         let bytes: [u8; 8] = bytes
@@ -22,7 +22,7 @@ pub trait StateReadExt: StateRead {
     }
 
     async fn get_block_timestamp(&self) -> Result<Time> {
-        let Some(bytes) = self.get_raw("block_timestamp".into()).await? else {
+        let Some(bytes) = self.get_raw("block_timestamp").await? else {
             return Err(anyhow!("block timestamp not found"))
         };
 

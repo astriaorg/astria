@@ -11,6 +11,7 @@ use crate::app::GenesisState;
 
 use super::state_ext::StateWriteExt;
 
+#[derive(Default)]
 pub struct AccountsComponent {}
 
 impl AccountsComponent {
@@ -29,13 +30,9 @@ impl Component for AccountsComponent {
         }
     }
 
-    async fn begin_block<S: StateWriteExt + 'static>(_state: &mut Arc<S>, _begin_block: &BeginBlock) {
-        ()
-    }
+    async fn begin_block<S: StateWriteExt + 'static>(_state: &mut Arc<S>, _begin_block: &BeginBlock) {}
 
-    async fn end_block<S: StateWriteExt + 'static>(_state: &mut Arc<S>, _end_block: &EndBlock) {
-        ()
-    }
+    async fn end_block<S: StateWriteExt + 'static>(_state: &mut Arc<S>, _end_block: &EndBlock) {}
 
     // TODO: are we going to have epochs? might need to write out own Component trait
     async fn end_epoch<S: StateWriteExt + 'static>(_state: &mut Arc<S>) -> Result<()> {
