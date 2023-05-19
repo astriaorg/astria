@@ -24,6 +24,21 @@ impl SnapshotService {
     }
 }
 
+impl Service<SnapshotRequest> for SnapshotService {
+    type Error = BoxError;
+    type Future = SnapshotServiceFuture;
+    type Response = SnapshotResponse;
+
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, req: SnapshotRequest) -> Self::Future {
+        info!("got snapshot request: {:?}", req);
+        SnapshotServiceFuture::new(req)
+    }
+}
+
 pub struct SnapshotServiceFuture {
     request: SnapshotRequest,
 }
@@ -54,20 +69,5 @@ impl Future for SnapshotServiceFuture {
                 Poll::Ready(Ok(SnapshotResponse::ApplySnapshotChunk(Default::default())))
             }
         }
-    }
-}
-
-impl Service<SnapshotRequest> for SnapshotService {
-    type Error = BoxError;
-    type Future = SnapshotServiceFuture;
-    type Response = SnapshotResponse;
-
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, req: SnapshotRequest) -> Self::Future {
-        info!("got snapshot request: {:?}", req);
-        SnapshotServiceFuture::new(req)
     }
 }
