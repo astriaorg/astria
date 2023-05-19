@@ -45,7 +45,7 @@ jobs:
           --exclude astria-rs-cnc
       - name: Run light tests
         run: |
-          cargo test --release --no-run \
+          cargo test --release \
           --workspace \
           --exclude astria-gossipnet \
           --exclude astria-rs-cnc
