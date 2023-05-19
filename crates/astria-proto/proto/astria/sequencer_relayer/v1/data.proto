@@ -5,7 +5,7 @@ package astria.sequencer_relayer.v1;
 import "tendermint/types/types.proto";
 
 // IndexedTransaction represents a sequencer transaction along with the index
-// it was originally in in the sequencer block.
+// it was originally in the sequencer block.
 message IndexedTransaction {
     uint64 index = 1; // TODO: this is usize - how to define for variable size?
     bytes transaction = 2;
