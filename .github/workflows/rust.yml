@@ -1,0 +1,99 @@
+name: Tests
+env:
+  CI: true
+on: 
+  pull_request:
+  push:
+    branches:
+      - "main"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@1.69.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Install protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install buf cli
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.17.0"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      # This step is required for tests
+      - name: Build astria conductor and sequencer-relayer
+        run: |
+          cargo build --release \
+            --bin astria-conductor \
+            --bin astria-sequencer-relayer
+      - name: Copy binaries to tmp
+        run: |
+          mkdir -p /tmp/astria
+          cp target/release/{astria-conductor,astria-sequencer-relayer} /tmp/astria/
+      # FIXME: the gossipnet and rs-cnc tests are currently broken in CI:
+      #        https://github.com/astriaorg/astria/issues/24
+      #        https://github.com/astriaorg/astria/issues/25
+      - name: Build tests
+        run: |
+          cargo test --release --no-run \
+          --workspace \
+          --exclude astria-gossipnet \
+          --exclude astria-rs-cnc
+      - name: Run light tests
+        run: |
+          cargo test --release \
+          --workspace \
+          --exclude astria-gossipnet \
+          --exclude astria-rs-cnc
+      - name: create kubernetes in docker cluster
+        uses: helm/kind-action@v1.5.0
+        with:
+          version: v0.18.0
+          config: kubernetes-ci/cluster-config.yml
+          kubectl_version: v1.27.1
+      - name: install just
+        uses: taiki-e/install-action@just
+      - run: just deploy-ingress-controller
+      - run: just perform-prepull
+      - run: just wait-for-ingress-controller
+      - run: just wait-for-prepull
+      - name: Run heavy tests
+        run: |
+          cargo test --release --no-run \
+          --workspace \
+          --exclude astria-gossipnet \
+          --exclude astria-rs-cnc \
+          -- --ignored
+
+  fmt:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+      - name: run rustfmt
+        run: cargo +nightly fmt --all -- --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@1.69.0
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.17.0"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: run clippy
+        run: cargo clippy --all --all-targets

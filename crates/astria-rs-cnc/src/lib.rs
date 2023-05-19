@@ -276,7 +276,7 @@ impl CelestiaNodeClient {
 }
 
 /// A `CelestiaNodeClientBuilder` can be used to create a `CelstiaNodeClient`.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CelestiaNodeClientBuilder {
     base_url: Option<Url>,
     http_client: Option<reqwest::Client>,
@@ -337,10 +337,7 @@ impl CelestiaNodeClientBuilder {
 
     /// Returns a new `CelestiaNodeClientBuilder`.
     pub fn new() -> Self {
-        Self {
-            base_url: None,
-            http_client: None,
-        }
+        Self::default()
     }
 }
 
