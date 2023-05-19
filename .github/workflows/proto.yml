@@ -15,7 +15,7 @@ jobs:
           github_token: ${{ github.token }}
       - uses: bufbuild/buf-lint-action@v1
         with:
-          input: "crates/astria-proto"
+          input: "crates/"
       # TODO(GH-29): Uncomment out after reaching any production stage
       # - uses: bufbuild/buf-breaking-action@v1
       #   with:
