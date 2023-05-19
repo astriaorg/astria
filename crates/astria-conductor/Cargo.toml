@@ -27,7 +27,7 @@ tracing-subscriber = "0.3.16"
 
 astria-execution-apis-rpc = { path = "../astria-execution-apis-rpc" }
 astria-gossipnet = { path = "../astria-gossipnet" }
-astria-rs-cnc = { path = "../astria-rs-cnc", default-features = false, features = ["rustls"] }
+astria-rs-cnc = { path = "../astria-rs-cnc" }
 astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 astria-sequencer-relayer-proto = { path = "../astria-sequencer-relayer-proto" }
 
