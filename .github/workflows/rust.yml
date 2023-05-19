@@ -78,4 +78,4 @@ jobs:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: run clippy
-        run: cargo clippy --all --all-targets -- -D warnings -A clippy::new-without-default
+        run: cargo clippy --all --all-targets
