@@ -1,50 +1,22 @@
-use std::{
-    collections::HashMap,
-    fmt,
-};
+use std::{collections::HashMap, fmt};
 
-use astria_sequencer_relayer_proto::{
-    SequencerMsg,
-    TxBody,
-    TxRaw,
-};
-use base64::{
-    engine::general_purpose,
-    Engine as _,
-};
-use eyre::{
-    bail,
-    ensure,
-    WrapErr as _,
-};
+use astria_sequencer_relayer_proto::{SequencerMsg, TxBody, TxRaw};
+use base64::{engine::general_purpose, Engine as _};
+use eyre::{bail, ensure, WrapErr as _};
 use hex;
-use prost::{
-    DecodeError,
-    Message,
-};
+use prost::{DecodeError, Message};
 use serde::{
-    de::{
-        self,
-        Visitor,
-    },
-    Deserialize,
-    Deserializer,
-    Serialize,
+    de::{self, Visitor},
+    Deserialize, Deserializer, Serialize,
 };
 use serde_json;
-use sha2::{
-    Digest,
-    Sha256,
-};
+use sha2::{Digest, Sha256};
 use tracing::debug;
 
 use crate::{
     base64_string::Base64String,
     transaction::txs_to_data_hash,
-    types::{
-        Block,
-        Header,
-    },
+    types::{Block, Header},
 };
 
 /// Cosmos SDK message type URL for SequencerMsgs.
@@ -138,7 +110,7 @@ pub fn get_namespace(bytes: &[u8]) -> Namespace {
 /// of the transactions in the block, can be verified.
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct IndexedTransaction {
-    pub index: usize,
+    pub block_index: usize,
     pub transaction: Base64String,
 }
 
@@ -203,14 +175,14 @@ impl SequencerBlock {
                 let namespace = get_namespace(&msgs[0].chain_id);
                 let txs = rollup_txs.entry(namespace).or_insert(vec![]);
                 txs.push(IndexedTransaction {
-                    index,
+                    block_index: index,
                     transaction: tx.clone(),
                 });
                 continue;
             }
 
             sequencer_txs.push(IndexedTransaction {
-                index,
+                block_index: index,
                 transaction: tx.clone(),
             })
         }
@@ -238,7 +210,7 @@ impl SequencerBlock {
 
         // TODO: if there are duplicate or missing indices, the hash will obviously be wrong,
         // but we should probably verify that earier to return a better error.
-        ordered_txs.sort_by(|a, b| a.index.cmp(&b.index));
+        ordered_txs.sort_by(|a, b| a.block_index.cmp(&b.block_index));
         let txs = ordered_txs
             .into_iter()
             .map(|tx| tx.transaction)
@@ -289,17 +261,10 @@ mod test {
     use std::collections::HashMap;
 
     use super::{
-        cosmos_tx_body_to_sequencer_msgs,
-        parse_cosmos_tx,
-        Header,
-        SequencerBlock,
-        DEFAULT_NAMESPACE,
-        SEQUENCER_TYPE_URL,
+        cosmos_tx_body_to_sequencer_msgs, parse_cosmos_tx, Header, SequencerBlock,
+        DEFAULT_NAMESPACE, SEQUENCER_TYPE_URL,
     };
-    use crate::{
-        base64_string::Base64String,
-        sequencer_block::IndexedTransaction,
-    };
+    use crate::{base64_string::Base64String, sequencer_block::IndexedTransaction};
 
     #[test]
     fn test_parse_primary_tx() {
@@ -332,7 +297,7 @@ mod test {
             .unwrap(),
             header: Header::default(),
             sequencer_txs: vec![IndexedTransaction {
-                index: 0,
+                block_index: 0,
                 transaction: Base64String::from_bytes(&[0x11, 0x22, 0x33]),
             }],
             rollup_txs: HashMap::new(),
@@ -340,7 +305,7 @@ mod test {
         expected.rollup_txs.insert(
             DEFAULT_NAMESPACE.clone(),
             vec![IndexedTransaction {
-                index: 0,
+                block_index: 0,
                 transaction: Base64String::from_bytes(&[0x44, 0x55, 0x66]),
             }],
         );

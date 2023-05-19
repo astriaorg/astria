@@ -5,16 +5,16 @@ package astria.sequencer_relayer.v1;
 import "tendermint/types/types.proto";
 import "astria/sequencer_relayer/v1/data.proto";
 
+// helper type - these should get parsed into a map from namespace to a vector of IndexedTransactions
+message NamespacedIndexedTransactions {
+    bytes namespace = 1;
+    repeated IndexedTransaction txs = 2;
+}
+
 // SequencerBlock
 message SequencerBlock {
-    // helper type - these should get parsed into a map from namespace to a vector of IndexedTransactions
-    message NamespacedIndexedTransactions {
-        bytes namespace = 1;
-        repeated IndexedTransaction txs = 2;
-    }
-
     bytes block_hash = 1;
     tendermint.types.Header header = 2;
-    repeated IndexedTransaction sequencer_txs = 3;
+    repeated IndexedTransaction sequencer_transactions = 3;
     repeated NamespacedIndexedTransactions rollup_txs = 4;
 }

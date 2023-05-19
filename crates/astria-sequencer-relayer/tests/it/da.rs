@@ -3,18 +3,10 @@ use std::collections::HashMap;
 use astria_sequencer_relayer::{
     base64_string::Base64String,
     da::CelestiaClientBuilder,
-    sequencer_block::{
-        get_namespace,
-        IndexedTransaction,
-        SequencerBlock,
-        DEFAULT_NAMESPACE,
-    },
+    sequencer_block::{get_namespace, IndexedTransaction, SequencerBlock, DEFAULT_NAMESPACE},
 };
 use astria_sequencer_relayer_test::init_test;
-use ed25519_dalek::{
-    Keypair,
-    PublicKey,
-};
+use ed25519_dalek::{Keypair, PublicKey};
 use rand::rngs::OsRng;
 
 #[tokio::test]
@@ -43,7 +35,7 @@ async fn get_blocks_public_key_filter() {
         block_hash: block_hash.clone(),
         header: Default::default(),
         sequencer_txs: vec![IndexedTransaction {
-            index: 0,
+            block_index: 0,
             transaction: tx.clone(),
         }],
         rollup_txs: HashMap::new(),
@@ -82,7 +74,7 @@ async fn celestia_client() {
         block_hash: block_hash.clone(),
         header: Default::default(),
         sequencer_txs: vec![IndexedTransaction {
-            index: 0,
+            block_index: 0,
             transaction: tx.clone(),
         }],
         rollup_txs: HashMap::new(),
@@ -90,7 +82,7 @@ async fn celestia_client() {
     block.rollup_txs.insert(
         secondary_namespace.clone(),
         vec![IndexedTransaction {
-            index: 1,
+            block_index: 1,
             transaction: secondary_tx.clone(),
         }],
     );
@@ -114,10 +106,10 @@ async fn celestia_client() {
     assert_eq!(resp[0].block_hash, block_hash);
     assert_eq!(resp[0].header, Default::default());
     assert_eq!(resp[0].sequencer_txs.len(), 1);
-    assert_eq!(resp[0].sequencer_txs[0].index, 0);
+    assert_eq!(resp[0].sequencer_txs[0].block_index, 0);
     assert_eq!(resp[0].sequencer_txs[0].transaction, tx);
     assert_eq!(resp[0].rollup_txs.len(), 1);
-    assert_eq!(resp[0].rollup_txs[&secondary_namespace][0].index, 1);
+    assert_eq!(resp[0].rollup_txs[&secondary_namespace][0].block_index, 1);
     assert_eq!(
         resp[0].rollup_txs[&secondary_namespace][0].transaction,
         secondary_tx
