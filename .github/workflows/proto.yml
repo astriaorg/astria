@@ -9,13 +9,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: BUF
     steps:
+      - uses: actions/checkout@v3
       - uses: bufbuild/buf-setup-action@v1
         with:
           version: "1.15.1"
           github_token: ${{ github.token }}
       - uses: bufbuild/buf-lint-action@v1
         with:
-          input: "crates/"
+          input: "crates/proto"
       # TODO(GH-29): Uncomment out after reaching any production stage
       # - uses: bufbuild/buf-breaking-action@v1
       #   with:
