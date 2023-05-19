@@ -64,14 +64,6 @@ impl Transaction {
     pub async fn execute<S: StateWriteExt>(&self, state: &mut S) -> Result<()> {
         let (from_balance, from_nonce) = state.get_account_state(&self.from).await?;
         let (to_balance, to_nonce) = state.get_account_state(&self.to).await?;
-        info!(
-            ?from_balance,
-            ?from_nonce,
-            ?to_balance,
-            ?to_nonce,
-            "executing transaction"
-        );
-
         state.put_account_state(&self.from, from_balance - self.amount, from_nonce + 1);
         state.put_account_state(&self.to, to_balance + self.amount, to_nonce);
         Ok(())

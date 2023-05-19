@@ -47,6 +47,7 @@ impl QueryResponse {
     }
 }
 
+#[derive(Default)]
 pub struct QueryHandler {}
 
 impl QueryHandler {

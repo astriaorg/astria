@@ -121,8 +121,10 @@ impl App {
             .expect("state Arc should be present and unique");
 
         tx.execute(&mut state_tx).await?;
+        state_tx.apply();
 
-        let height = state_tx
+        let height = self
+            .state
             .get_block_height()
             .await
             .expect("block height should be set");

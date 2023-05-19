@@ -31,7 +31,10 @@ use tower::Service;
 use tower_abci::BoxError;
 use tracing::info;
 
-use crate::accounts::query::QueryHandler;
+use crate::{
+    accounts::query::QueryHandler,
+    state_ext::StateReadExt,
+};
 
 #[derive(Clone)]
 pub struct InfoService {
@@ -105,10 +108,12 @@ async fn handle_query(storage: Storage, request: &request::Query) -> Result<resp
     }
     .to_bytes()?;
 
+    let height = storage.latest_snapshot().get_block_height().await?;
+
     Ok(response::Query {
         key: key.into(),
         value: value.into(),
-        height: Height::from(storage.latest_snapshot().version() as u32 + 1),
+        height: Height::from(height as u32),
         ..Default::default()
     })
 }
