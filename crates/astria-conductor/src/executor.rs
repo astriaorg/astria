@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use astria_proto::sequencer::v1::SequencerMsg;
 use astria_sequencer_relayer::{
     base64_string::Base64String,
     sequencer_block::{
@@ -10,7 +11,6 @@ use astria_sequencer_relayer::{
         SequencerBlock,
     },
 };
-use astria_sequencer_relayer_proto::SequencerMsg;
 use color_eyre::eyre::{
     Result,
     WrapErr as _,

@@ -7,6 +7,5 @@ members = [
   "crates/astria-proto",
   "crates/astria-rs-cnc",
   "crates/astria-sequencer-relayer",
-  "crates/astria-sequencer-relayer-proto",
   "crates/astria-sequencer-relayer-test",
 ]

@@ -3,7 +3,7 @@ use std::{
     fmt,
 };
 
-use astria_sequencer_relayer_proto::{
+use astria_proto::sequencer::v1::{
     SequencerMsg,
     TxBody,
     TxRaw,
