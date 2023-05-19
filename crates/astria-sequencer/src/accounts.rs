@@ -1,4 +1,5 @@
 pub mod component;
+pub mod query;
 pub mod transaction;
 
-mod state_ext;
+pub(crate) mod state_ext;

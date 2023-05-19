@@ -7,9 +7,8 @@ use tendermint::abci::request::{
     EndBlock,
 };
 
-use crate::app::GenesisState;
-
 use super::state_ext::StateWriteExt;
+use crate::app::GenesisState;
 
 #[derive(Default)]
 pub struct AccountsComponent {}
@@ -30,7 +29,11 @@ impl Component for AccountsComponent {
         }
     }
 
-    async fn begin_block<S: StateWriteExt + 'static>(_state: &mut Arc<S>, _begin_block: &BeginBlock) {}
+    async fn begin_block<S: StateWriteExt + 'static>(
+        _state: &mut Arc<S>,
+        _begin_block: &BeginBlock,
+    ) {
+    }
 
     async fn end_block<S: StateWriteExt + 'static>(_state: &mut Arc<S>, _end_block: &EndBlock) {}
 

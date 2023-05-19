@@ -35,7 +35,7 @@ async fn main() {
             }
         }));
 
-    let info_service = InfoService::new();
+    let info_service = InfoService::new(storage.clone());
     let mempool_service = MempoolService::new();
     let snapshot_service = SnapshotService::new();
     let server = Server::builder()

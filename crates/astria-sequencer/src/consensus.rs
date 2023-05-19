@@ -55,10 +55,9 @@ impl ConsensusService {
                         .await
                         .expect("begin_block must succeed"),
                 ),
-                ConsensusRequest::DeliverTx(deliver_tx) => ConsensusResponse::DeliverTx(
-                    self.deliver_tx(deliver_tx)
-                        .await?
-                ),
+                ConsensusRequest::DeliverTx(deliver_tx) => {
+                    ConsensusResponse::DeliverTx(self.deliver_tx(deliver_tx).await?)
+                }
                 ConsensusRequest::EndBlock(end_block) => ConsensusResponse::EndBlock(
                     self.end_block(end_block)
                         .await
@@ -96,7 +95,10 @@ impl ConsensusService {
     ) -> Result<response::BeginBlock, BoxError> {
         if self.storage.latest_version() == u64::MAX {
             // TODO: why isn't tendermint calling init_chain before the first block?
-            self.app.init_chain(&GenesisState::default()).await?;
+            self.app
+                .init_chain(&GenesisState::default())
+                .await
+                .expect("init_chain must succeed");
         }
 
         let events = self.app.begin_block(&begin_block).await;
@@ -108,9 +110,16 @@ impl ConsensusService {
     async fn deliver_tx(
         &mut self,
         deliver_tx: request::DeliverTx,
-        // tx: bytes::Bytes,
     ) -> Result<response::DeliverTx, BoxError> {
-        self.app.deliver_tx(&deliver_tx.tx).await?;
+        self.app
+            .deliver_tx(&deliver_tx.tx)
+            .await
+            .unwrap_or_else(|e| {
+                // we don't want to panic on failing to deliver_tx as that would crash the entire
+                // node
+                tracing::error!(error = ?e, "deliver_tx failed");
+                vec![]
+            });
         Ok(Default::default())
     }
 

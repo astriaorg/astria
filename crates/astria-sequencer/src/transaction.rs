@@ -7,7 +7,11 @@ use penumbra_storage::{
     StateWrite,
 };
 
-use crate::accounts::transaction::{Transaction as AccountsTransaction, Balance, Nonce};
+use crate::accounts::transaction::{
+    Balance,
+    Nonce,
+    Transaction as AccountsTransaction,
+};
 
 /// Represents a sequencer chain transaction.
 /// If a new transaction type is added, it should be added to this enum.
@@ -17,7 +21,12 @@ pub enum Transaction {
 }
 
 impl Transaction {
-    pub fn new_accounts_transaction(to: String, from: String, amount: Balance, nonce: Nonce) -> Self {
+    pub fn new_accounts_transaction(
+        to: String,
+        from: String,
+        amount: Balance,
+        nonce: Nonce,
+    ) -> Self {
         Self::AccountsTransaction(AccountsTransaction::new(to, from, amount, nonce))
     }
 
@@ -38,9 +47,9 @@ impl Transaction {
         }
 
         match bytes[0] {
-            0 => Ok(Self::AccountsTransaction(
-                AccountsTransaction::from_bytes(&bytes[1..])?,
-            )),
+            0 => Ok(Self::AccountsTransaction(AccountsTransaction::from_bytes(
+                &bytes[1..],
+            )?)),
             _ => Err(anyhow!("invalid transaction type")),
         }
     }
@@ -72,11 +81,15 @@ mod test {
 
     #[test]
     fn test_transaction() {
-        let tx =
-            Transaction::new_accounts_transaction("bob".to_string(), "alice".to_string(), 333333, 1);
+        let tx = Transaction::new_accounts_transaction(
+            "bob".to_string(),
+            "alice".to_string(),
+            333333,
+            1,
+        );
         let bytes = tx.to_bytes().unwrap();
         let tx2 = Transaction::from_bytes(&bytes).unwrap();
         assert_eq!(tx, tx2);
-        println!("{}", hex::encode(bytes));
+        println!("0x{}", hex::encode(bytes));
     }
 }

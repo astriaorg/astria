@@ -1,4 +1,5 @@
 use std::{
+    collections::VecDeque,
     pin::Pin,
     task::{
         Context,
@@ -6,73 +7,48 @@ use std::{
     },
 };
 
-use futures::Future;
-use tendermint::abci::{
-    response::{
-        Echo,
-        Info,
-        SetOption,
+use anyhow::Result;
+use futures::{
+    Future,
+    FutureExt,
+};
+use penumbra_storage::Storage;
+use tendermint::{
+    abci::{
+        request,
+        response::{
+            self,
+            Echo,
+            Info,
+            SetOption,
+        },
+        InfoRequest,
+        InfoResponse,
     },
-    InfoRequest,
-    InfoResponse,
+    block::Height,
 };
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::info;
 
-#[derive(Clone, Default)]
-pub struct InfoService {}
+use crate::accounts::query::QueryHandler;
+
+#[derive(Clone)]
+pub struct InfoService {
+    storage: Storage,
+}
 
 impl InfoService {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-pub struct InfoServiceFuture {
-    request: InfoRequest,
-}
-
-impl InfoServiceFuture {
-    pub fn new(request: InfoRequest) -> Self {
+    pub fn new(storage: Storage) -> Self {
         Self {
-            request,
-        }
-    }
-}
-
-impl Future for InfoServiceFuture {
-    type Output = Result<InfoResponse, BoxError>;
-
-    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match &self.request {
-            InfoRequest::Info(_) => {
-                let response = InfoResponse::Info(Info {
-                    version: "0.1.0".to_string(),
-                    app_version: 1,
-                    last_block_height: Default::default(),
-                    last_block_app_hash: Default::default(),
-                    data: "astria_sequencer".to_string(),
-                });
-                Poll::Ready(Ok(response))
-            }
-            InfoRequest::Echo(echo) => Poll::Ready(Ok(InfoResponse::Echo(Echo {
-                message: echo.message.clone(),
-            }))),
-            InfoRequest::Query(_) => Poll::Ready(Ok(InfoResponse::Query(Default::default()))),
-            // this was removed after v0.34
-            InfoRequest::SetOption(_) => Poll::Ready(Ok(InfoResponse::SetOption(SetOption {
-                code: Default::default(),
-                log: "SetOption is not supported".to_string(),
-                info: "SetOption is not supported".to_string(),
-            }))),
+            storage,
         }
     }
 }
 
 impl Service<InfoRequest> for InfoService {
     type Error = BoxError;
-    type Future = InfoServiceFuture;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
     type Response = InfoResponse;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -81,6 +57,78 @@ impl Service<InfoRequest> for InfoService {
 
     fn call(&mut self, req: InfoRequest) -> Self::Future {
         info!("got info request: {:?}", req);
-        InfoServiceFuture::new(req)
+        handle_info_request(self.storage.clone(), req).boxed()
+    }
+}
+
+async fn handle_info_request(
+    storage: Storage,
+    request: InfoRequest,
+) -> Result<InfoResponse, BoxError> {
+    match &request {
+        InfoRequest::Info(_) => {
+            let response = InfoResponse::Info(Info {
+                version: "0.1.0".to_string(),
+                app_version: 1,
+                last_block_height: Default::default(),
+                last_block_app_hash: Default::default(),
+                data: "astria_sequencer".to_string(),
+            });
+            Ok(response)
+        }
+        InfoRequest::Echo(echo) => Ok(InfoResponse::Echo(Echo {
+            message: echo.message.clone(),
+        })),
+        InfoRequest::Query(req) => Ok(InfoResponse::Query(handle_query(storage, req).await?)),
+        // this was removed after v0.34
+        InfoRequest::SetOption(_) => Ok(InfoResponse::SetOption(SetOption {
+            code: Default::default(),
+            log: "SetOption is not supported".to_string(),
+            info: "SetOption is not supported".to_string(),
+        })),
+    }
+}
+
+/// handles queries in the form of [`component/arg1/arg2/...`]
+/// for example, to query an account balance: [`accounts/balance/0x1234...`]
+async fn handle_query(storage: Storage, request: &request::Query) -> Result<response::Query> {
+    // note: request::Query also has a `data` field, which we ignore here
+    let query = decode_query(&request.path)?;
+
+    // TODO: handle height requests
+    let key = request.path.clone().into_bytes();
+    let value = match query {
+        Query::AccountsQuery(request) => {
+            let handler = QueryHandler::new();
+            handler.handle(storage.latest_snapshot(), request).await?
+        }
+    }
+    .to_bytes()?;
+
+    Ok(response::Query {
+        key: key.into(),
+        value: value.into(),
+        height: Height::from(storage.latest_snapshot().version() as u32 + 1),
+        ..Default::default()
+    })
+}
+
+pub enum Query {
+    AccountsQuery(crate::accounts::query::QueryRequest),
+}
+
+fn decode_query(path: &str) -> Result<Query> {
+    let mut parts: VecDeque<&str> = path.split('/').collect();
+
+    let Some(component) = parts.pop_front() else {
+        return Err(anyhow::anyhow!("invalid query path; missing component: {}", path));
+    };
+
+    match component {
+        "accounts" => {
+            let request = crate::accounts::query::QueryRequest::decode(parts)?;
+            Ok(Query::AccountsQuery(request))
+        }
+        _ => Err(anyhow::anyhow!("invalid query path: {}", path)),
     }
 }

@@ -12,10 +12,14 @@ use tendermint::abci::{
     self,
     Event,
 };
+use tracing::info;
 
 use crate::{
     accounts::component::AccountsComponent,
-    state_ext::StateWriteExt as _,
+    state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     transaction::Transaction,
 };
 
@@ -117,6 +121,12 @@ impl App {
             .expect("state Arc should be present and unique");
 
         tx.execute(&mut state_tx).await?;
+
+        let height = state_tx
+            .get_block_height()
+            .await
+            .expect("block height should be set");
+        info!(?tx, ?height, "executed transaction");
         Ok(vec![])
     }
 

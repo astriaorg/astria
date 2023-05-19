@@ -1,13 +1,14 @@
-use anyhow::{
-    Result,
-};
+use anyhow::Result;
 use async_trait::async_trait;
 use penumbra_storage::{
     StateRead,
     StateWrite,
 };
 
-use crate::accounts::{transaction::{Balance, Nonce}};
+use crate::accounts::transaction::{
+    Balance,
+    Nonce,
+};
 
 const ACCOUNTS_PREFIX: &str = "accounts";
 
@@ -18,7 +19,10 @@ fn storage_key(address: &str) -> String {
 #[async_trait]
 pub trait StateReadExt: StateRead {
     async fn get_account_state(&self, address: &str) -> Result<(Balance, Nonce)> {
-        let bytes = self.get_raw(&storage_key(address)).await?;
+        let bytes = self
+            .get_raw(&storage_key(address))
+            .await
+            .expect("storage error");
         let Some(bytes) = bytes else {
             // the account has not yet been initialized; return (0, 0)
             return Ok((0, 0));
