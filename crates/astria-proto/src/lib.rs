@@ -2,7 +2,6 @@ pub mod execution {
     pub mod v1 {
         include!(concat!(env!("OUT_DIR"), "/astria.execution.v1.rs"));
     }
-    
 }
 
 pub mod sequencer {
