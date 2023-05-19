@@ -3,10 +3,18 @@ use std::collections::HashMap;
 use astria_sequencer_relayer::{
     base64_string::Base64String,
     da::CelestiaClientBuilder,
-    sequencer_block::{get_namespace, IndexedTransaction, SequencerBlock, DEFAULT_NAMESPACE},
+    sequencer_block::{
+        get_namespace,
+        IndexedTransaction,
+        SequencerBlock,
+        DEFAULT_NAMESPACE,
+    },
 };
 use astria_sequencer_relayer_test::init_test;
-use ed25519_dalek::{Keypair, PublicKey};
+use ed25519_dalek::{
+    Keypair,
+    PublicKey,
+};
 use rand::rngs::OsRng;
 
 #[tokio::test]

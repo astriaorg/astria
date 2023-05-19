@@ -1,22 +1,50 @@
-use std::{collections::HashMap, fmt};
+use std::{
+    collections::HashMap,
+    fmt,
+};
 
-use astria_sequencer_relayer_proto::{SequencerMsg, TxBody, TxRaw};
-use base64::{engine::general_purpose, Engine as _};
-use eyre::{bail, ensure, WrapErr as _};
+use astria_sequencer_relayer_proto::{
+    SequencerMsg,
+    TxBody,
+    TxRaw,
+};
+use base64::{
+    engine::general_purpose,
+    Engine as _,
+};
+use eyre::{
+    bail,
+    ensure,
+    WrapErr as _,
+};
 use hex;
-use prost::{DecodeError, Message};
+use prost::{
+    DecodeError,
+    Message,
+};
 use serde::{
-    de::{self, Visitor},
-    Deserialize, Deserializer, Serialize,
+    de::{
+        self,
+        Visitor,
+    },
+    Deserialize,
+    Deserializer,
+    Serialize,
 };
 use serde_json;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use tracing::debug;
 
 use crate::{
     base64_string::Base64String,
     transaction::txs_to_data_hash,
-    types::{Block, Header},
+    types::{
+        Block,
+        Header,
+    },
 };
 
 /// Cosmos SDK message type URL for SequencerMsgs.
@@ -261,10 +289,17 @@ mod test {
     use std::collections::HashMap;
 
     use super::{
-        cosmos_tx_body_to_sequencer_msgs, parse_cosmos_tx, Header, SequencerBlock,
-        DEFAULT_NAMESPACE, SEQUENCER_TYPE_URL,
+        cosmos_tx_body_to_sequencer_msgs,
+        parse_cosmos_tx,
+        Header,
+        SequencerBlock,
+        DEFAULT_NAMESPACE,
+        SEQUENCER_TYPE_URL,
     };
-    use crate::{base64_string::Base64String, sequencer_block::IndexedTransaction};
+    use crate::{
+        base64_string::Base64String,
+        sequencer_block::IndexedTransaction,
+    };
 
     #[test]
     fn test_parse_primary_tx() {

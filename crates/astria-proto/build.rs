@@ -41,7 +41,6 @@ fn main() {
         .arg(out_dir)
         .arg("--template")
         .arg("buf.gen.yaml")
-
         .current_dir(env!("CARGO_MANIFEST_DIR"));
 
     match cmd.output() {
