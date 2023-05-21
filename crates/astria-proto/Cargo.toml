@@ -1,15 +1,15 @@
 [package]
-name = "astria-execution-apis-rpc"
+name = "astria-proto"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/astriaorg/astria-rpc"
+repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 # TODO
 # documentation = ""
 
-categories = ["astria-execution-apis", "astria-rpc", "rpc-types"]
+categories = ["astria-proto", "astria-rpc", "rpc-types"]
 keywords = ["astria", "grpc", "rpc", "blockchain", "execution", "protobuf"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

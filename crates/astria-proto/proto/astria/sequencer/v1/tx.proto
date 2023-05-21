@@ -1,6 +1,9 @@
 // these types are copy pasted from here: https://github.com/cosmos/cosmos-sdk/blob/v0.44.0/proto/cosmos/tx/v1beta1/tx.proto
 
 syntax = "proto3";
+
+package astria.sequencer.v1;
+
 import "google/protobuf/any.proto";
 
 // TxRaw is a variant of Tx that pins the signer's exact binary representation
