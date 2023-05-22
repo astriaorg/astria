@@ -1,6 +1,7 @@
-// this is copied from astriorg's metro/pb/msg.proto
-
+// this is (mostly) copied from astriorg's metro/pb/msg.proto
 syntax = "proto3";
+
+package astria.sequencer.v1;
 
 message SequencerMsg {
     bytes chain_id = 1;

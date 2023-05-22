@@ -148,7 +148,10 @@ impl TestEnvironment {
         // only available once its containers are available. However, nginx (the ingress
         // controller) has a small delay between the deployment becoming available and
         // being able to route requests to its services.
-        wait_until_bridge_is_available(&namespace).await;
+        tokio::join!(
+            wait_until_bridge_is_available(&namespace),
+            wait_until_sequencer_is_available(&namespace),
+        );
 
         let host = format!("http://{namespace}.localdev.me");
         Self {
@@ -295,6 +298,29 @@ async fn wait_until_bridge_is_available(namespace: &str) {
         .expect("building a basic reqwest client should never fail");
     let url = reqwest::Url::parse(&format!("http://{namespace}.localdev.me/bridge/header/1"))
         .expect("bridge endpoint should be a valid url");
+    loop {
+        if client
+            .get(url.clone())
+            .send()
+            .await
+            .expect("sending a get request should not fail")
+            .error_for_status()
+            .is_ok()
+        {
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+}
+
+async fn wait_until_sequencer_is_available(namespace: &str) {
+    let client = reqwest::Client::builder()
+        .build()
+        .expect("building a basic reqwest client should never fail");
+    let url = reqwest::Url::parse(&format!(
+        "http://{namespace}.localdev.me/sequencer/cosmos/base/tendermint/v1beta1/blocks/latest"
+    ))
+    .expect("sequencer endpoint should be a valid url");
     loop {
         if client
             .get(url.clone())

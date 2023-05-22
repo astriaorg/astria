@@ -1,4 +1,4 @@
-use astria_execution_apis_rpc::execution::{
+use astria_proto::execution::v1::{
     execution_service_client::ExecutionServiceClient,
     DoBlockRequest,
     DoBlockResponse,
