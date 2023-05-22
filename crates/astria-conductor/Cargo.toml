@@ -25,11 +25,10 @@ tonic = "0.8.3"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.16"
 
-astria-execution-apis-rpc = { path = "../astria-execution-apis-rpc" }
+astria-proto = { path = "../astria-proto" }
 astria-gossipnet = { path = "../astria-gossipnet" }
-astria-rs-cnc = { path = "../astria-rs-cnc", default-features = false, features = ["rustls"] }
+astria-rs-cnc = { path = "../astria-rs-cnc" }
 astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
-astria-sequencer-relayer-proto = { path = "../astria-sequencer-relayer-proto" }
 
 [dev-dependencies]
 astria-conductor-test = { path = "../astria-conductor-test" }

@@ -28,8 +28,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 
 astria-gossipnet = { path = "../astria-gossipnet", features = [ "mdns" ] }
-astria-sequencer-relayer-proto = { path = "../astria-sequencer-relayer-proto" }
-astria-rs-cnc = { path = "../astria-rs-cnc", default-features = false, features = ["rustls"] }
+astria-proto = { path = "../astria-proto" }
+astria-rs-cnc = { path = "../astria-rs-cnc" }
 
 [dev-dependencies]
 astria-sequencer-relayer-test = { path = "../astria-sequencer-relayer-test"}

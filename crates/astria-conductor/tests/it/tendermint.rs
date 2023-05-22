@@ -1,6 +1,7 @@
 use astria_conductor::tendermint::TendermintClient;
 use astria_conductor_test::init_test;
 
+#[ignore = "requires heavy kubernetes test environment"]
 #[tokio::test]
 async fn should_get_validator_set() {
     let test_env = init_test().await;

@@ -295,10 +295,13 @@ spec:
         - --celestia-endpoint=http://localhost:26659
         - --validator-key-file=/root/.metro/config/priv_validator_key.json
         command:
-        - /usr/local/bin/relayer
-        image: ghcr.io/astriaorg/sequencer-relayer:sha-574f422-debug
-        name: relayer
+        - /usr/local/bin/astria-sequencer-relayer
+        image: docker.io/library/debian:bookworm-slim
+        name: astria-sequencer-relayer
         volumeMounts:
+        - mountPath: /usr/local/bin/astria-sequencer-relayer
+          name: astria-sequencer-relayer-binary
+          readOnly: true
         - mountPath: /home/relayer
           name: relayer-home-vol
         - mountPath: /root/.metro
@@ -397,6 +400,10 @@ spec:
         - mountPath: /home/metro
           name: metro-home-vol
       volumes:
+      - hostPath:
+          path: /tmp/astria/astria-sequencer-relayer
+          type: File
+        name: astria-sequencer-relayer-binary
       - configMap:
           defaultMode: 320
           name: bridge-scripts-kmtkbk7fc7

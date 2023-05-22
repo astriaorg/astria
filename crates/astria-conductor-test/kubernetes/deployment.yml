@@ -132,14 +132,17 @@ spec:
           envFrom:
             - configMapRef:
                 name: metro-env
-        - name: relayer
-          image: "ghcr.io/astriaorg/sequencer-relayer:sha-574f422-debug"
-          command: ["/usr/local/bin/relayer"]
+        - name: astria-sequencer-relayer
+          image: docker.io/library/debian:bookworm-slim
+          command: ["/usr/local/bin/astria-sequencer-relayer"]
           args:
             - "--sequencer-endpoint=http://localhost:1318"
             - "--celestia-endpoint=http://localhost:26659"
             - "--validator-key-file=/root/.metro/config/priv_validator_key.json"
           volumeMounts:
+            - mountPath: /usr/local/bin/astria-sequencer-relayer
+              name: astria-sequencer-relayer-binary
+              readOnly: true
             - mountPath: /home/relayer
               name: relayer-home-vol
             - mountPath: /root/.metro
@@ -164,6 +167,10 @@ spec:
             - containerPort: 8545
             - containerPort: 50051
       volumes:
+      - name: astria-sequencer-relayer-binary
+        hostPath:
+          path: /tmp/astria/astria-sequencer-relayer
+          type: File
       - name: bridge-scripts-volume
         configMap:
           name: bridge-scripts
