@@ -503,7 +503,7 @@ mod test {
         channel::oneshot,
         join,
     };
-    use tokio::select;
+    use tokio::{select, sync::watch};
 
     use super::*;
 
@@ -522,7 +522,7 @@ mod test {
         let alice_handle = tokio::task::spawn(async move {
             let topic = Sha256Topic::new(TEST_TOPIC);
 
-            let mut alice = Network::new(None, 0).unwrap();
+            let mut alice = Network::new(Keypair::generate_ed25519(), None, 0).unwrap();
             alice.subscribe(&topic);
 
             let Some(event) = alice.next().await else {
@@ -565,7 +565,7 @@ mod test {
             let topic = Sha256Topic::new(TEST_TOPIC);
 
             let bootnode = bootnode_rx.await.unwrap();
-            let mut bob = Network::new(Some(vec![bootnode.to_string()]), 0).unwrap();
+            let mut bob = Network::new(Keypair::generate_ed25519(), Some(vec![bootnode.to_string()]), 0).unwrap();
             bob.subscribe(&topic);
 
             loop {
