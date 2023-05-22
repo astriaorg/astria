@@ -18,7 +18,6 @@ eyre = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 prost = { workspace = true }
-rand = { workspace = true, features = [ "getrandom" ] }
 reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -34,3 +33,4 @@ astria-rs-cnc = { path = "../astria-rs-cnc" }
 
 [dev-dependencies]
 astria-sequencer-relayer-test = { path = "../astria-sequencer-relayer-test"}
+rand = { workspace = true, features = [ "getrandom" ] }
