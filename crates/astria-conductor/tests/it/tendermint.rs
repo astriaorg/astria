@@ -1,5 +1,6 @@
 use astria_conductor::tendermint::TendermintClient;
-use astria_conductor_test::init_test;
+
+use crate::helper::init_test;
 
 #[ignore = "requires heavy kubernetes test environment"]
 #[tokio::test]

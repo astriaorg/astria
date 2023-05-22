@@ -19,12 +19,6 @@ use color_eyre::eyre::{
     Result,
     WrapErr,
 };
-use log::{
-    debug,
-    error,
-    info,
-    warn,
-};
 use tokio::{
     sync::mpsc::{
         self,
@@ -32,6 +26,12 @@ use tokio::{
         UnboundedSender,
     },
     task,
+};
+use tracing::{
+    debug,
+    error,
+    info,
+    warn,
 };
 
 use crate::{

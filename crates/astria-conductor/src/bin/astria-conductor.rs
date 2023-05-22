@@ -8,7 +8,7 @@ use astria_conductor::{
         Driver,
         DriverCommand,
     },
-    logger,
+    telemetry,
 };
 use clap::Parser;
 use color_eyre::eyre::{
@@ -24,10 +24,6 @@ use figment::{
     },
     Figment,
 };
-use log::{
-    error,
-    info,
-};
 use tokio::{
     select,
     signal::unix::{
@@ -40,6 +36,10 @@ use tokio::{
     },
     time,
 };
+use tracing::{
+    error,
+    info,
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -49,8 +49,7 @@ async fn main() -> Result<()> {
 
 async fn run() -> Result<()> {
     let args = Cli::parse();
-    // logs
-    logger::initialize(&args.log_level);
+    telemetry::init(std::io::stdout).expect("failed to initialize telemetry");
 
     // hierarchical config. cli args override Envars which override toml config values
     let conf: Config = Figment::new()
@@ -59,10 +58,10 @@ async fn run() -> Result<()> {
         .merge(Serialized::defaults(args))
         .extract()?;
 
-    log::info!("Using chain ID {}", conf.chain_id);
-    log::info!("Using Celestia node at {}", conf.celestia_node_url);
-    log::info!("Using execution node at {}", conf.execution_rpc_url);
-    log::info!("Using Tendermint node at {}", conf.tendermint_url);
+    info!("Using chain ID {}", conf.chain_id);
+    info!("Using Celestia node at {}", conf.celestia_node_url);
+    info!("Using execution node at {}", conf.execution_rpc_url);
+    info!("Using Tendermint node at {}", conf.tendermint_url);
 
     let SignalReceiver {
         mut reload_rx,
@@ -200,15 +199,15 @@ fn spawn_signal_handler() -> SignalReceiver {
         loop {
             select! {
                 _ = sighup.recv() => {
-                    log::info!("received SIGHUP");
+                    info!("received SIGHUP");
                     let _ = reload_tx.send(());
                 }
                 _ = sigint.recv() => {
-                    log::info!("received SIGINT");
+                    info!("received SIGINT");
                     let _ = stop_tx.send(());
                 }
                 _ = sigterm.recv() => {
-                    log::info!("received SIGTERM");
+                    info!("received SIGTERM");
                     let _ = stop_tx.send(());
                 }
             }

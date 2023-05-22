@@ -14,7 +14,7 @@ pub mod config;
 pub mod driver;
 pub(crate) mod execution_client;
 pub(crate) mod executor;
-pub mod logger;
 pub mod network;
 pub mod reader;
+pub mod telemetry;
 pub mod tendermint;
