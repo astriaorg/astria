@@ -28,8 +28,4 @@ pub struct Cli {
 
     #[arg(long = "disable-finalization")]
     pub disable_finalization: bool,
-
-    /// Log level. One of debug, info, warn, or error
-    #[arg(long = "log", default_value = "info")]
-    pub log_level: String,
 }
