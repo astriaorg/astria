@@ -23,6 +23,19 @@ use color_eyre::eyre::{
 };
 use futures::StreamExt;
 pub use libp2p::gossipsub::Sha256Topic;
+#[cfg(feature = "dht")]
+use libp2p::kad::{
+    record::{
+        store::MemoryStore,
+        Key,
+    },
+    {
+        Kademlia,
+        KademliaConfig,
+        KademliaEvent,
+        QueryResult,
+    },
+};
 #[cfg(feature = "mdns")]
 use libp2p::mdns;
 use libp2p::{
@@ -33,7 +46,14 @@ use libp2p::{
         MessageId,
         TopicHash,
     },
-    identity,
+    identity::Keypair,
+    kad::{
+        AddProviderError,
+        Addresses,
+        GetProvidersError,
+        GetProvidersOk,
+        QueryId,
+    },
     noise,
     ping,
     swarm::{
@@ -48,9 +68,11 @@ use libp2p::{
     PeerId,
     Transport,
 };
+use multiaddr::Protocol;
 use tracing::{
     debug,
     info,
+    warn,
 };
 
 #[derive(NetworkBehaviour)]
@@ -59,12 +81,15 @@ struct GossipnetBehaviour {
     gossipsub: gossipsub::Behaviour,
     #[cfg(feature = "mdns")]
     mdns: mdns::tokio::Behaviour,
+    #[cfg(feature = "dht")]
+    kademlia: Kademlia<MemoryStore>, // TODO: use disk store
 }
 
 pub struct NetworkBuilder {
     bootnodes: Option<Vec<String>>,
     port: u16,
     // TODO: load key file or keypair
+    keypair: Option<Keypair>,
 }
 
 impl NetworkBuilder {
@@ -72,6 +97,7 @@ impl NetworkBuilder {
         Self {
             bootnodes: None,
             port: 0, // random port
+            keypair: None,
         }
     }
 
@@ -85,8 +111,18 @@ impl NetworkBuilder {
         self
     }
 
+    pub fn keypair(mut self, keypair: Keypair) -> Self {
+        // TODO: load/store keypair from disk
+        self.keypair = Some(keypair);
+        self
+    }
+
     pub fn build(self) -> Result<Network> {
-        Network::new(self.bootnodes, self.port)
+        Network::new(
+            self.keypair.unwrap_or(Keypair::generate_ed25519()),
+            self.bootnodes,
+            self.port,
+        )
     }
 }
 
@@ -97,15 +133,14 @@ impl Default for NetworkBuilder {
 }
 
 pub struct Network {
-    pub multiaddr: Multiaddr,
+    pub multiaddrs: Vec<Multiaddr>,
+    local_peer_id: PeerId,
     swarm: Swarm<GossipnetBehaviour>,
     terminated: bool,
 }
 
 impl Network {
-    pub fn new(bootnodes: Option<Vec<String>>, port: u16) -> Result<Self> {
-        // TODO: store this on disk instead of randomly generating
-        let local_key = identity::Keypair::generate_ed25519();
+    pub fn new(local_key: Keypair, bootnodes: Option<Vec<String>>, port: u16) -> Result<Self> {
         let local_peer_id = PeerId::from(local_key.public());
         info!("local peer id: {local_peer_id:?}");
 
@@ -137,6 +172,14 @@ impl Network {
         .map_err(|e| eyre!("failed to create gossipsub behaviour: {}", e))?;
 
         let mut swarm = {
+            #[cfg(feature = "dht")]
+            let kademlia = {
+                let mut cfg = KademliaConfig::default();
+                cfg.set_query_timeout(Duration::from_secs(5 * 60));
+                let store = MemoryStore::new(local_peer_id);
+                Kademlia::with_config(local_peer_id, store, cfg)
+            };
+
             #[cfg(feature = "mdns")]
             let mdns = mdns::tokio::Behaviour::new(mdns::Config::default(), local_peer_id)?;
             let behaviour = GossipnetBehaviour {
@@ -144,6 +187,8 @@ impl Network {
                 #[cfg(feature = "mdns")]
                 mdns,
                 ping: ping::Behaviour::default(),
+                #[cfg(feature = "dht")]
+                kademlia,
             };
             SwarmBuilder::with_tokio_executor(transport, behaviour, local_peer_id).build()
         };
@@ -154,19 +199,64 @@ impl Network {
         if let Some(addrs) = bootnodes {
             addrs.iter().try_for_each(|addr| -> Result<_> {
                 debug!("dialing {:?}", addr);
-                let remote: Multiaddr = addr.parse()?;
-                swarm.dial(remote)?;
+                let mut maddr: Multiaddr = addr.parse()?;
+                swarm.dial(maddr.clone())?;
                 debug!("dialed {addr}");
+
+                let Some(peer_id) = maddr.pop() else {
+                    return Err(eyre!("failed to parse peer id from addr: {}", addr));
+                };
+
+                match peer_id {
+                    Protocol::P2p(peer_id) => {
+                        let peer_id = match PeerId::from_multihash(peer_id) {
+                            Ok(peer_id) => peer_id,
+                            Err(e) => {
+                                return Err(eyre!("failed to parse peer id from addr: {:?}", e));
+                            }
+                        };
+
+                        swarm.behaviour_mut().kademlia.add_address(&peer_id, maddr);
+                    }
+                    _ => {
+                        return Err(eyre!("failed to parse peer id from addr: {}", addr));
+                    }
+                }
+
                 Ok(())
             })?;
         }
 
-        let multiaddr = Multiaddr::from_str(&format!("{}/p2p/{}", listen_addr, local_peer_id))?;
         Ok(Network {
-            multiaddr,
+            multiaddrs: vec![],
+            local_peer_id,
             swarm,
             terminated: false,
         })
+    }
+
+    #[cfg(feature = "dht")]
+    pub async fn bootstrap(&mut self) -> Result<()> {
+        self.swarm
+            .behaviour_mut()
+            .kademlia
+            .bootstrap()
+            .map(|_| ())
+            .map_err(|e| eyre!(e))
+    }
+
+    #[cfg(feature = "dht")]
+    pub async fn discover(&mut self, key: Key) {
+        self.swarm.behaviour_mut().kademlia.get_providers(key);
+    }
+
+    #[cfg(feature = "dht")]
+    pub async fn provide(&mut self, key: Key) -> Result<QueryId> {
+        self.swarm
+            .behaviour_mut()
+            .kademlia
+            .start_providing(key)
+            .map_err(|e| eyre!(e))
     }
 
     pub async fn publish(&mut self, message: Vec<u8>, topic: Sha256Topic) -> Result<MessageId> {
@@ -204,6 +294,16 @@ pub enum Event {
     MdnsPeersDisconnected(Vec<PeerId>),
     PeerConnected(PeerId),
     PeerSubscribed(PeerId, TopicHash),
+    #[cfg(feature = "dht")]
+    FoundProviders(Option<Key>, Option<Vec<PeerId>>),
+    #[cfg(feature = "dht")]
+    GetProvidersError(GetProvidersError),
+    #[cfg(feature = "dht")]
+    Providing(Key),
+    #[cfg(feature = "dht")]
+    ProvideError(AddProviderError),
+    #[cfg(feature = "dht")]
+    RoutingUpdated(PeerId, Addresses),
 }
 
 impl futures::Stream for Network {
@@ -217,6 +317,119 @@ impl futures::Stream for Network {
             };
 
             match event {
+                // Swarm events
+                SwarmEvent::NewListenAddr {
+                    address, ..
+                } => {
+                    debug!("Local node is listening on {address}");
+                    let maddr_str = format!("{}/p2p/{}", address, self.local_peer_id);
+                    let Ok(multiaddr) = Multiaddr::from_str(&maddr_str) else {
+                                        warn!("failed to parse multiaddr: {maddr_str}");
+                                        continue;
+                                    };
+
+                    self.multiaddrs.push(multiaddr);
+                    return Poll::Ready(Some(Event::NewListenAddr(address)));
+                }
+                SwarmEvent::ConnectionEstablished {
+                    peer_id,
+                    endpoint: _,
+                    num_established,
+                    concurrent_dial_errors: _,
+                    established_in: _,
+                } => {
+                    debug!(
+                        "Connection with {peer_id} established (total: {num_established})",
+                        peer_id = peer_id,
+                        num_established = num_established,
+                    );
+                    self.swarm
+                        .behaviour_mut()
+                        .gossipsub
+                        .add_explicit_peer(&peer_id);
+                    return Poll::Ready(Some(Event::PeerConnected(peer_id)));
+                }
+
+                // DHT events
+                #[cfg(feature = "dht")]
+                SwarmEvent::Behaviour(GossipnetBehaviourEvent::Kademlia(
+                    KademliaEvent::RoutingUpdated {
+                        peer,
+                        addresses,
+                        old_peer,
+                        ..
+                    },
+                )) => {
+                    debug!(
+                        "Routing table updated. Peer: {peer:?}, Addresses: {addresses:?}, Old \
+                         peer: {old_peer:?}",
+                        peer = peer,
+                        addresses = addresses,
+                        old_peer = old_peer,
+                    );
+                }
+                SwarmEvent::Behaviour(GossipnetBehaviourEvent::Kademlia(
+                    KademliaEvent::OutboundQueryProgressed {
+                        id,
+                        result,
+                        ..
+                    },
+                )) => match result {
+                    QueryResult::StartProviding(res) => match res {
+                        Ok(res) => {
+                            debug!("started providing for query id {:?}", id);
+                            return Poll::Ready(Some(Event::Providing(res.key)));
+                        }
+                        Err(e) => {
+                            debug!("failed to start providing for {:?}: {}", id, e);
+                            return Poll::Ready(Some(Event::ProvideError(e)));
+                        }
+                    },
+                    QueryResult::GetProviders(providers) => match providers {
+                        Ok(providers) => {
+                            match providers {
+                                GetProvidersOk::FoundProviders {
+                                    key,
+                                    providers,
+                                } => {
+                                    debug!(
+                                        "found {} providers for query id {:?}, key {:?}",
+                                        providers.len(),
+                                        id,
+                                        key
+                                    );
+                                    return Poll::Ready(Some(Event::FoundProviders(
+                                        Some(key),
+                                        Some(providers.into_iter().collect()),
+                                    )));
+                                }
+                                GetProvidersOk::FinishedWithNoAdditionalRecord {
+                                    closest_peers: _,
+                                } => {
+                                    debug!("finished with no additional record");
+                                    return Poll::Ready(Some(Event::FoundProviders(None, None)));
+                                }
+                            };
+                        }
+                        Err(e) => {
+                            debug!("failed to find providers for {:?}: {}", id, e);
+                            return Poll::Ready(Some(Event::GetProvidersError(e)));
+                        }
+                    },
+                    QueryResult::Bootstrap(bootstrap) => {
+                        if bootstrap.is_err() {
+                            warn!(error = ?bootstrap.err(), "failed to bootstrap {:?}", id);
+                            continue;
+                        }
+
+                        debug!("bootstrapping ok");
+                    }
+                    _ => {
+                        debug!("query result for {:?}: {:?}", id, result);
+                    }
+                },
+
+                // mDNS events
                 #[cfg(feature = "mdns")]
                 SwarmEvent::Behaviour(GossipnetBehaviourEvent::Mdns(mdns::Event::Discovered(
                     list,
@@ -245,6 +458,8 @@ impl futures::Stream for Network {
                     }
                     return Poll::Ready(Some(Event::MdnsPeersDisconnected(peers)));
                 }
+
+                // Gossipsub events
                 SwarmEvent::Behaviour(GossipnetBehaviourEvent::Gossipsub(
                     gossipsub::Event::Message {
                         propagation_source: peer_id,
@@ -257,12 +472,6 @@ impl futures::Stream for Network {
                         String::from_utf8_lossy(&message.data),
                     );
                     return Poll::Ready(Some(Event::Message(message)));
-                }
-                SwarmEvent::NewListenAddr {
-                    address, ..
-                } => {
-                    debug!("Local node is listening on {address}");
-                    return Poll::Ready(Some(Event::NewListenAddr(address)));
                 }
                 SwarmEvent::Behaviour(GossipnetBehaviourEvent::Gossipsub(
                     gossipsub::Event::Subscribed {
@@ -277,24 +486,7 @@ impl futures::Stream for Network {
                     );
                     return Poll::Ready(Some(Event::PeerSubscribed(peer_id, topic)));
                 }
-                SwarmEvent::ConnectionEstablished {
-                    peer_id,
-                    endpoint: _,
-                    num_established,
-                    concurrent_dial_errors: _,
-                    established_in: _,
-                } => {
-                    debug!(
-                        "Connection with {peer_id} established (total: {num_established})",
-                        peer_id = peer_id,
-                        num_established = num_established,
-                    );
-                    self.swarm
-                        .behaviour_mut()
-                        .gossipsub
-                        .add_explicit_peer(&peer_id);
-                    return Poll::Ready(Some(Event::PeerConnected(peer_id)));
-                }
+
                 _ => {
                     debug!("unhandled swarm event: {:?}", event);
                 }
@@ -405,5 +597,199 @@ mod test {
         let (res_a, res_b) = join!(alice_handle, bob_handle);
         res_a.unwrap();
         res_b.unwrap();
+    }
+
+    // this test starts 3 nodes; Alice, Bob and Charlie.
+    // it connects Bob and Charlie to Alice directly, then tests that Bob and Charlie can
+    // discover each other via the DHT.
+    #[tokio::test]
+    async fn test_dht_discovery() {
+        // closed when task stops
+        let (charlie_tx, mut charlie_rx) = oneshot::channel();
+        let (bob_tx, mut bob_rx) = oneshot::channel();
+
+        // closed when Charlie finishes providing
+        let (charlie_provide_tx, mut charlie_provide_rx) = tokio::sync::mpsc::channel(1);
+
+        // for sending the bootnode (Alice's) address to Bob and Charlie
+        let (bootnode_tx, mut bootnode_rx) = watch::channel(None);
+        let mut charlie_bootnode_rx = bootnode_rx.clone();
+
+        // Charlie's local node key and peer id
+        let charlie_local_key = Keypair::generate_ed25519();
+        let charlie_peer_id = PeerId::from(charlie_local_key.public());
+
+        // key provided in DHT
+        let key = Key::new(b"test");
+        let key_c = key.clone();
+
+        let alice_handle = tokio::task::spawn(async move {
+            let mut alice = Network::new(Keypair::generate_ed25519(), None, 9000).unwrap();
+
+            let Some(event) = alice.next().await else {
+                panic!("expected stream event");
+            };
+
+            match event {
+                Event::NewListenAddr(addr) => {
+                    println!("Alice listening on {:?}", addr);
+                    let maddrs = &alice.multiaddrs;
+                    assert_eq!(maddrs.len(), 1);
+                    let maddr = maddrs[0].clone();
+                    println!("Alice's maddr: {:?}", maddr);
+                    bootnode_tx.send(Some(maddr)).unwrap();
+                }
+                _ => panic!("unexpected event"),
+            };
+
+            loop {
+                select! {
+                    event = alice.next() => {
+                        let Some(event) = event else {
+                            continue;
+                        };
+
+                        match event {
+                            Event::PeerConnected(peer_id) => {
+                                println!("Alice connected to {:?}", peer_id);
+                                // if peer_count == 1 {
+                                //     _ = alice.provide(key_a.clone()).await.unwrap();
+                                //     println!("Alice provided key");
+                                // }
+
+                                // if peer_count == 2 {
+                                //     alice_tx.send(()).unwrap();
+                                //     return;
+                                // }
+                            }
+                            // Event::Providing(provided_key) => {
+                            //     println!("Alice is providing {:?}", provided_key);
+                            //     assert_eq!(provided_key, key_a.clone());
+                            // }
+                            // Event::ProvideError(e) => {
+                            //     panic!("Alice failed to provide: {:?}", e);
+                            // }
+                            _ => {}
+                        }
+                    }
+                    _ = &mut bob_rx => {
+                        return;
+                    }
+                }
+            }
+        });
+
+        let bob_handle = tokio::task::spawn(async move {
+            bootnode_rx.changed().await.unwrap();
+            let bootnode = bootnode_rx.borrow().to_owned().unwrap();
+            let mut bob = Network::new(
+                Keypair::generate_ed25519(),
+                Some(vec![bootnode.to_string()]),
+                9001,
+            )
+            .unwrap();
+
+            let mut peer_count = 0;
+            let mut found_providers_count = 0;
+
+            loop {
+                select! {
+                    event = bob.next() => {
+                        let Some(event) = event else {
+                            continue;
+                        };
+
+                        match event {
+                            Event::PeerConnected(peer_id) => {
+                                println!("Bob connected to {:?}", peer_id);
+                                peer_count += 1;
+                                if peer_count == 1 {
+                                    bob.bootstrap().await.unwrap();
+                                }
+                            }
+                            Event::FoundProviders(provided_key, providers) => {
+                                if found_providers_count > 0 {
+                                    continue;
+                                }
+
+                                println!("Bob found provider {:?} for {:?}", providers, provided_key);
+                                assert!(provided_key.is_some());
+                                assert_eq!(provided_key.unwrap(), key.clone());
+                                assert!(providers.is_some());
+                                let mut providers = providers.unwrap();
+                                assert_eq!(providers.len(), 1);
+                                assert_eq!(providers.pop().unwrap(), charlie_peer_id);
+                                found_providers_count += 1;
+                            }
+                            Event::GetProvidersError(e) => {
+                                panic!("Bob failed to get providers: {:?}", e);
+                            }
+                            Event::RoutingUpdated(peer_id, addresses) => {
+                                println!("Bob's routing table updated by {:?} with addresses {:?}", peer_id, addresses);
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ = charlie_provide_rx.recv() => {
+                        bob.discover(key.clone()).await;
+                    }
+                    _ = &mut charlie_rx => {
+                        bob_tx.send(()).unwrap();
+                        return;
+                    }
+                }
+            }
+        });
+
+        let charlie_handle = tokio::task::spawn(async move {
+            charlie_bootnode_rx.changed().await.unwrap();
+            let bootnode = charlie_bootnode_rx.borrow().to_owned().unwrap();
+            let mut charlie =
+                Network::new(charlie_local_key, Some(vec![bootnode.to_string()]), 9002).unwrap();
+
+            let mut peer_count = 0;
+
+            loop {
+                // select! {
+                let Some(event) = charlie.next().await else {
+                        break;
+                    };
+
+                match event {
+                    Event::PeerConnected(peer_id) => {
+                        println!("Charlie connected to {:?}", peer_id);
+                        peer_count += 1;
+                        if peer_count == 1 {
+                            charlie.bootstrap().await.unwrap();
+                            _ = charlie.provide(key_c.clone()).await.unwrap();
+                        }
+
+                        if peer_count == 2 {
+                            charlie_tx.send(()).unwrap();
+                            return;
+                        }
+                    }
+                    Event::Providing(provided_key) => {
+                        println!("Charlie is providing {:?}", provided_key);
+                        assert_eq!(provided_key, key_c.clone());
+                        charlie_provide_tx.send(()).await.unwrap();
+                    }
+                    Event::ProvideError(e) => {
+                        panic!("Charlie failed to provide: {:?}", e);
+                    }
+                    _ => {}
+                }
+
+                // _ = &mut bob_rx => {
+                //     return;
+                // }
+                //}
+            }
+        });
+
+        let (res_a, res_b, res_c) = join!(alice_handle, bob_handle, charlie_handle);
+        res_a.unwrap();
+        res_b.unwrap();
+        res_c.unwrap();
     }
 }

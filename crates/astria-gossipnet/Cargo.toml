@@ -6,9 +6,12 @@ edition = "2021"
 [dependencies]
 color-eyre = "0.6.2"
 futures = "0.3"
-libp2p = { version = "0.51", features = ["gossipsub", "mdns", "noise", "macros", "ping", "tcp", "tokio", "yamux"] }
-tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread", "signal"] }
+libp2p = { version = "0.51", features = ["kad", "gossipsub", "mdns", "noise", "macros", "ping", "tcp", "tokio", "yamux"] }
+multiaddr = "0.17"
+tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread", "signal", "sync"] }
 tracing = "0.1"
 
 [features]
+default = [ "dht" ]
+dht = []
 mdns = []
