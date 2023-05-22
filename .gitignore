@@ -1,1 +1,5 @@
 target/
+
+
+# jetbrains
+.idea

@@ -9,10 +9,6 @@ use color_eyre::eyre::{
     Result,
 };
 use futures::StreamExt;
-use log::{
-    debug,
-    info,
-};
 use tokio::{
     select,
     sync::mpsc::{
@@ -20,6 +16,10 @@ use tokio::{
         UnboundedReceiver,
         UnboundedSender,
     },
+};
+use tracing::{
+    debug,
+    info,
 };
 
 use crate::{

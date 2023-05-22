@@ -9,6 +9,7 @@ use astria_proto::execution::v1::{
 use color_eyre::eyre::Result;
 use prost_types::Timestamp;
 use tonic::transport::Channel;
+use tracing::info;
 
 /// Represents an RpcClient. Wrapping the auto generated client here.
 pub struct ExecutionRpcClient {
@@ -24,7 +25,7 @@ impl ExecutionRpcClient {
     /// * `address` - The address of the RPC server that we want to communicate with.
     pub async fn new(address: &str) -> Result<Self> {
         let client = ExecutionServiceClient::connect(address.to_owned()).await?;
-        log::info!("Connected to execution service at {}", address);
+        info!("Connected to execution service at {}", address);
         Ok(ExecutionRpcClient {
             client,
         })

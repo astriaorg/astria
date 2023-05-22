@@ -1,5 +1,4 @@
-// this is copied from astriorg's metro/pb/msg.proto
-
+// this is (mostly) copied from astriorg's metro/pb/msg.proto
 syntax = "proto3";
 
 package astria.sequencer.v1;

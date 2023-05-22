@@ -15,12 +15,6 @@ use color_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use log::{
-    debug,
-    error,
-    info,
-    warn,
-};
 use prost_types::Timestamp as ProstTimestamp;
 use tendermint::Time;
 use tokio::{
@@ -30,6 +24,12 @@ use tokio::{
         UnboundedSender,
     },
     task,
+};
+use tracing::{
+    debug,
+    error,
+    info,
+    warn,
 };
 
 use crate::{
@@ -51,7 +51,7 @@ type Receiver = UnboundedReceiver<ExecutorCommand>;
 /// spawns a executor task and returns a tuple with the task's join handle
 /// and the channel for sending commands to this executor
 pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinHandle, Sender)> {
-    log::info!("Spawning executor task.");
+    info!("Spawning executor task.");
     let (mut executor, executor_tx) = Executor::new(
         &conf.execution_rpc_url,
         get_namespace(conf.chain_id.as_bytes()),
@@ -59,7 +59,7 @@ pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinH
     )
     .await?;
     let join_handle = task::spawn(async move { executor.run().await });
-    log::info!("Spawned executor task.");
+    info!("Spawned executor task.");
     Ok((join_handle, executor_tx))
 }
 
@@ -142,7 +142,7 @@ impl Executor {
     }
 
     async fn run(&mut self) -> Result<()> {
-        log::info!("Starting executor event loop.");
+        info!("Starting executor event loop.");
 
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
@@ -174,7 +174,7 @@ impl Executor {
                 }
 
                 ExecutorCommand::Shutdown => {
-                    log::info!("Shutting down executor event loop.");
+                    info!("Shutting down executor event loop.");
                     break;
                 }
             }
