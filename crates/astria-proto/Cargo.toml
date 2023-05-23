@@ -18,6 +18,7 @@ keywords = ["astria", "grpc", "rpc", "blockchain", "execution", "protobuf"]
 prost = "0.11.8"
 prost-types = "0.11.8"
 tonic = "0.8.3"
+tendermint-proto = "0.30"
 
 [build-dependencies]
 which = "4.4.0"
