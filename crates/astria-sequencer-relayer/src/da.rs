@@ -328,7 +328,7 @@ impl CelestiaClient {
                 let Some(public_key) = public_key else {
                     return Some(data);
                 };
-                
+
                 let hash = data.data.hash().ok()?;
                 let signature = Signature::from_bytes(&data.signature.0).ok()?;
                 public_key.verify(&hash, &signature).ok()?;
