@@ -503,7 +503,10 @@ mod test {
         channel::oneshot,
         join,
     };
-    use tokio::{select, sync::watch};
+    use tokio::{
+        select,
+        sync::watch,
+    };
 
     use super::*;
 
@@ -532,7 +535,11 @@ mod test {
             match event {
                 Event::NewListenAddr(addr) => {
                     println!("Alice listening on {:?}", addr);
-                    bootnode_tx.send(addr).unwrap();
+                    let maddrs = &alice.multiaddrs;
+                    assert_eq!(maddrs.len(), 1);
+                    let maddr = maddrs[0].clone();
+                    println!("Alice's maddr: {:?}", maddr);
+                    bootnode_tx.send(maddr).unwrap();
                 }
                 _ => panic!("unexpected event"),
             };
@@ -565,7 +572,12 @@ mod test {
             let topic = Sha256Topic::new(TEST_TOPIC);
 
             let bootnode = bootnode_rx.await.unwrap();
-            let mut bob = Network::new(Keypair::generate_ed25519(), Some(vec![bootnode.to_string()]), 0).unwrap();
+            let mut bob = Network::new(
+                Keypair::generate_ed25519(),
+                Some(vec![bootnode.to_string()]),
+                0,
+            )
+            .unwrap();
             bob.subscribe(&topic);
 
             loop {
