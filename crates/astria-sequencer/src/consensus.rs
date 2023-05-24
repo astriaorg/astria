@@ -44,31 +44,30 @@ impl ConsensusService {
             // The send only fails if the receiver was dropped, which happens
             // if the caller didn't propagate the message back to tendermint
             // for some reason -- but that's not our problem.
-            let _ = rsp_sender.send(Ok(match req {
-                ConsensusRequest::InitChain(init_chain) => ConsensusResponse::InitChain(
-                    self.init_chain(init_chain)
-                        .await
-                        .expect("init_chain must succeed"),
-                ),
-                ConsensusRequest::BeginBlock(begin_block) => ConsensusResponse::BeginBlock(
-                    self.begin_block(begin_block)
-                        .await
-                        .expect("begin_block must succeed"),
-                ),
-                ConsensusRequest::DeliverTx(deliver_tx) => {
-                    ConsensusResponse::DeliverTx(self.deliver_tx(deliver_tx).await?)
-                }
-                ConsensusRequest::EndBlock(end_block) => ConsensusResponse::EndBlock(
-                    self.end_block(end_block)
-                        .await
-                        .expect("end_block must succeed"),
-                ),
-                ConsensusRequest::Commit => {
-                    ConsensusResponse::Commit(self.commit().await.expect("commit must succeed"))
-                }
-            }));
+            let _ = rsp_sender.send(self.handle_request(req).await);
         }
         Ok(())
+    }
+
+    async fn handle_request(
+        &mut self,
+        req: ConsensusRequest,
+    ) -> Result<ConsensusResponse, BoxError> {
+        Ok(match req {
+            ConsensusRequest::InitChain(init_chain) => {
+                ConsensusResponse::InitChain(self.init_chain(init_chain).await?)
+            }
+            ConsensusRequest::BeginBlock(begin_block) => {
+                ConsensusResponse::BeginBlock(self.begin_block(begin_block).await?)
+            }
+            ConsensusRequest::DeliverTx(deliver_tx) => {
+                ConsensusResponse::DeliverTx(self.deliver_tx(deliver_tx).await?)
+            }
+            ConsensusRequest::EndBlock(end_block) => {
+                ConsensusResponse::EndBlock(self.end_block(end_block).await?)
+            }
+            ConsensusRequest::Commit => ConsensusResponse::Commit(self.commit().await?),
+        })
     }
 
     async fn init_chain(

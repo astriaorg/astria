@@ -43,16 +43,16 @@ pub struct App {
 }
 
 impl App {
-    pub async fn new(snapshot: Snapshot) -> Result<Self> {
+    pub fn new(snapshot: Snapshot) -> Self {
         tracing::debug!("initializing App instance");
 
         // We perform the `Arc` wrapping of `State` here to ensure
         // there should be no unexpected copies elsewhere.
         let state = Arc::new(StateDelta::new(snapshot));
 
-        Ok(Self {
+        Self {
             state,
-        })
+        }
     }
 
     pub async fn init_chain(&mut self, genesis_state: &GenesisState) -> Result<()> {

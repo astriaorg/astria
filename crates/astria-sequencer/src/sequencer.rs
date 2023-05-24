@@ -36,18 +36,12 @@ impl Sequencer {
             .await
             .map_err(|e| eyre!("should create temp storage; {}", e))?;
         let snapshot = storage.latest_snapshot();
-        let app = App::new(snapshot)
-            .await
-            .map_err(|e| eyre!("should create app: {}", e))?;
+        let app = App::new(snapshot);
 
         let consensus_service =
             tower::ServiceBuilder::new().service(tower_actor::Actor::new(10, |queue: _| {
                 let storage = storage.clone();
-                async move {
-                    ConsensusService::new(storage.clone(), app, queue)
-                        .run()
-                        .await
-                }
+                async move { ConsensusService::new(storage, app, queue).run().await }
             }));
 
         let info_service = InfoService::new(storage.clone());
@@ -67,7 +61,7 @@ impl Sequencer {
     }
 
     pub async fn run(self, listen_addr: &str) {
-        info!("starting application listening on {}", listen_addr);
+        info!(?listen_addr, "starting sequencer");
         self.server
             .listen(listen_addr)
             .await
