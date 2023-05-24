@@ -1,14 +1,8 @@
-use astria_sequencer::{
-    app::App,
-    consensus::ConsensusService,
-    info::InfoService,
-    mempool::MempoolService,
-    snapshot::SnapshotService,
-};
-use tower_abci::Server;
-use tracing::info;
+use astria_sequencer::sequencer::Sequencer;
 use tracing_subscriber::EnvFilter;
 
+/// The default address to listen on; this corresponds to the default ABCI
+/// application address expected by tendermint.
 pub const DEFAULT_LISTEN_ADDR: &str = "127.0.0.1:26658";
 
 #[tokio::main]
@@ -19,36 +13,6 @@ async fn main() {
         )
         .init();
 
-    let storage = penumbra_storage::TempStorage::new()
-        .await
-        .expect("should create temp storage");
-    let snapshot = storage.snapshot(u64::MAX).expect("should create snapshot");
-    let app = App::new(snapshot).await.expect("should create app");
-
-    let consensus_service =
-        tower::ServiceBuilder::new().service(tower_actor::Actor::new(10, |queue: _| {
-            let storage = storage.clone();
-            async move {
-                ConsensusService::new(storage.clone(), app, queue)
-                    .run()
-                    .await
-            }
-        }));
-
-    let info_service = InfoService::new(storage.clone());
-    let mempool_service = MempoolService::new();
-    let snapshot_service = SnapshotService::new();
-    let server = Server::builder()
-        .consensus(consensus_service)
-        .info(info_service)
-        .mempool(mempool_service)
-        .snapshot(snapshot_service)
-        .finish()
-        .expect("should build server");
-
-    info!("starting application listening on {}", DEFAULT_LISTEN_ADDR);
-    server
-        .listen(DEFAULT_LISTEN_ADDR)
-        .await
-        .expect("should listen");
+    let sequencer = Sequencer::new().await.unwrap();
+    sequencer.run(DEFAULT_LISTEN_ADDR).await;
 }
