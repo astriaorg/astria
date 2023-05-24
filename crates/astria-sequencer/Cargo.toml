@@ -10,15 +10,15 @@ bytes = "1.4"
 color-eyre = "0.6.2"
 futures = "0.3"
 hex = "0.4"
-penumbra-component = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "9f33f728dab2312a92c619864a1be97fb81882d9" }
-penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "9f33f728dab2312a92c619864a1be97fb81882d9" }
+penumbra-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.52.2" }
+penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.52.2" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tendermint-proto = "0.29"
 tendermint = "0.29"
 tokio = { version = "1.28", features = [ "tracing" ] }
 tower = "0.4"
-tower-abci = { git = "https://github.com/penumbra-zone/tower-abci.git", rev = "11ecad76b3bc527dcc2d1652bb7fcaa6cb52046d" }
+tower-abci = { git = "https://github.com/penumbra-zone/tower-abci.git", tag = "v0.5.0" }
 tower-actor = "0.1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }

@@ -3436,8 +3436,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-component"
-version = "0.52.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=9f33f728dab2312a92c619864a1be97fb81882d9#9f33f728dab2312a92c619864a1be97fb81882d9"
+version = "0.52.2"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.52.2#501863c71d77a4d638f77536c33c6283fb55d147"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3447,8 +3447,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-storage"
-version = "0.52.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=9f33f728dab2312a92c619864a1be97fb81882d9#9f33f728dab2312a92c619864a1be97fb81882d9"
+version = "0.52.2"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.52.2#501863c71d77a4d638f77536c33c6283fb55d147"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5111,7 +5111,7 @@ dependencies = [
 [[package]]
 name = "tower-abci"
 version = "0.5.0"
-source = "git+https://github.com/penumbra-zone/tower-abci.git?rev=11ecad76b3bc527dcc2d1652bb7fcaa6cb52046d#11ecad76b3bc527dcc2d1652bb7fcaa6cb52046d"
+source = "git+https://github.com/penumbra-zone/tower-abci.git?tag=v0.5.0#11ecad76b3bc527dcc2d1652bb7fcaa6cb52046d"
 dependencies = [
  "bytes",
  "futures",

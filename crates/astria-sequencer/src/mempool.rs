@@ -67,27 +67,21 @@ impl Future for MempoolServiceFuture {
                 // TODO: status codes for various errors
                 match Transaction::from_bytes(&req.tx) {
                     Ok(tx) => match tx.check_stateless() {
-                        Ok(_) => {
-                            return Poll::Ready(Ok(MempoolResponse::CheckTx(response::CheckTx {
-                                code: 0.into(),
-                                ..Default::default()
-                            })));
-                        }
-                        Err(e) => {
-                            return Poll::Ready(Ok(MempoolResponse::CheckTx(response::CheckTx {
-                                code: 1.into(),
-                                log: format!("{:?}", e),
-                                ..Default::default()
-                            })));
-                        }
-                    },
-                    Err(e) => {
-                        return Poll::Ready(Ok(MempoolResponse::CheckTx(response::CheckTx {
+                        Ok(_) => Poll::Ready(Ok(MempoolResponse::CheckTx(response::CheckTx {
+                            code: 0.into(),
+                            ..Default::default()
+                        }))),
+                        Err(e) => Poll::Ready(Ok(MempoolResponse::CheckTx(response::CheckTx {
                             code: 1.into(),
                             log: format!("{:?}", e),
                             ..Default::default()
-                        })));
-                    }
+                        }))),
+                    },
+                    Err(e) => Poll::Ready(Ok(MempoolResponse::CheckTx(response::CheckTx {
+                        code: 1.into(),
+                        log: format!("{:?}", e),
+                        ..Default::default()
+                    }))),
                 }
             }
         }
