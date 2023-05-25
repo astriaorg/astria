@@ -12,7 +12,7 @@ This repo contains all the protobuf packages for Astria.
 
 * Create a new folder under `proto/astria/{new_package}`
 * write protos in new folder using package name `astria.{new_package}`
-* update `src/lib.rs` to build a rust module from your new defintions
+* update `src/lib.rs` to include your new defintions in a module. Module names should reflect proto package names.
 
 ## Working with Buf locally
 
