@@ -6,4 +6,5 @@ pub mod mempool;
 pub mod sequencer;
 pub mod snapshot;
 pub mod state_ext;
+pub mod telemetry;
 pub mod transaction;
