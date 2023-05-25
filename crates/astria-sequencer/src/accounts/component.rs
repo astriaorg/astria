@@ -11,13 +11,7 @@ use super::state_ext::StateWriteExt;
 use crate::app::GenesisState;
 
 #[derive(Default)]
-pub struct AccountsComponent {}
-
-impl AccountsComponent {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+pub struct AccountsComponent;
 
 #[async_trait::async_trait]
 impl Component for AccountsComponent {
