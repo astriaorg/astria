@@ -26,7 +26,6 @@ use tokio::{
     task,
 };
 use tracing::{
-    debug,
     error,
     info,
     warn,
@@ -184,14 +183,15 @@ impl Executor {
     }
 
     /// Uses RPC to send block to execution service
-    async fn execute_block(&mut self, block: SequencerBlock) -> Result<()> {
-        let prev_block_hash = self.execution_state.clone();
-
+    /// returns the resulting execution block hash
+    async fn execute_block(&mut self, block: SequencerBlock) -> Result<Option<Vec<u8>>> {
         // get transactions for our namespace
         let Some(txs) = block.rollup_txs.get(&self.namespace) else {
             info!("sequencer block {} did not contains txs for namespace", block.header.height);
-            return Ok(());
+            return Ok(None);
         };
+
+        let prev_block_hash = self.execution_state.clone();
 
         info!(
             "executing block {} with parent block hash {}",
@@ -238,38 +238,62 @@ impl Executor {
             hex::encode(&response.block_hash)
         );
         self.sequencer_hash_to_execution_hash
-            .insert(block.block_hash, response.block_hash);
+            .insert(block.block_hash, response.block_hash.clone());
 
-        Ok(())
+        Ok(Some(response.block_hash))
     }
 
     async fn handle_block_received_from_data_availability(
         &mut self,
         block: SequencerBlock,
     ) -> Result<()> {
-        match self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
+        let sequencer_block_hash = block.block_hash.clone();
+        let maybe_execution_block_hash = self
+            .sequencer_hash_to_execution_hash
+            .get(&sequencer_block_hash)
+            .cloned();
+        match maybe_execution_block_hash {
             Some(execution_block_hash) => {
-                self.execution_rpc_client
-                    .call_finalize_block(execution_block_hash.clone())
+                self.finalize_block(execution_block_hash, &sequencer_block_hash)
                     .await?;
-                info!(
-                    "finalized execution block {}",
-                    hex::encode(execution_block_hash),
-                );
-                self.sequencer_hash_to_execution_hash
-                    .remove(&block.block_hash);
             }
             None => {
-                // this is fine; it means that the sequencer block didn't contain
+                // this means either:
+                // - we didn't receive the block from the gossip layer yet, or
+                // - we received it, but the sequencer block didn't contain
                 // any transactions for this rollup namespace, thus nothing was executed
-                // on receiving this block, and we can ignore it.
-                debug!(
-                    "ExecutorCommand::BlockReceived: no execution block hash found for sequencer \
-                     block hash {}",
-                    &block.block_hash,
-                );
+                // on receiving this block.
+
+                // try executing the block as it hasn't been executed before
+                // execute_block will check if our namespace has txs; if so, it'll return the
+                // resulting execution block hash, otherwise None
+                let Some(execution_block_hash) = self.execute_block(block).await? else {
+                    // no txs for our namespace, nothing to do
+                    return Ok(());
+                };
+
+                // finalize the block after it's been executed
+                self.finalize_block(execution_block_hash, &sequencer_block_hash)
+                    .await?;
             }
         };
+        Ok(())
+    }
+
+    async fn finalize_block(
+        &mut self,
+        execution_block_hash: Vec<u8>,
+        sequencer_block_hash: &Base64String,
+    ) -> Result<()> {
+        self.execution_rpc_client
+            .call_finalize_block(execution_block_hash.clone())
+            .await?;
+        info!(
+            "finalized execution block {}",
+            hex::encode(execution_block_hash)
+        );
+        self.sequencer_hash_to_execution_hash
+            .remove(sequencer_block_hash);
         Ok(())
     }
 }
