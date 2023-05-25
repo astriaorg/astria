@@ -330,7 +330,7 @@ mod test {
         let alice_handle = tokio::task::spawn(async move {
             let topic = Sha256Topic::new(TEST_TOPIC);
 
-            let mut alice = Network::new(None, 9000).unwrap();
+            let mut alice = Network::new(None, 0).unwrap();
             alice.subscribe(&topic);
 
             let Some(event) = alice.next().await else {
@@ -340,7 +340,7 @@ mod test {
             match event {
                 Event::NewListenAddr(addr) => {
                     println!("Alice listening on {:?}", addr);
-                    bootnode_tx.send(addr.clone()).unwrap();
+                    bootnode_tx.send(addr).unwrap();
                 }
                 _ => panic!("unexpected event"),
             };
@@ -373,7 +373,7 @@ mod test {
             let topic = Sha256Topic::new(TEST_TOPIC);
 
             let bootnode = bootnode_rx.await.unwrap();
-            let mut bob = Network::new(Some(vec![bootnode.to_string()]), 9001).unwrap();
+            let mut bob = Network::new(Some(vec![bootnode.to_string()]), 0).unwrap();
             bob.subscribe(&topic);
 
             loop {

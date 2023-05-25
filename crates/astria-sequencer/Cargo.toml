@@ -7,19 +7,20 @@ edition = "2021"
 anyhow = "1"
 async-trait = "0.1.52"
 bytes = "1.4"
-color-eyre = "0.6.2"
-futures = "0.3"
-hex = "0.4"
 is-terminal = "0.4.7"
 penumbra-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.52.2" }
 penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.52.2" }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
 tendermint-proto = "0.29"
 tendermint = "0.29"
-tokio = { version = "1.28", features = [ "tracing" ] }
 tower = "0.4"
 tower-abci = "0.5.0"
 tower-actor = "0.1.0"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3.16", features = ["ansi", "env-filter", "json"] }
+
+color-eyre = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true, features = ["derive"]  }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = [ "tracing" ] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["ansi", "env-filter", "json"] }

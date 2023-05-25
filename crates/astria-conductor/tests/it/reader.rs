@@ -1,8 +1,9 @@
 use std::time::Duration;
 
 use astria_conductor::reader::Reader;
-use astria_conductor_test::init_test;
 use tokio::sync::mpsc;
+
+use crate::helper::init_test;
 
 #[ignore = "requires heavy kubernetes test environment"]
 #[tokio::test]
