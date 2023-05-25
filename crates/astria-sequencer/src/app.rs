@@ -12,7 +12,10 @@ use tendermint::abci::{
     self,
     Event,
 };
-use tracing::info;
+use tracing::{
+    info,
+    instrument,
+};
 
 use crate::{
     accounts::component::AccountsComponent,
@@ -37,7 +40,12 @@ pub struct GenesisState {
 }
 
 /// The Sequencer application, written as a bundle of [`Component`]s.
-#[derive(Clone)]
+///
+/// Note: this is called `App` because this is a Tendermint ABCI application,
+/// and implements the state transition logic of the chain.
+///
+/// See also https://github.com/penumbra-zone/penumbra/blob/9cc2c644e05c61d21fdc7b507b96016ba6b9a935/app/src/app/mod.rs#L42.
+#[derive(Clone, Debug)]
 pub struct App {
     state: InterBlockState,
 }
@@ -55,9 +63,8 @@ impl App {
         }
     }
 
+    #[instrument(name = "init_chain")]
     pub async fn init_chain(&mut self, genesis_state: &GenesisState) -> Result<()> {
-        tracing::debug!("initializing chain");
-
         // allocate to hard-coded accounts for testing
         let mut accounts = genesis_state.accounts.clone();
         accounts.append(&mut default_genesis_accounts());
@@ -80,6 +87,7 @@ impl App {
         Ok(())
     }
 
+    #[instrument(name = "begin_block")]
     pub async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
@@ -101,6 +109,7 @@ impl App {
         self.apply(state_tx)
     }
 
+    #[instrument(name = "deliver_tx")]
     pub async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
         let tx = Transaction::from_bytes(tx)?;
 
@@ -132,6 +141,7 @@ impl App {
         Ok(vec![])
     }
 
+    #[instrument(name = "end_block")]
     pub async fn end_block(&mut self, _end_block: &abci::request::EndBlock) -> Vec<abci::Event> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
@@ -143,6 +153,7 @@ impl App {
         self.apply(state_tx)
     }
 
+    #[instrument(name = "commit")]
     pub async fn commit(&mut self, storage: Storage) -> AppHash {
         // We need to extract the State we've built up to commit it.  Fill in a dummy state.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
