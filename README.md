@@ -1,8 +1,12 @@
 # Astria
 
-## Description
+Astria replaces centralized sequencers, allowing many rollups to share a single decentralized network of sequencers that’s simple and permissionless to join. This shared sequencer network provides out-of-the-box censorship resistance, fast block confirmations, and atomic cross-rollup composability – all while retaining each rollup’s sovereignty.
 
-This project is a part of the larger Astria organization. To run locally, we utilize a dev-cluster which can be found at [astriaorg/dev-cluster](https://github.com/astriaorg/dev-cluster).
+This repository contains the custom Astria components that make up the Astria network. Other components of the Astria network can be found in the [astriaorg](https://github.com/astriaorg) organization. 
+
+To run locally, we utilize a dev-cluster which can be found at [astriaorg/dev-cluster](https://github.com/astriaorg/dev-cluster). 
+
+To learn more about Astria, please visit [astria.org](https://astria.org).
 
 ## Components
 
@@ -14,7 +18,7 @@ This project is a part of the larger Astria organization. To run locally, we uti
 
 ## Contributing
 
-Please refer to each project's style and contribution guidelines for submitting fixes and features. In general, we follow the "fork-and-pull" Git workflow.
+Pull requests should be created against the `main` branch. In general, we follow the "fork-and-pull" Git workflow.
 
 1. Fork the repo on GitHub
 2. Clone the project to your own machine
@@ -22,7 +26,7 @@ Please refer to each project's style and contribution guidelines for submitting 
 4. Push your work back up to your fork
 5. Submit a Pull request so that we can review your changes
 
-NOTE: Be sure to merge the latest from "upstream" before making a pull request!
+NOTE: Be sure to merge the latest from upstream before making a pull request!
 
 ## Issues
 
