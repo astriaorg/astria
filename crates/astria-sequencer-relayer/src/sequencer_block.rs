@@ -4,6 +4,7 @@ use std::{
 };
 
 use astria_proto::sequencer::v1::{
+    IndexedTransaction as IndexedTransactionProto,
     SequencerMsg,
     TxBody,
     TxRaw,
@@ -140,6 +141,15 @@ pub fn get_namespace(bytes: &[u8]) -> Namespace {
 pub struct IndexedTransaction {
     pub block_index: usize,
     pub transaction: Base64String,
+}
+
+impl IndexedTransaction {
+    pub fn from_proto(proto: &IndexedTransactionProto) -> eyre::Result<Self> {
+        Ok(Self {
+            block_index: proto.block_index.try_into()?,
+            transaction: Base64String::from_bytes(&proto.transaction),
+        })
+    }
 }
 
 /// SequencerBlock represents a sequencer layer block to be submitted to

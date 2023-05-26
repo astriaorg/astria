@@ -1,5 +1,10 @@
 use std::collections::HashMap;
 
+use astria_proto::sequencer::v1::{
+    RollupNamespaceData as RollupNamespaceDataProto,
+    SequencerNamespaceData as SequencerNamespaceDataProto,
+    SignedNamespaceData as SignedNamespaceDataProto,
+};
 use astria_rs_cnc::{
     CelestiaNodeClient,
     NamespacedSharesResponse,
@@ -16,6 +21,7 @@ use eyre::{
     bail,
     WrapErr as _,
 };
+use prost::Message;
 use serde::{
     de::DeserializeOwned,
     Deserialize,
@@ -52,6 +58,31 @@ pub struct SubmitBlockResponse {
     pub namespace_to_block_num: HashMap<String, u64>,
 }
 
+pub trait NamespaceData
+where
+    Self: Sized + Serialize + DeserializeOwned,
+{
+    fn hash(&self) -> Vec<u8> {
+        let mut hasher = Sha256::new();
+        hasher.update(self.to_bytes());
+        let hash = hasher.finalize();
+        hash.to_vec()
+    }
+
+    fn to_signed(self, keypair: &Keypair) -> SignedNamespaceData<Self> {
+        let hash = self.hash();
+        let signature = Base64String(keypair.sign(&hash).as_bytes().to_vec());
+        SignedNamespaceData::new(
+            self,
+            Base64String(keypair.public.to_bytes().to_vec()),
+            signature,
+        )
+    }
+
+    fn from_bytes(bytes: &[u8]) -> eyre::Result<Self>;
+    fn to_bytes(&self) -> Vec<u8>;
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SignedNamespaceData<D> {
     pub data: D,
@@ -68,14 +99,12 @@ impl<D: NamespaceData> SignedNamespaceData<D> {
         }
     }
 
-    fn to_bytes(&self) -> eyre::Result<Vec<u8>> {
-        // TODO: don't use json, use our own serializer (or protobuf for now?)
-        serde_json::to_vec(self).wrap_err("failed serializing signed namespace data to json")
+    fn from_proto(proto: &SignedNamespaceDataProto) -> eyre::Result<Self> {
+        unimplemented!()
     }
 
-    fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
-        serde_json::from_slice(bytes)
-            .wrap_err("failed deserializing signed namespace data from bytes")
+    fn to_proto(&self) -> SignedNamespaceDataProto {
+        unimplemented!()
     }
 
     pub fn verify(&self) -> eyre::Result<()> {
@@ -83,10 +112,7 @@ impl<D: NamespaceData> SignedNamespaceData<D> {
             .wrap_err("failed deserializing public key from bytes")?;
         let signature = Signature::from_bytes(&self.signature.0)
             .wrap_err("failed deserializing signature from bytes")?;
-        let data_bytes = self
-            .data
-            .hash()
-            .wrap_err("failed converting data to bytes")?;
+        let data_bytes = self.data.hash();
         public_key
             .verify(&data_bytes, &signature)
             .wrap_err("failed verifying signature")?;
@@ -94,34 +120,13 @@ impl<D: NamespaceData> SignedNamespaceData<D> {
     }
 }
 
-pub trait NamespaceData
-where
-    Self: Sized + Serialize + DeserializeOwned,
-{
-    fn hash(&self) -> eyre::Result<Vec<u8>> {
-        let mut hasher = Sha256::new();
-        hasher.update(
-            self.to_bytes()
-                .wrap_err("failed converting namespace data to bytes")?,
-        );
-        let hash = hasher.finalize();
-        Ok(hash.to_vec())
+impl<D: NamespaceData> NamespaceData for SignedNamespaceData<D> {
+    fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
+        Self::from_proto(&SignedNamespaceDataProto::decode(bytes)?)
     }
 
-    fn to_signed(self, keypair: &Keypair) -> eyre::Result<SignedNamespaceData<Self>> {
-        let hash = self.hash().wrap_err("failed hashing namespace data")?;
-        let signature = Base64String(keypair.sign(&hash).as_bytes().to_vec());
-        let data = SignedNamespaceData::new(
-            self,
-            Base64String(keypair.public.to_bytes().to_vec()),
-            signature,
-        );
-        Ok(data)
-    }
-
-    fn to_bytes(&self) -> eyre::Result<Vec<u8>> {
-        // TODO: don't use json, use our own serializer (or protobuf for now?)
-        serde_json::to_vec(self).wrap_err("failed serializing namespace data as json bytes")
+    fn to_bytes(&self) -> Vec<u8> {
+        unimplemented!()
     }
 }
 
@@ -137,7 +142,39 @@ pub struct SequencerNamespaceData {
     pub rollup_namespaces: Vec<(u64, String)>,
 }
 
-impl NamespaceData for SequencerNamespaceData {}
+impl SequencerNamespaceData {
+    fn from_proto(proto: &SequencerNamespaceDataProto) -> eyre::Result<Self> {
+        // Ok(Self {
+        //     block_hash: Base64String(proto.block_hash),
+        //     header: proto.header?, // TODO: duplicate tendermint types
+        //     sequencer_txs: proto
+        //         .sequencer_txs
+        //         .iter()
+        //         .map(|itx| IndexedTransaction::from_proto(itx))
+        //         .collect::<eyre::Result<Vec<_>>>()?,
+        //     rollup_namespaces: proto
+        //         .rollup_namespaces
+        //         .iter()
+        //         .map(|runs| (runs.block_height, String::from(runs.namespace)))
+        //         .collect(),
+        // })
+        unimplemented!()
+    }
+
+    fn to_proto(&self) -> SequencerNamespaceDataProto {
+        unimplemented!()
+    }
+}
+
+impl NamespaceData for SequencerNamespaceData {
+    fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
+        Self::from_proto(&SequencerNamespaceDataProto::decode(bytes)?)
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        SequencerNamespaceDataProto::encode_to_vec(&self.to_proto())
+    }
+}
 
 /// RollupNamespaceData represents the data written to a rollup namespace.
 #[derive(Serialize, Deserialize, Debug)]
@@ -146,7 +183,32 @@ struct RollupNamespaceData {
     pub rollup_txs: Vec<IndexedTransaction>,
 }
 
-impl NamespaceData for RollupNamespaceData {}
+impl RollupNamespaceData {
+    fn from_proto(proto: &RollupNamespaceDataProto) -> eyre::Result<Self> {
+        Ok(Self {
+            block_hash: Base64String(proto.block_hash.clone()),
+            rollup_txs: proto
+                .rollup_txs
+                .iter()
+                .map(|itx| IndexedTransaction::from_proto(itx))
+                .collect::<eyre::Result<Vec<_>>>()?,
+        })
+    }
+
+    fn to_proto(&self) -> RollupNamespaceDataProto {
+        unimplemented!()
+    }
+}
+
+impl NamespaceData for RollupNamespaceData {
+    fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
+        Self::from_proto(&RollupNamespaceDataProto::decode(bytes)?)
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        RollupNamespaceDataProto::encode_to_vec(&self.to_proto())
+    }
+}
 
 pub struct CelestiaClientBuilder {
     endpoint: String,
@@ -241,11 +303,7 @@ impl CelestiaClient {
                 block_hash: block.block_hash.clone(),
                 rollup_txs: txs,
             };
-            let rollup_data_bytes = rollup_namespace_data
-                .to_signed(keypair)
-                .wrap_err("failed signing rollup namespace data")?
-                .to_bytes()
-                .wrap_err("failed converting signed rollupdata namespace data to bytes")?;
+            let rollup_data_bytes = rollup_namespace_data.to_signed(keypair).to_bytes();
             let resp = self
                 .submit_namespaced_data(&namespace.to_string(), &rollup_data_bytes)
                 .await
@@ -267,11 +325,7 @@ impl CelestiaClient {
             rollup_namespaces: block_height_and_namespace,
         };
 
-        let bytes = sequencer_namespace_data
-            .to_signed(keypair)
-            .wrap_err("failed signing sequencer namespace data")?
-            .to_bytes()
-            .wrap_err("failed converting signed namespace data to bytes")?;
+        let bytes = sequencer_namespace_data.to_signed(keypair).to_bytes();
         let resp = self
             .submit_namespaced_data(&DEFAULT_NAMESPACE.to_string(), &bytes)
             .await
@@ -329,7 +383,7 @@ impl CelestiaClient {
                     return Some(data);
                 };
 
-                let hash = data.data.hash().ok()?;
+                let hash = data.data.hash();
                 let signature = Signature::from_bytes(&data.signature.0).ok()?;
                 public_key.verify(&hash, &signature).ok()?;
                 Some(data)
@@ -434,11 +488,7 @@ impl CelestiaClient {
                 }
             })
             .filter(|d| {
-                let hash = match d.data.hash() {
-                    Ok(hash) => hash,
-                    Err(_) => return false,
-                };
-
+                let hash = d.data.hash();
                 match Signature::from_bytes(&d.signature.0) {
                     Ok(sig) => {
                         let Some(public_key) = public_key else {

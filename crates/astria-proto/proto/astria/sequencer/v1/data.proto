@@ -7,13 +7,13 @@ import "tendermint/types/types.proto";
 // IndexedTransaction represents a sequencer transaction along with the index
 // it was originally in the sequencer block.
 message IndexedTransaction {
-    uint64 block_index = 1; // TODO: this is usize - how to define for variable size?
+    uint64 block_index = 1;
     bytes transaction = 2;
 }
 
 message RollupNamespace {
     uint64 block_height = 1;
-    bytes namespace = 2;
+    string namespace = 2;
 }
 
 // RollupNamespaceData
