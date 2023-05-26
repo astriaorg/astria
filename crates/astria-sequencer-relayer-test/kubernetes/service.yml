@@ -6,9 +6,12 @@ spec:
   selector:
     app: sequencer-relayer-environment
   ports:
-    - name: sequencer-svc
-      port: 1318
-      targetPort: sequencer-svc
-    - name: bridge-svc
+    # - name: sequencer-svc
+    #   port: 1318
+    #   targetPort: sequencer-svc
+    - name: bridge-rest-svc
       port: 26659
-      targetPort: bridge-svc
+      targetPort: bridge-rest-svc
+    - name: bridge-rpc-svc
+      port: 26658
+      targetPort: bridge-rpc-svc

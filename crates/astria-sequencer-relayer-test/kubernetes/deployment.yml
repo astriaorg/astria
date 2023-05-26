@@ -14,11 +14,15 @@ spec:
       labels:
         app: sequencer-relayer-environment
     spec:
+      securityContext:
+        runAsUser: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
       initContainers:
         - command:
           - /scripts/init-celestia-appd.sh
           name: init-celestia-app
-          image: "ghcr.io/astriaorg/celestia-app:v0.11.0"
+          image: "ghcr.io/celestiaorg/celestia-app:v0.13.3"
           volumeMounts:
             - mountPath: /scripts
               name: celestia-appd-scripts-volume
@@ -31,7 +35,8 @@ spec:
         - command:
           - /scripts/init-bridge.sh
           name: init-bridge
-          image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
+          # image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
+          image: "celestia-node:test"
           volumeMounts:
             - mountPath: /scripts/
               name: bridge-scripts-volume
@@ -70,7 +75,7 @@ spec:
       containers:
         - name: celestia-app
           command: ["/scripts/start-celestia-appd.sh"]
-          image: "ghcr.io/astriaorg/celestia-app:v0.11.0"
+          image: "ghcr.io/celestiaorg/celestia-app:v0.13.3"
           envFrom:
             - configMapRef:
                 name: sequencer-relayer-environment-celestia-config
@@ -83,7 +88,8 @@ spec:
         - name: celestia-bridge
           command:
           - /scripts/start-bridge.sh
-          image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
+          # image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
+          image: "celestia-node:test"
           volumeMounts:
             - mountPath: /scripts/
               name: bridge-scripts-volume
@@ -95,34 +101,36 @@ spec:
                 name: sequencer-relayer-environment-celestia-config
           ports:
             - containerPort: 26659
-              name: bridge-svc
+              name: bridge-rest-svc
+            - containerPort: 26658
+              name: bridge-rpc-svc
           startupProbe:
             httpGet:
               path: /header/1
-              port: bridge-svc
+              port: bridge-rest-svc
             failureThreshold: 30
             periodSeconds: 10
-        - name: metro-sequencer
-          command: ["/scripts/start-metro.sh"]
-          image: "ghcr.io/astriaorg/metro:0.0.2"
-          ports:
-            - containerPort: 1318
-              name: sequencer-svc
-          startupProbe:
-            httpGet:
-              path: /cosmos/base/tendermint/v1beta1/blocks/latest
-              port: sequencer-svc
-            failureThreshold: 30
-            periodSeconds: 10
-          volumeMounts:
-            - mountPath: /scripts/
-              name: metro-scripts-volume
-              readOnly: true
-            - mountPath: /home/metro
-              name: metro-home
-          envFrom:
-            - configMapRef:
-                name: sequencer-relayer-environment-metro-config
+        # - name: metro-sequencer
+        #   command: ["/scripts/start-metro.sh"]
+        #   image: "ghcr.io/astriaorg/metro:0.0.2"
+        #   ports:
+        #     - containerPort: 1318
+        #       name: sequencer-svc
+        #   startupProbe:
+        #     httpGet:
+        #       path: /cosmos/base/tendermint/v1beta1/blocks/latest
+        #       port: sequencer-svc
+        #     failureThreshold: 30
+        #     periodSeconds: 10
+        #   volumeMounts:
+        #     - mountPath: /scripts/
+        #       name: metro-scripts-volume
+        #       readOnly: true
+        #     - mountPath: /home/metro
+        #       name: metro-home
+        #   envFrom:
+        #     - configMapRef:
+        #         name: sequencer-relayer-environment-metro-config
       volumes:
       - name: bridge-scripts-volume
         configMap:
@@ -140,4 +148,3 @@ spec:
         name: celestia-home
       - emptyDir: {}
         name: metro-home
-  

@@ -23,4 +23,11 @@ spec:
               name: sequencer-relayer-environment-service
               port:
                 number: 26659
+        - pathType: Prefix
+          path: "/bridgerpc/(.*)"
+          backend:
+            service:
+              name: sequencer-relayer-environment-service
+              port:
+                number: 26658
 ---
