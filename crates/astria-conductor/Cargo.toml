@@ -4,26 +4,25 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bech32 = "0.9"
-clap = { version = "4.1.9", features = ["derive"] }
-color-eyre = "0.6.2"
-ed25519-dalek = "1.0"
 figment = { version = "0.10.8", features = ["toml", "env"] }
-flexi_logger = "0.24.2"
-futures = "0.3"
-hex = "0.4"
-log = "0.4.17"
-prost-types = "0.11.8"
-reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
-serde = "1.0.152"
-serde_json = "1.0"
-thiserror = "1.0.38"
-tendermint = "0.30"
-tendermint-proto = "0.30.0"
-tokio = { version = "1.25.0", features = ["macros", "rt-multi-thread", "signal"] }
-tonic = "0.8.3"
-tracing = "0.1.37"
-tracing-subscriber = "0.3.16"
+is-terminal = "0.4.7"
+
+bech32 = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+color-eyre = { workspace = true }
+ed25519-dalek = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true }
+prost-types = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tendermint = { workspace = true }
+tendermint-proto = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
+tonic = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["ansi", "json"] }
 
 astria-proto = { path = "../astria-proto" }
 astria-gossipnet = { path = "../astria-gossipnet" }
@@ -32,3 +31,4 @@ astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 
 [dev-dependencies]
 astria-conductor-test = { path = "../astria-conductor-test" }
+once_cell = { workspace = true }

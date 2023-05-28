@@ -33,5 +33,5 @@ spec:
           command: ["sh", "-c", "'true'"]
       containers:
         - name: pause
-          image: gcr.io/google_containers/pause
+          image: gcr.io/google_containers/pause:3.2
 ---
