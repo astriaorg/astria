@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use astria_rs_cnc::types::Base64String;
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -55,7 +56,7 @@ pub struct Validator {
 pub struct KeyWithType {
     #[serde(rename = "@type")]
     pub key_type: String,
-    pub key: String,
+    pub key: Base64String,
 }
 
 pub struct TendermintClient {

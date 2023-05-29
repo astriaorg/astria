@@ -22,6 +22,12 @@ use color_eyre::eyre::{
     Result,
     WrapErr,
 };
+use ed25519_dalek::Verifier;
+use tendermint::{
+    crypto,
+    merkle,
+    Hash,
+};
 use tokio::{
     sync::mpsc::{
         self,
@@ -252,8 +258,34 @@ impl Reader {
             );
         }
 
-        // verify that the validator votes on the block have >2/3 voting power
-        verify_votes(&data.data.last_commit, &validator_set)?;
+        // validate that commit signatures hash to header.last_commit_hash
+        match calculate_last_commit_hash(&data.data.last_commit) {
+            Hash::Sha256(calculated_last_commit_hash) => {
+                let Some(last_commit_hash) = data.data.header.last_commit_hash.as_ref() else {
+                    bail!("last commit hash should not be empty");
+                };
+
+                if calculated_last_commit_hash.to_vec() != last_commit_hash.0 {
+                    bail!("last commit hash mismatch");
+                }
+
+                // verify that the validator votes on the previous block have >2/3 voting power
+                verify_commit(&data.data.last_commit, &validator_set)?;
+
+                // TODO: commit is for previous block; how do we handle this?
+            }
+            Hash::None => {
+                // this case only happens if the last commit is empty, which should only happen on
+                // block 1.
+                if data.data.header.height != "1" {
+                    bail!("last commit hash not found"); // TODO: what case would this happen? I think only on block 1?
+                }
+
+                if data.data.header.last_commit_hash.is_some() {
+                    bail!("last commit hash should be empty");
+                }
+            }
+        };
 
         // verify the block signature
         data.verify()?;
@@ -291,7 +323,15 @@ impl Reader {
     }
 }
 
-fn verify_votes(commit: &Commit, validator_set: &ValidatorSet) -> Result<()> {
+fn verify_commit(commit: &Commit, validator_set: &ValidatorSet) -> Result<()> {
+    if commit.height != validator_set.block_height {
+        bail!(
+            "commit height mismatch: expected {}, got {}",
+            validator_set.block_height,
+            commit.height
+        );
+    }
+
     // TODO: assert the commit was not for nil (I don't think this can happen as BlockId must be
     // set)
 
@@ -312,8 +352,7 @@ fn verify_votes(commit: &Commit, validator_set: &ValidatorSet) -> Result<()> {
 
     let mut commit_voting_power = 0u64;
     for vote in &commit.signatures {
-        // TODO: verify signature
-
+        // verify validator exists in validator set
         let validator_address = bech32::encode(
             "metrovalcons",
             vote.validator_address.0.to_base32(),
@@ -322,6 +361,21 @@ fn verify_votes(commit: &Commit, validator_set: &ValidatorSet) -> Result<()> {
         let Some(validator) = validator_map.get(&validator_address) else {
             bail!("validator {} not found in validator set", validator_address);
         };
+
+        // verify address in signature matches validator pubkey
+        let address_from_pubkey = public_key_to_address(&validator.pub_key.key.0)?;
+        if address_from_pubkey != validator_address {
+            bail!(
+                "validator address mismatch: expected {}, got {}",
+                validator_address,
+                address_from_pubkey
+            );
+        }
+
+        // verify vote signature
+        let public_key = ed25519_dalek::PublicKey::from_bytes(&validator.pub_key.key.0)?;
+        let signature = ed25519_dalek::Signature::from_bytes(&vote.signature.0)?;
+        public_key.verify(&commit.block_id.hash.0, &signature)?;
 
         commit_voting_power += validator.voting_power.parse::<u64>()?;
     }
@@ -334,6 +388,60 @@ fn verify_votes(commit: &Commit, validator_set: &ValidatorSet) -> Result<()> {
         );
     }
 
-    // TODO: validate that commits hash to header.last_commit_hash
     Ok(())
+}
+
+fn calculate_last_commit_hash(commit: &Commit) -> Hash {
+    let signatures = commit
+        .signatures
+        .iter()
+        .map(|v| v.signature.0.to_vec())
+        .collect::<Vec<_>>();
+    Hash::Sha256(merkle::simple_hash_from_byte_vectors::<
+        crypto::default::Sha256,
+    >(&signatures))
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_verify_commit() {
+        let validator_set_str = r#"{
+            "block_height": "2082",
+            "validators": [
+              {
+                "address": "metrovalcons1hdu2nzhcyfnhaj9tfrdlekfnfwx895mk83d322",
+                "pub_key": {
+                  "@type": "/cosmos.crypto.ed25519.PubKey",
+                  "key": "MdfFS4MH09Og5y+9SVxpJRqUnZkDGfnPjdyx4qM2Vng="
+                },
+                "voting_power": "5000",
+                "proposer_priority": "0"
+              }
+            ],
+            "pagination": {
+              "next_key": null,
+              "total": "1"
+            }
+          }"#;
+        let commit = r#"{
+            "height": "2082",
+            "round": 0,
+            "block_id": {
+                "hash": "5QrZ8fznJw/X1lviA5cyQ2BwLbma8iuvXHqh6BiMJdU=",
+                "part_set_header": {
+                    "total": 1,
+                    "hash": "DUMkxxMa2M0/aMmNyVGkvLn+3w1HTsGZ/YKyAVu+gdc="
+                }
+            },
+            "signatures": [
+                {
+                    "block_id_flag": "BLOCK_ID_FLAG_COMMIT",
+                    "validator_address": "u3ipivgiZ37Iq0jb/NkzS4xy03Y=",
+                    "timestamp": "2023-05-29T13:57:32.797060160Z",
+                    "signature": "SQdU03IyfHOiTeGrPcbgBnRSpjN7cimaX0XO3jWLIkKL5w8ePx7Lg7V1CaDDTQJ0G5WHtcHVQky2dzq4vmkHBA=="
+                }
+            ]
+        }"#;
+    }
 }
