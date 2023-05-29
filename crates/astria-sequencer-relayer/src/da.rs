@@ -38,7 +38,10 @@ use crate::{
         SequencerBlock,
         DEFAULT_NAMESPACE,
     },
-    types::{Commit, Header},
+    types::{
+        Commit,
+        Header,
+    },
 };
 
 pub const DEFAULT_PFD_GAS_LIMIT: u64 = 1_000_000;
