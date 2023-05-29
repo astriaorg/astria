@@ -20,7 +20,7 @@ use eyre::{
 use hex;
 use prost::{
     DecodeError,
-    Message,
+    Message as _,
 };
 use serde::{
     de::{

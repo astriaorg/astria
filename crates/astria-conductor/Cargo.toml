@@ -13,6 +13,7 @@ color-eyre = { workspace = true }
 ed25519-dalek = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
+prost = { workspace = true }
 prost-types = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true }

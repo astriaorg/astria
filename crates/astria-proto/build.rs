@@ -38,7 +38,7 @@ fn main() {
     let mut cmd = Command::new(buf.clone());
     cmd.arg("generate")
         .arg("--output")
-        .arg(out_dir)
+        .arg(out_dir.clone())
         .arg("--template")
         .arg("buf.gen.yaml")
         .current_dir(env!("CARGO_MANIFEST_DIR"));
@@ -52,6 +52,8 @@ fn main() {
             eprintln!("buf failed: {}", String::from_utf8_lossy(&output.stderr));
             exit(output.status.code().unwrap_or(-1));
         }
-        Ok(_) => {}
+        Ok(_) => {
+            println!("generated to {out_dir:?}");
+        }
     };
 }

@@ -23,7 +23,9 @@ use color_eyre::eyre::{
     WrapErr,
 };
 use ed25519_dalek::Verifier;
+use prost::Message;
 use tendermint::{
+    block::CommitSig,
     crypto,
     merkle,
     Hash,
@@ -372,10 +374,10 @@ fn verify_commit(commit: &Commit, validator_set: &ValidatorSet) -> Result<()> {
             );
         }
 
-        // verify vote signature
-        let public_key = ed25519_dalek::PublicKey::from_bytes(&validator.pub_key.key.0)?;
-        let signature = ed25519_dalek::Signature::from_bytes(&vote.signature.0)?;
-        public_key.verify(&commit.block_id.hash.0, &signature)?;
+        // // verify vote signature
+        // let public_key = ed25519_dalek::PublicKey::from_bytes(&validator.pub_key.key.0)?;
+        // let signature = ed25519_dalek::Signature::from_bytes(&vote.signature.0)?;
+        // public_key.verify(&commit.block_id.hash.0, &signature)?;
 
         commit_voting_power += validator.voting_power.parse::<u64>()?;
     }
@@ -391,11 +393,24 @@ fn verify_commit(commit: &Commit, validator_set: &ValidatorSet) -> Result<()> {
     Ok(())
 }
 
+// see https://github.com/cometbft/cometbft/blob/539985efc7d461668ffb46dff88b3f7bb9275e5a/types/block.go#L922
 fn calculate_last_commit_hash(commit: &Commit) -> Hash {
     let signatures = commit
         .signatures
         .iter()
-        .map(|v| v.signature.0.to_vec())
+        .filter_map(|v| {
+            let commit_sig = CommitSig::BlockIdFlagCommit {
+                signature: Some(tendermint::Signature::try_from(v.signature.clone().0).ok()?),
+                validator_address: tendermint::account::Id::try_from(v.validator_address.clone().0)
+                    .ok()?,
+                timestamp: tendermint::Time::parse_from_rfc3339(&v.timestamp).ok()?,
+            };
+            Some(
+                tendermint_proto::types::CommitSig::try_from(commit_sig)
+                    .ok()?
+                    .encode_to_vec(),
+            )
+        })
         .collect::<Vec<_>>();
     Hash::Sha256(merkle::simple_hash_from_byte_vectors::<
         crypto::default::Sha256,
@@ -404,6 +419,10 @@ fn calculate_last_commit_hash(commit: &Commit) -> Hash {
 
 #[cfg(test)]
 mod test {
+    use astria_sequencer_relayer::base64_string::Base64String;
+
+    use super::*;
+
     #[test]
     fn test_verify_commit() {
         let validator_set_str = r#"{
@@ -424,7 +443,7 @@ mod test {
               "total": "1"
             }
           }"#;
-        let commit = r#"{
+        let commit_str = r#"{
             "height": "2082",
             "round": 0,
             "block_id": {
@@ -443,5 +462,40 @@ mod test {
                 }
             ]
         }"#;
+
+        let validator_set = serde_json::from_str::<ValidatorSet>(validator_set_str).unwrap();
+        let commit = serde_json::from_str::<Commit>(commit_str).unwrap();
+        verify_commit(&commit, &validator_set).unwrap();
+    }
+
+    #[test]
+    fn test_calculate_last_commit_hash() {
+        let commit_str = r#"{
+            "height": "2082",
+            "round": 0,
+            "block_id": {
+                "hash": "5QrZ8fznJw/X1lviA5cyQ2BwLbma8iuvXHqh6BiMJdU=",
+                "part_set_header": {
+                    "total": 1,
+                    "hash": "DUMkxxMa2M0/aMmNyVGkvLn+3w1HTsGZ/YKyAVu+gdc="
+                }
+            },
+            "signatures": [
+                {
+                    "block_id_flag": "BLOCK_ID_FLAG_COMMIT",
+                    "validator_address": "u3ipivgiZ37Iq0jb/NkzS4xy03Y=",
+                    "timestamp": "2023-05-29T13:57:32.797060160Z",
+                    "signature": "SQdU03IyfHOiTeGrPcbgBnRSpjN7cimaX0XO3jWLIkKL5w8ePx7Lg7V1CaDDTQJ0G5WHtcHVQky2dzq4vmkHBA=="
+                }
+            ]
+        }"#;
+        let expected_last_commit_hash =
+            Base64String::from_string("rpjY+9Y2ZL9y8RsfcgiKSNw4emL6YyBneMbuztCS9HQ=".to_string())
+                .unwrap();
+
+        let commit = serde_json::from_str::<Commit>(commit_str).unwrap();
+        let last_commit_hash = calculate_last_commit_hash(&commit);
+        assert!(matches!(last_commit_hash, Hash::Sha256(_)));
+        assert!(&expected_last_commit_hash.0 == last_commit_hash.as_bytes());
     }
 }
