@@ -43,6 +43,7 @@ use crate::{
     transaction::txs_to_data_hash,
     types::{
         Block,
+        Commit,
         Header,
     },
 };
@@ -154,6 +155,7 @@ pub struct IndexedTransaction {
 pub struct SequencerBlock {
     pub block_hash: Base64String,
     pub header: Header,
+    pub last_commit: Commit,
     pub sequencer_txs: Vec<IndexedTransaction>,
     /// namespace -> rollup txs
     pub rollup_txs: HashMap<Namespace, Vec<IndexedTransaction>>,
@@ -218,6 +220,7 @@ impl SequencerBlock {
         Ok(Self {
             block_hash: Base64String(b.header.hash()?.as_bytes().to_vec()),
             header: b.header,
+            last_commit: b.last_commit,
             sequencer_txs,
             rollup_txs,
         })
@@ -331,6 +334,7 @@ mod test {
             )
             .unwrap(),
             header: Header::default(),
+            last_commit: Default::default(),
             sequencer_txs: vec![IndexedTransaction {
                 block_index: 0,
                 transaction: Base64String::from_bytes(&[0x11, 0x22, 0x33]),

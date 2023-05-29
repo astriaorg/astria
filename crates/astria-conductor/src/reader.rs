@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use astria_sequencer_relayer::{
     da::{
         CelestiaClient,
@@ -7,6 +9,7 @@ use astria_sequencer_relayer::{
     },
     keys::public_key_to_address,
     sequencer_block::SequencerBlock,
+    types::Commit,
 };
 use bech32::{
     self,
@@ -37,7 +40,10 @@ use tracing::{
 use crate::{
     config::Config,
     executor,
-    tendermint::TendermintClient,
+    tendermint::{
+        TendermintClient,
+        ValidatorSet,
+    },
 };
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
@@ -214,12 +220,11 @@ impl Reader {
         // sequencer block's height
         let height = data.data.header.height.parse::<u64>()?;
 
+        // get validator set for this height
+        let mut validator_set = self.tendermint_client.get_validator_set(height).await?;
+
         // find proposer address for this height
-        let expected_proposer_address =
-            self.tendermint_client
-                .get_proposer_address(height)
-                .await
-                .map_err(|e| eyre!("failed to get proposer address: {}", e))?;
+        let expected_proposer_address = validator_set.get_proposer()?.address;
 
         // check if the proposer address matches the sequencer block's proposer
         let received_proposer_address = bech32::encode(
@@ -246,6 +251,9 @@ impl Reader {
                 res_address
             );
         }
+
+        // verify that the validator votes on the block have >2/3 voting power
+        verify_votes(&data.data.last_commit, &validator_set)?;
 
         // verify the block signature
         data.verify()?;
@@ -281,4 +289,51 @@ impl Reader {
 
         Ok(())
     }
+}
+
+fn verify_votes(commit: &Commit, validator_set: &ValidatorSet) -> Result<()> {
+    // TODO: assert the commit was not for nil (I don't think this can happen as BlockId must be
+    // set)
+
+    let mut total_voting_power = 0u64;
+    validator_set
+        .validators
+        .iter()
+        .try_for_each(|v| -> Result<()> {
+            total_voting_power += v.voting_power.parse::<u64>()?;
+            Ok(())
+        })?;
+
+    let validator_map = validator_set
+        .validators
+        .iter()
+        .map(|v| (v.address.to_owned(), v)) // address is in bech32
+        .collect::<HashMap<_, _>>();
+
+    let mut commit_voting_power = 0u64;
+    for vote in &commit.signatures {
+        // TODO: verify signature
+
+        let validator_address = bech32::encode(
+            "metrovalcons",
+            vote.validator_address.0.to_base32(),
+            Variant::Bech32,
+        )?;
+        let Some(validator) = validator_map.get(&validator_address) else {
+            bail!("validator {} not found in validator set", validator_address);
+        };
+
+        commit_voting_power += validator.voting_power.parse::<u64>()?;
+    }
+
+    if commit_voting_power <= total_voting_power * 2 / 3 {
+        bail!(
+            "total voting power in votes is less than 2/3 of total voting power: {} <= {}",
+            commit_voting_power,
+            total_voting_power * 2 / 3,
+        );
+    }
+
+    // TODO: validate that commits hash to header.last_commit_hash
+    Ok(())
 }

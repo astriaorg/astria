@@ -42,6 +42,7 @@ async fn get_blocks_public_key_filter() {
     let block = SequencerBlock {
         block_hash: block_hash.clone(),
         header: Default::default(),
+        last_commit: Default::default(),
         sequencer_txs: vec![IndexedTransaction {
             block_index: 0,
             transaction: tx.clone(),
@@ -81,6 +82,7 @@ async fn celestia_client() {
     let mut block = SequencerBlock {
         block_hash: block_hash.clone(),
         header: Default::default(),
+        last_commit: Default::default(),
         sequencer_txs: vec![IndexedTransaction {
             block_index: 0,
             transaction: tx.clone(),
