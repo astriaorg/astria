@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    str::FromStr,
+};
 
 use astria_sequencer_relayer::{
     da::{
@@ -272,7 +275,11 @@ impl Reader {
                 }
 
                 // verify that the validator votes on the previous block have >2/3 voting power
-                verify_commit(&data.data.last_commit, &validator_set)?;
+                verify_commit(
+                    &data.data.last_commit,
+                    &validator_set,
+                    &data.data.header.chain_id,
+                )?;
 
                 // TODO: commit is for previous block; how do we handle this?
             }
@@ -325,7 +332,7 @@ impl Reader {
     }
 }
 
-fn verify_commit(commit: &Commit, validator_set: &ValidatorSet) -> Result<()> {
+fn verify_commit(commit: &Commit, validator_set: &ValidatorSet, chain_id: &str) -> Result<()> {
     if commit.height != validator_set.block_height {
         bail!(
             "commit height mismatch: expected {}, got {}",
@@ -374,10 +381,14 @@ fn verify_commit(commit: &Commit, validator_set: &ValidatorSet) -> Result<()> {
             );
         }
 
-        // // verify vote signature
-        // let public_key = ed25519_dalek::PublicKey::from_bytes(&validator.pub_key.key.0)?;
-        // let signature = ed25519_dalek::Signature::from_bytes(&vote.signature.0)?;
-        // public_key.verify(&commit.block_id.hash.0, &signature)?;
+        // verify vote signature
+        verify_vote_signature(
+            vote,
+            &commit,
+            chain_id,
+            &validator.pub_key.key.0,
+            &vote.signature.0,
+        )?;
 
         commit_voting_power += validator.voting_power.parse::<u64>()?;
     }
@@ -393,12 +404,44 @@ fn verify_commit(commit: &Commit, validator_set: &ValidatorSet) -> Result<()> {
     Ok(())
 }
 
+fn verify_vote_signature(
+    vote: &astria_sequencer_relayer::types::CommitSig,
+    commit: &Commit,
+    chain_id: &str,
+    public_key_bytes: &[u8],
+    signature_bytes: &[u8],
+) -> Result<()> {
+    let public_key = ed25519_dalek::PublicKey::from_bytes(public_key_bytes)?;
+    let signature = ed25519_dalek::Signature::from_bytes(signature_bytes)?;
+    let canonical_vote = tendermint::vote::CanonicalVote {
+        vote_type: tendermint::vote::Type::Precommit,
+        height: tendermint::block::Height::from_str(&commit.height)?,
+        round: tendermint::block::Round::from(commit.round as u16),
+        block_id: Some(tendermint::block::Id {
+            hash: tendermint::Hash::try_from(commit.block_id.hash.0.to_vec())?,
+            part_set_header: tendermint::block::parts::Header::new(
+                commit.block_id.part_set_header.total,
+                tendermint::Hash::try_from(commit.block_id.part_set_header.hash.0.to_vec())?,
+            )?,
+        }),
+        timestamp: Some(tendermint::Time::parse_from_rfc3339(&vote.timestamp)?),
+        chain_id: tendermint::chain::Id::try_from(chain_id)?,
+    };
+    public_key.verify(
+        &tendermint_proto::types::CanonicalVote::try_from(canonical_vote)?
+            .encode_length_delimited_to_vec(),
+        &signature,
+    )?;
+    Ok(())
+}
+
 // see https://github.com/cometbft/cometbft/blob/539985efc7d461668ffb46dff88b3f7bb9275e5a/types/block.go#L922
 fn calculate_last_commit_hash(commit: &Commit) -> Hash {
     let signatures = commit
         .signatures
         .iter()
         .filter_map(|v| {
+            // TODO: match on commit type
             let commit_sig = CommitSig::BlockIdFlagCommit {
                 signature: Some(tendermint::Signature::try_from(v.signature.clone().0).ok()?),
                 validator_address: tendermint::account::Id::try_from(v.validator_address.clone().0)
@@ -465,7 +508,7 @@ mod test {
 
         let validator_set = serde_json::from_str::<ValidatorSet>(validator_set_str).unwrap();
         let commit = serde_json::from_str::<Commit>(commit_str).unwrap();
-        verify_commit(&commit, &validator_set).unwrap();
+        verify_commit(&commit, &validator_set, "private").unwrap();
     }
 
     #[test]
