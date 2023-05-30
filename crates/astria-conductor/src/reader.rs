@@ -464,8 +464,28 @@ fn calculate_last_commit_hash(commit: &Commit) -> Hash {
                             .encode_to_vec(),
                     )
                 }
-                "BLOCK_ID_FLAG_NIL" => None,
-                "BLOCK_ID_FLAG_ABSENT" => None,
+                "BLOCK_ID_FLAG_NIL" => {
+                    let commit_sig = CommitSig::BlockIdFlagNil {
+                        signature: Some(
+                            tendermint::Signature::try_from(v.signature.clone().0).ok()?,
+                        ),
+                        validator_address: tendermint::account::Id::try_from(
+                            v.validator_address.clone().0,
+                        )
+                        .ok()?,
+                        timestamp: tendermint::Time::parse_from_rfc3339(&v.timestamp).ok()?,
+                    };
+                    Some(
+                        tendermint_proto::types::CommitSig::try_from(commit_sig)
+                            .ok()?
+                            .encode_to_vec(),
+                    )
+                }
+                "BLOCK_ID_FLAG_ABSENT" => Some(
+                    tendermint_proto::types::CommitSig::try_from(CommitSig::BlockIdFlagAbsent)
+                        .ok()?
+                        .encode_to_vec(),
+                ),
                 _ => None, // TODO: could this ever happen?
             }
         })
