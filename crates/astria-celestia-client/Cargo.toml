@@ -1,12 +1,18 @@
 [package]
-name = "astria-celestia-node-client"
+name = "astria-celestia-client"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+base64.workspace = true
+base64-serde = "0.7.0"
+http = "0.2.9"
 jsonrpsee = { version = "0.18.2", features = ["client", "macros"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 tokio = { workspace = true, features = ["full"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros"] }
