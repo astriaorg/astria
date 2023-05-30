@@ -1,13 +1,21 @@
 //! Rust interface to the Celestia Node API using JsonRPC
-use base64::{prelude::BASE64_STANDARD, Engine as _};
-use http::header::{HeaderMap, HeaderValue};
+use base64::{
+    prelude::BASE64_STANDARD,
+    Engine as _,
+};
+use http::header::{
+    HeaderMap,
+    HeaderValue,
+};
 
 pub mod error;
 pub mod rpc_impl;
 pub(crate) mod serde;
 
-pub use error::{BuildError, RpcError};
-
+pub use error::{
+    BuildError,
+    RpcError,
+};
 // pub use rpc_impl::daser;
 // pub use rpc_impl::daser::DaserClient;
 // pub use rpc_impl::fraud::FraudClient;
@@ -78,7 +86,9 @@ impl CelestiaHttpClientBuilder {
             .set_headers(header_map)
             .build(endpoint)
             .map_err(BuildError::inner_client)?;
-        let client = CelestiaHttpClient { inner };
+        let client = CelestiaHttpClient {
+            inner,
+        };
         Ok(client)
     }
 

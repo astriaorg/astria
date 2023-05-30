@@ -1,6 +1,11 @@
 use std::{
     error::Error,
-    fmt::{self, Display, Formatter, Result},
+    fmt::{
+        self,
+        Display,
+        Formatter,
+        Result,
+    },
 };
 
 use http::header::InvalidHeaderValue;
@@ -12,7 +17,9 @@ pub struct RpcError {
 
 impl RpcError {
     pub(super) fn from_jsonrpsee(inner: jsonrpsee::core::Error) -> Self {
-        Self { inner }
+        Self {
+            inner,
+        }
     }
 }
 
@@ -37,15 +44,21 @@ pub enum BuildError {
 
 impl BuildError {
     pub(super) fn field_not_set(field: &'static str) -> Self {
-        Self::FieldNotSet(FieldNotSet { field })
+        Self::FieldNotSet(FieldNotSet {
+            field,
+        })
     }
 
     pub(super) fn invalid_bearer_token(error: InvalidHeaderValue) -> Self {
-        Self::InvalidBearerToken(InvalidBearerToken { inner: error })
+        Self::InvalidBearerToken(InvalidBearerToken {
+            inner: error,
+        })
     }
 
     pub(super) fn inner_client(error: jsonrpsee::core::Error) -> Self {
-        Self::InnerClient(InnerClient { inner: error })
+        Self::InnerClient(InnerClient {
+            inner: error,
+        })
     }
 }
 
