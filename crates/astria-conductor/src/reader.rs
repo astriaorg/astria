@@ -12,7 +12,10 @@ use astria_sequencer_relayer::{
     },
     keys::public_key_to_address,
     sequencer_block::SequencerBlock,
-    types::Commit,
+    types::{
+        Commit,
+        CommitSig,
+    },
 };
 use bech32::{
     self,
@@ -28,11 +31,26 @@ use color_eyre::eyre::{
 use ed25519_dalek::Verifier;
 use prost::Message;
 use tendermint::{
-    block::CommitSig,
+    account::Id as AccountId,
+    block::{
+        parts,
+        CommitSig as TendermintCommitSig,
+        Height,
+        Id as BlockId,
+        Round,
+    },
+    chain::Id as ChainId,
     crypto,
     merkle,
+    vote::{
+        self,
+        CanonicalVote,
+    },
     Hash,
+    Signature,
+    Time,
 };
+use tendermint_proto::types::CommitSig as RawCommitSig;
 use tokio::{
     sync::mpsc::{
         self,
@@ -408,8 +426,10 @@ fn verify_commit(commit: &Commit, validator_set: &ValidatorSet, chain_id: &str) 
 }
 
 // see https://github.com/tendermint/tendermint/blob/35581cf54ec436b8c37fabb43fdaa3f48339a170/types/vote.go#L147
+// TODO: we can change these types (CommitSig and Commit) to be the tendermint types
+// after the other relayer types are updated.
 fn verify_vote_signature(
-    vote: &astria_sequencer_relayer::types::CommitSig,
+    vote: &CommitSig,
     commit: &Commit,
     chain_id: &str,
     public_key_bytes: &[u8],
@@ -417,19 +437,19 @@ fn verify_vote_signature(
 ) -> Result<()> {
     let public_key = ed25519_dalek::PublicKey::from_bytes(public_key_bytes)?;
     let signature = ed25519_dalek::Signature::from_bytes(signature_bytes)?;
-    let canonical_vote = tendermint::vote::CanonicalVote {
-        vote_type: tendermint::vote::Type::Precommit,
-        height: tendermint::block::Height::from_str(&commit.height)?,
-        round: tendermint::block::Round::from(commit.round as u16),
-        block_id: Some(tendermint::block::Id {
-            hash: tendermint::Hash::try_from(commit.block_id.hash.0.to_vec())?,
-            part_set_header: tendermint::block::parts::Header::new(
+    let canonical_vote = CanonicalVote {
+        vote_type: vote::Type::Precommit,
+        height: Height::from_str(&commit.height)?,
+        round: Round::from(commit.round as u16),
+        block_id: Some(BlockId {
+            hash: Hash::try_from(commit.block_id.hash.0.to_vec())?,
+            part_set_header: parts::Header::new(
                 commit.block_id.part_set_header.total,
-                tendermint::Hash::try_from(commit.block_id.part_set_header.hash.0.to_vec())?,
+                Hash::try_from(commit.block_id.part_set_header.hash.0.to_vec())?,
             )?,
         }),
-        timestamp: Some(tendermint::Time::parse_from_rfc3339(&vote.timestamp)?),
-        chain_id: tendermint::chain::Id::try_from(chain_id)?,
+        timestamp: Some(Time::parse_from_rfc3339(&vote.timestamp)?),
+        chain_id: ChainId::try_from(chain_id)?,
     };
     public_key.verify(
         &tendermint_proto::types::CanonicalVote::try_from(canonical_vote)?
@@ -448,41 +468,25 @@ fn calculate_last_commit_hash(commit: &Commit) -> Hash {
         .filter_map(|v| {
             match v.block_id_flag.as_str() {
                 "BLOCK_ID_FLAG_COMMIT" => {
-                    let commit_sig = CommitSig::BlockIdFlagCommit {
-                        signature: Some(
-                            tendermint::Signature::try_from(v.signature.clone().0).ok()?,
-                        ),
-                        validator_address: tendermint::account::Id::try_from(
-                            v.validator_address.clone().0,
-                        )
-                        .ok()?,
-                        timestamp: tendermint::Time::parse_from_rfc3339(&v.timestamp).ok()?,
+                    let commit_sig = TendermintCommitSig::BlockIdFlagCommit {
+                        signature: Some(Signature::try_from(v.signature.clone().0).ok()?),
+                        validator_address: AccountId::try_from(v.validator_address.clone().0)
+                            .ok()?,
+                        timestamp: Time::parse_from_rfc3339(&v.timestamp).ok()?,
                     };
-                    Some(
-                        tendermint_proto::types::CommitSig::try_from(commit_sig)
-                            .ok()?
-                            .encode_to_vec(),
-                    )
+                    Some(RawCommitSig::try_from(commit_sig).ok()?.encode_to_vec())
                 }
                 "BLOCK_ID_FLAG_NIL" => {
-                    let commit_sig = CommitSig::BlockIdFlagNil {
-                        signature: Some(
-                            tendermint::Signature::try_from(v.signature.clone().0).ok()?,
-                        ),
-                        validator_address: tendermint::account::Id::try_from(
-                            v.validator_address.clone().0,
-                        )
-                        .ok()?,
-                        timestamp: tendermint::Time::parse_from_rfc3339(&v.timestamp).ok()?,
+                    let commit_sig = TendermintCommitSig::BlockIdFlagNil {
+                        signature: Some(Signature::try_from(v.signature.clone().0).ok()?),
+                        validator_address: AccountId::try_from(v.validator_address.clone().0)
+                            .ok()?,
+                        timestamp: Time::parse_from_rfc3339(&v.timestamp).ok()?,
                     };
-                    Some(
-                        tendermint_proto::types::CommitSig::try_from(commit_sig)
-                            .ok()?
-                            .encode_to_vec(),
-                    )
+                    Some(RawCommitSig::try_from(commit_sig).ok()?.encode_to_vec())
                 }
                 "BLOCK_ID_FLAG_ABSENT" => Some(
-                    tendermint_proto::types::CommitSig::try_from(CommitSig::BlockIdFlagAbsent)
+                    RawCommitSig::try_from(TendermintCommitSig::BlockIdFlagAbsent)
                         .ok()?
                         .encode_to_vec(),
                 ),
