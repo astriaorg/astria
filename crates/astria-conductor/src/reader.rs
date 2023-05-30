@@ -222,7 +222,7 @@ impl Reader {
     /// - the signature is valid
     /// - the root of the markle tree of all the header fields matches the block's block_hash
     /// - the root of the merkle tree of all transactions in the block matches the block's data_hash
-    /// - TODO: validate the block was actually finalized; ie >2/3 stake signed off on it
+    /// - validate the block was actually finalized; ie >2/3 stake signed off on it
     /// (see https://github.com/astriaorg/astria/issues/16)
     async fn validate_sequencer_namespace_data(
         &self,
@@ -287,7 +287,7 @@ impl Reader {
                 // this case only happens if the last commit is empty, which should only happen on
                 // block 1.
                 if data.data.header.height != "1" {
-                    bail!("last commit hash not found"); // TODO: what case would this happen? I think only on block 1?
+                    bail!("last commit hash not found");
                 }
 
                 if data.data.header.last_commit_hash.is_some() {
@@ -341,8 +341,7 @@ fn verify_commit(commit: &Commit, validator_set: &ValidatorSet, chain_id: &str) 
         );
     }
 
-    // TODO: assert the commit was not for nil (I don't think this can happen as BlockId must be
-    // set)
+    // TODO: assert the commit was not for nil
 
     let mut total_voting_power = 0u64;
     validator_set
@@ -361,6 +360,12 @@ fn verify_commit(commit: &Commit, validator_set: &ValidatorSet, chain_id: &str) 
 
     let mut commit_voting_power = 0u64;
     for vote in &commit.signatures {
+        // we only care about votes that are for the Commit.BlockId (ignore absent validators and
+        // votes for nil)
+        if vote.block_id_flag != "BLOCK_ID_FLAG_COMMIT" {
+            continue;
+        }
+
         // verify validator exists in validator set
         let validator_address = bech32::encode(
             "metrovalcons",
@@ -404,6 +409,7 @@ fn verify_commit(commit: &Commit, validator_set: &ValidatorSet, chain_id: &str) 
     Ok(())
 }
 
+// see https://github.com/tendermint/tendermint/blob/35581cf54ec436b8c37fabb43fdaa3f48339a170/types/vote.go#L147
 fn verify_vote_signature(
     vote: &astria_sequencer_relayer::types::CommitSig,
     commit: &Commit,
@@ -436,23 +442,34 @@ fn verify_vote_signature(
 }
 
 // see https://github.com/cometbft/cometbft/blob/539985efc7d461668ffb46dff88b3f7bb9275e5a/types/block.go#L922
+// block_id_flag types are: https://github.com/cometbft/cometbft/blob/4e130bde8e85ec78ae81d06aa54df056a8fae43a/spec/core/data_structures.md?plain=1#L251
 fn calculate_last_commit_hash(commit: &Commit) -> Hash {
     let signatures = commit
         .signatures
         .iter()
         .filter_map(|v| {
-            // TODO: match on commit type
-            let commit_sig = CommitSig::BlockIdFlagCommit {
-                signature: Some(tendermint::Signature::try_from(v.signature.clone().0).ok()?),
-                validator_address: tendermint::account::Id::try_from(v.validator_address.clone().0)
-                    .ok()?,
-                timestamp: tendermint::Time::parse_from_rfc3339(&v.timestamp).ok()?,
-            };
-            Some(
-                tendermint_proto::types::CommitSig::try_from(commit_sig)
-                    .ok()?
-                    .encode_to_vec(),
-            )
+            match v.block_id_flag.as_str() {
+                "BLOCK_ID_FLAG_COMMIT" => {
+                    let commit_sig = CommitSig::BlockIdFlagCommit {
+                        signature: Some(
+                            tendermint::Signature::try_from(v.signature.clone().0).ok()?,
+                        ),
+                        validator_address: tendermint::account::Id::try_from(
+                            v.validator_address.clone().0,
+                        )
+                        .ok()?,
+                        timestamp: tendermint::Time::parse_from_rfc3339(&v.timestamp).ok()?,
+                    };
+                    Some(
+                        tendermint_proto::types::CommitSig::try_from(commit_sig)
+                            .ok()?
+                            .encode_to_vec(),
+                    )
+                }
+                "BLOCK_ID_FLAG_NIL" => None,
+                "BLOCK_ID_FLAG_ABSENT" => None,
+                _ => None, // TODO: could this ever happen?
+            }
         })
         .collect::<Vec<_>>();
     Hash::Sha256(merkle::simple_hash_from_byte_vectors::<
