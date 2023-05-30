@@ -30,7 +30,7 @@ This repo contains all the protobuf definitions for the different Astria RPC ser
 
 ### Building and pushing after making changes in `proto`
 
-* `$ cd astria-proto/proto` - must be in same directory as `buf.yaml`
+* `$ cd astria-rpc` - must be in same directory as `buf.yaml`
 * `$ buf build` - [builds the proto files into a single binary file](https://docs.buf.build/build/explanation#what-are-buf-images)
 * `$ buf push` - pushes a module to the registry
 

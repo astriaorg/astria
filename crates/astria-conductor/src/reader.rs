@@ -232,7 +232,7 @@ impl Reader {
         let height = data.data.header.height.parse::<u64>()?;
 
         // get validator set for this height
-        let mut validator_set = self.tendermint_client.get_validator_set(height).await?;
+        let mut validator_set = self.tendermint_client.get_validator_set(height - 1).await?;
 
         // find proposer address for this height
         let expected_proposer_address = validator_set.get_proposer()?.address;
@@ -340,8 +340,6 @@ fn verify_commit(commit: &Commit, validator_set: &ValidatorSet, chain_id: &str) 
             commit.height
         );
     }
-
-    // TODO: assert the commit was not for nil
 
     let mut total_voting_power = 0u64;
     validator_set

@@ -64,4 +64,3 @@ message TxBody {
     // value is the binary serialized protobuf message, matching `type_url`.
     bytes value = 2;
   }
-  
