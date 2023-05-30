@@ -384,7 +384,7 @@ fn verify_commit(commit: &Commit, validator_set: &ValidatorSet, chain_id: &str) 
         // verify vote signature
         verify_vote_signature(
             vote,
-            &commit,
+            commit,
             chain_id,
             &validator.pub_key.key.0,
             &vote.signature.0,
