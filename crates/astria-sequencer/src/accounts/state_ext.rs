@@ -5,10 +5,9 @@ use penumbra_storage::{
     StateWrite,
 };
 
-use crate::accounts::transaction::{
-    Balance,
-    Nonce,
-};
+pub type Address = String;
+pub type Balance = u64; // might need to be larger
+pub type Nonce = u32;
 
 const ACCOUNTS_PREFIX: &str = "accounts";
 
@@ -16,21 +15,42 @@ fn storage_key(address: &str) -> String {
     format!("{}/{}", ACCOUNTS_PREFIX, address)
 }
 
+pub(crate) fn balance_storage_key(address: &str) -> String {
+    format!("{}/balance", storage_key(address))
+}
+
+pub(crate) fn nonce_storage_key(address: &str) -> String {
+    format!("{}/nonce", storage_key(address))
+}
+
 #[async_trait]
 pub trait StateReadExt: StateRead {
-    async fn get_account_state(&self, address: &str) -> Result<(Balance, Nonce)> {
+    async fn get_account_balance(&self, address: &str) -> Result<Balance> {
         let bytes = self
-            .get_raw(&storage_key(address))
+            .get_raw(&balance_storage_key(address))
+            .await
+            .expect("storage error");
+        let Some(bytes) = bytes else {
+            // the account has not yet been initialized; return 0
+            return Ok(0);
+        };
+
+        let balance = u64::from_be_bytes(bytes[0..8].try_into()?);
+        Ok(balance)
+    }
+
+    async fn get_account_nonce(&self, address: &str) -> Result<Nonce> {
+        let bytes = self
+            .get_raw(&nonce_storage_key(address))
             .await
             .expect("storage error");
         let Some(bytes) = bytes else {
             // the account has not yet been initialized; return (0, 0)
-            return Ok((0, 0));
+            return Ok(0);
         };
 
-        let balance = u64::from_be_bytes(bytes[0..8].try_into()?);
-        let nonce = u32::from_be_bytes(bytes[8..12].try_into()?);
-        Ok((balance, nonce))
+        let nonce = u32::from_be_bytes(bytes[0..4].try_into()?);
+        Ok(nonce)
     }
 }
 
@@ -38,10 +58,14 @@ impl<T: StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub trait StateWriteExt: StateWrite {
-    fn put_account_state(&mut self, address: &str, balance: Balance, nonce: Nonce) {
-        let mut bytes = balance.to_be_bytes().to_vec();
-        bytes.append(&mut nonce.to_be_bytes().to_vec());
-        self.put_raw(storage_key(address), bytes);
+    fn put_account_balance(&mut self, address: &str, balance: Balance) {
+        let bytes = balance.to_be_bytes().to_vec();
+        self.put_raw(balance_storage_key(address), bytes);
+    }
+
+    fn put_account_nonce(&mut self, address: &str, nonce: Nonce) {
+        let bytes = nonce.to_be_bytes().to_vec();
+        self.put_raw(nonce_storage_key(address), bytes);
     }
 }
 

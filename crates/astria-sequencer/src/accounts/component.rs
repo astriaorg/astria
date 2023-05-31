@@ -19,7 +19,7 @@ impl Component for AccountsComponent {
 
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) {
         for (address, balance) in &app_state.accounts {
-            state.put_account_state(address, *balance, 0);
+            state.put_account_balance(address, *balance);
         }
     }
 

@@ -17,12 +17,6 @@ use tendermint::abci::request::{
 
 use crate::app::GenesisState;
 
-pub const ACCOUNTS_PREFIX: &str = "accounts";
-
-fn storage_key(address: &str) -> String {
-    format!("{}/{}", ACCOUNTS_PREFIX, address)
-}
-
 pub struct AccountsComponent {}
 
 impl AccountsComponent {

@@ -7,10 +7,12 @@ use penumbra_storage::{
     StateWrite,
 };
 
-use crate::accounts::transaction::{
-    Balance,
-    Nonce,
-    Transaction as AccountsTransaction,
+use crate::accounts::{
+    state_ext::{
+        Balance,
+        Nonce,
+    },
+    transaction::Transaction as AccountsTransaction,
 };
 
 /// Represents a sequencer chain transaction.

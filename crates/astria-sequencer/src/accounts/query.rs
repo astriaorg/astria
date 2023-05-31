@@ -6,13 +6,11 @@ use anyhow::{
     Result,
 };
 
-use crate::accounts::{
-    state_ext::StateReadExt,
-    transaction::{
-        Address,
-        Balance,
-        Nonce,
-    },
+use crate::accounts::state_ext::{
+    Address,
+    Balance,
+    Nonce,
+    StateReadExt,
 };
 
 pub enum QueryRequest {
@@ -62,11 +60,11 @@ impl QueryHandler {
     ) -> Result<QueryResponse> {
         match query {
             QueryRequest::BalanceQuery(address) => {
-                let (balance, _) = state.get_account_state(&address).await?;
+                let balance = state.get_account_balance(&address).await?;
                 Ok(QueryResponse::BalanceResponse(balance))
             }
             QueryRequest::NonceQuery(address) => {
-                let (_, nonce) = state.get_account_state(&address).await?;
+                let nonce = state.get_account_nonce(&address).await?;
                 Ok(QueryResponse::NonceResponse(nonce))
             }
         }

@@ -5,13 +5,12 @@ use serde::{
 };
 
 use crate::accounts::state_ext::{
+    Address,
+    Balance,
+    Nonce,
     StateReadExt,
     StateWriteExt,
 };
-
-pub type Address = String;
-pub type Balance = u64; // might need to be larger
-pub type Nonce = u32;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Transaction {
@@ -46,13 +45,14 @@ impl Transaction {
     }
 
     pub async fn check_stateful<S: StateReadExt + 'static>(&self, state: &S) -> Result<()> {
-        let (curr_balance, curr_nonce) = state.get_account_state(&self.from).await?;
+        let curr_nonce = state.get_account_nonce(&self.from).await?;
 
         // TODO: do nonces start at 0 or 1? this assumes an account's first tx has nonce 1.
         if curr_nonce >= self.nonce {
             anyhow::bail!("invalid nonce");
         }
 
+        let curr_balance = state.get_account_balance(&self.from).await?;
         if curr_balance < self.amount {
             anyhow::bail!("insufficient funds");
         }
@@ -61,10 +61,12 @@ impl Transaction {
     }
 
     pub async fn execute<S: StateWriteExt>(&self, state: &mut S) -> Result<()> {
-        let (from_balance, from_nonce) = state.get_account_state(&self.from).await?;
-        let (to_balance, to_nonce) = state.get_account_state(&self.to).await?;
-        state.put_account_state(&self.from, from_balance - self.amount, from_nonce + 1);
-        state.put_account_state(&self.to, to_balance + self.amount, to_nonce);
+        let from_balance = state.get_account_balance(&self.from).await?;
+        let from_nonce = state.get_account_nonce(&self.from).await?;
+        let to_balance = state.get_account_balance(&self.to).await?;
+        state.put_account_balance(&self.from, from_balance - self.amount);
+        state.put_account_nonce(&self.from, from_nonce + 1);
+        state.put_account_balance(&self.to, to_balance + self.amount);
         Ok(())
     }
 }
