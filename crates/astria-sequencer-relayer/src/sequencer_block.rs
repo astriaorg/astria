@@ -4,7 +4,7 @@ use std::{
 };
 
 use astria_proto::sequencer::v1::{
-    IndexedTransaction as IndexedTransactionProto,
+    IndexedTransaction as RawIndexedTransaction,
     SequencerMsg,
     TxBody,
     TxRaw,
@@ -14,7 +14,6 @@ use base64::{
     Engine as _,
 };
 use eyre::{
-    bail,
     ensure,
     WrapErr as _,
 };
@@ -37,15 +36,22 @@ use sha2::{
     Digest,
     Sha256,
 };
+use tendermint::{
+    block::{
+        Block,
+        Header,
+    },
+    Hash,
+};
 use tracing::debug;
 
 use crate::{
     base64_string::Base64String,
     transaction::txs_to_data_hash,
-    types::{
-        Block,
-        Header,
-    },
+    // types::{
+    //     Block,
+    //     Header,
+    // },
 };
 
 /// Cosmos SDK message type URL for SequencerMsgs.
@@ -140,14 +146,14 @@ pub fn get_namespace(bytes: &[u8]) -> Namespace {
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct IndexedTransaction {
     pub block_index: usize,
-    pub transaction: Base64String,
+    pub transaction: Vec<u8>,
 }
 
 impl IndexedTransaction {
-    pub fn from_proto(proto: &IndexedTransactionProto) -> eyre::Result<Self> {
+    pub fn from_proto(proto: &RawIndexedTransaction) -> eyre::Result<Self> {
         Ok(Self {
             block_index: proto.block_index.try_into()?,
-            transaction: Base64String::from_bytes(&proto.transaction),
+            transaction: proto.transaction.clone(),
         })
     }
 }
@@ -160,9 +166,9 @@ impl IndexedTransaction {
 ///
 /// NOTE: all transactions in this structure are full transaction bytes as received
 /// from tendermint.
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct SequencerBlock {
-    pub block_hash: Base64String,
+    pub block_hash: Hash,
     pub header: Header,
     pub sequencer_txs: Vec<IndexedTransaction>,
     /// namespace -> rollup txs
@@ -183,22 +189,18 @@ impl SequencerBlock {
     /// from_cosmos_block converts a cosmos-sdk block into a SequencerBlock.
     /// it parses the block for SequencerMsgs and namespaces them accordingly.
     pub fn from_cosmos_block(b: Block) -> eyre::Result<Self> {
-        if b.header.data_hash.is_none() {
-            bail!("block has no data hash");
-        }
-
         // we unwrap generic txs into rollup-specific txs here,
         // and namespace them correspondingly
         let mut sequencer_txs = vec![];
         let mut rollup_txs = HashMap::new();
 
-        for (index, tx) in b.data.txs.iter().enumerate() {
+        for (index, tx) in b.data.into_iter().enumerate() {
             debug!(
                 "parsing tx: {:?}",
-                general_purpose::STANDARD.encode(tx.0.clone())
+                general_purpose::STANDARD.encode(tx.clone())
             );
 
-            let tx_body = parse_cosmos_tx(tx)?;
+            let tx_body = parse_cosmos_tx(&tx)?;
             let msgs = cosmos_tx_body_to_sequencer_msgs(tx_body)?;
 
             // NOTE: we currently write the entire cosmos tx to Celestia.
@@ -226,7 +228,7 @@ impl SequencerBlock {
         }
 
         Ok(Self {
-            block_hash: Base64String(b.header.hash()?.as_bytes().to_vec()),
+            block_hash: b.header.hash(),
             header: b.header,
             sequencer_txs,
             rollup_txs,
@@ -236,9 +238,9 @@ impl SequencerBlock {
     /// verify_data_hash verifies that the merkle root of the tree consisting of all the
     /// transactions in the block matches the block's data hash.
     pub fn verify_data_hash(&self) -> eyre::Result<()> {
-        let Some(this_data_hash) = self.header.data_hash.as_ref() else {
-            bail!("block has no data hash");
-        };
+        // let Some(this_data_hash) = self.header.data_hash.as_ref() else {
+        //     bail!("block has no data hash");
+        // };
 
         let mut ordered_txs = vec![];
         ordered_txs.append(&mut self.sequencer_txs.clone());
@@ -256,7 +258,7 @@ impl SequencerBlock {
         let data_hash = txs_to_data_hash(&txs);
 
         ensure!(
-            data_hash.as_bytes() == this_data_hash.0,
+            data_hash == self.header.data_hash.unwrap(), // TODO: statically handle
             "data hash stored in block header does not match hash calculated from transactions",
         );
 
@@ -266,9 +268,9 @@ impl SequencerBlock {
     /// verify_block_hash verifies that the merkle root of the tree consisting of the block header
     /// matches the block's hash.
     pub fn verify_block_hash(&self) -> eyre::Result<()> {
-        let block_hash = self.header.hash()?;
+        let block_hash = self.header.hash();
         ensure!(
-            block_hash.as_bytes() == self.block_hash.0,
+            block_hash == self.block_hash,
             "block hash calculated from tendermint header does not match block hash stored in \
              sequencer block",
         );
@@ -276,8 +278,8 @@ impl SequencerBlock {
     }
 }
 
-pub fn parse_cosmos_tx(tx: &Base64String) -> eyre::Result<TxBody> {
-    let tx_raw = TxRaw::decode(tx.0.as_slice())
+pub fn parse_cosmos_tx(tx: &Vec<u8>) -> eyre::Result<TxBody> {
+    let tx_raw = TxRaw::decode(tx.as_slice())
         .wrap_err("failed decoding raw tx protobuf from hex encoded transaction")?;
     let tx_body = TxBody::decode(tx_raw.body_bytes.as_slice())
         .wrap_err("failed decoding tx body from protobuf stored in raw tx body bytes")?;
@@ -298,6 +300,19 @@ pub fn cosmos_tx_body_to_sequencer_msgs(tx_body: TxBody) -> eyre::Result<Vec<Seq
 mod test {
     use std::collections::HashMap;
 
+    use tendermint::{
+        account,
+        block::{
+            header::Version,
+            Height,
+        },
+        chain,
+        hash,
+        AppHash,
+        Hash,
+        Time,
+    };
+
     use super::{
         cosmos_tx_body_to_sequencer_msgs,
         parse_cosmos_tx,
@@ -311,10 +326,37 @@ mod test {
         sequencer_block::IndexedTransaction,
     };
 
+    fn make_header() -> Header {
+        Header {
+            version: Version {
+                block: 0,
+                app: 0,
+            },
+            chain_id: {
+                match chain::Id::try_from("chain") {
+                    Ok(id) => id,
+                    _ => panic!("chain id construction failed"),
+                }
+            },
+            height: Height::from(0 as u32),
+            time: Time::now(),
+            last_block_id: None,
+            last_commit_hash: None,
+            data_hash: None,
+            validators_hash: Hash::default(),
+            next_validators_hash: Hash::default(),
+            consensus_hash: Hash::default(),
+            app_hash: AppHash::default(),
+            last_results_hash: None,
+            evidence_hash: None,
+            proposer_address: account::Id::new([0; 20]),
+        }
+    }
+
     #[test]
     fn test_parse_primary_tx() {
         let primary_tx = "CosBCogBChwvY29zbW9zLmJhbmsudjFiZXRhMS5Nc2dTZW5kEmgKLG1ldHJvMXFwNHo0amMwdndxd3hzMnl0NmNrNDRhZWo5bWV5ZnQ0eHg4bXN5EixtZXRybzEwN2Nod2U2MGd2Z3JneXlmbjAybWRsNmxuNjd0dndtOGhyZjR2MxoKCgV1dGljaxIBMRJsClAKRgofL2Nvc21vcy5jcnlwdG8uc2VjcDI1NmsxLlB1YktleRIjCiEDkoWc0MT/06rTUjNPZcvNLqcQJtOvzIWtenGsJXEfEJkSBAoCCAEYBRIYChAKBXV0aWNrEgcxMDAwMDAwEICU69wDGkBeBi44QbvLMvzndkNj+6dckqOR19eNTKV9qZyvtVOrj1+UN/VqeN9Rf0+M6Rmg24uNE5A4jsRcTXh7RkUm9ItT".to_string();
-        let tx = parse_cosmos_tx(&Base64String::from_string(primary_tx).unwrap()).unwrap();
+        let tx = parse_cosmos_tx(&Base64String::from_string(primary_tx)).unwrap();
         assert_eq!(tx.messages.len(), 1);
         assert_eq!(tx.messages[0].type_url, "/cosmos.bank.v1beta1.MsgSend");
         let sequencer_msgs = cosmos_tx_body_to_sequencer_msgs(tx).unwrap();
@@ -336,11 +378,16 @@ mod test {
     #[test]
     fn sequencer_block_to_bytes() {
         let mut expected = SequencerBlock {
-            block_hash: Base64String::from_string(
-                "Ojskac/Fi5G00alQZms+tdtIox53cWWjBmIGEnWG1+M=".to_string(),
+            block_hash: Hash::from_bytes(
+                hash::Algorithm::Sha256,
+                &Base64String::from_string(
+                    "Ojskac/Fi5G00alQZms+tdtIox53cWWjBmIGEnWG1+M=".to_string(),
+                )
+                .unwrap()
+                .0,
             )
             .unwrap(),
-            header: Header::default(),
+            header: make_header(),
             sequencer_txs: vec![IndexedTransaction {
                 block_index: 0,
                 transaction: Base64String::from_bytes(&[0x11, 0x22, 0x33]),

@@ -10,7 +10,10 @@ use serde::{
     Serialize,
 };
 
-use crate::types::*;
+use crate::types::{
+    BlockResponse,
+    EmptyRequest,
+};
 
 static BLOCK_ENDPOINT: &str = "/cosmos/base/tendermint/v1beta1/blocks/";
 static LATEST_BLOCK_ENDPOINT: &str = "/cosmos/base/tendermint/v1beta1/blocks/latest";

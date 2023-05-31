@@ -12,6 +12,7 @@ use axum::{
 };
 use http::status::StatusCode;
 use serde::Serialize;
+use tendermint::block::Height;
 use tokio::sync::watch::Receiver;
 
 use crate::relayer::State as RelayerState;
@@ -98,8 +99,8 @@ impl IntoResponse for Readyz {
 
 #[derive(Debug, Serialize)]
 struct Status {
-    current_sequencer_height: Option<u64>,
-    current_data_availability_height: Option<u64>,
+    current_sequencer_height: Option<Height>,
+    current_data_availability_height: Option<Height>,
 }
 
 impl Status {

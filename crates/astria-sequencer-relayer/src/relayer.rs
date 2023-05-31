@@ -1,12 +1,16 @@
-use std::str::FromStr;
-
 use bech32::{
     self,
     ToBase32,
     Variant,
 };
-use eyre::Result;
 use serde::Deserialize;
+use tendermint::{
+    account,
+    block::{
+        Block,
+        Height,
+    },
+};
 use tokio::{
     sync::{
         mpsc::UnboundedSender,
@@ -50,8 +54,7 @@ pub struct Relayer {
     da_client: CelestiaClient,
     disable_writing: bool,
     keypair: ed25519_dalek::Keypair,
-    validator_address: String,
-    validator_address_bytes: Vec<u8>,
+    validator_address: account::Id,
     interval: Interval,
     block_tx: UnboundedSender<SequencerBlock>,
 
@@ -60,8 +63,8 @@ pub struct Relayer {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct State {
-    pub(crate) current_sequencer_height: Option<u64>,
-    pub(crate) current_data_availability_height: Option<u64>,
+    pub(crate) current_sequencer_height: Option<Height>,
+    pub(crate) current_data_availability_height: Option<Height>,
 }
 
 impl State {
@@ -77,7 +80,7 @@ impl Relayer {
         key_file: ValidatorPrivateKeyFile,
         interval: Interval,
         block_tx: UnboundedSender<SequencerBlock>,
-    ) -> Result<Self> {
+    ) -> eyre::Result<Self> {
         // generate our private-public keypair
         let keypair = private_key_bytes_to_keypair(
             &Base64String::from_string(key_file.priv_key.value)
@@ -87,12 +90,17 @@ impl Relayer {
         .expect("failed to convert validator private key to keypair");
 
         // generate our bech32 validator address
+        // TODO: figure out encoding
         let validator_address = validator_hex_to_address(&key_file.address)
             .expect("failed to convert validator address to bech32");
 
         // generate our validator address bytes
-        let validator_address_bytes = hex::decode(&key_file.address)
-            .expect("failed to decode validator address; must be hex string");
+        let validator_address_bytes: [u8; 20] = hex::decode(&key_file.address)
+            .expect("failed to decode validator address; must be hex string")
+            .try_into()
+            .map_err(|e| {
+                eyre::eyre!("failed to convert validator address to account::Id:\n{e:?}")
+            })?;
 
         let (state, _) = watch::channel(State::default());
 
@@ -101,8 +109,7 @@ impl Relayer {
             da_client,
             disable_writing: false,
             keypair,
-            validator_address,
-            validator_address_bytes,
+            validator_address: account::Id::new(validator_address_bytes),
             interval,
             block_tx,
             state,
@@ -120,29 +127,32 @@ impl Relayer {
     async fn get_and_submit_latest_block(&self) -> eyre::Result<State> {
         let mut new_state = (*self.state.borrow()).clone();
         let resp = self.sequencer_client.get_latest_block().await?;
+        let block = Block::try_from(resp.block)?;
 
-        let maybe_height: Result<u64, <u64 as FromStr>::Err> = resp.block.header.height.parse();
-        if let Err(e) = maybe_height {
-            warn!(
-                error = ?e,
-                "got invalid block height {} from sequencer",
-                resp.block.header.height,
-            );
+        let height = block.header.height;
+        if height
+            <= *new_state
+                .current_sequencer_height
+                .get_or_insert(block.header.height)
+        {
             return Ok(new_state);
         }
 
-        let height = maybe_height.unwrap();
-        if height <= *new_state.current_sequencer_height.get_or_insert(height) {
-            return Ok(new_state);
-        }
+        info!(
+            "got block with height {} from sequencer",
+            block.header.height
+        );
+        new_state
+            .current_sequencer_height
+            .replace(block.header.height);
 
-        info!("got block with height {} from sequencer", height);
-        new_state.current_sequencer_height.replace(height);
-
-        if resp.block.header.proposer_address.0 != self.validator_address_bytes {
+        if block.header.proposer_address != self.validator_address {
+            // TODO: get rid of validator_address_bytes
             let proposer_address = bech32::encode(
                 "metrovalcons",
-                resp.block.header.proposer_address.0.to_base32(),
+                Base64String::from_bytes(&block.header.proposer_address.as_bytes()) // TODO: get rid of validator_address_bytes
+                    .0
+                    .to_base32(),
                 Variant::Bech32,
             )
             .expect("should encode block proposer address");
@@ -154,7 +164,7 @@ impl Relayer {
             return Ok(new_state);
         }
 
-        let sequencer_block = match SequencerBlock::from_cosmos_block(resp.block) {
+        let sequencer_block = match SequencerBlock::from_cosmos_block(block) {
             Ok(block) => block,
             Err(e) => {
                 warn!(error = ?e, "failed to convert block to DA block");
@@ -175,11 +185,10 @@ impl Relayer {
             .await
         {
             Ok(resp) => {
-                new_state
-                    .current_data_availability_height
-                    .replace(resp.height);
+                let height = Height::try_from(resp.height)?;
+                new_state.current_data_availability_height.replace(height);
                 info!(
-                    sequencer_block = height,
+                    sequencer_block = u64::from(height),
                     da_layer_block = resp.height,
                     tx_count,
                     "submitted sequencer block to DA layer",

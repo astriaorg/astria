@@ -1,4 +1,8 @@
 use astria_sequencer_relayer_test::init_test;
+use tendermint::{
+    Block,
+    Hash,
+};
 
 use crate::sequencer::SequencerClient;
 
@@ -10,7 +14,8 @@ async fn test_header_to_tendermint_header() {
     let client = SequencerClient::new(sequencer_endpoint).unwrap();
 
     let resp = client.get_latest_block().await.unwrap();
-    let tm_header = &resp.block.header.to_tendermint_header().unwrap();
-    let tm_header_hash = tm_header.hash();
-    assert_eq!(tm_header_hash.as_bytes(), &resp.block_id.hash.0);
+    let block_id_hash = Hash::try_from(resp.block_id.hash).unwrap();
+    let block = Block::try_from(resp.block).unwrap();
+    let tm_header_hash = block.header.hash();
+    assert_eq!(tm_header_hash, block_id_hash);
 }
