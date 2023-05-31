@@ -2,6 +2,7 @@ use anyhow::{
     anyhow,
     Result,
 };
+use async_trait::async_trait;
 use penumbra_storage::{
     StateRead,
     StateWrite,
@@ -14,6 +15,13 @@ use crate::accounts::{
     },
     transaction::Transaction as AccountsTransaction,
 };
+
+#[async_trait]
+pub trait ActionHandler {
+    fn check_stateless(&self) -> Result<()>;
+    async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()>;
+    async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()>;
+}
 
 /// Represents a sequencer chain transaction.
 /// If a new transaction type is added, it should be added to this enum.
@@ -55,20 +63,23 @@ impl Transaction {
             _ => Err(anyhow!("invalid transaction type")),
         }
     }
+}
 
-    pub fn check_stateless(&self) -> Result<()> {
+#[async_trait]
+impl ActionHandler for Transaction {
+    fn check_stateless(&self) -> Result<()> {
         match self {
             Self::AccountsTransaction(tx) => tx.check_stateless(),
         }
     }
 
-    pub async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()> {
+    async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()> {
         match self {
             Self::AccountsTransaction(tx) => tx.check_stateful(state).await,
         }
     }
 
-    pub async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()> {
+    async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()> {
         match self {
             Self::AccountsTransaction(tx) => tx.execute(state).await,
         }

@@ -16,7 +16,10 @@ use tower::Service;
 use tower_abci::BoxError;
 use tracing::info;
 
-use crate::transaction::Transaction;
+use crate::transaction::{
+    ActionHandler as _,
+    Transaction,
+};
 
 /// MempoolService handles one request: CheckTx.
 /// It performs a stateless check of the given transaction,

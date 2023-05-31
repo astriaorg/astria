@@ -23,7 +23,10 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::Transaction,
+    transaction::{
+        ActionHandler as _,
+        Transaction,
+    },
 };
 
 /// The application hash, used to verify the application state.
