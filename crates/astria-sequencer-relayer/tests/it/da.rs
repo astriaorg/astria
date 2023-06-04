@@ -16,6 +16,46 @@ use ed25519_dalek::{
     PublicKey,
 };
 use rand::rngs::OsRng;
+use tendermint::{
+    account,
+    block::{
+        header::Version,
+        Header,
+        Height,
+    },
+    chain,
+    hash,
+    AppHash,
+    Hash,
+    Time,
+};
+
+fn make_header() -> Header {
+    Header {
+        version: Version {
+            block: 0,
+            app: 0,
+        },
+        chain_id: {
+            match chain::Id::try_from("chain") {
+                Ok(id) => id,
+                _ => panic!("chain id construction failed"),
+            }
+        },
+        height: Height::from(0 as u32),
+        time: Time::now(),
+        last_block_id: None,
+        last_commit_hash: None,
+        data_hash: None,
+        validators_hash: Hash::default(),
+        next_validators_hash: Hash::default(),
+        consensus_hash: Hash::default(),
+        app_hash: AppHash::default(),
+        last_results_hash: None,
+        evidence_hash: None,
+        proposer_address: account::Id::new([0; 20]),
+    }
+}
 
 #[tokio::test]
 #[ignore = "very slow init of test environment"]
@@ -38,13 +78,13 @@ async fn get_blocks_public_key_filter() {
 
     let tx = Base64String(b"noot_was_here".to_vec());
 
-    let block_hash = Base64String(vec![99; 32]);
+    let block_hash = Hash::from_bytes(hash::Algorithm::Sha256, &vec![99; 32]).unwrap();
     let block = SequencerBlock {
         block_hash: block_hash.clone(),
-        header: Default::default(),
+        header: make_header(),
         sequencer_txs: vec![IndexedTransaction {
             block_index: 0,
-            transaction: tx.clone(),
+            transaction: tx.0.clone(),
         }],
         rollup_txs: HashMap::new(),
     };
@@ -77,13 +117,13 @@ async fn celestia_client() {
     let secondary_namespace = get_namespace(b"test_namespace");
     let secondary_tx = Base64String(b"noot_was_here_too".to_vec());
 
-    let block_hash = Base64String(vec![99; 32]);
+    let block_hash = Hash::from_bytes(hash::Algorithm::Sha256, &vec![99; 32]).unwrap();
     let mut block = SequencerBlock {
         block_hash: block_hash.clone(),
-        header: Default::default(),
+        header: make_header(),
         sequencer_txs: vec![IndexedTransaction {
             block_index: 0,
-            transaction: tx.clone(),
+            transaction: tx.0.clone(),
         }],
         rollup_txs: HashMap::new(),
     };
@@ -91,7 +131,7 @@ async fn celestia_client() {
         secondary_namespace.clone(),
         vec![IndexedTransaction {
             block_index: 1,
-            transaction: secondary_tx.clone(),
+            transaction: secondary_tx.0.clone(),
         }],
     );
 
@@ -112,14 +152,14 @@ async fn celestia_client() {
     let resp = client.get_blocks(*height, Some(&public_key)).await.unwrap();
     assert_eq!(resp.len(), 1);
     assert_eq!(resp[0].block_hash, block_hash);
-    assert_eq!(resp[0].header, Default::default());
+    assert_eq!(resp[0].header, make_header());
     assert_eq!(resp[0].sequencer_txs.len(), 1);
     assert_eq!(resp[0].sequencer_txs[0].block_index, 0);
-    assert_eq!(resp[0].sequencer_txs[0].transaction, tx);
+    assert_eq!(resp[0].sequencer_txs[0].transaction, tx.0);
     assert_eq!(resp[0].rollup_txs.len(), 1);
     assert_eq!(resp[0].rollup_txs[&secondary_namespace][0].block_index, 1);
     assert_eq!(
         resp[0].rollup_txs[&secondary_namespace][0].transaction,
-        secondary_tx
+        secondary_tx.0
     );
 }

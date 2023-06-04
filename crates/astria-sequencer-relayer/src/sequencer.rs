@@ -9,6 +9,7 @@ use serde::{
     de::DeserializeOwned,
     Serialize,
 };
+use tendermint::block::Height;
 
 use crate::types::{
     BlockResponse,
@@ -39,7 +40,7 @@ impl SequencerClient {
             .wrap_err("failed getting latest block")
     }
 
-    pub async fn get_block(&self, height: u64) -> eyre::Result<BlockResponse> {
+    pub async fn get_block(&self, height: Height) -> eyre::Result<BlockResponse> {
         let endpoint: String = format!("{}{}{}", self.endpoint, BLOCK_ENDPOINT, height);
         self.do_get::<EmptyRequest, BlockResponse>(endpoint, None)
             .await

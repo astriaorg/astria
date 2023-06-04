@@ -4,8 +4,8 @@ use serde::{
 };
 // use tendermint::Block;
 use tendermint_proto::types::{
-    Block,
-    BlockId,
+    Block as RawBlock,
+    BlockId as RawBlockId,
 };
 
 /// cosmos-sdk (Tendermint) RPC types.
@@ -16,6 +16,6 @@ pub struct EmptyRequest {}
 
 #[derive(Deserialize, Debug)]
 pub struct BlockResponse {
-    pub block_id: BlockId,
-    pub block: Block,
+    pub block_id: RawBlockId,
+    pub block: RawBlock,
 }

@@ -45,14 +45,7 @@ use tendermint::{
 };
 use tracing::debug;
 
-use crate::{
-    base64_string::Base64String,
-    transaction::txs_to_data_hash,
-    // types::{
-    //     Block,
-    //     Header,
-    // },
-};
+use crate::transaction::txs_to_data_hash;
 
 /// Cosmos SDK message type URL for SequencerMsgs.
 static SEQUENCER_TYPE_URL: &str = "/SequencerMsg";
@@ -356,7 +349,7 @@ mod test {
     #[test]
     fn test_parse_primary_tx() {
         let primary_tx = "CosBCogBChwvY29zbW9zLmJhbmsudjFiZXRhMS5Nc2dTZW5kEmgKLG1ldHJvMXFwNHo0amMwdndxd3hzMnl0NmNrNDRhZWo5bWV5ZnQ0eHg4bXN5EixtZXRybzEwN2Nod2U2MGd2Z3JneXlmbjAybWRsNmxuNjd0dndtOGhyZjR2MxoKCgV1dGljaxIBMRJsClAKRgofL2Nvc21vcy5jcnlwdG8uc2VjcDI1NmsxLlB1YktleRIjCiEDkoWc0MT/06rTUjNPZcvNLqcQJtOvzIWtenGsJXEfEJkSBAoCCAEYBRIYChAKBXV0aWNrEgcxMDAwMDAwEICU69wDGkBeBi44QbvLMvzndkNj+6dckqOR19eNTKV9qZyvtVOrj1+UN/VqeN9Rf0+M6Rmg24uNE5A4jsRcTXh7RkUm9ItT".to_string();
-        let tx = parse_cosmos_tx(&Base64String::from_string(primary_tx)).unwrap();
+        let tx = parse_cosmos_tx(&Base64String::from_string(primary_tx).unwrap().0).unwrap();
         assert_eq!(tx.messages.len(), 1);
         assert_eq!(tx.messages[0].type_url, "/cosmos.bank.v1beta1.MsgSend");
         let sequencer_msgs = cosmos_tx_body_to_sequencer_msgs(tx).unwrap();
@@ -366,7 +359,7 @@ mod test {
     #[test]
     fn test_parse_secondary_tx() {
         let secondary_tx = "Ck0KSwoNL1NlcXVlbmNlck1zZxI6CgNhYWESBWhlbGxvGixtZXRybzFwbHprNzZuamVzdmR0ZnhubTI2dHl5NmV2NGxjYTh3dmZ1M2Q1cxJxClAKRgofL2Nvc21vcy5jcnlwdG8uc2VjcDI1NmsxLlB1YktleRIjCiECjL7oF1zd07+3mCVNz4YHGRleoPDWP08/rGDh14xTkvgSBAoCCAEYBBIYChAKBXV0aWNrEgcxMDAwMDAwEICU69wDIgNhYWEaQMzTIFlWe+yur00V3pXJEZ8uo6AzZ81Q1JJjD+u5EgGDKBslbiabXjPwiRcRMyuHRekBVOGLjNoAPsbhr0F+lTI=".to_string();
-        let tx = parse_cosmos_tx(&Base64String::from_string(secondary_tx).unwrap()).unwrap();
+        let tx = parse_cosmos_tx(&Base64String::from_string(secondary_tx).unwrap().0).unwrap();
         assert_eq!(tx.messages.len(), 1);
         assert_eq!(tx.messages[0].type_url, SEQUENCER_TYPE_URL);
         let sequencer_msgs = cosmos_tx_body_to_sequencer_msgs(tx).unwrap();
@@ -390,7 +383,7 @@ mod test {
             header: make_header(),
             sequencer_txs: vec![IndexedTransaction {
                 block_index: 0,
-                transaction: Base64String::from_bytes(&[0x11, 0x22, 0x33]),
+                transaction: vec![0x11, 0x22, 0x33],
             }],
             rollup_txs: HashMap::new(),
         };
@@ -398,7 +391,7 @@ mod test {
             DEFAULT_NAMESPACE.clone(),
             vec![IndexedTransaction {
                 block_index: 0,
-                transaction: Base64String::from_bytes(&[0x44, 0x55, 0x66]),
+                transaction: vec![0x44, 0x55, 0x66],
             }],
         );
 

@@ -27,10 +27,7 @@ use tracing::{
 use crate::{
     base64_string::Base64String,
     da::CelestiaClient,
-    keys::{
-        private_key_bytes_to_keypair,
-        validator_hex_to_address,
-    },
+    keys::private_key_bytes_to_keypair,
     sequencer::SequencerClient,
     sequencer_block::SequencerBlock,
 };
@@ -89,18 +86,14 @@ impl Relayer {
         )
         .expect("failed to convert validator private key to keypair");
 
-        // generate our bech32 validator address
-        // TODO: figure out encoding
-        let validator_address = validator_hex_to_address(&key_file.address)
-            .expect("failed to convert validator address to bech32");
-
-        // generate our validator address bytes
+        // generate our validator address
         let validator_address_bytes: [u8; 20] = hex::decode(&key_file.address)
             .expect("failed to decode validator address; must be hex string")
             .try_into()
             .map_err(|e| {
                 eyre::eyre!("failed to convert validator address to account::Id:\n{e:?}")
             })?;
+        let validator_address = account::Id::new(validator_address_bytes);
 
         let (state, _) = watch::channel(State::default());
 
@@ -109,7 +102,7 @@ impl Relayer {
             da_client,
             disable_writing: false,
             keypair,
-            validator_address: account::Id::new(validator_address_bytes),
+            validator_address,
             interval,
             block_tx,
             state,
