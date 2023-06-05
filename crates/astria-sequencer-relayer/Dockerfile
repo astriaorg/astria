@@ -10,6 +10,14 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# install buf cli
+RUN BIN="/usr/local/bin" && \
+    VERSION="1.17.0" && \
+    curl -sSL \
+    "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
+    -o "${BIN}/buf" && \
+    chmod +x "${BIN}/buf"
+
 # install zig
 RUN curl -L "https://ziglang.org/download/0.10.1/zig-linux-$(uname -m)-0.10.1.tar.xz" | tar -J -x -C /usr/local && \
     ln -s "/usr/local/zig-linux-$(uname -m)-0.10.1/zig" /usr/local/bin/zig
@@ -39,14 +47,14 @@ RUN case "$TARGETPLATFORM" in \
 COPY . .
 RUN cargo zigbuild --release \
     --target $(cat ./target_triple) \
-    --bin relayer
+    --bin astria-sequencer-relayer
 # replace this with `--out` or `--out-dir` once stable
 RUN mkdir -p target/release \
-    && cp target/$(cat ./target_triple)/release/relayer target/release/
+    && cp target/$(cat ./target_triple)/release/astria-sequencer-relayer target/release/
 
 ARG DISTROLESS_TAG
 FROM gcr.io/distroless/cc-debian11:$DISTROLESS_TAG
 WORKDIR /app/
 EXPOSE 2450
-COPY --from=builder /build/target/release/relayer /usr/local/bin/relayer
-ENTRYPOINT ["/usr/local/bin/relayer"]
+COPY --from=builder /build/target/release/astria-sequencer-relayer /usr/local/bin/astria-sequencer-relayer
+ENTRYPOINT ["/usr/local/bin/astria-sequencer-relayer"]
