@@ -402,11 +402,13 @@ dependencies = [
  "is-terminal",
  "penumbra-component",
  "penumbra-storage",
+ "prost",
  "serde",
  "serde_json",
  "tendermint 0.29.1",
  "tendermint-proto 0.29.1",
  "tokio",
+ "tokio-util 0.7.8",
  "tower",
  "tower-abci",
  "tower-actor",
@@ -1774,7 +1776,7 @@ dependencies = [
  "indexmap",
  "slab",
  "tokio",
- "tokio-util 0.7.5",
+ "tokio-util 0.7.8",
  "tracing",
 ]
 
@@ -2300,7 +2302,7 @@ dependencies = [
  "serde_yaml",
  "thiserror",
  "tokio",
- "tokio-util 0.7.5",
+ "tokio-util 0.7.8",
  "tower",
  "tower-http",
  "tracing",
@@ -2344,7 +2346,7 @@ dependencies = [
  "smallvec",
  "thiserror",
  "tokio",
- "tokio-util 0.7.5",
+ "tokio-util 0.7.8",
  "tracing",
 ]
 
@@ -2722,7 +2724,7 @@ dependencies = [
  "thiserror",
  "tinytemplate",
  "tokio",
- "tokio-util 0.7.5",
+ "tokio-util 0.7.8",
  "webrtc",
 ]
 
@@ -4950,9 +4952,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.5"
+version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e267c18a719545b481171952a79f8c25c80361463ba44bc7fa9eba7c742ef4f"
+checksum = "806fe8c2c87eccc8b3267cbae29ed3ab2d0bd37fca70ab622e46aaa9375ddb7d"
 dependencies = [
  "bytes",
  "futures-core",
@@ -5016,7 +5018,7 @@ dependencies = [
  "rand 0.8.5",
  "slab",
  "tokio",
- "tokio-util 0.7.5",
+ "tokio-util 0.7.8",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -5051,7 +5053,7 @@ dependencies = [
  "pin-project",
  "thiserror",
  "tokio",
- "tokio-util 0.7.5",
+ "tokio-util 0.7.8",
  "tower",
  "tracing",
 ]

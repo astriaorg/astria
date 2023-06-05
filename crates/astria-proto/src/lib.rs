@@ -9,3 +9,7 @@ pub mod sequencer {
         include!(concat!(env!("OUT_DIR"), "/astria.sequencer.v1.rs"));
     }
 }
+
+pub mod abci {
+    include!(concat!(env!("OUT_DIR"), "/tendermint.abci.rs"));
+}

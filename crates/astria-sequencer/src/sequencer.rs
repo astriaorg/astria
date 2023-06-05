@@ -20,6 +20,10 @@ use crate::{
     snapshot::SnapshotService,
 };
 
+/// The default address to listen on; this corresponds to the default ABCI
+/// application address expected by tendermint.
+pub const DEFAULT_LISTEN_ADDR: &str = "127.0.0.1:26658";
+
 pub struct Sequencer {
     #[allow(clippy::type_complexity)]
     server: Server<
@@ -66,5 +70,49 @@ impl Sequencer {
             .listen(listen_addr)
             .await
             .expect("should listen");
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use bytes::{BytesMut};
+    use prost::Message;
+    use tendermint_proto::abci as abci_pb;
+    use tokio::net::TcpStream;
+
+    #[tokio::test]
+    async fn test_sequencer() {
+        crate::telemetry::init(std::io::stdout).expect("failed to initialize telemetry");
+
+        let sequencer = Sequencer::new().await.expect("should create sequencer");
+        tokio::task::spawn(async move {
+            sequencer.run(DEFAULT_LISTEN_ADDR).await;
+        });
+
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+        let info_request = abci_pb::RequestInfo::default();
+
+        let request = abci_pb::Request {
+            value: Some(abci_pb::request::Value::Info(info_request)),
+        };
+
+        let stream = TcpStream::connect(DEFAULT_LISTEN_ADDR).await.unwrap();
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+        stream.writable().await.unwrap();
+        let buf = request.encode_length_delimited_to_vec();
+        println!("encoded request: {:?}", buf);
+        stream.try_write(&buf).unwrap();
+        println!("wrote request");
+
+        let mut buf = BytesMut::with_capacity(1024);
+        stream.readable().await.unwrap();
+        let _read_len = stream.try_read(&mut buf).unwrap();
+        println!("read response: {:?}", buf);
+        let resp = abci_pb::Response::decode_length_delimited(&mut buf).unwrap();
+        println!("{:?}", resp);
     }
 }

@@ -23,7 +23,7 @@ where
     let env_filter = init_env_filter();
     let (json_log, stdout_log) = if std::io::stdout().is_terminal() {
         eprintln!("service is attached to tty; using human readable formatting");
-        (None, Some(fmt::layer().pretty().with_writer(sink)))
+        (None, Some(fmt::layer().with_writer(sink)))
     } else {
         eprintln!("service is not attached to tty; using json formatting");
         (
