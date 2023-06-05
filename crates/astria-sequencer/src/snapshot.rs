@@ -13,7 +13,11 @@ use tendermint::abci::{
 };
 use tower::Service;
 use tower_abci::BoxError;
-use tracing::info;
+use tracing::{
+    instrument,
+    instrument::Instrumented,
+    Instrument as _,
+};
 
 #[derive(Clone, Default)]
 pub struct SnapshotService {}
@@ -26,16 +30,16 @@ impl SnapshotService {
 
 impl Service<SnapshotRequest> for SnapshotService {
     type Error = BoxError;
-    type Future = SnapshotServiceFuture;
+    type Future = Instrumented<SnapshotServiceFuture>;
     type Response = SnapshotResponse;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
+    #[instrument(name = "SnapshotService::call", skip(self))]
     fn call(&mut self, req: SnapshotRequest) -> Self::Future {
-        info!("got snapshot request: {:?}", req);
-        SnapshotServiceFuture::new(req)
+        SnapshotServiceFuture::new(req).in_current_span()
     }
 }
 
@@ -44,7 +48,7 @@ pub struct SnapshotServiceFuture {
 }
 
 impl SnapshotServiceFuture {
-    pub fn new(request: SnapshotRequest) -> Self {
+    fn new(request: SnapshotRequest) -> Self {
         Self {
             request,
         }

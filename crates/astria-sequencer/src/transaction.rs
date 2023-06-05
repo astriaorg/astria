@@ -26,6 +26,7 @@ pub trait ActionHandler {
 /// Represents a sequencer chain transaction.
 /// If a new transaction type is added, it should be added to this enum.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Transaction {
     AccountsTransaction(AccountsTransaction),
 }

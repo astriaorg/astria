@@ -25,13 +25,7 @@ use crate::transaction::{
 /// It performs a stateless check of the given transaction,
 /// returning an abci::response::CheckTx.
 #[derive(Clone, Default)]
-pub struct MempoolService {}
-
-impl MempoolService {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+pub struct MempoolService;
 
 impl Service<MempoolRequest> for MempoolService {
     type Error = BoxError;
@@ -70,10 +64,9 @@ impl Future for MempoolServiceFuture {
                 // TODO: status codes for various errors
                 match Transaction::from_bytes(&req.tx) {
                     Ok(tx) => match tx.check_stateless() {
-                        Ok(_) => Poll::Ready(Ok(MempoolResponse::CheckTx(response::CheckTx {
-                            code: 0.into(),
-                            ..Default::default()
-                        }))),
+                        Ok(_) => {
+                            Poll::Ready(Ok(MempoolResponse::CheckTx(response::CheckTx::default())))
+                        }
                         Err(e) => Poll::Ready(Ok(MempoolResponse::CheckTx(response::CheckTx {
                             code: 1.into(),
                             log: format!("{:?}", e),

@@ -7,7 +7,7 @@ use std::{
     },
 };
 
-use anyhow::Result;
+use anyhow::Context as _;
 use futures::{
     Future,
     FutureExt,
@@ -29,7 +29,7 @@ use tendermint::{
 };
 use tower::Service;
 use tower_abci::BoxError;
-use tracing::info;
+use tracing::instrument;
 
 use crate::{
     accounts::query::QueryHandler,
@@ -59,11 +59,11 @@ impl Service<InfoRequest> for InfoService {
     }
 
     fn call(&mut self, req: InfoRequest) -> Self::Future {
-        info!("got info request: {:?}", req);
         handle_info_request(self.storage.clone(), req).boxed()
     }
 }
 
+#[instrument(skip(storage))]
 async fn handle_info_request(
     storage: Storage,
     request: InfoRequest,
@@ -82,7 +82,11 @@ async fn handle_info_request(
         InfoRequest::Echo(echo) => Ok(InfoResponse::Echo(Echo {
             message: echo.message.clone(),
         })),
-        InfoRequest::Query(req) => Ok(InfoResponse::Query(handle_query(storage, req).await?)),
+        InfoRequest::Query(req) => Ok(InfoResponse::Query(
+            handle_query(storage, req)
+                .await
+                .context("failed handling query request")?,
+        )),
         // this was removed after v0.34
         InfoRequest::SetOption(_) => Ok(InfoResponse::SetOption(SetOption {
             code: Default::default(),
@@ -94,7 +98,10 @@ async fn handle_info_request(
 
 /// handles queries in the form of [`component/arg1/arg2/...`]
 /// for example, to query an account balance: [`accounts/balance/0x1234...`]
-async fn handle_query(storage: Storage, request: &request::Query) -> Result<response::Query> {
+async fn handle_query(
+    storage: Storage,
+    request: &request::Query,
+) -> anyhow::Result<response::Query> {
     // note: request::Query also has a `data` field, which we ignore here
     let query = decode_query(&request.path)?;
 
@@ -118,11 +125,12 @@ async fn handle_query(storage: Storage, request: &request::Query) -> Result<resp
     })
 }
 
+#[non_exhaustive]
 pub enum Query {
     AccountsQuery(crate::accounts::query::QueryRequest),
 }
 
-fn decode_query(path: &str) -> Result<Query> {
+fn decode_query(path: &str) -> anyhow::Result<Query> {
     let mut parts: VecDeque<&str> = path.split('/').collect();
 
     let Some(component) = parts.pop_front() else {

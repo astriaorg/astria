@@ -1,8 +1,8 @@
 use std::error::Error;
 
-use color_eyre::eyre::{
-    eyre,
-    Result,
+use anyhow::{
+    anyhow,
+    Context as _,
 };
 use tendermint::abci::{
     ConsensusRequest,
@@ -31,10 +31,10 @@ pub struct Sequencer {
 }
 
 impl Sequencer {
-    pub async fn new() -> Result<Sequencer> {
+    pub async fn new() -> anyhow::Result<Sequencer> {
         let storage = penumbra_storage::TempStorage::new()
             .await
-            .map_err(|e| eyre!("should create temp storage; {}", e))?;
+            .context("failed to create temp storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
         let app = App::new(snapshot);
 
@@ -45,7 +45,7 @@ impl Sequencer {
             }));
 
         let info_service = InfoService::new(storage.clone());
-        let mempool_service = MempoolService::new();
+        let mempool_service = MempoolService;
         let snapshot_service = SnapshotService::new();
         let server = Server::builder()
             .consensus(consensus_service)
@@ -53,7 +53,7 @@ impl Sequencer {
             .mempool(mempool_service)
             .snapshot(snapshot_service)
             .finish()
-            .ok_or_else(|| eyre!("should build server"))?;
+            .ok_or_else(|| anyhow!("server builder didn't return server; are all fields set?"))?;
 
         Ok(Sequencer {
             server,

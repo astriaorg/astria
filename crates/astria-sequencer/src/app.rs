@@ -66,7 +66,7 @@ impl App {
         }
     }
 
-    #[instrument(name = "init_chain")]
+    #[instrument(name = "App:init_chain", skip(self))]
     pub async fn init_chain(&mut self, genesis_state: &GenesisState) -> Result<()> {
         // allocate to hard-coded accounts for testing
         let mut accounts = genesis_state.accounts.clone();
@@ -90,7 +90,7 @@ impl App {
         Ok(())
     }
 
-    #[instrument(name = "begin_block")]
+    #[instrument(name = "App:begin_block", skip(self))]
     pub async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
@@ -112,7 +112,7 @@ impl App {
         self.apply(state_tx)
     }
 
-    #[instrument(name = "deliver_tx")]
+    #[instrument(name = "App:deliver_tx", skip(self))]
     pub async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
         let tx = Transaction::from_bytes(tx)?;
 
@@ -144,7 +144,7 @@ impl App {
         Ok(vec![])
     }
 
-    #[instrument(name = "end_block")]
+    #[instrument(name = "App:end_block", skip(self))]
     pub async fn end_block(&mut self, _end_block: &abci::request::EndBlock) -> Vec<abci::Event> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
@@ -156,7 +156,7 @@ impl App {
         self.apply(state_tx)
     }
 
-    #[instrument(name = "commit")]
+    #[instrument(name = "App:commit", skip(self))]
     pub async fn commit(&mut self, storage: Storage) -> AppHash {
         // We need to extract the State we've built up to commit it.  Fill in a dummy state.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
