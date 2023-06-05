@@ -75,12 +75,9 @@ impl Sequencer {
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use astria_proto::abci::abci_application_client::AbciApplicationClient;
 
-    use bytes::{BytesMut};
-    use prost::Message;
-    use tendermint_proto::abci as abci_pb;
-    use tokio::net::TcpStream;
+    use super::*;
 
     #[tokio::test]
     async fn test_sequencer() {
@@ -90,29 +87,24 @@ mod test {
         tokio::task::spawn(async move {
             sequencer.run(DEFAULT_LISTEN_ADDR).await;
         });
-
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
-        let info_request = abci_pb::RequestInfo::default();
+        let mut client = AbciApplicationClient::connect(format!("http://{}", DEFAULT_LISTEN_ADDR))
+            .await
+            .expect("should connect to sequencer");
 
-        let request = abci_pb::Request {
-            value: Some(abci_pb::request::Value::Info(info_request)),
-        };
+        // let resp = client.info(astria_proto::abci::RequestInfo {
+        //     version: "0.0.1".to_string(),
+        //     block_version: 1,
+        //     p2p_version: 1,
+        // }).await.unwrap();
 
-        let stream = TcpStream::connect(DEFAULT_LISTEN_ADDR).await.unwrap();
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-        stream.writable().await.unwrap();
-        let buf = request.encode_length_delimited_to_vec();
-        println!("encoded request: {:?}", buf);
-        stream.try_write(&buf).unwrap();
-        println!("wrote request");
-
-        let mut buf = BytesMut::with_capacity(1024);
-        stream.readable().await.unwrap();
-        let _read_len = stream.try_read(&mut buf).unwrap();
-        println!("read response: {:?}", buf);
-        let resp = abci_pb::Response::decode_length_delimited(&mut buf).unwrap();
+        let resp = client
+            .echo(astria_proto::abci::RequestEcho {
+                message: "hello world".to_string(),
+            })
+            .await
+            .unwrap();
         println!("{:?}", resp);
     }
 }

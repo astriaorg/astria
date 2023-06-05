@@ -394,6 +394,7 @@ name = "astria-sequencer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "astria-proto",
  "async-trait",
  "bytes",
  "color-eyre",
@@ -402,7 +403,6 @@ dependencies = [
  "is-terminal",
  "penumbra-component",
  "penumbra-storage",
- "prost",
  "serde",
  "serde_json",
  "tendermint 0.29.1",

@@ -1,5 +1,8 @@
 use astria_sequencer::{
-    sequencer::{Sequencer, DEFAULT_LISTEN_ADDR},
+    sequencer::{
+        Sequencer,
+        DEFAULT_LISTEN_ADDR,
+    },
     telemetry,
 };
 

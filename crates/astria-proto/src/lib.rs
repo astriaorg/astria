@@ -10,6 +10,7 @@ pub mod sequencer {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub mod abci {
     include!(concat!(env!("OUT_DIR"), "/tendermint.abci.rs"));
 }

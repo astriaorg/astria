@@ -26,5 +26,4 @@ tokio = { workspace = true, features = [ "tracing" ] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["ansi", "env-filter", "json"] }
 
-[dev-dependencies]
-prost = { workspace = true }
+astria-proto = { path = "../astria-proto" }
