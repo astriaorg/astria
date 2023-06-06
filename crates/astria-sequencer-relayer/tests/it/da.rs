@@ -9,6 +9,11 @@ use astria_sequencer_relayer::{
         SequencerBlock,
         DEFAULT_NAMESPACE,
     },
+    types::{
+        BlockId,
+        Commit,
+        Parts,
+    },
 };
 use astria_sequencer_relayer_test::init_test;
 use ed25519_dalek::{
@@ -16,6 +21,21 @@ use ed25519_dalek::{
     PublicKey,
 };
 use rand::rngs::OsRng;
+
+fn empty_commit() -> Commit {
+    Commit {
+        height: "0".to_string(),
+        round: 0,
+        block_id: BlockId {
+            hash: Base64String(vec![]),
+            part_set_header: Parts {
+                total: 0,
+                hash: Base64String(vec![]),
+            },
+        },
+        signatures: vec![],
+    }
+}
 
 #[tokio::test]
 #[ignore = "very slow init of test environment"]
@@ -42,7 +62,7 @@ async fn get_blocks_public_key_filter() {
     let block = SequencerBlock {
         block_hash: block_hash.clone(),
         header: Default::default(),
-        last_commit: Default::default(),
+        last_commit: empty_commit(),
         sequencer_txs: vec![IndexedTransaction {
             block_index: 0,
             transaction: tx.clone(),
@@ -82,7 +102,7 @@ async fn celestia_client() {
     let mut block = SequencerBlock {
         block_hash: block_hash.clone(),
         header: Default::default(),
-        last_commit: Default::default(),
+        last_commit: empty_commit(),
         sequencer_txs: vec![IndexedTransaction {
             block_index: 0,
             transaction: tx.clone(),

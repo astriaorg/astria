@@ -24,6 +24,7 @@ use bech32::{
 };
 use color_eyre::eyre::{
     bail,
+    ensure,
     eyre,
     Result,
     WrapErr,
@@ -63,6 +64,7 @@ use tracing::{
     debug,
     error,
     info,
+    instrument,
     warn,
 };
 
@@ -241,7 +243,6 @@ impl Reader {
     /// - the root of the markle tree of all the header fields matches the block's block_hash
     /// - the root of the merkle tree of all transactions in the block matches the block's data_hash
     /// - validate the block was actually finalized; ie >2/3 stake signed off on it
-    /// (see https://github.com/astriaorg/astria/issues/16)
     async fn validate_sequencer_namespace_data(
         &self,
         data: &SignedNamespaceData<SequencerNamespaceData>,
@@ -253,7 +254,10 @@ impl Reader {
         let mut validator_set = self.tendermint_client.get_validator_set(height - 1).await?;
 
         // find proposer address for this height
-        let expected_proposer_address = validator_set.get_proposer()?.address;
+        let expected_proposer_address = validator_set
+            .get_proposer()
+            .wrap_err("failed to get proposer from validator set")?
+            .address;
 
         // check if the proposer address matches the sequencer block's proposer
         let received_proposer_address = bech32::encode(
@@ -288,12 +292,12 @@ impl Reader {
                     bail!("last commit hash should not be empty");
                 };
 
-                if calculated_last_commit_hash.to_vec() != last_commit_hash.0 {
-                    bail!("last commit hash mismatch");
+                if calculated_last_commit_hash.as_slice() != last_commit_hash.0 {
+                    bail!("last commit hash in header does not match calculated last commit hash");
                 }
 
                 // verify that the validator votes on the previous block have >2/3 voting power
-                verify_commit(
+                ensure_commit_has_quorum(
                     &data.data.last_commit,
                     &validator_set,
                     &data.data.header.chain_id,
@@ -304,13 +308,11 @@ impl Reader {
             Hash::None => {
                 // this case only happens if the last commit is empty, which should only happen on
                 // block 1.
-                if data.data.header.height != "1" {
-                    bail!("last commit hash not found");
-                }
-
-                if data.data.header.last_commit_hash.is_some() {
-                    bail!("last commit hash should be empty");
-                }
+                ensure!(data.data.header.height == "1", "last commit hash not found");
+                ensure!(
+                    data.data.header.last_commit_hash.is_none(),
+                    "last commit hash should be empty"
+                );
             }
         };
 
@@ -350,7 +352,24 @@ impl Reader {
     }
 }
 
-fn verify_commit(commit: &Commit, validator_set: &ValidatorSet, chain_id: &str) -> Result<()> {
+/// This function ensures that the given Commit has quorum, ie that the Commit contains >2/3 voting
+/// power. It performs the following checks:
+/// - the height of the commit matches the block height of the validator set
+/// - each validator in the commit is in the validator set
+/// - for each signature in the commit, the validator public key matches the validator address in
+///   the commit
+/// - for each signature in the commit, the validator signature in the commit is valid
+/// - the total voting power of the commit is >2/3 of the total voting power of the validator set
+///
+/// # Errors
+///
+/// If any of the above conditions are not satisfied, an error is returned.
+#[instrument]
+fn ensure_commit_has_quorum(
+    commit: &Commit,
+    validator_set: &ValidatorSet,
+    chain_id: &str,
+) -> Result<()> {
     if commit.height != validator_set.block_height {
         bail!(
             "commit height mismatch: expected {}, got {}",
@@ -371,7 +390,7 @@ fn verify_commit(commit: &Commit, validator_set: &ValidatorSet, chain_id: &str) 
     let validator_map = validator_set
         .validators
         .iter()
-        .map(|v| (v.address.to_owned(), v)) // address is in bech32
+        .map(|v| (&v.address, v)) // address is in bech32
         .collect::<HashMap<_, _>>();
 
     let mut commit_voting_power = 0u64;
@@ -394,13 +413,13 @@ fn verify_commit(commit: &Commit, validator_set: &ValidatorSet, chain_id: &str) 
 
         // verify address in signature matches validator pubkey
         let address_from_pubkey = public_key_to_address(&validator.pub_key.key.0)?;
-        if address_from_pubkey != validator_address {
-            bail!(
+        ensure!(
+            address_from_pubkey == validator_address,
+            format!(
                 "validator address mismatch: expected {}, got {}",
-                validator_address,
-                address_from_pubkey
-            );
-        }
+                validator_address, address_from_pubkey
+            )
+        );
 
         // verify vote signature
         verify_vote_signature(
@@ -414,13 +433,14 @@ fn verify_commit(commit: &Commit, validator_set: &ValidatorSet, chain_id: &str) 
         commit_voting_power += validator.voting_power.parse::<u64>()?;
     }
 
-    if commit_voting_power <= total_voting_power * 2 / 3 {
-        bail!(
+    ensure!(
+        commit_voting_power > total_voting_power * 2 / 3,
+        format!(
             "total voting power in votes is less than 2/3 of total voting power: {} <= {}",
             commit_voting_power,
             total_voting_power * 2 / 3,
-        );
-    }
+        )
+    );
 
     Ok(())
 }
@@ -506,7 +526,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_verify_commit() {
+    fn test_ensure_commit_has_quorum() {
         let validator_set_str = r#"{
             "block_height": "2082",
             "validators": [
@@ -547,7 +567,7 @@ mod test {
 
         let validator_set = serde_json::from_str::<ValidatorSet>(validator_set_str).unwrap();
         let commit = serde_json::from_str::<Commit>(commit_str).unwrap();
-        verify_commit(&commit, &validator_set, "private").unwrap();
+        ensure_commit_has_quorum(&commit, &validator_set, "private").unwrap();
     }
 
     #[test]

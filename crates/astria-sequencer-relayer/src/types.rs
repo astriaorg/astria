@@ -64,24 +64,6 @@ pub struct Commit {
     pub signatures: Vec<CommitSig>,
 }
 
-impl Default for Commit {
-    /// default returns an empty commit.
-    fn default() -> Self {
-        Commit {
-            height: "0".to_string(),
-            round: 0,
-            block_id: BlockId {
-                hash: Base64String(vec![]),
-                part_set_header: Parts {
-                    total: 0,
-                    hash: Base64String(vec![]),
-                },
-            },
-            signatures: vec![],
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct CommitSig {
     pub block_id_flag: String,

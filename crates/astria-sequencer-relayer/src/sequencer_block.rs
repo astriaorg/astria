@@ -302,7 +302,27 @@ mod test {
     use crate::{
         base64_string::Base64String,
         sequencer_block::IndexedTransaction,
+        types::{
+            BlockId,
+            Commit,
+            Parts,
+        },
     };
+
+    fn empty_commit() -> Commit {
+        Commit {
+            height: "0".to_string(),
+            round: 0,
+            block_id: BlockId {
+                hash: Base64String(vec![]),
+                part_set_header: Parts {
+                    total: 0,
+                    hash: Base64String(vec![]),
+                },
+            },
+            signatures: vec![],
+        }
+    }
 
     #[test]
     fn test_parse_primary_tx() {
@@ -334,7 +354,7 @@ mod test {
             )
             .unwrap(),
             header: Header::default(),
-            last_commit: Default::default(),
+            last_commit: empty_commit(),
             sequencer_txs: vec![IndexedTransaction {
                 block_index: 0,
                 transaction: Base64String::from_bytes(&[0x11, 0x22, 0x33]),
