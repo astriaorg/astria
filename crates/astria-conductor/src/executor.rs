@@ -339,6 +339,11 @@ impl<C: ExecutionClient> Executor<C> {
 
 #[cfg(test)]
 mod test {
+    use std::{
+        collections::HashSet,
+        sync::Arc,
+    };
+
     use astria_proto::execution::v1::{
         DoBlockResponse,
         InitStateResponse,
@@ -352,30 +357,42 @@ mod test {
     };
     use prost_types::Timestamp;
     use sha2::Digest as _;
-    use tokio::sync::mpsc;
+    use tokio::sync::{
+        mpsc,
+        Mutex,
+    };
 
     use super::*;
 
     // a mock ExecutionClient used for testing the Executor
-    struct MockExecutionClient {}
+    struct MockExecutionClient {
+        finalized_blocks: Arc<Mutex<HashSet<Vec<u8>>>>,
+    }
+
+    impl MockExecutionClient {
+        fn new() -> Self {
+            Self {
+                finalized_blocks: Arc::new(Mutex::new(HashSet::new())),
+            }
+        }
+    }
 
     #[async_trait::async_trait]
     impl ExecutionClient for MockExecutionClient {
         async fn call_do_block(
             &mut self,
-            prev_state_root: Vec<u8>,
+            prev_block_hash: Vec<u8>,
             _transactions: Vec<Vec<u8>>,
             _timestamp: Option<Timestamp>,
         ) -> Result<DoBlockResponse> {
-            let mut hasher = sha2::Sha256::new();
-            hasher.update(prev_state_root);
-            let res = hasher.finalize();
+            let res = hash(&prev_block_hash);
             Ok(DoBlockResponse {
                 block_hash: res.to_vec(),
             })
         }
 
-        async fn call_finalize_block(&mut self, _block_hash: Vec<u8>) -> Result<()> {
+        async fn call_finalize_block(&mut self, block_hash: Vec<u8>) -> Result<()> {
+            self.finalized_blocks.lock().await.insert(block_hash);
             Ok(())
         }
 
@@ -397,9 +414,10 @@ mod test {
     async fn execute_block_with_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = get_namespace(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient {}, namespace.clone(), alert_tx)
-            .await
-            .unwrap();
+        let (mut executor, _) =
+            Executor::new(MockExecutionClient::new(), namespace.clone(), alert_tx)
+                .await
+                .unwrap();
 
         let parent_block_hash = hash(b"block0");
         let block_hash = hash(b"block1");
@@ -439,13 +457,13 @@ mod test {
     async fn execute_block_without_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = get_namespace(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient {}, namespace.clone(), alert_tx)
-            .await
-            .unwrap();
+        let (mut executor, _) =
+            Executor::new(MockExecutionClient::new(), namespace.clone(), alert_tx)
+                .await
+                .unwrap();
 
-        let block_hash = hash(b"block1");
         let block = SequencerBlock {
-            block_hash: Base64String(block_hash.to_vec()),
+            block_hash: Base64String(hash(b"block1")),
             header: Header::default(),
             sequencer_txs: vec![],
             rollup_txs: HashMap::new(),
@@ -453,5 +471,93 @@ mod test {
 
         let execution_block_hash = executor.execute_block(block).await.unwrap();
         assert!(execution_block_hash.is_none());
+    }
+
+    #[tokio::test]
+    async fn handle_block_received_from_data_availability_not_yet_executed() {
+        let (alert_tx, _) = mpsc::unbounded_channel();
+        let namespace = get_namespace(b"test");
+        let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
+        let execution_client = MockExecutionClient {
+            finalized_blocks: finalized_blocks.clone(),
+        };
+        let (mut executor, _) = Executor::new(execution_client, namespace.clone(), alert_tx)
+            .await
+            .unwrap();
+
+        let mut block = SequencerBlock {
+            block_hash: Base64String(hash(b"block1")),
+            header: Header::default(),
+            sequencer_txs: vec![],
+            rollup_txs: HashMap::new(),
+        };
+
+        block.rollup_txs.insert(
+            namespace,
+            vec![IndexedTransaction {
+                block_index: 0,
+                transaction: Base64String(b"test_transaction".to_vec()),
+            }],
+        );
+
+        let expected_exection_hash = hash(&executor.execution_state);
+
+        executor
+            .handle_block_received_from_data_availability(block)
+            .await
+            .unwrap();
+
+        // should have executed and finalized the block
+        assert!(finalized_blocks.lock().await.len() == 1);
+        assert!(
+            finalized_blocks
+                .lock()
+                .await
+                .get(&executor.execution_state)
+                .is_some()
+        );
+        assert_eq!(expected_exection_hash, executor.execution_state,);
+        // should be empty because 1 block was executed and finalized, which deletes it from the map
+        assert!(executor.sequencer_hash_to_execution_hash.is_empty());
+    }
+
+    #[tokio::test]
+    async fn handle_block_received_from_data_availability_no_relevant_transactions() {
+        let (alert_tx, _) = mpsc::unbounded_channel();
+        let namespace = get_namespace(b"test");
+        let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
+        let execution_client = MockExecutionClient {
+            finalized_blocks: finalized_blocks.clone(),
+        };
+        let (mut executor, _) = Executor::new(execution_client, namespace.clone(), alert_tx)
+            .await
+            .unwrap();
+
+        let block = SequencerBlock {
+            block_hash: Base64String(hash(b"block1")),
+            header: Header::default(),
+            sequencer_txs: vec![],
+            rollup_txs: HashMap::new(),
+        };
+
+        let previous_execution_state = executor.execution_state.clone();
+
+        executor
+            .handle_block_received_from_data_availability(block)
+            .await
+            .unwrap();
+
+        // should not have executed or finalized the block
+        assert!(finalized_blocks.lock().await.is_empty());
+        assert!(
+            finalized_blocks
+                .lock()
+                .await
+                .get(&executor.execution_state)
+                .is_none()
+        );
+        assert_eq!(previous_execution_state, executor.execution_state,);
+        // should be empty because nothing was executed
+        assert!(executor.sequencer_hash_to_execution_hash.is_empty());
     }
 }
