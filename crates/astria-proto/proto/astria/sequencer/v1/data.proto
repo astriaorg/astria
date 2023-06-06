@@ -13,7 +13,7 @@ message IndexedTransaction {
 
 message RollupNamespace {
     uint64 block_height = 1;
-    string namespace = 2;
+    bytes namespace = 2;
 }
 
 // RollupNamespaceData
@@ -23,6 +23,8 @@ message RollupNamespaceData {
 }
 
 // SequencerNamespaceData
+// block_hash refers to
+// block_height refers to
 message SequencerNamespaceData {
     bytes block_hash = 1;
     tendermint.types.Header header = 2;
