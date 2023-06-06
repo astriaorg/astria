@@ -313,10 +313,15 @@ impl<C: ExecutionClient> Executor<C> {
         Ok(())
     }
 
-    /// finalizes the given execution block on the execution layer by calling
+    /// This function finalizes the given execution block on the execution layer by calling
     /// the execution service's FinalizeBlock function.
     /// note that this function clears the respective entry in the
     /// `sequencer_hash_to_execution_hash` map.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if:
+    /// - the call to the execution service's FinalizeBlock function fails
     #[instrument(skip_all, fields(execution_block_hash = hex::encode(&execution_block_hash), %sequencer_block_hash))]
     async fn finalize_block(
         &mut self,
