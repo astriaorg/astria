@@ -39,7 +39,10 @@ use crate::{
         AlertSender,
     },
     config::Config,
-    execution_client::ExecutionRpcClient,
+    execution_client::{
+        ExecutionClient,
+        ExecutionRpcClient,
+    },
 };
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
@@ -53,7 +56,7 @@ type Receiver = UnboundedReceiver<ExecutorCommand>;
 /// and the channel for sending commands to this executor
 pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinHandle, Sender)> {
     info!("Spawning executor task.");
-    let (mut executor, executor_tx) = Executor::new(
+    let (mut executor, executor_tx) = Executor::new_with_rpc_client(
         &conf.execution_rpc_url,
         get_namespace(conf.chain_id.as_bytes()),
         alert_tx,
@@ -92,17 +95,20 @@ pub enum ExecutorCommand {
     Shutdown,
 }
 
-struct Executor {
+struct Executor<C> {
     /// Channel on which executor commands are received.
     cmd_rx: Receiver,
+
     /// The execution rpc client that we use to send messages to the execution service
-    execution_rpc_client: ExecutionRpcClient,
+    execution_rpc_client: C,
+
     /// Namespace ID
     namespace: Namespace,
 
     /// The channel on which the driver and tasks in the driver can post alerts
     /// to the consumer of the driver.
     alert_tx: AlertSender,
+
     /// Tracks the state of the execution chain
     execution_state: Vec<u8>,
 
@@ -118,15 +124,25 @@ struct Executor {
     sequencer_hash_to_execution_hash: HashMap<Base64String, Vec<u8>>,
 }
 
-impl Executor {
+impl Executor<ExecutionRpcClient> {
     /// Creates a new Executor instance and returns a command sender and an alert receiver.
-    async fn new(
+    async fn new_with_rpc_client(
         rpc_address: &str,
         namespace: Namespace,
         alert_tx: AlertSender,
     ) -> Result<(Self, Sender)> {
+        let execution_rpc_client = ExecutionRpcClient::new(rpc_address).await?;
+        Executor::new(execution_rpc_client, namespace, alert_tx).await
+    }
+}
+
+impl<C: ExecutionClient> Executor<C> {
+    async fn new(
+        mut execution_rpc_client: C,
+        namespace: Namespace,
+        alert_tx: AlertSender,
+    ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let mut execution_rpc_client = ExecutionRpcClient::new(rpc_address).await?;
         let init_state_response = execution_rpc_client.call_init_state().await?;
         let execution_state = init_state_response.block_hash;
         Ok((
@@ -318,5 +334,124 @@ impl Executor {
         self.sequencer_hash_to_execution_hash
             .remove(sequencer_block_hash);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use astria_proto::execution::v1::{
+        DoBlockResponse,
+        InitStateResponse,
+    };
+    use astria_sequencer_relayer::{
+        sequencer_block::IndexedTransaction,
+        types::{
+            BlockId,
+            Header,
+        },
+    };
+    use prost_types::Timestamp;
+    use sha2::Digest as _;
+    use tokio::sync::mpsc;
+
+    use super::*;
+
+    // a mock ExecutionClient used for testing the Executor
+    struct MockExecutionClient {}
+
+    #[async_trait::async_trait]
+    impl ExecutionClient for MockExecutionClient {
+        async fn call_do_block(
+            &mut self,
+            prev_state_root: Vec<u8>,
+            _transactions: Vec<Vec<u8>>,
+            _timestamp: Option<Timestamp>,
+        ) -> Result<DoBlockResponse> {
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(prev_state_root);
+            let res = hasher.finalize();
+            Ok(DoBlockResponse {
+                block_hash: res.to_vec(),
+            })
+        }
+
+        async fn call_finalize_block(&mut self, _block_hash: Vec<u8>) -> Result<()> {
+            Ok(())
+        }
+
+        async fn call_init_state(&mut self) -> Result<InitStateResponse> {
+            let hasher = sha2::Sha256::new();
+            Ok(InitStateResponse {
+                block_hash: hasher.finalize().to_vec(),
+            })
+        }
+    }
+
+    fn hash(s: &[u8]) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(s);
+        hasher.finalize().to_vec()
+    }
+
+    #[tokio::test]
+    async fn execute_block_with_relevant_txs() {
+        let (alert_tx, _) = mpsc::unbounded_channel();
+        let namespace = get_namespace(b"test");
+        let (mut executor, _) = Executor::new(MockExecutionClient {}, namespace.clone(), alert_tx)
+            .await
+            .unwrap();
+
+        let parent_block_hash = hash(b"block0");
+        let block_hash = hash(b"block1");
+
+        let mut block = SequencerBlock {
+            block_hash: Base64String(block_hash.to_vec()),
+            header: Header {
+                last_block_id: Some(BlockId {
+                    hash: Base64String(parent_block_hash.to_vec()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            sequencer_txs: vec![],
+            rollup_txs: HashMap::new(),
+        };
+
+        block.rollup_txs.insert(
+            namespace,
+            vec![IndexedTransaction {
+                block_index: 0,
+                transaction: Base64String(b"test_transaction".to_vec()),
+            }],
+        );
+
+        let expected_exection_hash = hash(&parent_block_hash);
+
+        let execution_block_hash = executor
+            .execute_block(block)
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        assert_eq!(expected_exection_hash.to_vec(), execution_block_hash);
+    }
+
+    #[tokio::test]
+    async fn execute_block_without_relevant_txs() {
+        let (alert_tx, _) = mpsc::unbounded_channel();
+        let namespace = get_namespace(b"test");
+        let (mut executor, _) = Executor::new(MockExecutionClient {}, namespace.clone(), alert_tx)
+            .await
+            .unwrap();
+
+        let block_hash = hash(b"block1");
+        let block = SequencerBlock {
+            block_hash: Base64String(block_hash.to_vec()),
+            header: Header::default(),
+            sequencer_txs: vec![],
+            rollup_txs: HashMap::new(),
+        };
+
+        let execution_block_hash = executor.execute_block(block).await.unwrap();
+        assert!(execution_block_hash.is_none());
     }
 }

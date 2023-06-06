@@ -36,13 +36,13 @@ pub struct BlockResponse {
     pub block: Block,
 }
 
-#[derive(Clone, Deserialize, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Deserialize, Debug, PartialEq, Eq, Serialize, Default)]
 pub struct BlockId {
     pub hash: Base64String,
     pub part_set_header: Parts,
 }
 
-#[derive(Clone, Deserialize, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Deserialize, Debug, PartialEq, Eq, Serialize, Default)]
 pub struct Parts {
     pub total: u32,
     pub hash: Base64String,

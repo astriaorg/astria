@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+async-trait = "0.1.68"
 figment = { version = "0.10.8", features = ["toml", "env"] }
 is-terminal = "0.4.7"
 
@@ -32,3 +33,4 @@ astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 [dev-dependencies]
 astria-conductor-test = { path = "../astria-conductor-test" }
 once_cell = { workspace = true }
+sha2 = "0.10"
