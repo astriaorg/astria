@@ -26,8 +26,10 @@ use tokio::{
     task,
 };
 use tracing::{
+    debug,
     error,
     info,
+    instrument,
     warn,
 };
 
@@ -182,21 +184,35 @@ impl Executor {
         Ok(())
     }
 
-    /// Uses RPC to send block to execution service
-    /// returns the resulting execution block hash
+    /// checks for relevant transactions in the SequencerBlock and attempts
+    /// to execute them via the execution service function DoBlock.
+    /// if there are relevant transactions that successfully execute,
+    /// it returns the resulting execution block hash.
+    /// if the block has already been executed, it returns the previously-computed
+    /// execution block hash.
+    /// if there are no relevant transactions in the SequencerBlock, it returns None.
     async fn execute_block(&mut self, block: SequencerBlock) -> Result<Option<Vec<u8>>> {
+        if let Some(execution_hash) = self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
+            debug!(
+                height = block.header.height,
+                execution_hash = hex::encode(execution_hash),
+                "block already executed"
+            );
+            return Ok(Some(execution_hash.clone()));
+        }
+
         // get transactions for our namespace
         let Some(txs) = block.rollup_txs.get(&self.namespace) else {
-            info!("sequencer block {} did not contains txs for namespace", block.header.height);
+            info!(height = block.header.height, "sequencer block did not contains txs for namespace");
             return Ok(None);
         };
 
         let prev_block_hash = self.execution_state.clone();
 
         info!(
-            "executing block {} with parent block hash {}",
-            block.header.height,
-            hex::encode(&prev_block_hash)
+            height = block.header.height,
+            parent_block_hash = hex::encode(&prev_block_hash),
+            "executing block with given parent block",
         );
 
         // parse cosmos sequencer transactions into rollup transactions
@@ -209,8 +225,8 @@ impl Executor {
                 if msgs.len() > 1 {
                     // this should not happen and is a bug in the sequencer relayer
                     warn!(
-                        "ignoring cosmos tx with more than one sequencer message: {:#?}",
-                        msgs
+                        msgs = ?msgs,
+                        "ignoring cosmos tx with more than one sequencer message",
                     );
                     return None;
                 }
@@ -232,10 +248,10 @@ impl Executor {
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
-            "executed sequencer block {} (height={}) with execution block hash {}",
-            block.block_hash,
-            block.header.height,
-            hex::encode(&response.block_hash)
+            sequencer_block_hash = ?block.block_hash,
+            sequencer_block_height = block.header.height,
+            execution_block_hash = hex::encode(&response.block_hash),
+            "executed sequencer block",
         );
         self.sequencer_hash_to_execution_hash
             .insert(block.block_hash, response.block_hash.clone());
@@ -267,8 +283,9 @@ impl Executor {
                 // try executing the block as it hasn't been executed before
                 // execute_block will check if our namespace has txs; if so, it'll return the
                 // resulting execution block hash, otherwise None
-                let Some(execution_block_hash) = self.execute_block(block).await? else {
+                let Some(execution_block_hash) = self.execute_block(block).await.wrap_err("failed to execute block")? else {
                     // no txs for our namespace, nothing to do
+                    debug!("execute_block returned None; skipping finalize_block");
                     return Ok(());
                 };
 
@@ -280,6 +297,11 @@ impl Executor {
         Ok(())
     }
 
+    /// finalizes the given execution block on the execution layer by calling
+    /// the execution service's FinalizeBlock function.
+    /// note that this function clears the respective entry in the
+    /// `sequencer_hash_to_execution_hash` map.
+    #[instrument(skip_all, fields(execution_block_hash = hex::encode(&execution_block_hash), %sequencer_block_hash))]
     async fn finalize_block(
         &mut self,
         execution_block_hash: Vec<u8>,
@@ -287,10 +309,11 @@ impl Executor {
     ) -> Result<()> {
         self.execution_rpc_client
             .call_finalize_block(execution_block_hash.clone())
-            .await?;
+            .await
+            .wrap_err("failed to finalize block")?;
         info!(
-            "finalized execution block {}",
-            hex::encode(execution_block_hash)
+            execution_block_hash = hex::encode(execution_block_hash),
+            "finalized execution block"
         );
         self.sequencer_hash_to_execution_hash
             .remove(sequencer_block_hash);
