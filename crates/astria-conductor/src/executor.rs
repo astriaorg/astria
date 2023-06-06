@@ -355,10 +355,7 @@ mod test {
     };
     use astria_sequencer_relayer::{
         sequencer_block::IndexedTransaction,
-        types::{
-            BlockId,
-            Header,
-        },
+        types::Header,
     };
     use prost_types::Timestamp;
     use sha2::Digest as _;
@@ -384,6 +381,8 @@ mod test {
 
     #[async_trait::async_trait]
     impl ExecutionClient for MockExecutionClient {
+        // returns the sha256 hash of the prev_block_hash
+        // the Executor passes self.execution_state as prev_block_hash
         async fn call_do_block(
             &mut self,
             prev_block_hash: Vec<u8>,
@@ -424,18 +423,12 @@ mod test {
                 .await
                 .unwrap();
 
-        let parent_block_hash = hash(b"block0");
         let block_hash = hash(b"block1");
+        let expected_exection_hash = hash(&executor.execution_state);
 
         let mut block = SequencerBlock {
-            block_hash: Base64String(block_hash.to_vec()),
-            header: Header {
-                last_block_id: Some(BlockId {
-                    hash: Base64String(parent_block_hash.to_vec()),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            },
+            block_hash: Base64String(block_hash),
+            header: Header::default(),
             sequencer_txs: vec![],
             rollup_txs: HashMap::new(),
         };
@@ -448,14 +441,12 @@ mod test {
             }],
         );
 
-        let expected_exection_hash = hash(&parent_block_hash);
-
         let execution_block_hash = executor
             .execute_block(block)
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash.to_vec(), execution_block_hash);
+        assert_eq!(expected_exection_hash, execution_block_hash);
     }
 
     #[tokio::test]
@@ -521,7 +512,7 @@ mod test {
                 .get(&executor.execution_state)
                 .is_some()
         );
-        assert_eq!(expected_exection_hash, executor.execution_state,);
+        assert_eq!(expected_exection_hash, executor.execution_state);
         // should be empty because 1 block was executed and finalized, which deletes it from the map
         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
     }
