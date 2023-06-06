@@ -232,6 +232,8 @@ impl Reader {
         }
 
         // verify the namespace data signing public key matches the proposer address
+        // TODO: public_key.0 is the Vec<u8> representation of the Base64String - need to convert
+        // it to hex before creating a PublicKey from it
         let res_address: account::Id = PublicKey::from_raw_ed25519(data.public_key.0.as_slice())
             .ok_or(eyre!(
                 "failed to decode address from signed namespace data's public key"
