@@ -7,6 +7,7 @@
 /// fully implements custom errors. See:
 /// + https://github.com/paritytech/jsonrpsee/issues/1136
 /// + https://github.com/paritytech/jsonrpsee/issues/1067
+pub mod blob;
 // pub mod daser;
 // pub mod fraud;
 pub mod header;

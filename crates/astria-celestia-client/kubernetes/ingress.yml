@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: astria-conductor-client-test
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+  namespace: astria-celestia-client-test
+spec:
+  rules: 
+  - host: astria-celestia-client-test.localdev.me
+    http:
+      paths:
+        - pathType: Prefix
+          path: "/bridge/(.*)"
+          backend:
+            service:
+              name: astria-celestia-client-test
+              port:
+                name: bridge-rest
+        - pathType: Prefix
+          path: "/jsonrpc/(.*)"
+          backend:
+            service:
+              name: astria-celestia-client-test
+              port:
+                name: bridge-jsonrpc
+---
