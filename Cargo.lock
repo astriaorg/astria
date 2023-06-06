@@ -406,6 +406,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tendermint 0.29.1",
+ "tendermint-abci",
  "tendermint-proto 0.29.1",
  "tokio",
  "tokio-util 0.7.8",
@@ -4754,6 +4755,19 @@ dependencies = [
  "tendermint-proto 0.30.0",
  "time",
  "zeroize",
+]
+
+[[package]]
+name = "tendermint-abci"
+version = "0.29.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7bfbe8f0131aa45769055496404359f4f5d3e2cf5d66c7457a5986806941de34"
+dependencies = [
+ "bytes",
+ "flex-error",
+ "prost",
+ "tendermint-proto 0.29.1",
+ "tracing",
 ]
 
 [[package]]

@@ -77,6 +77,8 @@ impl Sequencer {
 mod test {
     use astria_proto::abci::abci_application_client::AbciApplicationClient;
 
+    use tendermint_abci::ClientBuilder;
+
     use super::*;
 
     #[tokio::test]
@@ -89,9 +91,17 @@ mod test {
         });
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
-        let mut client = AbciApplicationClient::connect(format!("http://{}", DEFAULT_LISTEN_ADDR))
-            .await
-            .expect("should connect to sequencer");
+        let mut client = ClientBuilder::default().connect(DEFAULT_LISTEN_ADDR).unwrap();
+
+        println!("connected");
+
+        let resp = client.echo(tendermint_proto::abci::RequestEcho {
+            message: "hello world".to_string(),
+        }).unwrap();
+        
+        // let mut client = AbciApplicationClient::connect(format!("http://{}", DEFAULT_LISTEN_ADDR))
+        //     .await
+        //     .expect("should connect to sequencer");
 
         // let resp = client.info(astria_proto::abci::RequestInfo {
         //     version: "0.0.1".to_string(),
@@ -99,12 +109,12 @@ mod test {
         //     p2p_version: 1,
         // }).await.unwrap();
 
-        let resp = client
-            .echo(astria_proto::abci::RequestEcho {
-                message: "hello world".to_string(),
-            })
-            .await
-            .unwrap();
+        // let resp = client
+        //     .echo(astria_proto::abci::RequestEcho {
+        //         message: "hello world".to_string(),
+        //     })
+        //     .await
+        //     .unwrap();
         println!("{:?}", resp);
     }
 }
