@@ -5,19 +5,17 @@ use astria_sequencer_relayer::{
         SequencerNamespaceData,
         SignedNamespaceData,
     },
-    keys::public_key_to_address,
     sequencer_block::SequencerBlock,
-};
-use bech32::{
-    self,
-    ToBase32,
-    Variant,
 };
 use color_eyre::eyre::{
     bail,
     eyre,
     Result,
     WrapErr,
+};
+use tendermint::{
+    account,
+    PublicKey,
 };
 use tokio::{
     sync::mpsc::{
@@ -212,8 +210,9 @@ impl Reader {
         data: &SignedNamespaceData<SequencerNamespaceData>,
     ) -> Result<SequencerBlock> {
         // sequencer block's height
-        let height = data.data.header.height.parse::<u64>()?;
+        let height = data.data.header.height.into();
 
+        // TODO: expected should be account::Id so that it can be compared to the received
         // find proposer address for this height
         let expected_proposer_address =
             self.tendermint_client
@@ -222,12 +221,7 @@ impl Reader {
                 .map_err(|e| eyre!("failed to get proposer address: {}", e))?;
 
         // check if the proposer address matches the sequencer block's proposer
-        let received_proposer_address = bech32::encode(
-            "metrovalcons",
-            data.data.header.proposer_address.0.to_base32(),
-            Variant::Bech32,
-        )
-        .wrap_err("failed converting bytes to bech32 address")?;
+        let received_proposer_address = data.data.header.proposer_address;
 
         if received_proposer_address != expected_proposer_address {
             bail!(
@@ -238,7 +232,11 @@ impl Reader {
         }
 
         // verify the namespace data signing public key matches the proposer address
-        let res_address = public_key_to_address(&data.public_key.0)?;
+        let res_address: account::Id = PublicKey::from_raw_ed25519(data.public_key.0.as_slice())
+            .ok_or(eyre!(
+                "failed to decode address from signed namespace data's public key"
+            ))?
+            .into();
         if res_address != expected_proposer_address {
             bail!(
                 "public key mismatch: expected {}, got {}",

@@ -1,22 +1,23 @@
 use std::collections::HashMap;
 
 use astria_proto::sequencer::v1::SequencerMsg;
-use astria_sequencer_relayer::{
-    base64_string::Base64String,
-    sequencer_block::{
-        cosmos_tx_body_to_sequencer_msgs,
-        get_namespace,
-        parse_cosmos_tx,
-        Namespace,
-        SequencerBlock,
-    },
+use astria_sequencer_relayer::sequencer_block::{
+    cosmos_tx_body_to_sequencer_msgs,
+    get_namespace,
+    parse_cosmos_tx,
+    Namespace,
+    SequencerBlock,
 };
 use color_eyre::eyre::{
     Result,
     WrapErr as _,
 };
 use prost_types::Timestamp as ProstTimestamp;
-use tendermint::Time;
+use tendermint::{
+    hash,
+    Hash,
+    Time,
+};
 use tokio::{
     sync::mpsc::{
         self,
@@ -64,9 +65,7 @@ pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinH
 }
 
 // Given a string, convert to protobuf timestamp
-fn convert_str_to_prost_timestamp(value: &str) -> Result<ProstTimestamp> {
-    let time =
-        Time::parse_from_rfc3339(value).wrap_err("failed parsing string as rfc3339 datetime")?;
+fn convert_str_to_prost_timestamp(time: Time) -> Result<ProstTimestamp> {
     use tendermint_proto::google::protobuf::Timestamp as TendermintTimestamp;
     let TendermintTimestamp {
         seconds,
@@ -114,7 +113,7 @@ struct Executor {
     /// we need to track the mapping of sequencer block hash -> execution block hash
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
-    sequencer_hash_to_execution_hash: HashMap<Base64String, Vec<u8>>,
+    sequencer_hash_to_execution_hash: HashMap<Hash, Hash>,
 }
 
 impl Executor {
@@ -150,7 +149,7 @@ impl Executor {
                     block,
                 } => {
                     self.alert_tx.send(Alert::BlockReceivedFromGossipNetwork {
-                        block_height: block.header.height.parse::<u64>()?,
+                        block_height: block.header.height.into(),
                     })?;
                     if let Err(e) = self.execute_block(*block).await {
                         error!("failed to execute block: {e:?}");
@@ -162,7 +161,7 @@ impl Executor {
                 } => {
                     self.alert_tx
                         .send(Alert::BlockReceivedFromDataAvailability {
-                            block_height: block.header.height.parse::<u64>()?,
+                            block_height: block.header.height.into(),
                         })?;
 
                     if let Err(e) = self
@@ -221,7 +220,7 @@ impl Executor {
             })
             .collect::<Vec<_>>();
 
-        let timestamp = convert_str_to_prost_timestamp(&block.header.time)
+        let timestamp = convert_str_to_prost_timestamp(block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
         let response = self
@@ -237,8 +236,9 @@ impl Executor {
             block.header.height,
             hex::encode(&response.block_hash)
         );
+        let response_block_hash = Hash::from_bytes(hash::Algorithm::Sha256, &response.block_hash)?;
         self.sequencer_hash_to_execution_hash
-            .insert(block.block_hash, response.block_hash);
+            .insert(block.block_hash, response_block_hash);
 
         Ok(())
     }

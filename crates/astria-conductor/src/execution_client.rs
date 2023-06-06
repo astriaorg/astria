@@ -8,6 +8,7 @@ use astria_proto::execution::v1::{
 };
 use color_eyre::eyre::Result;
 use prost_types::Timestamp;
+use tendermint::Hash;
 use tonic::transport::Channel;
 use tracing::info;
 
@@ -53,9 +54,9 @@ impl ExecutionRpcClient {
     }
 
     /// Calls remote procedure FinalizeBlock
-    pub async fn call_finalize_block(&mut self, block_hash: Vec<u8>) -> Result<()> {
+    pub async fn call_finalize_block(&mut self, block_hash: Hash) -> Result<()> {
         let request = FinalizeBlockRequest {
-            block_hash,
+            block_hash: block_hash.into(),
         };
         self.client.finalize_block(request).await?;
         Ok(())
