@@ -19,7 +19,7 @@ async fn test_data_roundtrip() {
         .submit_pay_for_data(&random_namespace_id, &data, 2_000, 90_000)
         .await
         .unwrap();
-    assert!(!res.height.is_none());
+    assert!(res.height.is_some());
 
     // use height from previous response to call namespaced shares/data endpoints
     let height = res.height.unwrap();
