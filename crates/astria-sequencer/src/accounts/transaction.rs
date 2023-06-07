@@ -33,16 +33,6 @@ impl Transaction {
             nonce,
         }
     }
-
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        let bytes = serde_json::to_vec(self)?;
-        Ok(bytes)
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let tx = serde_json::from_slice(bytes)?;
-        Ok(tx)
-    }
 }
 
 #[async_trait]

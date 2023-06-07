@@ -1,11 +1,12 @@
-use anyhow::{
-    anyhow,
-    Result,
-};
+use anyhow::Result;
 use async_trait::async_trait;
 use penumbra_storage::{
     StateRead,
     StateWrite,
+};
+use serde::{
+    Deserialize,
+    Serialize,
 };
 
 use crate::accounts::{
@@ -25,7 +26,7 @@ pub trait ActionHandler {
 
 /// Represents a sequencer chain transaction.
 /// If a new transaction type is added, it should be added to this enum.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Transaction {
     AccountsTransaction(AccountsTransaction),
@@ -42,27 +43,13 @@ impl Transaction {
     }
 
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        let bytes = match self {
-            Self::AccountsTransaction(tx) => {
-                let mut bytes = vec![0u8];
-                bytes.append(&mut tx.to_bytes()?);
-                bytes
-            }
-        };
+        let bytes = serde_json::to_vec(self)?;
         Ok(bytes)
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.is_empty() {
-            return Err(anyhow!("invalid transaction, bytes length is 0"));
-        }
-
-        match bytes[0] {
-            0 => Ok(Self::AccountsTransaction(AccountsTransaction::from_bytes(
-                &bytes[1..],
-            )?)),
-            _ => Err(anyhow!("invalid transaction type")),
-        }
+        let tx = serde_json::from_slice(bytes)?;
+        Ok(tx)
     }
 }
 
