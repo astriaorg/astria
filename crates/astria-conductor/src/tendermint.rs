@@ -10,33 +10,52 @@ use reqwest::{
 };
 use serde::{
     de::DeserializeOwned,
+    Deserialize,
     Serialize,
 };
-use tendermint::{
-    account,
-    validator,
-};
-use tendermint_rpc::endpoint::validators;
 
 static VALIDATOR_SET_ENDPOINT: &str = "/cosmos/base/tendermint/v1beta1/validatorsets/";
 
 #[derive(Serialize, Debug)]
 pub struct EmptyRequest {}
 
-/// returns the proposer given the current set by ordering the validators by proposer priority.
-/// the validator with the highest proposer priority is the proposer.
-/// TODO: could there ever be two validators with the same priority?
-pub(crate) fn get_first_proposer(
-    validator_set: &mut validators::Response,
-) -> eyre::Result<validator::Info> {
-    validator_set
-        .validators
-        .sort_by(|v1, v2| v1.proposer_priority.cmp(&v2.proposer_priority));
-    validator_set
-        .validators
-        .first()
-        .cloned()
-        .ok_or_else(|| eyre::eyre!("no proposer found"))
+#[derive(Deserialize, Debug)]
+pub struct ValidatorSet {
+    pub block_height: String,
+    pub validators: Vec<Validator>,
+}
+
+impl ValidatorSet {
+    /// returns the proposer given the current set by ordering the validators by proposer priority.
+    /// the validator with the highest proposer priority is the proposer.
+    /// TODO: could there ever be two validators with the same priority?
+    pub(crate) fn get_proposer(&mut self) -> eyre::Result<Validator> {
+        self.validators.sort_by(|v1, v2| {
+            v1.proposer_priority
+                .parse::<i64>()
+                .unwrap()
+                .cmp(&v2.proposer_priority.parse::<i64>().unwrap())
+        });
+        self.validators
+            .first()
+            .cloned()
+            .ok_or_else(|| eyre::eyre!("no proposer found"))
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct Validator {
+    pub address: String, // bech32
+    pub pub_key: KeyWithType,
+    pub voting_power: String,
+    pub proposer_priority: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct KeyWithType {
+    #[serde(rename = "@type")]
+    pub key_type: String,
+    pub key: String,
 }
 
 pub struct TendermintClient {
@@ -53,15 +72,15 @@ impl TendermintClient {
         })
     }
 
-    pub async fn get_proposer_address(&self, height: u64) -> eyre::Result<account::Id> {
+    pub async fn get_proposer_address(&self, height: u64) -> eyre::Result<String> {
         let mut validator_set = self.get_validator_set(height).await?;
-        let proposer = get_first_proposer(&mut validator_set)?;
+        let proposer = validator_set.get_proposer()?;
         Ok(proposer.address)
     }
 
-    pub async fn get_validator_set(&self, height: u64) -> eyre::Result<validators::Response> {
+    pub async fn get_validator_set(&self, height: u64) -> eyre::Result<ValidatorSet> {
         let endpoint: String = format!("{}{}{}", self.endpoint, VALIDATOR_SET_ENDPOINT, height);
-        self.do_get::<EmptyRequest, validators::Response>(endpoint, None)
+        self.do_get::<EmptyRequest, ValidatorSet>(endpoint, None)
             .await
             .wrap_err_with(|| format!("failed to get validator set at height `{height}`"))
     }

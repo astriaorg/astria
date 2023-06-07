@@ -7,6 +7,7 @@ use astria_sequencer_relayer::{
     },
     sequencer_block::SequencerBlock,
 };
+use bech32::FromBase32;
 use color_eyre::eyre::{
     bail,
     eyre,
@@ -212,18 +213,19 @@ impl Reader {
         // sequencer block's height
         let height = data.data.header.height.into();
 
-        // TODO: expected should be account::Id so that it can be compared to the received
-        // find proposer address for this height
+        // expected proposer address is in bech32 format
         let expected_proposer_address =
             self.tendermint_client
                 .get_proposer_address(height)
                 .await
                 .map_err(|e| eyre!("failed to get proposer address: {}", e))?;
 
+        let expected_proposer_address = bech32_address_to_hex(&expected_proposer_address)?;
+
         // check if the proposer address matches the sequencer block's proposer
         let received_proposer_address = data.data.header.proposer_address;
 
-        if received_proposer_address != expected_proposer_address {
+        if received_proposer_address.to_string() != expected_proposer_address {
             bail!(
                 "proposer address mismatch: expected {}, got {}",
                 expected_proposer_address,
@@ -232,14 +234,12 @@ impl Reader {
         }
 
         // verify the namespace data signing public key matches the proposer address
-        // TODO: public_key.0 is the Vec<u8> representation of the Base64String - need to convert
-        // it to hex before creating a PublicKey from it
         let res_address: account::Id = PublicKey::from_raw_ed25519(data.public_key.0.as_slice())
             .ok_or(eyre!(
                 "failed to decode address from signed namespace data's public key"
             ))?
             .into();
-        if res_address != expected_proposer_address {
+        if res_address.to_string() != expected_proposer_address {
             bail!(
                 "public key mismatch: expected {}, got {}",
                 expected_proposer_address,
@@ -281,4 +281,10 @@ impl Reader {
 
         Ok(())
     }
+}
+
+fn bech32_address_to_hex(address: &str) -> Result<String> {
+    let (_, data, _) = bech32::decode(address)?;
+    let bytes = Vec::<u8>::from_base32(&data)?;
+    Ok(hex::encode(&bytes))
 }
