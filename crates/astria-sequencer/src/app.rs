@@ -78,7 +78,7 @@ impl App {
         let mut state_tx = self
             .state
             .try_begin_transaction()
-            .expect("failed to get state for init_chain");
+            .expect("state Arc should not be referenced elsewhere");
 
         state_tx.put_block_height(0);
 
@@ -206,4 +206,28 @@ fn default_genesis_accounts() -> Vec<(String, u64)> {
         ("bob".to_string(), 10e18 as u64),
         ("carol".to_string(), 10e18 as u64),
     ]
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::accounts::state_ext::StateReadExt;
+
+    #[tokio::test]
+    async fn test_app_genesis() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut app = App::new(snapshot);
+        let genesis_state = GenesisState {
+            accounts: vec![],
+        };
+        app.init_chain(&genesis_state).await.unwrap();
+        assert_eq!(app.state.get_block_height().await.unwrap(), 0);
+        assert_eq!(
+            app.state.get_account_balance("alice").await.unwrap(),
+            10e18 as u64
+        );
+    }
 }
