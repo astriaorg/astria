@@ -150,12 +150,15 @@ pub struct SequencerNamespaceData {
 impl SequencerNamespaceData {
     fn from_proto(proto: &RawSequencerNamespaceData) -> eyre::Result<Self> {
         let rollup_namespaces: Vec<(u64, String)> = proto
-        .rollup_namespaces
-        .iter()
-        .filter_map(|runs| {
-            Some((runs.block_height, String::from_utf8(runs.namespace.clone()).ok()?))
-        })
-        .collect();
+            .rollup_namespaces
+            .iter()
+            .filter_map(|runs| {
+                Some((
+                    runs.block_height,
+                    String::from_utf8(runs.namespace.clone()).ok()?,
+                ))
+            })
+            .collect();
 
         Ok(Self {
             block_hash: Hash::try_from(proto.block_hash.clone())?,

@@ -223,7 +223,7 @@ impl Reader {
         // check if the proposer address matches the sequencer block's proposer
         let received_proposer_address = data.data.header.proposer_address;
 
-        if received_proposer_address != expected_proposer_address {
+        if received_proposer_address.to_string() != expected_proposer_address {
             bail!(
                 "proposer address mismatch: expected {}, got {}",
                 expected_proposer_address,
@@ -239,7 +239,7 @@ impl Reader {
                 "failed to decode address from signed namespace data's public key"
             ))?
             .into();
-        if res_address != expected_proposer_address {
+        if res_address.to_string() != expected_proposer_address {
             bail!(
                 "public key mismatch: expected {}, got {}",
                 expected_proposer_address,
