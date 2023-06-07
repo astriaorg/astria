@@ -11,12 +11,8 @@ use prost_types::Timestamp;
 use tonic::transport::Channel;
 use tracing::info;
 
-mod private {
-    pub trait Sealed {}
-}
-
 #[async_trait::async_trait]
-pub trait ExecutionClient: private::Sealed {
+pub trait ExecutionClient: crate::private::Sealed {
     async fn call_do_block(
         &mut self,
         prev_state_root: Vec<u8>,
@@ -50,7 +46,7 @@ impl ExecutionRpcClient {
     }
 }
 
-impl private::Sealed for ExecutionRpcClient {}
+impl crate::private::Sealed for ExecutionRpcClient {}
 
 #[async_trait::async_trait]
 impl ExecutionClient for ExecutionRpcClient {
