@@ -10,9 +10,6 @@ use crate::helper::init_test;
 async fn should_get_new_block() {
     let test_env = init_test().await;
 
-    use astria_conductor::telemetry::init;
-    init(std::io::stdout).expect("failed to initialize telemetry");
-
     let metro_endpoint = test_env.sequencer_endpoint();
     let bridge_endpoint = test_env.bridge_endpoint();
 
