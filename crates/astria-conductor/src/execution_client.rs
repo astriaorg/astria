@@ -8,9 +8,22 @@ use astria_proto::execution::v1::{
 };
 use color_eyre::eyre::Result;
 use prost_types::Timestamp;
-use tendermint::Hash;
 use tonic::transport::Channel;
 use tracing::info;
+
+#[async_trait::async_trait]
+pub trait ExecutionClient: crate::private::Sealed {
+    async fn call_do_block(
+        &mut self,
+        prev_state_root: Vec<u8>,
+        transactions: Vec<Vec<u8>>,
+        timestamp: Option<Timestamp>,
+    ) -> Result<DoBlockResponse>;
+
+    async fn call_finalize_block(&mut self, block_hash: Vec<u8>) -> Result<()>;
+
+    async fn call_init_state(&mut self) -> Result<InitStateResponse>;
+}
 
 /// Represents an RpcClient. Wrapping the auto generated client here.
 pub struct ExecutionRpcClient {
@@ -31,21 +44,28 @@ impl ExecutionRpcClient {
             client,
         })
     }
+}
 
+impl crate::private::Sealed for ExecutionRpcClient {}
+
+#[async_trait::async_trait]
+impl ExecutionClient for ExecutionRpcClient {
     /// Calls remote procedure DoBlock
     ///
     /// # Arguments
     ///
-    /// * `header` - Header of the block
-    /// * `transactions` - List of transactions
-    pub async fn call_do_block(
+    /// * `prev_block_hash` - Block hash of the parent block
+    /// * `transactions` - List of transactions extracted from the sequencer block
+    /// * `timestamp` - Optional timestamp of the sequencer block
+    async fn call_do_block(
         &mut self,
-        prev_state_root: Vec<u8>,
+        prev_block_hash: Vec<u8>,
         transactions: Vec<Vec<u8>>,
         timestamp: Option<Timestamp>,
     ) -> Result<DoBlockResponse> {
         let request = DoBlockRequest {
-            prev_state_root,
+            // TODO: this field name should actually be prev_block_hash!
+            prev_state_root: prev_block_hash,
             transactions,
             timestamp,
         };
@@ -54,16 +74,16 @@ impl ExecutionRpcClient {
     }
 
     /// Calls remote procedure FinalizeBlock
-    pub async fn call_finalize_block(&mut self, block_hash: Hash) -> Result<()> {
+    async fn call_finalize_block(&mut self, block_hash: Vec<u8>) -> Result<()> {
         let request = FinalizeBlockRequest {
-            block_hash: block_hash.into(),
+            block_hash,
         };
         self.client.finalize_block(request).await?;
         Ok(())
     }
 
     /// Calls remote procedure InitState
-    pub async fn call_init_state(&mut self) -> Result<InitStateResponse> {
+    async fn call_init_state(&mut self) -> Result<InitStateResponse> {
         let request = InitStateRequest {};
         let response = self.client.init_state(request).await?.into_inner();
         Ok(response)
