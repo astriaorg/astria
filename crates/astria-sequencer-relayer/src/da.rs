@@ -149,6 +149,14 @@ pub struct SequencerNamespaceData {
 
 impl SequencerNamespaceData {
     fn from_proto(proto: &RawSequencerNamespaceData) -> eyre::Result<Self> {
+        let rollup_namespaces: Vec<(u64, String)> = proto
+        .rollup_namespaces
+        .iter()
+        .filter_map(|runs| {
+            Some((runs.block_height, String::from_utf8(runs.namespace.clone()).ok()?))
+        })
+        .collect();
+
         Ok(Self {
             block_hash: Hash::try_from(proto.block_hash.clone())?,
             header: Header::try_from(proto.header.clone().unwrap())?, // TODO: static errors
@@ -157,11 +165,7 @@ impl SequencerNamespaceData {
                 .iter()
                 .map(|itx| IndexedTransaction::from_proto(itx))
                 .collect::<eyre::Result<Vec<_>>>()?,
-            rollup_namespaces: proto
-                .rollup_namespaces
-                .iter()
-                .map(|runs| (runs.block_height, String::from(runs.namespace.clone())))
-                .collect(),
+            rollup_namespaces,
         })
     }
 
