@@ -225,9 +225,39 @@ mod test {
         };
         app.init_chain(&genesis_state).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
+        for (name, balance) in default_genesis_accounts() {
+            assert_eq!(app.state.get_account_balance(&name).await.unwrap(), balance)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_app_deliver_tx() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut app = App::new(snapshot);
+        let genesis_state = GenesisState {
+            accounts: vec![],
+        };
+        app.init_chain(&genesis_state).await.unwrap();
+
+        // transfer funds from Alice to Bob
+        let value = 333333;
+        let tx =
+            Transaction::new_accounts_transaction("bob".to_string(), "alice".to_string(), value, 1);
+        let bytes = tx.to_bytes().unwrap();
+
+        app.deliver_tx(&bytes).await.unwrap();
+        assert_eq!(
+            app.state.get_account_balance("bob").await.unwrap(),
+            10e18 as u64 + value
+        );
         assert_eq!(
             app.state.get_account_balance("alice").await.unwrap(),
-            10e18 as u64
+            10e18 as u64 - value
         );
+        assert_eq!(app.state.get_account_nonce("bob").await.unwrap(), 0);
+        assert_eq!(app.state.get_account_nonce("alice").await.unwrap(), 1);
     }
 }
