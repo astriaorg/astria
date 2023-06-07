@@ -524,7 +524,7 @@ mod test {
             finalized_blocks
                 .lock()
                 .await
-                .get(&executor.execution_state.try_into().unwrap())
+                .get(&executor.execution_state)
                 .is_some()
         );
         assert_eq!(expected_exection_hash.as_bytes(), executor.execution_state);
@@ -564,7 +564,7 @@ mod test {
             finalized_blocks
                 .lock()
                 .await
-                .get(&executor.execution_state.try_into().unwrap())
+                .get(&executor.execution_state)
                 .is_none()
         );
         assert_eq!(previous_execution_state, executor.execution_state);
