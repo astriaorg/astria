@@ -11,8 +11,12 @@ use prost_types::Timestamp;
 use tonic::transport::Channel;
 use tracing::info;
 
+mod private {
+    pub trait Sealed {}
+}
+
 #[async_trait::async_trait]
-pub trait ExecutionClient {
+pub trait ExecutionClient: private::Sealed {
     async fn call_do_block(
         &mut self,
         prev_state_root: Vec<u8>,
@@ -46,6 +50,8 @@ impl ExecutionRpcClient {
     }
 }
 
+impl private::Sealed for ExecutionRpcClient {}
+
 #[async_trait::async_trait]
 impl ExecutionClient for ExecutionRpcClient {
     /// Calls remote procedure DoBlock
@@ -62,7 +68,8 @@ impl ExecutionClient for ExecutionRpcClient {
         timestamp: Option<Timestamp>,
     ) -> Result<DoBlockResponse> {
         let request = DoBlockRequest {
-            prev_state_root: prev_block_hash, // TODO: this should actually be prev_block_hash!
+            // TODO: this field name should actually be prev_block_hash!
+            prev_state_root: prev_block_hash,
             transactions,
             timestamp,
         };

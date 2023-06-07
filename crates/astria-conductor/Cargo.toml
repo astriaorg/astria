@@ -33,4 +33,4 @@ astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 [dev-dependencies]
 astria-conductor-test = { path = "../astria-conductor-test" }
 once_cell = { workspace = true }
-sha2 = "0.10"
+sha2 = { workspace = true }

@@ -56,8 +56,9 @@ type Receiver = UnboundedReceiver<ExecutorCommand>;
 /// and the channel for sending commands to this executor
 pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinHandle, Sender)> {
     info!("Spawning executor task.");
-    let (mut executor, executor_tx) = Executor::new_with_rpc_client(
-        &conf.execution_rpc_url,
+    let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url).await?;
+    let (mut executor, executor_tx) = Executor::new(
+        execution_rpc_client,
         get_namespace(conf.chain_id.as_bytes()),
         alert_tx,
     )
@@ -122,18 +123,6 @@ struct Executor<C> {
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
     sequencer_hash_to_execution_hash: HashMap<Base64String, Vec<u8>>,
-}
-
-impl Executor<ExecutionRpcClient> {
-    /// Creates a new Executor instance and returns a command sender and an alert receiver.
-    async fn new_with_rpc_client(
-        rpc_address: &str,
-        namespace: Namespace,
-        alert_tx: AlertSender,
-    ) -> Result<(Self, Sender)> {
-        let execution_rpc_client = ExecutionRpcClient::new(rpc_address).await?;
-        Executor::new(execution_rpc_client, namespace, alert_tx).await
-    }
 }
 
 impl<C: ExecutionClient> Executor<C> {
@@ -322,20 +311,16 @@ impl<C: ExecutionClient> Executor<C> {
     ///
     /// This function returns an error if:
     /// - the call to the execution service's FinalizeBlock function fails
-    #[instrument(skip_all, fields(execution_block_hash = hex::encode(&execution_block_hash), %sequencer_block_hash))]
+    #[instrument(ret, err, skip_all, fields(execution_block_hash = hex::encode(&execution_block_hash), %sequencer_block_hash))]
     async fn finalize_block(
         &mut self,
         execution_block_hash: Vec<u8>,
         sequencer_block_hash: &Base64String,
     ) -> Result<()> {
         self.execution_rpc_client
-            .call_finalize_block(execution_block_hash.clone())
+            .call_finalize_block(execution_block_hash)
             .await
             .wrap_err("failed to finalize block")?;
-        info!(
-            execution_block_hash = hex::encode(execution_block_hash),
-            "finalized execution block"
-        );
         self.sequencer_hash_to_execution_hash
             .remove(sequencer_block_hash);
         Ok(())
