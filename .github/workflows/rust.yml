@@ -60,7 +60,7 @@ jobs:
       - run: just wait-for-prepull
       - name: Run heavy tests
         run: |
-          cargo test --release \
+          TEST_LOG=true RUST_LOG=info cargo test --release \
           --workspace \
           --exclude astria-rs-cnc \
           -- --ignored
