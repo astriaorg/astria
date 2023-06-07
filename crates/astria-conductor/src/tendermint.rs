@@ -45,7 +45,7 @@ impl ValidatorSet {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Validator {
-    pub address: String,
+    pub address: String, // bech32
     pub pub_key: KeyWithType,
     pub voting_power: String,
     pub proposer_priority: String,
