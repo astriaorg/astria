@@ -203,7 +203,7 @@ impl Reader {
                     };
 
                     for data in datas {
-                        let block = match self.validate_sequencer_namespace_data(&data).await {
+                        let block = match self.validate_sequencer_namespace_data(data).await {
                             Ok(block) => block,
                             Err(e) => {
                                 // this means someone submitted an invalid block to celestia;
@@ -245,7 +245,7 @@ impl Reader {
     /// - validate the block was actually finalized; ie >2/3 stake signed off on it
     async fn validate_sequencer_namespace_data(
         &self,
-        data: &SignedNamespaceData<SequencerNamespaceData>,
+        data: SignedNamespaceData<SequencerNamespaceData>,
     ) -> Result<SequencerBlock> {
         // sequencer block's height
         let height = data.data.header.height.parse::<u64>()?;
@@ -286,7 +286,7 @@ impl Reader {
         }
 
         // validate that commit signatures hash to header.last_commit_hash
-        match calculate_last_commit_hash(&data.data.last_commit) {
+        let data = match calculate_last_commit_hash(&data.data.last_commit) {
             Hash::Sha256(calculated_last_commit_hash) => {
                 let Some(last_commit_hash) = data.data.header.last_commit_hash.as_ref() else {
                     bail!("last commit hash should not be empty");
@@ -297,11 +297,18 @@ impl Reader {
                 }
 
                 // verify that the validator votes on the previous block have >2/3 voting power
-                ensure_commit_has_quorum(
-                    &data.data.last_commit,
-                    &validator_set,
-                    &data.data.header.chain_id,
-                )?;
+                tokio::task::spawn_blocking(
+                    move || -> Result<SignedNamespaceData<SequencerNamespaceData>> {
+                        ensure_commit_has_quorum(
+                            &data.data.last_commit,
+                            &validator_set,
+                            &data.data.header.chain_id,
+                        )?;
+                        Ok(data)
+                    },
+                )
+                .await?
+                .wrap_err("failed to ensure commit has quorum")?
 
                 // TODO: commit is for previous block; how do we handle this?
             }
@@ -313,6 +320,7 @@ impl Reader {
                     data.data.header.last_commit_hash.is_none(),
                     "last commit hash should be empty"
                 );
+                data
             }
         };
 
@@ -517,12 +525,26 @@ fn calculate_last_commit_hash(commit: &Commit) -> Hash {
 
 #[cfg(test)]
 mod test {
-    use astria_sequencer_relayer::base64_string::Base64String;
+    use astria_sequencer_relayer::{
+        base64_string::Base64String,
+        types::{
+            BlockId,
+            Commit,
+            Parts,
+        },
+    };
 
     use super::*;
+    use crate::tendermint::{
+        IntString,
+        KeyWithType,
+        UintString,
+        Validator,
+        ValidatorSet,
+    };
 
     #[test]
-    fn test_ensure_commit_has_quorum() {
+    fn test_ensure_commit_has_quorum_ok() {
         let validator_set_str = r#"{
             "block_height": "2082",
             "validators": [
@@ -564,6 +586,53 @@ mod test {
         let validator_set = serde_json::from_str::<ValidatorSet>(validator_set_str).unwrap();
         let commit = serde_json::from_str::<Commit>(commit_str).unwrap();
         ensure_commit_has_quorum(&commit, &validator_set, "private").unwrap();
+    }
+
+    #[test]
+    fn test_ensure_commit_has_quorum_not_ok() {
+        let validator_set = ValidatorSet {
+            block_height: "2082".to_string(),
+            validators: vec![Validator {
+                address: "metrovalcons1hdu2nzhcyfnhaj9tfrdlekfnfwx895mk83d322".to_string(),
+                pub_key: KeyWithType {
+                    key: Base64String::from_string(
+                        "MdfFS4MH09Og5y+9SVxpJRqUnZkDGfnPjdyx4qM2Vng=".to_string(),
+                    )
+                    .unwrap(),
+                    key_type: "/cosmos.crypto.ed25519.PubKey".to_string(),
+                },
+                voting_power: UintString(5000),
+                proposer_priority: IntString(0),
+            }],
+        };
+
+        let commit = Commit {
+            height: "2082".to_string(),
+            round: 0,
+            block_id: BlockId {
+                hash: Base64String::from_string(
+                    "5QrZ8fznJw/X1lviA5cyQ2BwLbma8iuvXHqh6BiMJdU=".to_string(),
+                )
+                .unwrap(),
+                part_set_header: Parts {
+                    total: 1,
+                    hash: Base64String::from_string(
+                        "DUMkxxMa2M0/aMmNyVGkvLn+3w1HTsGZ/YKyAVu+gdc=".to_string(),
+                    )
+                    .unwrap(),
+                },
+            },
+            signatures: vec![],
+        };
+
+        let result = ensure_commit_has_quorum(&commit, &validator_set, "private");
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("total voting power in votes is less than 2/3 of total voting power")
+        );
     }
 
     #[test]

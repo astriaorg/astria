@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use astria_rs_cnc::types::Base64String;
+use astria_sequencer_relayer::base64_string::Base64String;
 use color_eyre::eyre::{
     self,
     WrapErr as _,
