@@ -5,10 +5,8 @@ use std::{
 
 use astria_sequencer_relayer::{
     api,
-    da::{
-        CelestiaClientBuilder,
-        DEFAULT_PFD_GAS_LIMIT,
-    },
+    config,
+    da::CelestiaClientBuilder,
     network::GossipNetwork,
     relayer::{
         Relayer,
@@ -16,69 +14,28 @@ use astria_sequencer_relayer::{
     },
     sequencer::SequencerClient,
 };
-use clap::Parser;
 use dirs::home_dir;
-use tracing::info;
-use tracing_subscriber::EnvFilter;
-
-pub const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:1317";
-pub const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26659";
-
-/// Simple program to greet a person
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    /// Sequencer node RPC endpoint.
-    #[arg(short, long, default_value = DEFAULT_SEQUENCER_ENDPOINT)]
-    sequencer_endpoint: String,
-
-    /// Celestia node RPC endpoint.
-    #[arg(short, long, default_value = DEFAULT_CELESTIA_ENDPOINT)]
-    celestia_endpoint: String,
-
-    /// Gas limit for transactions sent to Celestia.
-    #[arg(short, long, default_value_t = DEFAULT_PFD_GAS_LIMIT)]
-    gas_limit: u64,
-
-    /// Disable writing the sequencer block to Celestia.
-    #[arg(short, long)]
-    disable_writing: bool,
-
-    /// Expected block time of the sequencer in milliseconds;
-    /// ie. how often we should poll the sequencer.
-    #[arg(short, long, default_value = "3000")]
-    block_time: u64,
-
-    /// Path to validator private key file.
-    #[arg(short, long, default_value = ".metro/config/priv_validator_key.json")]
-    validator_key_file: String,
-
-    /// RPC port to listen on.
-    #[arg(short, long, default_value = "2450")]
-    rpc_port: u16,
-
-    /// P2P port to listen on.
-    #[arg(short, long, default_value = "33900")]
-    p2p_port: u16,
-
-    /// Log level. One of debug, info, warn, or error
-    #[arg(short, long, default_value = "info")]
-    log: String,
-}
+use tracing::{
+    error,
+    info,
+};
 
 #[tokio::main]
 async fn main() {
-    let args = Args::parse();
-
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(args.log)),
-        )
-        .init();
+    let cfg = config::get().expect("failed to read configuration");
+    tracing_subscriber::fmt().with_env_filter(&cfg.log).init();
+    let cfg_json = serde_json::to_string(&cfg).unwrap_or_else(|e| {
+        error!(
+            error = ?e,
+            "failed serializing config as json; will use debug formatting"
+        );
+        format!("{cfg:?}")
+    });
+    info!(config = cfg_json, "running astria-sequencer-relayer with");
 
     // unmarshal validator private key file
     let home_dir = home_dir().unwrap();
-    let file_path = home_dir.join(&args.validator_key_file);
+    let file_path = home_dir.join(&cfg.validator_key_file);
     info!("using validator keys located at {}", file_path.display());
 
     let key_file =
@@ -87,24 +44,24 @@ async fn main() {
         serde_json::from_str(&key_file).expect("failed to unmarshal validator key file");
 
     let sequencer_client =
-        SequencerClient::new(args.sequencer_endpoint).expect("failed to create sequencer client");
-    let da_client = CelestiaClientBuilder::new(args.celestia_endpoint)
-        .gas_limit(args.gas_limit)
+        SequencerClient::new(cfg.sequencer_endpoint).expect("failed to create sequencer client");
+    let da_client = CelestiaClientBuilder::new(cfg.celestia_endpoint)
+        .gas_limit(cfg.gas_limit)
         .build()
         .expect("failed to create data availability client");
 
-    let sleep_duration = time::Duration::from_millis(args.block_time);
+    let sleep_duration = time::Duration::from_millis(cfg.block_time);
     let interval = tokio::time::interval(sleep_duration);
 
     let (block_tx, block_rx) = tokio::sync::mpsc::unbounded_channel();
 
-    let network = GossipNetwork::new(args.p2p_port, block_rx).expect("failed to create network");
+    let network = GossipNetwork::new(cfg.p2p_port, block_rx).expect("failed to create network");
     let network_handle = network.run();
 
     let mut relayer = Relayer::new(sequencer_client, da_client, key_file, interval, block_tx)
         .expect("failed to create relayer");
 
-    if args.disable_writing {
+    if cfg.disable_writing {
         relayer.disable_writing();
     }
 
@@ -112,7 +69,7 @@ async fn main() {
     let relayer_handle = relayer.run();
 
     let _api_server_task = tokio::task::spawn(async move {
-        let api_addr = SocketAddr::from(([127, 0, 0, 1], args.rpc_port));
+        let api_addr = SocketAddr::from(([127, 0, 0, 1], cfg.rpc_port));
         api::start(api_addr, relayer_state).await;
     });
 
