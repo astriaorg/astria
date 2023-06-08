@@ -438,9 +438,17 @@ fn ensure_commit_has_quorum(
     }
 
     ensure!(
+        commit_voting_power <= total_voting_power,
+        format!(
+            "commit voting power is greater than total voting power: {} > {}",
+            commit_voting_power, total_voting_power
+        )
+    );
+
+    ensure!(
         does_commit_voting_power_have_quorum(commit_voting_power, total_voting_power),
         format!(
-            "total voting power in votes is less than 2/3 of total voting power: {} <= {}",
+            "commit voting power is less than 2/3 of total voting power: {} <= {}",
             commit_voting_power,
             total_voting_power * 2 / 3,
         )
@@ -450,7 +458,11 @@ fn ensure_commit_has_quorum(
 }
 
 fn does_commit_voting_power_have_quorum(commited: u64, total: u64) -> bool {
-    commited * 3 > total * 2
+    if total < 3 {
+        return commited * 3 > total * 2;
+    }
+
+    commited > total / 3 * 2
 }
 
 // see https://github.com/tendermint/tendermint/blob/35581cf54ec436b8c37fabb43fdaa3f48339a170/types/vote.go#L147
@@ -557,6 +569,7 @@ mod test {
             u64::MAX / 3,
             u64::MAX / 2 - 1
         ));
+        assert!(does_commit_voting_power_have_quorum(u64::MAX, u64::MAX));
 
         assert!(!does_commit_voting_power_have_quorum(0, 1));
         assert!(!does_commit_voting_power_have_quorum(1, 2));
@@ -564,6 +577,10 @@ mod test {
         assert!(!does_commit_voting_power_have_quorum(100, 150));
         assert!(!does_commit_voting_power_have_quorum(
             u64::MAX / 3 - 1,
+            u64::MAX / 2
+        ));
+        assert!(does_commit_voting_power_have_quorum(
+            u64::MAX / 3,
             u64::MAX / 2
         ));
         assert!(!does_commit_voting_power_have_quorum(0, 0));
