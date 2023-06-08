@@ -6,6 +6,7 @@ use std::{
 };
 
 use clap::Args;
+use reth_config::Config;
 use reth_net_nat::NatResolver;
 use reth_network::NetworkConfigBuilder;
 // use reth_net_nat::NatResolver;
@@ -16,7 +17,6 @@ use reth_primitives::{
     ChainSpec,
     NodeRecord,
 };
-use reth_staged_sync::Config;
 use secp256k1::SecretKey;
 
 // use secp256k1::SecretKey;

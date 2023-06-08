@@ -8,27 +8,11 @@ use clap::{
     Parser,
 };
 use eyre::Context;
-// use futures::StreamExt;
-// use reth_beacon_consensus::BeaconConsensus;
-// use reth_db::database::Database;
-// use reth_downloaders::{
-//     bodies::bodies::BodiesDownloaderBuilder,
-//     headers::reverse_headers::ReverseHeadersDownloaderBuilder, test_utils::FileClient,
-// };
-// use reth_interfaces::{
-//     consensus::Consensus,
-//     p2p::headers::client::NoopStatusUpdater,
-// };
+use reth_config::Config;
 use reth_primitives::ChainSpec;
-use reth_staged_sync::{
-    utils::{
-        chainspec::genesis_value_parser,
-        init::{
-            init_db,
-            init_genesis,
-        },
-    },
-    Config,
+use reth_staged_sync::utils::init::{
+    init_db,
+    init_genesis,
 };
 // use reth_stages::{
 //     prelude::*,
@@ -46,6 +30,18 @@ use tracing::{
     info,
 };
 
+// use futures::StreamExt;
+// use reth_beacon_consensus::BeaconConsensus;
+// use reth_db::database::Database;
+// use reth_downloaders::{
+//     bodies::bodies::BodiesDownloaderBuilder,
+//     headers::reverse_headers::ReverseHeadersDownloaderBuilder, test_utils::FileClient,
+// };
+// use reth_interfaces::{
+//     consensus::Consensus,
+//     p2p::headers::client::NoopStatusUpdater,
+// };
+use crate::args::utils::genesis_value_parser;
 use crate::dirs::{
     DataDirPath,
     MaybePlatformPath,
@@ -113,7 +109,7 @@ impl ImportCommand {
 
         debug!(target: "reth::cli", chain=%self.chain.chain, genesis=?self.chain.genesis_hash(), "Initializing genesis");
 
-        init_genesis(db.clone(), self.chain.clone())?;
+        init_genesis(db, self.chain)?;
 
         // let consensus = Arc::new(BeaconConsensus::new(self.chain.clone()));
         // info!(target: "reth::cli", "Consensus engine initialized");

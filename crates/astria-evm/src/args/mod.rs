@@ -2,7 +2,10 @@
 
 /// NetworkArg struct for configuring the network
 mod network_args;
-pub use network_args::{DiscoveryArgs, NetworkArgs};
+pub use network_args::{
+    DiscoveryArgs,
+    NetworkArgs,
+};
 
 /// RpcServerArg struct for configuring the RPC
 mod rpc_server_args;
@@ -13,7 +16,10 @@ mod debug_args;
 pub use debug_args::DebugArgs;
 
 mod secret_key;
-pub use secret_key::{get_secret_key, SecretKeyError};
+pub use secret_key::{
+    get_secret_key,
+    SecretKeyError,
+};
 
 /// MinerArgs struct for configuring the miner
 mod payload_build_args;
@@ -24,4 +30,5 @@ mod stage_args;
 pub use stage_args::StageEnum;
 
 mod gas_price_oracle_args;
+pub mod utils;
 pub use gas_price_oracle_args::GasPriceOracleArgs;

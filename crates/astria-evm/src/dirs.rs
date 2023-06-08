@@ -14,7 +14,8 @@ use std::{
 };
 
 use reth_primitives::Chain;
-use reth_staged_sync::utils::parse_path;
+
+use crate::utils::parse_path;
 
 /// Constructs a string to be used as a path for configuration and db paths.
 pub fn config_path_prefix(chain: Chain) -> String {

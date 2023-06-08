@@ -2,7 +2,11 @@
 
 use std::{
     collections::BTreeMap,
-    path::Path,
+    env::VarError,
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 
@@ -138,4 +142,10 @@ impl<'a, DB: Database> DbTool<'a, DB> {
 pub fn parse_duration_from_secs(arg: &str) -> Result<Duration, std::num::ParseIntError> {
     let seconds = arg.parse()?;
     Ok(Duration::from_secs(seconds))
+}
+
+/// Parses a user-specified path with support for environment variables and common shorthands (e.g.
+/// ~ for the user's home directory).
+pub fn parse_path(value: &str) -> Result<PathBuf, shellexpand::LookupError<VarError>> {
+    shellexpand::full(value).map(|path| PathBuf::from(path.into_owned()))
 }

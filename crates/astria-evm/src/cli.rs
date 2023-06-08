@@ -1,6 +1,4 @@
 //! CLI definition and entrypoint to executable
-use std::str::FromStr;
-
 use clap::{
     ArgAction,
     Args,
@@ -16,14 +14,15 @@ use reth_tracing::{
     tracing_subscriber::{
         filter::Directive,
         registry::LookupSpan,
+        EnvFilter,
     },
     BoxedLayer,
     FileWorkerGuard,
 };
 
 use crate::{
-    // chain,
-    // db,
+    chain,
+    db,
     dirs::{
         LogsDir,
         PlatformPath,
@@ -36,17 +35,19 @@ use crate::{
 pub fn run() -> eyre::Result<()> {
     let opt = Cli::parse();
 
-    // let mut layers = vec![reth_tracing::stdout(opt.verbosity.directive())];
-    // if let Some((layer, _guard)) = opt.logs.layer() {
-    //     layers.push(layer);
-    // }
-    // reth_tracing::init(layers);
+    let mut layers = vec![reth_tracing::stdout(opt.verbosity.directive())];
+    if let Some((layer, _guard)) = opt.logs.layer()? {
+        layers.push(layer);
+    }
+    reth_tracing::init(layers);
 
     let runner = CliRunner::default();
 
     match opt.command {
         Commands::Node(command) => runner.run_command_until_exit(|ctx| command.execute(ctx)),
-        // Commands::Init(command) => runner.run_blocking_until_ctrl_c(command.execute()),
+        Commands::Init(command) => runner.run_blocking_until_ctrl_c(command.execute()),
+        Commands::Import(command) => runner.run_blocking_until_ctrl_c(command.execute()),
+        Commands::Db(command) => runner.run_blocking_until_ctrl_c(command.execute()),
     }
 }
 
@@ -56,13 +57,19 @@ pub enum Commands {
     /// Start the node
     #[command(name = "node")]
     Node(node::Command),
-    // /// Initialize the database from a genesis file.
-    // #[command(name = "init")]
-    // Init(chain::InitCommand),
+    /// Initialize the database from a genesis file.
+    #[command(name = "init")]
+    Init(chain::InitCommand),
+    /// This syncs RLP encoded blocks from a file.
+    #[command(name = "import")]
+    Import(chain::ImportCommand),
+    /// Database debugging utilities
+    #[command(name = "db")]
+    Db(db::Command),
 }
 
 #[derive(Debug, Parser)]
-#[command(author, version = "0.1", about = "Reth", long_about = None)]
+#[command(author, about = "Reth", long_about = None)]
 struct Cli {
     /// The command to run
     #[clap(subcommand)]
@@ -70,8 +77,9 @@ struct Cli {
 
     #[clap(flatten)]
     logs: Logs,
-    // #[clap(flatten)]
-    // verbosity: Verbosity,
+
+    #[clap(flatten)]
+    verbosity: Verbosity,
 }
 
 /// The log configuration.
@@ -101,31 +109,30 @@ pub struct Logs {
         long = "log.filter",
         value_name = "FILTER",
         global = true,
-        default_value = "debug"
+        default_value = "error"
     )]
     filter: String,
 }
 
 impl Logs {
     /// Builds a tracing layer from the current log options.
-    pub fn layer<S>(&self) -> Option<(BoxedLayer<S>, Option<FileWorkerGuard>)>
+    pub fn layer<S>(&self) -> eyre::Result<Option<(BoxedLayer<S>, Option<FileWorkerGuard>)>>
     where
         S: Subscriber,
         for<'a> S: LookupSpan<'a>,
     {
-        let directive = Directive::from_str(self.filter.as_str())
-            .unwrap_or_else(|_| Directive::from_str("debug").unwrap());
+        let filter = EnvFilter::builder().parse(&self.filter)?;
 
         if self.journald {
-            Some((
-                reth_tracing::journald(directive).expect("Could not connect to journald"),
+            Ok(Some((
+                reth_tracing::journald(filter).expect("Could not connect to journald"),
                 None,
-            ))
+            )))
         } else if self.persistent {
-            let (layer, guard) = reth_tracing::file(directive, &self.log_directory, "reth.log");
-            Some((layer, Some(guard)))
+            let (layer, guard) = reth_tracing::file(filter, &self.log_directory, "reth.log");
+            Ok(Some((layer, Some(guard))))
         } else {
-            None
+            Ok(None)
         }
     }
 }
@@ -170,8 +177,33 @@ impl Verbosity {
                 _ => Level::TRACE,
             };
 
-            format!("reth::cli={level}").parse().unwrap()
+            format!("{level}").parse().unwrap()
         }
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use clap::CommandFactory;
+
+    use super::*;
+
+    /// Tests that the help message is parsed correctly. This ensures that clap args are configured
+    /// correctly and no conflicts are introduced via attributes that would result in a panic at
+    /// runtime
+    #[test]
+    fn test_parse_help_all_subcommands() {
+        let reth = Cli::command();
+        for sub_command in reth.get_subcommands() {
+            let err = Cli::try_parse_from(["reth", sub_command.get_name(), "--help"])
+                .err()
+                .unwrap_or_else(|| {
+                    panic!("Failed to parse help message {}", sub_command.get_name())
+                });
+
+            // --help is treated as error, but
+            // > Not a true "error" as it means --help or similar was used. The help message will be sent to stdout.
+            assert_eq!(err.kind(), clap::error::ErrorKind::DisplayHelp);
+        }
+    }
+}

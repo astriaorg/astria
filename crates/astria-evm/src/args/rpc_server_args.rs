@@ -33,7 +33,7 @@ use reth_provider::{
 };
 use reth_rpc::{
     eth::gas_oracle::GasPriceOracleConfig,
-    JwtError,
+    // JwtError,
     JwtSecret,
 };
 use reth_rpc_builder::{
@@ -75,6 +75,8 @@ pub(crate) const RPC_DEFAULT_MAX_REQUEST_SIZE_MB: u32 = 15;
 pub(crate) const RPC_DEFAULT_MAX_RESPONSE_SIZE_MB: u32 = 25;
 /// Default number of incoming connections.
 pub(crate) const RPC_DEFAULT_MAX_CONNECTIONS: u32 = 100;
+/// Default number of incoming connections.
+pub(crate) const RPC_DEFAULT_MAX_TRACING_REQUESTS: u32 = 25;
 
 /// Parameters for configuring the rpc more granularity via CLI
 #[derive(Debug, Args, PartialEq, Eq, Default)]
@@ -157,6 +159,10 @@ pub struct RpcServerArgs {
     #[arg(long, default_value_t = RPC_DEFAULT_MAX_SUBS_PER_CONN)]
     pub rpc_max_subscriptions_per_connection: u32,
 
+    /// Maximum number of concurrent tracing requests.
+    #[arg(long, value_name = "COUNT", default_value_t = RPC_DEFAULT_MAX_TRACING_REQUESTS)]
+    pub rpc_max_tracing_requests: u32,
+
     /// Maximum number of RPC server connections.
     #[arg(long, value_name = "COUNT", default_value_t = RPC_DEFAULT_MAX_CONNECTIONS)]
     pub rpc_max_connections: u32,
@@ -189,7 +195,9 @@ impl RpcServerArgs {
 
     /// Extracts the [EthConfig] from the args.
     pub fn eth_config(&self) -> EthConfig {
-        EthConfig::default().with_gpo_config(self.gas_price_oracle_config())
+        EthConfig::default()
+            .max_tracing_requests(self.rpc_max_tracing_requests)
+            .gpo_config(self.gas_price_oracle_config())
     }
 
     /// The execution layer and consensus layer clients SHOULD accept a configuration parameter:
@@ -215,10 +223,12 @@ impl RpcServerArgs {
     //         None => {
     //             if default_jwt_path.exists() {
     //                 debug!(target: "reth::cli", ?default_jwt_path, "Reading JWT auth secret
-    // file");                 JwtSecret::from_file(&default_jwt_path)
+    // file");
+    //                 JwtSecret::from_file(&default_jwt_path)
     //             } else {
     //                 info!(target: "reth::cli", ?default_jwt_path, "Creating JWT auth secret
-    // file");                 JwtSecret::try_create(&default_jwt_path)
+    // file");
+    //                 JwtSecret::try_create(&default_jwt_path)
     //             }
     //         }
     //     }

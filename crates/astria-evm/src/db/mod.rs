@@ -17,10 +17,10 @@ use reth_db::{
     tables,
 };
 use reth_primitives::ChainSpec;
-use reth_staged_sync::utils::chainspec::genesis_value_parser;
 use tracing::error;
 
 use crate::{
+    args::utils::genesis_value_parser,
     dirs::{
         DataDirPath,
         MaybePlatformPath,

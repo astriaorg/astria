@@ -29,6 +29,7 @@ use reth_blockchain_tree::{
     BlockchainTree,
     ShareableBlockchainTree,
 };
+use reth_config::Config;
 // TODO: need to keep the db around for the blockchain tree so leaving these for now
 use reth_db::{
     database::Database,
@@ -52,8 +53,15 @@ use reth_network::{
 // use reth_network_api::NetworkInfo;
 // use reth_payload_builder::PayloadBuilderService;
 use reth_primitives::ChainSpec;
+use reth_primitives::{
+    stage::StageId,
+    Head,
+};
 use reth_provider::{
-    providers::BlockchainProvider,
+    providers::{
+        get_stage_checkpoint,
+        BlockchainProvider,
+    },
     BlockProvider,
     CanonStateSubscriptions,
     HeaderProvider,
@@ -62,16 +70,9 @@ use reth_provider::{
 use reth_revm::Factory;
 // use reth_revm_inspectors::stack::Hook;
 // use reth_rpc_engine_api::EngineApi;
-use reth_staged_sync::{
-    utils::{
-        chainspec::genesis_value_parser,
-        init::{
-            init_db,
-            init_genesis,
-        },
-        parse_socket_address,
-    },
-    Config,
+use reth_staged_sync::utils::init::{
+    init_db,
+    init_genesis,
 };
 use reth_tasks::TaskExecutor;
 use reth_transaction_pool::{
@@ -89,6 +90,10 @@ use tracing::*;
 use crate::{
     args::{
         get_secret_key,
+        utils::{
+            genesis_value_parser,
+            parse_socket_address,
+        },
         DebugArgs,
         NetworkArgs,
         RpcServerArgs,
@@ -416,9 +421,9 @@ impl Command {
         secret_key: SecretKey,
         default_peers_path: PathBuf,
     ) -> NetworkConfig<ShareableDatabase<Arc<Env<WriteMap>>>> {
-        // let head = self
-        //     .lookup_head(Arc::clone(&db))
-        //     .expect("the head block is missing");
+        let _head = self
+            .lookup_head(Arc::clone(&db))
+            .expect("the head block is missing");
 
         self.network
             .network_config(config, self.chain.clone(), secret_key, default_peers_path)
@@ -438,31 +443,33 @@ impl Command {
             .build(ShareableDatabase::new(db, self.chain.clone()))
     }
 
-    // fn lookup_head(
-    //     &self,
-    //     db: Arc<Env<WriteMap>>,
-    // ) -> Result<Head, reth_interfaces::db::DatabaseError> {
-    //     db.view(|tx| {
-    //         let head = FINISH.get_checkpoint(tx)?.unwrap_or_default().block_number;
-    //         let header = tx
-    //             .get::<tables::Headers>(head)?
-    //             .expect("the header for the latest block is missing, database is corrupt");
-    //         let total_difficulty = tx.get::<tables::HeaderTD>(head)?.expect(
-    //             "the total difficulty for the latest block is missing, database is corrupt",
-    //         );
-    //         let hash = tx
-    //             .get::<tables::CanonicalHeaders>(head)?
-    //             .expect("the hash for the latest block is missing, database is corrupt");
-    //         Ok::<Head, reth_interfaces::db::DatabaseError>(Head {
-    //             number: head,
-    //             hash,
-    //             difficulty: header.difficulty,
-    //             total_difficulty: total_difficulty.into(),
-    //             timestamp: header.timestamp,
-    //         })
-    //     })?
-    //     .map_err(Into::into)
-    // }
+    fn lookup_head(
+        &self,
+        db: Arc<Env<WriteMap>>,
+    ) -> Result<Head, reth_interfaces::db::DatabaseError> {
+        db.view(|tx| {
+            let head = get_stage_checkpoint(tx, StageId::Finish)?
+                .unwrap_or_default()
+                .block_number;
+            let header = tx
+                .get::<tables::Headers>(head)?
+                .expect("the header for the latest block is missing, database is corrupt");
+            let total_difficulty = tx.get::<tables::HeaderTD>(head)?.expect(
+                "the total difficulty for the latest block is missing, database is corrupt",
+            );
+            let hash = tx
+                .get::<tables::CanonicalHeaders>(head)?
+                .expect("the hash for the latest block is missing, database is corrupt");
+            Ok::<Head, reth_interfaces::db::DatabaseError>(Head {
+                number: head,
+                hash,
+                difficulty: header.difficulty,
+                total_difficulty: total_difficulty.into(),
+                timestamp: header.timestamp,
+            })
+        })?
+        .map_err(Into::into)
+    }
 
     /// Loads the reth config with the given datadir root
     fn load_config(&self, config_path: PathBuf) -> eyre::Result<Config> {
