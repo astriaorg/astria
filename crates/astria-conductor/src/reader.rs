@@ -251,7 +251,7 @@ impl Reader {
         let height = data.data.header.height.parse::<u64>()?;
 
         // get validator set for this height
-        let mut validator_set = self.tendermint_client.get_validator_set(height - 1).await?;
+        let validator_set = self.tendermint_client.get_validator_set(height - 1).await?;
 
         // find proposer address for this height
         let expected_proposer_address = validator_set
@@ -438,7 +438,7 @@ fn ensure_commit_has_quorum(
     }
 
     ensure!(
-        commit_voting_power > total_voting_power * 2 / 3,
+        does_commit_voting_power_have_quorum(commit_voting_power, total_voting_power),
         format!(
             "total voting power in votes is less than 2/3 of total voting power: {} <= {}",
             commit_voting_power,
@@ -447,6 +447,10 @@ fn ensure_commit_has_quorum(
     );
 
     Ok(())
+}
+
+fn does_commit_voting_power_have_quorum(commited: u64, total: u64) -> bool {
+    commited > total / 3 * 2
 }
 
 // see https://github.com/tendermint/tendermint/blob/35581cf54ec436b8c37fabb43fdaa3f48339a170/types/vote.go#L147
@@ -536,9 +540,7 @@ mod test {
 
     use super::*;
     use crate::tendermint::{
-        IntString,
         KeyWithType,
-        UintString,
         Validator,
         ValidatorSet,
     };
@@ -601,8 +603,8 @@ mod test {
                     .unwrap(),
                     key_type: "/cosmos.crypto.ed25519.PubKey".to_string(),
                 },
-                voting_power: UintString(5000),
-                proposer_priority: IntString(0),
+                voting_power: 5000,
+                proposer_priority: 0,
             }],
         };
 
@@ -663,6 +665,6 @@ mod test {
         let commit = serde_json::from_str::<Commit>(commit_str).unwrap();
         let last_commit_hash = calculate_last_commit_hash(&commit);
         assert!(matches!(last_commit_hash, Hash::Sha256(_)));
-        assert!(&expected_last_commit_hash.0 == last_commit_hash.as_bytes());
+        assert!(expected_last_commit_hash.0 == last_commit_hash.as_bytes());
     }
 }

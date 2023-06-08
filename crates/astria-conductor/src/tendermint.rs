@@ -38,11 +38,10 @@ impl ValidatorSet {
     /// returns the proposer given the current set by ordering the validators by proposer priority.
     /// the validator with the highest proposer priority is the proposer.
     /// TODO: could there ever be two validators with the same priority?
-    pub(crate) fn get_proposer(&mut self) -> eyre::Result<Validator> {
+    pub(crate) fn get_proposer(&self) -> eyre::Result<Validator> {
         self.validators
-            .sort_by(|v1, v2| v1.proposer_priority.cmp(&v2.proposer_priority));
-        self.validators
-            .first()
+            .iter()
+            .max_by(|v1, v2| v1.proposer_priority.cmp(&v2.proposer_priority))
             .cloned()
             .ok_or_else(|| eyre::eyre!("no proposer found"))
     }
@@ -80,7 +79,7 @@ impl TendermintClient {
     }
 
     pub async fn get_proposer_address(&self, height: u64) -> eyre::Result<String> {
-        let mut validator_set = self.get_validator_set(height).await?;
+        let validator_set = self.get_validator_set(height).await?;
         let proposer = validator_set.get_proposer()?;
         Ok(proposer.address)
     }
