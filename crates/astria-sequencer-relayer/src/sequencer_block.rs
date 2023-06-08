@@ -138,7 +138,7 @@ pub fn get_namespace(bytes: &[u8]) -> Namespace {
 /// of the transactions in the block, can be verified.
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct IndexedTransaction {
-    pub index: usize,
+    pub block_index: usize,
     pub transaction: Base64String,
 }
 
@@ -203,14 +203,14 @@ impl SequencerBlock {
                 let namespace = get_namespace(&msgs[0].chain_id);
                 let txs = rollup_txs.entry(namespace).or_insert(vec![]);
                 txs.push(IndexedTransaction {
-                    index,
+                    block_index: index,
                     transaction: tx.clone(),
                 });
                 continue;
             }
 
             sequencer_txs.push(IndexedTransaction {
-                index,
+                block_index: index,
                 transaction: tx.clone(),
             })
         }
@@ -238,7 +238,7 @@ impl SequencerBlock {
 
         // TODO: if there are duplicate or missing indices, the hash will obviously be wrong,
         // but we should probably verify that earier to return a better error.
-        ordered_txs.sort_by(|a, b| a.index.cmp(&b.index));
+        ordered_txs.sort_by(|a, b| a.block_index.cmp(&b.block_index));
         let txs = ordered_txs
             .into_iter()
             .map(|tx| tx.transaction)
@@ -332,7 +332,7 @@ mod test {
             .unwrap(),
             header: Header::default(),
             sequencer_txs: vec![IndexedTransaction {
-                index: 0,
+                block_index: 0,
                 transaction: Base64String::from_bytes(&[0x11, 0x22, 0x33]),
             }],
             rollup_txs: HashMap::new(),
@@ -340,7 +340,7 @@ mod test {
         expected.rollup_txs.insert(
             DEFAULT_NAMESPACE.clone(),
             vec![IndexedTransaction {
-                index: 0,
+                block_index: 0,
                 transaction: Base64String::from_bytes(&[0x44, 0x55, 0x66]),
             }],
         );

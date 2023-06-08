@@ -4,5 +4,7 @@ managed:
 plugins:
   - plugin: buf.build/community/neoeinstein-prost
     out: .
+    opt:
+     - extern_path=.tendermint.types=::tendermint-proto::types
   - plugin: buf.build/community/neoeinstein-tonic
     out: .

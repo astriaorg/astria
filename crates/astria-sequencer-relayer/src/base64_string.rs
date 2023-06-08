@@ -14,7 +14,7 @@ use serde::{
     Serialize,
 };
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Default)]
 pub struct Base64String(pub Vec<u8>);
 
 impl Base64String {

@@ -194,6 +194,19 @@ impl Reader {
         Ok(blocks)
     }
 
+    /// performs various validation checks on the SignedNamespaceData that was read from Celestia
+    /// and returns the full SequencerBlock corresponding to the given SignedNamespaceData if all
+    /// checks pass.
+    ///
+    /// checks performed:
+    /// - the proposer of the sequencer block matches the expected proposer for the block height
+    ///   from tendermint
+    /// - the signer of the SignedNamespaceData the proposer
+    /// - the signature is valid
+    /// - the root of the markle tree of all the header fields matches the block's block_hash
+    /// - the root of the merkle tree of all transactions in the block matches the block's data_hash
+    /// - TODO: validate the block was actually finalized; ie >2/3 stake signed off on it
+    /// (see https://github.com/astriaorg/astria/issues/16)
     async fn validate_sequencer_namespace_data(
         &self,
         data: &SignedNamespaceData<SequencerNamespaceData>,
@@ -241,12 +254,19 @@ impl Reader {
         // the reason the public key type needs to be converted is due to serialization
         // constraints, probably fix this later
         let public_key = ed25519_dalek::PublicKey::from_bytes(&data.public_key.0)?;
+
         // pass the public key to `get_sequencer_block` which does the signature validation for us
         let block = self
             .celestia_client
             .get_sequencer_block(&data.data, Some(&public_key))
             .await
             .map_err(|e| eyre!("failed to get rollup data: {}", e))?;
+
+        // validate the block header matches the block hash
+        block.verify_block_hash()?;
+
+        // finally, validate that the transactions in the block result in the correct data_hash
+        block.verify_data_hash()?;
 
         Ok(block)
     }
