@@ -674,7 +674,7 @@ mod test {
             result
                 .unwrap_err()
                 .to_string()
-                .contains("total voting power in votes is less than 2/3 of total voting power")
+                .contains("commit voting power is less than 2/3 of total voting power")
         );
     }
 
