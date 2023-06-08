@@ -210,11 +210,47 @@ fn default_genesis_accounts() -> Vec<(String, u64)> {
 
 #[cfg(test)]
 mod test {
+    use tendermint::{
+        abci::types::LastCommitInfo,
+        account,
+        block::{
+            header::Version,
+            Header,
+            Height,
+            Round,
+        },
+        AppHash,
+        Hash,
+        Time,
+    };
+
     use super::*;
     use crate::accounts::state_ext::StateReadExt;
 
+    fn default_header() -> Result<Header> {
+        Ok(Header {
+            app_hash: AppHash::try_from(vec![])?,
+            chain_id: "test".to_string().try_into()?,
+            consensus_hash: Hash::default(),
+            data_hash: Some(Hash::default()),
+            evidence_hash: Some(Hash::default()),
+            height: Height::default(),
+            last_block_id: None,
+            last_commit_hash: Some(Hash::default()),
+            last_results_hash: Some(Hash::default()),
+            next_validators_hash: Hash::default(),
+            proposer_address: account::Id::try_from([0u8; 20].to_vec())?,
+            time: Time::now(),
+            validators_hash: Hash::default(),
+            version: Version {
+                app: 0,
+                block: 0,
+            },
+        })
+    }
+
     #[tokio::test]
-    async fn test_app_genesis() {
+    async fn test_app_genesis_and_init_chain() {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -228,6 +264,37 @@ mod test {
         for (name, balance) in default_genesis_accounts() {
             assert_eq!(app.state.get_account_balance(&name).await.unwrap(), balance)
         }
+    }
+
+    #[tokio::test]
+    async fn test_app_begin_block() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut app = App::new(snapshot);
+        let genesis_state = GenesisState {
+            accounts: vec![],
+        };
+        app.init_chain(&genesis_state).await.unwrap();
+
+        let mut begin_block = abci::request::BeginBlock {
+            header: default_header().unwrap(),
+            hash: Hash::default(),
+            last_commit_info: LastCommitInfo {
+                votes: vec![],
+                round: Round::default(),
+            },
+            byzantine_validators: vec![],
+        };
+        begin_block.header.height = Height::try_from(1u8).unwrap();
+
+        app.begin_block(&begin_block).await;
+        assert_eq!(app.state.get_block_height().await.unwrap(), 1);
+        assert_eq!(
+            app.state.get_block_timestamp().await.unwrap(),
+            begin_block.header.time
+        );
     }
 
     #[tokio::test]
@@ -259,5 +326,31 @@ mod test {
         );
         assert_eq!(app.state.get_account_nonce("bob").await.unwrap(), 0);
         assert_eq!(app.state.get_account_nonce("alice").await.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_app_commit() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut app = App::new(snapshot);
+        let genesis_state = GenesisState {
+            accounts: vec![],
+        };
+
+        app.init_chain(&genesis_state).await.unwrap();
+        assert_eq!(app.state.get_block_height().await.unwrap(), 0);
+        for (name, balance) in default_genesis_accounts() {
+            assert_eq!(app.state.get_account_balance(&name).await.unwrap(), balance)
+        }
+
+        // commit should write the changes to the underlying storage
+        app.commit(storage.clone()).await;
+        let snapshot = storage.latest_snapshot();
+        assert_eq!(snapshot.get_block_height().await.unwrap(), 0);
+        for (name, balance) in default_genesis_accounts() {
+            assert_eq!(snapshot.get_account_balance(&name).await.unwrap(), balance)
+        }
     }
 }
