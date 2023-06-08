@@ -16,8 +16,8 @@ use astria_sequencer_relayer::{
 };
 use dirs::home_dir;
 use tracing::{
-    error,
     info,
+    warn,
 };
 
 #[tokio::main]
@@ -25,13 +25,13 @@ async fn main() {
     let cfg = config::get().expect("failed to read configuration");
     tracing_subscriber::fmt().with_env_filter(&cfg.log).init();
     let cfg_json = serde_json::to_string(&cfg).unwrap_or_else(|e| {
-        error!(
+        warn!(
             error = ?e,
             "failed serializing config as json; will use debug formatting"
         );
         format!("{cfg:?}")
     });
-    info!(config = cfg_json, "running astria-sequencer-relayer with");
+    info!(config = cfg_json, "running astria-sequencer-relayer");
 
     // unmarshal validator private key file
     let home_dir = home_dir().unwrap();
