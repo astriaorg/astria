@@ -1,4 +1,8 @@
-use std::time::Duration;
+use std::{
+    fmt::Display,
+    str::FromStr,
+    time::Duration,
+};
 
 use astria_sequencer_relayer::base64_string::Base64String;
 use color_eyre::eyre::{
@@ -17,7 +21,6 @@ use serde::{
     Deserialize,
     Deserializer,
     Serialize,
-    Serializer,
 };
 
 static VALIDATOR_SET_ENDPOINT: &str = "/cosmos/base/tendermint/v1beta1/validatorsets/";
@@ -37,7 +40,7 @@ impl ValidatorSet {
     /// TODO: could there ever be two validators with the same priority?
     pub(crate) fn get_proposer(&mut self) -> eyre::Result<Validator> {
         self.validators
-            .sort_by(|v1, v2| v1.proposer_priority.0.cmp(&v2.proposer_priority.0));
+            .sort_by(|v1, v2| v1.proposer_priority.cmp(&v2.proposer_priority));
         self.validators
             .first()
             .cloned()
@@ -49,8 +52,10 @@ impl ValidatorSet {
 pub struct Validator {
     pub address: String,
     pub pub_key: KeyWithType,
-    pub voting_power: UintString,
-    pub proposer_priority: IntString,
+    #[serde(deserialize_with = "deserialize_int_from_str")]
+    pub voting_power: u64,
+    #[serde(deserialize_with = "deserialize_int_from_str")]
+    pub proposer_priority: i64,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -102,42 +107,12 @@ impl TendermintClient {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct UintString(pub u64);
-
-impl<'de> Deserialize<'de> for UintString {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        Ok(UintString(
-            String::deserialize(deserializer)?
-                .parse::<i64>()
-                .map_err(|e| D::Error::custom(format!("{e}")))?
-                .try_into()
-                .map_err(|e| D::Error::custom(format!("{e}")))?,
-        ))
-    }
-}
-
-impl Serialize for UintString {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.0.to_string().serialize(serializer)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct IntString(pub i64);
-
-impl<'de> Deserialize<'de> for IntString {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        Ok(IntString(
-            String::deserialize(deserializer)?
-                .parse::<i64>()
-                .map_err(|e| D::Error::custom(format!("{e}")))?,
-        ))
-    }
-}
-
-impl Serialize for IntString {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.0.to_string().serialize(serializer)
-    }
+fn deserialize_int_from_str<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: FromStr + serde::Deserialize<'de>,
+    <T as FromStr>::Err: Display,
+{
+    let s: &str = Deserialize::deserialize(deserializer)?;
+    s.parse::<T>().map_err(D::Error::custom)
 }

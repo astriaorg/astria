@@ -388,7 +388,7 @@ fn ensure_commit_has_quorum(
 
     let mut total_voting_power = 0u64;
     validator_set.validators.iter().for_each(|v| {
-        total_voting_power += v.voting_power.0;
+        total_voting_power += v.voting_power;
     });
 
     let validator_map = validator_set
@@ -434,7 +434,7 @@ fn ensure_commit_has_quorum(
             &vote.signature.0,
         )?;
 
-        commit_voting_power += validator.voting_power.0;
+        commit_voting_power += validator.voting_power;
     }
 
     ensure!(
