@@ -450,7 +450,7 @@ fn ensure_commit_has_quorum(
 }
 
 fn does_commit_voting_power_have_quorum(commited: u64, total: u64) -> bool {
-    commited > total / 3 * 2
+    commited * 3 > total * 2
 }
 
 // see https://github.com/tendermint/tendermint/blob/35581cf54ec436b8c37fabb43fdaa3f48339a170/types/vote.go#L147
@@ -544,6 +544,30 @@ mod test {
         Validator,
         ValidatorSet,
     };
+
+    #[test]
+    fn test_does_commit_voting_power_have_quorum() {
+        assert!(does_commit_voting_power_have_quorum(3, 4));
+        assert!(does_commit_voting_power_have_quorum(101, 150));
+        assert!(does_commit_voting_power_have_quorum(
+            u64::MAX / 3,
+            u64::MAX / 3
+        ));
+        assert!(does_commit_voting_power_have_quorum(
+            u64::MAX / 3,
+            u64::MAX / 2 - 1
+        ));
+
+        assert!(!does_commit_voting_power_have_quorum(0, 1));
+        assert!(!does_commit_voting_power_have_quorum(1, 2));
+        assert!(!does_commit_voting_power_have_quorum(2, 3));
+        assert!(!does_commit_voting_power_have_quorum(100, 150));
+        assert!(!does_commit_voting_power_have_quorum(
+            u64::MAX / 3 - 1,
+            u64::MAX / 2
+        ));
+        assert!(!does_commit_voting_power_have_quorum(0, 0));
+    }
 
     #[test]
     fn test_ensure_commit_has_quorum_ok() {

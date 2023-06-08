@@ -28,7 +28,7 @@ static VALIDATOR_SET_ENDPOINT: &str = "/cosmos/base/tendermint/v1beta1/validator
 #[derive(Serialize, Debug)]
 pub struct EmptyRequest {}
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct ValidatorSet {
     pub block_height: String,
     pub validators: Vec<Validator>,
@@ -47,7 +47,7 @@ impl ValidatorSet {
     }
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Validator {
     pub address: String,
     pub pub_key: KeyWithType,
@@ -57,7 +57,7 @@ pub struct Validator {
     pub proposer_priority: i64,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct KeyWithType {
     #[serde(rename = "@type")]
     pub key_type: String,
@@ -114,4 +114,27 @@ where
 {
     let s: &str = Deserialize::deserialize(deserializer)?;
     s.parse::<T>().map_err(D::Error::custom)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn validator_serialize() {
+        let validator_str = r#"
+              {
+                "address": "metrovalcons1hdu2nzhcyfnhaj9tfrdlekfnfwx895mk83d322",
+                "pub_key": {
+                  "@type": "/cosmos.crypto.ed25519.PubKey",
+                  "key": "MdfFS4MH09Og5y+9SVxpJRqUnZkDGfnPjdyx4qM2Vng="
+                },
+                "voting_power": "5000",
+                "proposer_priority": "0"
+              }"#;
+
+        let validator = serde_json::from_str::<Validator>(validator_str).unwrap();
+        assert_eq!(validator.voting_power, 5000);
+        assert_eq!(validator.proposer_priority, 0);
+    }
 }
