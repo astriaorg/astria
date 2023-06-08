@@ -221,7 +221,7 @@ impl Command {
             EthTransactionValidator::new(blockchain_db.clone(), Arc::clone(&self.chain)),
             Default::default(),
         );
-        info!(target: "reth::cli", "Transaction pool initialized");
+        info!(target: "symp::cli", "Transaction pool initialized");
 
         // spawn txpool maintenance task
         {
@@ -239,15 +239,15 @@ impl Command {
                     .await
                 }),
             );
-            debug!(target: "reth::cli", "Spawned txpool maintenance task");
+            debug!(target: "symp::cli", "Spawned txpool maintenance task");
         }
-        info!(target: "reth::cli", "Connecting to P2P network");
+        info!(target: "symp::cli", "Connecting to P2P network");
         let network_secret_path = self
             .network
             .p2p_secret_key
             .clone()
             .unwrap_or_else(|| data_dir.p2p_secret_path());
-        debug!(target: "reth::cli", ?network_secret_path, "Loading p2p key file");
+        debug!(target: "symp::cli", ?network_secret_path, "Loading p2p key file");
         let secret_key = get_secret_key(&network_secret_path)?;
         let default_peers_path = data_dir.known_peers_path();
         let network_config = self.load_network_config(
@@ -402,7 +402,7 @@ impl Command {
 
         // rx.await??;
 
-        info!(target: "reth::cli", "Consensus engine has exited.");
+        info!(target: "symp::cli", "Consensus engine has exited.");
 
         if self.debug.terminate {
             Ok(())
