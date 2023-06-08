@@ -1,3 +1,4 @@
+ARG DISTROLESS_TAG=latest
 # build stage
 FROM --platform=$BUILDPLATFORM lukemathwalker/cargo-chef:latest-rust-bullseye AS chef
 WORKDIR /build/
@@ -51,8 +52,8 @@ RUN cargo zigbuild --release \
 RUN mkdir -p target/release \
     && cp target/$(cat ./target_triple)/release/astria-conductor target/release/
 
-# TODO - remove debug tag once this is stable
-FROM gcr.io/distroless/cc:debug
+ARG DISTROLESS_TAG
+FROM gcr.io/distroless/cc-debian11:$DISTROLESS_TAG
 WORKDIR /app/
 EXPOSE 2450
 COPY --from=builder /build/target/release/astria-conductor /usr/local/bin/astria-conductor
