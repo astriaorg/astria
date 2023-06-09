@@ -1,5 +1,6 @@
 pub mod api;
 pub mod base64_string;
+pub mod config;
 pub mod da;
 pub mod keys;
 pub mod network;

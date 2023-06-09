@@ -13,6 +13,8 @@ sha2 = "0.10"
 
 base64 = { workspace = true }
 bech32 = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+figment = { workspace = true, features = ["env"] }
 ed25519-dalek = { workspace = true }
 eyre = { workspace = true }
 futures = { workspace = true }
@@ -24,7 +26,6 @@ serde_json = { workspace = true }
 tendermint = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
-clap = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = [ "macros", "rt-multi-thread" ] }
 
 astria-gossipnet = { path = "../astria-gossipnet", features = [ "mdns" ] }
@@ -33,4 +34,5 @@ astria-rs-cnc = { path = "../astria-rs-cnc" }
 
 [dev-dependencies]
 astria-sequencer-relayer-test = { path = "../astria-sequencer-relayer-test"}
+figment = { workspace = true, features = ["test"] }
 rand = { workspace = true, features = [ "getrandom" ] }
