@@ -20,6 +20,7 @@ clap = "4"
 color-eyre = "0.6"
 ed25519-dalek = "1"
 eyre = "0.6"
+figment = "0.10.8"
 futures = "0.3"
 hex = "0.4"
 # marking k8s as using k8s 1.26 here to make it clear that we are targetting 1.26

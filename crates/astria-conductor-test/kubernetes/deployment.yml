@@ -135,10 +135,6 @@ spec:
         - name: astria-sequencer-relayer
           image: docker.io/library/debian:bookworm-slim
           command: ["/usr/local/bin/astria-sequencer-relayer"]
-          args:
-            - "--sequencer-endpoint=http://localhost:1318"
-            - "--celestia-endpoint=http://localhost:26659"
-            - "--validator-key-file=/root/.metro/config/priv_validator_key.json"
           volumeMounts:
             - mountPath: /usr/local/bin/astria-sequencer-relayer
               name: astria-sequencer-relayer-binary
@@ -148,6 +144,9 @@ spec:
             - mountPath: /root/.metro
               name: metro-home-vol
               readOnly: true
+          envFrom:
+            - configMapRef:
+                name: sequencer-relayer-env
         - name: geth-executor
           command: ["/scripts/start-geth.sh"]
           image: "ghcr.io/astriaorg/go-ethereum:0.0.3"
