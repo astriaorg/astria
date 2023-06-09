@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use astria_sequencer_relayer::{
     base64_string::Base64String,
-    da::CelestiaClientBuilder,
+    data_availability::CelestiaClientBuilder,
     sequencer_block::{
         get_namespace,
         IndexedTransaction,
