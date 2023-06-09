@@ -1,4 +1,7 @@
-use anyhow::Result;
+use anyhow::{
+    ensure,
+    Result,
+};
 use async_trait::async_trait;
 use serde::{
     Deserialize,
@@ -45,14 +48,10 @@ impl ActionHandler for Transaction {
         let curr_nonce = state.get_account_nonce(&self.from).await?;
 
         // TODO: do nonces start at 0 or 1? this assumes an account's first tx has nonce 1.
-        if curr_nonce >= self.nonce {
-            anyhow::bail!("invalid nonce");
-        }
+        ensure!(curr_nonce < self.nonce, "invalid nonce",);
 
         let curr_balance = state.get_account_balance(&self.from).await?;
-        if curr_balance < self.amount {
-            anyhow::bail!("insufficient funds");
-        }
+        ensure!(curr_balance >= self.amount, "insufficient funds",);
 
         Ok(())
     }

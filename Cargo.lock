@@ -398,7 +398,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bytes",
- "color-eyre",
  "futures",
  "hex",
  "is-terminal",

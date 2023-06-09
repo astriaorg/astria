@@ -12,6 +12,7 @@ members = [
 ]
 
 [workspace.dependencies]
+async-trait = "0.1.52"
 base64 = "0.21"
 bech32 = "0.9"
 bytes = "1.4"

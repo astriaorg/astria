@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-async-trait = "0.1.68"
 figment = { version = "0.10.8", features = ["toml", "env"] }
 is-terminal = "0.4.7"
 
+async-trait = { workspace = true }
 bech32 = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 color-eyre = { workspace = true }

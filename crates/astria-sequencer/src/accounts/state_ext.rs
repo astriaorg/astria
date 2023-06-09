@@ -1,9 +1,14 @@
-use anyhow::Result;
+use anyhow::{
+    ensure,
+    Context,
+    Result,
+};
 use async_trait::async_trait;
 use penumbra_storage::{
     StateRead,
     StateWrite,
 };
+use tracing::instrument;
 
 pub type Address = String;
 pub type Balance = u64; // might need to be larger
@@ -25,29 +30,43 @@ pub(crate) fn nonce_storage_key(address: &str) -> String {
 
 #[async_trait]
 pub trait StateReadExt: StateRead {
+    #[instrument(skip(self))]
     async fn get_account_balance(&self, address: &str) -> Result<Balance> {
         let bytes = self
             .get_raw(&balance_storage_key(address))
             .await
-            .expect("storage error");
+            .context("storage error")?;
         let Some(bytes) = bytes else {
             // the account has not yet been initialized; return 0
             return Ok(0);
         };
 
+        ensure!(
+            bytes.len() == 8,
+            "invalid balance length: expected 8, got {}",
+            bytes.len()
+        );
+
         let balance = u64::from_be_bytes(bytes[0..8].try_into()?);
         Ok(balance)
     }
 
+    #[instrument(skip(self))]
     async fn get_account_nonce(&self, address: &str) -> Result<Nonce> {
         let bytes = self
             .get_raw(&nonce_storage_key(address))
             .await
-            .expect("storage error");
+            .context("storage error")?;
         let Some(bytes) = bytes else {
             // the account has not yet been initialized; return (0, 0)
             return Ok(0);
         };
+
+        ensure!(
+            bytes.len() == 4,
+            "invalid nonce length: expected 4, got {}",
+            bytes.len()
+        );
 
         let nonce = u32::from_be_bytes(bytes[0..4].try_into()?);
         Ok(nonce)
