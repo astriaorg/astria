@@ -57,6 +57,15 @@ impl ConsensusService {
             ConsensusRequest::InitChain(init_chain) => {
                 ConsensusResponse::InitChain(self.init_chain(init_chain).await?)
             }
+            ConsensusRequest::PrepareProposal(prepare_proposal) => {
+                ConsensusResponse::PrepareProposal(response::PrepareProposal {
+                    txs: prepare_proposal.txs,
+                })
+            }
+            ConsensusRequest::ProcessProposal(_process_proposal) => {
+                // TODO: handle this
+                ConsensusResponse::ProcessProposal(response::ProcessProposal::Accept)
+            }
             ConsensusRequest::BeginBlock(begin_block) => {
                 ConsensusResponse::BeginBlock(self.begin_block(begin_block).await?)
             }

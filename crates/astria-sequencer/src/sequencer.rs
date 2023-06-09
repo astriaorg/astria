@@ -8,7 +8,8 @@ use tendermint::abci::{
     ConsensusRequest,
     ConsensusResponse,
 };
-use tower_abci::Server;
+// TODO: update this to v037 for ABCI++ support
+use tower_abci::v034::Server;
 use tower_actor::Actor;
 use tracing::info;
 

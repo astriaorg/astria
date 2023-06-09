@@ -211,7 +211,7 @@ fn default_genesis_accounts() -> Vec<(String, u64)> {
 #[cfg(test)]
 mod test {
     use tendermint::{
-        abci::types::LastCommitInfo,
+        abci::types::CommitInfo,
         account,
         block::{
             header::Version,
@@ -281,7 +281,7 @@ mod test {
         let mut begin_block = abci::request::BeginBlock {
             header: default_header().unwrap(),
             hash: Hash::default(),
-            last_commit_info: LastCommitInfo {
+            last_commit_info: CommitInfo {
                 votes: vec![],
                 round: Round::default(),
             },
