@@ -9,17 +9,21 @@ use serde::{
 };
 
 use crate::{
-    accounts::state_ext::{
-        Address,
-        Balance,
-        Nonce,
-        StateReadExt,
-        StateWriteExt,
+    accounts::{
+        state_ext::{
+            StateReadExt,
+            StateWriteExt,
+        },
+        types::{
+            Address,
+            Balance,
+            Nonce,
+        },
     },
     transaction::ActionHandler,
 };
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Transaction {
     to: Address,
     from: Address,
@@ -60,9 +64,9 @@ impl ActionHandler for Transaction {
         let from_balance = state.get_account_balance(&self.from).await?;
         let from_nonce = state.get_account_nonce(&self.from).await?;
         let to_balance = state.get_account_balance(&self.to).await?;
-        state.put_account_balance(&self.from, from_balance - self.amount);
-        state.put_account_nonce(&self.from, from_nonce + 1);
-        state.put_account_balance(&self.to, to_balance + self.amount);
+        state.put_account_balance(&self.from, from_balance - self.amount)?;
+        state.put_account_nonce(&self.from, from_nonce + Nonce::from(1))?;
+        state.put_account_balance(&self.to, to_balance + self.amount)?;
         Ok(())
     }
 }

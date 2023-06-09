@@ -9,6 +9,7 @@ use tendermint::abci::{
 use tokio::sync::mpsc;
 use tower_abci::BoxError;
 use tower_actor::Message;
+use tracing::instrument;
 
 use crate::app::{
     App,
@@ -49,6 +50,7 @@ impl ConsensusService {
         Ok(())
     }
 
+    #[instrument(skip(self))]
     async fn handle_request(
         &mut self,
         req: ConsensusRequest,
@@ -79,6 +81,7 @@ impl ConsensusService {
         })
     }
 
+    #[instrument(skip(self))]
     async fn init_chain(
         &mut self,
         init_chain: request::InitChain,
@@ -91,12 +94,13 @@ impl ConsensusService {
         let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
             .expect("can parse app_state in genesis file");
 
-        self.app.init_chain(&genesis_state).await?;
+        self.app.init_chain(genesis_state).await?;
 
         // TODO: return the genesis app hash
         Ok(Default::default())
     }
 
+    #[instrument(skip(self))]
     async fn begin_block(
         &mut self,
         begin_block: request::BeginBlock,
@@ -104,7 +108,7 @@ impl ConsensusService {
         if self.storage.latest_version() == u64::MAX {
             // TODO: why isn't tendermint calling init_chain before the first block?
             self.app
-                .init_chain(&GenesisState::default())
+                .init_chain(GenesisState::default())
                 .await
                 .expect("init_chain must succeed");
         }
@@ -115,6 +119,7 @@ impl ConsensusService {
         })
     }
 
+    #[instrument(skip(self))]
     async fn deliver_tx(
         &mut self,
         deliver_tx: request::DeliverTx,
@@ -131,6 +136,7 @@ impl ConsensusService {
         Ok(Default::default())
     }
 
+    #[instrument(skip(self))]
     async fn end_block(
         &mut self,
         end_block: request::EndBlock,
@@ -142,6 +148,7 @@ impl ConsensusService {
         })
     }
 
+    #[instrument(skip(self))]
     async fn commit(&mut self) -> Result<response::Commit, BoxError> {
         let app_hash = self.app.commit(self.storage.clone()).await;
         Ok(response::Commit {

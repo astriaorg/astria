@@ -1,5 +1,6 @@
 pub mod accounts;
 pub mod app;
+pub mod component;
 pub mod consensus;
 pub mod info;
 pub mod mempool;

@@ -8,13 +8,15 @@ use serde::{
     Deserialize,
     Serialize,
 };
+use tracing::instrument;
 
 use crate::accounts::{
-    state_ext::{
+    transaction::Transaction as AccountsTransaction,
+    types::{
+        Address,
         Balance,
         Nonce,
     },
-    transaction::Transaction as AccountsTransaction,
 };
 
 #[async_trait]
@@ -26,7 +28,7 @@ pub trait ActionHandler {
 
 /// Represents a sequencer chain transaction.
 /// If a new transaction type is added, it should be added to this enum.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Transaction {
     AccountsTransaction(AccountsTransaction),
@@ -34,8 +36,8 @@ pub enum Transaction {
 
 impl Transaction {
     pub fn new_accounts_transaction(
-        to: String,
-        from: String,
+        to: Address,
+        from: Address,
         amount: Balance,
         nonce: Nonce,
     ) -> Self {
@@ -55,18 +57,21 @@ impl Transaction {
 
 #[async_trait]
 impl ActionHandler for Transaction {
+    #[instrument]
     fn check_stateless(&self) -> Result<()> {
         match self {
             Self::AccountsTransaction(tx) => tx.check_stateless(),
         }
     }
 
+    #[instrument(skip(state))]
     async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()> {
         match self {
             Self::AccountsTransaction(tx) => tx.check_stateful(state).await,
         }
     }
 
+    #[instrument(skip(state))]
     async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()> {
         match self {
             Self::AccountsTransaction(tx) => tx.execute(state).await,
@@ -83,10 +88,10 @@ mod test {
     #[test]
     fn test_transaction() {
         let tx = Transaction::new_accounts_transaction(
-            "bob".to_string(),
-            "alice".to_string(),
-            333333,
-            1,
+            Address::from("bob"),
+            Address::from("alice"),
+            Balance::from(333333),
+            Nonce::from(1),
         );
         let bytes = tx.to_bytes().unwrap();
         let tx2 = Transaction::from_bytes(&bytes).unwrap();

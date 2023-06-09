@@ -1,18 +1,23 @@
 use anyhow::{
-    ensure,
     Context,
     Result,
 };
 use async_trait::async_trait;
+use borsh::{
+    BorshDeserialize as _,
+    BorshSerialize as _,
+};
 use penumbra_storage::{
     StateRead,
     StateWrite,
 };
 use tracing::instrument;
 
-pub type Address = String;
-pub type Balance = u64; // might need to be larger
-pub type Nonce = u32;
+use crate::accounts::types::{
+    Address,
+    Balance,
+    Nonce,
+};
 
 const ACCOUNTS_PREFIX: &str = "accounts";
 
@@ -31,44 +36,32 @@ pub(crate) fn nonce_storage_key(address: &str) -> String {
 #[async_trait]
 pub trait StateReadExt: StateRead {
     #[instrument(skip(self))]
-    async fn get_account_balance(&self, address: &str) -> Result<Balance> {
+    async fn get_account_balance(&self, address: &Address) -> Result<Balance> {
         let bytes = self
-            .get_raw(&balance_storage_key(address))
+            .get_raw(&balance_storage_key(address.to_str()))
             .await
             .context("storage error")?;
         let Some(bytes) = bytes else {
             // the account has not yet been initialized; return 0
-            return Ok(0);
+            return Ok(Balance::from(0));
         };
 
-        ensure!(
-            bytes.len() == 8,
-            "invalid balance length: expected 8, got {}",
-            bytes.len()
-        );
-
-        let balance = u64::from_be_bytes(bytes[0..8].try_into()?);
+        let balance = Balance::try_from_slice(&bytes).context("invalid balance bytes")?;
         Ok(balance)
     }
 
     #[instrument(skip(self))]
-    async fn get_account_nonce(&self, address: &str) -> Result<Nonce> {
+    async fn get_account_nonce(&self, address: &Address) -> Result<Nonce> {
         let bytes = self
-            .get_raw(&nonce_storage_key(address))
+            .get_raw(&nonce_storage_key(address.to_str()))
             .await
             .context("storage error")?;
         let Some(bytes) = bytes else {
-            // the account has not yet been initialized; return (0, 0)
-            return Ok(0);
+            // the account has not yet been initialized; return 0
+            return Ok(Nonce::from(0));
         };
 
-        ensure!(
-            bytes.len() == 4,
-            "invalid nonce length: expected 4, got {}",
-            bytes.len()
-        );
-
-        let nonce = u32::from_be_bytes(bytes[0..4].try_into()?);
+        let nonce = Nonce::try_from_slice(&bytes).context("invalid nonce bytes")?;
         Ok(nonce)
     }
 }
@@ -77,14 +70,20 @@ impl<T: StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub trait StateWriteExt: StateWrite {
-    fn put_account_balance(&mut self, address: &str, balance: Balance) {
-        let bytes = balance.to_be_bytes().to_vec();
-        self.put_raw(balance_storage_key(address), bytes);
+    #[instrument(skip(self))]
+    fn put_account_balance(&mut self, address: &Address, balance: Balance) -> Result<()> {
+        let bytes = balance
+            .try_to_vec()
+            .context("failed to serialize balance")?;
+        self.put_raw(balance_storage_key(address.to_str()), bytes);
+        Ok(())
     }
 
-    fn put_account_nonce(&mut self, address: &str, nonce: Nonce) {
-        let bytes = nonce.to_be_bytes().to_vec();
-        self.put_raw(nonce_storage_key(address), bytes);
+    #[instrument(skip(self))]
+    fn put_account_nonce(&mut self, address: &Address, nonce: Nonce) -> Result<()> {
+        let bytes = nonce.try_to_vec().context("failed to serialize nonce")?;
+        self.put_raw(nonce_storage_key(address.to_str()), bytes);
+        Ok(())
     }
 }
 
