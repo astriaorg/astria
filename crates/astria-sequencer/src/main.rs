@@ -10,7 +10,7 @@ pub const DEFAULT_LISTEN_ADDR: &str = "127.0.0.1:26658";
 #[tokio::main]
 async fn main() {
     telemetry::init(std::io::stdout).expect("failed to initialize telemetry");
-
-    let sequencer = Sequencer::new().await.unwrap();
-    sequencer.run(DEFAULT_LISTEN_ADDR).await;
+    Sequencer::run_until_stopped(DEFAULT_LISTEN_ADDR)
+        .await
+        .expect("failed to run sequencer");
 }

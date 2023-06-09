@@ -1,16 +1,9 @@
-use std::error::Error;
-
 use anyhow::{
     anyhow,
     Context as _,
+    Result,
 };
-use tendermint::abci::{
-    ConsensusRequest,
-    ConsensusResponse,
-};
-// TODO: update this to v037 for ABCI++ support
-use tower_abci::v034::Server;
-use tower_actor::Actor;
+use tower_abci::v037::Server;
 use tracing::info;
 
 use crate::{
@@ -21,18 +14,10 @@ use crate::{
     snapshot::SnapshotService,
 };
 
-pub struct Sequencer {
-    #[allow(clippy::type_complexity)]
-    server: Server<
-        Actor<ConsensusRequest, ConsensusResponse, Box<dyn Error + Send + Sync>>,
-        MempoolService,
-        InfoService,
-        SnapshotService,
-    >,
-}
+pub struct Sequencer;
 
 impl Sequencer {
-    pub async fn new() -> anyhow::Result<Sequencer> {
+    pub async fn run_until_stopped(listen_addr: &str) -> Result<()> {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .context("failed to create temp storage backing chain state")?;
@@ -56,16 +41,8 @@ impl Sequencer {
             .finish()
             .ok_or_else(|| anyhow!("server builder didn't return server; are all fields set?"))?;
 
-        Ok(Sequencer {
-            server,
-        })
-    }
-
-    pub async fn run(self, listen_addr: &str) {
         info!(?listen_addr, "starting sequencer");
-        self.server
-            .listen(listen_addr)
-            .await
-            .expect("should listen");
+        server.listen(listen_addr).await.expect("should listen");
+        Ok(())
     }
 }
