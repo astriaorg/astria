@@ -5,8 +5,10 @@ use bech32::{
     ToBase32,
     Variant,
 };
-use eyre::Result;
-use serde::Deserialize;
+use eyre::{
+    Result,
+    WrapErr as _,
+};
 use tokio::{
     sync::{
         mpsc::UnboundedSender,
@@ -21,37 +23,17 @@ use tracing::{
 };
 
 use crate::{
-    base64_string::Base64String,
     data_availability::CelestiaClient,
-    keys::{
-        private_key_bytes_to_keypair,
-        validator_hex_to_address,
-    },
     sequencer::SequencerClient,
     sequencer_block::SequencerBlock,
+    validator::Validator,
 };
-
-#[derive(Deserialize)]
-pub struct ValidatorPrivateKeyFile {
-    pub address: String,
-    pub pub_key: KeyWithType,
-    pub priv_key: KeyWithType,
-}
-
-#[derive(Deserialize)]
-pub struct KeyWithType {
-    #[serde(rename = "type")]
-    pub key_type: String,
-    pub value: String,
-}
 
 pub struct Relayer {
     sequencer_client: SequencerClient,
     da_client: CelestiaClient,
     disable_writing: bool,
-    keypair: ed25519_dalek::Keypair,
-    validator_address: String,
-    validator_address_bytes: Vec<u8>,
+    validator: Validator,
     interval: Interval,
     block_tx: UnboundedSender<SequencerBlock>,
 
@@ -72,27 +54,14 @@ impl State {
 
 impl Relayer {
     pub fn new(
+        cfg: crate::config::Config,
         sequencer_client: SequencerClient,
         da_client: CelestiaClient,
-        key_file: ValidatorPrivateKeyFile,
         interval: Interval,
         block_tx: UnboundedSender<SequencerBlock>,
     ) -> Result<Self> {
-        // generate our private-public keypair
-        let keypair = private_key_bytes_to_keypair(
-            &Base64String::from_string(key_file.priv_key.value)
-                .expect("failed to decode validator private key; must be base64 string")
-                .0,
-        )
-        .expect("failed to convert validator private key to keypair");
-
-        // generate our bech32 validator address
-        let validator_address = validator_hex_to_address(&key_file.address)
-            .expect("failed to convert validator address to bech32");
-
-        // generate our validator address bytes
-        let validator_address_bytes = hex::decode(&key_file.address)
-            .expect("failed to decode validator address; must be hex string");
+        let validator = Validator::from_path(cfg.validator_key_file)
+            .wrap_err("failed to get validator info from file")?;
 
         let (state, _) = watch::channel(State::default());
 
@@ -100,9 +69,7 @@ impl Relayer {
             sequencer_client,
             da_client,
             disable_writing: false,
-            keypair,
-            validator_address,
-            validator_address_bytes,
+            validator,
             interval,
             block_tx,
             state,
@@ -139,7 +106,7 @@ impl Relayer {
         info!("got block with height {} from sequencer", height);
         new_state.current_sequencer_height.replace(height);
 
-        if resp.block.header.proposer_address.0 != self.validator_address_bytes {
+        if resp.block.header.proposer_address.as_ref() != self.validator.address.as_ref() {
             let proposer_address = bech32::encode(
                 "metrovalcons",
                 resp.block.header.proposer_address.0.to_base32(),
@@ -148,7 +115,7 @@ impl Relayer {
             .expect("should encode block proposer address");
             info!(
                 %proposer_address,
-                validator_address = %self.validator_address,
+                validator_address = %self.validator.bech32_address,
                 "ignoring block: proposer address is not ours",
             );
             return Ok(new_state);
@@ -170,7 +137,11 @@ impl Relayer {
         let tx_count = sequencer_block.rollup_txs.len() + sequencer_block.sequencer_txs.len();
         match self
             .da_client
-            .submit_block(sequencer_block, &self.keypair)
+            .submit_block(
+                sequencer_block,
+                &self.validator.signing_key,
+                self.validator.verification_key,
+            )
             .await
         {
             Ok(resp) => {
