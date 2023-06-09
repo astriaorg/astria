@@ -8,12 +8,12 @@ anyhow = "1"
 async-trait = "0.1.52"
 bytes = "1.4"
 is-terminal = "0.4.7"
-penumbra-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.52.2" }
-penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.52.2" }
-tendermint-proto = "0.29"
-tendermint = "0.29"
+penumbra-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.53.1" }
+penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.53.1" }
+tendermint-proto = "0.31"
+tendermint = "0.31"
 tower = "0.4"
-tower-abci = "0.5.0"
+tower-abci = "0.7.0"
 tower-actor = "0.1.0"
 
 color-eyre = { workspace = true }
