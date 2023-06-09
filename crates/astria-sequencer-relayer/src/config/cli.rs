@@ -1,7 +1,8 @@
 use clap::Parser;
 use serde::Serialize;
 
-/// Simple program to greet a person
+/// Relays blocks from the astria shared sequencer
+/// to a data availability layer (currently celestia).
 #[derive(Debug, Parser, Serialize)]
 #[command(author, version, about, long_about = None)]
 pub(crate) struct Args {
