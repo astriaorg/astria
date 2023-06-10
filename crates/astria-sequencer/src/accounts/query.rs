@@ -3,16 +3,22 @@ use std::collections::VecDeque;
 use anyhow::{
     anyhow,
     bail,
+    Context as _,
     Result,
 };
+use borsh::BorshSerialize as _;
+use tracing::instrument;
 
-use crate::accounts::state_ext::{
-    Address,
-    Balance,
-    Nonce,
-    StateReadExt,
+use crate::accounts::{
+    state_ext::StateReadExt,
+    types::{
+        Address,
+        Balance,
+        Nonce,
+    },
 };
 
+#[derive(Debug)]
 pub enum QueryRequest {
     BalanceQuery(Address),
     NonceQuery(Address),
@@ -24,8 +30,8 @@ impl QueryRequest {
         let address = path.pop_front().ok_or(anyhow!("missing address"))?;
 
         match query_type {
-            "balance" => Ok(QueryRequest::BalanceQuery(address.to_string())),
-            "nonce" => Ok(QueryRequest::NonceQuery(address.to_string())),
+            "balance" => Ok(QueryRequest::BalanceQuery(Address::from(address))),
+            "nonce" => Ok(QueryRequest::NonceQuery(Address::from(address))),
             _ => bail!("invalid query type"),
         }
     }
@@ -39,8 +45,12 @@ pub enum QueryResponse {
 impl QueryResponse {
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         match self {
-            QueryResponse::BalanceResponse(balance) => Ok(balance.to_be_bytes().to_vec()),
-            QueryResponse::NonceResponse(nonce) => Ok(nonce.to_be_bytes().to_vec()),
+            QueryResponse::BalanceResponse(balance) => Ok(balance
+                .try_to_vec()
+                .context("failed to serialize balance")?),
+            QueryResponse::NonceResponse(nonce) => {
+                Ok(nonce.try_to_vec().context("failed to serialize nonce")?)
+            }
         }
     }
 }
@@ -53,6 +63,7 @@ impl QueryHandler {
         Self {}
     }
 
+    #[instrument(skip(self, state))]
     pub async fn handle<S: StateReadExt>(
         &self,
         state: S,

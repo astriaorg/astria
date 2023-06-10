@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use penumbra_component::Component;
 use penumbra_storage::{
     ArcStateDeltaExt,
     Snapshot,
@@ -18,7 +17,14 @@ use tracing::{
 };
 
 use crate::{
-    accounts::component::AccountsComponent,
+    accounts::{
+        component::AccountsComponent,
+        types::{
+            Address,
+            Balance,
+        },
+    },
+    component::Component,
     state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -37,9 +43,9 @@ pub type AppHash = penumbra_storage::RootHash;
 type InterBlockState = Arc<StateDelta<Snapshot>>;
 
 /// The genesis state for the application.
-#[derive(Clone, Debug, serde::Deserialize, Default)]
+#[derive(Debug, serde::Deserialize, Default)]
 pub struct GenesisState {
-    pub accounts: Vec<(String, u64)>,
+    pub accounts: Vec<(Address, Balance)>,
 }
 
 /// The Sequencer application, written as a bundle of [`Component`]s.
@@ -67,9 +73,9 @@ impl App {
     }
 
     #[instrument(name = "App:init_chain", skip(self))]
-    pub async fn init_chain(&mut self, genesis_state: &GenesisState) -> Result<()> {
+    pub async fn init_chain(&mut self, genesis_state: GenesisState) -> Result<()> {
         // allocate to hard-coded accounts for testing
-        let mut accounts = genesis_state.accounts.clone();
+        let mut accounts = genesis_state.accounts;
         accounts.append(&mut default_genesis_accounts());
         let genesis_state = GenesisState {
             accounts,
@@ -78,12 +84,12 @@ impl App {
         let mut state_tx = self
             .state
             .try_begin_transaction()
-            .expect("failed to get state for init_chain");
+            .expect("state Arc should not be referenced elsewhere");
 
         state_tx.put_block_height(0);
 
         // call init_chain on all components
-        AccountsComponent::init_chain(&mut state_tx, &genesis_state).await;
+        AccountsComponent::init_chain(&mut state_tx, &genesis_state).await?;
         state_tx.apply();
 
         // TODO: call commit and return the app hash?
@@ -200,10 +206,166 @@ impl App {
     }
 }
 
-fn default_genesis_accounts() -> Vec<(String, u64)> {
+fn default_genesis_accounts() -> Vec<(Address, Balance)> {
     vec![
-        ("alice".to_string(), 10e18 as u64),
-        ("bob".to_string(), 10e18 as u64),
-        ("carol".to_string(), 10e18 as u64),
+        (Address::from("alice"), Balance::from(10e18 as u128)),
+        (Address::from("bob"), Balance::from(10e18 as u128)),
+        (Address::from("carol"), Balance::from(10e18 as u128)),
     ]
+}
+
+#[cfg(test)]
+mod test {
+    use tendermint::{
+        abci::types::CommitInfo,
+        account,
+        block::{
+            header::Version,
+            Header,
+            Height,
+            Round,
+        },
+        AppHash,
+        Hash,
+        Time,
+    };
+
+    use super::*;
+    use crate::accounts::{
+        state_ext::StateReadExt as _,
+        types::Nonce,
+    };
+
+    fn default_header() -> Result<Header> {
+        Ok(Header {
+            app_hash: AppHash::try_from(vec![])?,
+            chain_id: "test".to_string().try_into()?,
+            consensus_hash: Hash::default(),
+            data_hash: Some(Hash::default()),
+            evidence_hash: Some(Hash::default()),
+            height: Height::default(),
+            last_block_id: None,
+            last_commit_hash: Some(Hash::default()),
+            last_results_hash: Some(Hash::default()),
+            next_validators_hash: Hash::default(),
+            proposer_address: account::Id::try_from([0u8; 20].to_vec())?,
+            time: Time::now(),
+            validators_hash: Hash::default(),
+            version: Version {
+                app: 0,
+                block: 0,
+            },
+        })
+    }
+
+    #[tokio::test]
+    async fn test_app_genesis_and_init_chain() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut app = App::new(snapshot);
+        let genesis_state = GenesisState {
+            accounts: vec![],
+        };
+        app.init_chain(genesis_state).await.unwrap();
+        assert_eq!(app.state.get_block_height().await.unwrap(), 0);
+        for (name, balance) in default_genesis_accounts() {
+            assert_eq!(app.state.get_account_balance(&name).await.unwrap(), balance)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_app_begin_block() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut app = App::new(snapshot);
+        let genesis_state = GenesisState {
+            accounts: vec![],
+        };
+        app.init_chain(genesis_state).await.unwrap();
+
+        let mut begin_block = abci::request::BeginBlock {
+            header: default_header().unwrap(),
+            hash: Hash::default(),
+            last_commit_info: CommitInfo {
+                votes: vec![],
+                round: Round::default(),
+            },
+            byzantine_validators: vec![],
+        };
+        begin_block.header.height = Height::try_from(1u8).unwrap();
+
+        app.begin_block(&begin_block).await;
+        assert_eq!(app.state.get_block_height().await.unwrap(), 1);
+        assert_eq!(
+            app.state.get_block_timestamp().await.unwrap(),
+            begin_block.header.time
+        );
+    }
+
+    #[tokio::test]
+    async fn test_app_deliver_tx() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut app = App::new(snapshot);
+        let genesis_state = GenesisState {
+            accounts: vec![],
+        };
+        app.init_chain(genesis_state).await.unwrap();
+
+        // transfer funds from Alice to Bob
+        let alice = Address::from("alice");
+        let bob = Address::from("bob");
+        let value = Balance::from(333333);
+        let tx = Transaction::new_accounts_transaction(
+            bob.clone(),
+            alice.clone(),
+            value,
+            Nonce::from(1),
+        );
+        let bytes = tx.to_bytes().unwrap();
+
+        app.deliver_tx(&bytes).await.unwrap();
+        assert_eq!(
+            app.state.get_account_balance(&bob).await.unwrap(),
+            value + 10e18 as u128
+        );
+        assert_eq!(
+            app.state.get_account_balance(&alice).await.unwrap(),
+            Balance::from(10e18 as u128) - value
+        );
+        assert_eq!(app.state.get_account_nonce(&bob).await.unwrap(), 0);
+        assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_app_commit() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut app = App::new(snapshot);
+        let genesis_state = GenesisState {
+            accounts: vec![],
+        };
+
+        app.init_chain(genesis_state).await.unwrap();
+        assert_eq!(app.state.get_block_height().await.unwrap(), 0);
+        for (name, balance) in default_genesis_accounts() {
+            assert_eq!(app.state.get_account_balance(&name).await.unwrap(), balance)
+        }
+
+        // commit should write the changes to the underlying storage
+        app.commit(storage.clone()).await;
+        let snapshot = storage.latest_snapshot();
+        assert_eq!(snapshot.get_block_height().await.unwrap(), 0);
+        for (name, balance) in default_genesis_accounts() {
+            assert_eq!(snapshot.get_account_balance(&name).await.unwrap(), balance)
+        }
+    }
 }
