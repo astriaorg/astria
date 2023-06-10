@@ -386,10 +386,12 @@ fn ensure_commit_has_quorum(
         );
     }
 
-    let mut total_voting_power = 0u64;
-    validator_set.validators.iter().for_each(|v| {
-        total_voting_power += v.voting_power;
-    });
+    let Some(total_voting_power) = validator_set
+    .validators
+    .iter()
+    .try_fold(0u64, |acc, validator| acc.checked_add(validator.voting_power)) else {
+        bail!("total voting power exceeded u64:MAX");
+    };
 
     let validator_map = validator_set
         .validators
