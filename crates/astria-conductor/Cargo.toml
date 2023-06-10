@@ -5,13 +5,13 @@ edition = "2021"
 
 [dependencies]
 async-trait = "0.1.68"
-figment = { version = "0.10.8", features = ["toml", "env"] }
 is-terminal = "0.4.7"
 
 bech32 = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 color-eyre = { workspace = true }
 ed25519-dalek = { workspace = true }
+figment = { workspace = true, features = ["toml", "env"] }
 futures = { workspace = true }
 hex = { workspace = true }
 prost = { workspace = true }

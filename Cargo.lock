@@ -396,6 +396,7 @@ dependencies = [
  "dirs",
  "ed25519-dalek",
  "eyre",
+ "figment",
  "futures",
  "hex",
  "http",
@@ -1418,8 +1419,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e56602b469b2201400dec66a66aec5a9b8761ee97cd1b8c96ab2483fcc16cc9"
 dependencies = [
  "atomic",
+ "parking_lot 0.12.1",
  "pear",
  "serde",
+ "tempfile",
  "toml",
  "uncased",
  "version_check",

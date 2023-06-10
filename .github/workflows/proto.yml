@@ -1,13 +1,29 @@
-name: buf
+name: Proto
 on:
   pull_request:
   push:
     branches:
         - main
 jobs:
-  build-lint-push-protos:
+  changed:
     runs-on: ubuntu-latest
-    environment: BUF
+    permissions:
+      pull-requests: read
+    outputs:
+      proto: ${{ steps.filters.outputs.proto }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dorny/paths-filter@v2
+        id: filters
+        with:
+          filters: |
+            proto:
+              - 'crates/astria-proto/**'
+              - '.github/workflows/proto.yml'
+  lint:
+    runs-on: ubuntu-latest
+    needs: changed
+    if: ${{ needs.changed.outputs.proto == 'true' }}
     steps:
       - uses: actions/checkout@v3
       - uses: bufbuild/buf-setup-action@v1
@@ -23,6 +39,17 @@ jobs:
       #     # The 'main' branch of the GitHub repository that defines the module.
       #     input: "crates/astria-proto/proto"
       #     against: "https://github.com/astriaorg/astria.git#branch=main,ref=HEAD~1,subdir=crates/astria-proto/proto"
+  push:
+    runs-on: ubuntu-latest
+    environment: BUF
+    if: github.repository_owner == 'astriaorg'
+    needs: lint
+    steps:
+      - uses: actions/checkout@v3
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.15.1"
+          github_token: ${{ github.token }}
       - uses: bufbuild/buf-push-action@v1
         with:
           draft:  ${{ github.ref_name != 'main'}}
