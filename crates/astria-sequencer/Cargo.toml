@@ -9,9 +9,9 @@ borsh = "0.11"
 is-terminal = "0.4.7"
 penumbra-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.53.1" }
 penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.53.1" }
-tendermint-abci = { version = "0.31", features = ["client"] }
-tendermint-proto = "0.31"
-tendermint = "0.31"
+tendermint-abci = { version = "0.31.1", features = ["client"] }
+tendermint-proto = "0.31.1"
+tendermint = "0.31.1"
 tower = "0.4"
 tower-abci = "0.7.0"
 tower-actor = "0.1.0"
