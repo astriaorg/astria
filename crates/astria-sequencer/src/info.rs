@@ -59,6 +59,7 @@ impl Service<InfoRequest> for InfoService {
     }
 
     fn call(&mut self, req: InfoRequest) -> Self::Future {
+        tracing::info!("got Info request");
         handle_info_request(self.storage.clone(), req).boxed()
     }
 }

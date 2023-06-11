@@ -1,7 +1,7 @@
 version: v1
 name: buf.build/astria/astria
 deps:
-  - buf.build/tendermint/tendermint
+  - buf.build/cosmos/cosmos-sdk:fd90480b0a922611e366552751a9037e309d8410
 breaking:
   use:
     - FILE

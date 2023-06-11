@@ -396,6 +396,7 @@ name = "astria-sequencer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "astria-proto",
  "async-trait",
  "borsh 0.11.0",
  "bytes",
@@ -407,8 +408,10 @@ dependencies = [
  "serde",
  "serde_json",
  "tendermint 0.31.1",
+ "tendermint-abci",
  "tendermint-proto 0.31.1",
  "tokio",
+ "tokio-util 0.7.8",
  "tower",
  "tower-abci",
  "tower-actor",
@@ -1864,7 +1867,7 @@ dependencies = [
  "indexmap",
  "slab",
  "tokio",
- "tokio-util 0.7.5",
+ "tokio-util 0.7.8",
  "tracing",
 ]
 
@@ -2397,7 +2400,7 @@ dependencies = [
  "serde_yaml",
  "thiserror",
  "tokio",
- "tokio-util 0.7.5",
+ "tokio-util 0.7.8",
  "tower",
  "tower-http",
  "tracing",
@@ -2441,7 +2444,7 @@ dependencies = [
  "smallvec",
  "thiserror",
  "tokio",
- "tokio-util 0.7.5",
+ "tokio-util 0.7.8",
  "tracing",
 ]
 
@@ -2813,7 +2816,7 @@ dependencies = [
  "thiserror",
  "tinytemplate",
  "tokio",
- "tokio-util 0.7.5",
+ "tokio-util 0.7.8",
  "webrtc",
 ]
 
@@ -4783,6 +4786,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tendermint-abci"
+version = "0.31.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fbc70258c1a7aa8eb905aae4e3b734a2100ecffce7c9756dd1c446aaf188ba03"
+dependencies = [
+ "bytes",
+ "flex-error",
+ "prost",
+ "tendermint-proto 0.31.1",
+ "tracing",
+]
+
+[[package]]
 name = "tendermint-proto"
 version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4978,9 +4994,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.5"
+version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e267c18a719545b481171952a79f8c25c80361463ba44bc7fa9eba7c742ef4f"
+checksum = "806fe8c2c87eccc8b3267cbae29ed3ab2d0bd37fca70ab622e46aaa9375ddb7d"
 dependencies = [
  "bytes",
  "futures-core",
@@ -5044,7 +5060,7 @@ dependencies = [
  "rand 0.8.5",
  "slab",
  "tokio",
- "tokio-util 0.7.5",
+ "tokio-util 0.7.8",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -5079,7 +5095,7 @@ dependencies = [
  "pin-project",
  "thiserror",
  "tokio",
- "tokio-util 0.7.5",
+ "tokio-util 0.7.8",
  "tower",
  "tracing",
 ]
