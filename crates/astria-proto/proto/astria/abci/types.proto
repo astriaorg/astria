@@ -1,6 +1,9 @@
 syntax = "proto3";
 package tendermint.abci;
 
+// @noot
+// this is from this commit https://github.com/cometbft/cometbft/commit/101bf50e715d6a10c8135392166c35bdae94972e#diff-8384a26745c978d00d66edad2513d2c0518fab0ddb4123c613f475b88ed95667
+
 option go_package = "github.com/tendermint/tendermint/abci/types";
 
 // For more information on gogo.proto, see:
