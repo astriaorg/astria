@@ -16,9 +16,8 @@ message UnsignedTransaction {
 
 message AccountsTransaction {
     bytes to = 1;
-    bytes from = 2;
-    Balance amount = 3;
-    uint32 nonce = 4;
+    Balance amount = 2;
+    uint32 nonce = 3;
 }
 
 message Balance {

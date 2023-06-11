@@ -45,8 +45,8 @@ impl SignedTransaction {
             .context("failed to verify transaction signature")
     }
 
-    pub fn from_address(&self) -> Address {
-        todo!()
+    pub fn from_address(&self) -> Result<Address> {
+        Address::try_from(&self.public_key)
     }
 
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
@@ -112,14 +112,18 @@ impl ActionHandler for SignedTransaction {
     #[instrument(skip(state))]
     async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()> {
         match &self.transaction {
-            UnsignedTransaction::AccountsTransaction(tx) => tx.check_stateful(state).await,
+            UnsignedTransaction::AccountsTransaction(tx) => {
+                tx.check_stateful(state, &self.from_address()?).await
+            }
         }
     }
 
     #[instrument(skip(state))]
     async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()> {
         match &self.transaction {
-            UnsignedTransaction::AccountsTransaction(tx) => tx.execute(state).await,
+            UnsignedTransaction::AccountsTransaction(tx) => {
+                tx.execute(state, &self.from_address()?).await
+            }
         }
     }
 }

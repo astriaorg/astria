@@ -344,12 +344,7 @@ mod test {
         let alice = Address::unsafe_from_hex_string(ALICE_ADDRESS);
         let bob = Address::unsafe_from_hex_string(BOB_ADDRESS);
         let value = Balance::from(333333);
-        let tx = UnsignedTransaction::new_accounts_transaction(
-            bob.clone(),
-            alice.clone(),
-            value,
-            Nonce::from(1),
-        );
+        let tx = UnsignedTransaction::new_accounts_transaction(bob.clone(), value, Nonce::from(1));
         let signed_tx = tx.sign(&alice_keypair).unwrap();
         let bytes = signed_tx.to_bytes().unwrap();
 

@@ -37,13 +37,8 @@ pub enum UnsignedTransaction {
 }
 
 impl UnsignedTransaction {
-    pub fn new_accounts_transaction(
-        to: Address,
-        from: Address,
-        amount: Balance,
-        nonce: Nonce,
-    ) -> Self {
-        Self::AccountsTransaction(AccountsTransaction::new(to, from, amount, nonce))
+    pub fn new_accounts_transaction(to: Address, amount: Balance, nonce: Nonce) -> Self {
+        Self::AccountsTransaction(AccountsTransaction::new(to, amount, nonce))
     }
 
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
@@ -93,16 +88,12 @@ mod test {
     use hex;
 
     use super::*;
-    use crate::app::{
-        ALICE_ADDRESS,
-        BOB_ADDRESS,
-    };
+    use crate::app::BOB_ADDRESS;
 
     #[test]
     fn test_transaction() {
         let tx = UnsignedTransaction::new_accounts_transaction(
             Address::unsafe_from_hex_string(BOB_ADDRESS),
-            Address::unsafe_from_hex_string(ALICE_ADDRESS),
             Balance::from(333333),
             Nonce::from(1),
         );
