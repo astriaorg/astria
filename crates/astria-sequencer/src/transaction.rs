@@ -5,11 +5,16 @@ use anyhow::{
     Context as _,
     Result,
 };
+use astria_proto::sequencer::v1::{
+    SignedTransaction as ProtoSignedTransaction,
+    UnsignedTransaction as ProtoUnsignedTransaction,
+};
 use async_trait::async_trait;
 use penumbra_storage::{
     StateRead,
     StateWrite,
 };
+use prost::Message as _;
 use serde::{
     Deserialize,
     Serialize,
@@ -62,15 +67,16 @@ impl TransactionHash {
     }
 }
 
-/// Represents a sequencer chain transaction.
+/// Represents an unsigned sequencer chain transaction.
+/// This type wraps all the different module-specific transactions.
 /// If a new transaction type is added, it should be added to this enum.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
-pub enum Transaction {
+pub enum UnsignedTransaction {
     AccountsTransaction(AccountsTransaction),
 }
 
-impl Transaction {
+impl UnsignedTransaction {
     pub fn new_accounts_transaction(
         to: Address,
         from: Address,
@@ -81,15 +87,30 @@ impl Transaction {
     }
 
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
-        // TODO: use proto
-        let bytes = serde_json::to_vec(self)?;
-        Ok(bytes)
+        Ok(match &self {
+            UnsignedTransaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
+                value: Some(
+                    astria_proto::sequencer::v1::unsigned_transaction::Value::AccountsTransaction(
+                        tx.to_proto(),
+                    ),
+                ),
+            },
+        }
+        .encode_length_delimited_to_vec())
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        // TODO: use proto
-        let tx = serde_json::from_slice(bytes)?;
-        Ok(tx)
+        let proto = ProtoUnsignedTransaction::decode_length_delimited(bytes)
+            .context("failed to decode unsigned transaction")?;
+        let Some(value) = proto.value else {
+            bail!("invalid unsigned transaction; missing value");
+        };
+
+        Ok(match value {
+            astria_proto::sequencer::v1::unsigned_transaction::Value::AccountsTransaction(tx) => {
+                Self::AccountsTransaction(AccountsTransaction::from_proto(&tx)?)
+            }
+        })
     }
 
     pub fn sign(self, keypair: &Keypair) -> Result<SignedTransaction> {
@@ -119,33 +140,30 @@ impl ActionHandler for SignedTransaction {
     fn check_stateless(&self) -> Result<()> {
         self.verify_signature()?;
         match &self.transaction {
-            Transaction::AccountsTransaction(tx) => tx.check_stateless(),
+            UnsignedTransaction::AccountsTransaction(tx) => tx.check_stateless(),
         }
     }
 
     #[instrument(skip(state))]
     async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()> {
         match &self.transaction {
-            Transaction::AccountsTransaction(tx) => tx.check_stateful(state).await,
+            UnsignedTransaction::AccountsTransaction(tx) => tx.check_stateful(state).await,
         }
     }
 
     #[instrument(skip(state))]
     async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()> {
         match &self.transaction {
-            Transaction::AccountsTransaction(tx) => tx.execute(state).await,
+            UnsignedTransaction::AccountsTransaction(tx) => tx.execute(state).await,
         }
     }
 }
 
-use astria_proto::sequencer::v1::SignedTransaction as ProtoSignedTransaction;
-use prost::Message as _;
-
 #[derive(Debug, Clone)]
 pub struct SignedTransaction {
-    pub transaction: Transaction,
     pub signature: Signature,
     pub public_key: PublicKey,
+    pub transaction: UnsignedTransaction,
 }
 
 impl SignedTransaction {
@@ -162,10 +180,12 @@ impl SignedTransaction {
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         let proto = ProtoSignedTransaction {
             transaction: Some(match &self.transaction {
-                Transaction::AccountsTransaction(tx) => {
-                    astria_proto::sequencer::v1::signed_transaction::Transaction::AccountsTransaction (
-                        tx.to_proto()
-                    )
+                UnsignedTransaction::AccountsTransaction(tx) => {
+                    astria_proto::sequencer::v1::UnsignedTransaction {
+                        value: Some(astria_proto::sequencer::v1::unsigned_transaction::Value::AccountsTransaction (
+                            tx.to_proto()
+                        )),
+                    }
                 }
             }),
             signature: self.signature.to_bytes().to_vec(),
@@ -177,14 +197,20 @@ impl SignedTransaction {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let proto_tx = ProtoSignedTransaction::decode_length_delimited(bytes)?;
-        let transaction = match proto_tx.transaction {
-            Some(
-                astria_proto::sequencer::v1::signed_transaction::Transaction::AccountsTransaction(
-                    tx,
-                ),
-            ) => Transaction::AccountsTransaction(AccountsTransaction::from_proto(&tx)?),
-            None => bail!("transaction is missing"),
+        let proto_tx: ProtoSignedTransaction =
+            ProtoSignedTransaction::decode_length_delimited(bytes)?;
+        let Some(proto_transaction) = proto_tx.transaction else {
+            bail!("transaction is missing");
+        };
+
+        let Some(value) = proto_transaction.value else {
+            bail!("unsigned transaction value missing")
+        };
+
+        let transaction = match value {
+            astria_proto::sequencer::v1::unsigned_transaction::Value::AccountsTransaction(tx) => {
+                UnsignedTransaction::AccountsTransaction(AccountsTransaction::from_proto(&tx)?)
+            }
         };
         let signed_tx = SignedTransaction {
             transaction,
@@ -215,14 +241,14 @@ mod test {
 
     #[test]
     fn test_transaction() {
-        let tx = Transaction::new_accounts_transaction(
+        let tx = UnsignedTransaction::new_accounts_transaction(
             Address::unsafe_from_hex_string(BOB_ADDRESS),
             Address::unsafe_from_hex_string(ALICE_ADDRESS),
             Balance::from(333333),
             Nonce::from(1),
         );
         let bytes = tx.to_bytes().unwrap();
-        let tx2 = Transaction::from_bytes(&bytes).unwrap();
+        let tx2 = UnsignedTransaction::from_bytes(&bytes).unwrap();
         assert_eq!(tx, tx2);
         println!("0x{}", hex::encode(bytes));
     }

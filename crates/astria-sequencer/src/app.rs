@@ -252,7 +252,7 @@ mod test {
             types::Nonce,
         },
         crypto::Keypair,
-        transaction::Transaction,
+        transaction::UnsignedTransaction,
     };
 
     fn default_header() -> Result<Header> {
@@ -344,7 +344,7 @@ mod test {
         let alice = Address::unsafe_from_hex_string(ALICE_ADDRESS);
         let bob = Address::unsafe_from_hex_string(BOB_ADDRESS);
         let value = Balance::from(333333);
-        let tx = Transaction::new_accounts_transaction(
+        let tx = UnsignedTransaction::new_accounts_transaction(
             bob.clone(),
             alice.clone(),
             value,

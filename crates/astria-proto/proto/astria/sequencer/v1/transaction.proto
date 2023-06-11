@@ -5,9 +5,13 @@ package astria.sequencer.v1;
 message SignedTransaction {
     bytes signature = 1;
     bytes public_key = 2;
-    oneof transaction {
-        AccountsTransaction accounts_transaction = 3;
-    }
+    UnsignedTransaction transaction = 3;
+}
+
+message UnsignedTransaction {
+    oneof value {
+        AccountsTransaction accounts_transaction = 1;
+    }   
 }
 
 message AccountsTransaction {
