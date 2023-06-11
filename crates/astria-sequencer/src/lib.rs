@@ -2,6 +2,7 @@ pub mod accounts;
 pub mod app;
 pub mod component;
 pub mod consensus;
+pub mod crypto;
 pub mod info;
 pub mod mempool;
 pub mod sequencer;
