@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use borsh::{
     BorshDeserialize,
     BorshSerialize,
@@ -7,19 +8,72 @@ use serde::{
     Serialize,
 };
 
+pub const ADDRESS_LEN: usize = 20;
+
 /// Address represents an account address.
 #[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub struct Address(String);
+pub struct Address([u8; ADDRESS_LEN]);
 
-impl From<&str> for Address {
-    fn from(s: &str) -> Self {
-        Self(s.to_string())
+impl TryFrom<&str> for Address {
+    type Error = anyhow::Error;
+
+    fn try_from(s: &str) -> std::result::Result<Self, Self::Error> {
+        let bytes = hex::decode(s)?;
+        let arr: [u8; ADDRESS_LEN] = bytes
+            .try_into()
+            .map_err(|_| anyhow!("invalid address hex length"))?;
+        Ok(Address(arr))
+    }
+}
+
+impl TryFrom<&crate::crypto::PublicKey> for Address {
+    type Error = anyhow::Error;
+
+    fn try_from(public_key: &crate::crypto::PublicKey) -> Result<Self, Self::Error> {
+        use sha2::Digest as _;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(public_key.as_bytes());
+        let hash = hasher.finalize();
+        Ok(Address(
+            hash[0..ADDRESS_LEN]
+                .try_into()
+                .map_err(|_| anyhow!("invalid address hex length"))?,
+        ))
+    }
+}
+
+impl TryFrom<&crate::crypto::Keypair> for Address {
+    type Error = anyhow::Error;
+
+    fn try_from(keypair: &crate::crypto::Keypair) -> Result<Self, Self::Error> {
+        use sha2::Digest as _;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(keypair.public.as_bytes());
+        let hash = hasher.finalize();
+        Ok(Address(
+            hash[0..ADDRESS_LEN]
+                .try_into()
+                .map_err(|_| anyhow!("invalid address hex length"))?,
+        ))
+    }
+}
+
+impl std::fmt::Display for Address {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
     }
 }
 
 impl Address {
-    pub fn to_str(&self) -> &str {
-        &self.0
+    /// attempts to decode the given hex string into an address.
+    /// WARNING: this function panics on failure; use `try_from` instead.
+    pub fn unsafe_from_hex_string(s: &str) -> Self {
+        let bytes = hex::decode(s).unwrap();
+        let arr: [u8; ADDRESS_LEN] = bytes
+            .try_into()
+            .map_err(|_| anyhow!("invalid address hex length"))
+            .unwrap();
+        Address(arr)
     }
 }
 

@@ -38,7 +38,7 @@ pub trait StateReadExt: StateRead {
     #[instrument(skip(self))]
     async fn get_account_balance(&self, address: &Address) -> Result<Balance> {
         let bytes = self
-            .get_raw(&balance_storage_key(address.to_str()))
+            .get_raw(&balance_storage_key(&address.to_string()))
             .await
             .context("storage error")?;
         let Some(bytes) = bytes else {
@@ -53,7 +53,7 @@ pub trait StateReadExt: StateRead {
     #[instrument(skip(self))]
     async fn get_account_nonce(&self, address: &Address) -> Result<Nonce> {
         let bytes = self
-            .get_raw(&nonce_storage_key(address.to_str()))
+            .get_raw(&nonce_storage_key(&address.to_string()))
             .await
             .context("storage error")?;
         let Some(bytes) = bytes else {
@@ -75,14 +75,14 @@ pub trait StateWriteExt: StateWrite {
         let bytes = balance
             .try_to_vec()
             .context("failed to serialize balance")?;
-        self.put_raw(balance_storage_key(address.to_str()), bytes);
+        self.put_raw(balance_storage_key(&address.to_string()), bytes);
         Ok(())
     }
 
     #[instrument(skip(self))]
     fn put_account_nonce(&mut self, address: &Address, nonce: Nonce) -> Result<()> {
         let bytes = nonce.try_to_vec().context("failed to serialize nonce")?;
-        self.put_raw(nonce_storage_key(address.to_str()), bytes);
+        self.put_raw(nonce_storage_key(&address.to_string()), bytes);
         Ok(())
     }
 }

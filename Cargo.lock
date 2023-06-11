@@ -405,6 +405,7 @@ dependencies = [
  "is-terminal",
  "penumbra-component",
  "penumbra-storage",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "sha2 0.10.6",

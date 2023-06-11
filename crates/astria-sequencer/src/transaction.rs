@@ -161,12 +161,16 @@ mod test {
     use hex;
 
     use super::*;
+    use crate::app::{
+        ALICE_ADDRESS,
+        BOB_ADDRESS,
+    };
 
     #[test]
     fn test_transaction() {
         let tx = Transaction::new_accounts_transaction(
-            Address::from("bob"),
-            Address::from("alice"),
+            Address::unsafe_from_hex_string(BOB_ADDRESS),
+            Address::unsafe_from_hex_string(ALICE_ADDRESS),
             Balance::from(333333),
             Nonce::from(1),
         );

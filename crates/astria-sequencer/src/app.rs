@@ -206,11 +206,26 @@ impl App {
     }
 }
 
+pub const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
+pub const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
+pub const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871";
+
+// generated using the test generate_default_keys
+// which also generates the corresponding secret and public keys
 fn default_genesis_accounts() -> Vec<(Address, Balance)> {
     vec![
-        (Address::from("alice"), Balance::from(10e18 as u128)),
-        (Address::from("bob"), Balance::from(10e18 as u128)),
-        (Address::from("carol"), Balance::from(10e18 as u128)),
+        (
+            Address::unsafe_from_hex_string(ALICE_ADDRESS),
+            Balance::from(10e18 as u128),
+        ),
+        (
+            Address::unsafe_from_hex_string(BOB_ADDRESS),
+            Balance::from(10e18 as u128),
+        ),
+        (
+            Address::unsafe_from_hex_string(CAROL_ADDRESS),
+            Balance::from(10e18 as u128),
+        ),
     ]
 }
 
@@ -319,8 +334,8 @@ mod test {
         app.init_chain(genesis_state).await.unwrap();
 
         // transfer funds from Alice to Bob
-        let alice = Address::from("alice");
-        let bob = Address::from("bob");
+        let alice = Address::unsafe_from_hex_string(ALICE_ADDRESS);
+        let bob = Address::unsafe_from_hex_string(BOB_ADDRESS);
         let value = Balance::from(333333);
         let tx = Transaction::new_accounts_transaction(
             bob.clone(),
