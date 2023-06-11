@@ -396,6 +396,7 @@ name = "astria-sequencer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "astria-proto",
  "async-trait",
  "borsh 0.11.0",
  "bytes",
@@ -405,6 +406,7 @@ dependencies = [
  "is-terminal",
  "penumbra-component",
  "penumbra-storage",
+ "prost",
  "rand 0.8.5",
  "serde",
  "serde_json",

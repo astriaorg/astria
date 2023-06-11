@@ -31,7 +31,7 @@ use crate::{
     },
     transaction::{
         ActionHandler as _,
-        Transaction,
+        SignedTransaction,
     },
 };
 
@@ -120,7 +120,7 @@ impl App {
 
     #[instrument(name = "App:deliver_tx", skip(self))]
     pub async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
-        let tx = Transaction::from_bytes(tx)?;
+        let tx = SignedTransaction::from_bytes(tx)?;
 
         let tx2 = tx.clone();
         let stateless = tokio::spawn(async move { tx2.check_stateless() });
@@ -246,9 +246,13 @@ mod test {
     };
 
     use super::*;
-    use crate::accounts::{
-        state_ext::StateReadExt as _,
-        types::Nonce,
+    use crate::{
+        accounts::{
+            state_ext::StateReadExt as _,
+            types::Nonce,
+        },
+        crypto::Keypair,
+        transaction::Transaction,
     };
 
     fn default_header() -> Result<Header> {
@@ -334,6 +338,9 @@ mod test {
         app.init_chain(genesis_state).await.unwrap();
 
         // transfer funds from Alice to Bob
+        let keypair_bytes = hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90d5bf4a3fcce717b0388bcc2749ebc148ad9969b23f45ee1b605fd58778576ac4").unwrap();
+        let alice_keypair = Keypair::from_bytes(&keypair_bytes).unwrap();
+
         let alice = Address::unsafe_from_hex_string(ALICE_ADDRESS);
         let bob = Address::unsafe_from_hex_string(BOB_ADDRESS);
         let value = Balance::from(333333);
@@ -343,7 +350,8 @@ mod test {
             value,
             Nonce::from(1),
         );
-        let bytes = tx.to_bytes().unwrap();
+        let signed_tx = tx.sign(&alice_keypair).unwrap();
+        let bytes = signed_tx.to_bytes().unwrap();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(

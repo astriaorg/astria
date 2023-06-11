@@ -39,7 +39,7 @@ mod test {
                 String::from_utf8(acc.to_vec()).unwrap(),
                 hex::encode(keypair.secret.to_bytes()),
                 hex::encode(keypair.public.to_bytes()),
-                address.to_string()
+                address,
             );
         }
     }

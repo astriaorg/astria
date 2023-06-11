@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+astria-proto = {path = "../astria-proto"}
+
 anyhow = "1"
 borsh = "0.11"
 is-terminal = "0.4.7"
@@ -21,6 +23,7 @@ bytes = { workspace = true }
 ed25519-dalek = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
+prost = { workspace = true }
 serde = { workspace = true, features = ["derive"]  }
 serde_json = { workspace = true }
 sha2 = { workspace = true }

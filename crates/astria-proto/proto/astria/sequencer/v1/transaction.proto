@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package astria.sequencer.v1;
+
+message SignedTransaction {
+    bytes signature = 1;
+    bytes public_key = 2;
+    oneof transaction {
+        AccountsTransaction accounts_transaction = 3;
+    }
+}
+
+message AccountsTransaction {
+    bytes to = 1;
+    bytes from = 2;
+    Balance amount = 3;
+    uint32 nonce = 4;
+}
+
+message Balance {
+    uint64 upper = 1;
+    uint64 lower = 2;
+}

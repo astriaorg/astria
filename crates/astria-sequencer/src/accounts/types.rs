@@ -14,6 +14,28 @@ pub const ADDRESS_LEN: usize = 20;
 #[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct Address([u8; ADDRESS_LEN]);
 
+impl TryFrom<Vec<u8>> for Address {
+    type Error = anyhow::Error;
+
+    fn try_from(bytes: Vec<u8>) -> std::result::Result<Self, Self::Error> {
+        let arr: [u8; ADDRESS_LEN] = bytes
+            .try_into()
+            .map_err(|_| anyhow!("invalid address length"))?;
+        Ok(Address(arr))
+    }
+}
+
+impl TryFrom<&[u8]> for Address {
+    type Error = anyhow::Error;
+
+    fn try_from(bytes: &[u8]) -> std::result::Result<Self, Self::Error> {
+        let arr: [u8; ADDRESS_LEN] = bytes
+            .try_into()
+            .map_err(|_| anyhow!("invalid address length"))?;
+        Ok(Address(arr))
+    }
+}
+
 impl TryFrom<&str> for Address {
     type Error = anyhow::Error;
 
@@ -75,6 +97,10 @@ impl Address {
             .unwrap();
         Address(arr)
     }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
 }
 
 // Balance represents an account balance.
@@ -131,6 +157,21 @@ impl std::ops::Sub<u128> for Balance {
     }
 }
 
+use astria_proto::sequencer::v1::Balance as ProtoBalance;
+
+impl Balance {
+    pub fn to_proto(&self) -> ProtoBalance {
+        ProtoBalance {
+            upper: (self.0 >> 64) as u64,
+            lower: self.0 as u64,
+        }
+    }
+
+    pub fn from_proto(proto: &ProtoBalance) -> Self {
+        Self((proto.upper as u128) << 64 | proto.lower as u128)
+    }
+}
+
 // Nonce represents an account nonce.
 #[derive(
     Clone,
@@ -150,6 +191,12 @@ pub struct Nonce(u32);
 impl From<u32> for Nonce {
     fn from(n: u32) -> Self {
         Self(n)
+    }
+}
+
+impl From<Nonce> for u32 {
+    fn from(n: Nonce) -> Self {
+        n.0
     }
 }
 

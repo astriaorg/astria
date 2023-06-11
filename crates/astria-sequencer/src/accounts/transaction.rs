@@ -2,6 +2,7 @@ use anyhow::{
     ensure,
     Result,
 };
+use astria_proto::sequencer::v1::AccountsTransaction as ProtoAccountsTransaction;
 use async_trait::async_trait;
 use serde::{
     Deserialize,
@@ -26,7 +27,7 @@ use crate::{
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Transaction {
     to: Address,
-    from: Address,
+    from: Address, // TODO: remove in favour of signing pubkey
     amount: Balance,
     nonce: Nonce,
 }
@@ -39,6 +40,29 @@ impl Transaction {
             amount,
             nonce,
         }
+    }
+
+    pub fn to_proto(&self) -> ProtoAccountsTransaction {
+        ProtoAccountsTransaction {
+            to: self.to.as_bytes().to_vec(),
+            from: self.from.as_bytes().to_vec(),
+            amount: Some(self.amount.to_proto()),
+            nonce: self.nonce.into(),
+        }
+    }
+
+    pub fn from_proto(proto: &ProtoAccountsTransaction) -> Result<Self> {
+        Ok(Self {
+            to: Address::try_from(proto.to.as_ref() as &[u8])?,
+            from: Address::try_from(proto.from.as_ref() as &[u8])?,
+            amount: Balance::from_proto(
+                proto
+                    .amount
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("missing amount"))?,
+            ),
+            nonce: Nonce::from(proto.nonce),
+        })
     }
 }
 

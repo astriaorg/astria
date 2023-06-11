@@ -18,7 +18,7 @@ use tracing::info;
 
 use crate::transaction::{
     ActionHandler as _,
-    Transaction,
+    SignedTransaction,
 };
 
 /// MempoolService handles one request: CheckTx.
@@ -62,7 +62,7 @@ impl Future for MempoolServiceFuture {
             MempoolRequest::CheckTx(req) => {
                 // if the tx passes the check, status code 0 is returned.
                 // TODO: status codes for various errors
-                match Transaction::from_bytes(&req.tx) {
+                match SignedTransaction::from_bytes(&req.tx) {
                     Ok(tx) => match tx.check_stateless() {
                         Ok(_) => {
                             Poll::Ready(Ok(MempoolResponse::CheckTx(response::CheckTx::default())))
