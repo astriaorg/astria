@@ -55,14 +55,41 @@ impl Transaction {
         Ok(Self {
             to: Address::try_from(proto.to.as_ref() as &[u8])?,
             from: Address::try_from(proto.from.as_ref() as &[u8])?,
-            amount: Balance::from_proto(
-                proto
-                    .amount
-                    .as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("missing amount"))?,
-            ),
+            amount: proto
+                .amount
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("missing amount"))?
+                .into(),
             nonce: Nonce::from(proto.nonce),
         })
+    }
+}
+
+impl TryFrom<ProtoAccountsTransaction> for Transaction {
+    type Error = anyhow::Error;
+
+    fn try_from(proto: ProtoAccountsTransaction) -> Result<Self> {
+        Self::from_proto(&proto)
+    }
+}
+
+impl TryFrom<&ProtoAccountsTransaction> for Transaction {
+    type Error = anyhow::Error;
+
+    fn try_from(proto: &ProtoAccountsTransaction) -> Result<Self> {
+        Self::from_proto(proto)
+    }
+}
+
+impl From<Transaction> for ProtoAccountsTransaction {
+    fn from(tx: Transaction) -> Self {
+        tx.to_proto()
+    }
+}
+
+impl From<&Transaction> for ProtoAccountsTransaction {
+    fn from(tx: &Transaction) -> Self {
+        tx.to_proto()
     }
 }
 
