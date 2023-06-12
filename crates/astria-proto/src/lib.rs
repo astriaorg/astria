@@ -1,4 +1,5 @@
 pub mod execution {
+    #![allow(unreachable_pub)]
     pub mod v1 {
         include!(concat!(env!("OUT_DIR"), "/astria.execution.v1.rs"));
     }
