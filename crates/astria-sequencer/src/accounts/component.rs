@@ -9,7 +9,10 @@ use tracing::instrument;
 
 use super::state_ext::StateWriteExt;
 use crate::{
-    app::GenesisState,
+    app::{
+        Account,
+        GenesisState,
+    },
     component::Component,
 };
 
@@ -22,7 +25,11 @@ impl Component for AccountsComponent {
 
     #[instrument(name = "AccountsComponent:init_chain", skip(state))]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
-        for (address, balance) in &app_state.accounts {
+        for Account {
+            address,
+            balance,
+        } in &app_state.accounts
+        {
             state.put_account_balance(address, *balance)?;
         }
         Ok(())

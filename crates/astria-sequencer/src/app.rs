@@ -45,7 +45,13 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 /// The genesis state for the application.
 #[derive(Debug, serde::Deserialize, Default)]
 pub(crate) struct GenesisState {
-    pub(crate) accounts: Vec<(Address, Balance)>,
+    pub(crate) accounts: Vec<Account>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub(crate) struct Account {
+    pub(crate) address: Address,
+    pub(crate) balance: Balance,
 }
 
 /// The Sequencer application, written as a bundle of [`Component`]s.
@@ -74,13 +80,6 @@ impl App {
 
     #[instrument(name = "App:init_chain", skip(self))]
     pub async fn init_chain(&mut self, genesis_state: GenesisState) -> Result<()> {
-        // allocate to hard-coded accounts for testing
-        let mut accounts = genesis_state.accounts;
-        accounts.append(&mut default_genesis_accounts());
-        let genesis_state = GenesisState {
-            accounts,
-        };
-
         let mut state_tx = self
             .state
             .try_begin_transaction()
@@ -206,6 +205,7 @@ impl App {
     }
 }
 
+<<<<<<< HEAD
 fn default_genesis_accounts() -> Vec<(Address, Balance)> {
     vec![
         (Address::from("alice"), Balance::from(10e18 as u128)),
@@ -214,6 +214,17 @@ fn default_genesis_accounts() -> Vec<(Address, Balance)> {
     ]
 }
 
+||||||| parent of 31cb1a1 (more expressive naming in genesis state)
+fn default_genesis_accounts() -> Vec<(String, u128)> {
+    vec![
+        ("alice".into(), 10e18 as u128),
+        ("bob".into(), 10e18 as u128),
+        ("carol".into(), 10e18 as u128),
+    ]
+}
+
+=======
+>>>>>>> 31cb1a1 (more expressive naming in genesis state)
 #[cfg(test)]
 mod test {
     use tendermint::{
@@ -235,6 +246,23 @@ mod test {
         state_ext::StateReadExt as _,
         types::Nonce,
     };
+
+    fn default_genesis_accounts() -> Vec<Account> {
+        vec![
+            Account {
+                address: "alice".into(),
+                balance: 10e18 as u128,
+            },
+            Account {
+                address: "bob".into(),
+                balance: 10e18 as u128,
+            },
+            Account {
+                address: "carol".into(),
+                balance: 10e18 as u128,
+            },
+        ]
+    }
 
     fn default_header() -> Result<Header> {
         Ok(Header {
@@ -266,12 +294,19 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
         let genesis_state = GenesisState {
-            accounts: vec![],
+            accounts: default_genesis_accounts(),
         };
         app.init_chain(genesis_state).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
-        for (name, balance) in default_genesis_accounts() {
-            assert_eq!(app.state.get_account_balance(&name).await.unwrap(), balance)
+        for Account {
+            address,
+            balance,
+        } in default_genesis_accounts()
+        {
+            assert_eq!(
+                balance,
+                app.state.get_account_balance(&address).await.unwrap(),
+            )
         }
     }
 
@@ -314,11 +349,12 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
         let genesis_state = GenesisState {
-            accounts: vec![],
+            accounts: default_genesis_accounts(),
         };
         app.init_chain(genesis_state).await.unwrap();
 
         // transfer funds from Alice to Bob
+<<<<<<< HEAD
         let alice = Address::from("alice");
         let bob = Address::from("bob");
         let value = Balance::from(333333);
@@ -328,6 +364,27 @@ mod test {
             value,
             Nonce::from(1),
         );
+||||||| parent of 31cb1a1 (more expressive naming in genesis state)
+        let alice = "alice";
+        let bob = "bob";
+        let value = 333333;
+        let tx = Transaction::AccountsTransaction(accounts::transaction::Transaction {
+            to: alice.into(),
+            from: bob.into(),
+            amount: value,
+            nonce: 1,
+        });
+=======
+        let alice = "alice";
+        let bob = "bob";
+        let value = 333333;
+        let tx = Transaction::AccountsTransaction(accounts::transaction::Transaction {
+            from: alice.into(),
+            to: bob.into(),
+            amount: value,
+            nonce: 1,
+        });
+>>>>>>> 31cb1a1 (more expressive naming in genesis state)
         let bytes = tx.to_bytes().unwrap();
 
         app.deliver_tx(&bytes).await.unwrap();
@@ -351,21 +408,35 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
         let genesis_state = GenesisState {
-            accounts: vec![],
+            accounts: default_genesis_accounts(),
         };
 
         app.init_chain(genesis_state).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
-        for (name, balance) in default_genesis_accounts() {
-            assert_eq!(app.state.get_account_balance(&name).await.unwrap(), balance)
+        for Account {
+            address,
+            balance,
+        } in default_genesis_accounts()
+        {
+            assert_eq!(
+                balance,
+                app.state.get_account_balance(&address).await.unwrap()
+            )
         }
 
         // commit should write the changes to the underlying storage
         app.commit(storage.clone()).await;
         let snapshot = storage.latest_snapshot();
         assert_eq!(snapshot.get_block_height().await.unwrap(), 0);
-        for (name, balance) in default_genesis_accounts() {
-            assert_eq!(snapshot.get_account_balance(&name).await.unwrap(), balance)
+        for Account {
+            address,
+            balance,
+        } in default_genesis_accounts()
+        {
+            assert_eq!(
+                snapshot.get_account_balance(&address).await.unwrap(),
+                balance
+            )
         }
     }
 }
