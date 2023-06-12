@@ -21,15 +21,15 @@ use crate::transaction::{
     Transaction,
 };
 
-/// MempoolService handles one request: CheckTx.
+/// Mempool handles one request: CheckTx.
 /// It performs a stateless check of the given transaction,
 /// returning an abci::response::CheckTx.
 #[derive(Clone, Default)]
-pub struct MempoolService;
+pub struct Mempool;
 
-impl Service<MempoolRequest> for MempoolService {
+impl Service<MempoolRequest> for Mempool {
     type Error = BoxError;
-    type Future = MempoolServiceFuture;
+    type Future = MempoolFuture;
     type Response = MempoolResponse;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -38,15 +38,15 @@ impl Service<MempoolRequest> for MempoolService {
 
     fn call(&mut self, req: MempoolRequest) -> Self::Future {
         info!("got mempool request: {:?}", req);
-        MempoolServiceFuture::new(req)
+        MempoolFuture::new(req)
     }
 }
 
-pub struct MempoolServiceFuture {
+pub struct MempoolFuture {
     request: MempoolRequest,
 }
 
-impl MempoolServiceFuture {
+impl MempoolFuture {
     pub fn new(request: MempoolRequest) -> Self {
         Self {
             request,
@@ -54,7 +54,7 @@ impl MempoolServiceFuture {
     }
 }
 
-impl Future for MempoolServiceFuture {
+impl Future for MempoolFuture {
     type Output = Result<MempoolResponse, BoxError>;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {

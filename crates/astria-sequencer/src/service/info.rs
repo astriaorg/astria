@@ -19,7 +19,6 @@ use tendermint::{
         response::{
             self,
             Echo,
-            Info,
             SetOption,
         },
         InfoRequest,
@@ -37,11 +36,11 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub(crate) struct InfoService {
+pub(crate) struct Info {
     storage: Storage,
 }
 
-impl InfoService {
+impl Info {
     pub(crate) fn new(storage: Storage) -> Self {
         Self {
             storage,
@@ -49,7 +48,7 @@ impl InfoService {
     }
 }
 
-impl Service<InfoRequest> for InfoService {
+impl Service<InfoRequest> for Info {
     type Error = BoxError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
     type Response = InfoResponse;
@@ -70,7 +69,7 @@ async fn handle_info_request(
 ) -> Result<InfoResponse, BoxError> {
     match &request {
         InfoRequest::Info(_) => {
-            let response = InfoResponse::Info(Info {
+            let response = InfoResponse::Info(response::Info {
                 version: "0.1.0".to_string(),
                 app_version: 1,
                 last_block_height: Default::default(),

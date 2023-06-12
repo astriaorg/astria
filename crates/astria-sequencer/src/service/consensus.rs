@@ -16,13 +16,13 @@ use crate::{
     genesis::GenesisState,
 };
 
-pub(crate) struct ConsensusService {
+pub(crate) struct Consensus {
     queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,
     storage: Storage,
     app: App,
 }
 
-impl ConsensusService {
+impl Consensus {
     pub(crate) fn new(
         storage: Storage,
         app: App,

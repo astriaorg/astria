@@ -20,34 +20,34 @@ use tracing::{
 };
 
 #[derive(Clone, Default)]
-pub(crate) struct SnapshotService {}
+pub(crate) struct Snapshot {}
 
-impl SnapshotService {
+impl Snapshot {
     pub(crate) fn new() -> Self {
         Self {}
     }
 }
 
-impl Service<SnapshotRequest> for SnapshotService {
+impl Service<SnapshotRequest> for Snapshot {
     type Error = BoxError;
-    type Future = Instrumented<SnapshotServiceFuture>;
+    type Future = Instrumented<SnapshotFuture>;
     type Response = SnapshotResponse;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
-    #[instrument(name = "SnapshotService::call", skip(self))]
+    #[instrument(name = "Snapshot::call", skip(self))]
     fn call(&mut self, req: SnapshotRequest) -> Self::Future {
-        SnapshotServiceFuture::new(req).in_current_span()
+        SnapshotFuture::new(req).in_current_span()
     }
 }
 
-pub(crate) struct SnapshotServiceFuture {
+pub(crate) struct SnapshotFuture {
     request: SnapshotRequest,
 }
 
-impl SnapshotServiceFuture {
+impl SnapshotFuture {
     fn new(request: SnapshotRequest) -> Self {
         Self {
             request,
@@ -55,7 +55,7 @@ impl SnapshotServiceFuture {
     }
 }
 
-impl Future for SnapshotServiceFuture {
+impl Future for SnapshotFuture {
     type Output = Result<SnapshotResponse, BoxError>;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {

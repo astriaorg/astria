@@ -8,10 +8,7 @@ use tracing::info;
 
 use crate::{
     app::App,
-    consensus::ConsensusService,
-    info::InfoService,
-    mempool::MempoolService,
-    snapshot::SnapshotService,
+    service,
 };
 
 pub struct Sequencer;
@@ -27,12 +24,12 @@ impl Sequencer {
         let consensus_service =
             tower::ServiceBuilder::new().service(tower_actor::Actor::new(10, |queue: _| {
                 let storage = storage.clone();
-                async move { ConsensusService::new(storage, app, queue).run().await }
+                async move { service::Consensus::new(storage, app, queue).run().await }
             }));
 
-        let info_service = InfoService::new(storage.clone());
-        let mempool_service = MempoolService;
-        let snapshot_service = SnapshotService::new();
+        let info_service = service::Info::new(storage.clone());
+        let mempool_service = service::Mempool;
+        let snapshot_service = service::Snapshot::new();
         let server = Server::builder()
             .consensus(consensus_service)
             .info(info_service)
