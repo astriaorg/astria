@@ -406,6 +406,7 @@ dependencies = [
  "penumbra-storage",
  "serde",
  "serde_json",
+ "sha2 0.10.6",
  "tendermint 0.31.1",
  "tendermint-proto 0.31.1",
  "tokio",
