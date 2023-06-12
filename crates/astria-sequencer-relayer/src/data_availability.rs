@@ -146,8 +146,8 @@ impl NamespaceData for SequencerNamespaceData {}
 /// RollupNamespaceData represents the data written to a rollup namespace.
 #[derive(Serialize, Deserialize, Debug)]
 struct RollupNamespaceData {
-    pub block_hash: Base64String,
-    pub rollup_txs: Vec<IndexedTransaction>,
+    pub(crate) block_hash: Base64String,
+    pub(crate) rollup_txs: Vec<IndexedTransaction>,
 }
 
 impl NamespaceData for RollupNamespaceData {}
