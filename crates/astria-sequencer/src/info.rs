@@ -37,12 +37,12 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub struct InfoService {
+pub(crate) struct InfoService {
     storage: Storage,
 }
 
 impl InfoService {
-    pub fn new(storage: Storage) -> Self {
+    pub(crate) fn new(storage: Storage) -> Self {
         Self {
             storage,
         }
@@ -126,7 +126,7 @@ async fn handle_query(
 }
 
 #[non_exhaustive]
-pub enum Query {
+pub(crate) enum Query {
     AccountsQuery(crate::accounts::query::QueryRequest),
 }
 

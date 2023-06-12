@@ -16,14 +16,14 @@ use crate::app::{
     GenesisState,
 };
 
-pub struct ConsensusService {
+pub(crate) struct ConsensusService {
     queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,
     storage: Storage,
     app: App,
 }
 
 impl ConsensusService {
-    pub fn new(
+    pub(crate) fn new(
         storage: Storage,
         app: App,
         queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,
@@ -35,7 +35,7 @@ impl ConsensusService {
         }
     }
 
-    pub async fn run(mut self) -> Result<(), tower::BoxError> {
+    pub(crate) async fn run(mut self) -> Result<(), tower::BoxError> {
         while let Some(Message {
             req,
             rsp_sender,

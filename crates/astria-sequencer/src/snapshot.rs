@@ -20,10 +20,10 @@ use tracing::{
 };
 
 #[derive(Clone, Default)]
-pub struct SnapshotService {}
+pub(crate) struct SnapshotService {}
 
 impl SnapshotService {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {}
     }
 }
@@ -43,7 +43,7 @@ impl Service<SnapshotRequest> for SnapshotService {
     }
 }
 
-pub struct SnapshotServiceFuture {
+pub(crate) struct SnapshotServiceFuture {
     request: SnapshotRequest,
 }
 

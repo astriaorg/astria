@@ -12,7 +12,7 @@ use tendermint::Time;
 use tracing::instrument;
 
 #[async_trait]
-pub trait StateReadExt: StateRead {
+pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
     async fn get_block_height(&self) -> Result<u64> {
         let Some(bytes) = self.get_raw("block_height").await.context("failed to read raw block_height from state")? else {
@@ -38,7 +38,7 @@ pub trait StateReadExt: StateRead {
 impl<T: StateRead> StateReadExt for T {}
 
 #[async_trait]
-pub trait StateWriteExt: StateWrite {
+pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
     fn put_block_height(&mut self, height: u64) {
         self.put_raw("block_height".into(), height.to_be_bytes().to_vec())

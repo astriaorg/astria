@@ -9,7 +9,7 @@ use serde::{
 
 /// Address represents an account address.
 #[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub struct Address(String);
+pub(crate) struct Address(String);
 
 impl From<&str> for Address {
     fn from(s: &str) -> Self {
@@ -18,12 +18,12 @@ impl From<&str> for Address {
 }
 
 impl Address {
-    pub fn to_str(&self) -> &str {
+    pub(crate) fn to_str(&self) -> &str {
         &self.0
     }
 }
 
-// Balance represents an account balance.
+/// Balance represents an account balance.
 #[derive(
     Clone,
     Copy,
@@ -37,7 +37,7 @@ impl Address {
     Ord,
     Debug,
 )]
-pub struct Balance(u128);
+pub(crate) struct Balance(u128);
 
 impl From<u128> for Balance {
     fn from(n: u128) -> Self {
@@ -91,7 +91,7 @@ impl std::ops::Sub<u128> for Balance {
     Ord,
     Debug,
 )]
-pub struct Nonce(u32);
+pub(crate) struct Nonce(u32);
 
 impl From<u32> for Nonce {
     fn from(n: u32) -> Self {

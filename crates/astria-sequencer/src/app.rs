@@ -37,15 +37,15 @@ use crate::{
 
 /// The application hash, used to verify the application state.
 /// TODO: this may not be the same as the state root hash?
-pub type AppHash = penumbra_storage::RootHash;
+pub(crate) type AppHash = penumbra_storage::RootHash;
 
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
 
 /// The genesis state for the application.
 #[derive(Debug, serde::Deserialize, Default)]
-pub struct GenesisState {
-    pub accounts: Vec<(Address, Balance)>,
+pub(crate) struct GenesisState {
+    pub(crate) accounts: Vec<(Address, Balance)>,
 }
 
 /// The Sequencer application, written as a bundle of [`Component`]s.
@@ -55,7 +55,7 @@ pub struct GenesisState {
 ///
 /// See also https://github.com/penumbra-zone/penumbra/blob/9cc2c644e05c61d21fdc7b507b96016ba6b9a935/app/src/app/mod.rs#L42.
 #[derive(Clone, Debug)]
-pub struct App {
+pub(crate) struct App {
     state: InterBlockState,
 }
 

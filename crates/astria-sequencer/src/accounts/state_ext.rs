@@ -34,7 +34,7 @@ pub(crate) fn nonce_storage_key(address: &str) -> String {
 }
 
 #[async_trait]
-pub trait StateReadExt: StateRead {
+pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
     async fn get_account_balance(&self, address: &Address) -> Result<Balance> {
         let bytes = self
@@ -69,7 +69,7 @@ pub trait StateReadExt: StateRead {
 impl<T: StateRead> StateReadExt for T {}
 
 #[async_trait]
-pub trait StateWriteExt: StateWrite {
+pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
     fn put_account_balance(&mut self, address: &Address, balance: Balance) -> Result<()> {
         let bytes = balance

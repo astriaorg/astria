@@ -8,7 +8,7 @@ use tendermint::abci;
 /// A component of the Sequencer application.
 /// Based off Penumbra's [`Component`], but with modifications.
 #[async_trait]
-pub trait Component {
+pub(crate) trait Component {
     /// A serialized representation of the component's application state,
     /// passed in to [`Component::init_chain`].
     type AppState;

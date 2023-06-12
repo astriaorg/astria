@@ -1,11 +1,13 @@
-pub mod accounts;
-pub mod app;
-pub mod component;
-pub mod consensus;
-pub mod info;
-pub mod mempool;
-pub mod sequencer;
-pub mod snapshot;
-pub mod state_ext;
+pub(crate) mod accounts;
+pub(crate) mod app;
+pub(crate) mod component;
+pub(crate) mod consensus;
+pub(crate) mod info;
+pub(crate) mod mempool;
+mod sequencer;
+pub(crate) mod snapshot;
+pub(crate) mod state_ext;
 pub mod telemetry;
-pub mod transaction;
+pub(crate) mod transaction;
+
+pub use sequencer::Sequencer;

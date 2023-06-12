@@ -1,6 +1,6 @@
 use astria_sequencer::{
-    sequencer::Sequencer,
     telemetry,
+    Sequencer,
 };
 
 /// The default address to listen on; this corresponds to the default ABCI

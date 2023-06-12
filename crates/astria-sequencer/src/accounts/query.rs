@@ -19,13 +19,13 @@ use crate::accounts::{
 };
 
 #[derive(Debug)]
-pub enum QueryRequest {
+pub(crate) enum QueryRequest {
     BalanceQuery(Address),
     NonceQuery(Address),
 }
 
 impl QueryRequest {
-    pub fn decode(mut path: VecDeque<&str>) -> Result<QueryRequest> {
+    pub(crate) fn decode(mut path: VecDeque<&str>) -> Result<QueryRequest> {
         let query_type = path.pop_front().ok_or(anyhow!("missing query type"))?;
         let address = path.pop_front().ok_or(anyhow!("missing address"))?;
 
@@ -37,13 +37,13 @@ impl QueryRequest {
     }
 }
 
-pub enum QueryResponse {
+pub(crate) enum QueryResponse {
     BalanceResponse(Balance),
     NonceResponse(Nonce),
 }
 
 impl QueryResponse {
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub(crate) fn to_bytes(&self) -> Result<Vec<u8>> {
         match self {
             QueryResponse::BalanceResponse(balance) => Ok(balance
                 .try_to_vec()
@@ -56,15 +56,15 @@ impl QueryResponse {
 }
 
 #[derive(Default)]
-pub struct QueryHandler {}
+pub(crate) struct QueryHandler {}
 
 impl QueryHandler {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {}
     }
 
     #[instrument(skip(self, state))]
-    pub async fn handle<S: StateReadExt>(
+    pub(crate) async fn handle<S: StateReadExt>(
         &self,
         state: S,
         query: QueryRequest,

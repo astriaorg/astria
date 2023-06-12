@@ -20,7 +20,7 @@ use crate::accounts::{
 };
 
 #[async_trait]
-pub trait ActionHandler {
+pub(crate) trait ActionHandler {
     fn check_stateless(&self) -> Result<()>;
     async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()>;
     async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()>;
@@ -30,12 +30,12 @@ pub trait ActionHandler {
 /// If a new transaction type is added, it should be added to this enum.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
-pub enum Transaction {
+pub(crate) enum Transaction {
     AccountsTransaction(AccountsTransaction),
 }
 
 impl Transaction {
-    pub fn new_accounts_transaction(
+    pub(crate) fn new_accounts_transaction(
         to: Address,
         from: Address,
         amount: Balance,
@@ -44,12 +44,12 @@ impl Transaction {
         Self::AccountsTransaction(AccountsTransaction::new(to, from, amount, nonce))
     }
 
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub(crate) fn to_bytes(&self) -> Result<Vec<u8>> {
         let bytes = serde_json::to_vec(self)?;
         Ok(bytes)
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+    pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let tx = serde_json::from_slice(bytes)?;
         Ok(tx)
     }

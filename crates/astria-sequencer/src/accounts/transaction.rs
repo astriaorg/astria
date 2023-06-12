@@ -24,7 +24,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub struct Transaction {
+pub(crate) struct Transaction {
     to: Address,
     from: Address,
     amount: Balance,
@@ -32,7 +32,7 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub fn new(to: Address, from: Address, amount: Balance, nonce: Nonce) -> Self {
+    pub(crate) fn new(to: Address, from: Address, amount: Balance, nonce: Nonce) -> Self {
         Self {
             to,
             from,
