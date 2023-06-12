@@ -17,14 +17,9 @@ use tracing::{
 };
 
 use crate::{
-    accounts::{
-        component::AccountsComponent,
-        types::{
-            Address,
-            Balance,
-        },
-    },
+    accounts::component::AccountsComponent,
     component::Component,
+    genesis::GenesisState,
     state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -41,18 +36,6 @@ pub(crate) type AppHash = penumbra_storage::RootHash;
 
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
-
-/// The genesis state for the application.
-#[derive(Debug, serde::Deserialize, Default)]
-pub(crate) struct GenesisState {
-    pub(crate) accounts: Vec<Account>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub(crate) struct Account {
-    pub(crate) address: Address,
-    pub(crate) balance: Balance,
-}
 
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
@@ -222,9 +205,16 @@ mod test {
     };
 
     use super::*;
-    use crate::accounts::{
-        self,
-        state_ext::StateReadExt as _,
+    use crate::{
+        accounts::{
+            self,
+            state_ext::StateReadExt as _,
+            types::{
+                Address,
+                Balance,
+            },
+        },
+        genesis::Account,
     };
 
     fn default_genesis_accounts() -> Vec<Account> {

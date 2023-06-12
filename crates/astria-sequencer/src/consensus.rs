@@ -11,9 +11,9 @@ use tower_abci::BoxError;
 use tower_actor::Message;
 use tracing::instrument;
 
-use crate::app::{
-    App,
-    GenesisState,
+use crate::{
+    app::App,
+    genesis::GenesisState,
 };
 
 pub(crate) struct ConsensusService {

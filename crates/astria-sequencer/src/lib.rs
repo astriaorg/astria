@@ -2,6 +2,7 @@ pub(crate) mod accounts;
 pub(crate) mod app;
 pub(crate) mod component;
 pub(crate) mod consensus;
+pub(crate) mod genesis;
 pub(crate) mod info;
 pub(crate) mod mempool;
 mod sequencer;
