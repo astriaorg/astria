@@ -4,7 +4,7 @@ use std::{
 };
 
 use astria_sequencer_relayer::{
-    da::{
+    data_availability::{
         CelestiaClient,
         CelestiaClientBuilder,
         SequencerNamespaceData,

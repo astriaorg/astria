@@ -6,7 +6,7 @@ use std::{
 use astria_sequencer_relayer::{
     api,
     config,
-    da::CelestiaClientBuilder,
+    data_availability::CelestiaClientBuilder,
     network::GossipNetwork,
     relayer::{
         Relayer,
