@@ -5,6 +5,8 @@ use std::{
 
 use astria_proto::sequencer::v1::{
     IndexedTransaction as RawIndexedTransaction,
+    NamespacedIndexedTransactions,
+    SequencerBlock as RawSequencerBlock,
     SequencerMsg,
     TxBody,
     TxRaw,
@@ -43,6 +45,10 @@ use tendermint::{
     },
     Hash,
 };
+use tendermint_proto::{
+    types::Header as RawHeader,
+    Protobuf,
+};
 use tracing::debug;
 
 use crate::transaction::txs_to_data_hash;
@@ -66,6 +72,10 @@ impl Namespace {
         let mut namespace = [0u8; 8];
         namespace.copy_from_slice(&bytes);
         Ok(Namespace(namespace))
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
+        unimplemented!()
     }
 }
 
@@ -176,14 +186,67 @@ pub struct SequencerBlock {
 }
 
 impl SequencerBlock {
+    pub fn from_proto(proto: RawSequencerBlock) -> eyre::Result<Self> {
+        Ok(Self {
+            block_hash: Hash::from_bytes(tendermint::hash::Algorithm::Sha256, &proto.block_hash)?,
+            header: Header::try_from(proto.header.clone().unwrap())?, // TODO: static errors
+            sequencer_txs: proto
+                .sequencer_transactions
+                .into_iter()
+                .map(IndexedTransaction::from_proto)
+                .collect::<eyre::Result<Vec<_>>>()?,
+            rollup_txs: proto
+                .rollup_transactions
+                .into_iter()
+                .map(
+                    |NamespacedIndexedTransactions {
+                         namespace,
+                         txs,
+                     }|
+                     -> eyre::Result<(Namespace, Vec<IndexedTransaction>)> {
+                        Ok((
+                            Namespace::from_bytes(&namespace)?,
+                            txs.into_iter()
+                                .map(IndexedTransaction::from_proto)
+                                .collect::<Result<Vec<IndexedTransaction>, _>>()?,
+                        ))
+                    },
+                )
+                .collect::<Result<HashMap<Namespace, Vec<IndexedTransaction>>, _>>()?,
+        })
+    }
+
+    pub fn to_proto(&self) -> eyre::Result<RawSequencerBlock> {
+        Ok(RawSequencerBlock {
+            block_hash: self.block_hash.encode_vec()?,
+            header: Some(RawHeader::from(self.header.clone())),
+            sequencer_transactions: self
+                .sequencer_txs
+                .iter()
+                .map(IndexedTransaction::to_proto)
+                .collect::<Result<Vec<RawIndexedTransaction>, _>>()?,
+            rollup_transactions: self
+                .rollup_txs
+                .iter()
+                .map(|(ns, txs)| -> eyre::Result<NamespacedIndexedTransactions> {
+                    Ok(NamespacedIndexedTransactions {
+                        namespace: ns.0.to_vec(),
+                        txs: txs
+                            .iter()
+                            .map(IndexedTransaction::to_proto)
+                            .collect::<Result<Vec<RawIndexedTransaction>, _>>()?,
+                    })
+                })
+                .collect::<Result<Vec<NamespacedIndexedTransactions>, _>>()?,
+        })
+    }
+
     pub fn to_bytes(&self) -> eyre::Result<Vec<u8>> {
-        // TODO: don't use json, use our own serializer (or protobuf for now?)
-        serde_json::to_vec(self).wrap_err("failed serializing signed namespace data to json")
+        Ok(RawSequencerBlock::encode_to_vec(&self.to_proto()?))
     }
 
     pub fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
-        serde_json::from_slice(bytes)
-            .wrap_err("failed deserializing signed namespace data from bytes")
+        Self::from_proto(RawSequencerBlock::decode(bytes)?)
     }
 
     /// from_cosmos_block converts a cosmos-sdk block into a SequencerBlock.

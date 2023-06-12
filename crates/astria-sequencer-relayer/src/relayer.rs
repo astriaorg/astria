@@ -140,10 +140,9 @@ impl Relayer {
             .replace(block.header.height);
 
         if block.header.proposer_address != self.validator_address {
-            // TODO: get rid of validator_address_bytes
             let proposer_address = bech32::encode(
                 "metrovalcons",
-                Base64String::from_bytes(&block.header.proposer_address.as_bytes()) // TODO: get rid of validator_address_bytes
+                Base64String::from_bytes(&block.header.proposer_address.as_bytes())
                     .0
                     .to_base32(),
                 Variant::Bech32,

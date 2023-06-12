@@ -41,7 +41,10 @@ use tendermint::{
     block::Header,
     Hash,
 };
-use tendermint_proto::Protobuf;
+use tendermint_proto::{
+    types::Header as RawHeader,
+    Protobuf,
+};
 use tracing::{
     debug,
     warn,
@@ -73,7 +76,7 @@ pub trait NamespaceData
 where
     Self: Sized + Serialize + DeserializeOwned,
 {
-    // TODO: shouldnt this be impl Hash for NamespaceData? (the version of this that actually works)
+    // TODO: shouldnt this be impl Hash for NamespaceData?
     fn hash(&self) -> Vec<u8> {
         let mut hasher = Sha256::new();
         hasher.update(self.to_bytes());
@@ -190,7 +193,7 @@ impl SequencerNamespaceData {
     fn to_proto(&self) -> eyre::Result<RawSequencerNamespaceData> {
         Ok(RawSequencerNamespaceData {
             block_hash: self.block_hash.encode_vec()?,
-            header: Some(tendermint_proto::types::Header::from(self.header.clone())),
+            header: Some(RawHeader::from(self.header.clone())),
             sequencer_txs: self
                 .sequencer_txs
                 .iter()
@@ -479,12 +482,7 @@ impl CelestiaClient {
         // for each rollup namespace, retrieve the corresponding rollup data
         'namespaces: for (height, rollup_namespace) in &data.rollup_namespaces {
             let rollup_txs = self
-                .get_rollup_data_for_block(
-                    &data.block_hash, // TODO: change to Hash
-                    rollup_namespace,
-                    *height,
-                    public_key,
-                )
+                .get_rollup_data_for_block(&data.block_hash, rollup_namespace, *height, public_key)
                 .await
                 .wrap_err_with(|| {
                     format!(
