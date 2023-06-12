@@ -25,10 +25,10 @@ use crate::{
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub(crate) struct Transaction {
-    to: Address,
-    from: Address,
-    amount: Balance,
-    nonce: Nonce,
+    pub(crate) to: Address,
+    pub(crate) from: Address,
+    pub(crate) amount: Balance,
+    pub(crate) nonce: Nonce,
 }
 
 #[async_trait]

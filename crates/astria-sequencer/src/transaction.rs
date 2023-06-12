@@ -28,6 +28,11 @@ pub(crate) enum Transaction {
 }
 
 impl Transaction {
+    pub(crate) fn to_bytes(&self) -> Result<Vec<u8>> {
+        let bytes = serde_json::to_vec(self)?;
+        Ok(bytes)
+    }
+
     pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let tx = serde_json::from_slice(bytes)?;
         Ok(tx)

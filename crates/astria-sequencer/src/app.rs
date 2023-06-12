@@ -205,26 +205,6 @@ impl App {
     }
 }
 
-<<<<<<< HEAD
-fn default_genesis_accounts() -> Vec<(Address, Balance)> {
-    vec![
-        (Address::from("alice"), Balance::from(10e18 as u128)),
-        (Address::from("bob"), Balance::from(10e18 as u128)),
-        (Address::from("carol"), Balance::from(10e18 as u128)),
-    ]
-}
-
-||||||| parent of 31cb1a1 (more expressive naming in genesis state)
-fn default_genesis_accounts() -> Vec<(String, u128)> {
-    vec![
-        ("alice".into(), 10e18 as u128),
-        ("bob".into(), 10e18 as u128),
-        ("carol".into(), 10e18 as u128),
-    ]
-}
-
-=======
->>>>>>> 31cb1a1 (more expressive naming in genesis state)
 #[cfg(test)]
 mod test {
     use tendermint::{
@@ -243,23 +223,23 @@ mod test {
 
     use super::*;
     use crate::accounts::{
+        self,
         state_ext::StateReadExt as _,
-        types::Nonce,
     };
 
     fn default_genesis_accounts() -> Vec<Account> {
         vec![
             Account {
                 address: "alice".into(),
-                balance: 10e18 as u128,
+                balance: 10u128.pow(19).into(),
             },
             Account {
                 address: "bob".into(),
-                balance: 10e18 as u128,
+                balance: 10u128.pow(19).into(),
             },
             Account {
                 address: "carol".into(),
-                balance: 10e18 as u128,
+                balance: 10u128.pow(19).into(),
             },
         ]
     }
@@ -354,47 +334,26 @@ mod test {
         app.init_chain(genesis_state).await.unwrap();
 
         // transfer funds from Alice to Bob
-<<<<<<< HEAD
         let alice = Address::from("alice");
         let bob = Address::from("bob");
-        let value = Balance::from(333333);
-        let tx = Transaction::new_accounts_transaction(
-            bob.clone(),
-            alice.clone(),
-            value,
-            Nonce::from(1),
-        );
-||||||| parent of 31cb1a1 (more expressive naming in genesis state)
-        let alice = "alice";
-        let bob = "bob";
-        let value = 333333;
+        let amount = Balance::from(333333);
+        let nonce = 1.into();
         let tx = Transaction::AccountsTransaction(accounts::transaction::Transaction {
-            to: alice.into(),
-            from: bob.into(),
-            amount: value,
-            nonce: 1,
+            from: alice.clone(),
+            to: bob.clone(),
+            amount,
+            nonce,
         });
-=======
-        let alice = "alice";
-        let bob = "bob";
-        let value = 333333;
-        let tx = Transaction::AccountsTransaction(accounts::transaction::Transaction {
-            from: alice.into(),
-            to: bob.into(),
-            amount: value,
-            nonce: 1,
-        });
->>>>>>> 31cb1a1 (more expressive naming in genesis state)
         let bytes = tx.to_bytes().unwrap();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(
             app.state.get_account_balance(&bob).await.unwrap(),
-            value + 10e18 as u128
+            amount + 10u128.pow(19)
         );
         assert_eq!(
             app.state.get_account_balance(&alice).await.unwrap(),
-            Balance::from(10e18 as u128) - value
+            Balance::from(10u128.pow(19)) - amount
         );
         assert_eq!(app.state.get_account_nonce(&bob).await.unwrap(), 0);
         assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);
