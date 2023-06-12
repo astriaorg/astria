@@ -149,6 +149,10 @@ impl IndexedTransaction {
             transaction: proto.transaction.clone(),
         })
     }
+
+    pub fn to_proto(&self) -> eyre::Result<RawIndexedTransaction> {
+        unimplemented!()
+    }
 }
 
 /// SequencerBlock represents a sequencer layer block to be submitted to

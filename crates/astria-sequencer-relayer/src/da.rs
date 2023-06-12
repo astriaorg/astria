@@ -1,7 +1,12 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    vec,
+};
 
 use astria_proto::sequencer::v1::{
-    RollupNamespaceData as RollupNamespaceDataProto,
+    IndexedTransaction as RawIndexedTransaction,
+    RollupNamespace,
+    RollupNamespaceData as RawRollupNamespaceData,
     SequencerNamespaceData as RawSequencerNamespaceData,
     SignedNamespaceData as RawSignedNamespaceData,
 };
@@ -10,6 +15,7 @@ use astria_rs_cnc::{
     NamespacedSharesResponse,
     PayForDataResponse,
 };
+use axum::response::Result;
 use ed25519_dalek::{
     ed25519::signature::Signature,
     Keypair,
@@ -35,6 +41,7 @@ use tendermint::{
     block::Header,
     Hash,
 };
+use tendermint_proto::Protobuf;
 use tracing::{
     debug,
     warn,
@@ -104,12 +111,20 @@ impl<D: NamespaceData> SignedNamespaceData<D> {
         }
     }
 
-    fn from_proto(proto: &RawSignedNamespaceData) -> eyre::Result<Self> {
-        unimplemented!()
+    fn from_proto(proto: RawSignedNamespaceData) -> eyre::Result<Self> {
+        Ok(Self {
+            data: D::from_bytes(&proto.data)?,
+            public_key: Base64String::from_bytes(&proto.public_key),
+            signature: Base64String::from_bytes(&proto.signature),
+        })
     }
 
-    fn to_proto(&self) -> RawSignedNamespaceData {
-        unimplemented!()
+    fn to_proto(&self) -> eyre::Result<RawSignedNamespaceData> {
+        Ok(RawSignedNamespaceData {
+            data: self.data.to_bytes(),
+            public_key: self.public_key.0.clone(),
+            signature: self.signature.0.clone(),
+        })
     }
 
     pub fn verify(&self) -> eyre::Result<()> {
@@ -127,7 +142,7 @@ impl<D: NamespaceData> SignedNamespaceData<D> {
 
 impl<D: NamespaceData> NamespaceData for SignedNamespaceData<D> {
     fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
-        Self::from_proto(&RawSignedNamespaceData::decode(bytes)?)
+        Self::from_proto(RawSignedNamespaceData::decode(bytes)?)
     }
 
     fn to_bytes(&self) -> Vec<u8> {
@@ -148,7 +163,7 @@ pub struct SequencerNamespaceData {
 }
 
 impl SequencerNamespaceData {
-    fn from_proto(proto: &RawSequencerNamespaceData) -> eyre::Result<Self> {
+    fn from_proto(proto: RawSequencerNamespaceData) -> eyre::Result<Self> {
         let rollup_namespaces: Vec<(u64, String)> = proto
             .rollup_namespaces
             .iter()
@@ -161,7 +176,7 @@ impl SequencerNamespaceData {
             .collect();
 
         Ok(Self {
-            block_hash: Hash::try_from(proto.block_hash.clone())?,
+            block_hash: Hash::from_bytes(tendermint::hash::Algorithm::Sha256, &proto.block_hash)?,
             header: Header::try_from(proto.header.clone().unwrap())?, // TODO: static errors
             sequencer_txs: proto
                 .sequencer_txs
@@ -172,18 +187,34 @@ impl SequencerNamespaceData {
         })
     }
 
-    fn to_proto(&self) -> RawSequencerNamespaceData {
-        unimplemented!()
+    fn to_proto(&self) -> eyre::Result<RawSequencerNamespaceData> {
+        Ok(RawSequencerNamespaceData {
+            block_hash: self.block_hash.encode_vec()?,
+            header: Some(tendermint_proto::types::Header::from(self.header.clone())),
+            sequencer_txs: self
+                .sequencer_txs
+                .iter()
+                .map(IndexedTransaction::to_proto)
+                .collect::<Result<Vec<RawIndexedTransaction>, _>>()?,
+            rollup_namespaces: self
+                .rollup_namespaces
+                .iter()
+                .map(|(block_height, namespace)| RollupNamespace {
+                    block_height: *block_height,
+                    namespace: namespace.clone().into_bytes(),
+                })
+                .collect(),
+        })
     }
 }
 
 impl NamespaceData for SequencerNamespaceData {
     fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
-        Self::from_proto(&RawSequencerNamespaceData::decode(bytes)?)
+        Self::from_proto(RawSequencerNamespaceData::decode(bytes)?)
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        RawSequencerNamespaceData::encode_to_vec(&self.to_proto())
+        RawSequencerNamespaceData::encode_to_vec(&self.to_proto().unwrap()) // TODO: this shouldn't be able to panic
     }
 }
 
@@ -195,9 +226,9 @@ struct RollupNamespaceData {
 }
 
 impl RollupNamespaceData {
-    fn from_proto(proto: &RollupNamespaceDataProto) -> eyre::Result<Self> {
+    fn from_proto(proto: RawRollupNamespaceData) -> eyre::Result<Self> {
         Ok(Self {
-            block_hash: Hash::try_from(proto.block_hash.clone())?,
+            block_hash: Hash::from_bytes(tendermint::hash::Algorithm::Sha256, &proto.block_hash)?,
             rollup_txs: proto
                 .rollup_txs
                 .iter()
@@ -206,18 +237,25 @@ impl RollupNamespaceData {
         })
     }
 
-    fn to_proto(&self) -> RollupNamespaceDataProto {
-        unimplemented!()
+    fn to_proto(&self) -> eyre::Result<RawRollupNamespaceData> {
+        Ok(RawRollupNamespaceData {
+            block_hash: self.block_hash.encode_vec()?,
+            rollup_txs: self
+                .rollup_txs
+                .iter()
+                .map(IndexedTransaction::to_proto)
+                .collect::<Result<Vec<RawIndexedTransaction>, _>>()?,
+        })
     }
 }
 
 impl NamespaceData for RollupNamespaceData {
     fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
-        Self::from_proto(&RollupNamespaceDataProto::decode(bytes)?)
+        Self::from_proto(RawRollupNamespaceData::decode(bytes)?)
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        RollupNamespaceDataProto::encode_to_vec(&self.to_proto())
+        RawRollupNamespaceData::encode_to_vec(&self.to_proto().unwrap()) // TODO: this shouldn't be able to panic
     }
 }
 
