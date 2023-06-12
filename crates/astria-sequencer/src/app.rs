@@ -234,10 +234,10 @@ mod test {
         ]
     }
 
-    fn default_header() -> Result<Header> {
-        Ok(Header {
-            app_hash: AppHash::try_from(vec![])?,
-            chain_id: "test".to_string().try_into()?,
+    fn default_header() -> Header {
+        Header {
+            app_hash: AppHash::try_from(vec![]).unwrap(),
+            chain_id: "test".to_string().try_into().unwrap(),
             consensus_hash: Hash::default(),
             data_hash: Some(Hash::default()),
             evidence_hash: Some(Hash::default()),
@@ -246,14 +246,14 @@ mod test {
             last_commit_hash: Some(Hash::default()),
             last_results_hash: Some(Hash::default()),
             next_validators_hash: Hash::default(),
-            proposer_address: account::Id::try_from([0u8; 20].to_vec())?,
+            proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
             time: Time::now(),
             validators_hash: Hash::default(),
             version: Version {
                 app: 0,
                 block: 0,
             },
-        })
+        }
     }
 
     #[tokio::test]
@@ -293,7 +293,7 @@ mod test {
         app.init_chain(genesis_state).await.unwrap();
 
         let mut begin_block = abci::request::BeginBlock {
-            header: default_header().unwrap(),
+            header: default_header(),
             hash: Hash::default(),
             last_commit_info: CommitInfo {
                 votes: vec![],
