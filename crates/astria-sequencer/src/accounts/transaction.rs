@@ -31,17 +31,6 @@ pub(crate) struct Transaction {
     nonce: Nonce,
 }
 
-impl Transaction {
-    pub(crate) fn new(to: Address, from: Address, amount: Balance, nonce: Nonce) -> Self {
-        Self {
-            to,
-            from,
-            amount,
-            nonce,
-        }
-    }
-}
-
 #[async_trait]
 impl ActionHandler for Transaction {
     fn check_stateless(&self) -> Result<()> {

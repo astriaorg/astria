@@ -10,14 +10,7 @@ use serde::{
 };
 use tracing::instrument;
 
-use crate::accounts::{
-    transaction::Transaction as AccountsTransaction,
-    types::{
-        Address,
-        Balance,
-        Nonce,
-    },
-};
+use crate::accounts::transaction::Transaction as AccountsTransaction;
 
 #[async_trait]
 pub(crate) trait ActionHandler {
@@ -35,20 +28,6 @@ pub(crate) enum Transaction {
 }
 
 impl Transaction {
-    pub(crate) fn new_accounts_transaction(
-        to: Address,
-        from: Address,
-        amount: Balance,
-        nonce: Nonce,
-    ) -> Self {
-        Self::AccountsTransaction(AccountsTransaction::new(to, from, amount, nonce))
-    }
-
-    pub(crate) fn to_bytes(&self) -> Result<Vec<u8>> {
-        let bytes = serde_json::to_vec(self)?;
-        Ok(bytes)
-    }
-
     pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let tx = serde_json::from_slice(bytes)?;
         Ok(tx)
@@ -76,26 +55,5 @@ impl ActionHandler for Transaction {
         match self {
             Self::AccountsTransaction(tx) => tx.execute(state).await,
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use hex;
-
-    use super::*;
-
-    #[test]
-    fn test_transaction() {
-        let tx = Transaction::new_accounts_transaction(
-            Address::from("bob"),
-            Address::from("alice"),
-            Balance::from(333333),
-            Nonce::from(1),
-        );
-        let bytes = tx.to_bytes().unwrap();
-        let tx2 = Transaction::from_bytes(&bytes).unwrap();
-        assert_eq!(tx, tx2);
-        println!("0x{}", hex::encode(bytes));
     }
 }
