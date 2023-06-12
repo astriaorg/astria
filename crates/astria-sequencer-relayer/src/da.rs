@@ -180,8 +180,8 @@ impl SequencerNamespaceData {
             header: Header::try_from(proto.header.clone().unwrap())?, // TODO: static errors
             sequencer_txs: proto
                 .sequencer_txs
-                .iter()
-                .map(|itx| IndexedTransaction::from_proto(itx))
+                .into_iter()
+                .map(IndexedTransaction::from_proto)
                 .collect::<eyre::Result<Vec<_>>>()?,
             rollup_namespaces,
         })
@@ -231,8 +231,8 @@ impl RollupNamespaceData {
             block_hash: Hash::from_bytes(tendermint::hash::Algorithm::Sha256, &proto.block_hash)?,
             rollup_txs: proto
                 .rollup_txs
-                .iter()
-                .map(|itx| IndexedTransaction::from_proto(itx))
+                .into_iter()
+                .map(IndexedTransaction::from_proto)
                 .collect::<eyre::Result<Vec<_>>>()?,
         })
     }

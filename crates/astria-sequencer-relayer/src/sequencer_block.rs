@@ -143,7 +143,7 @@ pub struct IndexedTransaction {
 }
 
 impl IndexedTransaction {
-    pub fn from_proto(proto: &RawIndexedTransaction) -> eyre::Result<Self> {
+    pub fn from_proto(proto: RawIndexedTransaction) -> eyre::Result<Self> {
         Ok(Self {
             block_index: proto.block_index.try_into()?,
             transaction: proto.transaction.clone(),
@@ -151,7 +151,10 @@ impl IndexedTransaction {
     }
 
     pub fn to_proto(&self) -> eyre::Result<RawIndexedTransaction> {
-        unimplemented!()
+        Ok(RawIndexedTransaction {
+            block_index: self.block_index as u64,
+            transaction: self.transaction.clone(),
+        })
     }
 }
 
@@ -192,10 +195,7 @@ impl SequencerBlock {
         let mut rollup_txs = HashMap::new();
 
         for (index, tx) in b.data.into_iter().enumerate() {
-            debug!(
-                "parsing tx: {:?}",
-                general_purpose::STANDARD.encode(tx.clone())
-            );
+            debug!("parsing tx: {:?}", general_purpose::STANDARD.encode(&tx));
 
             let tx_body = parse_cosmos_tx(&tx)?;
             let msgs = cosmos_tx_body_to_sequencer_msgs(tx_body)?;
