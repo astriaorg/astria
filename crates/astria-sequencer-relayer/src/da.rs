@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    vec,
-};
+use std::collections::HashMap;
 
 use astria_proto::sequencer::v1::{
     IndexedTransaction as RawIndexedTransaction,
@@ -149,19 +146,25 @@ impl<D: NamespaceData> NamespaceData for SignedNamespaceData<D> {
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        unimplemented!()
+        RawSignedNamespaceData::encode_to_vec(&self.to_proto().unwrap()) // TODO: this shouldn't be able to panic
     }
 }
 
 /// SequencerNamespaceData represents the data written to the "base"
 /// sequencer namespace. It contains all the other namespaces that were
 /// also written to in the same block.
+/// block_hash refers to the sequencer block that these transactions were posted to. It is used
+/// to verify a Merkle inclusion proof.
+/// header is the sequencer chain's header for the block in which these were included
+/// rollup_namespaces map from the DA layer block which the rollup namespace data was writted to to
+/// the rollup's namespace string
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SequencerNamespaceData {
     pub block_hash: Hash,
     pub header: Header,
     pub sequencer_txs: Vec<IndexedTransaction>,
     /// vector of (block height, namespace) tuples
+    // TODO: should this be a tuple of (u64, Namespace) instead of (u64, String)?
     pub rollup_namespaces: Vec<(u64, String)>,
 }
 
@@ -222,6 +225,8 @@ impl NamespaceData for SequencerNamespaceData {
 }
 
 /// RollupNamespaceData represents the data written to a rollup namespace.
+/// block_hash refers to the sequencer block that these transactions were posted to. It is used
+/// to verify a Merkle inclusion proof.
 #[derive(Serialize, Deserialize, Debug)]
 struct RollupNamespaceData {
     pub block_hash: Hash,

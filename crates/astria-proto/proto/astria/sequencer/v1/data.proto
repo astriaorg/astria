@@ -6,25 +6,32 @@ import "tendermint/types/types.proto";
 
 // IndexedTransaction represents a sequencer transaction along with the index
 // it was originally in the sequencer block.
+// block_index refers to the transaction's index in the sequencer block. It is used to verify
+// a Merkle inclusion proof.
 message IndexedTransaction {
     uint64 block_index = 1;
     bytes transaction = 2;
 }
 
+// RollupNamespace
+// block_height refers to the DA layer block which the rollup namespace data was writted to.
 message RollupNamespace {
     uint64 block_height = 1;
     bytes namespace = 2;
 }
 
 // RollupNamespaceData
+// block_hash refers to the sequencer block that these transactions were posted to. It is used
+// to verify a Merkle inclusion proof.
 message RollupNamespaceData {
     bytes block_hash = 1;
     repeated IndexedTransaction rollup_txs = 2;
 }
 
 // SequencerNamespaceData
-// block_hash refers to
-// block_height refers to
+// block_hash refers to the sequencer block that these transactions were posted to. It is used
+// to verify a Merkle inclusion proof.
+// header is the sequencer chain's header for the block in which these were included
 message SequencerNamespaceData {
     bytes block_hash = 1;
     tendermint.types.Header header = 2;
@@ -32,7 +39,7 @@ message SequencerNamespaceData {
     repeated RollupNamespace rollup_namespaces = 4;
 }
 
-// SignedNamespaceData?
+// SignedNamespaceData
 message SignedNamespaceData {
     bytes data = 1;
     bytes public_key = 2;

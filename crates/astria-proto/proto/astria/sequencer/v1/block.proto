@@ -12,6 +12,7 @@ message NamespacedIndexedTransactions {
 }
 
 // SequencerBlock
+// block_hash refers to the sequencer chain's block hash that this is created from
 message SequencerBlock {
     bytes block_hash = 1;
     tendermint.types.Header header = 2;

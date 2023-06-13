@@ -213,13 +213,12 @@ impl Reader {
         // sequencer block's height
         let height = data.data.header.height.into();
 
-        // expected proposer address is in bech32 format
+        // find expected proposer for this block height and convert from bech32 to hex string
         let expected_proposer_address =
             self.tendermint_client
                 .get_proposer_address(height)
                 .await
                 .map_err(|e| eyre!("failed to get proposer address: {}", e))?;
-
         let expected_proposer_address = bech32_address_to_hex(&expected_proposer_address)?;
 
         // check if the proposer address matches the sequencer block's proposer

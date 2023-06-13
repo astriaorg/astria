@@ -33,7 +33,6 @@ use serde::{
     Deserializer,
     Serialize,
 };
-use serde_json;
 use sha2::{
     Digest,
     Sha256,
@@ -75,7 +74,7 @@ impl Namespace {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
-        unimplemented!()
+        Namespace::from_string(&String::from_utf8(bytes.to_vec())?)
     }
 }
 
