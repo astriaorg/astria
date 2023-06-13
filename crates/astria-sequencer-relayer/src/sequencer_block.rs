@@ -17,6 +17,7 @@ use base64::{
 };
 use eyre::{
     ensure,
+    eyre,
     WrapErr as _,
 };
 use hex;
@@ -46,7 +47,10 @@ use tendermint::{
     Hash,
 };
 use tendermint_proto::{
-    types::Header as RawHeader,
+    types::{
+        Commit as RawCommit,
+        Header as RawHeader,
+    },
     Protobuf,
 };
 use tracing::debug;
@@ -190,7 +194,18 @@ impl SequencerBlock {
     pub fn from_proto(proto: RawSequencerBlock) -> eyre::Result<Self> {
         Ok(Self {
             block_hash: Hash::from_bytes(tendermint::hash::Algorithm::Sha256, &proto.block_hash)?,
-            header: Header::try_from(proto.header.clone().unwrap())?, // TODO: static errors
+            header: Header::try_from(
+                proto
+                    .header
+                    .ok_or(eyre!("SequencerBlock from_proto failed: no header"))?
+                    .clone(),
+            )?, // TODO: static errors
+            last_commit: Commit::try_from(
+                proto
+                    .last_commit
+                    .ok_or(eyre!("SequencerBlock from_proto failed: no last_commit"))?
+                    .clone(),
+            )?,
             sequencer_txs: proto
                 .sequencer_transactions
                 .into_iter()
@@ -221,6 +236,7 @@ impl SequencerBlock {
         Ok(RawSequencerBlock {
             block_hash: self.block_hash.encode_vec()?,
             header: Some(RawHeader::from(self.header.clone())),
+            last_commit: Some(RawCommit::from(self.last_commit.clone())),
             sequencer_transactions: self
                 .sequencer_txs
                 .iter()
@@ -291,7 +307,9 @@ impl SequencerBlock {
         Ok(Self {
             block_hash: b.header.hash(),
             header: b.header,
-            last_commit: b.last_commit,
+            last_commit: b.last_commit.ok_or(eyre!(
+                "SequencerBlock from_cosmos_block failed: no last_commit in tendermint::Block"
+            ))?,
             sequencer_txs,
             rollup_txs,
         })
@@ -360,13 +378,19 @@ pub fn cosmos_tx_body_to_sequencer_msgs(tx_body: TxBody) -> eyre::Result<Vec<Seq
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
+    use std::{
+        collections::HashMap,
+        str::FromStr,
+    };
 
     use tendermint::{
         account,
         block::{
+            self,
             header::Version,
+            Commit,
             Height,
+            Round,
         },
         chain,
         hash,
@@ -386,11 +410,6 @@ mod test {
     use crate::{
         base64_string::Base64String,
         sequencer_block::IndexedTransaction,
-        types::{
-            BlockId,
-            Commit,
-            Parts,
-        },
     };
 
     fn make_header() -> Header {
@@ -422,14 +441,11 @@ mod test {
 
     fn empty_commit() -> Commit {
         Commit {
-            height: "0".to_string(),
-            round: 0,
-            block_id: BlockId {
-                hash: Base64String(vec![]),
-                part_set_header: Parts {
-                    total: 0,
-                    hash: Base64String(vec![]),
-                },
+            height: Height::from(0 as u32),
+            round: Round::from(0 as u8),
+            block_id: block::Id {
+                hash: Hash::from_str("").unwrap(),
+                part_set_header: block::parts::Header::new(0, Hash::from_str("").unwrap()).unwrap(),
             },
             signatures: vec![],
         }

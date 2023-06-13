@@ -27,10 +27,7 @@ use tracing::{
 use crate::{
     base64_string::Base64String,
     data_availability::CelestiaClient,
-    keys::{
-        private_key_bytes_to_keypair,
-        validator_hex_to_address,
-    },
+    keys::private_key_bytes_to_keypair,
     sequencer::SequencerClient,
     sequencer_block::SequencerBlock,
 };

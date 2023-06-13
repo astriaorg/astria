@@ -16,8 +16,9 @@ message NamespacedIndexedTransactions {
 message SequencerBlock {
     bytes block_hash = 1;
     tendermint.types.Header header = 2;
-    repeated IndexedTransaction sequencer_transactions = 3;
+    tendermint.types.Commit last_commit = 3;
+    repeated IndexedTransaction sequencer_transactions = 4;
     // FIXME: the current nested array layout results in bad allocation behavior on deserialization
     // see https://github.com/astriaorg/astria/issues/31
-    repeated NamespacedIndexedTransactions rollup_transactions = 4;
+    repeated NamespacedIndexedTransactions rollup_transactions = 5;
 }

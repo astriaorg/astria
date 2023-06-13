@@ -22,6 +22,7 @@ use ed25519_dalek::{
 };
 use eyre::{
     bail,
+    eyre,
     WrapErr as _,
 };
 use prost::Message;
@@ -35,11 +36,17 @@ use sha2::{
     Sha256,
 };
 use tendermint::{
-    block::Header,
+    block::{
+        Commit,
+        Header,
+    },
     Hash,
 };
 use tendermint_proto::{
-    types::Header as RawHeader,
+    types::{
+        Commit as RawCommit,
+        Header as RawHeader,
+    },
     Protobuf,
 };
 use tracing::{
@@ -54,10 +61,6 @@ use crate::{
         Namespace,
         SequencerBlock,
         DEFAULT_NAMESPACE,
-    },
-    types::{
-        Commit,
-        Header,
     },
 };
 
@@ -187,7 +190,20 @@ impl SequencerNamespaceData {
 
         Ok(Self {
             block_hash: Hash::from_bytes(tendermint::hash::Algorithm::Sha256, &proto.block_hash)?,
-            header: Header::try_from(proto.header.clone().unwrap())?, // TODO: static errors
+            header: Header::try_from(
+                proto
+                    .header
+                    .ok_or(eyre!("SequencerNamespaceData from_proto failed: no header"))?
+                    .clone(),
+            )?,
+            last_commit: Commit::try_from(
+                proto
+                    .last_commit
+                    .ok_or(eyre!(
+                        "SequencerNamespaceData from_proto failed: no last_commit"
+                    ))?
+                    .clone(),
+            )?,
             sequencer_txs: proto
                 .sequencer_txs
                 .into_iter()
@@ -201,6 +217,7 @@ impl SequencerNamespaceData {
         Ok(RawSequencerNamespaceData {
             block_hash: self.block_hash.encode_vec()?,
             header: Some(RawHeader::from(self.header.clone())),
+            last_commit: Some(RawCommit::from(self.last_commit.clone())),
             sequencer_txs: self
                 .sequencer_txs
                 .iter()

@@ -35,8 +35,9 @@ message RollupNamespaceData {
 message SequencerNamespaceData {
     bytes block_hash = 1;
     tendermint.types.Header header = 2;
-    repeated IndexedTransaction sequencer_txs = 3;
-    repeated RollupNamespace rollup_namespaces = 4;
+    tendermint.types.Commit last_commit = 3;
+    repeated IndexedTransaction sequencer_txs = 4;
+    repeated RollupNamespace rollup_namespaces = 5;
 }
 
 // SignedNamespaceData
