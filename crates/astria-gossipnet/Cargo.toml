@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-libp2p = { version = "0.51", features = ["kad", "gossipsub", "mdns", "noise", "macros", "ping", "tcp", "tokio", "yamux"] }
+libp2p = { version = "0.51", features = ["kad", "gossipsub", "identify", "mdns", "noise", "macros", "ping", "tcp", "tokio", "yamux"] }
 multiaddr = "0.17"
 
 color-eyre = { workspace = true }
