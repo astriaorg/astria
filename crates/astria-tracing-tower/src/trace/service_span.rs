@@ -1,10 +1,16 @@
 //! Middleware which instruments a service with a span entered when that service
 //! is called.
+use std::{
+    future::Future,
+    marker::PhantomData,
+    pin::Pin,
+    task::{
+        Context,
+        Poll,
+    },
+};
+
 use super::GetSpan;
-use std::future::Future;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 #[derive(Debug)]
 pub struct Service<S> {
@@ -12,9 +18,10 @@ pub struct Service<S> {
     span: tracing::Span,
 }
 
-pub use self::layer::*;
-
-pub use self::make::MakeService;
+pub use self::{
+    layer::*,
+    make::MakeService,
+};
 
 mod layer {
     use super::*;
@@ -51,7 +58,10 @@ mod layer {
 
         fn layer(&self, inner: S) -> Self::Service {
             let span = self.get_span.span_for(&inner);
-            Service { inner, span }
+            Service {
+                inner,
+                span,
+            }
         }
     }
 
@@ -70,8 +80,9 @@ mod layer {
 }
 
 pub mod make {
-    use super::*;
     use pin_project_lite::pin_project;
+
+    use super::*;
 
     #[derive(Debug)]
     pub struct MakeService<M, T, R, G = fn(&T) -> tracing::Span>
@@ -146,9 +157,9 @@ pub mod make {
         M: tower::make::MakeService<T, R>,
         G: GetSpan<T>,
     {
-        type Response = Service<M::Service>;
         type Error = M::MakeError;
         type Future = MakeFuture<M::Future>;
+        type Response = Service<M::Service>;
 
         fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             self.inner.poll_ready(cx)
@@ -210,7 +221,10 @@ pub mod make {
 
 impl<S> Service<S> {
     pub fn new(inner: S, span: tracing::Span) -> Self {
-        Self { inner, span }
+        Self {
+            inner,
+            span,
+        }
     }
 }
 
@@ -218,9 +232,9 @@ impl<S, R> tower_service::Service<R> for Service<S>
 where
     S: tower_service::Service<R>,
 {
-    type Response = S::Response;
     type Error = S::Error;
     type Future = S::Future;
+    type Response = S::Response;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let _enter = self.span.enter();
