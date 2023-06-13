@@ -338,7 +338,15 @@ mod test {
         DoBlockResponse,
         InitStateResponse,
     };
-    use astria_sequencer_relayer::sequencer_block::IndexedTransaction;
+    use astria_sequencer_relayer::{
+        sequencer_block::IndexedTransaction,
+        types::{
+            BlockId,
+            Commit,
+            Header,
+            Parts,
+        },
+    };
     use prost_types::Timestamp;
     use sha2::Digest as _;
     use tendermint::{
@@ -429,6 +437,27 @@ mod test {
         })
     }
 
+    fn get_test_block() -> SequencerBlock {
+        SequencerBlock {
+            block_hash: Base64String(hash(b"block1")),
+            header: Header::default(),
+            last_commit: Commit {
+                height: "1".to_string(),
+                round: 0,
+                block_id: BlockId {
+                    hash: Base64String(hash(b"block1")),
+                    part_set_header: Parts {
+                        total: 0,
+                        hash: Base64String(hash(b"part_set_header")),
+                    },
+                },
+                signatures: vec![],
+            },
+            sequencer_txs: vec![],
+            rollup_txs: HashMap::new(),
+        }
+    }
+
     #[tokio::test]
     async fn execute_block_with_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
@@ -438,16 +467,8 @@ mod test {
                 .await
                 .unwrap();
 
-        let block_hash = hash(b"block1").unwrap();
-        let expected_exection_hash = hash(&executor.execution_state).unwrap();
-
-        let mut block = SequencerBlock {
-            block_hash,
-            header: default_header().unwrap(),
-            sequencer_txs: vec![],
-            rollup_txs: HashMap::new(),
-        };
-
+        let expected_exection_hash = hash(&executor.execution_state);
+        let mut block = get_test_block();
         block.rollup_txs.insert(
             namespace,
             vec![IndexedTransaction {
@@ -473,13 +494,7 @@ mod test {
                 .await
                 .unwrap();
 
-        let block = SequencerBlock {
-            block_hash: hash(b"block1").unwrap(),
-            header: default_header().unwrap(),
-            sequencer_txs: vec![],
-            rollup_txs: HashMap::new(),
-        };
-
+        let block = get_test_block();
         let execution_block_hash = executor.execute_block(block).await.unwrap();
         assert!(execution_block_hash.is_none());
     }
@@ -496,13 +511,7 @@ mod test {
             .await
             .unwrap();
 
-        let mut block = SequencerBlock {
-            block_hash: hash(b"block1").unwrap(),
-            header: default_header().unwrap(),
-            sequencer_txs: vec![],
-            rollup_txs: HashMap::new(),
-        };
-
+        let mut block: SequencerBlock = get_test_block();
         block.rollup_txs.insert(
             namespace,
             vec![IndexedTransaction {
@@ -544,13 +553,7 @@ mod test {
             .await
             .unwrap();
 
-        let block = SequencerBlock {
-            block_hash: hash(b"block1").unwrap(),
-            header: default_header().unwrap(),
-            sequencer_txs: vec![],
-            rollup_txs: HashMap::new(),
-        };
-
+        let block: SequencerBlock = get_test_block();
         let previous_execution_state = executor.execution_state.clone();
 
         executor

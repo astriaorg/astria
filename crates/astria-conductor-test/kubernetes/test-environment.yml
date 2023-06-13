@@ -208,10 +208,12 @@ metadata:
 ---
 apiVersion: v1
 data:
-  home_dir: /home/relayer
+  astria_sequencer_relayer_celestia_endpoint: http://localhost:26659
+  astria_sequencer_relayer_sequencer_endpoint: http://localhost:1318
+  astria_sequencer_relayer_validator_key_file: /root/.metro/config/priv_validator_key.json
 kind: ConfigMap
 metadata:
-  name: relayer-env
+  name: sequencer-relayer-env
 ---
 apiVersion: v1
 kind: Service
@@ -290,12 +292,11 @@ spec:
           name: metro-scripts-volume
         - mountPath: /home/metro
           name: metro-home-vol
-      - args:
-        - --sequencer-endpoint=http://localhost:1318
-        - --celestia-endpoint=http://localhost:26659
-        - --validator-key-file=/root/.metro/config/priv_validator_key.json
-        command:
+      - command:
         - /usr/local/bin/astria-sequencer-relayer
+        envFrom:
+        - configMapRef:
+            name: sequencer-relayer-env
         image: docker.io/library/debian:bookworm-slim
         name: astria-sequencer-relayer
         volumeMounts:

@@ -55,7 +55,10 @@ use crate::{
         SequencerBlock,
         DEFAULT_NAMESPACE,
     },
-    // types::Header,
+    types::{
+        Commit,
+        Header,
+    },
 };
 
 pub const DEFAULT_PFD_GAS_LIMIT: u64 = 1_000_000;
@@ -162,6 +165,7 @@ impl<D: NamespaceData> NamespaceData for SignedNamespaceData<D> {
 pub struct SequencerNamespaceData {
     pub block_hash: Hash,
     pub header: Header,
+    pub last_commit: Commit,
     pub sequencer_txs: Vec<IndexedTransaction>,
     /// vector of (block height, namespace) tuples
     // TODO: should this be a tuple of (u64, Namespace) instead of (u64, String)?
@@ -378,6 +382,7 @@ impl CelestiaClient {
         let sequencer_namespace_data = SequencerNamespaceData {
             block_hash: block.block_hash.clone(),
             header: block.header,
+            last_commit: block.last_commit,
             sequencer_txs: block.sequencer_txs,
             rollup_namespaces: block_height_and_namespace,
         };
@@ -510,6 +515,7 @@ impl CelestiaClient {
         Ok(SequencerBlock {
             block_hash: data.block_hash.clone(),
             header: data.header.clone(),
+            last_commit: data.last_commit.clone(),
             sequencer_txs: data.sequencer_txs.clone(),
             rollup_txs: rollup_txs_map,
         })

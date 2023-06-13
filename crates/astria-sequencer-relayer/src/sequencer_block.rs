@@ -22,7 +22,7 @@ use eyre::{
 use hex;
 use prost::{
     DecodeError,
-    Message,
+    Message as _,
 };
 use serde::{
     de::{
@@ -40,6 +40,7 @@ use sha2::{
 use tendermint::{
     block::{
         Block,
+        Commit,
         Header,
     },
     Hash,
@@ -179,6 +180,7 @@ impl IndexedTransaction {
 pub struct SequencerBlock {
     pub block_hash: Hash,
     pub header: Header,
+    pub last_commit: Commit,
     pub sequencer_txs: Vec<IndexedTransaction>,
     /// namespace -> rollup txs
     pub rollup_txs: HashMap<Namespace, Vec<IndexedTransaction>>,
@@ -289,6 +291,7 @@ impl SequencerBlock {
         Ok(Self {
             block_hash: b.header.hash(),
             header: b.header,
+            last_commit: b.last_commit,
             sequencer_txs,
             rollup_txs,
         })
@@ -383,6 +386,11 @@ mod test {
     use crate::{
         base64_string::Base64String,
         sequencer_block::IndexedTransaction,
+        types::{
+            BlockId,
+            Commit,
+            Parts,
+        },
     };
 
     fn make_header() -> Header {
@@ -409,6 +417,21 @@ mod test {
             last_results_hash: None,
             evidence_hash: None,
             proposer_address: account::Id::new([0; 20]),
+        }
+    }
+
+    fn empty_commit() -> Commit {
+        Commit {
+            height: "0".to_string(),
+            round: 0,
+            block_id: BlockId {
+                hash: Base64String(vec![]),
+                part_set_header: Parts {
+                    total: 0,
+                    hash: Base64String(vec![]),
+                },
+            },
+            signatures: vec![],
         }
     }
 
@@ -447,6 +470,7 @@ mod test {
             )
             .unwrap(),
             header: make_header(),
+            last_commit: empty_commit(),
             sequencer_txs: vec![IndexedTransaction {
                 block_index: 0,
                 transaction: vec![0x11, 0x22, 0x33],
