@@ -1,6 +1,7 @@
 name: Rust
 env:
   CI: true
+  RUSTFLAGS: "-D warnings -D unreachable-pub"
 on: 
   pull_request:
   push:
