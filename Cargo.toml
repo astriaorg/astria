@@ -9,6 +9,7 @@ members = [
   "crates/astria-sequencer",
   "crates/astria-sequencer-relayer",
   "crates/astria-sequencer-relayer-test",
+  "crates/astria-tracing-tower",
 ]
 
 [workspace.dependencies]

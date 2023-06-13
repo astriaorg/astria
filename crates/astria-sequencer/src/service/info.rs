@@ -7,7 +7,11 @@ use std::{
     },
 };
 
-use anyhow::Context as _;
+use anyhow::{
+    bail,
+    Context as _,
+};
+use astria_tracing_tower::RequestExt as _;
 use futures::{
     Future,
     FutureExt,
@@ -28,7 +32,10 @@ use tendermint::{
 };
 use tower::Service;
 use tower_abci::BoxError;
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Instrument,
+};
 
 use crate::{
     accounts::query::QueryHandler,
@@ -58,7 +65,11 @@ impl Service<InfoRequest> for Info {
     }
 
     fn call(&mut self, req: InfoRequest) -> Self::Future {
-        handle_info_request(self.storage.clone(), req).boxed()
+        let span = req.create_span();
+
+        handle_info_request(self.storage.clone(), req)
+            .instrument(span)
+            .boxed()
     }
 }
 
@@ -133,7 +144,7 @@ fn decode_query(path: &str) -> anyhow::Result<Query> {
     let mut parts: VecDeque<&str> = path.split('/').collect();
 
     let Some(component) = parts.pop_front() else {
-        return Err(anyhow::anyhow!("invalid query path; missing component: {}", path));
+        bail!("invalid query path; missing component: {path}");
     };
 
     match component {

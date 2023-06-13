@@ -3,6 +3,11 @@ use anyhow::{
     Context as _,
     Result,
 };
+use astria_tracing_tower::{
+    trace::request_span,
+    RequestExt as _,
+};
+use tendermint::abci::ConsensusRequest;
 use tower_abci::v037::Server;
 use tracing::info;
 
@@ -29,10 +34,10 @@ impl Sequencer {
                 let storage = storage.clone();
                 async move { service::Consensus::new(storage, app, queue).run().await }
             }));
-
-        let info_service = service::Info::new(storage.clone());
         let mempool_service = service::Mempool;
-        let snapshot_service = service::Snapshot::new();
+        let info_service = service::Info::new(storage.clone());
+        let snapshot_service = service::Snapshot;
+
         let server = Server::builder()
             .consensus(consensus_service)
             .info(info_service)

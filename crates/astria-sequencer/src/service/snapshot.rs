@@ -6,72 +6,54 @@ use std::{
     },
 };
 
-use futures::Future;
+use astria_tracing_tower::RequestExt;
+use futures::{
+    Future,
+    FutureExt,
+};
 use tendermint::abci::{
     SnapshotRequest,
     SnapshotResponse,
 };
 use tower::Service;
 use tower_abci::BoxError;
-use tracing::{
-    instrument,
-    instrument::Instrumented,
-    Instrument as _,
-};
+use tracing::Instrument as _;
 
 #[derive(Clone, Default)]
-pub(crate) struct Snapshot {}
-
-impl Snapshot {
-    pub(crate) fn new() -> Self {
-        Self {}
-    }
-}
+pub(crate) struct Snapshot;
 
 impl Service<SnapshotRequest> for Snapshot {
     type Error = BoxError;
-    type Future = Instrumented<SnapshotFuture>;
+    type Future =
+        Pin<Box<dyn Future<Output = Result<SnapshotResponse, BoxError>> + Send + 'static>>;
     type Response = SnapshotResponse;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
-    #[instrument(name = "Snapshot::call", skip(self))]
     fn call(&mut self, req: SnapshotRequest) -> Self::Future {
-        SnapshotFuture::new(req).in_current_span()
-    }
-}
+        let span = req.create_span();
+        async move {
+            Ok(match req {
+                SnapshotRequest::ListSnapshots => {
+                    SnapshotResponse::ListSnapshots(Default::default())
+                }
 
-pub(crate) struct SnapshotFuture {
-    request: SnapshotRequest,
-}
+                SnapshotRequest::OfferSnapshot(_) => {
+                    SnapshotResponse::OfferSnapshot(Default::default())
+                }
 
-impl SnapshotFuture {
-    fn new(request: SnapshotRequest) -> Self {
-        Self {
-            request,
+                SnapshotRequest::LoadSnapshotChunk(_) => {
+                    SnapshotResponse::LoadSnapshotChunk(Default::default())
+                }
+
+                SnapshotRequest::ApplySnapshotChunk(_) => {
+                    SnapshotResponse::ApplySnapshotChunk(Default::default())
+                }
+            })
         }
-    }
-}
-
-impl Future for SnapshotFuture {
-    type Output = Result<SnapshotResponse, BoxError>;
-
-    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match &self.request {
-            SnapshotRequest::ListSnapshots => {
-                Poll::Ready(Ok(SnapshotResponse::ListSnapshots(Default::default())))
-            }
-            SnapshotRequest::OfferSnapshot(_) => {
-                Poll::Ready(Ok(SnapshotResponse::OfferSnapshot(Default::default())))
-            }
-            SnapshotRequest::LoadSnapshotChunk(_) => {
-                Poll::Ready(Ok(SnapshotResponse::LoadSnapshotChunk(Default::default())))
-            }
-            SnapshotRequest::ApplySnapshotChunk(_) => {
-                Poll::Ready(Ok(SnapshotResponse::ApplySnapshotChunk(Default::default())))
-            }
-        }
+        .instrument(span)
+        .boxed()
     }
 }

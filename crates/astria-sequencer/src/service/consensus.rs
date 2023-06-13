@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::bail;
 use penumbra_storage::Storage;
 use tendermint::abci::{
     request,
@@ -9,7 +9,10 @@ use tendermint::abci::{
 use tokio::sync::mpsc;
 use tower_abci::BoxError;
 use tower_actor::Message;
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Instrument,
+};
 
 use crate::{
     app::App,
@@ -39,13 +42,13 @@ impl Consensus {
         while let Some(Message {
             req,
             rsp_sender,
-            span: _,
+            span,
         }) = self.queue.recv().await
         {
             // The send only fails if the receiver was dropped, which happens
             // if the caller didn't propagate the message back to tendermint
             // for some reason -- but that's not our problem.
-            let _ = rsp_sender.send(self.handle_request(req).await);
+            let _ = rsp_sender.send(self.handle_request(req).instrument(span).await);
         }
         Ok(())
     }
@@ -85,10 +88,10 @@ impl Consensus {
     async fn init_chain(
         &mut self,
         init_chain: request::InitChain,
-    ) -> Result<response::InitChain, BoxError> {
+    ) -> anyhow::Result<response::InitChain> {
         // the storage version is set to u64::MAX by default when first created
         if self.storage.latest_version() != u64::MAX {
-            return Err(anyhow!("database already initialized").into());
+            bail!("database already initialized");
         }
 
         let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)

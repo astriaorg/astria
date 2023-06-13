@@ -6,15 +6,20 @@ use std::{
     },
 };
 
-use futures::Future;
+use astria_tracing_tower::RequestExt;
+use futures::{
+    Future,
+    FutureExt,
+};
 use tendermint::abci::{
+    request,
     response,
     MempoolRequest,
     MempoolResponse,
 };
 use tower::Service;
 use tower_abci::BoxError;
-use tracing::info;
+use tracing::Instrument;
 
 use crate::transaction::{
     ActionHandler as _,
@@ -29,7 +34,7 @@ pub struct Mempool;
 
 impl Service<MempoolRequest> for Mempool {
     type Error = BoxError;
-    type Future = MempoolFuture;
+    type Future = Pin<Box<dyn Future<Output = Result<MempoolResponse, BoxError>> + Send + 'static>>;
     type Response = MempoolResponse;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -37,49 +42,37 @@ impl Service<MempoolRequest> for Mempool {
     }
 
     fn call(&mut self, req: MempoolRequest) -> Self::Future {
-        info!("got mempool request: {:?}", req);
-        MempoolFuture::new(req)
-    }
-}
-
-pub struct MempoolFuture {
-    request: MempoolRequest,
-}
-
-impl MempoolFuture {
-    pub fn new(request: MempoolRequest) -> Self {
-        Self {
-            request,
-        }
-    }
-}
-
-impl Future for MempoolFuture {
-    type Output = Result<MempoolResponse, BoxError>;
-
-    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match &self.request {
-            MempoolRequest::CheckTx(req) => {
-                // if the tx passes the check, status code 0 is returned.
-                // TODO: status codes for various errors
-                match Transaction::from_bytes(&req.tx) {
-                    Ok(tx) => match tx.check_stateless() {
-                        Ok(_) => {
-                            Poll::Ready(Ok(MempoolResponse::CheckTx(response::CheckTx::default())))
-                        }
-                        Err(e) => Poll::Ready(Ok(MempoolResponse::CheckTx(response::CheckTx {
-                            code: 1.into(),
-                            log: format!("{:?}", e),
-                            ..Default::default()
-                        }))),
-                    },
-                    Err(e) => Poll::Ready(Ok(MempoolResponse::CheckTx(response::CheckTx {
+        let span = req.create_span();
+        let MempoolRequest::CheckTx(request::CheckTx {
+            tx: tx_bytes, ..
+        }) = req;
+        async move {
+            // if the tx passes the check, status code 0 is returned.
+            // TODO: status codes for various errors
+            // TODO: offload `check_stateless` using `deliver_tx_bytes` mechanism
+            //       and a worker task similar to penumbra
+            let tx = match Transaction::from_bytes(&tx_bytes) {
+                Ok(tx) => tx,
+                Err(e) => {
+                    return Ok(MempoolResponse::CheckTx(response::CheckTx {
                         code: 1.into(),
-                        log: format!("{:?}", e),
+                        log: format!("{e:#}"),
                         ..Default::default()
-                    }))),
+                    }));
                 }
-            }
+            };
+
+            let rsp = match tx.check_stateless() {
+                Ok(_) => response::CheckTx::default(),
+                Err(e) => response::CheckTx {
+                    code: 1.into(),
+                    log: format!("{:#}", e),
+                    ..Default::default()
+                },
+            };
+            Ok(MempoolResponse::CheckTx(rsp))
         }
+        .instrument(span)
+        .boxed()
     }
 }
