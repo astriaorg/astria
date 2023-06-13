@@ -29,6 +29,7 @@ use tracing::{
     debug,
     error,
     info,
+    instrument,
     warn,
 };
 
@@ -38,7 +39,10 @@ use crate::{
         AlertSender,
     },
     config::Config,
-    execution_client::ExecutionRpcClient,
+    execution_client::{
+        ExecutionClient,
+        ExecutionRpcClient,
+    },
 };
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
@@ -52,8 +56,9 @@ type Receiver = UnboundedReceiver<ExecutorCommand>;
 /// and the channel for sending commands to this executor
 pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinHandle, Sender)> {
     info!("Spawning executor task.");
+    let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url).await?;
     let (mut executor, executor_tx) = Executor::new(
-        &conf.execution_rpc_url,
+        execution_rpc_client,
         get_namespace(conf.chain_id.as_bytes()),
         alert_tx,
     )
@@ -91,17 +96,20 @@ pub enum ExecutorCommand {
     Shutdown,
 }
 
-struct Executor {
+struct Executor<C> {
     /// Channel on which executor commands are received.
     cmd_rx: Receiver,
+
     /// The execution rpc client that we use to send messages to the execution service
-    execution_rpc_client: ExecutionRpcClient,
+    execution_rpc_client: C,
+
     /// Namespace ID
     namespace: Namespace,
 
     /// The channel on which the driver and tasks in the driver can post alerts
     /// to the consumer of the driver.
     alert_tx: AlertSender,
+
     /// Tracks the state of the execution chain
     execution_state: Vec<u8>,
 
@@ -117,15 +125,13 @@ struct Executor {
     sequencer_hash_to_execution_hash: HashMap<Base64String, Vec<u8>>,
 }
 
-impl Executor {
-    /// Creates a new Executor instance and returns a command sender and an alert receiver.
+impl<C: ExecutionClient> Executor<C> {
     async fn new(
-        rpc_address: &str,
+        mut execution_rpc_client: C,
         namespace: Namespace,
         alert_tx: AlertSender,
     ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let mut execution_rpc_client = ExecutionRpcClient::new(rpc_address).await?;
         let init_state_response = execution_rpc_client.call_init_state().await?;
         let execution_state = init_state_response.block_hash;
         Ok((
@@ -183,20 +189,35 @@ impl Executor {
         Ok(())
     }
 
-    /// Uses RPC to send block to execution service
-    async fn execute_block(&mut self, block: SequencerBlock) -> Result<()> {
-        let prev_block_hash = self.execution_state.clone();
+    /// checks for relevant transactions in the SequencerBlock and attempts
+    /// to execute them via the execution service function DoBlock.
+    /// if there are relevant transactions that successfully execute,
+    /// it returns the resulting execution block hash.
+    /// if the block has already been executed, it returns the previously-computed
+    /// execution block hash.
+    /// if there are no relevant transactions in the SequencerBlock, it returns None.
+    async fn execute_block(&mut self, block: SequencerBlock) -> Result<Option<Vec<u8>>> {
+        if let Some(execution_hash) = self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
+            debug!(
+                height = block.header.height,
+                execution_hash = hex::encode(execution_hash),
+                "block already executed"
+            );
+            return Ok(Some(execution_hash.clone()));
+        }
 
         // get transactions for our namespace
         let Some(txs) = block.rollup_txs.get(&self.namespace) else {
-            info!("sequencer block {} did not contains txs for namespace", block.header.height);
-            return Ok(());
+            info!(height = block.header.height, "sequencer block did not contains txs for namespace");
+            return Ok(None);
         };
 
+        let prev_block_hash = self.execution_state.clone();
+
         info!(
-            "executing block {} with parent block hash {}",
-            block.header.height,
-            hex::encode(&prev_block_hash)
+            height = block.header.height,
+            parent_block_hash = hex::encode(&prev_block_hash),
+            "executing block with given parent block",
         );
 
         // parse cosmos sequencer transactions into rollup transactions
@@ -209,8 +230,8 @@ impl Executor {
                 if msgs.len() > 1 {
                     // this should not happen and is a bug in the sequencer relayer
                     warn!(
-                        "ignoring cosmos tx with more than one sequencer message: {:#?}",
-                        msgs
+                        msgs = ?msgs,
+                        "ignoring cosmos tx with more than one sequencer message",
                     );
                     return None;
                 }
@@ -232,44 +253,294 @@ impl Executor {
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
-            "executed sequencer block {} (height={}) with execution block hash {}",
-            block.block_hash,
-            block.header.height,
-            hex::encode(&response.block_hash)
+            sequencer_block_hash = ?block.block_hash,
+            sequencer_block_height = block.header.height,
+            execution_block_hash = hex::encode(&response.block_hash),
+            "executed sequencer block",
         );
         self.sequencer_hash_to_execution_hash
-            .insert(block.block_hash, response.block_hash);
+            .insert(block.block_hash, response.block_hash.clone());
 
-        Ok(())
+        Ok(Some(response.block_hash))
     }
 
     async fn handle_block_received_from_data_availability(
         &mut self,
         block: SequencerBlock,
     ) -> Result<()> {
-        match self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
+        let sequencer_block_hash = block.block_hash.clone();
+        let maybe_execution_block_hash = self
+            .sequencer_hash_to_execution_hash
+            .get(&sequencer_block_hash)
+            .cloned();
+        match maybe_execution_block_hash {
             Some(execution_block_hash) => {
-                self.execution_rpc_client
-                    .call_finalize_block(execution_block_hash.clone())
+                self.finalize_block(execution_block_hash, &sequencer_block_hash)
                     .await?;
-                info!(
-                    "finalized execution block {}",
-                    hex::encode(execution_block_hash),
-                );
-                self.sequencer_hash_to_execution_hash
-                    .remove(&block.block_hash);
             }
             None => {
-                // this is fine; it means that the sequencer block didn't contain
+                // this means either:
+                // - we didn't receive the block from the gossip layer yet, or
+                // - we received it, but the sequencer block didn't contain
                 // any transactions for this rollup namespace, thus nothing was executed
-                // on receiving this block, and we can ignore it.
-                debug!(
-                    "ExecutorCommand::BlockReceived: no execution block hash found for sequencer \
-                     block hash {}",
-                    &block.block_hash,
-                );
+                // on receiving this block.
+
+                // try executing the block as it hasn't been executed before
+                // execute_block will check if our namespace has txs; if so, it'll return the
+                // resulting execution block hash, otherwise None
+                let Some(execution_block_hash) = self.execute_block(block).await.wrap_err("failed to execute block")? else {
+                    // no txs for our namespace, nothing to do
+                    debug!("execute_block returned None; skipping finalize_block");
+                    return Ok(());
+                };
+
+                // finalize the block after it's been executed
+                self.finalize_block(execution_block_hash, &sequencer_block_hash)
+                    .await?;
             }
         };
         Ok(())
+    }
+
+    /// This function finalizes the given execution block on the execution layer by calling
+    /// the execution service's FinalizeBlock function.
+    /// note that this function clears the respective entry in the
+    /// `sequencer_hash_to_execution_hash` map.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if:
+    /// - the call to the execution service's FinalizeBlock function fails
+    #[instrument(ret, err, skip_all, fields(execution_block_hash = hex::encode(&execution_block_hash), %sequencer_block_hash))]
+    async fn finalize_block(
+        &mut self,
+        execution_block_hash: Vec<u8>,
+        sequencer_block_hash: &Base64String,
+    ) -> Result<()> {
+        self.execution_rpc_client
+            .call_finalize_block(execution_block_hash)
+            .await
+            .wrap_err("failed to finalize block")?;
+        self.sequencer_hash_to_execution_hash
+            .remove(sequencer_block_hash);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::{
+        collections::HashSet,
+        sync::Arc,
+    };
+
+    use astria_proto::execution::v1::{
+        DoBlockResponse,
+        InitStateResponse,
+    };
+    use astria_sequencer_relayer::{
+        sequencer_block::IndexedTransaction,
+        types::{
+            BlockId,
+            Commit,
+            Header,
+            Parts,
+        },
+    };
+    use prost_types::Timestamp;
+    use sha2::Digest as _;
+    use tokio::sync::{
+        mpsc,
+        Mutex,
+    };
+
+    use super::*;
+
+    // a mock ExecutionClient used for testing the Executor
+    struct MockExecutionClient {
+        finalized_blocks: Arc<Mutex<HashSet<Vec<u8>>>>,
+    }
+
+    impl MockExecutionClient {
+        fn new() -> Self {
+            Self {
+                finalized_blocks: Arc::new(Mutex::new(HashSet::new())),
+            }
+        }
+    }
+
+    impl crate::private::Sealed for MockExecutionClient {}
+
+    #[async_trait::async_trait]
+    impl ExecutionClient for MockExecutionClient {
+        // returns the sha256 hash of the prev_block_hash
+        // the Executor passes self.execution_state as prev_block_hash
+        async fn call_do_block(
+            &mut self,
+            prev_block_hash: Vec<u8>,
+            _transactions: Vec<Vec<u8>>,
+            _timestamp: Option<Timestamp>,
+        ) -> Result<DoBlockResponse> {
+            let res = hash(&prev_block_hash);
+            Ok(DoBlockResponse {
+                block_hash: res.to_vec(),
+            })
+        }
+
+        async fn call_finalize_block(&mut self, block_hash: Vec<u8>) -> Result<()> {
+            self.finalized_blocks.lock().await.insert(block_hash);
+            Ok(())
+        }
+
+        async fn call_init_state(&mut self) -> Result<InitStateResponse> {
+            let hasher = sha2::Sha256::new();
+            Ok(InitStateResponse {
+                block_hash: hasher.finalize().to_vec(),
+            })
+        }
+    }
+
+    fn hash(s: &[u8]) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(s);
+        hasher.finalize().to_vec()
+    }
+
+    fn get_test_block() -> SequencerBlock {
+        SequencerBlock {
+            block_hash: Base64String(hash(b"block1")),
+            header: Header::default(),
+            last_commit: Commit {
+                height: "1".to_string(),
+                round: 0,
+                block_id: BlockId {
+                    hash: Base64String(hash(b"block1")),
+                    part_set_header: Parts {
+                        total: 0,
+                        hash: Base64String(hash(b"part_set_header")),
+                    },
+                },
+                signatures: vec![],
+            },
+            sequencer_txs: vec![],
+            rollup_txs: HashMap::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn execute_block_with_relevant_txs() {
+        let (alert_tx, _) = mpsc::unbounded_channel();
+        let namespace = get_namespace(b"test");
+        let (mut executor, _) =
+            Executor::new(MockExecutionClient::new(), namespace.clone(), alert_tx)
+                .await
+                .unwrap();
+
+        let expected_exection_hash = hash(&executor.execution_state);
+        let mut block = get_test_block();
+        block.rollup_txs.insert(
+            namespace,
+            vec![IndexedTransaction {
+                block_index: 0,
+                transaction: Base64String(b"test_transaction".to_vec()),
+            }],
+        );
+
+        let execution_block_hash = executor
+            .execute_block(block)
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        assert_eq!(expected_exection_hash, execution_block_hash);
+    }
+
+    #[tokio::test]
+    async fn execute_block_without_relevant_txs() {
+        let (alert_tx, _) = mpsc::unbounded_channel();
+        let namespace = get_namespace(b"test");
+        let (mut executor, _) =
+            Executor::new(MockExecutionClient::new(), namespace.clone(), alert_tx)
+                .await
+                .unwrap();
+
+        let block = get_test_block();
+        let execution_block_hash = executor.execute_block(block).await.unwrap();
+        assert!(execution_block_hash.is_none());
+    }
+
+    #[tokio::test]
+    async fn handle_block_received_from_data_availability_not_yet_executed() {
+        let (alert_tx, _) = mpsc::unbounded_channel();
+        let namespace = get_namespace(b"test");
+        let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
+        let execution_client = MockExecutionClient {
+            finalized_blocks: finalized_blocks.clone(),
+        };
+        let (mut executor, _) = Executor::new(execution_client, namespace.clone(), alert_tx)
+            .await
+            .unwrap();
+
+        let mut block: SequencerBlock = get_test_block();
+        block.rollup_txs.insert(
+            namespace,
+            vec![IndexedTransaction {
+                block_index: 0,
+                transaction: Base64String(b"test_transaction".to_vec()),
+            }],
+        );
+
+        let expected_exection_hash = hash(&executor.execution_state);
+
+        executor
+            .handle_block_received_from_data_availability(block)
+            .await
+            .unwrap();
+
+        // should have executed and finalized the block
+        assert!(finalized_blocks.lock().await.len() == 1);
+        assert!(
+            finalized_blocks
+                .lock()
+                .await
+                .get(&executor.execution_state)
+                .is_some()
+        );
+        assert_eq!(expected_exection_hash, executor.execution_state);
+        // should be empty because 1 block was executed and finalized, which deletes it from the map
+        assert!(executor.sequencer_hash_to_execution_hash.is_empty());
+    }
+
+    #[tokio::test]
+    async fn handle_block_received_from_data_availability_no_relevant_transactions() {
+        let (alert_tx, _) = mpsc::unbounded_channel();
+        let namespace = get_namespace(b"test");
+        let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
+        let execution_client = MockExecutionClient {
+            finalized_blocks: finalized_blocks.clone(),
+        };
+        let (mut executor, _) = Executor::new(execution_client, namespace.clone(), alert_tx)
+            .await
+            .unwrap();
+
+        let block: SequencerBlock = get_test_block();
+        let previous_execution_state = executor.execution_state.clone();
+
+        executor
+            .handle_block_received_from_data_availability(block)
+            .await
+            .unwrap();
+
+        // should not have executed or finalized the block
+        assert!(finalized_blocks.lock().await.is_empty());
+        assert!(
+            finalized_blocks
+                .lock()
+                .await
+                .get(&executor.execution_state)
+                .is_none()
+        );
+        assert_eq!(previous_execution_state, executor.execution_state,);
+        // should be empty because nothing was executed
+        assert!(executor.sequencer_hash_to_execution_hash.is_empty());
     }
 }

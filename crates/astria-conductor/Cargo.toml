@@ -4,15 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-figment = { version = "0.10.8", features = ["toml", "env"] }
+async-trait = "0.1.68"
 is-terminal = "0.4.7"
 
 bech32 = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 color-eyre = { workspace = true }
 ed25519-dalek = { workspace = true }
+figment = { workspace = true, features = ["toml", "env"] }
 futures = { workspace = true }
 hex = { workspace = true }
+prost = { workspace = true }
 prost-types = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true }
@@ -32,3 +34,4 @@ astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 [dev-dependencies]
 astria-conductor-test = { path = "../astria-conductor-test" }
 once_cell = { workspace = true }
+sha2 = { workspace = true }
