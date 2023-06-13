@@ -458,14 +458,6 @@ impl futures::Stream for Network {
                         debug!("query result for {:?}: {:?}", id, result);
                     }
                 },
-                #[cfg(feature = "dht")]
-                SwarmEvent::Behaviour(GossipnetBehaviourEvent::Kademlia(
-                    KademliaEvent::OutboundQueryCompleted {
-                        id,
-                        result,
-                        ..
-                    },
-                )) => match result {},
 
                 // mDNS events
                 #[cfg(feature = "mdns")]
