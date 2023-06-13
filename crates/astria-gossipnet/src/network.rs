@@ -331,9 +331,9 @@ impl futures::Stream for Network {
                     debug!("Local node is listening on {address}");
                     let maddr_str = format!("{}/p2p/{}", address, self.local_peer_id);
                     let Ok(multiaddr) = Multiaddr::from_str(&maddr_str) else {
-                                        warn!("failed to parse multiaddr: {maddr_str}");
-                                        continue;
-                                    };
+                        warn!("failed to parse multiaddr: {maddr_str}");
+                        continue;
+                    };
 
                     self.multiaddrs.push(multiaddr);
                     return Poll::Ready(Some(Event::NewListenAddr(address)));
@@ -630,9 +630,12 @@ mod test {
     // this test starts 3 nodes; Alice, Bob and Charlie.
     // it connects Bob and Charlie to Alice directly, then tests that Bob and Charlie can
     // discover each other via the DHT.
+    // the test completes when Charlie's peer count is 2 (Alice and Bob).
+    // when this happens, he sends a value on his notification channel and returns from his task,
+    // causing the Alice and Bob tasks to also return.
     #[tokio::test]
     async fn test_dht_discovery() {
-        // closed when task stops
+        // notification sent when task stops
         let (charlie_tx, mut charlie_rx) = oneshot::channel();
         let (bob_tx, mut bob_rx) = oneshot::channel();
 
