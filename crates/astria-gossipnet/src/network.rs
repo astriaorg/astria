@@ -50,7 +50,7 @@ use libp2p::{
 use multiaddr::Protocol;
 use tracing::info;
 
-pub use crate::stream::Event;
+pub use crate::network_stream::Event;
 
 #[derive(NetworkBehaviour)]
 pub(crate) struct GossipnetBehaviour {
@@ -276,7 +276,6 @@ mod test {
     };
 
     use super::*;
-    use crate::stream::Event;
 
     const TEST_TOPIC: &str = "test";
 

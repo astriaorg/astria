@@ -1,2 +1,2 @@
 pub mod network;
-pub mod stream;
+pub mod network_stream;
