@@ -11,12 +11,12 @@ use anyhow::{
     bail,
     Context as _,
 };
-use astria_tracing_tower::RequestExt as _;
 use futures::{
     Future,
     FutureExt,
 };
 use penumbra_storage::Storage;
+use penumbra_tower_trace::RequestExt as _;
 use tendermint::{
     abci::{
         request,

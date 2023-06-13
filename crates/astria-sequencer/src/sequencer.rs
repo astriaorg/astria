@@ -3,7 +3,7 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_tracing_tower::{
+use penumbra_tower_trace::{
     trace::request_span,
     RequestExt as _,
 };

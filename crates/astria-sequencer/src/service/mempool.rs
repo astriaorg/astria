@@ -6,11 +6,11 @@ use std::{
     },
 };
 
-use astria_tracing_tower::RequestExt;
 use futures::{
     Future,
     FutureExt,
 };
+use penumbra_tower_trace::RequestExt as _;
 use tendermint::abci::{
     request,
     response,

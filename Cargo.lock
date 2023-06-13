@@ -396,7 +396,6 @@ name = "astria-sequencer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "astria-tracing-tower",
  "async-trait",
  "borsh 0.11.0",
  "bytes",
@@ -405,6 +404,7 @@ dependencies = [
  "is-terminal",
  "penumbra-component",
  "penumbra-storage",
+ "penumbra-tower-trace",
  "serde",
  "serde_json",
  "sha2 0.10.6",
@@ -466,27 +466,6 @@ dependencies = [
  "tokio",
  "uuid",
  "which",
-]
-
-[[package]]
-name = "astria-tracing-tower"
-version = "0.54.1"
-dependencies = [
- "futures",
- "hex",
- "http",
- "pin-project",
- "pin-project-lite",
- "sha2 0.9.9",
- "tendermint 0.31.1",
- "tendermint-proto 0.31.1",
- "tokio",
- "tokio-stream",
- "tokio-util 0.7.5",
- "tonic 0.8.3",
- "tower",
- "tower-service",
- "tracing",
 ]
 
 [[package]]
@@ -3541,6 +3520,28 @@ dependencies = [
  "tendermint 0.31.1",
  "tokio",
  "tokio-stream",
+ "tracing",
+]
+
+[[package]]
+name = "penumbra-tower-trace"
+version = "0.53.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.53.1#07d40f4dc97dd69466672d4d59309eb2a58613ae"
+dependencies = [
+ "futures",
+ "hex",
+ "http",
+ "pin-project",
+ "pin-project-lite",
+ "sha2 0.9.9",
+ "tendermint 0.31.1",
+ "tendermint-proto 0.31.1",
+ "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.5",
+ "tonic 0.8.3",
+ "tower",
+ "tower-service",
  "tracing",
 ]
 
