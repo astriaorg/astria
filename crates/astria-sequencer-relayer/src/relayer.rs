@@ -87,7 +87,7 @@ impl Relayer {
         .expect("failed to convert validator private key to keypair");
 
         // generate our validator address
-        let validator_address_bytes: [u8; 20] = hex::decode(&key_file.address)
+        let validator_address_bytes: [u8; account::LENGTH] = hex::decode(&key_file.address)
             .expect("failed to decode validator address; must be hex string")
             .try_into()
             .map_err(|e| {
