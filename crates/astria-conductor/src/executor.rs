@@ -331,6 +331,7 @@ impl<C: ExecutionClient> Executor<C> {
 mod test {
     use std::{
         collections::HashSet,
+        str::FromStr,
         sync::Arc,
     };
 
@@ -338,26 +339,22 @@ mod test {
         DoBlockResponse,
         InitStateResponse,
     };
-    use astria_sequencer_relayer::{
-        sequencer_block::IndexedTransaction,
-        types::{
-            BlockId,
-            Commit,
-            Header,
-            Parts,
-        },
-    };
+    use astria_sequencer_relayer::sequencer_block::IndexedTransaction;
     use prost_types::Timestamp;
     use sha2::Digest as _;
     use tendermint::{
         account,
         block::{
+            self,
             header::Version,
+            Commit,
             Header,
             Height,
+            Round,
         },
         AppHash,
     };
+    use tendermint_proto::types::BlockId;
     use tokio::sync::{
         mpsc,
         Mutex,
@@ -415,10 +412,10 @@ mod test {
         hasher.finalize().to_vec().try_into().map_err(Into::into)
     }
 
-    fn default_header() -> Result<Header> {
-        Ok(Header {
-            app_hash: AppHash::try_from(vec![])?,
-            chain_id: "test".to_string().try_into()?,
+    fn default_header() -> Header {
+        Header {
+            app_hash: AppHash::try_from(vec![]).unwrap(),
+            chain_id: "test".to_string().try_into().unwrap(),
             consensus_hash: Hash::default(),
             data_hash: Some(Hash::default()),
             evidence_hash: Some(Hash::default()),
@@ -427,29 +424,30 @@ mod test {
             last_commit_hash: Some(Hash::default()),
             last_results_hash: Some(Hash::default()),
             next_validators_hash: Hash::default(),
-            proposer_address: account::Id::try_from([0u8; 20].to_vec())?,
+            proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
             time: Time::now(),
             validators_hash: Hash::default(),
             version: Version {
                 app: 0,
                 block: 0,
             },
-        })
+        }
     }
 
     fn get_test_block() -> SequencerBlock {
         SequencerBlock {
-            block_hash: Base64String(hash(b"block1")),
-            header: Header::default(),
+            block_hash: Hash::from_str("block1").unwrap(),
+            header: default_header(),
             last_commit: Commit {
-                height: "1".to_string(),
-                round: 0,
-                block_id: BlockId {
-                    hash: Base64String(hash(b"block1")),
-                    part_set_header: Parts {
-                        total: 0,
-                        hash: Base64String(hash(b"part_set_header")),
-                    },
+                height: Height::from(1 as u32),
+                round: Round::from(0 as u8),
+                block_id: block::Id {
+                    hash: Hash::from_str("block1").unwrap(),
+                    part_set_header: block::parts::Header::new(
+                        0,
+                        Hash::from_str("part_set_header").unwrap(),
+                    )
+                    .unwrap(),
                 },
                 signatures: vec![],
             },
@@ -467,7 +465,7 @@ mod test {
                 .await
                 .unwrap();
 
-        let expected_exection_hash = hash(&executor.execution_state);
+        let expected_exection_hash = hash(&executor.execution_state).unwrap();
         let mut block = get_test_block();
         block.rollup_txs.insert(
             namespace,
@@ -482,7 +480,10 @@ mod test {
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash.as_bytes(), execution_block_hash);
+        assert_eq!(
+            Into::<Vec<u8>>::into(expected_exection_hash),
+            execution_block_hash
+        );
     }
 
     #[tokio::test]

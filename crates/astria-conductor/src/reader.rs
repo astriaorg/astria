@@ -10,14 +10,15 @@ use astria_sequencer_relayer::{
         SequencerNamespaceData,
         SignedNamespaceData,
     },
+    keys::public_key_to_address,
     sequencer_block::SequencerBlock,
-    types::{
-        Commit,
-        CommitSig,
-    },
 };
-use bech32::FromBase32;
+use bech32::{
+    ToBase32,
+    Variant,
+};
 use color_eyre::eyre::{
+    self,
     bail,
     ensure,
     eyre,
@@ -27,22 +28,28 @@ use color_eyre::eyre::{
 use ed25519_dalek::Verifier;
 use prost::Message;
 use tendermint::{
-    account::Id as AccountId,
+    account::{
+        self,
+        Id as AccountId,
+    },
     block::{
         parts,
-        CommitSig as TendermintCommitSig,
+        Commit,
+        CommitSig,
         Height,
         Id as BlockId,
         Round,
     },
-    chain::Id as ChainId,
+    chain,
     crypto,
+    hash,
     merkle,
     vote::{
         self,
         CanonicalVote,
     },
     Hash,
+    PublicKey,
     Signature,
     Time,
 };
@@ -243,10 +250,13 @@ impl Reader {
         data: SignedNamespaceData<SequencerNamespaceData>,
     ) -> Result<SequencerBlock> {
         // sequencer block's height
-        let height = data.data.header.height.into();
+        let height = data.data.header.height;
 
         // get validator set for this height
-        let validator_set = self.tendermint_client.get_validator_set(height - 1).await?;
+        let validator_set = self
+            .tendermint_client
+            .get_validator_set(height.value() - 1)
+            .await?;
 
         // find proposer address for this height
         let expected_proposer_address = validator_set
@@ -286,7 +296,9 @@ impl Reader {
                     bail!("last commit hash should not be empty");
                 };
 
-                if calculated_last_commit_hash.as_slice() != last_commit_hash.0 {
+                if Hash::from_bytes(hash::Algorithm::Sha256, &calculated_last_commit_hash)?
+                    != *last_commit_hash
+                {
                     bail!("last commit hash in header does not match calculated last commit hash");
                 }
 
@@ -309,7 +321,10 @@ impl Reader {
             Hash::None => {
                 // this case only happens if the last commit is empty, which should only happen on
                 // block 1.
-                ensure!(data.data.header.height == "1", "last commit hash not found");
+                ensure!(
+                    data.data.header.height == Height::from(1 as u8),
+                    "last commit hash not found"
+                );
                 ensure!(
                     data.data.header.last_commit_hash.is_none(),
                     "last commit hash should be empty"
@@ -370,9 +385,9 @@ impl Reader {
 fn ensure_commit_has_quorum(
     commit: &Commit,
     validator_set: &ValidatorSet,
-    chain_id: &str,
+    chain_id: &chain::Id,
 ) -> Result<()> {
-    if commit.height != validator_set.block_height {
+    if commit.height != Height::from_str(&validator_set.block_height)? {
         bail!(
             "commit height mismatch: expected {}, got {}",
             validator_set.block_height,
@@ -397,40 +412,44 @@ fn ensure_commit_has_quorum(
     for vote in &commit.signatures {
         // we only care about votes that are for the Commit.BlockId (ignore absent validators and
         // votes for nil)
-        if vote.block_id_flag != "BLOCK_ID_FLAG_COMMIT" {
-            continue;
+        if let CommitSig::BlockIdFlagCommit {
+            validator_address,
+            timestamp,
+            signature: Some(signature),
+        } = vote
+        {
+            // TODO: unpack into validator_address, signature, timestamp
+            // verify validator exists in validator set
+            let validator_address: String = bech32::encode(
+                "metrovalcons",
+                Into::<Vec<u8>>::into(*validator_address).to_base32(),
+                Variant::Bech32,
+            )?;
+            let Some(validator) = validator_map.get(&validator_address) else {
+                bail!("validator {} not found in validator set", validator_address);
+            };
+
+            // verify address in signature matches validator pubkey
+            let address_from_pubkey = public_key_to_address(&validator.pub_key.key.0)?;
+            ensure!(
+                address_from_pubkey == validator_address,
+                format!(
+                    "validator address mismatch: expected {}, got {}",
+                    validator_address, address_from_pubkey
+                )
+            );
+
+            // verify vote signature
+            verify_vote_signature(
+                timestamp,
+                commit,
+                chain_id,
+                &validator.pub_key.key.0,
+                signature.as_bytes(),
+            )?;
+
+            commit_voting_power += validator.voting_power;
         }
-
-        // verify validator exists in validator set
-        let validator_address = bech32::encode(
-            "metrovalcons",
-            vote.validator_address.0.to_base32(),
-            Variant::Bech32,
-        )?;
-        let Some(validator) = validator_map.get(&validator_address) else {
-            bail!("validator {} not found in validator set", validator_address);
-        };
-
-        // verify address in signature matches validator pubkey
-        let address_from_pubkey = public_key_to_address(&validator.pub_key.key.0)?;
-        ensure!(
-            address_from_pubkey == validator_address,
-            format!(
-                "validator address mismatch: expected {}, got {}",
-                validator_address, address_from_pubkey
-            )
-        );
-
-        // verify vote signature
-        verify_vote_signature(
-            vote,
-            commit,
-            chain_id,
-            &validator.pub_key.key.0,
-            &vote.signature.0,
-        )?;
-
-        commit_voting_power += validator.voting_power;
     }
 
     ensure!(
@@ -465,9 +484,9 @@ fn does_commit_voting_power_have_quorum(commited: u64, total: u64) -> bool {
 // TODO: we can change these types (CommitSig and Commit) to be the tendermint types
 // after the other relayer types are updated.
 fn verify_vote_signature(
-    vote: &CommitSig,
+    timestamp: &Time,
     commit: &Commit,
-    chain_id: &str,
+    chain_id: &chain::Id,
     public_key_bytes: &[u8],
     signature_bytes: &[u8],
 ) -> Result<()> {
@@ -475,17 +494,14 @@ fn verify_vote_signature(
     let signature = ed25519_dalek::Signature::from_bytes(signature_bytes)?;
     let canonical_vote = CanonicalVote {
         vote_type: vote::Type::Precommit,
-        height: Height::from_str(&commit.height)?,
-        round: Round::from(commit.round as u16),
+        height: commit.height,
+        round: commit.round,
         block_id: Some(BlockId {
-            hash: Hash::try_from(commit.block_id.hash.0.to_vec())?,
-            part_set_header: parts::Header::new(
-                commit.block_id.part_set_header.total,
-                Hash::try_from(commit.block_id.part_set_header.hash.0.to_vec())?,
-            )?,
+            hash: commit.block_id.hash,
+            part_set_header: commit.block_id.part_set_header,
         }),
-        timestamp: Some(Time::parse_from_rfc3339(&vote.timestamp)?),
-        chain_id: ChainId::try_from(chain_id)?,
+        timestamp: Some(*timestamp),
+        chain_id: chain_id.clone(),
     };
     public_key.verify(
         &tendermint_proto::types::CanonicalVote::try_from(canonical_vote)?
@@ -501,35 +517,8 @@ fn calculate_last_commit_hash(commit: &Commit) -> Hash {
     let signatures = commit
         .signatures
         .iter()
-        .filter_map(|v| {
-            match v.block_id_flag.as_str() {
-                "BLOCK_ID_FLAG_COMMIT" => {
-                    let commit_sig = TendermintCommitSig::BlockIdFlagCommit {
-                        signature: Some(Signature::try_from(v.signature.clone().0).ok()?),
-                        validator_address: AccountId::try_from(v.validator_address.clone().0)
-                            .ok()?,
-                        timestamp: Time::parse_from_rfc3339(&v.timestamp).ok()?,
-                    };
-                    Some(RawCommitSig::try_from(commit_sig).ok()?.encode_to_vec())
-                }
-                "BLOCK_ID_FLAG_NIL" => {
-                    let commit_sig = TendermintCommitSig::BlockIdFlagNil {
-                        signature: Some(Signature::try_from(v.signature.clone().0).ok()?),
-                        validator_address: AccountId::try_from(v.validator_address.clone().0)
-                            .ok()?,
-                        timestamp: Time::parse_from_rfc3339(&v.timestamp).ok()?,
-                    };
-                    Some(RawCommitSig::try_from(commit_sig).ok()?.encode_to_vec())
-                }
-                "BLOCK_ID_FLAG_ABSENT" => Some(
-                    RawCommitSig::try_from(TendermintCommitSig::BlockIdFlagAbsent)
-                        .ok()?
-                        .encode_to_vec(),
-                ),
-                _ => None, // TODO: could this ever happen?
-            }
-        })
-        .collect::<Vec<_>>();
+        .map(|cs| RawCommitSig::from(cs.clone()).encode_to_vec())
+        .collect::<Vec<Vec<u8>>>();
     Hash::Sha256(merkle::simple_hash_from_byte_vectors::<
         crypto::default::Sha256,
     >(&signatures))
@@ -537,14 +526,8 @@ fn calculate_last_commit_hash(commit: &Commit) -> Hash {
 
 #[cfg(test)]
 mod test {
-    use astria_sequencer_relayer::{
-        base64_string::Base64String,
-        types::{
-            BlockId,
-            Commit,
-            Parts,
-        },
-    };
+    use astria_sequencer_relayer::base64_string::Base64String;
+    use tendermint::block;
 
     use super::*;
     use crate::tendermint::{
@@ -624,7 +607,11 @@ mod test {
 
         let validator_set = serde_json::from_str::<ValidatorSet>(validator_set_str).unwrap();
         let commit = serde_json::from_str::<Commit>(commit_str).unwrap();
-        ensure_commit_has_quorum(&commit, &validator_set, "private").unwrap();
+        ensure_commit_has_quorum(
+            &commit,
+            &validator_set,
+            &chain::Id::from_str("private").unwrap(),
+        );
     }
 
     #[test]
@@ -646,25 +633,24 @@ mod test {
         };
 
         let commit = Commit {
-            height: "2082".to_string(),
-            round: 0,
+            height: Height::from_str("2082").unwrap(),
+            round: Round::from(0 as u8),
             block_id: BlockId {
-                hash: Base64String::from_string(
-                    "5QrZ8fznJw/X1lviA5cyQ2BwLbma8iuvXHqh6BiMJdU=".to_string(),
+                hash: Hash::from_str("5QrZ8fznJw/X1lviA5cyQ2BwLbma8iuvXHqh6BiMJdU=").unwrap(),
+                part_set_header: block::parts::Header::new(
+                    1,
+                    Hash::from_str("DUMkxxMa2M0/aMmNyVGkvLn+3w1HTsGZ/YKyAVu+gdc=").unwrap(),
                 )
                 .unwrap(),
-                part_set_header: Parts {
-                    total: 1,
-                    hash: Base64String::from_string(
-                        "DUMkxxMa2M0/aMmNyVGkvLn+3w1HTsGZ/YKyAVu+gdc=".to_string(),
-                    )
-                    .unwrap(),
-                },
             },
             signatures: vec![],
         };
 
-        let result = ensure_commit_has_quorum(&commit, &validator_set, "private");
+        let result = ensure_commit_has_quorum(
+            &commit,
+            &validator_set,
+            &chain::Id::from_str("private").unwrap(),
+        );
         assert!(result.is_err());
         assert!(
             result
