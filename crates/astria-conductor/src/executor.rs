@@ -331,7 +331,6 @@ impl<C: ExecutionClient> Executor<C> {
 mod test {
     use std::{
         collections::HashSet,
-        str::FromStr,
         sync::Arc,
     };
 
@@ -434,17 +433,18 @@ mod test {
     }
 
     fn get_test_block() -> SequencerBlock {
+        // the hashes in this block are arbitrary
         SequencerBlock {
-            block_hash: Hash::from_str("block1").unwrap(),
+            block_hash: hash(b"block1").unwrap(),
             header: default_header(),
             last_commit: Commit {
                 height: Height::from(1_u32),
                 round: Round::from(0_u8),
                 block_id: block::Id {
-                    hash: Hash::from_str("block1").unwrap(),
+                    hash: hash(b"block0").unwrap(),
                     part_set_header: block::parts::Header::new(
-                        0,
-                        Hash::from_str("part_set_header").unwrap(),
+                        1,
+                        hash(b"part_set_header").unwrap(),
                     )
                     .unwrap(),
                 },
