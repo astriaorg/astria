@@ -18,7 +18,6 @@ use bech32::{
     Variant,
 };
 use color_eyre::eyre::{
-    self,
     bail,
     ensure,
     eyre,
@@ -28,17 +27,12 @@ use color_eyre::eyre::{
 use ed25519_dalek::Verifier;
 use prost::Message;
 use tendermint::{
-    account::{
-        self,
-        Id as AccountId,
-    },
+    account::{self,},
     block::{
-        parts,
         Commit,
         CommitSig,
         Height,
         Id as BlockId,
-        Round,
     },
     chain,
     crypto,
@@ -50,7 +44,6 @@ use tendermint::{
     },
     Hash,
     PublicKey,
-    Signature,
     Time,
 };
 use tendermint_proto::types::CommitSig as RawCommitSig;
@@ -527,7 +520,10 @@ fn calculate_last_commit_hash(commit: &Commit) -> Hash {
 #[cfg(test)]
 mod test {
     use astria_sequencer_relayer::base64_string::Base64String;
-    use tendermint::block;
+    use tendermint::block::{
+        self,
+        Round,
+    };
 
     use super::*;
     use crate::tendermint::{
