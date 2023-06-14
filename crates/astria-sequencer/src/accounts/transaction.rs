@@ -57,8 +57,6 @@ impl ActionHandler for Transaction {
         Ok(())
     }
 
-    // #[instrument(skip_all, fields(self.to.as_ref(), %self.from.as_ref(), %self.amount,
-    // %self.nonce))]
     #[instrument(
         skip_all,
         fields(
