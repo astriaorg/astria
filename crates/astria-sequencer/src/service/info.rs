@@ -7,19 +7,23 @@ use std::{
     },
 };
 
-use anyhow::Context as _;
+use anyhow::{
+    bail,
+    Context as _,
+};
+use borsh::BorshSerialize as _;
 use futures::{
     Future,
     FutureExt,
 };
 use penumbra_storage::Storage;
+use penumbra_tower_trace::RequestExt as _;
 use tendermint::{
     abci::{
         request,
         response::{
             self,
             Echo,
-            Info,
             SetOption,
         },
         InfoRequest,
@@ -29,7 +33,10 @@ use tendermint::{
 };
 use tower::Service;
 use tower_abci::BoxError;
-use tracing::instrument;
+use tracing::{
+    instrument,
+    Instrument,
+};
 
 use crate::{
     accounts::query::QueryHandler,
@@ -37,19 +44,19 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub struct InfoService {
+pub(crate) struct Info {
     storage: Storage,
 }
 
-impl InfoService {
-    pub fn new(storage: Storage) -> Self {
+impl Info {
+    pub(crate) fn new(storage: Storage) -> Self {
         Self {
             storage,
         }
     }
 }
 
-impl Service<InfoRequest> for InfoService {
+impl Service<InfoRequest> for Info {
     type Error = BoxError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
     type Response = InfoResponse;
@@ -59,7 +66,11 @@ impl Service<InfoRequest> for InfoService {
     }
 
     fn call(&mut self, req: InfoRequest) -> Self::Future {
-        handle_info_request(self.storage.clone(), req).boxed()
+        let span = req.create_span();
+
+        handle_info_request(self.storage.clone(), req)
+            .instrument(span)
+            .boxed()
     }
 }
 
@@ -70,7 +81,7 @@ async fn handle_info_request(
 ) -> Result<InfoResponse, BoxError> {
     match &request {
         InfoRequest::Info(_) => {
-            let response = InfoResponse::Info(Info {
+            let response = InfoResponse::Info(response::Info {
                 version: "0.1.0".to_string(),
                 app_version: 1,
                 last_block_height: Default::default(),
@@ -103,19 +114,27 @@ async fn handle_query(
     request: &request::Query,
 ) -> anyhow::Result<response::Query> {
     // note: request::Query also has a `data` field, which we ignore here
-    let query = decode_query(&request.path)?;
+    let query = decode_query(&request.path).context("failed to decode query")?;
 
     // TODO: handle height requests
     let key = request.path.clone().into_bytes();
     let value = match query {
         Query::AccountsQuery(request) => {
             let handler = QueryHandler::new();
-            handler.handle(storage.latest_snapshot(), request).await?
+            handler
+                .handle(storage.latest_snapshot(), request)
+                .await
+                .context("failed to handle accounts query")?
         }
     }
-    .to_bytes()?;
+    .try_to_vec()
+    .context("failed serializing query response")?;
 
-    let height = storage.latest_snapshot().get_block_height().await?;
+    let height = storage
+        .latest_snapshot()
+        .get_block_height()
+        .await
+        .context("failed to get block from latest snapshot")?;
 
     Ok(response::Query {
         key: key.into(),
@@ -126,22 +145,24 @@ async fn handle_query(
 }
 
 #[non_exhaustive]
-pub enum Query {
+pub(crate) enum Query {
     AccountsQuery(crate::accounts::query::QueryRequest),
 }
 
+#[instrument]
 fn decode_query(path: &str) -> anyhow::Result<Query> {
     let mut parts: VecDeque<&str> = path.split('/').collect();
 
     let Some(component) = parts.pop_front() else {
-        return Err(anyhow::anyhow!("invalid query path; missing component: {}", path));
+        bail!("invalid query path; missing component: {path}");
     };
 
     match component {
         "accounts" => {
-            let request = crate::accounts::query::QueryRequest::decode(parts)?;
+            let request = crate::accounts::query::QueryRequest::decode(parts)
+                .context("failed to decode accounts query from path parts")?;
             Ok(Query::AccountsQuery(request))
         }
-        _ => Err(anyhow::anyhow!("invalid query path: {}", path)),
+        other => bail!("unknown query path: `{other}`"),
     }
 }

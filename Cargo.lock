@@ -330,7 +330,7 @@ dependencies = [
  "tendermint 0.30.0",
  "tendermint-proto 0.30.0",
  "tokio",
- "tonic",
+ "tonic 0.9.2",
  "tracing",
  "tracing-subscriber",
 ]
@@ -372,7 +372,7 @@ dependencies = [
  "prost",
  "prost-types",
  "tendermint-proto 0.30.0",
- "tonic",
+ "tonic 0.9.2",
  "which",
 ]
 
@@ -399,13 +399,16 @@ dependencies = [
  "async-trait",
  "borsh 0.11.0",
  "bytes",
+ "clap",
  "futures",
  "hex",
  "is-terminal",
  "penumbra-component",
  "penumbra-storage",
+ "penumbra-tower-trace",
  "serde",
  "serde_json",
+ "sha2 0.10.6",
  "tendermint 0.31.1",
  "tendermint-proto 0.31.1",
  "tokio",
@@ -493,6 +496,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fa24f727524730b077666307f2734b4a1a1c57acb79193127dcc8914d5242dd7"
 dependencies = [
  "event-listener",
+]
+
+[[package]]
+name = "async-stream"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd56dd203fef61ac097dd65721a419ddccb106b2d2b70ba60a6b529f03961a51"
+dependencies = [
+ "async-stream-impl",
+ "futures-core",
+ "pin-project-lite",
+]
+
+[[package]]
+name = "async-stream-impl"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16e62a023e7c117e27523144c5d2459f4397fcc3cab0085af8e2224f643a0193"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -3500,6 +3525,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "penumbra-tower-trace"
+version = "0.53.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.53.1#07d40f4dc97dd69466672d4d59309eb2a58613ae"
+dependencies = [
+ "futures",
+ "hex",
+ "http",
+ "pin-project",
+ "pin-project-lite",
+ "sha2 0.9.9",
+ "tendermint 0.31.1",
+ "tendermint-proto 0.31.1",
+ "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.5",
+ "tonic 0.8.3",
+ "tower",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
 name = "percent-encoding"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5003,6 +5050,38 @@ dependencies = [
 
 [[package]]
 name = "tonic"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f219fad3b929bef19b1f86fbc0358d35daed8f2cac972037ac0dc10bbb8d5fb"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "axum",
+ "base64 0.13.1",
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "h2",
+ "http",
+ "http-body",
+ "hyper",
+ "hyper-timeout",
+ "percent-encoding",
+ "pin-project",
+ "prost",
+ "prost-derive",
+ "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.5",
+ "tower",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "tonic"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3082666a3a6433f7f511c7192923fa1fe07c69332d3c6a2e6bb040b569199d5a"
@@ -5159,6 +5238,16 @@ checksum = "d686ec1c0f384b1277f097b2f279a2ecc11afe8c133c1aabf036a27cb4cd206e"
 dependencies = [
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "tracing-futures"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97d095ae15e245a057c8e8451bab9b3ee1e1f68e9ba2b4fbc18d0ac5237835f2"
+dependencies = [
+ "pin-project",
+ "tracing",
 ]
 
 [[package]]
