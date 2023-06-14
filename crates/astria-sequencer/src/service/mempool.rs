@@ -6,6 +6,7 @@ use std::{
     },
 };
 
+use borsh::BorshDeserialize as _;
 use futures::{
     Future,
     FutureExt,
@@ -51,7 +52,7 @@ impl Service<MempoolRequest> for Mempool {
             // TODO: status codes for various errors
             // TODO: offload `check_stateless` using `deliver_tx_bytes` mechanism
             //       and a worker task similar to penumbra
-            let tx = match Transaction::from_bytes(&tx_bytes) {
+            let tx = match Transaction::try_from_slice(&tx_bytes) {
                 Ok(tx) => tx,
                 Err(e) => {
                     return Ok(MempoolResponse::CheckTx(response::CheckTx {

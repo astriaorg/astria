@@ -3,9 +3,9 @@ use anyhow::{
     Result,
 };
 use async_trait::async_trait;
-use serde::{
-    Deserialize,
-    Serialize,
+use borsh::{
+    BorshDeserialize,
+    BorshSerialize,
 };
 
 use crate::{
@@ -23,7 +23,7 @@ use crate::{
     transaction::ActionHandler,
 };
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Transaction {
     pub(crate) to: Address,
     pub(crate) from: Address,

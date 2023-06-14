@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use borsh::BorshDeserialize as _;
 use penumbra_storage::{
     ArcStateDeltaExt,
     Snapshot,
@@ -18,7 +19,6 @@ use tracing::{
 
 use crate::{
     accounts::component::AccountsComponent,
-    app_hash::AppHash,
     component::Component,
     genesis::GenesisState,
     state_ext::{
@@ -30,6 +30,10 @@ use crate::{
         Transaction,
     },
 };
+
+/// The application hash, used to verify the application state.
+/// TODO: this may not be the same as the state root hash?
+pub(crate) type AppHash = penumbra_storage::RootHash;
 
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
@@ -99,7 +103,7 @@ impl App {
 
     #[instrument(name = "App:deliver_tx", skip(self))]
     pub async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
-        let tx = Transaction::from_bytes(tx)?;
+        let tx = Transaction::try_from_slice(tx)?;
 
         let tx2 = tx.clone();
         let stateless = tokio::spawn(async move { tx2.check_stateless() });
@@ -154,7 +158,7 @@ impl App {
             .await
             .expect("must be able to successfully commit to storage");
 
-        let app_hash: AppHash = jmt_root.into();
+        let app_hash: AppHash = jmt_root;
         tracing::debug!(?app_hash, "finished committing state");
 
         // Get the latest version of the state, now that we've committed it.
@@ -187,6 +191,7 @@ impl App {
 
 #[cfg(test)]
 mod test {
+    use borsh::BorshSerialize as _;
     use tendermint::{
         abci::types::CommitInfo,
         account,
@@ -231,10 +236,10 @@ mod test {
         ]
     }
 
-    fn default_header() -> Header {
-        Header {
-            app_hash: AppHash::try_from(vec![]).unwrap(),
-            chain_id: "test".to_string().try_into().unwrap(),
+    fn default_header() -> Result<Header> {
+        Ok(Header {
+            app_hash: AppHash::try_from(vec![])?,
+            chain_id: "test".to_string().try_into()?,
             consensus_hash: Hash::default(),
             data_hash: Some(Hash::default()),
             evidence_hash: Some(Hash::default()),
@@ -243,14 +248,14 @@ mod test {
             last_commit_hash: Some(Hash::default()),
             last_results_hash: Some(Hash::default()),
             next_validators_hash: Hash::default(),
-            proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
+            proposer_address: account::Id::try_from([0u8; 20].to_vec())?,
             time: Time::now(),
             validators_hash: Hash::default(),
             version: Version {
                 app: 0,
                 block: 0,
             },
-        }
+        })
     }
 
     #[tokio::test]
@@ -290,7 +295,7 @@ mod test {
         app.init_chain(genesis_state).await.unwrap();
 
         let mut begin_block = abci::request::BeginBlock {
-            header: default_header(),
+            header: default_header().unwrap(),
             hash: Hash::default(),
             last_commit_info: CommitInfo {
                 votes: vec![],
@@ -331,7 +336,7 @@ mod test {
             amount,
             nonce,
         });
-        let bytes = tx.to_bytes().unwrap();
+        let bytes = tx.try_to_vec().unwrap();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(

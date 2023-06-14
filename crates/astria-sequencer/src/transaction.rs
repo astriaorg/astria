@@ -1,12 +1,12 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use borsh::{
+    BorshDeserialize,
+    BorshSerialize,
+};
 use penumbra_storage::{
     StateRead,
     StateWrite,
-};
-use serde::{
-    Deserialize,
-    Serialize,
 };
 use tracing::instrument;
 
@@ -20,23 +20,12 @@ pub(crate) trait ActionHandler {
 }
 
 /// Represents a sequencer chain transaction.
+///
 /// If a new transaction type is added, it should be added to this enum.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub(crate) enum Transaction {
     AccountsTransaction(AccountsTransaction),
-}
-
-impl Transaction {
-    pub(crate) fn to_bytes(&self) -> Result<Vec<u8>> {
-        let bytes = serde_json::to_vec(self)?;
-        Ok(bytes)
-    }
-
-    pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let tx = serde_json::from_slice(bytes)?;
-        Ok(tx)
-    }
 }
 
 #[async_trait]

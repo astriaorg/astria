@@ -11,6 +11,7 @@ use anyhow::{
     bail,
     Context as _,
 };
+use borsh::BorshSerialize as _;
 use futures::{
     Future,
     FutureExt,
@@ -123,7 +124,8 @@ async fn handle_query(
             handler.handle(storage.latest_snapshot(), request).await?
         }
     }
-    .to_bytes()?;
+    .try_to_vec()
+    .context("failed serializing query response")?;
 
     let height = storage.latest_snapshot().get_block_height().await?;
 

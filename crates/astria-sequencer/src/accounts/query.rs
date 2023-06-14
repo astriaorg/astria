@@ -3,10 +3,12 @@ use std::collections::VecDeque;
 use anyhow::{
     anyhow,
     bail,
-    Context as _,
     Result,
 };
-use borsh::BorshSerialize as _;
+use borsh::{
+    BorshDeserialize,
+    BorshSerialize,
+};
 use tracing::instrument;
 
 use crate::accounts::{
@@ -18,7 +20,7 @@ use crate::accounts::{
     },
 };
 
-#[derive(Debug)]
+#[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub(crate) enum QueryRequest {
     BalanceQuery(Address),
     NonceQuery(Address),
@@ -37,22 +39,10 @@ impl QueryRequest {
     }
 }
 
+#[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub(crate) enum QueryResponse {
     BalanceResponse(Balance),
     NonceResponse(Nonce),
-}
-
-impl QueryResponse {
-    pub(crate) fn to_bytes(&self) -> Result<Vec<u8>> {
-        match self {
-            QueryResponse::BalanceResponse(balance) => Ok(balance
-                .try_to_vec()
-                .context("failed to serialize balance")?),
-            QueryResponse::NonceResponse(nonce) => {
-                Ok(nonce.try_to_vec().context("failed to serialize nonce")?)
-            }
-        }
-    }
 }
 
 #[derive(Default)]
