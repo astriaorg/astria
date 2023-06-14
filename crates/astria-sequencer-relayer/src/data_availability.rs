@@ -250,8 +250,8 @@ impl NamespaceData for SequencerNamespaceData {
 /// to verify a Merkle inclusion proof.
 #[derive(Serialize, Deserialize, Debug)]
 struct RollupNamespaceData {
-    pub block_hash: Hash,
-    pub rollup_txs: Vec<IndexedTransaction>,
+    pub(crate) block_hash: Hash,
+    pub(crate) rollup_txs: Vec<IndexedTransaction>,
 }
 
 impl RollupNamespaceData {

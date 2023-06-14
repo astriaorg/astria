@@ -20,5 +20,6 @@ pub mod telemetry;
 pub mod tendermint;
 
 mod private {
+    #[allow(unreachable_pub)]
     pub trait Sealed {}
 }
