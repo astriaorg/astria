@@ -16,6 +16,7 @@ use base64::{
     Engine as _,
 };
 use eyre::{
+    bail,
     ensure,
     eyre,
     WrapErr as _,
@@ -316,9 +317,9 @@ impl SequencerBlock {
     /// verify_data_hash verifies that the merkle root of the tree consisting of all the
     /// transactions in the block matches the block's data hash.
     pub fn verify_data_hash(&self) -> eyre::Result<()> {
-        // let Some(this_data_hash) = self.header.data_hash.as_ref() else {
-        //     bail!("block has no data hash");
-        // };
+        let Some(this_data_hash) = self.header.data_hash else {
+            bail!("block has no data hash");
+        };
 
         let mut ordered_txs = vec![];
         ordered_txs.append(&mut self.sequencer_txs.clone());
@@ -336,7 +337,7 @@ impl SequencerBlock {
         let data_hash = txs_to_data_hash(&txs);
 
         ensure!(
-            data_hash == self.header.data_hash.unwrap(), // TODO: statically handle
+            data_hash == this_data_hash,
             "data hash stored in block header does not match hash calculated from transactions",
         );
 
