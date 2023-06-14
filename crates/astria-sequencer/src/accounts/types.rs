@@ -13,7 +13,7 @@ pub(crate) struct Address(String);
 
 impl AsRef<str> for Address {
     fn as_ref(&self) -> &str {
-        &*self.0
+        &self.0
     }
 }
 
