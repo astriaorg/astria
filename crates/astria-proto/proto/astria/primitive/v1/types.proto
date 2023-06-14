@@ -13,7 +13,7 @@ package astria.primitive.v1;
 // adding lo:
 //
 // x = (hi as u128) << 64 + (lo as u128)
-message U128 {
+message Uint128 {
   uint64 lo = 1;
   uint64 hi = 2;
 }

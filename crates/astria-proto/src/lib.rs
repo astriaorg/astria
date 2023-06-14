@@ -21,20 +21,20 @@ mod primitive_impls {
     //! Implementations of foreign traits for foreign types to
     //! deal with orphan rules.
 
-    use crate::primitive::v1::U128;
-    impl From<u128> for U128 {
-        fn from(primitive: u128) -> U128 {
+    use crate::primitive::v1::Uint128;
+    impl From<u128> for Uint128 {
+        fn from(primitive: u128) -> Self {
             let lo = primitive as u64;
             let hi = (primitive >> 64) as u64;
-            U128 {
+            Self {
                 lo,
                 hi,
             }
         }
     }
 
-    impl From<U128> for u128 {
-        fn from(pb: U128) -> u128 {
+    impl From<Uint128> for u128 {
+        fn from(pb: Uint128) -> u128 {
             let lo = pb.lo as u128;
             let hi = (pb.hi as u128) << 64;
             hi + lo
@@ -43,10 +43,10 @@ mod primitive_impls {
 
     #[cfg(test)]
     mod tests {
-        use crate::primitive::v1::U128;
+        use crate::primitive::v1::Uint128;
         #[track_caller]
         fn u128_roundtrip_check(expected: u128) {
-            let pb: U128 = expected.into();
+            let pb: Uint128 = expected.into();
             let actual: u128 = pb.into();
             assert_eq!(expected, actual);
         }
