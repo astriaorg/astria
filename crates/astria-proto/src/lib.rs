@@ -55,6 +55,9 @@ mod primitive_impls {
             u128_roundtrip_check(0u128);
             u128_roundtrip_check(1u128);
             u128_roundtrip_check(u64::MAX as u128);
+            u128_roundtrip_check(u64::MAX as u128 + 1u128);
+            u128_roundtrip_check(1u128 << 127);
+            u128_roundtrip_check((1u128 << 127) + (1u128 << 63));
             u128_roundtrip_check(u128::MAX);
         }
     }
