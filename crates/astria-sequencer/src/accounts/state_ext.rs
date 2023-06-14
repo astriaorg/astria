@@ -11,7 +11,10 @@ use penumbra_storage::{
     StateRead,
     StateWrite,
 };
-use tracing::instrument;
+use tracing::{
+    debug,
+    instrument,
+};
 
 use crate::accounts::types::{
     Address,
@@ -37,15 +40,13 @@ pub(crate) fn nonce_storage_key(address: &str) -> String {
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
     async fn get_account_balance(&self, address: &Address) -> Result<Balance> {
-        let bytes = self
+        let Some(bytes) = self
             .get_raw(&balance_storage_key(address.to_str()))
             .await
-            .context("storage error")?;
-        let Some(bytes) = bytes else {
-            // the account has not yet been initialized; return 0
+            .context("failed reading raw account balance from state")? else {
+            debug!("account balance not found, returning 0");
             return Ok(Balance::from(0));
         };
-
         let balance = Balance::try_from_slice(&bytes).context("invalid balance bytes")?;
         Ok(balance)
     }
@@ -55,7 +56,7 @@ pub(crate) trait StateReadExt: StateRead {
         let bytes = self
             .get_raw(&nonce_storage_key(address.to_str()))
             .await
-            .context("storage error")?;
+            .context("failed reading raw account nonce from state")?;
         let Some(bytes) = bytes else {
             // the account has not yet been initialized; return 0
             return Ok(Nonce::from(0));

@@ -11,6 +11,12 @@ use serde::{
 #[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub(crate) struct Address(String);
 
+impl AsRef<str> for Address {
+    fn as_ref(&self) -> &str {
+        &*self.0
+    }
+}
+
 impl From<&str> for Address {
     fn from(s: &str) -> Self {
         Self(s.to_string())
@@ -38,6 +44,12 @@ impl Address {
     Debug,
 )]
 pub(crate) struct Balance(u128);
+
+impl Balance {
+    pub(crate) fn into_inner(self) -> u128 {
+        self.0
+    }
+}
 
 impl From<u128> for Balance {
     fn from(n: u128) -> Self {
@@ -92,6 +104,12 @@ impl std::ops::Sub<u128> for Balance {
     Debug,
 )]
 pub(crate) struct Nonce(u32);
+
+impl Nonce {
+    pub(crate) fn into_inner(self) -> u32 {
+        self.0
+    }
+}
 
 impl From<u32> for Nonce {
     fn from(n: u32) -> Self {

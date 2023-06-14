@@ -114,20 +114,27 @@ async fn handle_query(
     request: &request::Query,
 ) -> anyhow::Result<response::Query> {
     // note: request::Query also has a `data` field, which we ignore here
-    let query = decode_query(&request.path)?;
+    let query = decode_query(&request.path).context("failed to decode query")?;
 
     // TODO: handle height requests
     let key = request.path.clone().into_bytes();
     let value = match query {
         Query::AccountsQuery(request) => {
             let handler = QueryHandler::new();
-            handler.handle(storage.latest_snapshot(), request).await?
+            handler
+                .handle(storage.latest_snapshot(), request)
+                .await
+                .context("failed to handle accounts query")?
         }
     }
     .try_to_vec()
     .context("failed serializing query response")?;
 
-    let height = storage.latest_snapshot().get_block_height().await?;
+    let height = storage
+        .latest_snapshot()
+        .get_block_height()
+        .await
+        .context("failed to get block from latest snapshot")?;
 
     Ok(response::Query {
         key: key.into(),
@@ -142,6 +149,7 @@ pub(crate) enum Query {
     AccountsQuery(crate::accounts::query::QueryRequest),
 }
 
+#[instrument]
 fn decode_query(path: &str) -> anyhow::Result<Query> {
     let mut parts: VecDeque<&str> = path.split('/').collect();
 
@@ -151,9 +159,10 @@ fn decode_query(path: &str) -> anyhow::Result<Query> {
 
     match component {
         "accounts" => {
-            let request = crate::accounts::query::QueryRequest::decode(parts)?;
+            let request = crate::accounts::query::QueryRequest::decode(parts)
+                .context("failed to decode accounts query from path parts")?;
             Ok(Query::AccountsQuery(request))
         }
-        _ => Err(anyhow::anyhow!("invalid query path: {}", path)),
+        other => bail!("unknown query path: `{other}`"),
     }
 }

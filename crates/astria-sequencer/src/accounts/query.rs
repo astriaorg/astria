@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use anyhow::{
     anyhow,
     bail,
+    Context,
     Result,
 };
 use borsh::{
@@ -34,7 +35,7 @@ impl QueryRequest {
         match query_type {
             "balance" => Ok(QueryRequest::BalanceQuery(Address::from(address))),
             "nonce" => Ok(QueryRequest::NonceQuery(Address::from(address))),
-            _ => bail!("invalid query type"),
+            other => bail!("invalid query type: `{other}`"),
         }
     }
 }
@@ -61,11 +62,17 @@ impl QueryHandler {
     ) -> Result<QueryResponse> {
         match query {
             QueryRequest::BalanceQuery(address) => {
-                let balance = state.get_account_balance(&address).await?;
+                let balance = state
+                    .get_account_balance(&address)
+                    .await
+                    .context("failed getting account balance")?;
                 Ok(QueryResponse::BalanceResponse(balance))
             }
             QueryRequest::NonceQuery(address) => {
-                let nonce = state.get_account_nonce(&address).await?;
+                let nonce = state
+                    .get_account_nonce(&address)
+                    .await
+                    .context("failed getting account nonce")?;
                 Ok(QueryResponse::NonceResponse(nonce))
             }
         }

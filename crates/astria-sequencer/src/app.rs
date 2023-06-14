@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{
+    Context,
+    Result,
+};
 use borsh::BorshDeserialize as _;
 use penumbra_storage::{
     ArcStateDeltaExt,
@@ -103,7 +106,8 @@ impl App {
 
     #[instrument(name = "App:deliver_tx", skip(self))]
     pub async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
-        let tx = Transaction::try_from_slice(tx)?;
+        let tx = Transaction::try_from_slice(tx)
+            .context("failed deserializing transaction from bytes")?;
 
         let tx2 = tx.clone();
         let stateless = tokio::spawn(async move { tx2.check_stateless() });
@@ -111,9 +115,14 @@ impl App {
         let state2 = self.state.clone();
         let stateful = tokio::spawn(async move { tx2.check_stateful(&state2).await });
 
-        stateless.await??;
-        stateful.await??;
-
+        stateless
+            .await
+            .context("stateless check task aborted while executing")?
+            .context("stateless check failed")?;
+        stateful
+            .await
+            .context("stateful check task aborted while executing")?
+            .context("stateful check failed")?;
         // At this point, the stateful checks should have completed,
         // leaving us with exclusive access to the Arc<State>.
         let mut state_tx = self
@@ -121,13 +130,16 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should be present and unique");
 
-        tx.execute(&mut state_tx).await?;
+        tx.execute(&mut state_tx)
+            .await
+            .context("failed executing transaction")?;
         state_tx.apply();
 
         let height = self
             .state
             .get_block_height()
             .await
+            // TODO: explain why this is an invariant of the system
             .expect("block height should be set");
         info!(?tx, ?height, "executed transaction");
         Ok(vec![])
@@ -238,8 +250,8 @@ mod test {
 
     fn default_header() -> Result<Header> {
         Ok(Header {
-            app_hash: AppHash::try_from(vec![])?,
-            chain_id: "test".to_string().try_into()?,
+            app_hash: AppHash::try_from(vec![]).unwrap(),
+            chain_id: "test".to_string().try_into().unwrap(),
             consensus_hash: Hash::default(),
             data_hash: Some(Hash::default()),
             evidence_hash: Some(Hash::default()),
@@ -248,7 +260,7 @@ mod test {
             last_commit_hash: Some(Hash::default()),
             last_results_hash: Some(Hash::default()),
             next_validators_hash: Hash::default(),
-            proposer_address: account::Id::try_from([0u8; 20].to_vec())?,
+            proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
             time: Time::now(),
             validators_hash: Hash::default(),
             version: Version {
