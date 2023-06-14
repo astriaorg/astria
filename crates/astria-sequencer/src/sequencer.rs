@@ -9,22 +9,33 @@ use penumbra_tower_trace::{
 };
 use tendermint::abci::ConsensusRequest;
 use tower_abci::v037::Server;
-use tracing::info;
+use tracing::{
+    info,
+    instrument,
+};
 
 use crate::{
     app::App,
+    config::Config,
+    genesis::GenesisState,
     service,
 };
 
 pub struct Sequencer;
 
 impl Sequencer {
-    pub async fn run_until_stopped(listen_addr: &str) -> Result<()> {
+    #[instrument(skip_all, fields(config = serde_json::to_string(&config).unwrap()))]
+    pub async fn run_until_stopped(config: Config) -> Result<()> {
+        let genesis_state =
+            GenesisState::from_path(config.genesis_file).context("failed reading genesis state")?;
         let storage = penumbra_storage::TempStorage::new()
             .await
             .context("failed to create temp storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
-        let app = App::new(snapshot);
+        let mut app = App::new(snapshot);
+        app.init_chain(genesis_state)
+            .await
+            .context("failed initializing app with genesis state")?;
 
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {
@@ -46,8 +57,11 @@ impl Sequencer {
             .finish()
             .ok_or_else(|| anyhow!("server builder didn't return server; are all fields set?"))?;
 
-        info!(?listen_addr, "starting sequencer");
-        server.listen(listen_addr).await.expect("should listen");
+        info!(config.listen_addr, "starting sequencer");
+        server
+            .listen(&config.listen_addr)
+            .await
+            .expect("should listen");
         Ok(())
     }
 }

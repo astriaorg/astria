@@ -399,6 +399,7 @@ dependencies = [
  "async-trait",
  "borsh 0.11.0",
  "bytes",
+ "clap",
  "futures",
  "hex",
  "is-terminal",
