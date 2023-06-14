@@ -315,7 +315,7 @@ impl Reader {
                 // this case only happens if the last commit is empty, which should only happen on
                 // block 1.
                 ensure!(
-                    data.data.header.height == Height::from(1 as u8),
+                    data.data.header.height == Height::from(1_u8),
                     "last commit hash not found"
                 );
                 ensure!(
@@ -607,7 +607,8 @@ mod test {
             &commit,
             &validator_set,
             &chain::Id::from_str("private").unwrap(),
-        );
+        )
+        .unwrap();
     }
 
     #[test]
@@ -630,7 +631,7 @@ mod test {
 
         let commit = Commit {
             height: Height::from_str("2082").unwrap(),
-            round: Round::from(0 as u8),
+            round: Round::from(0_u8),
             block_id: BlockId {
                 hash: Hash::from_str("5QrZ8fznJw/X1lviA5cyQ2BwLbma8iuvXHqh6BiMJdU=").unwrap(),
                 part_set_header: block::parts::Header::new(

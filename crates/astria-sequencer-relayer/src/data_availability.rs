@@ -193,17 +193,11 @@ impl SequencerNamespaceData {
             header: Header::try_from(
                 proto
                     .header
-                    .ok_or(eyre!("SequencerNamespaceData from_proto failed: no header"))?
-                    .clone(),
+                    .ok_or(eyre!("SequencerNamespaceData from_proto failed: no header"))?,
             )?,
-            last_commit: Commit::try_from(
-                proto
-                    .last_commit
-                    .ok_or(eyre!(
-                        "SequencerNamespaceData from_proto failed: no last_commit"
-                    ))?
-                    .clone(),
-            )?,
+            last_commit: Commit::try_from(proto.last_commit.ok_or(eyre!(
+                "SequencerNamespaceData from_proto failed: no last_commit"
+            ))?)?,
             sequencer_txs: proto
                 .sequencer_txs
                 .into_iter()
@@ -378,7 +372,7 @@ impl CelestiaClient {
                 namespace
             );
             let rollup_namespace_data = RollupNamespaceData {
-                block_hash: block.block_hash.clone(),
+                block_hash: block.block_hash,
                 rollup_txs: txs,
             };
             let rollup_data_bytes = rollup_namespace_data.to_signed(keypair).to_bytes();
@@ -397,7 +391,7 @@ impl CelestiaClient {
 
         // then, format and submit data to the base sequencer namespace
         let sequencer_namespace_data = SequencerNamespaceData {
-            block_hash: block.block_hash.clone(),
+            block_hash: block.block_hash,
             header: block.header,
             last_commit: block.last_commit,
             sequencer_txs: block.sequencer_txs,
@@ -530,7 +524,7 @@ impl CelestiaClient {
         }
 
         Ok(SequencerBlock {
-            block_hash: data.block_hash.clone(),
+            block_hash: data.block_hash,
             header: data.header.clone(),
             last_commit: data.last_commit.clone(),
             sequencer_txs: data.sequencer_txs.clone(),

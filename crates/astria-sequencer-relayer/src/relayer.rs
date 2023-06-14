@@ -142,7 +142,7 @@ impl Relayer {
         if block.header.proposer_address != self.validator_address {
             let proposer_address = bech32::encode(
                 "metrovalcons",
-                Base64String::from_bytes(&block.header.proposer_address.as_bytes())
+                Base64String::from_bytes(block.header.proposer_address.as_bytes())
                     .0
                     .to_base32(),
                 Variant::Bech32,

@@ -48,7 +48,7 @@ fn make_header() -> Header {
                 _ => panic!("chain id construction failed"),
             }
         },
-        height: Height::from(0 as u32),
+        height: Height::from(0_u32),
         time: Time::now(),
         last_block_id: None,
         last_commit_hash: None,
@@ -65,8 +65,8 @@ fn make_header() -> Header {
 
 fn empty_commit() -> Commit {
     Commit {
-        height: Height::from(0 as u32),
-        round: Round::from(0 as u8),
+        height: Height::from(0_u32),
+        round: Round::from(0_u8),
         block_id: block::Id {
             hash: Hash::from_str("").unwrap(),
             part_set_header: block::parts::Header::new(0, Hash::from_str("").unwrap()).unwrap(),
@@ -96,9 +96,9 @@ async fn get_blocks_public_key_filter() {
 
     let tx = Base64String(b"noot_was_here".to_vec());
 
-    let block_hash = Hash::from_bytes(hash::Algorithm::Sha256, &vec![99; 32]).unwrap();
+    let block_hash = Hash::from_bytes(hash::Algorithm::Sha256, &[99; 32]).unwrap();
     let block = SequencerBlock {
-        block_hash: block_hash.clone(),
+        block_hash,
         header: make_header(),
         last_commit: empty_commit(),
         sequencer_txs: vec![IndexedTransaction {
@@ -136,9 +136,9 @@ async fn celestia_client() {
     let secondary_namespace = get_namespace(b"test_namespace");
     let secondary_tx = Base64String(b"noot_was_here_too".to_vec());
 
-    let block_hash = Hash::from_bytes(hash::Algorithm::Sha256, &vec![99; 32]).unwrap();
+    let block_hash = Hash::from_bytes(hash::Algorithm::Sha256, &[99; 32]).unwrap();
     let mut block = SequencerBlock {
-        block_hash: block_hash.clone(),
+        block_hash,
         header: make_header(),
         last_commit: empty_commit(),
         sequencer_txs: vec![IndexedTransaction {

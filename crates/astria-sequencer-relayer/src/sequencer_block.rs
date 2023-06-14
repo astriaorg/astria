@@ -160,7 +160,7 @@ impl IndexedTransaction {
     pub fn from_proto(proto: RawIndexedTransaction) -> eyre::Result<Self> {
         Ok(Self {
             block_index: proto.block_index.try_into()?,
-            transaction: proto.transaction.clone(),
+            transaction: proto.transaction,
         })
     }
 
@@ -197,14 +197,12 @@ impl SequencerBlock {
             header: Header::try_from(
                 proto
                     .header
-                    .ok_or(eyre!("SequencerBlock from_proto failed: no header"))?
-                    .clone(),
+                    .ok_or(eyre!("SequencerBlock from_proto failed: no header"))?,
             )?, // TODO: static errors
             last_commit: Commit::try_from(
                 proto
                     .last_commit
-                    .ok_or(eyre!("SequencerBlock from_proto failed: no last_commit"))?
-                    .clone(),
+                    .ok_or(eyre!("SequencerBlock from_proto failed: no last_commit"))?,
             )?,
             sequencer_txs: proto
                 .sequencer_transactions
@@ -424,7 +422,7 @@ mod test {
                     _ => panic!("chain id construction failed"),
                 }
             },
-            height: Height::from(0 as u32),
+            height: Height::from(0_u32),
             time: Time::now(),
             last_block_id: None,
             last_commit_hash: None,
@@ -441,8 +439,8 @@ mod test {
 
     fn empty_commit() -> Commit {
         Commit {
-            height: Height::from(0 as u32),
-            round: Round::from(0 as u8),
+            height: Height::from(0_u32),
+            round: Round::from(0_u8),
             block_id: block::Id {
                 hash: Hash::from_str("").unwrap(),
                 part_set_header: block::parts::Header::new(0, Hash::from_str("").unwrap()).unwrap(),

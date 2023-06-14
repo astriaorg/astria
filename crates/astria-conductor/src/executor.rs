@@ -354,7 +354,6 @@ mod test {
         },
         AppHash,
     };
-    use tendermint_proto::types::BlockId;
     use tokio::sync::{
         mpsc,
         Mutex,
@@ -439,8 +438,8 @@ mod test {
             block_hash: Hash::from_str("block1").unwrap(),
             header: default_header(),
             last_commit: Commit {
-                height: Height::from(1 as u32),
-                round: Round::from(0 as u8),
+                height: Height::from(1_u32),
+                round: Round::from(0_u8),
                 block_id: block::Id {
                     hash: Hash::from_str("block1").unwrap(),
                     part_set_header: block::parts::Header::new(
