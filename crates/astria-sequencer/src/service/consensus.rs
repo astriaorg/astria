@@ -15,6 +15,7 @@ use tower_abci::BoxError;
 use tower_actor::Message;
 use tracing::{
     instrument,
+    warn,
     Instrument,
 };
 
@@ -52,7 +53,13 @@ impl Consensus {
             // The send only fails if the receiver was dropped, which happens
             // if the caller didn't propagate the message back to tendermint
             // for some reason -- but that's not our problem.
-            rsp_sender.send(self.handle_request(req).instrument(span).await);
+            let rsp = self.handle_request(req).instrument(span.clone()).await;
+            if let Err(e) = rsp.as_ref() {
+                warn!(parent: &span, error = ?e, "failed processing concensus request; returning error back to sender");
+            }
+            if let Err(_) = rsp_sender.send(rsp) {
+                warn!(parent: &span, "failed returning consensus response to request sender; dropping response");
+            }
         }
         Ok(())
     }
