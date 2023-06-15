@@ -1,7 +1,10 @@
 name: Rust
 env:
   CI: true
-  RUSTFLAGS: "-D warnings -D unreachable-pub"
+  RUSTFLAGS: |-
+    -D warnings
+    -D unreachable-pub
+    --cfg tokio_unstable
 on: 
   pull_request:
   push:
@@ -13,6 +16,7 @@ jobs:
   test:
     runs-on: ubuntu-22.04
     steps:
+      - run: echo $RUSTFLAGS
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.69.0
       - uses: Swatinem/rust-cache@v2
