@@ -45,7 +45,7 @@ make install_abci
 In astria-sequencer/:
 ```sh
 cargo build
-./target/debug/app
+../../target/debug/astria-sequencer --genesis-file=test-genesis.json
 ```
 
 #### Query the app for info
