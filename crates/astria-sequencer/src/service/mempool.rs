@@ -31,7 +31,7 @@ use crate::transaction::{
 /// It performs a stateless check of the given transaction,
 /// returning an abci::response::CheckTx.
 #[derive(Clone, Default)]
-pub struct Mempool;
+pub(crate) struct Mempool;
 
 impl Service<MempoolRequest> for Mempool {
     type Error = BoxError;
