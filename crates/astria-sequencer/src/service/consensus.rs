@@ -57,7 +57,8 @@ impl Consensus {
             if let Err(e) = rsp.as_ref() {
                 warn!(parent: &span, error = ?e, "failed processing concensus request; returning error back to sender");
             }
-            if let Err(_) = rsp_sender.send(rsp) {
+            // `send` returns the sent message if sending fail, so we are dropping it.
+            if rsp_sender.send(rsp).is_err() {
                 warn!(parent: &span, "failed returning consensus response to request sender; dropping response");
             }
         }
