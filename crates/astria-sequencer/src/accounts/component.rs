@@ -17,7 +17,7 @@ use crate::{
 };
 
 #[derive(Default)]
-pub struct AccountsComponent;
+pub(crate) struct AccountsComponent;
 
 #[async_trait::async_trait]
 impl Component for AccountsComponent {

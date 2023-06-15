@@ -53,7 +53,7 @@ pub(crate) struct App {
 }
 
 impl App {
-    pub fn new(snapshot: Snapshot) -> Self {
+    pub(crate) fn new(snapshot: Snapshot) -> Self {
         tracing::debug!("initializing App instance");
 
         // We perform the `Arc` wrapping of `State` here to ensure
@@ -66,7 +66,7 @@ impl App {
     }
 
     #[instrument(name = "App:init_chain", skip(self))]
-    pub async fn init_chain(&mut self, genesis_state: GenesisState) -> Result<()> {
+    pub(crate) async fn init_chain(&mut self, genesis_state: GenesisState) -> Result<()> {
         let mut state_tx = self
             .state
             .try_begin_transaction()
@@ -83,7 +83,7 @@ impl App {
     }
 
     #[instrument(name = "App:begin_block", skip(self))]
-    pub async fn begin_block(
+    pub(crate) async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
     ) -> Vec<abci::Event> {
@@ -105,7 +105,7 @@ impl App {
     }
 
     #[instrument(name = "App:deliver_tx", skip(self))]
-    pub async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
+    pub(crate) async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
         let tx = Transaction::try_from_slice(tx)
             .context("failed deserializing transaction from bytes")?;
 
@@ -146,7 +146,10 @@ impl App {
     }
 
     #[instrument(name = "App:end_block", skip(self))]
-    pub async fn end_block(&mut self, _end_block: &abci::request::EndBlock) -> Vec<abci::Event> {
+    pub(crate) async fn end_block(
+        &mut self,
+        _end_block: &abci::request::EndBlock,
+    ) -> Vec<abci::Event> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
@@ -158,7 +161,7 @@ impl App {
     }
 
     #[instrument(name = "App:commit", skip(self))]
-    pub async fn commit(&mut self, storage: Storage) -> AppHash {
+    pub(crate) async fn commit(&mut self, storage: Storage) -> AppHash {
         // We need to extract the State we've built up to commit it.  Fill in a dummy state.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
         let state = Arc::try_unwrap(std::mem::replace(&mut self.state, Arc::new(dummy_state)))
