@@ -94,4 +94,6 @@ jobs:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: run clippy
-        run: cargo clippy --all --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --exclude astria-sequencer -- -D warnings
+      - name: run clippy
+        run: cargo clippy --all-targets --p astria-sequencer -- -D warnings
