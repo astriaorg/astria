@@ -52,7 +52,7 @@ impl Consensus {
             // The send only fails if the receiver was dropped, which happens
             // if the caller didn't propagate the message back to tendermint
             // for some reason -- but that's not our problem.
-            let _ = rsp_sender.send(self.handle_request(req).instrument(span).await);
+            rsp_sender.send(self.handle_request(req).instrument(span).await);
         }
         Ok(())
     }
