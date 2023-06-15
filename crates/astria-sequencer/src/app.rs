@@ -253,8 +253,8 @@ mod test {
         ]
     }
 
-    fn default_header() -> Result<Header> {
-        Ok(Header {
+    fn default_header() -> Header {
+        Header {
             app_hash: AppHash::try_from(vec![]).unwrap(),
             chain_id: "test".to_string().try_into().unwrap(),
             consensus_hash: Hash::default(),
@@ -272,7 +272,7 @@ mod test {
                 app: 0,
                 block: 0,
             },
-        })
+        }
     }
 
     #[tokio::test]
@@ -295,7 +295,7 @@ mod test {
             assert_eq!(
                 balance,
                 app.state.get_account_balance(&address).await.unwrap(),
-            )
+            );
         }
     }
 
@@ -312,7 +312,7 @@ mod test {
         app.init_chain(genesis_state).await.unwrap();
 
         let mut begin_block = abci::request::BeginBlock {
-            header: default_header().unwrap(),
+            header: default_header(),
             hash: Hash::default(),
             last_commit_info: CommitInfo {
                 votes: vec![],
@@ -345,7 +345,7 @@ mod test {
         // transfer funds from Alice to Bob
         let alice = Address::from("alice");
         let bob = Address::from("bob");
-        let amount = Balance::from(333333);
+        let amount = Balance::from(333_333);
         let nonce = 1.into();
         let tx = Transaction::AccountsTransaction(accounts::transaction::Transaction {
             from: alice.clone(),
@@ -389,7 +389,7 @@ mod test {
             assert_eq!(
                 balance,
                 app.state.get_account_balance(&address).await.unwrap()
-            )
+            );
         }
 
         // commit should write the changes to the underlying storage
@@ -404,7 +404,7 @@ mod test {
             assert_eq!(
                 snapshot.get_account_balance(&address).await.unwrap(),
                 balance
-            )
+            );
         }
     }
 }
