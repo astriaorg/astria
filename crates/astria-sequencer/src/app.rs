@@ -46,7 +46,9 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 /// Note: this is called `App` because this is a Tendermint ABCI application,
 /// and implements the state transition logic of the chain.
 ///
-/// See also https://github.com/penumbra-zone/penumbra/blob/9cc2c644e05c61d21fdc7b507b96016ba6b9a935/app/src/app/mod.rs#L42.
+/// See also the [Penumbra reference] implementation.
+///
+/// [Penumbra reference]: https://github.com/penumbra-zone/penumbra/blob/9cc2c644e05c61d21fdc7b507b96016ba6b9a935/app/src/app/mod.rs#L42
 #[derive(Clone, Debug)]
 pub(crate) struct App {
     state: InterBlockState,
@@ -148,13 +150,13 @@ impl App {
     #[instrument(name = "App:end_block", skip(self))]
     pub(crate) async fn end_block(
         &mut self,
-        _end_block: &abci::request::EndBlock,
+        end_block: &abci::request::EndBlock,
     ) -> Vec<abci::Event> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
         // call end_block on all components
-        AccountsComponent::end_block(&mut arc_state_tx, _end_block).await;
+        AccountsComponent::end_block(&mut arc_state_tx, end_block).await;
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
         self.apply(state_tx)

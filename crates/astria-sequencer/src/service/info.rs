@@ -26,15 +26,18 @@ use tendermint::{
             Echo,
             SetOption,
         },
+        Code,
         InfoRequest,
         InfoResponse,
     },
     block::Height,
+    AppHash,
 };
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::{
     instrument,
+    warn,
     Instrument,
 };
 
@@ -84,8 +87,8 @@ async fn handle_info_request(
             let response = InfoResponse::Info(response::Info {
                 version: "0.1.0".to_string(),
                 app_version: 1,
-                last_block_height: Default::default(),
-                last_block_app_hash: Default::default(),
+                last_block_height: Height::default(),
+                last_block_app_hash: AppHash::default(),
                 data: "astria_sequencer".to_string(),
             });
             Ok(response)
@@ -100,7 +103,7 @@ async fn handle_info_request(
         )),
         // this was removed after v0.34
         InfoRequest::SetOption(_) => Ok(InfoResponse::SetOption(SetOption {
-            code: Default::default(),
+            code: Code::default(),
             log: "SetOption is not supported".to_string(),
             info: "SetOption is not supported".to_string(),
         })),
@@ -136,10 +139,17 @@ async fn handle_query(
         .await
         .context("failed to get block from latest snapshot")?;
 
+    let height = match u32::try_from(height) {
+        Ok(height) => height,
+        Err(e) => {
+            warn!(error = ?e, "casting height u32 failed, using u32::MAX");
+            u32::MAX
+        }
+    };
     Ok(response::Query {
         key: key.into(),
         value: value.into(),
-        height: Height::from(height as u32),
+        height: Height::from(height),
         ..Default::default()
     })
 }

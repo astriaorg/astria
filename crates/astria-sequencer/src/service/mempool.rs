@@ -27,9 +27,10 @@ use crate::transaction::{
     Transaction,
 };
 
-/// Mempool handles one request: CheckTx.
+/// Mempool handles [`request::CheckTx`] abci requests.
+//
 /// It performs a stateless check of the given transaction,
-/// returning an abci::response::CheckTx.
+/// returning a [`tendermint::abci::response::CheckTx`].
 #[derive(Clone, Default)]
 pub(crate) struct Mempool;
 
@@ -67,7 +68,7 @@ impl Service<MempoolRequest> for Mempool {
                 Ok(_) => response::CheckTx::default(),
                 Err(e) => response::CheckTx {
                     code: 1.into(),
-                    log: format!("{:#}", e),
+                    log: format!("{e:#}"),
                     ..Default::default()
                 },
             };

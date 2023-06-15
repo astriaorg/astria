@@ -12,6 +12,12 @@ use futures::{
 };
 use penumbra_tower_trace::RequestExt as _;
 use tendermint::abci::{
+    response::{
+        ApplySnapshotChunk,
+        ListSnapshots,
+        LoadSnapshotChunk,
+        OfferSnapshot,
+    },
     SnapshotRequest,
     SnapshotResponse,
 };
@@ -37,19 +43,19 @@ impl Service<SnapshotRequest> for Snapshot {
         async move {
             Ok(match req {
                 SnapshotRequest::ListSnapshots => {
-                    SnapshotResponse::ListSnapshots(Default::default())
+                    SnapshotResponse::ListSnapshots(ListSnapshots::default())
                 }
 
                 SnapshotRequest::OfferSnapshot(_) => {
-                    SnapshotResponse::OfferSnapshot(Default::default())
+                    SnapshotResponse::OfferSnapshot(OfferSnapshot::default())
                 }
 
                 SnapshotRequest::LoadSnapshotChunk(_) => {
-                    SnapshotResponse::LoadSnapshotChunk(Default::default())
+                    SnapshotResponse::LoadSnapshotChunk(LoadSnapshotChunk::default())
                 }
 
                 SnapshotRequest::ApplySnapshotChunk(_) => {
-                    SnapshotResponse::ApplySnapshotChunk(Default::default())
+                    SnapshotResponse::ApplySnapshotChunk(ApplySnapshotChunk::default())
                 }
             })
         }

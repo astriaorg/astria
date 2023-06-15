@@ -41,12 +41,12 @@ impl<T: StateRead> StateReadExt for T {}
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
     fn put_block_height(&mut self, height: u64) {
-        self.put_raw("block_height".into(), height.to_be_bytes().to_vec())
+        self.put_raw("block_height".into(), height.to_be_bytes().to_vec());
     }
 
     #[instrument(skip(self))]
     fn put_block_timestamp(&mut self, timestamp: Time) {
-        self.put_raw("block_timestamp".into(), timestamp.to_rfc3339().into())
+        self.put_raw("block_timestamp".into(), timestamp.to_rfc3339().into());
     }
 }
 

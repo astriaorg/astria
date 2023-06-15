@@ -25,7 +25,7 @@ use crate::accounts::types::{
 const ACCOUNTS_PREFIX: &str = "accounts";
 
 fn storage_key(address: &str) -> String {
-    format!("{}/{}", ACCOUNTS_PREFIX, address)
+    format!("{ACCOUNTS_PREFIX}/{address}")
 }
 
 pub(crate) fn balance_storage_key(address: &str) -> String {

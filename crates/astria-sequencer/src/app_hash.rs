@@ -13,7 +13,8 @@ const APPHASH_DOMSEP: &str = "AstriaAppHash";
 
 /// The application hash, used to verify the application state.
 ///
-/// The app hash of astria's state is defined as SHA256("AstriaAppHash" || jmt.root_hash())
+/// The app hash of astria's state is defined as
+/// `SHA256("AstriaAppHash" || jmt.root_hash())`.
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub(crate) struct AppHash(pub(crate) [u8; 32]);
 

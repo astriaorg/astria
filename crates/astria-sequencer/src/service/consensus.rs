@@ -126,7 +126,7 @@ impl Consensus {
         self.app.init_chain(genesis_state).await?;
 
         // TODO: return the genesis app hash
-        Ok(Default::default())
+        Ok(response::InitChain::default())
     }
 
     #[instrument(skip(self))]
@@ -162,7 +162,7 @@ impl Consensus {
                 tracing::error!(error = ?e, "deliver_tx failed");
                 vec![]
             });
-        Ok(Default::default())
+        Ok(response::DeliverTx::default())
     }
 
     #[instrument(skip(self))]
