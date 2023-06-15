@@ -7,10 +7,10 @@ edition = "2021"
 astria-proto = {path = "../astria-proto"}
 
 anyhow = "1"
-borsh = "0.11"
+borsh = "0.10.3"
 is-terminal = "0.4.7"
-penumbra-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.53.1" }
 penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.53.1" }
+penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.53.1" }
 rand = "0.8"
 tendermint-proto = "0.31"
 tendermint = "0.31"
@@ -20,6 +20,7 @@ tower-actor = "0.1.0"
 
 async-trait = { workspace = true }
 bytes = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
 ed25519-dalek = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
@@ -27,6 +28,6 @@ prost = { workspace = true }
 serde = { workspace = true, features = ["derive"]  }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
-tokio = { workspace = true, features = [ "tracing" ] }
+tokio = { workspace = true, features = [ "rt", "tracing" ] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["ansi", "env-filter", "json"] }

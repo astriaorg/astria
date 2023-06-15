@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{
+    Context,
+    Result,
+};
 use penumbra_storage::{
     ArcStateDeltaExt,
     Snapshot,
@@ -17,14 +20,9 @@ use tracing::{
 };
 
 use crate::{
-    accounts::{
-        component::AccountsComponent,
-        types::{
-            Address,
-            Balance,
-        },
-    },
+    accounts::component::AccountsComponent,
     component::Component,
+    genesis::GenesisState,
     state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -37,30 +35,26 @@ use crate::{
 
 /// The application hash, used to verify the application state.
 /// TODO: this may not be the same as the state root hash?
-pub type AppHash = penumbra_storage::RootHash;
+pub(crate) type AppHash = penumbra_storage::RootHash;
 
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
-
-/// The genesis state for the application.
-#[derive(Debug, serde::Deserialize, Default)]
-pub struct GenesisState {
-    pub accounts: Vec<(Address, Balance)>,
-}
 
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
 /// Note: this is called `App` because this is a Tendermint ABCI application,
 /// and implements the state transition logic of the chain.
 ///
-/// See also https://github.com/penumbra-zone/penumbra/blob/9cc2c644e05c61d21fdc7b507b96016ba6b9a935/app/src/app/mod.rs#L42.
+/// See also the [Penumbra reference] implementation.
+///
+/// [Penumbra reference]: https://github.com/penumbra-zone/penumbra/blob/9cc2c644e05c61d21fdc7b507b96016ba6b9a935/app/src/app/mod.rs#L42
 #[derive(Clone, Debug)]
-pub struct App {
+pub(crate) struct App {
     state: InterBlockState,
 }
 
 impl App {
-    pub fn new(snapshot: Snapshot) -> Self {
+    pub(crate) fn new(snapshot: Snapshot) -> Self {
         tracing::debug!("initializing App instance");
 
         // We perform the `Arc` wrapping of `State` here to ensure
@@ -73,14 +67,7 @@ impl App {
     }
 
     #[instrument(name = "App:init_chain", skip(self))]
-    pub async fn init_chain(&mut self, genesis_state: GenesisState) -> Result<()> {
-        // allocate to hard-coded accounts for testing
-        let mut accounts = genesis_state.accounts;
-        accounts.append(&mut default_genesis_accounts());
-        let genesis_state = GenesisState {
-            accounts,
-        };
-
+    pub(crate) async fn init_chain(&mut self, genesis_state: GenesisState) -> Result<()> {
         let mut state_tx = self
             .state
             .try_begin_transaction()
@@ -97,7 +84,7 @@ impl App {
     }
 
     #[instrument(name = "App:begin_block", skip(self))]
-    pub async fn begin_block(
+    pub(crate) async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
     ) -> Vec<abci::Event> {
@@ -119,8 +106,9 @@ impl App {
     }
 
     #[instrument(name = "App:deliver_tx", skip(self))]
-    pub async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
-        let tx = SignedTransaction::from_bytes(tx)?;
+    pub(crate) async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
+        let tx = SignedTransaction::try_from_slice(tx)
+            .context("failed deserializing transaction from bytes")?;
 
         let tx2 = tx.clone();
         let stateless = tokio::spawn(async move { tx2.check_stateless() });
@@ -128,9 +116,14 @@ impl App {
         let state2 = self.state.clone();
         let stateful = tokio::spawn(async move { tx2.check_stateful(&state2).await });
 
-        stateless.await??;
-        stateful.await??;
-
+        stateless
+            .await
+            .context("stateless check task aborted while executing")?
+            .context("stateless check failed")?;
+        stateful
+            .await
+            .context("stateful check task aborted while executing")?
+            .context("stateful check failed")?;
         // At this point, the stateful checks should have completed,
         // leaving us with exclusive access to the Arc<State>.
         let mut state_tx = self
@@ -138,32 +131,38 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should be present and unique");
 
-        tx.execute(&mut state_tx).await?;
+        tx.execute(&mut state_tx)
+            .await
+            .context("failed executing transaction")?;
         state_tx.apply();
 
         let height = self
             .state
             .get_block_height()
             .await
+            // TODO: explain why this is an invariant of the system
             .expect("block height should be set");
         info!(?tx, ?height, "executed transaction");
         Ok(vec![])
     }
 
     #[instrument(name = "App:end_block", skip(self))]
-    pub async fn end_block(&mut self, _end_block: &abci::request::EndBlock) -> Vec<abci::Event> {
+    pub(crate) async fn end_block(
+        &mut self,
+        end_block: &abci::request::EndBlock,
+    ) -> Vec<abci::Event> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
         // call end_block on all components
-        AccountsComponent::end_block(&mut arc_state_tx, _end_block).await;
+        AccountsComponent::end_block(&mut arc_state_tx, end_block).await;
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
         self.apply(state_tx)
     }
 
     #[instrument(name = "App:commit", skip(self))]
-    pub async fn commit(&mut self, storage: Storage) -> AppHash {
+    pub(crate) async fn commit(&mut self, storage: Storage) -> AppHash {
         // We need to extract the State we've built up to commit it.  Fill in a dummy state.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
         let state = Arc::try_unwrap(std::mem::replace(&mut self.state, Arc::new(dummy_state)))
@@ -206,6 +205,11 @@ impl App {
     }
 }
 
+use crate::accounts::types::{
+    Address,
+    Balance,
+};
+
 pub const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
 pub const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
 pub const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871";
@@ -231,6 +235,7 @@ fn default_genesis_accounts() -> Vec<(Address, Balance)> {
 
 #[cfg(test)]
 mod test {
+    use borsh::BorshSerialize as _;
     use tendermint::{
         abci::types::CommitInfo,
         account,
@@ -249,16 +254,19 @@ mod test {
     use crate::{
         accounts::{
             state_ext::StateReadExt as _,
-            types::Nonce,
+            types::{
+                Balance,
+                Nonce,
+            },
         },
         crypto::Keypair,
         transaction::UnsignedTransaction,
     };
 
-    fn default_header() -> Result<Header> {
-        Ok(Header {
-            app_hash: AppHash::try_from(vec![])?,
-            chain_id: "test".to_string().try_into()?,
+    fn default_header() -> Header {
+        Header {
+            app_hash: AppHash::try_from(vec![]).unwrap(),
+            chain_id: "test".to_string().try_into().unwrap(),
             consensus_hash: Hash::default(),
             data_hash: Some(Hash::default()),
             evidence_hash: Some(Hash::default()),
@@ -267,14 +275,14 @@ mod test {
             last_commit_hash: Some(Hash::default()),
             last_results_hash: Some(Hash::default()),
             next_validators_hash: Hash::default(),
-            proposer_address: account::Id::try_from([0u8; 20].to_vec())?,
+            proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
             time: Time::now(),
             validators_hash: Hash::default(),
             version: Version {
                 app: 0,
                 block: 0,
             },
-        })
+        }
     }
 
     #[tokio::test]
@@ -285,12 +293,19 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
         let genesis_state = GenesisState {
-            accounts: vec![],
+            accounts: default_genesis_accounts(),
         };
         app.init_chain(genesis_state).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
-        for (name, balance) in default_genesis_accounts() {
-            assert_eq!(app.state.get_account_balance(&name).await.unwrap(), balance)
+        for Account {
+            address,
+            balance,
+        } in default_genesis_accounts()
+        {
+            assert_eq!(
+                balance,
+                app.state.get_account_balance(&address).await.unwrap(),
+            );
         }
     }
 
@@ -307,7 +322,7 @@ mod test {
         app.init_chain(genesis_state).await.unwrap();
 
         let mut begin_block = abci::request::BeginBlock {
-            header: default_header().unwrap(),
+            header: default_header(),
             hash: Hash::default(),
             last_commit_info: CommitInfo {
                 votes: vec![],
@@ -333,7 +348,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
         let genesis_state = GenesisState {
-            accounts: vec![],
+            accounts: default_genesis_accounts(),
         };
         app.init_chain(genesis_state).await.unwrap();
 
@@ -346,7 +361,7 @@ mod test {
         let value = Balance::from(333333);
         let tx = UnsignedTransaction::new_accounts_transaction(bob.clone(), value, Nonce::from(1));
         let signed_tx = tx.sign(&alice_keypair).unwrap();
-        let bytes = signed_tx.to_bytes().unwrap();
+        let bytes = signed_tx.try_to_vec().unwrap();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(
@@ -369,21 +384,35 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
         let genesis_state = GenesisState {
-            accounts: vec![],
+            accounts: default_genesis_accounts(),
         };
 
         app.init_chain(genesis_state).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
-        for (name, balance) in default_genesis_accounts() {
-            assert_eq!(app.state.get_account_balance(&name).await.unwrap(), balance)
+        for Account {
+            address,
+            balance,
+        } in default_genesis_accounts()
+        {
+            assert_eq!(
+                balance,
+                app.state.get_account_balance(&address).await.unwrap()
+            );
         }
 
         // commit should write the changes to the underlying storage
         app.commit(storage.clone()).await;
         let snapshot = storage.latest_snapshot();
         assert_eq!(snapshot.get_block_height().await.unwrap(), 0);
-        for (name, balance) in default_genesis_accounts() {
-            assert_eq!(snapshot.get_account_balance(&name).await.unwrap(), balance)
+        for Account {
+            address,
+            balance,
+        } in default_genesis_accounts()
+        {
+            assert_eq!(
+                snapshot.get_account_balance(&address).await.unwrap(),
+                balance
+            );
         }
     }
 }

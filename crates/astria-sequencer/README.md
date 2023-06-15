@@ -3,7 +3,23 @@
 ## Requirements
 
 - rust 1.68
+- gcc-12, gcc-12-libs
 - go 1.18+
+
+## Building
+
+Because `penumbra-storage:0.54.1` depends on `rocksdb:0.19.0`
+compilation on gcc 13 will not work.
+
+On arch linux:
+
+```sh
+$ sudo pacman -S gcc12 gcc12-libs
+$ CC=/usr/bin/gcc-12 CXX=/usr/bin/c++-12 cargo build
+```
+
+https://github.com/rust-rocksdb/rust-rocksdb/issues/713
+https://github.com/facebook/rocksdb/pull/11118
 
 ## Usage
 
@@ -29,7 +45,7 @@ make install_abci
 In astria-sequencer/:
 ```sh
 cargo build
-./target/debug/app
+../../target/debug/astria-sequencer --genesis-file=test-genesis.json
 ```
 
 #### Query the app for info

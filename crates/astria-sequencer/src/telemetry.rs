@@ -16,6 +16,12 @@ use tracing_subscriber::{
     },
 };
 
+/// Register a global tracing subscriber.
+///
+/// # Errors
+///
+/// Returns the same errors as [`SubscriberInitExt::try_init`] called
+/// on a [`tracing_subscriber::Registry`].
 pub fn init<S>(sink: S) -> Result<(), TryInitError>
 where
     S: for<'a> MakeWriter<'a> + Send + Sync + 'static,

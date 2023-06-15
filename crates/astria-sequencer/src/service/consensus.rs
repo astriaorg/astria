@@ -1,4 +1,8 @@
-use anyhow::anyhow;
+use anyhow::{
+    anyhow,
+    bail,
+    Context,
+};
 use penumbra_storage::Storage;
 use tendermint::abci::{
     request,
@@ -9,21 +13,25 @@ use tendermint::abci::{
 use tokio::sync::mpsc;
 use tower_abci::BoxError;
 use tower_actor::Message;
-use tracing::instrument;
-
-use crate::app::{
-    App,
-    GenesisState,
+use tracing::{
+    instrument,
+    warn,
+    Instrument,
 };
 
-pub struct ConsensusService {
+use crate::{
+    app::App,
+    genesis::GenesisState,
+};
+
+pub(crate) struct Consensus {
     queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,
     storage: Storage,
     app: App,
 }
 
-impl ConsensusService {
-    pub fn new(
+impl Consensus {
+    pub(crate) fn new(
         storage: Storage,
         app: App,
         queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,
@@ -35,17 +43,24 @@ impl ConsensusService {
         }
     }
 
-    pub async fn run(mut self) -> Result<(), tower::BoxError> {
+    pub(crate) async fn run(mut self) -> Result<(), tower::BoxError> {
         while let Some(Message {
             req,
             rsp_sender,
-            span: _,
+            span,
         }) = self.queue.recv().await
         {
             // The send only fails if the receiver was dropped, which happens
             // if the caller didn't propagate the message back to tendermint
             // for some reason -- but that's not our problem.
-            let _ = rsp_sender.send(self.handle_request(req).await);
+            let rsp = self.handle_request(req).instrument(span.clone()).await;
+            if let Err(e) = rsp.as_ref() {
+                warn!(parent: &span, error = ?e, "failed processing concensus request; returning error back to sender");
+            }
+            // `send` returns the sent message if sending fail, so we are dropping it.
+            if rsp_sender.send(rsp).is_err() {
+                warn!(parent: &span, "failed returning consensus response to request sender; dropping response");
+            }
         }
         Ok(())
     }
@@ -56,9 +71,11 @@ impl ConsensusService {
         req: ConsensusRequest,
     ) -> Result<ConsensusResponse, BoxError> {
         Ok(match req {
-            ConsensusRequest::InitChain(init_chain) => {
-                ConsensusResponse::InitChain(self.init_chain(init_chain).await?)
-            }
+            ConsensusRequest::InitChain(init_chain) => ConsensusResponse::InitChain(
+                self.init_chain(init_chain)
+                    .await
+                    .context("failed initializing chain")?,
+            ),
             ConsensusRequest::PrepareProposal(prepare_proposal) => {
                 ConsensusResponse::PrepareProposal(response::PrepareProposal {
                     txs: prepare_proposal.txs,
@@ -69,15 +86,35 @@ impl ConsensusService {
                 ConsensusResponse::ProcessProposal(response::ProcessProposal::Accept)
             }
             ConsensusRequest::BeginBlock(begin_block) => {
-                ConsensusResponse::BeginBlock(self.begin_block(begin_block).await?)
+                ConsensusResponse::BeginBlock(
+                    self.begin_block(begin_block)
+                        .await
+                        // .context() cannot be used here because Box<dyn Error> does not implement
+                        // Error: https://github.com/dtolnay/anyhow/issues/66
+                        .map_err(|e| anyhow!(e))
+                        .context("failed to begin block")?,
+                )
             }
-            ConsensusRequest::DeliverTx(deliver_tx) => {
-                ConsensusResponse::DeliverTx(self.deliver_tx(deliver_tx).await?)
-            }
-            ConsensusRequest::EndBlock(end_block) => {
-                ConsensusResponse::EndBlock(self.end_block(end_block).await?)
-            }
-            ConsensusRequest::Commit => ConsensusResponse::Commit(self.commit().await?),
+            ConsensusRequest::DeliverTx(deliver_tx) => ConsensusResponse::DeliverTx(
+                self.deliver_tx(deliver_tx)
+                    .await
+                    // .context() cannot be used here because Box<dyn Error> does not implement
+                    // Error: https://github.com/dtolnay/anyhow/issues/66
+                    .map_err(|e| anyhow!(e))
+                    .context("failed to deliver transaction")?,
+            ),
+            ConsensusRequest::EndBlock(end_block) => ConsensusResponse::EndBlock(
+                self.end_block(end_block)
+                    .await
+                    .map_err(|e| anyhow!(e))
+                    .context("failed to end block")?,
+            ),
+            ConsensusRequest::Commit => ConsensusResponse::Commit(
+                self.commit()
+                    .await
+                    .map_err(|e| anyhow!(e))
+                    .context("failed to commit")?,
+            ),
         })
     }
 
@@ -85,10 +122,10 @@ impl ConsensusService {
     async fn init_chain(
         &mut self,
         init_chain: request::InitChain,
-    ) -> Result<response::InitChain, BoxError> {
+    ) -> anyhow::Result<response::InitChain> {
         // the storage version is set to u64::MAX by default when first created
         if self.storage.latest_version() != u64::MAX {
-            return Err(anyhow!("database already initialized").into());
+            bail!("database already initialized");
         }
 
         let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
@@ -97,7 +134,7 @@ impl ConsensusService {
         self.app.init_chain(genesis_state).await?;
 
         // TODO: return the genesis app hash
-        Ok(Default::default())
+        Ok(response::InitChain::default())
     }
 
     #[instrument(skip(self))]
@@ -133,7 +170,7 @@ impl ConsensusService {
                 tracing::error!(error = ?e, "deliver_tx failed");
                 vec![]
             });
-        Ok(Default::default())
+        Ok(response::DeliverTx::default())
     }
 
     #[instrument(skip(self))]

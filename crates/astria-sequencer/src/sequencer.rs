@@ -3,36 +3,52 @@ use anyhow::{
     Context as _,
     Result,
 };
+use penumbra_tower_trace::{
+    trace::request_span,
+    RequestExt as _,
+};
+use tendermint::abci::ConsensusRequest;
 use tower_abci::v037::Server;
-use tracing::info;
+use tracing::{
+    info,
+    instrument,
+};
 
 use crate::{
     app::App,
-    consensus::ConsensusService,
-    info::InfoService,
-    mempool::MempoolService,
-    snapshot::SnapshotService,
+    config::Config,
+    genesis::GenesisState,
+    service,
 };
 
 pub struct Sequencer;
 
 impl Sequencer {
-    pub async fn run_until_stopped(listen_addr: &str) -> Result<()> {
+    #[instrument(skip_all)]
+    pub async fn run_until_stopped(config: Config) -> Result<()> {
+        let genesis_state =
+            GenesisState::from_path(config.genesis_file).context("failed reading genesis state")?;
         let storage = penumbra_storage::TempStorage::new()
             .await
             .context("failed to create temp storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
-        let app = App::new(snapshot);
+        let mut app = App::new(snapshot);
+        app.init_chain(genesis_state)
+            .await
+            .context("failed initializing app with genesis state")?;
 
-        let consensus_service =
-            tower::ServiceBuilder::new().service(tower_actor::Actor::new(10, |queue: _| {
+        let consensus_service = tower::ServiceBuilder::new()
+            .layer(request_span::layer(|req: &ConsensusRequest| {
+                req.create_span()
+            }))
+            .service(tower_actor::Actor::new(10, |queue: _| {
                 let storage = storage.clone();
-                async move { ConsensusService::new(storage, app, queue).run().await }
+                async move { service::Consensus::new(storage, app, queue).run().await }
             }));
+        let mempool_service = service::Mempool;
+        let info_service = service::Info::new(storage.clone());
+        let snapshot_service = service::Snapshot;
 
-        let info_service = InfoService::new(storage.clone());
-        let mempool_service = MempoolService;
-        let snapshot_service = SnapshotService::new();
         let server = Server::builder()
             .consensus(consensus_service)
             .info(info_service)
@@ -41,8 +57,11 @@ impl Sequencer {
             .finish()
             .ok_or_else(|| anyhow!("server builder didn't return server; are all fields set?"))?;
 
-        info!(?listen_addr, "starting sequencer");
-        server.listen(listen_addr).await.expect("should listen");
+        info!(config.listen_addr, "starting sequencer");
+        server
+            .listen(&config.listen_addr)
+            .await
+            .expect("should listen");
         Ok(())
     }
 }

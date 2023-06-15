@@ -322,6 +322,7 @@ dependencies = [
  "hex",
  "is-terminal",
  "once_cell",
+ "prost",
  "prost-types",
  "reqwest",
  "serde",
@@ -330,7 +331,7 @@ dependencies = [
  "tendermint 0.30.0",
  "tendermint-proto 0.30.0",
  "tokio",
- "tonic",
+ "tonic 0.9.2",
  "tracing",
  "tracing-subscriber",
 ]
@@ -372,7 +373,7 @@ dependencies = [
  "prost",
  "prost-types",
  "tendermint-proto 0.30.0",
- "tonic",
+ "tonic 0.9.2",
  "which",
 ]
 
@@ -398,14 +399,15 @@ dependencies = [
  "anyhow",
  "astria-proto",
  "async-trait",
- "borsh 0.11.0",
+ "borsh",
  "bytes",
+ "clap",
  "ed25519-dalek",
  "futures",
  "hex",
  "is-terminal",
- "penumbra-component",
  "penumbra-storage",
+ "penumbra-tower-trace",
  "prost",
  "rand 0.8.5",
  "serde",
@@ -498,6 +500,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fa24f727524730b077666307f2734b4a1a1c57acb79193127dcc8914d5242dd7"
 dependencies = [
  "event-listener",
+]
+
+[[package]]
+name = "async-stream"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd56dd203fef61ac097dd65721a419ddccb106b2d2b70ba60a6b529f03961a51"
+dependencies = [
+ "async-stream-impl",
+ "futures-core",
+ "pin-project-lite",
+]
+
+[[package]]
+name = "async-stream-impl"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16e62a023e7c117e27523144c5d2459f4397fcc3cab0085af8e2224f643a0193"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.16",
 ]
 
 [[package]]
@@ -743,17 +767,7 @@ version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4114279215a005bc675e386011e594e1d9b800918cea18fcadadcce864a2046b"
 dependencies = [
- "borsh-derive 0.10.3",
- "hashbrown 0.13.2",
-]
-
-[[package]]
-name = "borsh"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "300ca295b46d7c8a955a4b07436b5d308c9b2842885642ed17d91f22215e5f44"
-dependencies = [
- "borsh-derive 0.11.0",
+ "borsh-derive",
  "hashbrown 0.13.2",
 ]
 
@@ -763,21 +777,8 @@ version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0754613691538d51f329cce9af41d7b7ca150bc973056f1156611489475f54f7"
 dependencies = [
- "borsh-derive-internal 0.10.3",
- "borsh-schema-derive-internal 0.10.3",
- "proc-macro-crate 0.1.5",
- "proc-macro2",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "borsh-derive"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d249fd10f635502b30ef6fa2b5f6407d37a3f8657ab3e8143ef7a8ff78849695"
-dependencies = [
- "borsh-derive-internal 0.11.0",
- "borsh-schema-derive-internal 0.11.0",
+ "borsh-derive-internal",
+ "borsh-schema-derive-internal",
  "proc-macro-crate 0.1.5",
  "proc-macro2",
  "syn 1.0.109",
@@ -795,32 +796,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "borsh-derive-internal"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4019c962c2526569c6bda1657094a43434b0eed196b3f3af27b9f6811de12417"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "borsh-schema-derive-internal"
 version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "634205cc43f74a1b9046ef87c4540ebda95696ec0f315024860cad7c5b0f5ccd"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "borsh-schema-derive-internal"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a89ac467d675ff862c2aea7e2eb103e170f649692de6ffa40250b0031f801bfc"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2279,7 +2258,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1a302f0defd323b833c9848c20ab40c3156128f50d7bf8eebeed2ef58167258"
 dependencies = [
  "anyhow",
- "borsh 0.10.3",
+ "borsh",
  "hashbrown 0.13.2",
  "hex",
  "ics23",
@@ -3469,24 +3448,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "penumbra-component"
-version = "0.53.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.53.1#07d40f4dc97dd69466672d4d59309eb2a58613ae"
-dependencies = [
- "anyhow",
- "async-trait",
- "penumbra-storage",
- "tendermint 0.31.1",
-]
-
-[[package]]
 name = "penumbra-storage"
 version = "0.53.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.53.1#07d40f4dc97dd69466672d4d59309eb2a58613ae"
+source = "git+https://github.com/astriaorg/penumbra.git?branch=noot/fix-trace-v0.53.1#713a26c20f7a6bde3d2f7c6cea1f54bcca01fe40"
 dependencies = [
  "anyhow",
  "async-trait",
- "borsh 0.10.3",
+ "borsh",
  "futures",
  "hex",
  "ics23",
@@ -3501,6 +3469,28 @@ dependencies = [
  "tendermint 0.31.1",
  "tokio",
  "tokio-stream",
+ "tracing",
+]
+
+[[package]]
+name = "penumbra-tower-trace"
+version = "0.53.1"
+source = "git+https://github.com/astriaorg/penumbra.git?branch=noot/fix-trace-v0.53.1#713a26c20f7a6bde3d2f7c6cea1f54bcca01fe40"
+dependencies = [
+ "futures",
+ "hex",
+ "http",
+ "pin-project",
+ "pin-project-lite",
+ "sha2 0.9.9",
+ "tendermint 0.31.1",
+ "tendermint-proto 0.31.1",
+ "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.5",
+ "tonic 0.8.3",
+ "tower",
+ "tower-service",
  "tracing",
 ]
 
@@ -5008,6 +4998,38 @@ dependencies = [
 
 [[package]]
 name = "tonic"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f219fad3b929bef19b1f86fbc0358d35daed8f2cac972037ac0dc10bbb8d5fb"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "axum",
+ "base64 0.13.1",
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "h2",
+ "http",
+ "http-body",
+ "hyper",
+ "hyper-timeout",
+ "percent-encoding",
+ "pin-project",
+ "prost",
+ "prost-derive",
+ "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.5",
+ "tower",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "tonic"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3082666a3a6433f7f511c7192923fa1fe07c69332d3c6a2e6bb040b569199d5a"
@@ -5164,6 +5186,16 @@ checksum = "d686ec1c0f384b1277f097b2f279a2ecc11afe8c133c1aabf036a27cb4cd206e"
 dependencies = [
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "tracing-futures"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97d095ae15e245a057c8e8451bab9b3ee1e1f68e9ba2b4fbc18d0ac5237835f2"
+dependencies = [
+ "pin-project",
+ "tracing",
 ]
 
 [[package]]

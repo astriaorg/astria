@@ -68,7 +68,7 @@ impl SignedTransaction {
         Ok(bytes)
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+    pub fn try_from_slice(bytes: &[u8]) -> Result<Self> {
         let proto_tx: ProtoSignedTransaction =
             ProtoSignedTransaction::decode_length_delimited(bytes)?;
         let Some(proto_transaction) = proto_tx.transaction else {

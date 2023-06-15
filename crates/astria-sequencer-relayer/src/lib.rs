@@ -1,7 +1,7 @@
 pub mod api;
 pub mod base64_string;
 pub mod config;
-pub mod da;
+pub mod data_availability;
 pub mod keys;
 pub mod network;
 pub mod relayer;

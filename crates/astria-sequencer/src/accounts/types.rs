@@ -104,7 +104,7 @@ impl Address {
     }
 }
 
-// Balance represents an account balance.
+/// Balance represents an account balance.
 #[derive(
     Clone,
     Copy,
@@ -119,6 +119,12 @@ impl Address {
     Debug,
 )]
 pub struct Balance(u128);
+
+impl Balance {
+    pub(crate) fn into_inner(self) -> u128 {
+        self.0
+    }
+}
 
 impl From<u128> for Balance {
     fn from(n: u128) -> Self {
@@ -210,6 +216,12 @@ impl From<&Balance> for ProtoBalance {
     Debug,
 )]
 pub struct Nonce(u32);
+
+impl Nonce {
+    pub(crate) fn into_inner(self) -> u32 {
+        self.0
+    }
+}
 
 impl From<u32> for Nonce {
     fn from(n: u32) -> Self {

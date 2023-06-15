@@ -11,14 +11,7 @@ use serde::{
 };
 
 use crate::{
-    accounts::{
-        transaction::Transaction as AccountsTransaction,
-        types::{
-            Address,
-            Balance,
-            Nonce,
-        },
-    },
+    accounts::transaction::Transaction as AccountsTransaction,
     crypto::{
         Keypair,
         Signer,
@@ -37,11 +30,7 @@ pub enum UnsignedTransaction {
 }
 
 impl UnsignedTransaction {
-    pub fn new_accounts_transaction(to: Address, amount: Balance, nonce: Nonce) -> Self {
-        Self::AccountsTransaction(AccountsTransaction::new(to, amount, nonce))
-    }
-
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub fn try_to_vec(&self) -> Result<Vec<u8>> {
         Ok(match &self {
             UnsignedTransaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
                 value: Some(
@@ -54,7 +43,7 @@ impl UnsignedTransaction {
         .encode_length_delimited_to_vec())
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+    pub fn try_from_slice(bytes: &[u8]) -> Result<Self> {
         let proto = ProtoUnsignedTransaction::decode_length_delimited(bytes)
             .context("failed to decode unsigned transaction")?;
         let Some(value) = proto.value else {
@@ -78,7 +67,9 @@ impl UnsignedTransaction {
     }
 
     pub(crate) fn hash(&self) -> Result<Vec<u8>> {
-        let bytes = self.to_bytes().context("failed to serialize transaction")?;
+        let bytes = self
+            .try_to_vec()
+            .context("failed to serialize transaction")?;
         Ok(hash(&bytes))
     }
 }
@@ -92,13 +83,13 @@ mod test {
 
     #[test]
     fn test_transaction() {
-        let tx = UnsignedTransaction::new_accounts_transaction(
+        let tx = UnsignedTransaction::AccountsTransaction(AccountsTransaction::new(
             Address::unsafe_from_hex_string(BOB_ADDRESS),
             Balance::from(333333),
             Nonce::from(1),
-        );
-        let bytes = tx.to_bytes().unwrap();
-        let tx2 = UnsignedTransaction::from_bytes(&bytes).unwrap();
+        ));
+        let bytes = tx.try_to_vec().unwrap();
+        let tx2 = UnsignedTransaction::try_from_slice(&bytes).unwrap();
         assert_eq!(tx, tx2);
         println!("0x{}", hex::encode(bytes));
     }

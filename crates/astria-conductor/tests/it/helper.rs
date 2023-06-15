@@ -13,7 +13,7 @@ static TRACING: Lazy<()> = Lazy::new(|| {
     }
 });
 
-pub async fn init_test() -> TestEnvironment {
+pub(crate) async fn init_test() -> TestEnvironment {
     Lazy::force(&TRACING);
     astria_conductor_test::init_test().await
 }
