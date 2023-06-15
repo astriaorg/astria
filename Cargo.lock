@@ -322,6 +322,7 @@ dependencies = [
  "hex",
  "is-terminal",
  "once_cell",
+ "prost",
  "prost-types",
  "reqwest",
  "serde",

@@ -81,7 +81,7 @@ impl Default for Config {
         Self {
             celestia_endpoint: DEFAULT_CELESTIA_ENDPOINT.into(),
             sequencer_endpoint: DEFAULT_SEQUENCER_ENDPOINT.into(),
-            gas_limit: crate::da::DEFAULT_PFD_GAS_LIMIT,
+            gas_limit: crate::data_availability::DEFAULT_PFD_GAS_LIMIT,
             disable_writing: false,
             block_time: DEFAULT_BLOCK_TIME,
             validator_key_file: DEFAULT_VALIDATOR_KEY_FILE.into(),
