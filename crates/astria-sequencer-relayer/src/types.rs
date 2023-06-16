@@ -51,7 +51,7 @@ impl BlockId {
                 proto
                     .part_set_header
                     .ok_or(eyre!("BlockId from_proto failed: no part_set_header"))?,
-            )?,
+            ),
         })
     }
 
@@ -64,12 +64,10 @@ impl BlockId {
 
     pub fn from_tm_block_id(tm_block_id: &TmBlockId) -> Self {
         Self {
-            hash: Base64String::from_bytes(&Into::<Vec<u8>>::into(tm_block_id.hash)),
+            hash: Base64String::from_bytes(tm_block_id.hash.as_bytes()),
             part_set_header: Parts {
                 total: tm_block_id.part_set_header.total,
-                hash: Base64String::from_bytes(&Into::<Vec<u8>>::into(
-                    tm_block_id.part_set_header.hash,
-                )),
+                hash: Base64String::from_bytes(tm_block_id.part_set_header.hash.as_bytes()),
             },
         }
     }
@@ -82,11 +80,11 @@ pub struct Parts {
 }
 
 impl Parts {
-    pub fn from_proto(proto: RawPartSetHeader) -> eyre::Result<Self> {
-        Ok(Self {
+    pub fn from_proto(proto: RawPartSetHeader) -> Self {
+        Self {
             total: proto.total,
             hash: Base64String::from_bytes(&proto.hash),
-        })
+        }
     }
 
     pub fn to_proto(&self) -> RawPartSetHeader {

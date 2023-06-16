@@ -79,7 +79,9 @@ impl Namespace {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
-        Namespace::from_string(&String::from_utf8(bytes.to_vec())?)
+        let s = &String::from_utf8(bytes.to_vec())?;
+        println!("s: {}", s);
+        Namespace::from_string(s)
     }
 }
 
@@ -192,7 +194,7 @@ pub struct SequencerBlock {
 
 impl SequencerBlock {
     pub fn from_proto(proto: RawSequencerBlock) -> eyre::Result<Self> {
-        let block_hash = Hash::from_bytes(tendermint::hash::Algorithm::Sha256, &proto.block_hash)?;
+        let block_hash = Hash::decode_vec(&proto.block_hash)?;
         let header = Header::try_from(
             proto
                 .header
@@ -425,6 +427,10 @@ mod test {
         },
     };
 
+    fn make_empty_hash() -> Hash {
+        Hash::from_bytes(hash::Algorithm::Sha256, &[0; 32]).unwrap()
+    }
+
     fn make_header() -> Header {
         Header {
             version: Version {
@@ -442,9 +448,9 @@ mod test {
             last_block_id: None,
             last_commit_hash: None,
             data_hash: None,
-            validators_hash: Hash::default(),
-            next_validators_hash: Hash::default(),
-            consensus_hash: Hash::default(),
+            validators_hash: make_empty_hash(),
+            next_validators_hash: make_empty_hash(),
+            consensus_hash: make_empty_hash(),
             app_hash: AppHash::default(),
             last_results_hash: None,
             evidence_hash: None,
@@ -457,10 +463,10 @@ mod test {
             height: "0".to_string(),
             round: 0,
             block_id: BlockId {
-                hash: Base64String(vec![]),
+                hash: Base64String::from_bytes(&[0; 32]),
                 part_set_header: Parts {
                     total: 0,
-                    hash: Base64String(vec![]),
+                    hash: Base64String::from_bytes(&[0; 32]),
                 },
             },
             signatures: vec![],

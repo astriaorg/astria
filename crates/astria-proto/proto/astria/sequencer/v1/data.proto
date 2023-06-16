@@ -3,8 +3,6 @@ syntax = "proto3";
 package astria.sequencer.v1;
 
 import "tendermint/types/types.proto";
-import "gogoproto/gogo.proto";
-import "google/protobuf/timestamp.proto";
 
 // copied from https://github.com/cometbft/cometbft/blob/6f7746225c378b4f4e40e80a669226385cda8bfb/proto/tendermint/types/types.proto#L26
 // TODO(GH-): 
