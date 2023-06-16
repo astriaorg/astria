@@ -33,7 +33,7 @@ pub struct EmptyRequest {}
 
 #[derive(Deserialize, Debug)]
 pub struct BlockResponse {
-    pub block_id: TmRawBlockId,
+    pub block_id: BlockId,
     pub block: RawBlock,
 }
 
