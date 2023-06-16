@@ -165,7 +165,7 @@ impl std::ops::Sub<u128> for Balance {
 }
 
 impl Balance {
-    pub fn to_proto(&self) -> ProtoBalance {
+    pub fn as_proto(&self) -> ProtoBalance {
         ProtoBalance {
             upper: (self.0 >> 64) as u64,
             lower: self.0 as u64,
@@ -191,13 +191,13 @@ impl From<&ProtoBalance> for Balance {
 
 impl From<Balance> for ProtoBalance {
     fn from(balance: Balance) -> Self {
-        balance.to_proto()
+        balance.as_proto()
     }
 }
 
 impl From<&Balance> for ProtoBalance {
     fn from(balance: &Balance) -> Self {
-        balance.to_proto()
+        balance.as_proto()
     }
 }
 

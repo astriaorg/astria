@@ -41,7 +41,7 @@ impl Transaction {
     pub fn to_proto(&self) -> ProtoAccountsTransaction {
         ProtoAccountsTransaction {
             to: self.to.as_bytes().to_vec(),
-            amount: Some(self.amount.to_proto()),
+            amount: Some(self.amount.as_proto()),
             nonce: self.nonce.into(),
         }
     }

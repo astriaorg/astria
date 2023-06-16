@@ -49,7 +49,7 @@ impl SignedTransaction {
         Address::try_from(&self.public_key)
     }
 
-    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+    pub fn try_to_vec(&self) -> Result<Vec<u8>> {
         let proto = ProtoSignedTransaction {
             transaction: Some(match &self.transaction {
                 UnsignedTransaction::AccountsTransaction(tx) => {
@@ -93,7 +93,7 @@ impl SignedTransaction {
     }
 
     pub fn hash(&self) -> Result<TransactionHash> {
-        hash(&self.to_bytes()?)
+        hash(&self.try_to_vec()?)
             .try_into()
             .map_err(|_| anyhow!("failed to turn hash into 32 bytes"))
     }

@@ -9,7 +9,7 @@ mod sequencer;
 pub(crate) mod service;
 pub(crate) mod state_ext;
 pub mod telemetry;
-pub(crate) mod transaction;
+pub mod transaction;
 
 pub use config::Config;
 pub use sequencer::Sequencer;

@@ -79,7 +79,13 @@ mod test {
     use hex;
 
     use super::*;
-    use crate::app::BOB_ADDRESS;
+    use crate::accounts::types::{
+        Address,
+        Balance,
+        Nonce,
+    };
+
+    pub const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
 
     #[test]
     fn test_transaction() {

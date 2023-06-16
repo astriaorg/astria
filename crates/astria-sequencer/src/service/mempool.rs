@@ -6,7 +6,6 @@ use std::{
     },
 };
 
-use borsh::BorshDeserialize as _;
 use futures::{
     Future,
     FutureExt,

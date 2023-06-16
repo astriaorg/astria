@@ -205,37 +205,8 @@ impl App {
     }
 }
 
-use crate::accounts::types::{
-    Address,
-    Balance,
-};
-
-pub const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
-pub const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
-pub const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871";
-
-// generated using the test generate_default_keys
-// which also generates the corresponding secret and public keys
-fn default_genesis_accounts() -> Vec<(Address, Balance)> {
-    vec![
-        (
-            Address::unsafe_from_hex_string(ALICE_ADDRESS),
-            Balance::from(10e18 as u128),
-        ),
-        (
-            Address::unsafe_from_hex_string(BOB_ADDRESS),
-            Balance::from(10e18 as u128),
-        ),
-        (
-            Address::unsafe_from_hex_string(CAROL_ADDRESS),
-            Balance::from(10e18 as u128),
-        ),
-    ]
-}
-
 #[cfg(test)]
 mod test {
-    use borsh::BorshSerialize as _;
     use tendermint::{
         abci::types::CommitInfo,
         account,
@@ -254,14 +225,38 @@ mod test {
     use crate::{
         accounts::{
             state_ext::StateReadExt as _,
+            transaction::Transaction,
             types::{
+                Address,
                 Balance,
                 Nonce,
             },
         },
         crypto::Keypair,
+        genesis::Account,
         transaction::UnsignedTransaction,
     };
+
+    pub const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
+    pub const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
+    pub const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871";
+
+    fn default_genesis_accounts() -> Vec<Account> {
+        vec![
+            Account {
+                address: Address::unsafe_from_hex_string(ALICE_ADDRESS),
+                balance: 10u128.pow(19).into(),
+            },
+            Account {
+                address: Address::unsafe_from_hex_string(BOB_ADDRESS),
+                balance: 10u128.pow(19).into(),
+            },
+            Account {
+                address: Address::unsafe_from_hex_string(CAROL_ADDRESS),
+                balance: 10u128.pow(19).into(),
+            },
+        ]
+    }
 
     fn default_header() -> Header {
         Header {
@@ -359,7 +354,11 @@ mod test {
         let alice = Address::unsafe_from_hex_string(ALICE_ADDRESS);
         let bob = Address::unsafe_from_hex_string(BOB_ADDRESS);
         let value = Balance::from(333333);
-        let tx = UnsignedTransaction::new_accounts_transaction(bob.clone(), value, Nonce::from(1));
+        let tx = UnsignedTransaction::AccountsTransaction(Transaction::new(
+            bob.clone(),
+            value,
+            Nonce::from(1),
+        ));
         let signed_tx = tx.sign(&alice_keypair).unwrap();
         let bytes = signed_tx.try_to_vec().unwrap();
 
