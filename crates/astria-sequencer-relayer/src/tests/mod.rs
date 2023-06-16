@@ -3,6 +3,7 @@ use tendermint::{
     Block,
     Hash,
 };
+use tendermint_proto::Protobuf;
 
 use crate::sequencer::SequencerClient;
 
