@@ -1,12 +1,12 @@
-ARG DISTROLESS_TAG=latest
 # build stage
-FROM --platform=$BUILDPLATFORM lukemathwalker/cargo-chef:latest-rust-bullseye AS chef
+FROM --platform=$BUILDPLATFORM lukemathwalker/cargo-chef:latest-rust-bookworm AS chef
 WORKDIR /build/
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     libprotobuf-dev \
     protobuf-compiler \
+    librocksdb-dev \
     clang \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -35,6 +35,7 @@ FROM chef as builder
 COPY --from=planner /build/recipe.json recipe.json
 
 ARG TARGETPLATFORM
+ENV ROCKSDB_LIB_DIR=/usr/lib
 RUN case "$TARGETPLATFORM" in \
     "linux/arm64") target="aarch64-unknown-linux-gnu" ;; \
     "linux/amd64") target="x86_64-unknown-linux-gnu" ;; \
@@ -53,8 +54,7 @@ RUN cargo zigbuild --release \
 RUN mkdir -p target/release \
     && cp target/$(cat ./target_triple)/release/astria-sequencer-relayer target/release/
 
-ARG DISTROLESS_TAG
-FROM gcr.io/distroless/cc-debian11:$DISTROLESS_TAG
+FROM debian:bookworm-slim
 WORKDIR /app/
 EXPOSE 2450
 COPY --from=builder /build/target/release/astria-sequencer-relayer /usr/local/bin/astria-sequencer-relayer
