@@ -1,6 +1,12 @@
-use std::time::Duration;
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
-use astria_conductor::reader::Reader;
+use astria_conductor::{
+    reader::Reader,
+    validation::BlockValidator,
+};
 use tokio::sync::mpsc;
 
 use crate::helper::init_test;
@@ -13,11 +19,12 @@ async fn should_get_new_block() {
     let metro_endpoint = test_env.sequencer_endpoint();
     let bridge_endpoint = test_env.bridge_endpoint();
 
+    let block_validator = BlockValidator::new(metro_endpoint.as_str()).unwrap();
     let (executor_tx, _) = mpsc::unbounded_channel();
     let (mut reader, _reader_tx) = Reader::new(
         bridge_endpoint.as_str(),
-        metro_endpoint.as_str(),
         executor_tx,
+        Arc::new(block_validator),
     )
     .await
     .unwrap();

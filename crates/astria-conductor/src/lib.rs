@@ -18,6 +18,7 @@ pub mod network;
 pub mod reader;
 pub mod telemetry;
 pub mod tendermint;
+pub mod validation;
 
 mod private {
     #[allow(unreachable_pub)]

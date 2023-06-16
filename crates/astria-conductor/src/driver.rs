@@ -1,11 +1,15 @@
 //! The driver is the top-level coordinator that runs and manages all the components
 //! necessary for this reader/validator.
 
-use std::sync::Mutex;
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 use astria_sequencer_relayer::sequencer_block::SequencerBlock;
 use color_eyre::eyre::{
     eyre,
+    Context,
     Result,
 };
 use futures::StreamExt;
@@ -35,6 +39,7 @@ use crate::{
         self,
         ReaderCommand,
     },
+    validation::BlockValidator,
 };
 
 /// The channel through which the user can send commands to the driver.
@@ -65,6 +70,8 @@ pub struct Driver {
 
     network: GossipNetwork,
 
+    block_validator: Arc<BlockValidator>,
+
     is_shutdown: Mutex<bool>,
 }
 
@@ -76,10 +83,13 @@ impl Driver {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let (executor_join_handle, executor_tx) = executor::spawn(&conf, alert_tx.clone()).await?;
 
+        let block_validator = Arc::new(BlockValidator::new(&conf.tendermint_url)?);
+
         let (reader_join_handle, reader_tx) = if conf.disable_finalization {
             (None, None)
         } else {
-            let (reader_join_handle, reader_tx) = reader::spawn(&conf, executor_tx.clone()).await?;
+            let (reader_join_handle, reader_tx) =
+                reader::spawn(&conf, executor_tx.clone(), block_validator.clone()).await?;
             (Some(reader_join_handle), Some(reader_tx))
         };
 
@@ -90,6 +100,7 @@ impl Driver {
                 reader_tx,
                 executor_tx,
                 network: GossipNetwork::new(conf.bootnodes)?,
+                block_validator,
                 is_shutdown: Mutex::new(false),
             },
             executor_join_handle,
@@ -128,7 +139,15 @@ impl Driver {
             NetworkEvent::Message(msg) => {
                 debug!("received gossip message: {:?}", msg);
                 let block = SequencerBlock::from_bytes(&msg.data)?;
-                // TODO: validate this block!!!!!
+
+                // validate block received from gossip network
+                // note: `validate_sequencer_block` is async, but `handle_network_event` cannot be
+                // async due to libp2p restrictions.
+                let handle = tokio::runtime::Handle::current();
+                handle
+                    .block_on(self.block_validator.validate_sequencer_block(&block))
+                    .wrap_err("invalid block received from gossip network")?;
+
                 self.executor_tx
                     .send(ExecutorCommand::BlockReceivedFromGossipNetwork {
                         block: Box::new(block),
