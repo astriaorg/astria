@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use astria_proto::sequencer::v1::Balance as ProtoBalance;
+use astria_proto::primitive::v1::Uint128 as ProtoBalance;
 use borsh::{
     BorshDeserialize,
     BorshSerialize,
@@ -167,13 +167,13 @@ impl std::ops::Sub<u128> for Balance {
 impl Balance {
     pub fn as_proto(&self) -> ProtoBalance {
         ProtoBalance {
-            upper: (self.0 >> 64) as u64,
-            lower: self.0 as u64,
+            hi: (self.0 >> 64) as u64,
+            lo: self.0 as u64,
         }
     }
 
     pub fn from_proto(proto: &ProtoBalance) -> Self {
-        Self((proto.upper as u128) << 64 | proto.lower as u128)
+        Self((proto.hi as u128) << 64 | proto.lo as u128)
     }
 }
 
