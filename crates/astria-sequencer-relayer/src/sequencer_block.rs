@@ -71,17 +71,16 @@ pub struct Namespace([u8; 8]);
 
 impl Namespace {
     pub fn from_string(s: &str) -> eyre::Result<Self> {
-        let bytes = hex::decode(s).wrap_err("failed reading string as hex encoded bytes")?;
+        let bytes =
+            hex::decode(s.as_bytes()).wrap_err("failed reading string as hex encoded bytes")?;
+        Self::from_bytes(&bytes)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
         ensure!(bytes.len() == 8, "string must encode exactly 8 bytes",);
         let mut namespace = [0u8; 8];
         namespace.copy_from_slice(&bytes);
         Ok(Namespace(namespace))
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
-        let s = &String::from_utf8(bytes.to_vec())?;
-        println!("s: {}", s);
-        Namespace::from_string(s)
     }
 }
 
