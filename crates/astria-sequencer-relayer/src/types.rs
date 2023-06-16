@@ -18,10 +18,7 @@ use tendermint::block::{
     Id as TmBlockId,
 };
 // use tendermint::Block;
-use tendermint_proto::types::{
-    Block as RawBlock,
-    BlockId as TmRawBlockId,
-};
+use tendermint_proto::types::Block as RawBlock;
 
 use crate::base64_string::Base64String;
 
