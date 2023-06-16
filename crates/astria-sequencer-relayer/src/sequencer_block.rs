@@ -35,6 +35,7 @@ use serde::{
     Deserializer,
     Serialize,
 };
+use serde_json::value::Index;
 use sha2::{
     Digest,
     Sha256,
@@ -186,74 +187,90 @@ pub struct SequencerBlock {
     pub block_hash: Hash,
     pub header: Header,
     pub last_commit: Commit,
-    pub sequencer_txs: Vec<IndexedTransaction>,
+    pub sequencer_transactions: Vec<IndexedTransaction>,
     /// namespace -> rollup txs
-    pub rollup_txs: HashMap<Namespace, Vec<IndexedTransaction>>,
+    pub rollup_transactions: HashMap<Namespace, Vec<IndexedTransaction>>,
 }
 
 impl SequencerBlock {
     pub fn from_proto(proto: RawSequencerBlock) -> eyre::Result<Self> {
+        let block_hash = Hash::from_bytes(tendermint::hash::Algorithm::Sha256, &proto.block_hash)?;
+        let header = Header::try_from(
+            proto
+                .header
+                .ok_or(eyre!("SequencerBlock from_proto failed: no header"))?,
+        )?; // TODO: static errors
+        let last_commit = Commit::try_from(
+            proto
+                .last_commit
+                .ok_or(eyre!("SequencerBlock from_proto failed: no last_commit"))?,
+        )?;
+        let sequencer_txs = proto
+            .sequencer_transactions
+            .into_iter()
+            .map(IndexedTransaction::from_proto)
+            .collect::<eyre::Result<Vec<_>>>()?;
+        let rollup_txs = proto
+            .rollup_transactions
+            .into_iter()
+            .map(Self::namespaced_indexed_tx_from_proto)
+            .collect::<Result<HashMap<Namespace, Vec<IndexedTransaction>>, _>>()?;
+
         Ok(Self {
-            block_hash: Hash::from_bytes(tendermint::hash::Algorithm::Sha256, &proto.block_hash)?,
-            header: Header::try_from(
-                proto
-                    .header
-                    .ok_or(eyre!("SequencerBlock from_proto failed: no header"))?,
-            )?, // TODO: static errors
-            last_commit: Commit::try_from(
-                proto
-                    .last_commit
-                    .ok_or(eyre!("SequencerBlock from_proto failed: no last_commit"))?,
-            )?,
-            sequencer_txs: proto
-                .sequencer_transactions
-                .into_iter()
-                .map(IndexedTransaction::from_proto)
-                .collect::<eyre::Result<Vec<_>>>()?,
-            rollup_txs: proto
-                .rollup_transactions
-                .into_iter()
-                .map(
-                    |NamespacedIndexedTransactions {
-                         namespace,
-                         txs,
-                     }|
-                     -> eyre::Result<(Namespace, Vec<IndexedTransaction>)> {
-                        Ok((
-                            Namespace::from_bytes(&namespace)?,
-                            txs.into_iter()
-                                .map(IndexedTransaction::from_proto)
-                                .collect::<Result<Vec<IndexedTransaction>, _>>()?,
-                        ))
-                    },
-                )
-                .collect::<Result<HashMap<Namespace, Vec<IndexedTransaction>>, _>>()?,
+            block_hash,
+            header,
+            last_commit,
+            sequencer_transactions: sequencer_txs,
+            rollup_transactions: rollup_txs,
         })
     }
 
+    fn namespaced_indexed_tx_from_proto(
+        proto: NamespacedIndexedTransactions,
+    ) -> eyre::Result<(Namespace, Vec<IndexedTransaction>)> {
+        Ok((
+            Namespace::from_bytes(&proto.namespace)?,
+            proto
+                .txs
+                .into_iter()
+                .map(IndexedTransaction::from_proto)
+                .collect::<Result<Vec<IndexedTransaction>, _>>()?,
+        ))
+    }
+
     pub fn to_proto(&self) -> eyre::Result<RawSequencerBlock> {
+        let block_hash = self.block_hash.encode_vec()?;
+        let header = Some(RawHeader::from(self.header.clone()));
+        let last_commit = Some(RawCommit::from(self.last_commit.clone()));
+        let sequencer_transactions = self
+            .sequencer_transactions
+            .iter()
+            .map(IndexedTransaction::to_proto)
+            .collect::<Result<Vec<RawIndexedTransaction>, _>>()?;
+        let rollup_transactions = self
+            .rollup_transactions
+            .iter()
+            .map(Self::namespaced_indexed_txs_to_proto)
+            .collect::<Result<Vec<NamespacedIndexedTransactions>, _>>()?;
+
         Ok(RawSequencerBlock {
-            block_hash: self.block_hash.encode_vec()?,
-            header: Some(RawHeader::from(self.header.clone())),
-            last_commit: Some(RawCommit::from(self.last_commit.clone())),
-            sequencer_transactions: self
-                .sequencer_txs
+            block_hash,
+            header,
+            last_commit,
+            sequencer_transactions,
+            rollup_transactions,
+        })
+    }
+
+    fn namespaced_indexed_txs_to_proto(
+        (namespace, txs): (&Namespace, &Vec<IndexedTransaction>),
+    ) -> eyre::Result<NamespacedIndexedTransactions> {
+        Ok(NamespacedIndexedTransactions {
+            namespace: namespace.0.to_vec(),
+            txs: txs
                 .iter()
                 .map(IndexedTransaction::to_proto)
                 .collect::<Result<Vec<RawIndexedTransaction>, _>>()?,
-            rollup_transactions: self
-                .rollup_txs
-                .iter()
-                .map(|(ns, txs)| -> eyre::Result<NamespacedIndexedTransactions> {
-                    Ok(NamespacedIndexedTransactions {
-                        namespace: ns.0.to_vec(),
-                        txs: txs
-                            .iter()
-                            .map(IndexedTransaction::to_proto)
-                            .collect::<Result<Vec<RawIndexedTransaction>, _>>()?,
-                    })
-                })
-                .collect::<Result<Vec<NamespacedIndexedTransactions>, _>>()?,
         })
     }
 
@@ -309,8 +326,8 @@ impl SequencerBlock {
             last_commit: b.last_commit.ok_or(eyre!(
                 "SequencerBlock from_cosmos_block failed: no last_commit in tendermint::Block"
             ))?,
-            sequencer_txs,
-            rollup_txs,
+            sequencer_transactions: sequencer_txs,
+            rollup_transactions: rollup_txs,
         })
     }
 
@@ -322,8 +339,8 @@ impl SequencerBlock {
         };
 
         let mut ordered_txs = vec![];
-        ordered_txs.append(&mut self.sequencer_txs.clone());
-        self.rollup_txs
+        ordered_txs.append(&mut self.sequencer_transactions.clone());
+        self.rollup_transactions
             .iter()
             .for_each(|(_, tx)| ordered_txs.append(&mut tx.clone()));
 
@@ -486,13 +503,13 @@ mod test {
             .unwrap(),
             header: make_header(),
             last_commit: empty_commit(),
-            sequencer_txs: vec![IndexedTransaction {
+            sequencer_transactions: vec![IndexedTransaction {
                 block_index: 0,
                 transaction: vec![0x11, 0x22, 0x33],
             }],
-            rollup_txs: HashMap::new(),
+            rollup_transactions: HashMap::new(),
         };
-        expected.rollup_txs.insert(
+        expected.rollup_transactions.insert(
             DEFAULT_NAMESPACE.clone(),
             vec![IndexedTransaction {
                 block_index: 0,

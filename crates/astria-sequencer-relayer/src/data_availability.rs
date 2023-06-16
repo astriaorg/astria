@@ -177,6 +177,20 @@ pub struct SequencerNamespaceData {
 
 impl SequencerNamespaceData {
     fn from_proto(proto: RawSequencerNamespaceData) -> eyre::Result<Self> {
+        let block_hash = Hash::from_bytes(tendermint::hash::Algorithm::Sha256, &proto.block_hash)?;
+        let header = Header::try_from(
+            proto
+                .header
+                .ok_or(eyre!("SequencerNamespaceData from_proto failed: no header"))?,
+        )?;
+        let last_commit = Commit::try_from(proto.last_commit.ok_or(eyre!(
+            "SequencerNamespaceData from_proto failed: no last_commit"
+        ))?)?;
+        let sequencer_txs = proto
+            .sequencer_txs
+            .into_iter()
+            .map(IndexedTransaction::from_proto)
+            .collect::<eyre::Result<Vec<_>>>()?;
         let rollup_namespaces: Vec<(u64, String)> = proto
             .rollup_namespaces
             .iter()
@@ -189,20 +203,10 @@ impl SequencerNamespaceData {
             .collect();
 
         Ok(Self {
-            block_hash: Hash::from_bytes(tendermint::hash::Algorithm::Sha256, &proto.block_hash)?,
-            header: Header::try_from(
-                proto
-                    .header
-                    .ok_or(eyre!("SequencerNamespaceData from_proto failed: no header"))?,
-            )?,
-            last_commit: Commit::try_from(proto.last_commit.ok_or(eyre!(
-                "SequencerNamespaceData from_proto failed: no last_commit"
-            ))?)?,
-            sequencer_txs: proto
-                .sequencer_txs
-                .into_iter()
-                .map(IndexedTransaction::from_proto)
-                .collect::<eyre::Result<Vec<_>>>()?,
+            block_hash,
+            header,
+            last_commit,
+            sequencer_txs,
             rollup_namespaces,
         })
     }
@@ -366,7 +370,7 @@ impl CelestiaClient {
         let mut block_height_and_namespace: Vec<(u64, String)> = Vec::new();
 
         // first, format and submit data for each rollup namespace
-        for (namespace, txs) in block.rollup_txs {
+        for (namespace, txs) in block.rollup_transactions {
             debug!(
                 "submitting rollup namespace data for namespace {}",
                 namespace
@@ -394,7 +398,7 @@ impl CelestiaClient {
             block_hash: block.block_hash,
             header: block.header,
             last_commit: block.last_commit,
-            sequencer_txs: block.sequencer_txs,
+            sequencer_txs: block.sequencer_transactions,
             rollup_namespaces: block_height_and_namespace,
         };
 
@@ -527,8 +531,8 @@ impl CelestiaClient {
             block_hash: data.block_hash,
             header: data.header.clone(),
             last_commit: data.last_commit.clone(),
-            sequencer_txs: data.sequencer_txs.clone(),
-            rollup_txs: rollup_txs_map,
+            sequencer_transactions: data.sequencer_txs.clone(),
+            rollup_transactions: rollup_txs_map,
         })
     }
 

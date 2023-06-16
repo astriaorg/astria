@@ -207,7 +207,7 @@ impl<C: ExecutionClient> Executor<C> {
         }
 
         // get transactions for our namespace
-        let Some(txs) = block.rollup_txs.get(&self.namespace) else {
+        let Some(txs) = block.rollup_transactions.get(&self.namespace) else {
             info!(height = ?block.header.height, "sequencer block did not contains txs for namespace");
             return Ok(None);
         };
@@ -450,8 +450,8 @@ mod test {
                 },
                 signatures: vec![],
             },
-            sequencer_txs: vec![],
-            rollup_txs: HashMap::new(),
+            sequencer_transactions: vec![],
+            rollup_transactions: HashMap::new(),
         }
     }
 
@@ -466,7 +466,7 @@ mod test {
 
         let expected_exection_hash = hash(&executor.execution_state).unwrap();
         let mut block = get_test_block();
-        block.rollup_txs.insert(
+        block.rollup_transactions.insert(
             namespace,
             vec![IndexedTransaction {
                 block_index: 0,
@@ -512,7 +512,7 @@ mod test {
             .unwrap();
 
         let mut block: SequencerBlock = get_test_block();
-        block.rollup_txs.insert(
+        block.rollup_transactions.insert(
             namespace,
             vec![IndexedTransaction {
                 block_index: 0,

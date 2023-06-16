@@ -14,26 +14,26 @@ message IndexedTransaction {
 }
 
 // RollupNamespace
-// block_height refers to the DA layer block which the rollup namespace data was writted to.
 message RollupNamespace {
+    // block_height refers to the DA layer block which the rollup namespace data was writted to.
     uint64 block_height = 1;
     bytes namespace = 2;
 }
 
 // RollupNamespaceData
-// block_hash refers to the sequencer block that these transactions were posted to. It is used
-// to verify a Merkle inclusion proof.
 message RollupNamespaceData {
+    // block_hash refers to the sequencer block that these transactions were posted to. It is used
+    // to verify a Merkle inclusion proof.
     bytes block_hash = 1;
     repeated IndexedTransaction rollup_txs = 2;
 }
 
 // SequencerNamespaceData
-// block_hash refers to the sequencer block that these transactions were posted to. It is used
-// to verify a Merkle inclusion proof.
-// header is the sequencer chain's header for the block in which these were included
 message SequencerNamespaceData {
+    // block_hash refers to the sequencer block that these transactions were posted to. It is used
+    // to verify a Merkle inclusion proof.
     bytes block_hash = 1;
+    // header is the sequencer chain's header for the block in which these were included
     tendermint.types.Header header = 2;
     tendermint.types.Commit last_commit = 3;
     repeated IndexedTransaction sequencer_txs = 4;

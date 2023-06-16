@@ -101,11 +101,11 @@ async fn get_blocks_public_key_filter() {
         block_hash,
         header: make_header(),
         last_commit: empty_commit(),
-        sequencer_txs: vec![IndexedTransaction {
+        sequencer_transactions: vec![IndexedTransaction {
             block_index: 0,
             transaction: tx.0.clone(),
         }],
-        rollup_txs: HashMap::new(),
+        rollup_transactions: HashMap::new(),
     };
 
     println!("submitting block");
@@ -141,13 +141,13 @@ async fn celestia_client() {
         block_hash,
         header: make_header(),
         last_commit: empty_commit(),
-        sequencer_txs: vec![IndexedTransaction {
+        sequencer_transactions: vec![IndexedTransaction {
             block_index: 0,
             transaction: tx.0.clone(),
         }],
-        rollup_txs: HashMap::new(),
+        rollup_transactions: HashMap::new(),
     };
-    block.rollup_txs.insert(
+    block.rollup_transactions.insert(
         secondary_namespace.clone(),
         vec![IndexedTransaction {
             block_index: 1,
@@ -173,13 +173,16 @@ async fn celestia_client() {
     assert_eq!(resp.len(), 1);
     assert_eq!(resp[0].block_hash, block_hash);
     assert_eq!(resp[0].header, make_header());
-    assert_eq!(resp[0].sequencer_txs.len(), 1);
-    assert_eq!(resp[0].sequencer_txs[0].block_index, 0);
-    assert_eq!(resp[0].sequencer_txs[0].transaction, tx.0);
-    assert_eq!(resp[0].rollup_txs.len(), 1);
-    assert_eq!(resp[0].rollup_txs[&secondary_namespace][0].block_index, 1);
+    assert_eq!(resp[0].sequencer_transactions.len(), 1);
+    assert_eq!(resp[0].sequencer_transactions[0].block_index, 0);
+    assert_eq!(resp[0].sequencer_transactions[0].transaction, tx.0);
+    assert_eq!(resp[0].rollup_transactions.len(), 1);
     assert_eq!(
-        resp[0].rollup_txs[&secondary_namespace][0].transaction,
+        resp[0].rollup_transactions[&secondary_namespace][0].block_index,
+        1
+    );
+    assert_eq!(
+        resp[0].rollup_transactions[&secondary_namespace][0].transaction,
         secondary_tx.0
     );
 }
