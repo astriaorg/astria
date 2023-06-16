@@ -40,10 +40,7 @@ use sha2::{
     Sha256,
 };
 use tendermint::{
-    block::{
-        Block,
-        Header,
-    },
+    block::Header,
     Hash,
 };
 use tendermint_proto::{
@@ -54,7 +51,10 @@ use tracing::debug;
 
 use crate::{
     transaction::txs_to_data_hash,
-    types::Commit,
+    types::{
+        Block,
+        Commit,
+    },
 };
 
 /// Cosmos SDK message type URL for SequencerMsgs.
@@ -322,9 +322,7 @@ impl SequencerBlock {
         Ok(Self {
             block_hash: b.header.hash(),
             header: b.header,
-            last_commit: Commit::from_tm_commit(&b.last_commit.ok_or(eyre!(
-                "SequencerBlock from_cosmos_block failed: no last_commit in tendermint::Block"
-            ))?)?,
+            last_commit: b.last_commit,
             sequencer_transactions: sequencer_txs,
             rollup_transactions: rollup_txs,
         })

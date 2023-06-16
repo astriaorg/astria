@@ -1,6 +1,5 @@
 use astria_sequencer_relayer::sequencer::SequencerClient;
 use astria_sequencer_relayer_test::init_test;
-use tendermint::Block;
 
 #[tokio::test]
 #[ignore = "very slow init of test environment"]
@@ -20,6 +19,5 @@ async fn get_block() {
     let client = SequencerClient::new(sequencer_endpoint).unwrap();
 
     let resp = client.get_latest_block().await.unwrap();
-    let block = Block::try_from(resp.block).unwrap();
-    client.get_block(block.header.height).await.unwrap();
+    client.get_block(resp.block.header.height).await.unwrap();
 }

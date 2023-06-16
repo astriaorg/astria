@@ -1,4 +1,5 @@
 use astria_proto::sequencer::v1::{
+    Block as RawBlock,
     BlockId as RawBlockId,
     Commit as RawCommit,
     CommitSig as RawCommitSig,
@@ -13,28 +14,76 @@ use serde::{
     Serialize,
 };
 use tendermint::{
+    self,
     block::{
         Commit as TmCommit,
         CommitSig as TmCommitSig,
+        Header,
         Id as TmBlockId,
     },
-    Block,
+    evidence,
 };
-// use tendermint::Block;
-use tendermint_proto::types::Block as RawBlock;
+use tendermint_proto::types::{
+    Data as TmRawData,
+    Header as TmRawHeader,
+};
 
 use crate::base64_string::Base64String;
 
 /// cosmos-sdk (Tendermint) RPC types.
 /// see https://v1.cosmos.network/rpc/v0.41.4
-
 #[derive(Serialize, Debug)]
 pub struct EmptyRequest {}
 
 #[derive(Deserialize, Debug)]
 pub struct BlockResponse {
     pub block_id: BlockId,
-    pub block: RawBlock,
+    pub block: Block,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Block {
+    pub header: Header,
+    pub data: Vec<Vec<u8>>,
+    pub evidence: evidence::Data,
+    pub last_commit: Commit,
+}
+
+impl Block {
+    pub fn from_proto(proto: RawBlock) -> eyre::Result<Self> {
+        Ok(Self {
+            header: Header::try_from(
+                proto
+                    .header
+                    .ok_or(eyre!("Block from_proto failed: no header"))?,
+            )?,
+            data: proto
+                .data
+                .ok_or(eyre!("Block from_proto failed: no data"))?
+                .txs,
+            evidence: evidence::Data::try_from(
+                proto
+                    .evidence
+                    .ok_or(eyre!("Block from_proto failed: no evidence"))?,
+            )?,
+            last_commit: Commit::from_proto(
+                proto
+                    .last_commit
+                    .ok_or(eyre!("Block from_proto failed: no last_commit"))?,
+            )?,
+        })
+    }
+
+    pub fn to_proto(&self) -> RawBlock {
+        RawBlock {
+            header: Some(TmRawHeader::from(self.header.clone())),
+            data: Some(TmRawData {
+                txs: self.data.clone(),
+            }),
+            evidence: Some(self.evidence.clone().into()),
+            last_commit: Some(Commit::to_proto(&self.last_commit)),
+        }
+    }
 }
 
 #[derive(Clone, Deserialize, Debug, PartialEq, Eq, Serialize)]

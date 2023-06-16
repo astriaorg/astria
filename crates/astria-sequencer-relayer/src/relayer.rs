@@ -6,10 +6,7 @@ use bech32::{
 use serde::Deserialize;
 use tendermint::{
     account,
-    block::{
-        Block,
-        Height,
-    },
+    block::Height,
 };
 use tokio::{
     sync::{
@@ -120,7 +117,7 @@ impl Relayer {
     async fn get_and_submit_latest_block(&self) -> eyre::Result<State> {
         let mut new_state = (*self.state.borrow()).clone();
         let resp = self.sequencer_client.get_latest_block().await?;
-        let block = Block::try_from(resp.block)?;
+        let block = resp.block;
 
         let height = block.header.height;
         if height

@@ -3,7 +3,15 @@ syntax = "proto3";
 package astria.sequencer.v1;
 
 import "tendermint/types/types.proto";
+import "tendermint/types/evidence.proto";
 import "astria/sequencer/v1/data.proto";
+
+message Block {
+  tendermint.types.Header header = 1;
+  tendermint.types.Data data = 2;
+  tendermint.types.EvidenceList evidence = 3;
+  Commit last_commit = 4;
+}
 
 // helper type - these should get parsed into a map from namespace to a vector of IndexedTransactions
 message NamespacedIndexedTransactions {
