@@ -237,6 +237,7 @@ mod test {
         transaction::UnsignedTransaction,
     };
 
+    // generated with test `generate_default_keys()
     const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
     const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
     const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871";
@@ -348,6 +349,7 @@ mod test {
         app.init_chain(genesis_state).await.unwrap();
 
         // transfer funds from Alice to Bob
+        // this keypair corresponds to ALICE_ADDRESS
         let keypair_bytes = hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90d5bf4a3fcce717b0388bcc2749ebc148ad9969b23f45ee1b605fd58778576ac4").unwrap();
         let alice_keypair = Keypair::from_bytes(&keypair_bytes).unwrap();
 

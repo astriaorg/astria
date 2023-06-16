@@ -84,7 +84,7 @@ impl UnsignedTransaction {
 
 #[cfg(test)]
 mod test {
-    use hex;
+    use rand::rngs::OsRng;
 
     use super::*;
     use crate::accounts::types::{
@@ -106,5 +106,9 @@ mod test {
         let tx2 = UnsignedTransaction::try_from_slice(&bytes).unwrap();
         assert_eq!(tx, tx2);
         println!("0x{}", hex::encode(bytes));
+
+        let keypair = Keypair::generate(&mut OsRng);
+        let signed = tx.sign(&keypair);
+        signed.verify_signature().unwrap();
     }
 }
