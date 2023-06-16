@@ -79,7 +79,7 @@ impl Namespace {
     pub fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
         ensure!(bytes.len() == 8, "string must encode exactly 8 bytes",);
         let mut namespace = [0u8; 8];
-        namespace.copy_from_slice(&bytes);
+        namespace.copy_from_slice(bytes);
         Ok(Namespace(namespace))
     }
 }
