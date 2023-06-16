@@ -352,11 +352,9 @@ mod test {
     use tendermint::{
         account,
         block::{
-            self,
             header::Version,
             Header,
             Height,
-            Round,
         },
         AppHash,
     };

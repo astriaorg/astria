@@ -47,10 +47,7 @@ use tendermint::{
     Hash,
 };
 use tendermint_proto::{
-    types::{
-        Commit as RawCommit,
-        Header as RawHeader,
-    },
+    types::Header as RawHeader,
     Protobuf,
 };
 use tracing::debug;
@@ -395,18 +392,13 @@ pub fn cosmos_tx_body_to_sequencer_msgs(tx_body: TxBody) -> eyre::Result<Vec<Seq
 
 #[cfg(test)]
 mod test {
-    use std::{
-        collections::HashMap,
-        str::FromStr,
-    };
+    use std::collections::HashMap;
 
     use tendermint::{
         account,
         block::{
-            self,
             header::Version,
             Height,
-            Round,
         },
         chain,
         hash,

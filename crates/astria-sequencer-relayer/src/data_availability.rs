@@ -40,10 +40,7 @@ use tendermint::{
     Hash,
 };
 use tendermint_proto::{
-    types::{
-        Commit as RawCommit,
-        Header as RawHeader,
-    },
+    types::Header as RawHeader,
     Protobuf,
 };
 use tracing::{

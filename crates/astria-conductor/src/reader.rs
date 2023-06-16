@@ -560,10 +560,6 @@ mod test {
             Parts,
         },
     };
-    use tendermint::block::{
-        self,
-        Round,
-    };
 
     use super::*;
     use crate::tendermint::{

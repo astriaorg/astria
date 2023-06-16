@@ -198,7 +198,7 @@ impl CommitSig {
                 validator_address: Base64String::from_string(validator_address.to_string())?,
                 timestamp: timestamp.to_string(),
                 signature: Base64String::from_bytes(
-                    &signature
+                    signature
                         .clone()
                         .ok_or(eyre!("CommitSig from_tm_commit_sig failed: no signature"))?
                         .as_bytes(),
@@ -213,7 +213,7 @@ impl CommitSig {
                 validator_address: Base64String::from_string(validator_address.to_string())?,
                 timestamp: timestamp.to_string(),
                 signature: Base64String::from_bytes(
-                    &signature
+                    signature
                         .clone()
                         .ok_or(eyre!("CommitSig from_tm_commit_sig failed: no signature"))?
                         .as_bytes(),

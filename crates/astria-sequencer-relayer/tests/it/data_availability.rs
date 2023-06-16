@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    str::FromStr,
-};
+use std::collections::HashMap;
 
 use astria_sequencer_relayer::{
     base64_string::Base64String,
@@ -11,6 +8,11 @@ use astria_sequencer_relayer::{
         IndexedTransaction,
         SequencerBlock,
         DEFAULT_NAMESPACE,
+    },
+    types::{
+        BlockId,
+        Commit,
+        Parts,
     },
 };
 use astria_sequencer_relayer_test::init_test;
@@ -22,12 +24,9 @@ use rand::rngs::OsRng;
 use tendermint::{
     account,
     block::{
-        self,
         header::Version,
-        Commit,
         Header,
         Height,
-        Round,
     },
     chain,
     hash,
@@ -65,11 +64,14 @@ fn make_header() -> Header {
 
 fn empty_commit() -> Commit {
     Commit {
-        height: Height::from(0_u32),
-        round: Round::from(0_u8),
-        block_id: block::Id {
-            hash: Hash::from_str("").unwrap(),
-            part_set_header: block::parts::Header::new(0, Hash::from_str("").unwrap()).unwrap(),
+        height: "0".to_string(),
+        round: 0,
+        block_id: BlockId {
+            hash: Base64String(vec![]),
+            part_set_header: Parts {
+                total: 0,
+                hash: Base64String(vec![]),
+            },
         },
         signatures: vec![],
     }
