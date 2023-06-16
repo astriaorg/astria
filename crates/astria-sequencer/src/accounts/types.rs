@@ -9,7 +9,7 @@ use serde::{
     Serialize,
 };
 
-pub const ADDRESS_LEN: usize = 20;
+const ADDRESS_LEN: usize = 20;
 
 /// Address represents an account address.
 #[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Eq, Debug)]
