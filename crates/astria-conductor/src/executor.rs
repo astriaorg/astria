@@ -338,7 +338,15 @@ mod test {
         DoBlockResponse,
         InitStateResponse,
     };
-    use astria_sequencer_relayer::sequencer_block::IndexedTransaction;
+    use astria_sequencer_relayer::{
+        base64_string::Base64String,
+        sequencer_block::IndexedTransaction,
+        types::{
+            BlockId,
+            Commit,
+            Parts,
+        },
+    };
     use prost_types::Timestamp;
     use sha2::Digest as _;
     use tendermint::{
@@ -346,7 +354,6 @@ mod test {
         block::{
             self,
             header::Version,
-            Commit,
             Header,
             Height,
             Round,
@@ -410,6 +417,12 @@ mod test {
         hasher.finalize().to_vec().try_into().map_err(Into::into)
     }
 
+    fn hash_bytes(s: &[u8]) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(s);
+        hasher.finalize().to_vec()
+    }
+
     fn default_header() -> Header {
         Header {
             app_hash: AppHash::try_from(vec![]).unwrap(),
@@ -438,15 +451,14 @@ mod test {
             block_hash: hash(b"block1").unwrap(),
             header: default_header(),
             last_commit: Commit {
-                height: Height::from(1_u32),
-                round: Round::from(0_u8),
-                block_id: block::Id {
-                    hash: hash(b"block0").unwrap(),
-                    part_set_header: block::parts::Header::new(
-                        1,
-                        hash(b"part_set_header").unwrap(),
-                    )
-                    .unwrap(),
+                height: "1".to_string(),
+                round: 0,
+                block_id: BlockId {
+                    hash: Base64String(hash_bytes(b"block1")),
+                    part_set_header: Parts {
+                        total: 0,
+                        hash: Base64String(hash_bytes(b"part_set_header")),
+                    },
                 },
                 signatures: vec![],
             },

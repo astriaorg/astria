@@ -12,6 +12,10 @@ use astria_sequencer_relayer::{
     },
     keys::public_key_to_address,
     sequencer_block::SequencerBlock,
+    types::{
+        Commit,
+        CommitSig,
+    },
 };
 use bech32::{
     ToBase32,
@@ -29,10 +33,11 @@ use prost::Message;
 use tendermint::{
     account::{self,},
     block::{
-        Commit,
-        CommitSig,
+        parts,
+        CommitSig as TmCommitSig,
         Height,
         Id as BlockId,
+        Round,
     },
     chain,
     crypto,
@@ -44,6 +49,7 @@ use tendermint::{
     },
     Hash,
     PublicKey,
+    Signature,
     Time,
 };
 use tendermint_proto::types::CommitSig as RawCommitSig;
@@ -380,7 +386,7 @@ fn ensure_commit_has_quorum(
     validator_set: &ValidatorSet,
     chain_id: &chain::Id,
 ) -> Result<()> {
-    if commit.height != Height::from_str(&validator_set.block_height)? {
+    if commit.height != validator_set.block_height {
         bail!(
             "commit height mismatch: expected {}, got {}",
             validator_set.block_height,
@@ -405,44 +411,42 @@ fn ensure_commit_has_quorum(
     for vote in &commit.signatures {
         // we only care about votes that are for the Commit.BlockId (ignore absent validators and
         // votes for nil)
-        if let CommitSig::BlockIdFlagCommit {
-            validator_address,
-            timestamp,
-            signature: Some(signature),
-        } = vote
-        {
-            // TODO: unpack into validator_address, signature, timestamp
-            // verify validator exists in validator set
-            let validator_address: String = bech32::encode(
-                "metrovalcons",
-                Into::<Vec<u8>>::into(*validator_address).to_base32(),
-                Variant::Bech32,
-            )?;
-            let Some(validator) = validator_map.get(&validator_address) else {
+        // we only care about votes that are for the Commit.BlockId (ignore absent validators and
+        // votes for nil)
+        if vote.block_id_flag != "BLOCK_ID_FLAG_COMMIT" {
+            continue;
+        }
+        // TODO: unpack into validator_address, signature, timestamp
+        // verify validator exists in validator set
+        let validator_address: String = bech32::encode(
+            "metrovalcons",
+            vote.validator_address.0.to_base32(),
+            Variant::Bech32,
+        )?;
+        let Some(validator) = validator_map.get(&validator_address) else {
                 bail!("validator {} not found in validator set", validator_address);
             };
 
-            // verify address in signature matches validator pubkey
-            let address_from_pubkey = public_key_to_address(&validator.pub_key.key.0)?;
-            ensure!(
-                address_from_pubkey == validator_address,
-                format!(
-                    "validator address mismatch: expected {}, got {}",
-                    validator_address, address_from_pubkey
-                )
-            );
+        // verify address in signature matches validator pubkey
+        let address_from_pubkey = public_key_to_address(&validator.pub_key.key.0)?;
+        ensure!(
+            address_from_pubkey == validator_address,
+            format!(
+                "validator address mismatch: expected {}, got {}",
+                validator_address, address_from_pubkey
+            )
+        );
 
-            // verify vote signature
-            verify_vote_signature(
-                timestamp,
-                commit,
-                chain_id,
-                &validator.pub_key.key.0,
-                signature.as_bytes(),
-            )?;
+        // verify vote signature
+        verify_vote_signature(
+            vote,
+            commit,
+            chain_id,
+            &validator.pub_key.key.0,
+            &vote.signature.0,
+        )?;
 
-            commit_voting_power += validator.voting_power;
-        }
+        commit_voting_power += validator.voting_power;
     }
 
     ensure!(
@@ -477,7 +481,7 @@ fn does_commit_voting_power_have_quorum(commited: u64, total: u64) -> bool {
 // TODO: we can change these types (CommitSig and Commit) to be the tendermint types
 // after the other relayer types are updated.
 fn verify_vote_signature(
-    timestamp: &Time,
+    vote: &CommitSig,
     commit: &Commit,
     chain_id: &chain::Id,
     public_key_bytes: &[u8],
@@ -487,13 +491,17 @@ fn verify_vote_signature(
     let signature = ed25519_dalek::Signature::from_bytes(signature_bytes)?;
     let canonical_vote = CanonicalVote {
         vote_type: vote::Type::Precommit,
-        height: commit.height,
-        round: commit.round,
+        height: Height::from_str(&commit.height)?,
+        round: Round::from(commit.round as u16),
         block_id: Some(BlockId {
-            hash: commit.block_id.hash,
-            part_set_header: commit.block_id.part_set_header,
+            hash: Hash::try_from(commit.block_id.hash.0.to_vec())?,
+            part_set_header: parts::Header::new(
+                commit.block_id.part_set_header.total,
+                Hash::try_from(commit.block_id.part_set_header.hash.0.to_vec())?,
+            )?,
         }),
-        timestamp: Some(*timestamp),
+
+        timestamp: Some(Time::parse_from_rfc3339(&vote.timestamp)?),
         chain_id: chain_id.clone(),
     };
     public_key.verify(
@@ -510,16 +518,48 @@ fn calculate_last_commit_hash(commit: &Commit) -> Hash {
     let signatures = commit
         .signatures
         .iter()
-        .map(|cs| RawCommitSig::from(cs.clone()).encode_to_vec())
-        .collect::<Vec<Vec<u8>>>();
+        .filter_map(|v| {
+            match v.block_id_flag.as_str() {
+                "BLOCK_ID_FLAG_COMMIT" => {
+                    let commit_sig = TmCommitSig::BlockIdFlagCommit {
+                        signature: Some(Signature::try_from(v.signature.clone().0).ok()?),
+                        validator_address: account::Id::try_from(v.validator_address.clone().0)
+                            .ok()?,
+                        timestamp: Time::parse_from_rfc3339(&v.timestamp).ok()?,
+                    };
+                    Some(RawCommitSig::try_from(commit_sig).ok()?.encode_to_vec())
+                }
+                "BLOCK_ID_FLAG_NIL" => {
+                    let commit_sig = TmCommitSig::BlockIdFlagNil {
+                        signature: Some(Signature::try_from(v.signature.clone().0).ok()?),
+                        validator_address: account::Id::try_from(v.validator_address.clone().0)
+                            .ok()?,
+                        timestamp: Time::parse_from_rfc3339(&v.timestamp).ok()?,
+                    };
+                    Some(RawCommitSig::try_from(commit_sig).ok()?.encode_to_vec())
+                }
+                "BLOCK_ID_FLAG_ABSENT" => Some(
+                    RawCommitSig::try_from(TmCommitSig::BlockIdFlagAbsent)
+                        .ok()?
+                        .encode_to_vec(),
+                ),
+                _ => None, // TODO: could this ever happen?
+            }
+        })
+        .collect::<Vec<_>>();
     Hash::Sha256(merkle::simple_hash_from_byte_vectors::<
         crypto::default::Sha256,
     >(&signatures))
 }
-
 #[cfg(test)]
 mod test {
-    use astria_sequencer_relayer::base64_string::Base64String;
+    use astria_sequencer_relayer::{
+        base64_string::Base64String,
+        types::{
+            BlockId,
+            Parts,
+        },
+    };
     use tendermint::block::{
         self,
         Round,
@@ -630,15 +670,20 @@ mod test {
         };
 
         let commit = Commit {
-            height: Height::from_str("2082").unwrap(),
-            round: Round::from(0_u8),
+            height: "2082".to_string(),
+            round: 0,
             block_id: BlockId {
-                hash: Hash::from_str("5QrZ8fznJw/X1lviA5cyQ2BwLbma8iuvXHqh6BiMJdU=").unwrap(),
-                part_set_header: block::parts::Header::new(
-                    1,
-                    Hash::from_str("DUMkxxMa2M0/aMmNyVGkvLn+3w1HTsGZ/YKyAVu+gdc=").unwrap(),
+                hash: Base64String::from_string(
+                    "5QrZ8fznJw/X1lviA5cyQ2BwLbma8iuvXHqh6BiMJdU=".to_string(),
                 )
                 .unwrap(),
+                part_set_header: Parts {
+                    total: 1,
+                    hash: Base64String::from_string(
+                        "DUMkxxMa2M0/aMmNyVGkvLn+3w1HTsGZ/YKyAVu+gdc=".to_string(),
+                    )
+                    .unwrap(),
+                },
             },
             signatures: vec![],
         };
