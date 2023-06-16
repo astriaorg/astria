@@ -128,6 +128,7 @@ impl Driver {
             NetworkEvent::Message(msg) => {
                 debug!("received gossip message: {:?}", msg);
                 let block = SequencerBlock::from_bytes(&msg.data)?;
+                // TODO: validate this block!!!!!
                 self.executor_tx
                     .send(ExecutorCommand::BlockReceivedFromGossipNetwork {
                         block: Box::new(block),
