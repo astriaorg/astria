@@ -12,11 +12,11 @@ message NamespacedIndexedTransactions {
 }
 
 // SequencerBlock
-// block_hash refers to the sequencer chain's block hash that this is created from
 message SequencerBlock {
+    // block_hash refers to the sequencer chain's block hash that this is created from
     bytes block_hash = 1;
     tendermint.types.Header header = 2;
-    tendermint.types.Commit last_commit = 3;
+    Commit last_commit = 3;
     repeated IndexedTransaction sequencer_transactions = 4;
     // FIXME: the current nested array layout results in bad allocation behavior on deserialization
     // see https://github.com/astriaorg/astria/issues/31

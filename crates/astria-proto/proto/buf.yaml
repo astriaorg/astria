@@ -2,6 +2,7 @@ version: v1
 name: buf.build/astria/astria
 deps:
   - buf.build/tendermint/tendermint
+  - buf.build/cosmos/gogo-proto
 breaking:
   use:
     - FILE

@@ -35,7 +35,6 @@ use serde::{
     Deserializer,
     Serialize,
 };
-use serde_json::value::Index;
 use sha2::{
     Digest,
     Sha256,
@@ -43,7 +42,6 @@ use sha2::{
 use tendermint::{
     block::{
         Block,
-        Commit,
         Header,
     },
     Hash,
@@ -57,7 +55,10 @@ use tendermint_proto::{
 };
 use tracing::debug;
 
-use crate::transaction::txs_to_data_hash;
+use crate::{
+    transaction::txs_to_data_hash,
+    types::Commit,
+};
 
 /// Cosmos SDK message type URL for SequencerMsgs.
 static SEQUENCER_TYPE_URL: &str = "/SequencerMsg";
@@ -200,11 +201,11 @@ impl SequencerBlock {
                 .header
                 .ok_or(eyre!("SequencerBlock from_proto failed: no header"))?,
         )?; // TODO: static errors
-        let last_commit = Commit::try_from(
+        let last_commit = Commit::from_proto(
             proto
                 .last_commit
                 .ok_or(eyre!("SequencerBlock from_proto failed: no last_commit"))?,
-        )?;
+        )?; // TODO: static errors
         let sequencer_txs = proto
             .sequencer_transactions
             .into_iter()
@@ -241,7 +242,7 @@ impl SequencerBlock {
     pub fn to_proto(&self) -> eyre::Result<RawSequencerBlock> {
         let block_hash = self.block_hash.encode_vec()?;
         let header = Some(RawHeader::from(self.header.clone()));
-        let last_commit = Some(RawCommit::from(self.last_commit.clone()));
+        let last_commit = Some(Commit::to_proto(&self.last_commit));
         let sequencer_transactions = self
             .sequencer_transactions
             .iter()
@@ -323,9 +324,9 @@ impl SequencerBlock {
         Ok(Self {
             block_hash: b.header.hash(),
             header: b.header,
-            last_commit: b.last_commit.ok_or(eyre!(
+            last_commit: Commit::from_tm_commit(&b.last_commit.ok_or(eyre!(
                 "SequencerBlock from_cosmos_block failed: no last_commit in tendermint::Block"
-            ))?,
+            ))?)?,
             sequencer_transactions: sequencer_txs,
             rollup_transactions: rollup_txs,
         })
@@ -404,7 +405,6 @@ mod test {
         block::{
             self,
             header::Version,
-            Commit,
             Height,
             Round,
         },
@@ -426,6 +426,11 @@ mod test {
     use crate::{
         base64_string::Base64String,
         sequencer_block::IndexedTransaction,
+        types::{
+            BlockId,
+            Commit,
+            Parts,
+        },
     };
 
     fn make_header() -> Header {
@@ -457,11 +462,14 @@ mod test {
 
     fn empty_commit() -> Commit {
         Commit {
-            height: Height::from(0_u32),
-            round: Round::from(0_u8),
-            block_id: block::Id {
-                hash: Hash::from_str("").unwrap(),
-                part_set_header: block::parts::Header::new(0, Hash::from_str("").unwrap()).unwrap(),
+            height: "0".to_string(),
+            round: 0,
+            block_id: BlockId {
+                hash: Base64String(vec![]),
+                part_set_header: Parts {
+                    total: 0,
+                    hash: Base64String(vec![]),
+                },
             },
             signatures: vec![],
         }

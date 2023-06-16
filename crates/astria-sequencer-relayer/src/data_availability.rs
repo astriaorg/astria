@@ -36,10 +36,7 @@ use sha2::{
     Sha256,
 };
 use tendermint::{
-    block::{
-        Commit,
-        Header,
-    },
+    block::Header,
     Hash,
 };
 use tendermint_proto::{
@@ -62,6 +59,7 @@ use crate::{
         SequencerBlock,
         DEFAULT_NAMESPACE,
     },
+    types::Commit,
 };
 
 pub const DEFAULT_PFD_GAS_LIMIT: u64 = 1_000_000;
@@ -169,7 +167,7 @@ pub struct SequencerNamespaceData {
     pub block_hash: Hash,
     pub header: Header,
     pub last_commit: Commit,
-    pub sequencer_txs: Vec<IndexedTransaction>,
+    pub sequencer_transactions: Vec<IndexedTransaction>,
     /// vector of (block height, namespace) tuples
     // TODO: should this be a tuple of (u64, Namespace) instead of (u64, String)?
     pub rollup_namespaces: Vec<(u64, String)>,
@@ -183,10 +181,12 @@ impl SequencerNamespaceData {
                 .header
                 .ok_or(eyre!("SequencerNamespaceData from_proto failed: no header"))?,
         )?;
-        let last_commit = Commit::try_from(proto.last_commit.ok_or(eyre!(
-            "SequencerNamespaceData from_proto failed: no last_commit"
-        ))?)?;
-        let sequencer_txs = proto
+        let last_commit = Commit::from_proto(
+            proto
+                .last_commit
+                .ok_or(eyre!("SequencerBlock from_proto failed: no last_commit"))?,
+        )?; // TODO: static errors
+        let sequencer_transactions = proto
             .sequencer_txs
             .into_iter()
             .map(IndexedTransaction::from_proto)
@@ -206,29 +206,35 @@ impl SequencerNamespaceData {
             block_hash,
             header,
             last_commit,
-            sequencer_txs,
+            sequencer_transactions,
             rollup_namespaces,
         })
     }
 
     fn to_proto(&self) -> eyre::Result<RawSequencerNamespaceData> {
+        let block_hash = self.block_hash.encode_vec()?;
+        let header = Some(RawHeader::from(self.header.clone()));
+        let last_commit = Some(Commit::to_proto(&self.last_commit));
+        let sequencer_txs = self
+            .sequencer_transactions
+            .iter()
+            .map(IndexedTransaction::to_proto)
+            .collect::<Result<Vec<RawIndexedTransaction>, _>>()?;
+        let rollup_namespaces = self
+            .rollup_namespaces
+            .iter()
+            .map(|(block_height, namespace)| RollupNamespace {
+                block_height: *block_height,
+                namespace: namespace.clone().into_bytes(),
+            })
+            .collect();
+
         Ok(RawSequencerNamespaceData {
-            block_hash: self.block_hash.encode_vec()?,
-            header: Some(RawHeader::from(self.header.clone())),
-            last_commit: Some(RawCommit::from(self.last_commit.clone())),
-            sequencer_txs: self
-                .sequencer_txs
-                .iter()
-                .map(IndexedTransaction::to_proto)
-                .collect::<Result<Vec<RawIndexedTransaction>, _>>()?,
-            rollup_namespaces: self
-                .rollup_namespaces
-                .iter()
-                .map(|(block_height, namespace)| RollupNamespace {
-                    block_height: *block_height,
-                    namespace: namespace.clone().into_bytes(),
-                })
-                .collect(),
+            block_hash,
+            header,
+            last_commit,
+            sequencer_txs,
+            rollup_namespaces,
         })
     }
 }
@@ -398,7 +404,7 @@ impl CelestiaClient {
             block_hash: block.block_hash,
             header: block.header,
             last_commit: block.last_commit,
-            sequencer_txs: block.sequencer_transactions,
+            sequencer_transactions: block.sequencer_transactions,
             rollup_namespaces: block_height_and_namespace,
         };
 
@@ -531,7 +537,7 @@ impl CelestiaClient {
             block_hash: data.block_hash,
             header: data.header.clone(),
             last_commit: data.last_commit.clone(),
-            sequencer_transactions: data.sequencer_txs.clone(),
+            sequencer_transactions: data.sequencer_transactions.clone(),
             rollup_transactions: rollup_txs_map,
         })
     }

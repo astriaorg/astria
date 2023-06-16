@@ -3,6 +3,44 @@ syntax = "proto3";
 package astria.sequencer.v1;
 
 import "tendermint/types/types.proto";
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+
+// copied from https://github.com/cometbft/cometbft/blob/6f7746225c378b4f4e40e80a669226385cda8bfb/proto/tendermint/types/types.proto#L26
+// TODO(GH-): 
+// PartsetHeader
+message PartSetHeader {
+  uint32 total = 1;
+  bytes  hash  = 2;
+}
+
+// copied from https://github.com/cometbft/cometbft/blob/6f7746225c378b4f4e40e80a669226385cda8bfb/proto/tendermint/types/types.proto#L38
+// TODO(GH-): 
+// BlockID
+message BlockID {
+  bytes hash = 1;
+  PartSetHeader part_set_header = 2;
+}
+
+// copied and modified from https://github.com/cometbft/cometbft/blob/6f7746225c378b4f4e40e80a669226385cda8bfb/proto/tendermint/types/types.proto#L106
+// TODO(GH-): 
+// Commit contains the evidence that a block was committed by a set of validators.
+message Commit {
+  string height = 1;
+  uint32 round = 2;
+  BlockID block_id = 3;
+  repeated CommitSig signatures = 4;
+}
+
+// copied and modified from https://github.com/cometbft/cometbft/blob/6f7746225c378b4f4e40e80a669226385cda8bfb/proto/tendermint/types/types.proto#L113
+// TODO(GH-): 
+// CommitSig is a part of the Vote included in a Commit.
+message CommitSig {
+  string block_id_flag = 1;
+  bytes validator_address = 2;
+  string timestamp = 3;
+  bytes signature = 4;
+}
 
 // IndexedTransaction represents a sequencer transaction along with the index
 // it was originally in the sequencer block.
@@ -35,7 +73,7 @@ message SequencerNamespaceData {
     bytes block_hash = 1;
     // header is the sequencer chain's header for the block in which these were included
     tendermint.types.Header header = 2;
-    tendermint.types.Commit last_commit = 3;
+    Commit last_commit = 3;
     repeated IndexedTransaction sequencer_txs = 4;
     repeated RollupNamespace rollup_namespaces = 5;
 }
