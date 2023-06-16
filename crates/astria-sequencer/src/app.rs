@@ -237,9 +237,9 @@ mod test {
         transaction::UnsignedTransaction,
     };
 
-    pub const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
-    pub const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
-    pub const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871";
+    const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
+    const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
+    const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871";
 
     fn default_genesis_accounts() -> Vec<Account> {
         vec![

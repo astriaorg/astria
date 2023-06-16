@@ -1,4 +1,4 @@
-pub use ed25519_dalek::{
+pub(crate) use ed25519_dalek::{
     Keypair,
     PublicKey,
     Signature,
