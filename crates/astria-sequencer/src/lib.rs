@@ -10,13 +10,8 @@ pub(crate) mod service;
 pub(crate) mod state_ext;
 pub mod telemetry;
 pub mod transaction;
+pub(crate) mod utils;
 
 pub use config::Config;
 pub use sequencer::Sequencer;
-
-pub(crate) fn hash(s: &[u8]) -> Vec<u8> {
-    use sha2::Digest as _;
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(s);
-    hasher.finalize().to_vec()
-}
+pub(crate) use utils::hash;

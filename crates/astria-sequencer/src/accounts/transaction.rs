@@ -89,11 +89,11 @@ impl From<&Transaction> for ProtoAccountsTransaction {
 
 impl Transaction {
     #[allow(clippy::unnecessary_wraps, clippy::unused_self)]
-    pub fn check_stateless(&self) -> Result<()> {
+    pub(crate) fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
 
-    pub async fn check_stateful<S: StateReadExt + 'static>(
+    pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,
         from: &Address,
@@ -120,7 +120,7 @@ impl Transaction {
             nonce = self.nonce.into_inner(),
         )
     )]
-    pub async fn execute<S: StateWriteExt>(&self, state: &mut S, from: &Address) -> Result<()> {
+    pub(crate) async fn execute<S: StateWriteExt>(&self, state: &mut S, from: &Address) -> Result<()> {
         let from_balance = state
             .get_account_balance(from)
             .await

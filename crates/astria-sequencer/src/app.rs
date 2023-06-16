@@ -237,7 +237,7 @@ mod test {
         transaction::UnsignedTransaction,
     };
 
-    // generated with test `generate_default_keys()
+    // generated with test `generate_default_keys()`
     const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
     const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
     const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871";
