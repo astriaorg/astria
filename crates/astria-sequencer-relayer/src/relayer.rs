@@ -136,17 +136,17 @@ impl Relayer {
             .current_sequencer_height
             .replace(block.header.height);
 
-        if block.header.proposer_address != self.validator_address {
-            let proposer_address = bech32::encode(
-                "metrovalcons",
-                Base64String::from_bytes(block.header.proposer_address.as_bytes())
-                    .0
-                    .to_base32(),
-                Variant::Bech32,
-            )
-            .expect("should encode block proposer address");
+        let proposer_address_string = bech32::encode(
+            "metrovalcons",
+            Base64String::from_bytes(&block.header.proposer_address.0)
+                .0
+                .to_base32(),
+            Variant::Bech32,
+        )
+        .expect("should encode block proposer address");
+        if proposer_address_string != self.validator_address.to_string() {
             info!(
-                %proposer_address,
+                %proposer_address_string,
                 validator_address = %self.validator_address,
                 "ignoring block: proposer address is not ours",
             );

@@ -40,20 +40,19 @@ use sha2::{
     Sha256,
 };
 use tendermint::{
-    block::Header,
+    hash,
     Hash,
 };
-use tendermint_proto::{
-    types::Header as RawHeader,
-    Protobuf,
-};
+use tendermint_proto::Protobuf;
 use tracing::debug;
 
 use crate::{
+    base64_string::Base64String,
     transaction::txs_to_data_hash,
     types::{
         Block,
         Commit,
+        Header,
     },
 };
 
@@ -194,7 +193,7 @@ pub struct SequencerBlock {
 impl SequencerBlock {
     pub fn from_proto(proto: RawSequencerBlock) -> eyre::Result<Self> {
         let block_hash = Hash::decode_vec(&proto.block_hash)?;
-        let header = Header::try_from(
+        let header = Header::from_proto(
             proto
                 .header
                 .ok_or(eyre!("SequencerBlock from_proto failed: no header"))?,
@@ -239,7 +238,7 @@ impl SequencerBlock {
 
     pub fn to_proto(&self) -> eyre::Result<RawSequencerBlock> {
         let block_hash = self.block_hash.encode_vec()?;
-        let header = Some(RawHeader::from(self.header.clone()));
+        let header = Some(Header::to_proto(&self.header)?);
         let last_commit = Some(Commit::to_proto(&self.last_commit));
         let sequencer_transactions = self
             .sequencer_transactions
@@ -289,10 +288,10 @@ impl SequencerBlock {
         let mut sequencer_txs = vec![];
         let mut rollup_txs = HashMap::new();
 
-        for (index, tx) in b.data.into_iter().enumerate() {
-            debug!("parsing tx: {:?}", general_purpose::STANDARD.encode(&tx));
+        for (index, tx) in b.data.txs.into_iter().enumerate() {
+            debug!("parsing tx: {:?}", general_purpose::STANDARD.encode(&tx.0));
 
-            let tx_body = parse_cosmos_tx(&tx)?;
+            let tx_body = parse_cosmos_tx(&tx.0)?;
             let msgs = cosmos_tx_body_to_sequencer_msgs(tx_body)?;
 
             // NOTE: we currently write the entire cosmos tx to Celestia.
@@ -308,19 +307,19 @@ impl SequencerBlock {
                 let txs = rollup_txs.entry(namespace).or_insert(vec![]);
                 txs.push(IndexedTransaction {
                     block_index: index,
-                    transaction: tx.clone(),
+                    transaction: tx.0.clone(),
                 });
                 continue;
             }
 
             sequencer_txs.push(IndexedTransaction {
                 block_index: index,
-                transaction: tx.clone(),
+                transaction: tx.0.clone(),
             })
         }
 
         Ok(Self {
-            block_hash: b.header.hash(),
+            block_hash: b.header.hash()?,
             header: b.header,
             last_commit: b.last_commit,
             sequencer_transactions: sequencer_txs,
@@ -331,7 +330,7 @@ impl SequencerBlock {
     /// verify_data_hash verifies that the merkle root of the tree consisting of all the
     /// transactions in the block matches the block's data hash.
     pub fn verify_data_hash(&self) -> eyre::Result<()> {
-        let Some(this_data_hash) = self.header.data_hash else {
+        let Some(this_data_hash) = self.header.data_hash.clone() else {
             bail!("block has no data hash");
         };
 
@@ -346,12 +345,12 @@ impl SequencerBlock {
         ordered_txs.sort_by(|a, b| a.block_index.cmp(&b.block_index));
         let txs = ordered_txs
             .into_iter()
-            .map(|tx| tx.transaction)
+            .map(|tx| Base64String::from_bytes(&tx.transaction))
             .collect::<Vec<_>>();
         let data_hash = txs_to_data_hash(&txs);
 
         ensure!(
-            data_hash == this_data_hash,
+            data_hash == Hash::from_bytes(hash::Algorithm::Sha256, &this_data_hash.0)?,
             "data hash stored in block header does not match hash calculated from transactions",
         );
 
@@ -361,7 +360,7 @@ impl SequencerBlock {
     /// verify_block_hash verifies that the merkle root of the tree consisting of the block header
     /// matches the block's hash.
     pub fn verify_block_hash(&self) -> eyre::Result<()> {
-        let block_hash = self.header.hash();
+        let block_hash = self.header.hash()?;
         ensure!(
             block_hash == self.block_hash,
             "block hash calculated from tendermint header does not match block hash stored in \
@@ -394,14 +393,8 @@ mod test {
     use std::collections::HashMap;
 
     use tendermint::{
-        account,
-        block::{
-            header::Version,
-            Height,
-        },
-        chain,
+        block::Height,
         hash,
-        AppHash,
         Hash,
         Time,
     };
@@ -421,12 +414,9 @@ mod test {
             BlockId,
             Commit,
             Parts,
+            Version,
         },
     };
-
-    fn make_empty_hash() -> Hash {
-        Hash::from_bytes(hash::Algorithm::Sha256, &[0; 32]).unwrap()
-    }
 
     fn make_header() -> Header {
         Header {
@@ -434,24 +424,19 @@ mod test {
                 block: 0,
                 app: 0,
             },
-            chain_id: {
-                match chain::Id::try_from("chain") {
-                    Ok(id) => id,
-                    _ => panic!("chain id construction failed"),
-                }
-            },
+            chain_id: String::from("chain"),
             height: Height::from(0_u32),
-            time: Time::now(),
+            time: Time::now().to_string(),
             last_block_id: None,
             last_commit_hash: None,
             data_hash: None,
-            validators_hash: make_empty_hash(),
-            next_validators_hash: make_empty_hash(),
-            consensus_hash: make_empty_hash(),
-            app_hash: AppHash::default(),
+            validators_hash: Base64String::from_bytes(&[0; 32]),
+            next_validators_hash: Base64String::from_bytes(&[0; 32]),
+            consensus_hash: Base64String::from_bytes(&[0; 32]),
+            app_hash: Base64String::from_bytes(&[0; 32]),
             last_results_hash: None,
             evidence_hash: None,
-            proposer_address: account::Id::new([0; 20]),
+            proposer_address: Base64String::from_bytes(&[0; 20]),
         }
     }
 

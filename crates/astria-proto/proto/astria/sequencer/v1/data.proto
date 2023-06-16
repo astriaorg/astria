@@ -5,7 +5,7 @@ package astria.sequencer.v1;
 import "tendermint/types/types.proto";
 
 // copied from https://github.com/cometbft/cometbft/blob/6f7746225c378b4f4e40e80a669226385cda8bfb/proto/tendermint/types/types.proto#L26
-// TODO(GH-): 
+// TODO(GH-98): use tendermint-rs types for block commits
 // PartsetHeader
 message PartSetHeader {
   uint32 total = 1;
@@ -13,7 +13,7 @@ message PartSetHeader {
 }
 
 // copied from https://github.com/cometbft/cometbft/blob/6f7746225c378b4f4e40e80a669226385cda8bfb/proto/tendermint/types/types.proto#L38
-// TODO(GH-): 
+// TODO(GH-98): use tendermint-rs types for block commits
 // BlockID
 message BlockID {
   bytes hash = 1;
@@ -21,7 +21,7 @@ message BlockID {
 }
 
 // copied and modified from https://github.com/cometbft/cometbft/blob/6f7746225c378b4f4e40e80a669226385cda8bfb/proto/tendermint/types/types.proto#L106
-// TODO(GH-): 
+// TODO(GH-98): use tendermint-rs types for block commits
 // Commit contains the evidence that a block was committed by a set of validators.
 message Commit {
   string height = 1;
@@ -31,7 +31,7 @@ message Commit {
 }
 
 // copied and modified from https://github.com/cometbft/cometbft/blob/6f7746225c378b4f4e40e80a669226385cda8bfb/proto/tendermint/types/types.proto#L113
-// TODO(GH-): 
+// TODO(GH-98): use tendermint-rs types for block commits
 // CommitSig is a part of the Vote included in a Commit.
 message CommitSig {
   string block_id_flag = 1;
@@ -40,11 +40,65 @@ message CommitSig {
   bytes signature = 4;
 }
 
+// copied from https://github.com/cometbft/cometbft/blob/main/proto/tendermint/types/types.proto#L74
+// TODO(GH-98): use tendermint-rs types for block commits
+// Data contains the set of transactions included in the block
+message Data {
+  // Txs that will be applied by state @ block.Height+1.
+  // NOTE: not all txs here are valid.  We're just agreeing on the order first.
+  // This means that block.AppHash does not include these txs.
+  repeated bytes txs = 1;
+}
+
+// copied and modified from https://github.com/cometbft/cometbft/blob/main/proto/tendermint/types/block.proto#LL10C1-L10C1
+// TODO(GH-98): use tendermint-rs types for block commits
+message Block {
+  Header header = 1;
+  Data data = 2;
+  Commit last_commit = 4;
+}
+
+// copied and modified from https://github.com/cometbft/cometbft/blob/main/proto/tendermint/version/types.proto#L19
+// TODO(GH-98): use tendermint-rs types for block commits
+message Consensus {
+  uint64 block = 1;
+  uint64 app   = 2;
+}
+
+// copied and modified from https://github.com/cometbft/cometbft/blob/main/proto/tendermint/types/types.proto#L47
+// TODO(GH-98): use tendermint-rs types for block commits
+// Header defines the structure of a block header.
+message Header {
+  // basic block info
+  Consensus version  = 1;
+  string chain_id = 2;
+  int64 height = 3;
+  string time = 4;
+
+  // prev block info
+  BlockID last_block_id = 5;
+
+  // hashes of block data
+  bytes last_commit_hash = 6;  // commit from validators from the last block
+  bytes data_hash = 7;  // transactions
+
+  // hashes from the app output from the prev block
+  bytes validators_hash = 8;   // validators for the current block
+  bytes next_validators_hash = 9;   // validators for the next block
+  bytes consensus_hash = 10;  // consensus params for current block
+  bytes app_hash = 11;  // state after txs from the previous block
+  bytes last_results_hash = 12;  // root hash of all results from the txs from the previous block
+
+  // consensus info
+  bytes evidence_hash = 13;  // evidence included in the block
+  bytes proposer_address = 14;  // original proposer of the block
+}
+
 // IndexedTransaction represents a sequencer transaction along with the index
 // it was originally in the sequencer block.
-// block_index refers to the transaction's index in the sequencer block. It is used to verify
-// a Merkle inclusion proof.
 message IndexedTransaction {
+  // block_index refers to the transaction's index in the sequencer block. It is used to verify
+  // a Merkle inclusion proof.
     uint64 block_index = 1;
     bytes transaction = 2;
 }
@@ -70,7 +124,7 @@ message SequencerNamespaceData {
     // to verify a Merkle inclusion proof.
     bytes block_hash = 1;
     // header is the sequencer chain's header for the block in which these were included
-    tendermint.types.Header header = 2;
+    Header header = 2;
     Commit last_commit = 3;
     repeated IndexedTransaction sequencer_txs = 4;
     repeated RollupNamespace rollup_namespaces = 5;

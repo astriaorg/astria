@@ -69,7 +69,9 @@ pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinH
 }
 
 // Given a string, convert to protobuf timestamp
-fn convert_str_to_prost_timestamp(time: Time) -> Result<ProstTimestamp> {
+fn convert_str_to_prost_timestamp(value: &str) -> Result<ProstTimestamp> {
+    let time =
+        Time::parse_from_rfc3339(value).wrap_err("failed parsing string as rfc3339 datetime")?;
     use tendermint_proto::google::protobuf::Timestamp as TendermintTimestamp;
     let TendermintTimestamp {
         seconds,
@@ -242,7 +244,7 @@ impl<C: ExecutionClient> Executor<C> {
             })
             .collect::<Vec<_>>();
 
-        let timestamp = convert_str_to_prost_timestamp(block.header.time)
+        let timestamp = convert_str_to_prost_timestamp(&block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
         let response = self
@@ -344,20 +346,14 @@ mod test {
         types::{
             BlockId,
             Commit,
+            Header,
             Parts,
+            Version,
         },
     };
     use prost_types::Timestamp;
     use sha2::Digest as _;
-    use tendermint::{
-        account,
-        block::{
-            header::Version,
-            Header,
-            Height,
-        },
-        AppHash,
-    };
+    use tendermint::block::Height;
     use tokio::sync::{
         mpsc,
         Mutex,
@@ -423,23 +419,23 @@ mod test {
 
     fn default_header() -> Header {
         Header {
-            app_hash: AppHash::try_from(vec![]).unwrap(),
-            chain_id: "test".to_string().try_into().unwrap(),
-            consensus_hash: Hash::default(),
-            data_hash: Some(Hash::default()),
-            evidence_hash: Some(Hash::default()),
-            height: Height::default(),
-            last_block_id: None,
-            last_commit_hash: Some(Hash::default()),
-            last_results_hash: Some(Hash::default()),
-            next_validators_hash: Hash::default(),
-            proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
-            time: Time::now(),
-            validators_hash: Hash::default(),
             version: Version {
-                app: 0,
                 block: 0,
+                app: 0,
             },
+            chain_id: String::from("chain"),
+            height: Height::from(0_u32),
+            time: Time::now().to_string(),
+            last_block_id: None,
+            last_commit_hash: None,
+            data_hash: None,
+            validators_hash: Base64String::from_bytes(&[0; 32]),
+            next_validators_hash: Base64String::from_bytes(&[0; 32]),
+            consensus_hash: Base64String::from_bytes(&[0; 32]),
+            app_hash: Base64String::from_bytes(&[0; 32]),
+            last_results_hash: None,
+            evidence_hash: None,
+            proposer_address: Base64String::from_bytes(&[0; 20]),
         }
     }
 

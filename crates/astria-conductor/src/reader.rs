@@ -41,7 +41,6 @@ use tendermint::{
     },
     chain,
     crypto,
-    hash,
     merkle,
     vote::{
         self,
@@ -264,13 +263,11 @@ impl Reader {
             .address;
 
         // check if the proposer address matches the sequencer block's proposer
-        let received_proposer_address = data.data.header.proposer_address;
-
-        if received_proposer_address.to_string() != expected_proposer_address {
+        if data.data.header.proposer_address.to_string() != expected_proposer_address {
             bail!(
                 "proposer address mismatch: expected {}, got {}",
                 expected_proposer_address,
-                received_proposer_address
+                data.data.header.proposer_address.to_string()
             );
         }
 
@@ -295,9 +292,7 @@ impl Reader {
                     bail!("last commit hash should not be empty");
                 };
 
-                if Hash::from_bytes(hash::Algorithm::Sha256, &calculated_last_commit_hash)?
-                    != *last_commit_hash
-                {
+                if calculated_last_commit_hash != last_commit_hash.0.as_slice() {
                     bail!("last commit hash in header does not match calculated last commit hash");
                 }
 
@@ -384,7 +379,7 @@ impl Reader {
 fn ensure_commit_has_quorum(
     commit: &Commit,
     validator_set: &ValidatorSet,
-    chain_id: &chain::Id,
+    chain_id: &str,
 ) -> Result<()> {
     if commit.height != validator_set.block_height {
         bail!(
@@ -483,7 +478,7 @@ fn does_commit_voting_power_have_quorum(commited: u64, total: u64) -> bool {
 fn verify_vote_signature(
     vote: &CommitSig,
     commit: &Commit,
-    chain_id: &chain::Id,
+    chain_id: &str,
     public_key_bytes: &[u8],
     signature_bytes: &[u8],
 ) -> Result<()> {
@@ -502,7 +497,7 @@ fn verify_vote_signature(
         }),
 
         timestamp: Some(Time::parse_from_rfc3339(&vote.timestamp)?),
-        chain_id: chain_id.clone(),
+        chain_id: chain::Id::try_from(chain_id)?,
     };
     public_key.verify(
         &tendermint_proto::types::CanonicalVote::try_from(canonical_vote)?
@@ -639,12 +634,7 @@ mod test {
 
         let validator_set = serde_json::from_str::<ValidatorSet>(validator_set_str).unwrap();
         let commit = serde_json::from_str::<Commit>(commit_str).unwrap();
-        ensure_commit_has_quorum(
-            &commit,
-            &validator_set,
-            &chain::Id::from_str("private").unwrap(),
-        )
-        .unwrap();
+        ensure_commit_has_quorum(&commit, &validator_set, "private").unwrap();
     }
 
     #[test]
@@ -684,11 +674,7 @@ mod test {
             signatures: vec![],
         };
 
-        let result = ensure_commit_has_quorum(
-            &commit,
-            &validator_set,
-            &chain::Id::from_str("private").unwrap(),
-        );
+        let result = ensure_commit_has_quorum(&commit, &validator_set, "private");
         assert!(result.is_err());
         assert!(
             result

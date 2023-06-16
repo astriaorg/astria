@@ -12,6 +12,6 @@ async fn test_header_to_tendermint_header() {
 
     let resp = client.get_latest_block().await.unwrap();
     let block_id_hash = Hash::try_from(resp.block_id.hash.0).unwrap();
-    let tm_header_hash = resp.block.header.hash();
+    let tm_header_hash = resp.block.header.hash().unwrap();
     assert_eq!(tm_header_hash, block_id_hash);
 }

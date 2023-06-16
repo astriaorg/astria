@@ -12,7 +12,9 @@ use astria_sequencer_relayer::{
     types::{
         BlockId,
         Commit,
+        Header,
         Parts,
+        Version,
     },
 };
 use astria_sequencer_relayer_test::init_test;
@@ -22,15 +24,8 @@ use ed25519_dalek::{
 };
 use rand::rngs::OsRng;
 use tendermint::{
-    account,
-    block::{
-        header::Version,
-        Header,
-        Height,
-    },
-    chain,
+    block::Height,
     hash,
-    AppHash,
     Hash,
     Time,
 };
@@ -41,24 +36,19 @@ fn make_header() -> Header {
             block: 0,
             app: 0,
         },
-        chain_id: {
-            match chain::Id::try_from("chain") {
-                Ok(id) => id,
-                _ => panic!("chain id construction failed"),
-            }
-        },
+        chain_id: String::from("chain"),
         height: Height::from(0_u32),
-        time: Time::now(),
+        time: Time::now().to_string(),
         last_block_id: None,
         last_commit_hash: None,
         data_hash: None,
-        validators_hash: Hash::default(),
-        next_validators_hash: Hash::default(),
-        consensus_hash: Hash::default(),
-        app_hash: AppHash::default(),
+        validators_hash: Base64String::from_bytes(&[0; 32]),
+        next_validators_hash: Base64String::from_bytes(&[0; 32]),
+        consensus_hash: Base64String::from_bytes(&[0; 32]),
+        app_hash: Base64String::from_bytes(&[0; 32]),
         last_results_hash: None,
         evidence_hash: None,
-        proposer_address: account::Id::new([0; 20]),
+        proposer_address: Base64String::from_bytes(&[0; 20]),
     }
 }
 

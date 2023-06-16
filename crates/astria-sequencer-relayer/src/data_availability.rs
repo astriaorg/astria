@@ -35,14 +35,8 @@ use sha2::{
     Digest,
     Sha256,
 };
-use tendermint::{
-    block::Header,
-    Hash,
-};
-use tendermint_proto::{
-    types::Header as RawHeader,
-    Protobuf,
-};
+use tendermint::Hash;
+use tendermint_proto::Protobuf;
 use tracing::{
     debug,
     warn,
@@ -56,7 +50,10 @@ use crate::{
         SequencerBlock,
         DEFAULT_NAMESPACE,
     },
-    types::Commit,
+    types::{
+        Commit,
+        Header,
+    },
 };
 
 pub const DEFAULT_PFD_GAS_LIMIT: u64 = 1_000_000;
@@ -173,7 +170,7 @@ pub struct SequencerNamespaceData {
 impl SequencerNamespaceData {
     fn from_proto(proto: RawSequencerNamespaceData) -> eyre::Result<Self> {
         let block_hash = Hash::from_bytes(tendermint::hash::Algorithm::Sha256, &proto.block_hash)?;
-        let header = Header::try_from(
+        let header = Header::from_proto(
             proto
                 .header
                 .ok_or(eyre!("SequencerNamespaceData from_proto failed: no header"))?,
@@ -210,7 +207,7 @@ impl SequencerNamespaceData {
 
     fn to_proto(&self) -> eyre::Result<RawSequencerNamespaceData> {
         let block_hash = self.block_hash.encode_vec()?;
-        let header = Some(RawHeader::from(self.header.clone()));
+        let header = Some(Header::to_proto(&self.header)?);
         let last_commit = Some(Commit::to_proto(&self.last_commit));
         let sequencer_txs = self
             .sequencer_transactions
@@ -399,7 +396,7 @@ impl CelestiaClient {
         // then, format and submit data to the base sequencer namespace
         let sequencer_namespace_data = SequencerNamespaceData {
             block_hash: block.block_hash,
-            header: block.header,
+            header: block.header.clone(),
             last_commit: block.last_commit,
             sequencer_transactions: block.sequencer_transactions,
             rollup_namespaces: block_height_and_namespace,
