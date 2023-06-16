@@ -39,17 +39,29 @@ pub struct SignedTransaction {
 }
 
 impl SignedTransaction {
+    /// Verifies the transaction signature.
+    /// The transaction signature message is the hash of the transaction.
+    ///
+    /// # Errors
+    ///
+    /// - If the signature is invalid
     pub fn verify_signature(&self) -> Result<()> {
         self.public_key
-            .verify(&self.transaction.hash()?, &self.signature)
+            .verify(&self.transaction.hash(), &self.signature)
             .context("failed to verify transaction signature")
     }
 
-    pub fn from_address(&self) -> Result<Address> {
+    /// Returns the address which signed the transaction.
+    ///
+    /// # Errors
+    ///
+    /// - If the public key cannot be converted into an address
+    pub fn signer_address(&self) -> Result<Address> {
         Address::try_from(&self.public_key)
     }
 
-    pub fn try_to_vec(&self) -> Result<Vec<u8>> {
+    #[must_use]
+    pub fn to_vec(&self) -> Vec<u8> {
         let proto = ProtoSignedTransaction {
             transaction: Some(match &self.transaction {
                 UnsignedTransaction::AccountsTransaction(tx) => {
@@ -64,10 +76,19 @@ impl SignedTransaction {
             public_key: self.public_key.to_bytes().to_vec(),
         };
 
-        let bytes = proto.encode_length_delimited_to_vec();
-        Ok(bytes)
+        proto.encode_length_delimited_to_vec()
     }
 
+    /// Attempts to decode a signed transaction from the given bytes.
+    ///
+    /// # Errors
+    ///
+    /// - If the bytes cannot be decoded into the prost-generated `SignedTransaction` type
+    /// - If the transaction value is missing
+    /// - If the transaction value is not a valid transaction type (ie. does not correspond to any
+    ///   component)
+    /// - If the signature cannot be decoded
+    /// - If the public key cannot be decoded
     pub fn try_from_slice(bytes: &[u8]) -> Result<Self> {
         let proto_tx: ProtoSignedTransaction =
             ProtoSignedTransaction::decode_length_delimited(bytes)?;
@@ -92,8 +113,13 @@ impl SignedTransaction {
         Ok(signed_tx)
     }
 
+    /// Returns the sha256 hash of the encoded transaction.
+    ///
+    /// # Errors
+    ///
+    /// - If the hash cannot be converted into 32 bytes
     pub fn hash(&self) -> Result<TransactionHash> {
-        hash(&self.try_to_vec()?)
+        hash(&self.to_vec())
             .try_into()
             .map_err(|_| anyhow!("failed to turn hash into 32 bytes"))
     }
@@ -113,7 +139,7 @@ impl ActionHandler for SignedTransaction {
     async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()> {
         match &self.transaction {
             UnsignedTransaction::AccountsTransaction(tx) => {
-                tx.check_stateful(state, &self.from_address()?).await
+                tx.check_stateful(state, &self.signer_address()?).await
             }
         }
     }
@@ -122,7 +148,7 @@ impl ActionHandler for SignedTransaction {
     async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()> {
         match &self.transaction {
             UnsignedTransaction::AccountsTransaction(tx) => {
-                tx.execute(state, &self.from_address()?).await
+                tx.execute(state, &self.signer_address()?).await
             }
         }
     }

@@ -1,6 +1,7 @@
 use anyhow::ensure;
 
 /// Represents the sha256 hash of an encoded transaction.
+#[allow(clippy::module_name_repetitions)]
 pub struct TransactionHash([u8; 32]);
 
 impl TryFrom<Vec<u8>> for TransactionHash {
@@ -26,6 +27,7 @@ impl TryFrom<&[u8]> for TransactionHash {
 }
 
 impl TransactionHash {
+    #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
     }

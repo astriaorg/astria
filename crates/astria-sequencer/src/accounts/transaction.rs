@@ -88,6 +88,7 @@ impl From<&Transaction> for ProtoAccountsTransaction {
 }
 
 impl Transaction {
+    #[allow(clippy::unnecessary_wraps, clippy::unused_self)]
     pub fn check_stateless(&self) -> Result<()> {
         Ok(())
     }

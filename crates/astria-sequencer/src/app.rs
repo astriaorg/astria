@@ -353,23 +353,23 @@ mod test {
 
         let alice = Address::unsafe_from_hex_string(ALICE_ADDRESS);
         let bob = Address::unsafe_from_hex_string(BOB_ADDRESS);
-        let value = Balance::from(333333);
+        let value = Balance::from(333_333);
         let tx = UnsignedTransaction::AccountsTransaction(Transaction::new(
             bob.clone(),
             value,
             Nonce::from(1),
         ));
-        let signed_tx = tx.sign(&alice_keypair).unwrap();
-        let bytes = signed_tx.try_to_vec().unwrap();
+        let signed_tx = tx.sign(&alice_keypair);
+        let bytes = signed_tx.to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(
             app.state.get_account_balance(&bob).await.unwrap(),
-            value + 10e18 as u128
+            value + 10u128.pow(19)
         );
         assert_eq!(
             app.state.get_account_balance(&alice).await.unwrap(),
-            Balance::from(10e18 as u128) - value
+            Balance::from(10u128.pow(19)) - value
         );
         assert_eq!(app.state.get_account_nonce(&bob).await.unwrap(), 0);
         assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);
