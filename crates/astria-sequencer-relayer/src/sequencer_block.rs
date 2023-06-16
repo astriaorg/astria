@@ -495,7 +495,79 @@ mod test {
     }
 
     #[test]
-    fn sequencer_block_to_bytes() {
+    fn decode_sequencer_block_json() {
+        let block_string = r#"{
+            "block_id": {
+              "hash": "X7FkXtx8dCCB67ajTNB9V5+SmFbDS5h1ToXh/t0ETWE=",
+              "part_set_header": {
+                "total": 1,
+                "hash": "UyqowpfIUW05Ca+u83WJaKTO/QcXqU8qXrUpU87DT98="
+              }
+            },
+            "block": {
+              "header": {
+                "version": {
+                  "block": "11",
+                  "app": "0"
+                },
+                "chain_id": "private",
+                "height": "2701",
+                "time": "2023-06-16T18:15:52.426568223Z",
+                "last_block_id": {
+                  "hash": "wgwPZZnVkXmUGV7RvEpBoorr+SFOpO/4JEXXnQU+eag=",
+                  "part_set_header": {
+                    "total": 1,
+                    "hash": "Xyye/Sn/F2ZP2WwzGSy5BLPeDJoH4GaO4mj2xNi6N+M="
+                  }
+                },
+                "last_commit_hash": "Lvf4S09arOG46br0xIvJO+VfisZ/5+MXc/o5a3jJlCI=",
+                "data_hash": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+                "validators_hash": "byEpnFOJ6Nlinv4mNALU1wuDXPH3DgXG78G3Q+391ro=",
+                "next_validators_hash": "byEpnFOJ6Nlinv4mNALU1wuDXPH3DgXG78G3Q+391ro=",
+                "consensus_hash": "BICRvH3cKD93v7+R1zxE2ljD34qcvIZ0Bdi389qtoi8=",
+                "app_hash": "BFX6odsVLKLHUTFlJ7iHmvWqD1efg8d1jXi7bNviBfI=",
+                "last_results_hash": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+                "evidence_hash": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+                "proposer_address": "ZqWPb3ULjzbtgFmb7t+tJeEegGk="
+              },
+              "data": {
+                "txs": [
+                ],
+                "blobs": [
+                ],
+                "square_size": "0",
+                "hash": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="
+              },
+              "evidence": {
+                "evidence": [
+                ]
+              },
+              "last_commit": {
+                "height": "2700",
+                "round": 0,
+                "block_id": {
+                  "hash": "wgwPZZnVkXmUGV7RvEpBoorr+SFOpO/4JEXXnQU+eag=",
+                  "part_set_header": {
+                    "total": 1,
+                    "hash": "Xyye/Sn/F2ZP2WwzGSy5BLPeDJoH4GaO4mj2xNi6N+M="
+                  }
+                },
+                "signatures": [
+                  {
+                    "block_id_flag": "BLOCK_ID_FLAG_COMMIT",
+                    "validator_address": "ZqWPb3ULjzbtgFmb7t+tJeEegGk=",
+                    "timestamp": "2023-06-16T18:15:52.426568223Z",
+                    "signature": "MC4H9dPFmyzxhJdRhplJngX05O9/9t2hm39lIJQZ8AOpgih4IJPJq18abmyQCkQNMEvaJYFoh+fLsxf6MtSgAA=="
+                  }
+                ]
+              }
+            }
+          }"#;
+        serde_json::from_str::<crate::types::BlockResponse>(block_string).unwrap();
+    }
+
+    #[test]
+    fn sequencer_block_to_bytes_round_trip() {
         let mut expected = SequencerBlock {
             block_hash: Hash::from_bytes(
                 hash::Algorithm::Sha256,

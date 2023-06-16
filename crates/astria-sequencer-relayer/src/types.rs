@@ -12,10 +12,13 @@ use serde::{
     Deserialize,
     Serialize,
 };
-use tendermint::block::{
-    Commit as TmCommit,
-    CommitSig as TmCommitSig,
-    Id as TmBlockId,
+use tendermint::{
+    block::{
+        Commit as TmCommit,
+        CommitSig as TmCommitSig,
+        Id as TmBlockId,
+    },
+    Block,
 };
 // use tendermint::Block;
 use tendermint_proto::types::{
@@ -33,7 +36,7 @@ pub struct EmptyRequest {}
 
 #[derive(Deserialize, Debug)]
 pub struct BlockResponse {
-    pub block_id: TmRawBlockId,
+    pub block_id: BlockId,
     pub block: RawBlock,
 }
 
