@@ -120,7 +120,11 @@ impl Transaction {
             nonce = self.nonce.into_inner(),
         )
     )]
-    pub(crate) async fn execute<S: StateWriteExt>(&self, state: &mut S, from: &Address) -> Result<()> {
+    pub(crate) async fn execute<S: StateWriteExt>(
+        &self,
+        state: &mut S,
+        from: &Address,
+    ) -> Result<()> {
         let from_balance = state
             .get_account_balance(from)
             .await
