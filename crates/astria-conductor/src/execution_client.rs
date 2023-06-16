@@ -64,7 +64,6 @@ impl ExecutionClient for ExecutionRpcClient {
         timestamp: Option<Timestamp>,
     ) -> Result<DoBlockResponse> {
         let request = DoBlockRequest {
-            // Updated field name: prev_block_hash
             prev_block_hash,
             transactions,
             timestamp,
