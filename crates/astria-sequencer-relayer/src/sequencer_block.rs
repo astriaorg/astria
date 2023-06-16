@@ -233,20 +233,11 @@ impl SequencerBlock {
             bail!("block has no data hash");
         };
 
-        tracing::info!(
-            "block transactions: {} {}",
-            self.sequencer_txs.len(),
-            self.rollup_txs.len(),
-        );
-
         let mut ordered_txs = vec![];
         ordered_txs.append(&mut self.sequencer_txs.clone());
-        self.rollup_txs.iter().for_each(|(_, tx)| {
-            tracing::info!("rollup txs: {:?}", tx);
-            ordered_txs.append(&mut tx.clone())
-        });
-
-        use sha2::Digest as _;
+        self.rollup_txs
+            .iter()
+            .for_each(|(_, tx)| ordered_txs.append(&mut tx.clone()));
 
         // TODO: if there are duplicate or missing indices, the hash will obviously be wrong,
         // but we should probably verify that earier to return a better error.
@@ -260,12 +251,6 @@ impl SequencerBlock {
             })
             .collect::<Vec<_>>();
         let data_hash = txs_to_data_hash(&txs);
-
-        tracing::info!(
-            "data hash from transactions: {}",
-            Base64String(data_hash.as_bytes().to_vec())
-        );
-        tracing::info!("data hash from block: {}", this_data_hash,);
 
         ensure!(
             data_hash.as_bytes() == this_data_hash.0,

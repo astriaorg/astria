@@ -167,9 +167,6 @@ impl Relayer {
             return Ok(new_state);
         }
 
-        tracing::info!("{:?}", sequencer_block.rollup_txs);
-        tracing::info!("{:?}", sequencer_block.header.data_hash);
-
         let tx_count = sequencer_block.rollup_txs.len() + sequencer_block.sequencer_txs.len();
         match self
             .da_client
