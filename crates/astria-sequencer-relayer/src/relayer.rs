@@ -163,12 +163,11 @@ impl Relayer {
         };
 
         self.block_tx.send(sequencer_block.clone())?;
-
-        let tx_count = sequencer_block.rollup_txs.len() + sequencer_block.sequencer_txs.len();
         if self.disable_writing {
             return Ok(new_state);
         }
 
+        let tx_count = sequencer_block.rollup_txs.len() + sequencer_block.sequencer_txs.len();
         match self
             .da_client
             .submit_block(sequencer_block, &self.keypair)
