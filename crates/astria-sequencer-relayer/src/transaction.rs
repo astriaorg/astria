@@ -15,18 +15,15 @@ pub fn txs_to_data_hash(txs: &[Base64String]) -> TmHash {
 
 #[cfg(test)]
 mod test {
-    use sha2::Digest;
-
     use super::*;
+    use crate::sequencer_block::sha256_hash;
 
     #[test]
     fn txs_to_data_hash_test() {
         // data_hash is calculated from the txs in a block, where the leaves of the merkle tree are
         // the sha256 hashes of the txs
         let tx = Base64String::from_string("CscBCsQBCg0vU2VxdWVuY2VyTXNnErIBCghldGhlcmV1bRJ4Avh1ggU5gIRZaC8AhQUD1cTyglIIlBtwp0/22gQLMRmQwVX9/9u8AvfuiA3gtrOnZAAAgMABoLnRqksJblEaolE6wbsAHYTAiSlA14+B5nvWuFrIfevnoBg+UGcWLC4eg1lZylqLnrL8okBc3vTS4qOO/J5sRtVDGixtZXRybzFsbDJobHAzM3J4eTdwN2s2YXhoeDRjdnFtdGcwY3hkZjZnemY5ahJ0Ck4KRgofL2Nvc21vcy5jcnlwdG8uc2VjcDI1NmsxLlB1YktleRIjCiEDJ/LvaMZTBcGX66geJOEmTm/fyyPTZKMUJoDtMDUmSPkSBAoCCAESGAoQCgV1dGljaxIHMTAwMDAwMBCAlOvcAyIIZXRoZXJldW0aQMhoTCUr84xgTkYxsFWDfHH2k+oHCPsKvbTpz8m5YrHfYMv6gdou6V8oj1v0B9ySD5VjMXQi1kJ9DZN6wD2buo8=".to_string()).unwrap();
-        let mut hasher = sha2::Sha256::new();
-        hasher.update(tx.0);
-        let hash = hasher.finalize();
+        let hash = sha256_hash(&tx.0);
 
         let expected_hash =
             Base64String::from_string("rRDu3aQf1V37yGSTdf2fv9GSPeZ6/p0wJ9pjBl8IqFc=".to_string())
