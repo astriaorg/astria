@@ -12,7 +12,7 @@ use tonic::transport::Channel;
 use tracing::info;
 
 #[async_trait::async_trait]
-pub trait ExecutionClient: crate::private::Sealed {
+pub(crate) trait ExecutionClient: crate::private::Sealed {
     async fn call_do_block(
         &mut self,
         prev_state_root: Vec<u8>,
@@ -26,7 +26,7 @@ pub trait ExecutionClient: crate::private::Sealed {
 }
 
 /// Represents an RpcClient. Wrapping the auto generated client here.
-pub struct ExecutionRpcClient {
+pub(crate) struct ExecutionRpcClient {
     /// The actual rpc client
     client: ExecutionServiceClient<Channel>,
 }
@@ -37,7 +37,7 @@ impl ExecutionRpcClient {
     /// # Arguments
     ///
     /// * `address` - The address of the RPC server that we want to communicate with.
-    pub async fn new(address: &str) -> Result<Self> {
+    pub(crate) async fn new(address: &str) -> Result<Self> {
         let client = ExecutionServiceClient::connect(address.to_owned()).await?;
         info!("Connected to execution service at {}", address);
         Ok(ExecutionRpcClient {

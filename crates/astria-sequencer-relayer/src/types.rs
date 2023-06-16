@@ -56,7 +56,7 @@ pub struct Block {
     pub last_commit: Commit,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Commit {
     pub height: String,
     pub round: u64,
@@ -64,7 +64,7 @@ pub struct Commit {
     pub signatures: Vec<CommitSig>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct CommitSig {
     pub block_id_flag: String,
     pub validator_address: Base64String,

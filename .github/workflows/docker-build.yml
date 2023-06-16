@@ -1,0 +1,30 @@
+name: Docker
+
+# Trigger on pushes to master branch, new semantic version tags, and pull request updates
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "main"
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+--[a-z]+**"
+      - "v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+--[a-z]+**"
+      - "v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+--[a-z]+**"
+      - "v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+--[a-z]+**"
+  # trigger on pull request updates when target is `main` branch
+  pull_request:
+    branches:
+      - "main"
+
+jobs:
+  conductor:
+    uses: './.github/workflows/reusable-docker-build.yml'
+    with:
+      package-name: conductor
+      dockerfile: crates/astria-conductor/Dockerfile
+
+  sequencer-relayer:
+    uses: './.github/workflows/reusable-docker-build.yml'
+    with:
+      package-name: sequencer-relayer
+      dockerfile: crates/astria-sequencer-relayer/Dockerfile
