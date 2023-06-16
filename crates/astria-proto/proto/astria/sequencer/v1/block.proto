@@ -5,13 +5,14 @@ package astria.sequencer.v1;
 import "tendermint/types/types.proto";
 import "astria/sequencer/v1/data.proto";
 
-// helper type - these should get parsed into a map from namespace to a vector of IndexedTransactions
+// helper type - these should get parsed into a map from namespace to
+// a vector of `IndexedTransactions`
 message NamespacedIndexedTransactions {
     bytes namespace = 1;
     repeated IndexedTransaction txs = 2;
 }
 
-// SequencerBlock
+// `SequencerBlock`
 message SequencerBlock {
     bytes block_hash = 1;
     tendermint.types.Header header = 2;
