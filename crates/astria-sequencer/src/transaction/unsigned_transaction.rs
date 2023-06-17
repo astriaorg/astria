@@ -3,7 +3,10 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_proto::sequencer::v1::UnsignedTransaction as ProtoUnsignedTransaction;
+use astria_proto::sequencer::v1::{
+    unsigned_transaction::Value::AccountsTransaction as ProtoAccountsTransaction,
+    UnsignedTransaction as ProtoUnsignedTransaction,
+};
 use prost::Message as _;
 use serde::{
     Deserialize,
@@ -35,11 +38,7 @@ impl UnsignedTransaction {
     pub fn to_vec(&self) -> Vec<u8> {
         match &self {
             UnsignedTransaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
-                value: Some(
-                    astria_proto::sequencer::v1::unsigned_transaction::Value::AccountsTransaction(
-                        tx.to_proto(),
-                    ),
-                ),
+                value: Some(ProtoAccountsTransaction(tx.to_proto())),
             },
         }
         .encode_length_delimited_to_vec()
@@ -60,7 +59,7 @@ impl UnsignedTransaction {
         };
 
         Ok(match value {
-            astria_proto::sequencer::v1::unsigned_transaction::Value::AccountsTransaction(tx) => {
+            ProtoAccountsTransaction(tx) => {
                 Self::AccountsTransaction(AccountsTransaction::from_proto(&tx)?)
             }
         })

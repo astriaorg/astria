@@ -164,42 +164,27 @@ impl std::ops::Sub<u128> for Balance {
     }
 }
 
-impl Balance {
-    pub fn as_proto(&self) -> ProtoBalance {
-        ProtoBalance {
-            hi: (self.0 >> 64) as u64,
-            #[allow(clippy::cast_possible_truncation)]
-            lo: self.0 as u64,
-        }
-    }
-
-    pub fn from_proto(proto: &ProtoBalance) -> Self {
-        #[allow(clippy::cast_lossless)]
-        Self((proto.hi as u128) << 64 | proto.lo as u128)
-    }
-}
-
 impl From<ProtoBalance> for Balance {
     fn from(proto: ProtoBalance) -> Self {
-        Self::from_proto(&proto)
+        Self(proto.into())
     }
 }
 
 impl From<&ProtoBalance> for Balance {
     fn from(proto: &ProtoBalance) -> Self {
-        Self::from_proto(proto)
+        Self(proto.into())
     }
 }
 
 impl From<Balance> for ProtoBalance {
     fn from(balance: Balance) -> Self {
-        balance.as_proto()
+        balance.into()
     }
 }
 
 impl From<&Balance> for ProtoBalance {
     fn from(balance: &Balance) -> Self {
-        balance.as_proto()
+        balance.into()
     }
 }
 

@@ -4,7 +4,11 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_proto::sequencer::v1::SignedTransaction as ProtoSignedTransaction;
+use astria_proto::sequencer::v1::{
+    unsigned_transaction::Value::AccountsTransaction as ProtoAccountsTransaction,
+    SignedTransaction as ProtoSignedTransaction,
+    UnsignedTransaction as ProtoUnsignedTransaction,
+};
 use async_trait::async_trait;
 use penumbra_storage::{
     StateRead,
@@ -64,13 +68,9 @@ impl SignedTransaction {
     pub fn to_vec(&self) -> Vec<u8> {
         let proto = ProtoSignedTransaction {
             transaction: Some(match &self.transaction {
-                UnsignedTransaction::AccountsTransaction(tx) => {
-                    astria_proto::sequencer::v1::UnsignedTransaction {
-                        value: Some(astria_proto::sequencer::v1::unsigned_transaction::Value::AccountsTransaction (
-                            tx.to_proto()
-                        )),
-                    }
-                }
+                UnsignedTransaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
+                    value: Some(ProtoAccountsTransaction(tx.to_proto())),
+                },
             }),
             signature: self.signature.to_bytes().to_vec(),
             public_key: self.public_key.to_bytes().to_vec(),
@@ -101,7 +101,7 @@ impl SignedTransaction {
         };
 
         let transaction = match value {
-            astria_proto::sequencer::v1::unsigned_transaction::Value::AccountsTransaction(tx) => {
+            ProtoAccountsTransaction(tx) => {
                 UnsignedTransaction::AccountsTransaction(AccountsTransaction::from_proto(&tx)?)
             }
         };
