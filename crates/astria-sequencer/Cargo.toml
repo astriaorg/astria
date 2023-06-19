@@ -7,12 +7,10 @@ edition = "2021"
 anyhow = "1"
 borsh = "0.10.3"
 is-terminal = "0.4.7"
-penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.53.1" }
-penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.53.1" }
-tendermint-proto = "0.31"
-tendermint = "0.31"
+penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.54.1" }
+penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.54.1" }
 tower = "0.4"
-tower-abci = "0.7.0"
+tower-abci = "0.8.0"
 tower-actor = "0.1.0"
 
 async-trait = { workspace = true }
@@ -22,6 +20,8 @@ futures = { workspace = true }
 hex = { workspace = true }
 serde = { workspace = true, features = ["derive"]  }
 serde_json = { workspace = true }
+tendermint-proto = { workspace = true }
+tendermint = { workspace = true }
 tokio = { workspace = true, features = [ "rt", "tracing" ] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["ansi", "env-filter", "json"] }

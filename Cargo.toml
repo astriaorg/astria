@@ -42,8 +42,8 @@ rand = "0.7"
 # in the entire workspace
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"] }
 tempfile = "3.5.0"
-tendermint = "0.30"
-tendermint-proto = "0.30"
+tendermint = "0.32"
+tendermint-proto = "0.32"
 tokio = "1.28"
 tonic = "0.9"
 tracing = "0.1"
@@ -52,5 +52,5 @@ uuid = "1.3.1"
 which = "4.4.0"
 
 [patch."https://github.com/penumbra-zone/penumbra.git"]
-penumbra-storage = { git = "https://github.com/astriaorg/penumbra.git", branch = "noot/fix-trace-v0.53.1" }
-penumbra-tower-trace = { git = "https://github.com/astriaorg/penumbra.git", branch = "noot/fix-trace-v0.53.1" }
+penumbra-storage = { git = "https://github.com/astriaorg/penumbra.git", branch = "noot/fix-trace" }
+penumbra-tower-trace = { git = "https://github.com/astriaorg/penumbra.git", branch = "noot/fix-trace" }
