@@ -84,10 +84,10 @@ impl futures::Stream for Network {
                 SwarmEvent::NewListenAddr {
                     address, ..
                 } => {
-                    debug!("Local node is listening on {address}");
+                    debug!(address = ?address, "new listening address");
                     let maddr_str = format!("{}/p2p/{}", address, self.local_peer_id);
                     let Ok(multiaddr) = Multiaddr::from_str(&maddr_str) else {
-                        warn!("failed to parse multiaddr: {maddr_str}");
+                        warn!(multiaddr = ?maddr_str, "failed to parse multiaddr");
                         continue;
                     };
 
@@ -100,9 +100,9 @@ impl futures::Stream for Network {
                     ..
                 } => {
                     debug!(
-                        "Connection with {peer_id} established (total: {num_established})",
-                        peer_id = peer_id,
-                        num_established = num_established,
+                        peer_id = ?peer_id,
+                        num_established = ?num_established,
+                        "connection established",
                     );
                     self.swarm
                         .behaviour_mut()
@@ -119,9 +119,9 @@ impl futures::Stream for Network {
                     },
                 )) => {
                     debug!(
-                        "Received identify event from {peer_id:?} with info: {info:?}",
-                        peer_id = peer_id,
-                        info = info,
+                        peer_id = ?peer_id,
+                        info = ?info,
+                        "received Identify info",
                     );
                     for addr in info.listen_addrs {
                         self.swarm
@@ -159,7 +159,7 @@ impl futures::Stream for Network {
                 }
 
                 _ => {
-                    debug!("unhandled swarm event: {:?}", event);
+                    debug!(event = ?event, "unhandled swarm event");
                 }
             }
         }
@@ -177,8 +177,9 @@ impl Network {
                 message,
             } => {
                 debug!(
-                    "Got message: '{}' with id: {id} from peer: {peer_id}",
-                    String::from_utf8_lossy(&message.data),
+                    id = ?id,
+                    peer_id = ?peer_id,
+                    "received message from peer",
                 );
                 Some(Event::Message(message))
             }
@@ -187,14 +188,14 @@ impl Network {
                 topic,
             } => {
                 debug!(
-                    "Peer {peer_id} subscribed to topic: {topic:?}",
-                    peer_id = peer_id,
-                    topic = topic,
+                    peer_id = ?peer_id,
+                    topic = ?topic,
+                    "peer subscribed to topic",
                 );
                 Some(Event::PeerSubscribed(peer_id, topic))
             }
             _ => {
-                debug!("unhandled gossipsub event: {:?}", event);
+                debug!(event = ?event, "unhandled gossipsub event");
                 None
             }
         }
@@ -206,7 +207,10 @@ impl Network {
             mdns::Event::Discovered(list) => {
                 let peers = Vec::with_capacity(list.len());
                 for (peer_id, _multiaddr) in list {
-                    debug!("mDNS discovered a new peer: {peer_id}");
+                    debug!(
+                        peer_id = ?peer_id,
+                        "peer discovered via mDNS",
+                    );
                     self.swarm
                         .behaviour_mut()
                         .gossipsub
@@ -217,7 +221,10 @@ impl Network {
             mdns::Event::Expired(list) => {
                 let peers = Vec::with_capacity(list.len());
                 for (peer_id, _multiaddr) in list {
-                    debug!("mDNS discover peer has expired: {peer_id}");
+                    debug!(
+                        peer_id = ?peer_id,
+                        "mDNS peer expired",
+                    );
                     self.swarm
                         .behaviour_mut()
                         .gossipsub
@@ -238,11 +245,10 @@ impl Network {
                 ..
             } => {
                 debug!(
-                    "Routing table updated. Peer: {peer:?}, Addresses: {addresses:?}, Old peer: \
-                     {old_peer:?}",
-                    peer = peer,
-                    addresses = addresses,
-                    old_peer = old_peer,
+                    peer = ?peer,
+                    addresses = ?addresses,
+                    old_peer = ?old_peer,
+                    "routing table updated",
                 );
                 Some(Event::RoutingUpdated(peer, addresses))
             }
@@ -252,9 +258,9 @@ impl Network {
                 ..
             } => {
                 debug!(
-                    "Routable peer: {peer:?}, Address: {address:?}",
-                    peer = peer,
-                    address = address,
+                    peer = ?peer,
+                    address = ?address,
+                    "routable peer",
                 );
                 None
             }
@@ -265,29 +271,29 @@ impl Network {
             } => match result {
                 QueryResult::GetClosestPeers(res) => match res {
                     Ok(res) => {
-                        debug!("found {} peers for query id {:?}", res.peers.len(), id,);
+                        debug!(num_peers = res.peers.len(), query_id = ?id, "found closest peers");
                         Some(Event::FoundClosestPeers(res.peers))
                     }
                     Err(e) => {
-                        debug!("failed to find peers for {:?}: {}", id, e);
+                        debug!(query_id = ?id, error = ?e, "failed to find peers");
                         Some(Event::GetClosestPeersError(e))
                     }
                 },
                 QueryResult::Bootstrap(bootstrap) => {
                     if bootstrap.is_err() {
-                        warn!(error = ?bootstrap.err(), "failed to bootstrap {:?}", id);
+                        warn!(query_id = ?id, error = ?bootstrap.err(), "failed to bootstrap");
                     }
 
                     debug!("bootstrapping ok");
                     None
                 }
                 _ => {
-                    debug!("query result for {:?}: {:?}", id, result);
+                    debug!(query_id = ?id, result = ?result, "got query result");
                     None
                 }
             },
             _ => {
-                debug!("unhandled kademlia event: {:?}", event);
+                debug!(event = ?event, "unhandled kademlia event");
                 None
             }
         }
