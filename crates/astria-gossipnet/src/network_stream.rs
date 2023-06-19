@@ -97,10 +97,8 @@ impl futures::Stream for Network {
                 }
                 SwarmEvent::ConnectionEstablished {
                     peer_id,
-                    endpoint: _,
                     num_established,
-                    concurrent_dial_errors: _,
-                    established_in: _,
+                    ..
                 } => {
                     debug!(
                         "Connection with {peer_id} established (total: {num_established})",
