@@ -24,7 +24,7 @@ use color_eyre::eyre::{
     bail,
     ensure,
     Result,
-    WrapErr,
+    WrapErr as _,
 };
 use ed25519_dalek::Verifier;
 use prost::Message;

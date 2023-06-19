@@ -12,7 +12,7 @@ use astria_sequencer_relayer::{
 use color_eyre::eyre::{
     eyre,
     Result,
-    WrapErr,
+    WrapErr as _,
 };
 use tokio::{
     sync::mpsc::{

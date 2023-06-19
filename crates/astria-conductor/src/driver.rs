@@ -9,8 +9,8 @@ use std::sync::{
 use astria_sequencer_relayer::sequencer_block::SequencerBlock;
 use color_eyre::eyre::{
     eyre,
-    Context,
     Result,
+    WrapErr as _,
 };
 use futures::StreamExt;
 use tokio::{
