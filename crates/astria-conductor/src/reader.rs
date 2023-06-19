@@ -178,8 +178,7 @@ impl Reader {
                             }
                         };
 
-                        if let Err(e) = self.block_verifier.validate_sequencer_block(&block).await
-                        {
+                        if let Err(e) = self.block_verifier.validate_sequencer_block(&block).await {
                             // this means someone submitted an invalid block to celestia;
                             // we can ignore it
                             warn!("sequencer block failed validation: {}", e);
