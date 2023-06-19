@@ -164,12 +164,6 @@ impl std::ops::Sub<u128> for Balance {
     }
 }
 
-impl From<ProtoBalance> for Balance {
-    fn from(proto: ProtoBalance) -> Self {
-        Self(proto.into())
-    }
-}
-
 impl From<&ProtoBalance> for Balance {
     fn from(proto: &ProtoBalance) -> Self {
         Self(proto.into())
@@ -178,13 +172,7 @@ impl From<&ProtoBalance> for Balance {
 
 impl From<Balance> for ProtoBalance {
     fn from(balance: Balance) -> Self {
-        balance.into()
-    }
-}
-
-impl From<&Balance> for ProtoBalance {
-    fn from(balance: &Balance) -> Self {
-        balance.into()
+        balance.0.into()
     }
 }
 
