@@ -244,7 +244,7 @@ impl SequencerBlock {
         ordered_txs.sort_by(|a, b| a.block_index.cmp(&b.block_index));
         let txs = ordered_txs
             .into_iter()
-            .map(|tx| tx.transaction)
+            .map(|tx| Base64String(sha256_hash(&tx.transaction.0)))
             .collect::<Vec<_>>();
         let data_hash = txs_to_data_hash(&txs);
 
@@ -285,6 +285,12 @@ pub fn cosmos_tx_body_to_sequencer_msgs(tx_body: TxBody) -> eyre::Result<Vec<Seq
         .map(|msg| SequencerMsg::decode(msg.value.as_slice()))
         .collect::<Result<Vec<SequencerMsg>, DecodeError>>()
         .wrap_err("failed decoding sequencer msg from value stored in cosmos tx body")
+}
+
+pub(crate) fn sha256_hash(data: &[u8]) -> Vec<u8> {
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(data);
+    hasher.finalize().to_vec()
 }
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 name: Rust
 env:
   CI: true
-  RUSTFLAGS: "-D warnings -D unreachable-pub"
+  RUSTFLAGS: "-D warnings -D unreachable-pub --cfg tokio_unstable"
 on: 
   pull_request:
   push:
@@ -92,5 +92,15 @@ jobs:
         with:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: run clippy
-        run: cargo clippy --all --all-targets -- -D warnings
+      - name: run pedantic clippy
+        run: |
+          cargo clippy --workspace --all-targets \
+          --exclude astria-conductor \
+          --exclude astria-conductor-test \
+          --exclude astria-sequencer-relayer \
+          --exclude astria-sequencer-relayer-test \
+          --exclude astria-gossipnet \
+          --exclude astria-rs-cnc \
+          -- -W clippy::pedantic -D warnings
+      - name: run default clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
