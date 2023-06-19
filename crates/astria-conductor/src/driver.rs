@@ -1,5 +1,5 @@
 //! The driver is the top-level coordinator that runs and manages all the components
-//! necessary for this reader/validator.
+//! necessary for this reader.
 
 use std::sync::{
     Arc,
@@ -39,7 +39,7 @@ use crate::{
         self,
         ReaderCommand,
     },
-    validation::BlockValidator,
+    validation::BlockVerifier,
 };
 
 /// The channel through which the user can send commands to the driver.
@@ -70,7 +70,7 @@ pub struct Driver {
 
     network: GossipNetwork,
 
-    block_validator: Arc<BlockValidator>,
+    block_verifier: Arc<BlockVerifier>,
 
     is_shutdown: Mutex<bool>,
 }
@@ -83,13 +83,13 @@ impl Driver {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let (executor_join_handle, executor_tx) = executor::spawn(&conf, alert_tx.clone()).await?;
 
-        let block_validator = Arc::new(BlockValidator::new(&conf.tendermint_url)?);
+        let block_verifier = Arc::new(BlockVerifier::new(&conf.tendermint_url)?);
 
         let (reader_join_handle, reader_tx) = if conf.disable_finalization {
             (None, None)
         } else {
             let (reader_join_handle, reader_tx) =
-                reader::spawn(&conf, executor_tx.clone(), block_validator.clone()).await?;
+                reader::spawn(&conf, executor_tx.clone(), block_verifier.clone()).await?;
             (Some(reader_join_handle), Some(reader_tx))
         };
 
@@ -100,7 +100,7 @@ impl Driver {
                 reader_tx,
                 executor_tx,
                 network: GossipNetwork::new(conf.bootnodes)?,
-                block_validator,
+                block_verifier,
                 is_shutdown: Mutex::new(false),
             },
             executor_join_handle,
@@ -145,7 +145,7 @@ impl Driver {
                 // async due to libp2p restrictions.
                 let handle = tokio::runtime::Handle::current();
                 handle
-                    .block_on(self.block_validator.validate_sequencer_block(&block))
+                    .block_on(self.block_verifier.validate_sequencer_block(&block))
                     .wrap_err("invalid block received from gossip network")?;
 
                 self.executor_tx

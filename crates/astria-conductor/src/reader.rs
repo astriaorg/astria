@@ -32,7 +32,7 @@ use tracing::{
 use crate::{
     config::Config,
     executor,
-    validation::BlockValidator,
+    validation::BlockVerifier,
 };
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
@@ -47,11 +47,11 @@ type Receiver = UnboundedReceiver<ReaderCommand>;
 pub(crate) async fn spawn(
     conf: &Config,
     executor_tx: executor::Sender,
-    block_validator: Arc<BlockValidator>,
+    block_verifier: Arc<BlockVerifier>,
 ) -> Result<(JoinHandle, Sender)> {
     info!("Spawning reader task.");
     let (mut reader, reader_tx) =
-        Reader::new(&conf.celestia_node_url, executor_tx, block_validator).await?;
+        Reader::new(&conf.celestia_node_url, executor_tx, block_verifier).await?;
     let join_handle = task::spawn(async move { reader.run().await });
     info!("Spawned reader task.");
     Ok((join_handle, reader_tx))
@@ -78,7 +78,7 @@ pub struct Reader {
     /// the last block height fetched from Celestia
     curr_block_height: u64,
 
-    block_validator: Arc<BlockValidator>,
+    block_verifier: Arc<BlockVerifier>,
 }
 
 impl Reader {
@@ -86,7 +86,7 @@ impl Reader {
     pub async fn new(
         celestia_node_url: &str,
         executor_tx: executor::Sender,
-        block_validator: Arc<BlockValidator>,
+        block_verifier: Arc<BlockVerifier>,
     ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let celestia_client = CelestiaClientBuilder::new(celestia_node_url.to_owned())
@@ -102,7 +102,7 @@ impl Reader {
                 executor_tx,
                 celestia_client,
                 curr_block_height,
-                block_validator,
+                block_verifier,
             },
             cmd_tx,
         ))
@@ -163,7 +163,7 @@ impl Reader {
 
                     for data in datas {
                         // validate data
-                        self.block_validator
+                        self.block_verifier
                             .validate_signed_namespace_data(&data)
                             .await?;
 
@@ -178,7 +178,7 @@ impl Reader {
                             }
                         };
 
-                        if let Err(e) = self.block_validator.validate_sequencer_block(&block).await
+                        if let Err(e) = self.block_verifier.validate_sequencer_block(&block).await
                         {
                             // this means someone submitted an invalid block to celestia;
                             // we can ignore it

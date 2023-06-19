@@ -59,11 +59,11 @@ use crate::tendermint::{
     ValidatorSet,
 };
 
-pub struct BlockValidator {
+pub struct BlockVerifier {
     tendermint_client: TendermintClient,
 }
 
-impl BlockValidator {
+impl BlockVerifier {
     pub fn new(tendermint_url: &str) -> Result<Self> {
         Ok(Self {
             tendermint_client: TendermintClient::new(tendermint_url.to_owned())?,
