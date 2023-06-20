@@ -1,0 +1,7 @@
+target/
+
+
+# jetbrains
+.idea
+# direnv
+.envrc
