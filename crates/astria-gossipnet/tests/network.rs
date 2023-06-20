@@ -40,7 +40,7 @@ async fn test_gossip_two_nodes() {
                 panic!("expected stream event");
             };
 
-        match event {
+        match event.unwrap() {
             Event::NewListenAddr(addr) => {
                 println!("Alice listening on {:?}", addr);
                 let maddrs = alice.multiaddrs();
@@ -57,7 +57,7 @@ async fn test_gossip_two_nodes() {
                     break;
                 };
 
-            match event {
+            match event.unwrap() {
                 Event::PeerConnected(peer_id) => {
                     println!("Alice connected to {:?}", peer_id);
                 }
@@ -95,7 +95,7 @@ async fn test_gossip_two_nodes() {
                         continue;
                     };
 
-                    match event {
+                    match event.unwrap() {
                         Event::PeerConnected(peer_id) => {
                             println!("Bob connected to {:?}", peer_id);
                         }
@@ -146,7 +146,7 @@ async fn test_dht_discovery() {
                 panic!("expected stream event");
             };
 
-        match event {
+        match event.unwrap() {
             Event::NewListenAddr(addr) => {
                 println!("Alice listening on {:?}", addr);
                 let maddrs = alice.multiaddrs();
@@ -165,7 +165,7 @@ async fn test_dht_discovery() {
                         continue;
                     };
 
-                    match event {
+                    match event.unwrap() {
                         Event::PeerConnected(peer_id) => {
                             println!("Alice connected to {:?}", peer_id);
                         }
@@ -199,7 +199,7 @@ async fn test_dht_discovery() {
                         continue;
                     };
 
-                    match event {
+                    match event.unwrap() {
                         Event::PeerConnected(peer_id) => {
                             println!("Bob connected to {:?}", peer_id);
                         }
@@ -236,7 +236,7 @@ async fn test_dht_discovery() {
                         break;
                     };
 
-            match event {
+            match event.unwrap() {
                 Event::PeerConnected(peer_id) => {
                     println!("Charlie connected to {:?}", peer_id);
                     if charlie.peer_count() == 1 {
