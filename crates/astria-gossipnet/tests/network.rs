@@ -31,6 +31,7 @@ async fn test_gossip_two_nodes() {
 
         let mut alice = NetworkBuilder::new()
             .keypair(Keypair::generate_ed25519())
+            .with_mdns(false)
             .build()
             .unwrap();
         alice.subscribe(&topic);
@@ -81,6 +82,7 @@ async fn test_gossip_two_nodes() {
         let bootnode = bootnode_rx.await.unwrap();
         let mut bob = NetworkBuilder::new()
             .keypair(Keypair::generate_ed25519())
+            .with_mdns(false)
             .bootnodes(vec![bootnode.to_string()])
             .build()
             .unwrap();
@@ -136,6 +138,7 @@ async fn test_dht_discovery() {
     let alice_handle = tokio::task::spawn(async move {
         let mut alice = NetworkBuilder::new()
             .keypair(Keypair::generate_ed25519())
+            .with_mdns(false)
             .build()
             .unwrap();
 
@@ -184,6 +187,7 @@ async fn test_dht_discovery() {
         let bootnode = bootnode_rx.borrow().to_owned().unwrap();
         let mut bob = NetworkBuilder::new()
             .keypair(Keypair::generate_ed25519())
+            .with_mdns(false)
             .bootnodes(vec![bootnode.to_string()])
             .build()
             .unwrap();
@@ -204,7 +208,7 @@ async fn test_dht_discovery() {
                         }
                         Event::RoutingUpdated(peer_id, addresses) => {
                             println!("Bob's routing table updated by {:?} with addresses {:?}", peer_id, addresses);
-                            bob.random_walk().await;
+                            bob.random_walk().await.unwrap();
                         }
                         _ => {}
                     }
@@ -222,6 +226,7 @@ async fn test_dht_discovery() {
         let bootnode = charlie_bootnode_rx.borrow().to_owned().unwrap();
         let mut charlie = NetworkBuilder::new()
             .keypair(Keypair::generate_ed25519())
+            .with_mdns(false)
             .bootnodes(vec![bootnode.to_string()])
             .build()
             .unwrap();
@@ -235,7 +240,7 @@ async fn test_dht_discovery() {
                 Event::PeerConnected(peer_id) => {
                     println!("Charlie connected to {:?}", peer_id);
                     if charlie.peer_count() == 1 {
-                        charlie.random_walk().await;
+                        charlie.random_walk().await.unwrap();
                     }
 
                     if charlie.peer_count() == 2 {

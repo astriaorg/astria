@@ -10,20 +10,11 @@ use std::{
 };
 
 use color_eyre::eyre::{
+    bail,
     eyre,
     Result,
     WrapErr,
 };
-#[cfg(feature = "dht")]
-use libp2p::kad::{
-    record::store::MemoryStore,
-    {
-        Kademlia,
-        KademliaConfig,
-    },
-};
-#[cfg(feature = "mdns")]
-use libp2p::mdns;
 use libp2p::{
     core::upgrade::Version,
     gossipsub::{
@@ -31,10 +22,17 @@ use libp2p::{
         MessageId,
     },
     identify,
-    kad::QueryId,
+    kad::{
+        record::store::MemoryStore,
+        Kademlia,
+        KademliaConfig,
+        QueryId,
+    },
+    mdns,
     noise,
     ping,
     swarm::{
+        behaviour::toggle::Toggle,
         NetworkBehaviour,
         Swarm,
         SwarmBuilder,
@@ -59,16 +57,16 @@ pub(crate) struct GossipnetBehaviour {
     pub(crate) ping: ping::Behaviour,
     pub(crate) identify: identify::Behaviour,
     pub(crate) gossipsub: gossipsub::Behaviour,
-    #[cfg(feature = "mdns")]
-    pub(crate) mdns: mdns::tokio::Behaviour,
-    #[cfg(feature = "dht")]
-    pub(crate) kademlia: Kademlia<MemoryStore>, // TODO: use disk store
+    pub(crate) mdns: Toggle<mdns::tokio::Behaviour>,
+    pub(crate) kademlia: Toggle<Kademlia<MemoryStore>>, // TODO: use disk store
 }
 
 pub struct NetworkBuilder {
     bootnodes: Option<Vec<String>>,
     port: u16,
     keypair: Option<Keypair>,
+    with_mdns: bool,
+    with_kademlia: bool,
 }
 
 impl NetworkBuilder {
@@ -77,6 +75,8 @@ impl NetworkBuilder {
             bootnodes: None,
             port: 0, // random port
             keypair: None,
+            with_mdns: true,
+            with_kademlia: true,
         }
     }
 
@@ -93,6 +93,16 @@ impl NetworkBuilder {
     pub fn keypair(mut self, keypair: Keypair) -> Self {
         // TODO: load/store keypair from disk
         self.keypair = Some(keypair);
+        self
+    }
+
+    pub fn with_mdns(mut self, with_mdns: bool) -> Self {
+        self.with_mdns = with_mdns;
+        self
+    }
+
+    pub fn with_kademlia(mut self, with_kademlia: bool) -> Self {
+        self.with_kademlia = with_kademlia;
         self
     }
 
@@ -130,27 +140,33 @@ impl NetworkBuilder {
         .map_err(|e| eyre!("failed to create gossipsub behaviour: {}", e))?;
 
         let mut swarm = {
-            #[cfg(feature = "dht")]
-            let kademlia = {
+            let kademlia = if self.with_kademlia {
                 let mut cfg = KademliaConfig::default();
                 cfg.set_query_timeout(Duration::from_secs(5 * 60));
                 let store = MemoryStore::new(local_peer_id);
-                Kademlia::with_config(local_peer_id, store, cfg)
+                Some(Kademlia::with_config(local_peer_id, store, cfg))
+            } else {
+                None
             };
 
-            #[cfg(feature = "mdns")]
-            let mdns = mdns::tokio::Behaviour::new(mdns::Config::default(), local_peer_id)?;
+            let mdns = if self.with_mdns {
+                Some(mdns::tokio::Behaviour::new(
+                    mdns::Config::default(),
+                    local_peer_id,
+                )?)
+            } else {
+                None
+            };
+
             let behaviour = GossipnetBehaviour {
                 identify: identify::Behaviour::new(identify::Config::new(
                     "gossipnet/0.1.0".into(),
                     public_key,
                 )),
                 gossipsub,
-                #[cfg(feature = "mdns")]
-                mdns,
                 ping: ping::Behaviour::default(),
-                #[cfg(feature = "dht")]
-                kademlia,
+                mdns: mdns.into(),
+                kademlia: kademlia.into(),
             };
             SwarmBuilder::with_tokio_executor(transport, behaviour, local_peer_id).build()
         };
@@ -176,8 +192,9 @@ impl NetworkBuilder {
                             }
                         };
 
-                        #[cfg(feature = "dht")]
-                        swarm.behaviour_mut().kademlia.add_address(&peer_id, maddr);
+                        if let Some(kademlia) = swarm.behaviour_mut().kademlia.as_mut() {
+                            kademlia.add_address(&peer_id, maddr);
+                        }
                     }
                     _ => {
                         return Err(eyre!("failed to parse peer id from addr: {}", addr));
@@ -215,22 +232,20 @@ impl Network {
         self.multiaddrs.clone()
     }
 
-    #[cfg(feature = "dht")]
     pub async fn bootstrap(&mut self) -> Result<()> {
-        self.swarm
-            .behaviour_mut()
-            .kademlia
-            .bootstrap()
-            .map(|_| ())
-            .map_err(|e| eyre!(e))
+        if let Some(kademlia) = self.swarm.behaviour_mut().kademlia.as_mut() {
+            kademlia.bootstrap().map(|_| ()).map_err(|e| eyre!(e))
+        } else {
+            bail!("kademlia is not enabled")
+        }
     }
 
-    #[cfg(feature = "dht")]
-    pub async fn random_walk(&mut self) -> QueryId {
-        self.swarm
-            .behaviour_mut()
-            .kademlia
-            .get_closest_peers(PeerId::random())
+    pub async fn random_walk(&mut self) -> Result<QueryId> {
+        if let Some(kademlia) = self.swarm.behaviour_mut().kademlia.as_mut() {
+            Ok(kademlia.get_closest_peers(PeerId::random()))
+        } else {
+            bail!("kademlia is not enabled")
+        }
     }
 
     pub async fn publish(&mut self, message: Vec<u8>, topic: Sha256Topic) -> Result<MessageId> {

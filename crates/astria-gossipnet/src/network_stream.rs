@@ -8,16 +8,6 @@ use std::{
 };
 
 use futures::StreamExt;
-#[cfg(feature = "dht")]
-use libp2p::kad::{
-    record::Key,
-    {
-        KademliaEvent,
-        QueryResult,
-    },
-};
-#[cfg(feature = "mdns")]
-use libp2p::mdns;
 use libp2p::{
     gossipsub::{
         self,
@@ -25,11 +15,15 @@ use libp2p::{
         TopicHash,
     },
     kad::{
+        record::Key,
         AddProviderError,
         Addresses,
         GetClosestPeersError,
         GetProvidersError,
+        KademliaEvent,
+        QueryResult,
     },
+    mdns,
     swarm::SwarmEvent,
     Multiaddr,
     PeerId,
@@ -46,27 +40,25 @@ use crate::network::{
 
 #[derive(Debug)]
 pub enum Event {
+    // Swarm events
     NewListenAddr(Multiaddr),
-    Message(Message),
-    #[cfg(feature = "mdns")]
+
+    // mDNS events
     MdnsPeersConnected(Vec<PeerId>),
-    #[cfg(feature = "mdns")]
     MdnsPeersDisconnected(Vec<PeerId>),
+
+    // Gossipsub events
     PeerConnected(PeerId),
     PeerSubscribed(PeerId, TopicHash),
-    #[cfg(feature = "dht")]
+    Message(Message),
+
+    // Kademlia events
     FoundProviders(Option<Key>, Option<Vec<PeerId>>),
-    #[cfg(feature = "dht")]
     GetProvidersError(GetProvidersError),
-    #[cfg(feature = "dht")]
     Providing(Key),
-    #[cfg(feature = "dht")]
     ProvideError(AddProviderError),
-    #[cfg(feature = "dht")]
     RoutingUpdated(PeerId, Addresses),
-    #[cfg(feature = "dht")]
     FoundClosestPeers(Vec<PeerId>),
-    #[cfg(feature = "dht")]
     GetClosestPeersError(GetClosestPeersError),
 }
 
@@ -123,15 +115,14 @@ impl futures::Stream for Network {
                         info = ?info,
                         "received Identify info",
                     );
-                    for addr in info.listen_addrs {
-                        self.swarm
-                            .behaviour_mut()
-                            .kademlia
-                            .add_address(&peer_id, addr);
+
+                    if let Some(kademlia) = self.swarm.behaviour_mut().kademlia.as_mut() {
+                        for addr in info.listen_addrs {
+                            kademlia.add_address(&peer_id, addr);
+                        }
                     }
                 }
 
-                #[cfg(feature = "dht")]
                 SwarmEvent::Behaviour(GossipnetBehaviourEvent::Kademlia(event)) => {
                     match self.handle_kademlia_event(event) {
                         Some(event) => return Poll::Ready(Some(event)),
@@ -139,7 +130,6 @@ impl futures::Stream for Network {
                     }
                 }
 
-                #[cfg(feature = "mdns")]
                 SwarmEvent::Behaviour(GossipnetBehaviourEvent::Mdns(event)) => {
                     match self.handle_mdns_event(event) {
                         Some(event) => return Poll::Ready(Some(event)),
@@ -201,7 +191,6 @@ impl Network {
         }
     }
 
-    #[cfg(feature = "mdns")]
     fn handle_mdns_event(&mut self, event: mdns::Event) -> Option<Event> {
         match event {
             mdns::Event::Discovered(list) => {
@@ -235,7 +224,6 @@ impl Network {
         }
     }
 
-    #[cfg(feature = "dht")]
     fn handle_kademlia_event(&self, event: KademliaEvent) -> Option<Event> {
         match event {
             KademliaEvent::RoutingUpdated {
