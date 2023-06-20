@@ -53,15 +53,11 @@ impl TryFrom<&crate::crypto::PublicKey> for Address {
     type Error = anyhow::Error;
 
     fn try_from(public_key: &crate::crypto::PublicKey) -> Result<Self, Self::Error> {
-        use sha2::Digest as _;
-        let mut hasher = sha2::Sha256::new();
-        hasher.update(public_key.as_bytes());
-        let hash = hasher.finalize();
-        Ok(Address(
-            hash[0..ADDRESS_LEN]
-                .try_into()
-                .map_err(|_| anyhow!("invalid address hex length"))?,
-        ))
+        let bytes = crate::hash(public_key.as_bytes());
+        let arr: [u8; ADDRESS_LEN] = bytes[0..ADDRESS_LEN]
+            .try_into()
+            .map_err(|_| anyhow!("invalid address hex length"))?;
+        Ok(Address(arr))
     }
 }
 
