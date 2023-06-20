@@ -388,6 +388,12 @@ pub fn cosmos_tx_body_to_sequencer_msgs(tx_body: TxBody) -> eyre::Result<Vec<Seq
         .wrap_err("failed decoding sequencer msg from value stored in cosmos tx body")
 }
 
+pub(crate) fn sha256_hash(data: &[u8]) -> Vec<u8> {
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(data);
+    hasher.finalize().to_vec()
+}
+
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
