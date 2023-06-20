@@ -104,7 +104,14 @@ impl Driver {
             select! {
                 res = self.network.0.next() => {
                     if let Some(res) = res {
-                        self.handle_network_event(res)?;
+                        match res {
+                            Ok(event) => {
+                                self.handle_network_event(event)?;
+                            }
+                            Err(err) => {
+                                debug!(error = ?err, "network error");
+                            }
+                        }
                     }
                 },
                 cmd = self.cmd_rx.recv() => {
