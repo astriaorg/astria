@@ -132,7 +132,7 @@ impl Driver {
             NetworkEvent::NewListenAddr(addr) => {
                 info!("listening on {}", addr);
             }
-            NetworkEvent::Message(msg) => {
+            NetworkEvent::GossipsubMessage(msg) => {
                 debug!("received gossip message: {:?}", msg);
                 let block = SequencerBlock::from_bytes(&msg.data)?;
                 // TODO: validate this block!!!!!

@@ -58,14 +58,14 @@ async fn test_gossip_two_nodes() {
                 };
 
             match event.unwrap() {
-                Event::PeerConnected(peer_id) => {
+                Event::GossipsubPeerConnected(peer_id) => {
                     println!("Alice connected to {:?}", peer_id);
                 }
-                Event::PeerSubscribed(peer_id, topic_hash) => {
+                Event::GossipsubPeerSubscribed(peer_id, topic_hash) => {
                     println!("Remote peer {:?} subscribed to {:?}", peer_id, topic_hash);
                     alice.publish(msg_a.clone(), topic.clone()).await.unwrap();
                 }
-                Event::Message(msg) => {
+                Event::GossipsubMessage(msg) => {
                     println!("Alice got message: {:?}", msg);
                     assert_eq!(msg.data, recv_msg_b);
                     alice_tx.send(()).unwrap();
@@ -96,10 +96,10 @@ async fn test_gossip_two_nodes() {
                     };
 
                     match event.unwrap() {
-                        Event::PeerConnected(peer_id) => {
+                        Event::GossipsubPeerConnected(peer_id) => {
                             println!("Bob connected to {:?}", peer_id);
                         }
-                        Event::Message(msg) => {
+                        Event::GossipsubMessage(msg) => {
                             println!("Bob got message: {:?}", msg);
                             assert_eq!(msg.data, recv_msg_a);
                             bob.publish(msg_b.clone(), topic.clone()).await.unwrap();
@@ -166,7 +166,7 @@ async fn test_dht_discovery() {
                     };
 
                     match event.unwrap() {
-                        Event::PeerConnected(peer_id) => {
+                        Event::GossipsubPeerConnected(peer_id) => {
                             println!("Alice connected to {:?}", peer_id);
                         }
                         Event::RoutingUpdated(peer_id, addresses) => {
@@ -200,11 +200,8 @@ async fn test_dht_discovery() {
                     };
 
                     match event.unwrap() {
-                        Event::PeerConnected(peer_id) => {
+                        Event::GossipsubPeerConnected(peer_id) => {
                             println!("Bob connected to {:?}", peer_id);
-                        }
-                        Event::FoundClosestPeers(peers) => {
-                            println!("Bob found closest peers {:?}", peers);
                         }
                         Event::RoutingUpdated(peer_id, addresses) => {
                             println!("Bob's routing table updated by {:?} with addresses {:?}", peer_id, addresses);
@@ -236,25 +233,17 @@ async fn test_dht_discovery() {
                         break;
                     };
 
-            match event.unwrap() {
-                Event::PeerConnected(peer_id) => {
-                    println!("Charlie connected to {:?}", peer_id);
-                    if charlie.peer_count() == 1 {
-                        charlie.random_walk().await.unwrap();
-                    }
+            let event = event.unwrap();
+            if let Event::GossipsubPeerConnected(peer_id) = event {
+                println!("Charlie connected to {:?}", peer_id);
+                if charlie.peer_count() == 1 {
+                    charlie.random_walk().await.unwrap();
+                }
 
-                    if charlie.peer_count() == 2 {
-                        charlie_tx.send(()).unwrap();
-                        return;
-                    }
+                if charlie.peer_count() == 2 {
+                    charlie_tx.send(()).unwrap();
+                    return;
                 }
-                Event::FoundClosestPeers(peers) => {
-                    println!("Charlie found closest peers {:?}", peers);
-                }
-                Event::ProvideError(e) => {
-                    panic!("Charlie failed to provide: {:?}", e);
-                }
-                _ => {}
             }
         }
     });

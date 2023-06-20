@@ -19,11 +19,7 @@ use libp2p::{
         TopicHash,
     },
     kad::{
-        record::Key,
-        AddProviderError,
         Addresses,
-        GetClosestPeersError,
-        GetProvidersError,
         KademliaEvent,
         QueryResult,
     },
@@ -49,18 +45,12 @@ pub enum Event {
     MdnsPeersDisconnected(Vec<PeerId>),
 
     // Gossipsub events
-    PeerConnected(PeerId),
-    PeerSubscribed(PeerId, TopicHash),
-    Message(Message),
+    GossipsubPeerConnected(PeerId),
+    GossipsubPeerSubscribed(PeerId, TopicHash),
+    GossipsubMessage(Message),
 
     // Kademlia events
-    FoundProviders(Option<Key>, Option<Vec<PeerId>>),
-    GetProvidersError(GetProvidersError),
-    Providing(Key),
-    ProvideError(AddProviderError),
     RoutingUpdated(PeerId, Addresses),
-    FoundClosestPeers(Vec<PeerId>),
-    GetClosestPeersError(GetClosestPeersError),
 }
 
 impl futures::Stream for Network {
@@ -101,7 +91,7 @@ impl futures::Stream for Network {
                         .gossipsub
                         .add_explicit_peer(&peer_id);
 
-                    return Poll::Ready(Some(Ok(Event::PeerConnected(peer_id))));
+                    return Poll::Ready(Some(Ok(Event::GossipsubPeerConnected(peer_id))));
                 }
 
                 SwarmEvent::Behaviour(GossipnetBehaviourEvent::Identify(
@@ -171,7 +161,7 @@ impl Network {
                     peer_id = ?peer_id,
                     "received message from peer",
                 );
-                Some(Ok(Event::Message(message)))
+                Some(Ok(Event::GossipsubMessage(message)))
             }
             gossipsub::Event::Subscribed {
                 peer_id,
@@ -182,7 +172,7 @@ impl Network {
                     topic = ?topic,
                     "peer subscribed to topic",
                 );
-                Some(Ok(Event::PeerSubscribed(peer_id, topic)))
+                Some(Ok(Event::GossipsubPeerSubscribed(peer_id, topic)))
             }
             _ => {
                 debug!(event = ?event, "unhandled gossipsub event");
@@ -257,16 +247,6 @@ impl Network {
                 result,
                 ..
             } => match result {
-                QueryResult::GetClosestPeers(res) => match res {
-                    Ok(res) => {
-                        debug!(num_peers = res.peers.len(), query_id = ?id, "found closest peers");
-                        Some(Ok(Event::FoundClosestPeers(res.peers)))
-                    }
-                    Err(e) => {
-                        debug!(query_id = ?id, error = ?e, "failed to find peers");
-                        Some(Ok(Event::GetClosestPeersError(e)))
-                    }
-                },
                 QueryResult::Bootstrap(bootstrap) => {
                     if bootstrap.is_err() {
                         return Some(Err(eyre!(
