@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package astria.sequencer.v1;
 
-import "tendermint/types/types.proto";
+// import "tendermint/types/types.proto";
 
 // copied from https://github.com/cometbft/cometbft/blob/6f7746225c378b4f4e40e80a669226385cda8bfb/proto/tendermint/types/types.proto#L26
 // TODO(GH-98): use tendermint-rs types for block commits
-// PartsetHeader
+// `PartsetHeader`
 message PartSetHeader {
   uint32 total = 1;
   bytes  hash  = 2;
@@ -14,7 +14,7 @@ message PartSetHeader {
 
 // copied from https://github.com/cometbft/cometbft/blob/6f7746225c378b4f4e40e80a669226385cda8bfb/proto/tendermint/types/types.proto#L38
 // TODO(GH-98): use tendermint-rs types for block commits
-// BlockID
+// `BlockID`
 message BlockID {
   bytes hash = 1;
   PartSetHeader part_set_header = 2;
@@ -22,7 +22,7 @@ message BlockID {
 
 // copied and modified from https://github.com/cometbft/cometbft/blob/6f7746225c378b4f4e40e80a669226385cda8bfb/proto/tendermint/types/types.proto#L106
 // TODO(GH-98): use tendermint-rs types for block commits
-// Commit contains the evidence that a block was committed by a set of validators.
+// `Commit` contains the evidence that a block was committed by a set of validators.
 message Commit {
   int64 height = 1;
   uint32 round = 2;
@@ -32,7 +32,7 @@ message Commit {
 
 // copied and modified from https://github.com/cometbft/cometbft/blob/6f7746225c378b4f4e40e80a669226385cda8bfb/proto/tendermint/types/types.proto#L113
 // TODO(GH-98): use tendermint-rs types for block commits
-// CommitSig is a part of the Vote included in a Commit.
+// `CommitSig` is a part of the Vote included in a Commit.
 message CommitSig {
   string block_id_flag = 1;
   bytes validator_address = 2;
@@ -42,7 +42,7 @@ message CommitSig {
 
 // copied from https://github.com/cometbft/cometbft/blob/main/proto/tendermint/types/types.proto#L74
 // TODO(GH-98): use tendermint-rs types for block commits
-// Data contains the set of transactions included in the block
+// `Data` contains the set of transactions included in the block
 message Data {
   // Txs that will be applied by state @ block.Height+1.
   // NOTE: not all txs here are valid.  We're just agreeing on the order first.
@@ -52,6 +52,7 @@ message Data {
 
 // copied and modified from https://github.com/cometbft/cometbft/blob/main/proto/tendermint/types/block.proto#LL10C1-L10C1
 // TODO(GH-98): use tendermint-rs types for block commits
+// `Block` is tendermint's block struct
 message Block {
   Header header = 1;
   Data data = 2;
@@ -60,6 +61,7 @@ message Block {
 
 // copied and modified from https://github.com/cometbft/cometbft/blob/main/proto/tendermint/version/types.proto#L19
 // TODO(GH-98): use tendermint-rs types for block commits
+// `Consensus` defines tendermint and the app's versions.
 message Consensus {
   uint64 block = 1;
   uint64 app   = 2;
@@ -67,7 +69,7 @@ message Consensus {
 
 // copied and modified from https://github.com/cometbft/cometbft/blob/main/proto/tendermint/types/types.proto#L47
 // TODO(GH-98): use tendermint-rs types for block commits
-// Header defines the structure of a block header.
+// `Header` defines the structure of a block header.
 message Header {
   // basic block info
   Consensus version  = 1;
@@ -94,7 +96,7 @@ message Header {
   bytes proposer_address = 14;  // original proposer of the block
 }
 
-// IndexedTransaction represents a sequencer transaction along with the index
+// `IndexedTransaction` represents a sequencer transaction along with the index
 // it was originally in the sequencer block.
 message IndexedTransaction {
   // block_index refers to the transaction's index in the sequencer block. It is used to verify
@@ -103,7 +105,7 @@ message IndexedTransaction {
     bytes transaction = 2;
 }
 
-// RollupNamespace
+// `RollupNamespace`
 message RollupNamespace {
     // block_height refers to the DA layer block which the rollup namespace data was writted to.
     uint64 block_height = 1;
@@ -130,7 +132,7 @@ message SequencerNamespaceData {
     repeated RollupNamespace rollup_namespaces = 5;
 }
 
-// SignedNamespaceData
+// `SignedNamespaceData`
 message SignedNamespaceData {
     bytes data = 1;
     bytes public_key = 2;

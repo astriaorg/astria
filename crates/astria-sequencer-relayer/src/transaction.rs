@@ -15,8 +15,15 @@ pub fn txs_to_data_hash(txs: &[Base64String]) -> TmHash {
 
 #[cfg(test)]
 mod test {
+    use sha2::Digest;
+
     use super::*;
-    use crate::sequencer_block::sha256_hash;
+
+    fn sha256_hash(data: &[u8]) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(data);
+        hasher.finalize().to_vec()
+    }
 
     #[test]
     fn txs_to_data_hash_test() {
