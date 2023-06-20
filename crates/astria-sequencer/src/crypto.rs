@@ -9,21 +9,24 @@ pub(crate) use ed25519_dalek::{
 #[cfg(test)]
 mod test {
     use ed25519_dalek::SecretKey;
-    use sha2::Digest as _;
 
     use super::*;
-    use crate::accounts::types::Address;
+    use crate::{
+        accounts::types::Address,
+        hash,
+    };
 
+    /// note that this test does not really test anything; it's used to generate
+    /// default keys for the test accounts.
+    /// we want the test keys to be deterministic so that we can easily
+    /// fund them at genesis.
     #[test]
     fn generate_default_keys() {
         let default_accounts: Vec<&[u8]> = vec![b"alice", b"bob", b"carol"];
         let message = b"test";
 
         for acc in default_accounts {
-            let mut hasher = sha2::Sha256::new();
-            hasher.update(acc);
-            let bytes = hasher.finalize();
-
+            let bytes = hash(acc);
             let secret = SecretKey::from_bytes(&bytes).unwrap();
             let public = (&secret).into();
             let keypair = Keypair {
