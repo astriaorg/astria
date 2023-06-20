@@ -3446,7 +3446,7 @@ dependencies = [
 [[package]]
 name = "penumbra-storage"
 version = "0.54.1"
-source = "git+https://github.com/astriaorg/penumbra.git?branch=noot/fix-trace#78153d8645bc0a382ec4bc8c494306809a69d9be"
+source = "git+https://github.com/astriaorg/penumbra.git?rev=78153d8645bc0a382ec4bc8c494306809a69d9be#78153d8645bc0a382ec4bc8c494306809a69d9be"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3471,7 +3471,7 @@ dependencies = [
 [[package]]
 name = "penumbra-tower-trace"
 version = "0.54.1"
-source = "git+https://github.com/astriaorg/penumbra.git?branch=noot/fix-trace#78153d8645bc0a382ec4bc8c494306809a69d9be"
+source = "git+https://github.com/astriaorg/penumbra.git?rev=78153d8645bc0a382ec4bc8c494306809a69d9be#78153d8645bc0a382ec4bc8c494306809a69d9be"
 dependencies = [
  "futures",
  "hex",
