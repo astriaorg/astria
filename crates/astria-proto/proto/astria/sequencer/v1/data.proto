@@ -110,7 +110,7 @@ message RollupNamespace {
     bytes namespace = 2;
 }
 
-// RollupNamespaceData
+// `RollupNamespaceData`
 message RollupNamespaceData {
     // block_hash refers to the sequencer block that these transactions were posted to. It is used
     // to verify a Merkle inclusion proof.
@@ -118,7 +118,7 @@ message RollupNamespaceData {
     repeated IndexedTransaction rollup_txs = 2;
 }
 
-// SequencerNamespaceData
+// `SequencerNamespaceData`
 message SequencerNamespaceData {
     // block_hash refers to the sequencer block that these transactions were posted to. It is used
     // to verify a Merkle inclusion proof.

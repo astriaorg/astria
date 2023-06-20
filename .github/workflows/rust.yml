@@ -13,7 +13,6 @@ jobs:
   test:
     runs-on: ubuntu-22.04
     steps:
-      - run: echo $RUSTFLAGS
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.69.0
       - uses: Swatinem/rust-cache@v2
@@ -93,7 +92,15 @@ jobs:
         with:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: run clippy
-        run: cargo clippy --workspace --all-targets --exclude astria-sequencer -- -D warnings
       - name: run pedantic clippy
-        run: cargo clippy --all-targets -p astria-sequencer -- -W clippy::pedantic -D warnings
+        run: |
+          cargo clippy --workspace --all-targets \
+          --exclude astria-conductor \
+          --exclude astria-conductor-test \
+          --exclude astria-sequencer-relayer \
+          --exclude astria-sequencer-relayer-test \
+          --exclude astria-gossipnet \
+          --exclude astria-rs-cnc \
+          -- -W clippy::pedantic -D warnings
+      - name: run default clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
