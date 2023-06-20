@@ -427,22 +427,22 @@ mod test {
             chain_id: String::from("chain"),
             height: Height::from(0_u32),
             time: Time::now().to_string(),
-            last_block_id: None,
-            last_commit_hash: None,
-            data_hash: None,
+            last_block_id: Some(make_block_id()),
+            last_commit_hash: Some(Base64String::from_bytes(&[0; 32])),
+            data_hash: Some(Base64String::from_bytes(&[0; 32])),
             validators_hash: Base64String::from_bytes(&[0; 32]),
             next_validators_hash: Base64String::from_bytes(&[0; 32]),
             consensus_hash: Base64String::from_bytes(&[0; 32]),
             app_hash: Base64String::from_bytes(&[0; 32]),
-            last_results_hash: None,
-            evidence_hash: None,
+            last_results_hash: Some(Base64String::from_bytes(&[0; 32])),
+            evidence_hash: Some(Base64String::from_bytes(&[0; 32])),
             proposer_address: Base64String::from_bytes(&[0; 20]),
         }
     }
 
     fn empty_commit() -> Commit {
         Commit {
-            height: "0".to_string(),
+            height: Height::from(0u32),
             round: 0,
             block_id: BlockId {
                 hash: Base64String::from_bytes(&[0; 32]),
@@ -452,6 +452,16 @@ mod test {
                 },
             },
             signatures: vec![],
+        }
+    }
+
+    fn make_block_id() -> BlockId {
+        BlockId {
+            hash: Base64String::from_bytes(&[0; 32]),
+            part_set_header: Parts {
+                total: 0,
+                hash: Base64String::from_bytes(&[0; 32]),
+            },
         }
     }
 
@@ -490,8 +500,8 @@ mod test {
             "block": {
               "header": {
                 "version": {
-                  "block": "11",
-                  "app": "0"
+                  "block": 11,
+                  "app": 0
                 },
                 "chain_id": "private",
                 "height": "2701",

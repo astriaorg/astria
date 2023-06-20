@@ -54,7 +54,7 @@ fn make_header() -> Header {
 
 fn empty_commit() -> Commit {
     Commit {
-        height: "0".to_string(),
+        height: Height::from(0u32),
         round: 0,
         block_id: BlockId {
             hash: Base64String(vec![]),

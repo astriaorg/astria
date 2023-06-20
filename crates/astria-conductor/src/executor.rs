@@ -445,7 +445,7 @@ mod test {
             block_hash: hash(b"block1").unwrap(),
             header: default_header(),
             last_commit: Commit {
-                height: "1".to_string(),
+                height: Height::from(1u32),
                 round: 0,
                 block_id: BlockId {
                     hash: Base64String(hash_bytes(b"block1")),

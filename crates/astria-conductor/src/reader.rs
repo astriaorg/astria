@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    str::FromStr,
-};
+use std::collections::HashMap;
 
 use astria_sequencer_relayer::{
     data_availability::{
@@ -381,7 +378,7 @@ fn ensure_commit_has_quorum(
     validator_set: &ValidatorSet,
     chain_id: &str,
 ) -> Result<()> {
-    if commit.height != validator_set.block_height {
+    if commit.height.to_string() != validator_set.block_height {
         bail!(
             "commit height mismatch: expected {}, got {}",
             validator_set.block_height,
@@ -486,7 +483,7 @@ fn verify_vote_signature(
     let signature = ed25519_dalek::Signature::from_bytes(signature_bytes)?;
     let canonical_vote = CanonicalVote {
         vote_type: vote::Type::Precommit,
-        height: Height::from_str(&commit.height)?,
+        height: commit.height,
         round: Round::from(commit.round as u16),
         block_id: Some(BlockId {
             hash: Hash::try_from(commit.block_id.hash.0.to_vec())?,
@@ -656,7 +653,7 @@ mod test {
         };
 
         let commit = Commit {
-            height: "2082".to_string(),
+            height: Height::from(2082u32),
             round: 0,
             block_id: BlockId {
                 hash: Base64String::from_string(

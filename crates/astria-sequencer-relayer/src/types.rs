@@ -145,7 +145,7 @@ impl Parts {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub struct Commit {
-    pub height: String,
+    pub height: TmHeight,
     pub round: u32,
     pub block_id: BlockId,
     pub signatures: Vec<CommitSig>,
@@ -160,7 +160,7 @@ impl Commit {
             .collect::<eyre::Result<Vec<_>>>()?;
 
         Ok(Self {
-            height: proto.height,
+            height: TmHeight::try_from(proto.height)?,
             round: proto.round,
             block_id: BlockId::from_proto(
                 proto
@@ -179,7 +179,7 @@ impl Commit {
             .collect::<Vec<_>>();
 
         RawCommit {
-            height: self.height.clone(),
+            height: self.height.into(),
             round: self.round,
             block_id: Some(self.block_id.to_proto()),
             signatures,
@@ -187,7 +187,7 @@ impl Commit {
     }
 
     pub fn from_tm_commit(tm_commit: &TmCommit) -> eyre::Result<Self> {
-        let height = tm_commit.height.value().to_string();
+        let height = tm_commit.height;
         let round = tm_commit.round.into();
         let block_id = BlockId::from_tm_block_id(&tm_commit.block_id);
         let signatures = tm_commit
