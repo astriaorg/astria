@@ -59,6 +59,13 @@ use crate::tendermint::{
     ValidatorSet,
 };
 
+/// `BlockVerifier` is responsible for verifying the correctness of a block
+/// before executing it.
+/// It has two public functions: `validate_signed_namespace_data` and `validate_sequencer_block`.
+///
+/// `validate_signed_namespace_data` is used to validate the data received from the data
+/// availability layer. `validate_sequencer_block` is used to validate the blocks received from
+/// either the data availability layer or the gossip network.
 pub struct BlockVerifier {
     tendermint_client: TendermintClient,
 }
@@ -70,6 +77,9 @@ impl BlockVerifier {
         })
     }
 
+    /// validates `SignedNamespaceData` received from Celestia.
+    /// This function verifies the block signature and checks that the data
+    /// was signed by the expected proposer for this block height.
     pub(crate) async fn validate_signed_namespace_data(
         &self,
         data: &SignedNamespaceData<SequencerNamespaceData>,
@@ -100,9 +110,8 @@ impl BlockVerifier {
         Ok(())
     }
 
-    /// performs various validation checks on the SignedNamespaceData that was read from Celestia
-    /// and returns the full SequencerBlock corresponding to the given SignedNamespaceData if all
-    /// checks pass.
+    /// performs various validation checks on the SequencerBlock received from either gossip or
+    /// Celestia.
     ///
     /// checks performed:
     /// - the proposer of the sequencer block matches the expected proposer for the block height
@@ -114,10 +123,18 @@ impl BlockVerifier {
     /// - validate the block was actually finalized; ie >2/3 stake signed off on it
     pub(crate) async fn validate_sequencer_block(&self, block: &SequencerBlock) -> Result<()> {
         // sequencer block's height
-        let height = block.header.height.parse::<u64>()?;
+        let height = block
+            .header
+            .height
+            .parse::<u64>()
+            .wrap_err("failed to parse height")?;
 
         // get validator set for this height
-        let validator_set = self.tendermint_client.get_validator_set(height - 1).await?;
+        let validator_set = self
+            .tendermint_client
+            .get_validator_set(height - 1)
+            .await
+            .wrap_err("failed to get validator set")?;
 
         // find proposer address for this height
         let expected_proposer_address = validator_set
@@ -175,10 +192,14 @@ impl BlockVerifier {
         };
 
         // validate the block header matches the block hash
-        block.verify_block_hash()?;
+        block
+            .verify_block_hash()
+            .wrap_err("failed to verify block hash")?;
 
         // finally, validate that the transactions in the block result in the correct data_hash
-        block.verify_data_hash()?;
+        block
+            .verify_data_hash()
+            .wrap_err("failed to verify block data_hash")?;
 
         Ok(())
     }
@@ -301,27 +322,37 @@ fn verify_vote_signature(
     public_key_bytes: &[u8],
     signature_bytes: &[u8],
 ) -> Result<()> {
-    let public_key = ed25519_dalek::PublicKey::from_bytes(public_key_bytes)?;
-    let signature = ed25519_dalek::Signature::from_bytes(signature_bytes)?;
+    let public_key = ed25519_dalek::PublicKey::from_bytes(public_key_bytes)
+        .wrap_err("failed to create public key from vote")?;
+    let signature = ed25519_dalek::Signature::from_bytes(signature_bytes)
+        .wrap_err("failed to create signature from vote")?;
     let canonical_vote = CanonicalVote {
         vote_type: vote::Type::Precommit,
-        height: Height::from_str(&commit.height)?,
+        height: Height::from_str(&commit.height).wrap_err("failed to parse commit height")?,
         round: Round::from(commit.round as u16),
         block_id: Some(BlockId {
-            hash: Hash::try_from(commit.block_id.hash.0.to_vec())?,
+            hash: Hash::try_from(commit.block_id.hash.0.to_vec())
+                .wrap_err("failed to create hash from commit hash")?,
             part_set_header: parts::Header::new(
                 commit.block_id.part_set_header.total,
-                Hash::try_from(commit.block_id.part_set_header.hash.0.to_vec())?,
+                Hash::try_from(commit.block_id.part_set_header.hash.0.to_vec())
+                    .wrap_err("failed to create hash from commit part_set_header hash")?,
             )?,
         }),
-        timestamp: Some(Time::parse_from_rfc3339(&vote.timestamp)?),
-        chain_id: ChainId::try_from(chain_id)?,
+        timestamp: Some(
+            Time::parse_from_rfc3339(&vote.timestamp)
+                .wrap_err("failed to parse commit timestamp")?,
+        ),
+        chain_id: ChainId::try_from(chain_id).wrap_err("failed to parse commit chain ID")?,
     };
-    public_key.verify(
-        &tendermint_proto::types::CanonicalVote::try_from(canonical_vote)?
-            .encode_length_delimited_to_vec(),
-        &signature,
-    )?;
+    public_key
+        .verify(
+            &tendermint_proto::types::CanonicalVote::try_from(canonical_vote)
+                .wrap_err("failed to turn commit canonical vote into proto type")?
+                .encode_length_delimited_to_vec(),
+            &signature,
+        )
+        .wrap_err("failed to verify vote signature")?;
     Ok(())
 }
 

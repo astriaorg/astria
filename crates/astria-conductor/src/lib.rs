@@ -9,6 +9,7 @@
 //! from the data availability layer. In the second case, the execution layer is notified to mark
 //! the block as finalized.
 pub mod alert;
+pub mod block_verifier;
 pub mod cli;
 pub mod config;
 pub mod driver;
@@ -18,7 +19,6 @@ pub mod network;
 pub mod reader;
 pub mod telemetry;
 pub mod tendermint;
-pub mod validation;
 
 mod private {
     #[allow(unreachable_pub)]

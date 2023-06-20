@@ -4,8 +4,8 @@ use std::{
 };
 
 use astria_conductor::{
+    block_verifier::BlockVerifier,
     reader::Reader,
-    validation::BlockVerifier,
 };
 use tokio::sync::mpsc;
 

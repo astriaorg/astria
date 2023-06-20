@@ -30,9 +30,9 @@ use tracing::{
 };
 
 use crate::{
+    block_verifier::BlockVerifier,
     config::Config,
     executor,
-    validation::BlockVerifier,
 };
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
@@ -50,8 +50,9 @@ pub(crate) async fn spawn(
     block_verifier: Arc<BlockVerifier>,
 ) -> Result<(JoinHandle, Sender)> {
     info!("Spawning reader task.");
-    let (mut reader, reader_tx) =
-        Reader::new(&conf.celestia_node_url, executor_tx, block_verifier).await?;
+    let (mut reader, reader_tx) = Reader::new(&conf.celestia_node_url, executor_tx, block_verifier)
+        .await
+        .wrap_err("failed to create Reader")?;
     let join_handle = task::spawn(async move { reader.run().await });
     info!("Spawned reader task.");
     Ok((join_handle, reader_tx))
@@ -165,7 +166,8 @@ impl Reader {
                         // validate data
                         self.block_verifier
                             .validate_signed_namespace_data(&data)
-                            .await?;
+                            .await
+                            .wrap_err("failed to validate signed namepsace data")?;
 
                         let block = match self.get_sequencer_block_from_namespace_data(&data).await
                         {
@@ -173,7 +175,7 @@ impl Reader {
                             Err(e) => {
                                 // this means someone submitted an invalid block to celestia;
                                 // we can ignore it
-                                warn!("failed to get sequencer block from namespace data: {}", e);
+                                warn!(error = ?e, "failed to get sequencer block from namespace data");
                                 continue;
                             }
                         };
@@ -181,7 +183,7 @@ impl Reader {
                         if let Err(e) = self.block_verifier.validate_sequencer_block(&block).await {
                             // this means someone submitted an invalid block to celestia;
                             // we can ignore it
-                            warn!("sequencer block failed validation: {}", e);
+                            warn!(error = ?e, "sequencer block failed validation");
                             continue;
                         }
 

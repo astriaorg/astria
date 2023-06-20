@@ -28,6 +28,7 @@ use tracing::{
 
 use crate::{
     alert::AlertSender,
+    block_verifier::BlockVerifier,
     config::Config,
     executor,
     executor::ExecutorCommand,
@@ -39,7 +40,6 @@ use crate::{
         self,
         ReaderCommand,
     },
-    validation::BlockVerifier,
 };
 
 /// The channel through which the user can send commands to the driver.
@@ -81,7 +81,9 @@ impl Driver {
         alert_tx: AlertSender,
     ) -> Result<(Self, executor::JoinHandle, Option<reader::JoinHandle>)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let (executor_join_handle, executor_tx) = executor::spawn(&conf, alert_tx.clone()).await?;
+        let (executor_join_handle, executor_tx) = executor::spawn(&conf, alert_tx.clone())
+            .await
+            .wrap_err("failed to construct block verifier")?;
 
         let block_verifier = Arc::new(BlockVerifier::new(&conf.tendermint_url)?);
 
