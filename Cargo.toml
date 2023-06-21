@@ -9,6 +9,7 @@ members = [
   "crates/astria-sequencer",
   "crates/astria-sequencer-relayer",
   "crates/astria-sequencer-relayer-test",
+  "crates/astria-composer"
 ]
 
 [workspace.dependencies]
@@ -44,6 +45,7 @@ reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"
 tempfile = "3.5.0"
 tendermint = "0.32"
 tendermint-proto = "0.32"
+thiserror = "1.0.40"
 tokio = "1.28"
 tonic = "0.9"
 tracing = "0.1"

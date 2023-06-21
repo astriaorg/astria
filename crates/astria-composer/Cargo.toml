@@ -1,0 +1,18 @@
+[package]
+name = "astria-composer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+color-eyre = { workspace = true }
+figment = { workspace = true, features = ["toml", "env"] }
+tokio = { workspace = true }
+serde = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["ansi", "json"] }
+# TODO: should this be moved to workspace? also appears in astria-conductor
+is-terminal = "0.4.7"

@@ -304,6 +304,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-composer"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "color-eyre",
+ "figment",
+ "is-terminal",
+ "serde",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "astria-conductor"
 version = "0.1.0"
 dependencies = [
