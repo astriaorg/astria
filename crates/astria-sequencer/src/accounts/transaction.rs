@@ -22,6 +22,7 @@ use crate::accounts::{
     },
 };
 
+// TODO: rename to Transfer
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Transaction {
     to: Address,
@@ -100,14 +101,14 @@ impl Transaction {
     ) -> Result<()> {
         let curr_nonce = state.get_account_nonce(from).await?;
 
-        // TODO: do nonces start at 0 or 1? this assumes an account's first tx has nonce 1.
-        ensure!(curr_nonce < self.nonce, "invalid nonce",);
+        // note: this assumes an account's first tx has nonce 1.
+        ensure!(curr_nonce < self.nonce, "invalid nonce");
 
         let curr_balance = state
             .get_account_balance(from)
             .await
             .context("failed getting `from` account balance")?;
-        ensure!(curr_balance >= self.amount, "insufficient funds",);
+        ensure!(curr_balance >= self.amount, "insufficient funds");
 
         Ok(())
     }
