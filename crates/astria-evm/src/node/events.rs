@@ -16,7 +16,7 @@ use reth_network::{
     NetworkEvent,
     NetworkHandle,
 };
-use reth_network_api::PeersInfo;
+// use reth_network_api::PeersInfo;
 use reth_primitives::BlockNumber;
 use reth_stages::{
     PipelineEvent,

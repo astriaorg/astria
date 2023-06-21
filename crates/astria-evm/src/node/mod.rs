@@ -265,6 +265,7 @@ impl Command {
                 default_peers_path,
             )
             .await?;
+        // let network = NetworkHandle::
 
         // let (consensus_engine_tx, consensus_engine_rx) = unbounded_channel();
 
@@ -390,6 +391,17 @@ impl Command {
             )
             .await?;
 
+        // let _rpc_server = self
+        //     .rpc
+        //     .start_rpc_server(
+        //         blockchain_db.clone(),
+        //         transaction_pool.clone(),
+        //         network.clone(),
+        //         ctx.task_executor.clone(),
+        //         blockchain_tree.clone(),
+        //     )
+        //     .await?;
+
         // TODO: don't need the consensus engine, swap this out with out own thing
         // // Run consensus engine to completion
         // let (tx, rx) = oneshot::channel();
@@ -421,25 +433,25 @@ impl Command {
         secret_key: SecretKey,
         default_peers_path: PathBuf,
     ) -> NetworkConfig<ShareableDatabase<Arc<Env<WriteMap>>>> {
-        let _head = self
+        let head = self
             .lookup_head(Arc::clone(&db))
             .expect("the head block is missing");
 
         self.network
             .network_config(config, self.chain.clone(), secret_key, default_peers_path)
             .with_task_executor(Box::new(executor))
-            // .set_head(head)
-            .listener_addr(SocketAddr::V4(SocketAddrV4::new(
-                Ipv4Addr::UNSPECIFIED,
-                self.network.port.unwrap_or(DEFAULT_DISCOVERY_PORT),
-            )))
-            .discovery_addr(SocketAddr::V4(SocketAddrV4::new(
-                Ipv4Addr::UNSPECIFIED,
-                self.network
-                    .discovery
-                    .port
-                    .unwrap_or(DEFAULT_DISCOVERY_PORT),
-            )))
+            .set_head(head)
+            // .listener_addr(SocketAddr::V4(SocketAddrV4::new(
+            //     Ipv4Addr::UNSPECIFIED,
+            //     self.network.port.unwrap_or(DEFAULT_DISCOVERY_PORT),
+            // )))
+            // .discovery_addr(SocketAddr::V4(SocketAddrV4::new(
+            //     Ipv4Addr::UNSPECIFIED,
+            //     self.network
+            //         .discovery
+            //         .port
+            //         .unwrap_or(DEFAULT_DISCOVERY_PORT),
+            // )))
             .build(ShareableDatabase::new(db, self.chain.clone()))
     }
 
