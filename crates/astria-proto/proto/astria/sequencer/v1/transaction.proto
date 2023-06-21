@@ -13,6 +13,7 @@ message SignedTransaction {
 message UnsignedTransaction {
     oneof value {
         AccountsTransaction accounts_transaction = 1;
+        SecondaryTransaction secondary_transaction = 2;
     }   
 }
 
@@ -20,4 +21,9 @@ message AccountsTransaction {
     bytes to = 1;
     astria.primitive.v1.Uint128 amount = 2;
     uint32 nonce = 3;
+}
+
+message SecondaryTransaction {
+    uint32 nonce = 1;
+    bytes data = 2;
 }

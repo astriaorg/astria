@@ -4,7 +4,10 @@ use anyhow::{
     Result,
 };
 use astria_proto::sequencer::v1::{
-    unsigned_transaction::Value::AccountsTransaction as ProtoAccountsTransaction,
+    unsigned_transaction::Value::{
+        AccountsTransaction as ProtoAccountsTransaction,
+        SecondaryTransaction as ProtoSecondaryTransaction,
+    },
     UnsignedTransaction as ProtoUnsignedTransaction,
 };
 use prost::Message as _;
@@ -20,6 +23,7 @@ use crate::{
         Signer,
     },
     hash,
+    secondary::transaction::Transaction as SecondaryTransaction,
     transaction::SignedTransaction,
 };
 
@@ -30,6 +34,7 @@ use crate::{
 #[non_exhaustive]
 pub enum UnsignedTransaction {
     AccountsTransaction(AccountsTransaction),
+    SecondaryTransaction(SecondaryTransaction),
 }
 
 impl UnsignedTransaction {
@@ -39,6 +44,9 @@ impl UnsignedTransaction {
         match &self {
             UnsignedTransaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
                 value: Some(ProtoAccountsTransaction(tx.to_proto())),
+            },
+            UnsignedTransaction::SecondaryTransaction(tx) => ProtoUnsignedTransaction {
+                value: Some(ProtoSecondaryTransaction(tx.to_proto())),
             },
         }
         .encode_length_delimited_to_vec()
@@ -61,6 +69,9 @@ impl UnsignedTransaction {
         Ok(match value {
             ProtoAccountsTransaction(tx) => {
                 Self::AccountsTransaction(AccountsTransaction::from_proto(&tx)?)
+            }
+            ProtoSecondaryTransaction(tx) => {
+                Self::SecondaryTransaction(SecondaryTransaction::from_proto(&tx)?)
             }
         })
     }

@@ -3,6 +3,10 @@ use anyhow::{
     Context,
     Result,
 };
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use tracing::instrument;
 
 use crate::accounts::{
@@ -16,12 +20,29 @@ use crate::accounts::{
     },
 };
 
-pub(crate) struct Transaction {
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct Transaction {
     nonce: Nonce,
     data: Vec<u8>,
 }
 
 impl Transaction {
+    pub(crate) fn to_proto(&self) -> astria_proto::sequencer::v1::SecondaryTransaction {
+        astria_proto::sequencer::v1::SecondaryTransaction {
+            nonce: self.nonce.into(),
+            data: self.data.clone(),
+        }
+    }
+
+    pub(crate) fn from_proto(
+        proto: &astria_proto::sequencer::v1::SecondaryTransaction,
+    ) -> Result<Self> {
+        Ok(Self {
+            nonce: Nonce::from(proto.nonce),
+            data: proto.data.clone(),
+        })
+    }
+
     #[allow(clippy::unnecessary_wraps, clippy::unused_self)]
     pub(crate) fn check_stateless(&self) -> Result<()> {
         Ok(())

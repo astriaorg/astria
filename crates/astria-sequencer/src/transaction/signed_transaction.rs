@@ -5,7 +5,10 @@ use anyhow::{
     Result,
 };
 use astria_proto::sequencer::v1::{
-    unsigned_transaction::Value::AccountsTransaction as ProtoAccountsTransaction,
+    unsigned_transaction::Value::{
+        AccountsTransaction as ProtoAccountsTransaction,
+        SecondaryTransaction as ProtoSecondaryTransaction,
+    },
     SignedTransaction as ProtoSignedTransaction,
     UnsignedTransaction as ProtoUnsignedTransaction,
 };
@@ -28,6 +31,7 @@ use crate::{
         Verifier,
     },
     hash,
+    secondary::transaction::Transaction as SecondaryTransaction,
     transaction::{
         ActionHandler,
         TransactionHash,
@@ -66,12 +70,17 @@ impl SignedTransaction {
 
     #[must_use]
     pub fn to_vec(&self) -> Vec<u8> {
+        let tx = match &self.transaction {
+            UnsignedTransaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
+                value: Some(ProtoAccountsTransaction(tx.to_proto())),
+            },
+            UnsignedTransaction::SecondaryTransaction(tx) => ProtoUnsignedTransaction {
+                value: Some(ProtoSecondaryTransaction(tx.to_proto())),
+            },
+        };
+
         let proto = ProtoSignedTransaction {
-            transaction: Some(match &self.transaction {
-                UnsignedTransaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
-                    value: Some(ProtoAccountsTransaction(tx.to_proto())),
-                },
-            }),
+            transaction: Some(tx),
             signature: self.signature.to_bytes().to_vec(),
             public_key: self.public_key.to_bytes().to_vec(),
         };
@@ -104,6 +113,9 @@ impl SignedTransaction {
             ProtoAccountsTransaction(tx) => {
                 UnsignedTransaction::AccountsTransaction(AccountsTransaction::from_proto(&tx)?)
             }
+            ProtoSecondaryTransaction(tx) => {
+                UnsignedTransaction::SecondaryTransaction(SecondaryTransaction::from_proto(&tx)?)
+            }
         };
         let signed_tx = SignedTransaction {
             transaction,
@@ -132,6 +144,7 @@ impl ActionHandler for SignedTransaction {
         self.verify_signature()?;
         match &self.transaction {
             UnsignedTransaction::AccountsTransaction(tx) => tx.check_stateless(),
+            UnsignedTransaction::SecondaryTransaction(tx) => tx.check_stateless(),
         }
     }
 
@@ -141,6 +154,9 @@ impl ActionHandler for SignedTransaction {
             UnsignedTransaction::AccountsTransaction(tx) => {
                 tx.check_stateful(state, &self.signer_address()?).await
             }
+            UnsignedTransaction::SecondaryTransaction(tx) => {
+                tx.check_stateful(state, &self.signer_address()?).await
+            }
         }
     }
 
@@ -148,6 +164,9 @@ impl ActionHandler for SignedTransaction {
     async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()> {
         match &self.transaction {
             UnsignedTransaction::AccountsTransaction(tx) => {
+                tx.execute(state, &self.signer_address()?).await
+            }
+            UnsignedTransaction::SecondaryTransaction(tx) => {
                 tx.execute(state, &self.signer_address()?).await
             }
         }
