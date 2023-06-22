@@ -19,11 +19,15 @@ bytes = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 futures = { workspace = true }
 hex = { workspace = true }
-serde = { workspace = true, features = ["derive"]  }
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
-tokio = { workspace = true, features = [ "rt", "tracing" ] }
+tokio = { workspace = true, features = ["rt", "tracing"] }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["ansi", "env-filter", "json"] }
+tracing-subscriber = { workspace = true, features = [
+    "ansi",
+    "env-filter",
+    "json",
+] }
 sha2.workspace = true

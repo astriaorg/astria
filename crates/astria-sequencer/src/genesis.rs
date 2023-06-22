@@ -1,10 +1,15 @@
 use std::{
+    env,
     fs::File,
     path::Path,
 };
 
 use anyhow::Context;
 use serde::Deserialize;
+use serde_json::{
+    to_writer_pretty,
+    Value,
+};
 
 use crate::accounts::types::{
     Address,
@@ -22,10 +27,63 @@ impl GenesisState {
         let file = File::open(path).context("failed to open file with genesis state")?;
         serde_json::from_reader(&file).context("failed deserializing genesis state from file")
     }
+
+    pub(crate) fn propigate_accounts(
+        &self,
+        destination_json_file_path: &str,
+    ) -> anyhow::Result<()> {
+        // build the absolute path to the json file you want to add the accounts to
+        let mut home_path = env::var("HOME")?;
+        home_path.push_str(destination_json_file_path);
+        let abs_destination_json_file_path = Path::new(&home_path);
+        let dest_file = File::open(abs_destination_json_file_path)
+            .context("failed to open destination genesis json file")?;
+
+        let mut dest_state: Value = serde_json::from_reader(&dest_file)
+            .context("failed deserializing genesis state from file")?;
+
+        // convert the accounts in GenesisState into a json Value
+        let mut json_map: serde_json::Map<String, Value> = serde_json::Map::new();
+        let mut accounts: Vec<Value> = Vec::new();
+        for acct in self.accounts.iter() {
+            accounts.push(serde_json::json!({
+                "address": acct.address,
+                "balance": acct.balance,
+            }));
+        }
+        json_map.insert("accounts".to_string(), Value::Array(accounts));
+
+        // combine all json data into the same Value
+        let o = Value::Object(json_map);
+        merge_json_values(&mut dest_state, o);
+
+        // write new state
+        let dest_file = File::create(abs_destination_json_file_path)
+            .context("failed to open destination genesis json file")?;
+        to_writer_pretty(dest_file, &dest_state)?;
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Account {
     pub(crate) address: Address,
     pub(crate) balance: Balance,
+}
+
+fn merge_json_values(a: &mut Value, b: Value) {
+    if let Value::Object(a) = a {
+        if let Value::Object(b) = b {
+            for (k, v) in b {
+                if v.is_null() {
+                    a.remove(&k);
+                } else {
+                    merge_json_values(a.entry(k).or_insert(Value::Null), v);
+                }
+            }
+            return;
+        }
+    }
+    *a = b;
 }

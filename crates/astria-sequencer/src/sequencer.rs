@@ -20,14 +20,15 @@ use crate::{
     genesis::GenesisState,
     service,
 };
-
+#[derive(Debug)]
 pub struct Sequencer;
 
 impl Sequencer {
     #[instrument(skip_all)]
     pub async fn run_until_stopped(config: Config) -> Result<()> {
-        let genesis_state =
-            GenesisState::from_path(config.genesis_file).context("failed reading genesis state")?;
+        let genesis_state = GenesisState::from_path(config.genesis_file.clone())
+            .context("failed reading genesis state")?;
+        genesis_state.propigate_accounts("/.cometbft/config/genesis.json")?;
         let storage = penumbra_storage::TempStorage::new()
             .await
             .context("failed to create temp storage backing chain state")?;
