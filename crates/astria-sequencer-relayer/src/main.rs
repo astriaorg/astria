@@ -13,6 +13,7 @@ use astria_sequencer_relayer::{
         ValidatorPrivateKeyFile,
     },
     sequencer::SequencerClient,
+    writer::Writer,
 };
 use dirs::home_dir;
 use tracing::{
@@ -53,12 +54,12 @@ async fn main() {
     let sleep_duration = time::Duration::from_millis(cfg.block_time);
     let interval = tokio::time::interval(sleep_duration);
 
-    let (block_tx, block_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (block_tx, block_rx) = tokio::sync::watch::channel(None);
 
-    let network = GossipNetwork::new(cfg.p2p_port, block_rx).expect("failed to create network");
+    let network = GossipNetwork::new(cfg.p2p_port, block_rx.clone()).expect("failed to create network");
     let network_handle = network.run();
 
-    let mut relayer = Relayer::new(sequencer_client, da_client, key_file, interval, block_tx)
+    let mut relayer = Relayer::new(sequencer_client, key_file.clone(), interval, block_tx)
         .expect("failed to create relayer");
 
     if cfg.disable_writing {
@@ -72,6 +73,12 @@ async fn main() {
         let api_addr = SocketAddr::from(([127, 0, 0, 1], cfg.rpc_port));
         api::start(api_addr, relayer_state).await;
     });
-
-    tokio::try_join!(relayer_handle, network_handle).expect("failed to join tasks");
+    
+    if !cfg.disable_writing {
+        let writer = Writer::new(key_file, da_client, block_rx);
+        let writer_handle = writer.run();
+        tokio::try_join!(relayer_handle, network_handle, writer_handle).expect("failed to join tasks");
+    } else {
+        tokio::try_join!(relayer_handle, network_handle).expect("failed to join tasks");
+    }
 }

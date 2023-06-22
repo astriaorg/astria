@@ -7,7 +7,7 @@ use eyre::Result;
 use futures::StreamExt;
 use tokio::{
     select,
-    sync::mpsc::UnboundedReceiver,
+    sync::watch,
     task::JoinHandle,
 };
 use tracing::{
@@ -21,11 +21,11 @@ const BLOCKS_TOPIC: &str = "blocks";
 
 pub struct GossipNetwork {
     network: Network,
-    block_rx: UnboundedReceiver<SequencerBlock>,
+    block_rx: watch::Receiver<Option<SequencerBlock>>,
 }
 
 impl GossipNetwork {
-    pub fn new(p2p_port: u16, block_rx: UnboundedReceiver<SequencerBlock>) -> Result<Self> {
+    pub fn new(p2p_port: u16, block_rx: watch::Receiver<Option<SequencerBlock>>) -> Result<Self> {
         let network = NetworkBuilder::new().port(p2p_port).build()?;
         Ok(Self {
             network,
@@ -37,13 +37,20 @@ impl GossipNetwork {
         tokio::task::spawn(async move {
             loop {
                 select! {
-                    block = self.block_rx.recv() => {
-                        if let Some(block) = block {
-                            match self.publish(&block).await {
-                                Ok(()) => debug!(block_hash = ?block.block_hash, "published block to network"),
-                                Err(e) => warn!(?e, "failed to publish block to network"),
-                            };
+                    res = self.block_rx.changed() => {
+                        if res.is_err() {
+                            warn!("block_rx channel closed");
+                            break;
                         }
+
+                        let Some(block) = self.block_rx.borrow().clone() else {
+                            panic!("block_rx should not receive None")
+                        };
+                        
+                        match self.publish(&block).await {
+                            Ok(()) => debug!(block_hash = ?block.block_hash, "published block to network"),
+                            Err(e) => warn!(?e, "failed to publish block to network"),
+                        };
                     },
                     event = self.network.next() => {
                         if let Some(event) = event {

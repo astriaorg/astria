@@ -11,3 +11,4 @@ pub mod sequencer_block;
 pub mod tests;
 pub mod transaction;
 pub mod types;
+pub mod writer;
