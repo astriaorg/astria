@@ -52,6 +52,8 @@ use tracing::info;
 
 pub use crate::network_stream::Event;
 
+const GOSSIPNET_PROTOCOL_ID: &str = "gossipnet/0.1.0";
+
 #[derive(NetworkBehaviour)]
 pub(crate) struct GossipnetBehaviour {
     pub(crate) ping: ping::Behaviour,
@@ -160,7 +162,7 @@ impl NetworkBuilder {
 
             let behaviour = GossipnetBehaviour {
                 identify: identify::Behaviour::new(identify::Config::new(
-                    "gossipnet/0.1.0".into(),
+                    GOSSIPNET_PROTOCOL_ID.into(),
                     public_key,
                 )),
                 gossipsub,
