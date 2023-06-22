@@ -63,10 +63,7 @@ impl Writer {
                 let keypair = Keypair::from_bytes(&keypair_bytes).expect("should copy keypair");
 
                 tokio::task::spawn(async move {
-                    match da_client
-                        .submit_block(sequencer_block, &keypair)
-                        .await
-                    {
+                    match da_client.submit_block(sequencer_block, &keypair).await {
                         Ok(resp) => {
                             // new_state
                             //     .current_data_availability_height
