@@ -39,9 +39,7 @@ pub struct KeyWithType {
 
 pub struct Relayer {
     sequencer_client: SequencerClient,
-    // da_client: CelestiaClient,
     disable_writing: bool,
-    // keypair: ed25519_dalek::Keypair,
     validator_address: String,
     validator_address_bytes: Vec<u8>,
     interval: Interval,
@@ -65,19 +63,10 @@ impl State {
 impl Relayer {
     pub fn new(
         sequencer_client: SequencerClient,
-        // da_client: CelestiaClient,
         key_file: ValidatorPrivateKeyFile,
         interval: Interval,
         block_tx: watch::Sender<Option<SequencerBlock>>,
     ) -> Result<Self> {
-        // // generate our private-public keypair
-        // let keypair = private_key_bytes_to_keypair(
-        //     &Base64String::from_string(key_file.priv_key.value)
-        //         .expect("failed to decode validator private key; must be base64 string")
-        //         .0,
-        // )
-        // .expect("failed to convert validator private key to keypair");
-
         // generate our bech32 validator address
         let validator_address = validator_hex_to_address(&key_file.address)
             .expect("failed to convert validator address to bech32");
@@ -90,9 +79,7 @@ impl Relayer {
 
         Ok(Self {
             sequencer_client,
-            // da_client,
             disable_writing: false,
-            // keypair,
             validator_address,
             validator_address_bytes,
             interval,
@@ -159,25 +146,6 @@ impl Relayer {
             return Ok(new_state);
         }
 
-        // let tx_count = sequencer_block.rollup_txs.len() + sequencer_block.sequencer_txs.len();
-        // match self
-        //     .da_client
-        //     .submit_block(sequencer_block, &self.keypair)
-        //     .await
-        // {
-        //     Ok(resp) => {
-        //         new_state
-        //             .current_data_availability_height
-        //             .replace(resp.height);
-        //         info!(
-        //             sequencer_block = height,
-        //             da_layer_block = resp.height,
-        //             tx_count,
-        //             "submitted sequencer block to DA layer",
-        //         );
-        //     }
-        //     Err(e) => warn!(error = ?e, "failed to submit block to DA layer"),
-        // }
         Ok(new_state)
     }
 

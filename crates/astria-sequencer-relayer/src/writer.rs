@@ -82,6 +82,7 @@ impl Writer {
                     }
                 });
 
+                // TODO: deal with updating DA height
                 // Ok(new_state)
             }
         })

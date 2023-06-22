@@ -80,12 +80,12 @@ async fn main() {
         let writer_handle = writer.run();
         tokio::try_join!(relayer_handle, network_handle, writer_handle)
             .expect("failed to join tasks");
-    } else if cfg.disable_writing {
+    } else if cfg.disable_writing && !cfg.disable_network {
         let network =
             GossipNetwork::new(cfg.p2p_port, block_rx.clone()).expect("failed to create network");
         let network_handle = network.run();
         tokio::try_join!(relayer_handle, network_handle).expect("failed to join tasks");
-    } else if cfg.disable_network {
+    } else if cfg.disable_network && !cfg.disable_writing {
         let writer = Writer::new(key_file, da_client, block_rx);
         let writer_handle = writer.run();
         tokio::try_join!(relayer_handle, writer_handle).expect("failed to join tasks");
