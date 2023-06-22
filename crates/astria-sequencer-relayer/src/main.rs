@@ -56,9 +56,6 @@ async fn main() {
 
     let (block_tx, block_rx) = tokio::sync::watch::channel(None);
 
-    let network = GossipNetwork::new(cfg.p2p_port, block_rx.clone()).expect("failed to create network");
-    let network_handle = network.run();
-
     let mut relayer = Relayer::new(sequencer_client, key_file.clone(), interval, block_tx)
         .expect("failed to create relayer");
 
@@ -73,12 +70,26 @@ async fn main() {
         let api_addr = SocketAddr::from(([127, 0, 0, 1], cfg.rpc_port));
         api::start(api_addr, relayer_state).await;
     });
-    
-    if !cfg.disable_writing {
+
+    if !cfg.disable_writing && !cfg.disable_network {
+        let network =
+            GossipNetwork::new(cfg.p2p_port, block_rx.clone()).expect("failed to create network");
+        let network_handle = network.run();
+
         let writer = Writer::new(key_file, da_client, block_rx);
         let writer_handle = writer.run();
-        tokio::try_join!(relayer_handle, network_handle, writer_handle).expect("failed to join tasks");
-    } else {
+        tokio::try_join!(relayer_handle, network_handle, writer_handle)
+            .expect("failed to join tasks");
+    } else if cfg.disable_writing {
+        let network =
+            GossipNetwork::new(cfg.p2p_port, block_rx.clone()).expect("failed to create network");
+        let network_handle = network.run();
         tokio::try_join!(relayer_handle, network_handle).expect("failed to join tasks");
+    } else if cfg.disable_network {
+        let writer = Writer::new(key_file, da_client, block_rx);
+        let writer_handle = writer.run();
+        tokio::try_join!(relayer_handle, writer_handle).expect("failed to join tasks");
+    } else {
+        relayer_handle.await.expect("relayer handle error");
     }
 }

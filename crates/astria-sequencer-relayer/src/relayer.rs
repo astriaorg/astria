@@ -8,9 +8,7 @@ use bech32::{
 use eyre::Result;
 use serde::Deserialize;
 use tokio::{
-    sync::{
-        watch,
-    },
+    sync::watch,
     task::JoinHandle,
     time::Interval,
 };
@@ -20,9 +18,7 @@ use tracing::{
 };
 
 use crate::{
-    keys::{
-        validator_hex_to_address,
-    },
+    keys::validator_hex_to_address,
     sequencer::SequencerClient,
     sequencer_block::SequencerBlock,
 };
@@ -43,7 +39,7 @@ pub struct KeyWithType {
 
 pub struct Relayer {
     sequencer_client: SequencerClient,
-    //da_client: CelestiaClient,
+    // da_client: CelestiaClient,
     disable_writing: bool,
     // keypair: ed25519_dalek::Keypair,
     validator_address: String,
@@ -69,7 +65,7 @@ impl State {
 impl Relayer {
     pub fn new(
         sequencer_client: SequencerClient,
-        //da_client: CelestiaClient,
+        // da_client: CelestiaClient,
         key_file: ValidatorPrivateKeyFile,
         interval: Interval,
         block_tx: watch::Sender<Option<SequencerBlock>>,
@@ -94,9 +90,9 @@ impl Relayer {
 
         Ok(Self {
             sequencer_client,
-            //da_client,
+            // da_client,
             disable_writing: false,
-            //keypair,
+            // keypair,
             validator_address,
             validator_address_bytes,
             interval,

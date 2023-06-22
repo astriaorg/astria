@@ -22,9 +22,14 @@ pub(crate) struct Args {
     pub(crate) gas_limit: Option<u64>,
 
     /// Disable writing the sequencer block to Celestia.
-    #[arg(short, long)]
+    #[arg(long)]
     #[serde(skip_serializing_if = "::std::ops::Not::not")]
     pub(crate) disable_writing: bool,
+
+    /// Disable publishing block to the network.
+    #[arg(long)]
+    #[serde(skip_serializing_if = "::std::ops::Not::not")]
+    pub(crate) disable_network: bool,
 
     /// Expected block time of the sequencer in milliseconds;
     /// ie. how often we should poll the sequencer.

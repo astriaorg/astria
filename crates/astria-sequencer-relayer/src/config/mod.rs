@@ -12,7 +12,7 @@ use serde::{
 };
 mod cli;
 
-const DEFAULT_BLOCK_TIME: u64 = 3000;
+const DEFAULT_BLOCK_TIME: u64 = 1000;
 const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26659";
 const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:1317";
 const DEFAULT_VALIDATOR_KEY_FILE: &str = ".metro/config/priv_validator_key.json";
@@ -51,6 +51,7 @@ pub struct Config {
     pub celestia_endpoint: String,
     pub gas_limit: u64,
     pub disable_writing: bool,
+    pub disable_network: bool,
     pub block_time: u64,
     pub validator_key_file: String,
     pub rpc_port: u16,
@@ -83,6 +84,7 @@ impl Default for Config {
             sequencer_endpoint: DEFAULT_SEQUENCER_ENDPOINT.into(),
             gas_limit: crate::data_availability::DEFAULT_PFD_GAS_LIMIT,
             disable_writing: false,
+            disable_network: false,
             block_time: DEFAULT_BLOCK_TIME,
             validator_key_file: DEFAULT_VALIDATOR_KEY_FILE.into(),
             rpc_port: DEFAULT_RPC_LISTEN_PORT,
@@ -109,6 +111,7 @@ astria-sequencer-relayer
     --celestia-endpoint http://celestia.cli
     --gas-limit 9999
     --disable-writing
+    --disable-network
     --block-time 9999
     --validator-key-file /cli/key
     --rpc-port 9999
@@ -131,6 +134,7 @@ astria-sequencer-relayer
         );
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_GAS_LIMIT", 5555);
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_DISABLE_WRITING", true);
+        jail.set_env("ASTRIA_SEQUENCER_RELAYER_DISABLE_NETWORK", true);
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_BLOCK_TIME", 5555);
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_VALIDATOR_KEY_FILE", "/env/key");
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_RPC_PORT", 5555);
@@ -150,6 +154,7 @@ astria-sequencer-relayer
                 celestia_endpoint: "http://celestia.cli".into(),
                 gas_limit: 9999,
                 disable_writing: true,
+                disable_network: true,
                 block_time: 9999,
                 validator_key_file: "/cli/key".into(),
                 rpc_port: 9999,
@@ -172,6 +177,7 @@ astria-sequencer-relayer
                 celestia_endpoint: "http://celestia.env".into(),
                 gas_limit: 5555,
                 disable_writing: true,
+                disable_network: true,
                 block_time: 5555,
                 validator_key_file: "/env/key".into(),
                 rpc_port: 5555,

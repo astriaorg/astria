@@ -46,7 +46,7 @@ impl GossipNetwork {
                         let Some(block) = self.block_rx.borrow().clone() else {
                             panic!("block_rx should not receive None")
                         };
-                        
+
                         match self.publish(&block).await {
                             Ok(()) => debug!(block_hash = ?block.block_hash, "published block to network"),
                             Err(e) => warn!(?e, "failed to publish block to network"),
