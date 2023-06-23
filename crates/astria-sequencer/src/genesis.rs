@@ -24,11 +24,12 @@ pub(crate) struct GenesisState {
 
 impl GenesisState {
     pub(crate) fn from_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+        eprintln!("path: {:?}", path.as_ref());
         let file = File::open(path).context("failed to open file with genesis state")?;
         serde_json::from_reader(&file).context("failed deserializing genesis state from file")
     }
 
-    pub(crate) fn propigate_accounts(
+    pub(crate) fn propagate_accounts_to(
         &self,
         destination_json_file_path: &str,
     ) -> anyhow::Result<()> {
@@ -45,7 +46,7 @@ impl GenesisState {
         // convert the accounts in GenesisState into a json Value
         let mut json_map: serde_json::Map<String, Value> = serde_json::Map::new();
         let mut accounts: Vec<Value> = Vec::new();
-        for acct in self.accounts.iter() {
+        for acct in &self.accounts {
             accounts.push(serde_json::json!({
                 "address": acct.address,
                 "balance": acct.balance,

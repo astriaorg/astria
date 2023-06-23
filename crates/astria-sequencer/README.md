@@ -45,7 +45,12 @@ make install_abci
 In astria-sequencer/:
 ```sh
 cargo build
-../../target/debug/astria-sequencer --genesis-file=test-genesis.json
+cargo run 
+```
+The default genesis json file is `test-genesis.json`.
+If you want to use a different file, use the `--genesis-file=<path>` flag.
+```sh
+cargo run -- --genesis-file=example.json
 ```
 
 #### Query the app for info
