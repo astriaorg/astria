@@ -13,6 +13,7 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use futures::StreamExt;
+use sync_wrapper::SyncWrapper;
 use tokio::{
     select,
     sync::mpsc::{
@@ -68,7 +69,7 @@ pub struct Driver {
     /// The channel used to send messages to the executor task.
     executor_tx: executor::Sender,
 
-    network: GossipNetwork,
+    network: SyncWrapper<GossipNetwork>,
 
     block_verifier: Arc<BlockVerifier>,
 
@@ -101,7 +102,7 @@ impl Driver {
                 cmd_rx,
                 reader_tx,
                 executor_tx,
-                network: GossipNetwork::new(conf.bootnodes)?,
+                network: SyncWrapper::new(GossipNetwork::new(conf.bootnodes)?),
                 block_verifier,
                 is_shutdown: Mutex::new(false),
             },
@@ -115,9 +116,9 @@ impl Driver {
         info!("Starting driver event loop.");
         loop {
             select! {
-                res = self.network.0.next() => {
+                res = self.network.get_mut().0.next() => {
                     if let Some(res) = res {
-                        self.handle_network_event(res)?;
+                        self.handle_network_event(res).await?;
                     }
                 },
                 cmd = self.cmd_rx.recv() => {
@@ -133,7 +134,7 @@ impl Driver {
         Ok(())
     }
 
-    fn handle_network_event(&self, event: NetworkEvent) -> Result<()> {
+    async fn handle_network_event(&self, event: NetworkEvent) -> Result<()> {
         match event {
             NetworkEvent::NewListenAddr(addr) => {
                 info!("listening on {}", addr);
@@ -143,11 +144,9 @@ impl Driver {
                 let block = SequencerBlock::from_bytes(&msg.data)?;
 
                 // validate block received from gossip network
-                // note: `validate_sequencer_block` is async, but `handle_network_event` cannot be
-                // async due to libp2p restrictions.
-                let handle = tokio::runtime::Handle::current();
-                handle
-                    .block_on(self.block_verifier.validate_sequencer_block(&block))
+                self.block_verifier
+                    .validate_sequencer_block(&block)
+                    .await
                     .wrap_err("invalid block received from gossip network")?;
 
                 self.executor_tx

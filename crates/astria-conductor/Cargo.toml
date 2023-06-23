@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 is-terminal = "0.4.7"
+sync_wrapper = "0.1.2"
 
 async-trait = { workspace = true }
 bech32 = { workspace = true }
