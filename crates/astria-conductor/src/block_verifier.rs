@@ -73,7 +73,8 @@ pub struct BlockVerifier {
 impl BlockVerifier {
     pub fn new(tendermint_url: &str) -> Result<Self> {
         Ok(Self {
-            tendermint_client: TendermintClient::new(tendermint_url.to_owned())?,
+            tendermint_client: TendermintClient::new(tendermint_url.to_owned())
+                .wrap_err("failed to construct TendermintClient")?,
         })
     }
 
@@ -85,11 +86,21 @@ impl BlockVerifier {
         data: &SignedNamespaceData<SequencerNamespaceData>,
     ) -> Result<()> {
         // verify the block signature
-        data.verify()?;
+        data.verify()
+            .wrap_err("failed to verify signature of signed namepsace data")?;
 
         // get validator set for this height
-        let height = data.data.header.height.parse::<u64>()?;
-        let validator_set = self.tendermint_client.get_validator_set(height - 1).await?;
+        let height = data
+            .data
+            .header
+            .height
+            .parse::<u64>()
+            .wrap_err("failed to parse header height")?;
+        let validator_set = self
+            .tendermint_client
+            .get_validator_set(height - 1)
+            .await
+            .wrap_err("failed to get validator set")?;
 
         // find proposer address for this height
         let expected_proposer_address = validator_set
@@ -98,7 +109,8 @@ impl BlockVerifier {
             .address;
 
         // verify the namespace data signing public key matches the proposer address
-        let res_address = public_key_to_address(&data.public_key.0)?;
+        let res_address = public_key_to_address(&data.public_key.0)
+            .wrap_err("failed to convert namespace data public key to address")?;
         if res_address != expected_proposer_address {
             bail!(
                 "public key mismatch: expected {}, got {}",
@@ -232,11 +244,11 @@ fn ensure_commit_has_quorum(
     }
 
     let Some(total_voting_power) = validator_set
-    .validators
-    .iter()
-    .try_fold(0u64, |acc, validator| acc.checked_add(validator.voting_power)) else {
-        bail!("total voting power exceeded u64:MAX");
-    };
+        .validators
+        .iter()
+        .try_fold(0u64, |acc, validator| acc.checked_add(validator.voting_power)) else {
+            bail!("total voting power exceeded u64:MAX");
+        };
 
     let validator_map = validator_set
         .validators
@@ -257,13 +269,15 @@ fn ensure_commit_has_quorum(
             "metrovalcons",
             vote.validator_address.0.to_base32(),
             Variant::Bech32,
-        )?;
+        )
+        .wrap_err("failed to encode validator address to bech32")?;
         let Some(validator) = validator_map.get(&validator_address) else {
             bail!("validator {} not found in validator set", validator_address);
         };
 
         // verify address in signature matches validator pubkey
-        let address_from_pubkey = public_key_to_address(&validator.pub_key.key.0)?;
+        let address_from_pubkey = public_key_to_address(&validator.pub_key.key.0)
+            .wrap_err("failed to convert validator public key to address")?;
         ensure!(
             address_from_pubkey == validator_address,
             format!(
@@ -279,7 +293,8 @@ fn ensure_commit_has_quorum(
             chain_id,
             &validator.pub_key.key.0,
             &vote.signature.0,
-        )?;
+        )
+        .wrap_err("failed to verify vote signature")?;
 
         commit_voting_power += validator.voting_power;
     }

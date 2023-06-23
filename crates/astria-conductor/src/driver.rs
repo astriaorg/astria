@@ -86,13 +86,18 @@ impl Driver {
             .await
             .wrap_err("failed to construct block verifier")?;
 
-        let block_verifier = Arc::new(BlockVerifier::new(&conf.tendermint_url)?);
+        let block_verifier = Arc::new(
+            BlockVerifier::new(&conf.tendermint_url)
+                .wrap_err("failed to construct BlockVerifier")?,
+        );
 
         let (reader_join_handle, reader_tx) = if conf.disable_finalization {
             (None, None)
         } else {
             let (reader_join_handle, reader_tx) =
-                reader::spawn(&conf, executor_tx.clone(), block_verifier.clone()).await?;
+                reader::spawn(&conf, executor_tx.clone(), block_verifier.clone())
+                    .await
+                    .wrap_err("failed to construct Reader")?;
             (Some(reader_join_handle), Some(reader_tx))
         };
 
@@ -102,7 +107,10 @@ impl Driver {
                 cmd_rx,
                 reader_tx,
                 executor_tx,
-                network: SyncWrapper::new(GossipNetwork::new(conf.bootnodes)?),
+                network: SyncWrapper::new(
+                    GossipNetwork::new(conf.bootnodes)
+                        .wrap_err("failed to construct gossip network")?,
+                ),
                 block_verifier,
                 is_shutdown: Mutex::new(false),
             },
@@ -118,12 +126,12 @@ impl Driver {
             select! {
                 res = self.network.get_mut().0.next() => {
                     if let Some(res) = res {
-                        self.handle_network_event(res).await?;
+                        self.handle_network_event(res).await.wrap_err("failed to handle network event")?;
                     }
                 },
                 cmd = self.cmd_rx.recv() => {
                     if let Some(cmd) = cmd {
-                        self.handle_driver_command(cmd)?;
+                        self.handle_driver_command(cmd).wrap_err("failed to handle driver command")?;
                     } else {
                         info!("Driver command channel closed.");
                         break;
@@ -141,7 +149,8 @@ impl Driver {
             }
             NetworkEvent::Message(msg) => {
                 debug!("received gossip message: {:?}", msg);
-                let block = SequencerBlock::from_bytes(&msg.data)?;
+                let block = SequencerBlock::from_bytes(&msg.data)
+                    .wrap_err("failed to deserialize SequencerBlock received from network")?;
 
                 // validate block received from gossip network
                 self.block_verifier
@@ -152,7 +161,8 @@ impl Driver {
                 self.executor_tx
                     .send(ExecutorCommand::BlockReceivedFromGossipNetwork {
                         block: Box::new(block),
-                    })?;
+                    })
+                    .wrap_err("failed to send SequencerBlock from network to executor")?;
             }
             _ => debug!("received network event: {:?}", event),
         }
