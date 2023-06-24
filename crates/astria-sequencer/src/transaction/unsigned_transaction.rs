@@ -15,10 +15,7 @@ use serde::{
 
 use crate::{
     accounts::transaction::Transaction as AccountsTransaction,
-    crypto::{
-        Keypair,
-        Signer,
-    },
+    crypto::SigningKey,
     hash,
     transaction::SignedTransaction,
 };
@@ -67,12 +64,12 @@ impl UnsignedTransaction {
 
     /// Signs the transaction with the given keypair.
     #[must_use]
-    pub fn sign(self, keypair: &Keypair) -> SignedTransaction {
-        let signature = keypair.sign(&self.hash());
+    pub fn sign(self, secret_key: &SigningKey) -> SignedTransaction {
+        let signature = secret_key.sign(&self.hash());
         SignedTransaction {
             transaction: self,
             signature,
-            public_key: keypair.public,
+            public_key: secret_key.verification_key(),
         }
     }
 
@@ -106,8 +103,8 @@ mod test {
         assert_eq!(tx, tx2);
         println!("0x{}", hex::encode(bytes));
 
-        let keypair = Keypair::generate(&mut OsRng);
-        let signed = tx.sign(&keypair);
+        let secret_key: SigningKey = SigningKey::new(&mut OsRng);
+        let signed = tx.sign(&secret_key);
         signed.verify_signature().unwrap();
     }
 }

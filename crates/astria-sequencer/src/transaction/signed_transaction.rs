@@ -23,9 +23,8 @@ use crate::{
         types::Address,
     },
     crypto::{
-        PublicKey,
         Signature,
-        Verifier,
+        VerificationKey,
     },
     hash,
     transaction::{
@@ -38,7 +37,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct SignedTransaction {
     pub signature: Signature,
-    pub public_key: PublicKey,
+    pub public_key: VerificationKey,
     pub transaction: UnsignedTransaction,
 }
 
@@ -51,7 +50,7 @@ impl SignedTransaction {
     /// - If the signature is invalid
     pub fn verify_signature(&self) -> Result<()> {
         self.public_key
-            .verify(&self.transaction.hash(), &self.signature)
+            .verify(&self.signature, &self.transaction.hash())
             .context("failed to verify transaction signature")
     }
 
@@ -107,8 +106,8 @@ impl SignedTransaction {
         };
         let signed_tx = SignedTransaction {
             transaction,
-            signature: Signature::from_bytes(&proto_tx.signature)?,
-            public_key: PublicKey::from_bytes(&proto_tx.public_key)?,
+            signature: Signature::try_from(proto_tx.signature.as_slice())?,
+            public_key: VerificationKey::try_from(proto_tx.public_key.as_slice())?,
         };
         Ok(signed_tx)
     }

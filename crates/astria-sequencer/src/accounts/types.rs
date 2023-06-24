@@ -49,10 +49,10 @@ impl TryFrom<&str> for Address {
     }
 }
 
-impl TryFrom<&crate::crypto::PublicKey> for Address {
+impl TryFrom<&crate::crypto::VerificationKey> for Address {
     type Error = anyhow::Error;
 
-    fn try_from(public_key: &crate::crypto::PublicKey) -> Result<Self, Self::Error> {
+    fn try_from(public_key: &crate::crypto::VerificationKey) -> Result<Self, Self::Error> {
         let bytes = crate::hash(public_key.as_bytes());
         let arr: [u8; ADDRESS_LEN] = bytes[0..ADDRESS_LEN]
             .try_into()
@@ -61,11 +61,11 @@ impl TryFrom<&crate::crypto::PublicKey> for Address {
     }
 }
 
-impl TryFrom<&crate::crypto::Keypair> for Address {
+impl TryFrom<&crate::crypto::SigningKey> for Address {
     type Error = anyhow::Error;
 
-    fn try_from(keypair: &crate::crypto::Keypair) -> Result<Self, Self::Error> {
-        let bytes = crate::hash(keypair.public.as_bytes());
+    fn try_from(secret_key: &crate::crypto::SigningKey) -> Result<Self, Self::Error> {
+        let bytes = crate::hash(secret_key.verification_key().as_bytes());
         let arr: [u8; ADDRESS_LEN] = bytes[0..ADDRESS_LEN]
             .try_into()
             .map_err(|_| anyhow!("invalid address hex length"))?;

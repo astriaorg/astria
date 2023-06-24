@@ -232,7 +232,7 @@ mod test {
                 Nonce,
             },
         },
-        crypto::Keypair,
+        crypto::SigningKey,
         genesis::Account,
         transaction::UnsignedTransaction,
     };
@@ -349,9 +349,13 @@ mod test {
         app.init_chain(genesis_state).await.unwrap();
 
         // transfer funds from Alice to Bob
-        // this keypair corresponds to ALICE_ADDRESS
-        let keypair_bytes = hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90d5bf4a3fcce717b0388bcc2749ebc148ad9969b23f45ee1b605fd58778576ac4").unwrap();
-        let alice_keypair = Keypair::from_bytes(&keypair_bytes).unwrap();
+        // this secret key corresponds to ALICE_ADDRESS
+        let alice_secret_bytes: [u8; 32] =
+            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let alice_keypair = SigningKey::from(alice_secret_bytes);
 
         let alice = Address::unsafe_from_hex_string(ALICE_ADDRESS);
         let bob = Address::unsafe_from_hex_string(BOB_ADDRESS);

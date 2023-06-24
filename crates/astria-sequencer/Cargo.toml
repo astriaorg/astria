@@ -12,7 +12,7 @@ is-terminal = "0.4.7"
 # commit builds off v0.54.1
 penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "d8d5cd0b00876380147d7ddc7f3005178e3d9ae0" }
 penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "d8d5cd0b00876380147d7ddc7f3005178e3d9ae0" }
-rand = "0.7"
+rand = "0.8"
 tower = "0.4"
 tower-abci = "0.8.0"
 tower-actor = "0.1.0"
@@ -20,7 +20,7 @@ tower-actor = "0.1.0"
 async-trait = { workspace = true }
 bytes = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-ed25519-dalek = { workspace = true }
+ed25519-consensus = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 prost = { workspace = true }
