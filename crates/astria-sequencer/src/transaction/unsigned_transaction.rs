@@ -103,7 +103,7 @@ mod test {
         assert_eq!(tx, tx2);
         println!("0x{}", hex::encode(bytes));
 
-        let secret_key: SigningKey = SigningKey::new(&mut OsRng);
+        let secret_key: SigningKey = SigningKey::new(OsRng);
         let signed = tx.sign(&secret_key);
         signed.verify_signature().unwrap();
     }
