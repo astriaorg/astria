@@ -5,7 +5,8 @@ use serde::{
 };
 
 const DEFAULT_ABCI_LISTEN_ADDR: &str = "127.0.0.1:26658";
-const DEFAULT_GENESIS_ACCOUNT_ALLOCATIONS_PATH: &str = "test-genesis.json";
+const DEFAULT_GENESIS_ACCOUNT_ALLOCATIONS_PATH: &str = "accounts-genesis.csv";
+const DEFAULT_COMETBFT_GENESIS_FILE: &str = "/.cometbft/config/genesis.json";
 
 #[derive(Debug, Deserialize, Parser, Serialize)]
 pub struct Config {
@@ -15,6 +16,9 @@ pub struct Config {
     /// The path to the json encoded genesis file with a list of accounts.
     #[arg(long, default_value_t = String::from(DEFAULT_GENESIS_ACCOUNT_ALLOCATIONS_PATH))]
     pub(crate) genesis_file: String,
+    /// The path to the json encoded genesis file with a list of accounts.
+    #[arg(long, default_value_t = String::from(DEFAULT_COMETBFT_GENESIS_FILE))]
+    pub(crate) cometbft_genesis_file: String,
 }
 
 impl Config {

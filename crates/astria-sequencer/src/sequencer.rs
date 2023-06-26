@@ -26,9 +26,19 @@ pub struct Sequencer;
 impl Sequencer {
     #[instrument(skip_all)]
     pub async fn run_until_stopped(config: Config) -> Result<()> {
-        let genesis_state = GenesisState::from_path(config.genesis_file.clone())
+        info!(
+            path = config.genesis_file.clone(),
+            "loading genesis account information"
+        );
+
+        let genesis_state = GenesisState::from_csv(config.genesis_file.clone())
             .context("failed reading genesis state")?;
-        genesis_state.propagate_accounts_to("/.cometbft/config/genesis.json")?;
+
+        info!(
+            dest_file = config.cometbft_genesis_file.clone(),
+            "propagate account info to cometbft"
+        );
+        genesis_state.propagate_accounts_to(config.cometbft_genesis_file.clone())?;
         let storage = penumbra_storage::TempStorage::new()
             .await
             .context("failed to create temp storage backing chain state")?;

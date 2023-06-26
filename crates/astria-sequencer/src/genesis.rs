@@ -5,6 +5,7 @@ use std::{
 };
 
 use anyhow::Context;
+use csv::Reader;
 use serde::Deserialize;
 use serde_json::{
     to_writer_pretty,
@@ -23,19 +24,26 @@ pub(crate) struct GenesisState {
 }
 
 impl GenesisState {
-    pub(crate) fn from_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        eprintln!("path: {:?}", path.as_ref());
-        let file = File::open(path).context("failed to open file with genesis state")?;
-        serde_json::from_reader(&file).context("failed deserializing genesis state from file")
+    /// Load Account information from a CSV file
+    pub(crate) fn from_csv<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+        let mut reader = Reader::from_path(path)?;
+        let mut records: Vec<Account> = Vec::new();
+
+        for result in reader.deserialize() {
+            let record: Account = result?;
+            records.push(record);
+        }
+
+        Ok(Self {
+            accounts: records,
+        })
     }
 
-    pub(crate) fn propagate_accounts_to(
-        &self,
-        destination_json_file_path: &str,
-    ) -> anyhow::Result<()> {
+    /// Add the Account data from GenesisState to the CometBFT genesis.json file
+    pub(crate) fn propagate_accounts_to(&self, path: String) -> anyhow::Result<()> {
         // build the absolute path to the json file you want to add the accounts to
         let mut home_path = env::var("HOME")?;
-        home_path.push_str(destination_json_file_path);
+        home_path.push_str(&path);
         let abs_destination_json_file_path = Path::new(&home_path);
         let dest_file = File::open(abs_destination_json_file_path)
             .context("failed to open destination genesis json file")?;
