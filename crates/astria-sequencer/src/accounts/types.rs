@@ -9,19 +9,19 @@ use serde::{
     Serialize,
 };
 
-pub const ADDRESS_LEN: usize = 20;
+pub(crate) const ADDRESS_LEN: usize = 20;
 
 /// Address represents an account address.
 #[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub struct Address([u8; ADDRESS_LEN]);
+pub(crate) struct Address([u8; ADDRESS_LEN]);
 
 impl Address {
-    pub fn as_bytes(&self) -> &[u8] {
+    pub(crate) fn as_bytes(&self) -> &[u8] {
         &self.0
     }
 
     #[allow(dead_code)]
-    pub fn from_array(arr: [u8; ADDRESS_LEN]) -> Self {
+    pub(crate) fn from_array(arr: [u8; ADDRESS_LEN]) -> Self {
         Self(arr)
     }
 }

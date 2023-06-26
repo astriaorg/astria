@@ -1,7 +1,7 @@
 use anyhow::ensure;
 
 /// Represents the sha256 hash of an encoded transaction.
-pub struct Hash([u8; 32]);
+pub(crate) struct Hash([u8; 32]);
 
 impl TryFrom<Vec<u8>> for Hash {
     type Error = anyhow::Error;

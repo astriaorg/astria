@@ -24,7 +24,7 @@ use crate::accounts::{
 
 /// Represents a value-transfer transaction.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub struct Transaction {
+pub(crate) struct Transaction {
     to: Address,
     amount: Balance,
     nonce: Nonce,
@@ -40,7 +40,7 @@ impl Transaction {
         }
     }
 
-    pub fn to_proto(&self) -> ProtoAccountsTransaction {
+    pub(crate) fn to_proto(&self) -> ProtoAccountsTransaction {
         ProtoAccountsTransaction {
             to: self.to.as_bytes().to_vec(),
             amount: Some(self.amount.into()),
@@ -48,7 +48,7 @@ impl Transaction {
         }
     }
 
-    pub fn try_from_proto(proto: &ProtoAccountsTransaction) -> Result<Self> {
+    pub(crate) fn try_from_proto(proto: &ProtoAccountsTransaction) -> Result<Self> {
         Ok(Self {
             to: Address::try_from(proto.to.as_ref() as &[u8])?,
             amount: proto

@@ -10,7 +10,9 @@ use serde::{
 
 use crate::{
     accounts::transaction::Transaction as AccountsTransaction,
+    crypto::SigningKey,
     hash,
+    transaction::signed::Transaction as SignedTransaction,
 };
 
 /// Represents an unsigned sequencer chain transaction.
@@ -25,13 +27,25 @@ pub(crate) enum Transaction {
 impl Transaction {
     /// Attempts to encode the unsigned transaction into bytes.
     #[must_use]
-    pub fn to_vec(&self) -> Vec<u8> {
+    pub(crate) fn to_vec(&self) -> Vec<u8> {
         match &self {
             Transaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
                 value: Some(ProtoAccountsTransaction(tx.to_proto())),
             },
         }
         .encode_length_delimited_to_vec()
+    }
+
+    /// Signs the transaction with the given keypair.
+    #[allow(dead_code)]
+    #[must_use]
+    pub(crate) fn sign(self, secret_key: &SigningKey) -> SignedTransaction {
+        let signature = secret_key.sign(&self.hash());
+        SignedTransaction {
+            transaction: self,
+            signature,
+            public_key: secret_key.verification_key(),
+        }
     }
 
     pub(crate) fn hash(&self) -> Vec<u8> {
@@ -49,15 +63,11 @@ mod test {
     use rand::rngs::OsRng;
 
     use super::*;
-    use crate::{
-        accounts::types::{
-            Address,
-            Balance,
-            Nonce,
-            ADDRESS_LEN,
-        },
-        crypto::SigningKey,
-        transaction::signed::Transaction as SignedTransaction,
+    use crate::accounts::types::{
+        Address,
+        Balance,
+        Nonce,
+        ADDRESS_LEN,
     };
 
     const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
@@ -78,7 +88,7 @@ mod test {
         /// - If the value is missing
         /// - If the value is not a valid transaction type (ie. does not correspond to any
         ///   component)
-        pub fn try_from_slice(bytes: &[u8]) -> Result<Self> {
+        fn try_from_slice(bytes: &[u8]) -> Result<Self> {
             let proto = ProtoUnsignedTransaction::decode_length_delimited(bytes)
                 .context("failed to decode unsigned transaction")?;
             let Some(value) = proto.value else {
@@ -90,17 +100,6 @@ mod test {
                     Self::AccountsTransaction(AccountsTransaction::try_from_proto(&tx)?)
                 }
             })
-        }
-
-        /// Signs the transaction with the given keypair.
-        #[must_use]
-        pub fn sign(self, secret_key: &SigningKey) -> SignedTransaction {
-            let signature = secret_key.sign(&self.hash());
-            SignedTransaction {
-                transaction: self,
-                signature,
-                public_key: secret_key.verification_key(),
-            }
         }
     }
 

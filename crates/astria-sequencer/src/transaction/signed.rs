@@ -44,7 +44,7 @@ impl Transaction {
     /// # Errors
     ///
     /// - If the signature is invalid
-    pub fn verify_signature(&self) -> Result<()> {
+    pub(crate) fn verify_signature(&self) -> Result<()> {
         self.public_key
             .verify(&self.signature, &self.transaction.hash())
             .context("failed to verify transaction signature")
@@ -55,7 +55,7 @@ impl Transaction {
     /// # Errors
     ///
     /// - If the public key cannot be converted into an address
-    pub fn signer_address(&self) -> Result<Address> {
+    pub(crate) fn signer_address(&self) -> Result<Address> {
         Address::try_from(&self.public_key)
     }
 
@@ -69,7 +69,7 @@ impl Transaction {
     ///   component)
     /// - If the signature cannot be decoded
     /// - If the public key cannot be decoded
-    pub fn try_from_slice(bytes: &[u8]) -> Result<Self> {
+    pub(crate) fn try_from_slice(bytes: &[u8]) -> Result<Self> {
         let proto_tx: ProtoSignedTransaction =
             ProtoSignedTransaction::decode_length_delimited(bytes)?;
         let Some(proto_transaction) = proto_tx.transaction else {
