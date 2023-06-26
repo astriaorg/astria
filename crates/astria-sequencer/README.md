@@ -47,8 +47,9 @@ In astria-sequencer/:
 cargo build
 cargo run 
 ```
-The default genesis json file is `test-genesis.json`.
-If you want to use a different file, use the `--genesis-file=<path>` flag.
+The default sequencer genesis account file is `accounts-genesis.csv`.
+The default CometBFT genesis file is `~/.cometbft/config/genesis.json`.
+If you want to use different files, use the `--genesis-file=<path>` or `--cometbft-genesis-file=<path>` flags.
 ```sh
 cargo run -- --genesis-file=example.json
 ```
