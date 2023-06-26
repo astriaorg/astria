@@ -21,9 +21,9 @@ use bech32::{
     Variant,
 };
 use color_eyre::eyre::{
+    self,
     bail,
     ensure,
-    Result,
     WrapErr as _,
 };
 use ed25519_dalek::Verifier;
@@ -59,6 +59,8 @@ use crate::tendermint::{
     ValidatorSet,
 };
 
+const METRO_VALIDATOR_ADDRESS_PREFIX: &str = "metrovalcons";
+
 /// `BlockVerifier` is responsible for verifying the correctness of a block
 /// before executing it.
 /// It has two public functions: `validate_signed_namespace_data` and `validate_sequencer_block`.
@@ -71,7 +73,7 @@ pub struct BlockVerifier {
 }
 
 impl BlockVerifier {
-    pub fn new(tendermint_url: &str) -> Result<Self> {
+    pub fn new(tendermint_url: &str) -> eyre::Result<Self> {
         Ok(Self {
             tendermint_client: TendermintClient::new(tendermint_url.to_owned())
                 .wrap_err("failed to construct TendermintClient")?,
@@ -84,7 +86,7 @@ impl BlockVerifier {
     pub(crate) async fn validate_signed_namespace_data(
         &self,
         data: &SignedNamespaceData<SequencerNamespaceData>,
-    ) -> Result<()> {
+    ) -> eyre::Result<()> {
         // verify the block signature
         data.verify()
             .wrap_err("failed to verify signature of signed namepsace data")?;
@@ -133,12 +135,15 @@ impl BlockVerifier {
     /// - the root of the markle tree of all the header fields matches the block's block_hash
     /// - the root of the merkle tree of all transactions in the block matches the block's data_hash
     /// - validate the block was actually finalized; ie >2/3 stake signed off on it
-    pub(crate) async fn validate_sequencer_block(&self, block: &SequencerBlock) -> Result<()> {
+    pub(crate) async fn validate_sequencer_block(
+        &self,
+        block: &SequencerBlock,
+    ) -> eyre::Result<()> {
         // sequencer block's height
-        let height = block
+        let height: u64 = block
             .header
             .height
-            .parse::<u64>()
+            .parse()
             .wrap_err("failed to parse height")?;
 
         // get validator set for this height
@@ -156,19 +161,19 @@ impl BlockVerifier {
 
         // check if the proposer address matches the sequencer block's proposer
         let received_proposer_address = bech32::encode(
-            "metrovalcons",
+            METRO_VALIDATOR_ADDRESS_PREFIX,
             block.header.proposer_address.0.to_base32(),
             Variant::Bech32,
         )
         .wrap_err("failed converting bytes to bech32 address")?;
 
-        if received_proposer_address != expected_proposer_address {
-            bail!(
+        ensure!(
+            received_proposer_address == expected_proposer_address,
+            format!(
                 "proposer address mismatch: expected {}, got {}",
-                expected_proposer_address,
-                received_proposer_address
-            );
-        }
+                expected_proposer_address, received_proposer_address
+            ),
+        );
 
         // validate that commit signatures hash to header.last_commit_hash
         match calculate_last_commit_hash(&block.last_commit) {
@@ -184,13 +189,13 @@ impl BlockVerifier {
                 // verify that the validator votes on the previous block have >2/3 voting power
                 let last_commit = block.last_commit.clone();
                 let chain_id = block.header.chain_id.clone();
-                tokio::task::spawn_blocking(move || -> Result<()> {
+                tokio::task::spawn_blocking(move || -> eyre::Result<()> {
                     ensure_commit_has_quorum(&last_commit, &validator_set, &chain_id)
                 })
                 .await?
                 .wrap_err("failed to ensure commit has quorum")?
 
-                // TODO: commit is for previous block; how do we handle this?
+                // TODO: commit is for previous block; how do we handle this? (#50)
             }
             Hash::None => {
                 // this case only happens if the last commit is empty, which should only happen on
@@ -234,7 +239,7 @@ fn ensure_commit_has_quorum(
     commit: &Commit,
     validator_set: &ValidatorSet,
     chain_id: &str,
-) -> Result<()> {
+) -> eyre::Result<()> {
     if commit.height != validator_set.block_height {
         bail!(
             "commit height mismatch: expected {}, got {}",
@@ -266,7 +271,7 @@ fn ensure_commit_has_quorum(
 
         // verify validator exists in validator set
         let validator_address = bech32::encode(
-            "metrovalcons",
+            METRO_VALIDATOR_ADDRESS_PREFIX,
             vote.validator_address.0.to_base32(),
             Variant::Bech32,
         )
@@ -329,18 +334,19 @@ fn does_commit_voting_power_have_quorum(commited: u64, total: u64) -> bool {
 
 // see https://github.com/tendermint/tendermint/blob/35581cf54ec436b8c37fabb43fdaa3f48339a170/types/vote.go#L147
 // TODO: we can change these types (CommitSig and Commit) to be the tendermint types
-// after the other relayer types are updated.
+// after the other relayer types are updated. (#98)
 fn verify_vote_signature(
     vote: &CommitSig,
     commit: &Commit,
     chain_id: &str,
     public_key_bytes: &[u8],
     signature_bytes: &[u8],
-) -> Result<()> {
+) -> eyre::Result<()> {
     let public_key = ed25519_dalek::PublicKey::from_bytes(public_key_bytes)
         .wrap_err("failed to create public key from vote")?;
     let signature = ed25519_dalek::Signature::from_bytes(signature_bytes)
         .wrap_err("failed to create signature from vote")?;
+
     let canonical_vote = CanonicalVote {
         vote_type: vote::Type::Precommit,
         height: Height::from_str(&commit.height).wrap_err("failed to parse commit height")?,
@@ -360,6 +366,7 @@ fn verify_vote_signature(
         ),
         chain_id: ChainId::try_from(chain_id).wrap_err("failed to parse commit chain ID")?,
     };
+
     public_key
         .verify(
             &tendermint_proto::types::CanonicalVote::try_from(canonical_vote)
