@@ -28,12 +28,12 @@ fn storage_key(address: &str) -> String {
     format!("{ACCOUNTS_PREFIX}/{address}")
 }
 
-pub(crate) fn balance_storage_key(address: &str) -> String {
-    format!("{}/balance", storage_key(address))
+pub(crate) fn balance_storage_key(address: &Address) -> String {
+    format!("{}/balance", storage_key(&address.to_string()))
 }
 
-pub(crate) fn nonce_storage_key(address: &str) -> String {
-    format!("{}/nonce", storage_key(address))
+pub(crate) fn nonce_storage_key(address: &Address) -> String {
+    format!("{}/nonce", storage_key(&address.to_string()))
 }
 
 #[async_trait]
@@ -41,7 +41,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
     async fn get_account_balance(&self, address: &Address) -> Result<Balance> {
         let Some(bytes) = self
-            .get_raw(&balance_storage_key(&address.to_string()))
+            .get_raw(&balance_storage_key(address))
             .await
             .context("failed reading raw account balance from state")? else {
             debug!("account balance not found, returning 0");
@@ -54,7 +54,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
     async fn get_account_nonce(&self, address: &Address) -> Result<Nonce> {
         let bytes = self
-            .get_raw(&nonce_storage_key(&address.to_string()))
+            .get_raw(&nonce_storage_key(address))
             .await
             .context("failed reading raw account nonce from state")?;
         let Some(bytes) = bytes else {
@@ -76,14 +76,14 @@ pub(crate) trait StateWriteExt: StateWrite {
         let bytes = balance
             .try_to_vec()
             .context("failed to serialize balance")?;
-        self.put_raw(balance_storage_key(&address.to_string()), bytes);
+        self.put_raw(balance_storage_key(address), bytes);
         Ok(())
     }
 
     #[instrument(skip(self))]
     fn put_account_nonce(&mut self, address: &Address, nonce: Nonce) -> Result<()> {
         let bytes = nonce.try_to_vec().context("failed to serialize nonce")?;
-        self.put_raw(nonce_storage_key(&address.to_string()), bytes);
+        self.put_raw(nonce_storage_key(address), bytes);
         Ok(())
     }
 }

@@ -9,20 +9,20 @@ use serde::{
     Serialize,
 };
 
-const ADDRESS_LEN: usize = 20;
+pub const ADDRESS_LEN: usize = 20;
 
 /// Address represents an account address.
 #[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct Address([u8; ADDRESS_LEN]);
 
-impl TryFrom<Vec<u8>> for Address {
-    type Error = anyhow::Error;
+impl Address {
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
 
-    fn try_from(bytes: Vec<u8>) -> std::result::Result<Self, Self::Error> {
-        let arr: [u8; ADDRESS_LEN] = bytes
-            .try_into()
-            .map_err(|_| anyhow!("invalid address length"))?;
-        Ok(Address(arr))
+    #[allow(dead_code)]
+    pub fn from_array(arr: [u8; ADDRESS_LEN]) -> Self {
+        Self(arr)
     }
 }
 
@@ -79,23 +79,6 @@ impl std::fmt::Display for Address {
     }
 }
 
-impl Address {
-    /// attempts to decode the given hex string into an address.
-    /// WARNING: this function panics on failure; use `try_from` instead.
-    pub fn unsafe_from_hex_string(s: &str) -> Self {
-        let bytes = hex::decode(s).unwrap();
-        let arr: [u8; ADDRESS_LEN] = bytes
-            .try_into()
-            .map_err(|_| anyhow!("invalid address hex length"))
-            .unwrap();
-        Address(arr)
-    }
-
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.0
-    }
-}
-
 /// Balance represents an account balance.
 #[derive(
     Clone,
@@ -110,7 +93,7 @@ impl Address {
     Ord,
     Debug,
 )]
-pub struct Balance(u128);
+pub(crate) struct Balance(u128);
 
 impl Balance {
     pub(crate) fn into_inner(self) -> u128 {
@@ -182,7 +165,7 @@ impl From<Balance> for ProtoBalance {
     Ord,
     Debug,
 )]
-pub struct Nonce(u32);
+pub(crate) struct Nonce(u32);
 
 impl Nonce {
     pub(crate) fn into_inner(self) -> u32 {

@@ -22,6 +22,7 @@ use crate::accounts::{
     },
 };
 
+/// Represents a value-transfer transaction.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Transaction {
     to: Address,
@@ -30,7 +31,8 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub fn new(to: Address, amount: Balance, nonce: Nonce) -> Self {
+    #[allow(dead_code)]
+    pub(crate) fn new(to: Address, amount: Balance, nonce: Nonce) -> Self {
         Self {
             to,
             amount,
@@ -46,7 +48,7 @@ impl Transaction {
         }
     }
 
-    pub fn from_proto(proto: &ProtoAccountsTransaction) -> Result<Self> {
+    pub fn try_from_proto(proto: &ProtoAccountsTransaction) -> Result<Self> {
         Ok(Self {
             to: Address::try_from(proto.to.as_ref() as &[u8])?,
             amount: proto
@@ -59,40 +61,7 @@ impl Transaction {
     }
 }
 
-impl TryFrom<ProtoAccountsTransaction> for Transaction {
-    type Error = anyhow::Error;
-
-    fn try_from(proto: ProtoAccountsTransaction) -> Result<Self> {
-        Self::from_proto(&proto)
-    }
-}
-
-impl TryFrom<&ProtoAccountsTransaction> for Transaction {
-    type Error = anyhow::Error;
-
-    fn try_from(proto: &ProtoAccountsTransaction) -> Result<Self> {
-        Self::from_proto(proto)
-    }
-}
-
-impl From<Transaction> for ProtoAccountsTransaction {
-    fn from(tx: Transaction) -> Self {
-        tx.to_proto()
-    }
-}
-
-impl From<&Transaction> for ProtoAccountsTransaction {
-    fn from(tx: &Transaction) -> Self {
-        tx.to_proto()
-    }
-}
-
 impl Transaction {
-    #[allow(clippy::unnecessary_wraps, clippy::unused_self)]
-    pub(crate) fn check_stateless(&self) -> Result<()> {
-        Ok(())
-    }
-
     pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,
