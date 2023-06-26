@@ -38,7 +38,7 @@ impl Sequencer {
             dest_file = config.cometbft_genesis_file.clone(),
             "propagate account info to cometbft"
         );
-        genesis_state.propagate_accounts_to(config.cometbft_genesis_file.clone())?;
+        genesis_state.propagate_accounts_to(&config.cometbft_genesis_file)?;
         let storage = penumbra_storage::TempStorage::new()
             .await
             .context("failed to create temp storage backing chain state")?;

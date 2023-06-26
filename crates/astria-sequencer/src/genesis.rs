@@ -40,10 +40,10 @@ impl GenesisState {
     }
 
     /// Add the Account data from `GenesisState` to the `CometBFT` genesis.json file
-    pub(crate) fn propagate_accounts_to(&self, path: String) -> anyhow::Result<()> {
+    pub(crate) fn propagate_accounts_to(&self, path: &str) -> anyhow::Result<()> {
         // build the absolute path to the json file you want to add the accounts to
         let mut home_path = env::var("HOME")?;
-        home_path.push_str(&path);
+        home_path.push_str(path);
         let abs_destination_json_file_path = Path::new(&home_path);
         let dest_file = File::open(abs_destination_json_file_path)
             .context("failed to open destination genesis json file")?;
