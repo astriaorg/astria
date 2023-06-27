@@ -14,8 +14,8 @@ async fn main() -> eyre::Result<()> {
     let searcher_task = tokio::spawn(searcher.run());
 
     tokio::select! {
-        outcome = searcher_task => {
-            // TODO: report exit
+        _outcome = searcher_task => {
+            // todo!("report searcher task exit")
         }
     }
 

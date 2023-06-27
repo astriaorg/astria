@@ -314,6 +314,7 @@ dependencies = [
  "figment",
  "hyper",
  "is-terminal",
+ "reqwest",
  "serde",
  "thiserror",
  "tokio",

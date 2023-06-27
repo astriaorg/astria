@@ -10,13 +10,14 @@ async-trait = { workspace = true }
 color-eyre = { workspace = true }
 figment = { workspace = true, features = ["toml", "env"] }
 tokio = { workspace = true }
-serde = { workspace = true }
+serde = { workspace = true, features = ["derive"]  }
 clap = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["ansi", "json"] }
+reqwest = { workspace = true, features = ["json"] }
 # TODO: should these be moved to workspace? 
 is-terminal = "0.4.7" # also appears in astria-conductor
-axum = "0.6.16" #also appears in astria-sequencer-relayer
+axum = "0.6.16" # also appears in astria-sequencer-relayer
 tokio-stream = { version = "0.1" }
 hyper = "0.14.27"

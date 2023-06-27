@@ -79,8 +79,12 @@ pub fn get() -> Result<Config, figment::Error> {
 mod tests {
     use clap::Parser;
     use color_eyre::eyre;
+    use figment::Jail;
 
-    use super::cli;
+    use super::{
+        cli,
+        Config,
+    };
 
     const NO_CLI_ARGS: &str = "astria-composer";
     const ALL_CLI_ARGS: &str = r#"
@@ -93,21 +97,54 @@ astria-composer
         cli::Args::try_parse_from(str::split_ascii_whitespace(args))
     }
 
+    fn set_all_env(jail: &mut Jail) {
+        jail.set_env("", "");
+        todo!("set all env vars here")
+    }
+
     #[test]
     fn cli_overrides_all() {
-        // TODO
-        unimplemented!()
+        Jail::expect_with(|jail| {
+            set_all_env(jail);
+            let cli_args = make_args(ALL_CLI_ARGS).unwrap();
+            let actual = Config::with_cli(cli_args).unwrap();
+            let expected = Config {
+                log: todo!(),
+                searcher: todo!(),
+            };
+            assert_eq!(expected, actual);
+            Ok(())
+        })
     }
 
     #[test]
     fn env_overrides_default() {
-        // TODO
-        unimplemented!()
+        Jail::expect_with(|jail| {
+            set_all_env(jail);
+            let cli_args = make_args(NO_CLI_ARGS).unwrap();
+            let actual = Config::with_cli(cli_args).unwrap();
+            let expected = Config {
+                log: todo!(),
+                searcher: todo!(),
+            };
+            assert_eq!(expected, actual);
+            Ok(())
+        })
     }
 
     #[test]
     fn astria_log_overrides_rust_log() {
-        // TODO
-        unimplemented!()
+        Jail::expect_with(|jail| {
+            jail.set_env("RUST_LOG", "rust=trace");
+            jail.set_env("ASTRIA_COMPOSER_LOG", "env=debug");
+            let cli_args = make_args(NO_CLI_ARGS).unwrap();
+            let actual = Config::with_cli(cli_args).unwrap();
+            let expected = Config {
+                log: "env=debug".into(),
+                ..Config::default()
+            };
+            assert_eq!(expected, actual);
+            Ok(())
+        });
     }
 }
