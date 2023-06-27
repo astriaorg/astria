@@ -3,7 +3,10 @@ use std::sync::Arc;
 use ed25519_consensus::SigningKey;
 use eyre::WrapErr as _;
 use tokio::{
-    sync::watch,
+    sync::{
+        watch,
+        Mutex,
+    },
     time::Interval,
 };
 use tracing::{
@@ -22,6 +25,7 @@ pub struct Writer {
     da_client: Arc<CelestiaClient>,
     da_block_interval: Interval,
     block_rx: watch::Receiver<Option<SequencerBlock>>,
+    blocks_batch: Mutex<Vec<SequencerBlock>>,
 }
 
 impl Writer {
@@ -39,6 +43,7 @@ impl Writer {
             da_client: Arc::new(da_client),
             da_block_interval,
             block_rx,
+            blocks_batch: Mutex::new(Vec::new()),
         })
     }
 
@@ -47,7 +52,10 @@ impl Writer {
             loop {
                 tokio::select! {
                     _ = self.da_block_interval.tick() => {
-                        self.handle_celestia_block_tick();
+                        match self.handle_celestia_block_tick().await {
+                            Ok(_) => {}
+                            Err(e) => warn!(error = ?e, "failed to handle celestia block tick"),
+                        }
                     }
                     res = self.block_rx.changed() => {
                         if let Err(e) = res {
@@ -59,7 +67,7 @@ impl Writer {
                             panic!("block_rx should not receive None")
                         };
 
-                        match self.handle_new_block(sequencer_block) {
+                        match self.handle_new_block(sequencer_block).await {
                             Ok(_) => {}
                             Err(e) => warn!(error = ?e, "failed to handle new block"),
                         }
@@ -69,35 +77,43 @@ impl Writer {
         })
     }
 
-    fn handle_new_block(&self, sequencer_block: SequencerBlock) -> eyre::Result<()> {
-        let tx_count = sequencer_block.rollup_txs.len() + sequencer_block.sequencer_txs.len();
+    async fn handle_new_block(&self, sequencer_block: SequencerBlock) -> eyre::Result<()> {
+        let rollup_namespace_count = sequencer_block.rollup_txs.len();
         let height = sequencer_block.header.height.clone();
+
+        let mut blocks = self.blocks_batch.lock().await;
+        blocks.push(sequencer_block);
+
+        info!(
+            height,
+            rollup_namespace_count, "added new sequencer block to batch",
+        );
+        Ok(())
+    }
+
+    async fn handle_celestia_block_tick(&self) -> eyre::Result<()> {
         let da_client = self.da_client.clone();
         let signing_key_bytes = self.validator.signing_key.to_bytes();
         let signing_key = SigningKey::from(signing_key_bytes);
 
-        // TODO: batch this!!!!!
+        let mut blocks = self.blocks_batch.lock().await;
+        let blocks = std::mem::take(&mut *blocks);
+
         tokio::task::spawn(async move {
             match da_client
-                .submit_block(
-                    sequencer_block,
-                    &signing_key,
-                    signing_key.verification_key(),
-                )
+                .submit_blocks(blocks, &signing_key, signing_key.verification_key())
                 .await
             {
                 Ok(resp) => {
                     // new_state
-                    //     .current_data_availability_height
+                    //     .current_data_availability_heights
                     //     .replace(resp.height);
                     info!(
-                        sequencer_block = height,
                         da_layer_block = resp.height,
-                        tx_count,
-                        "submitted sequencer block to DA layer",
+                        "submitted batch of sequencer blocks to DA layer",
                     );
                 }
-                Err(e) => warn!(error = ?e, "failed to submit block to DA layer"),
+                Err(e) => warn!(error = ?e, "failed to submit block batch to DA layer"),
             }
         });
 
@@ -106,6 +122,4 @@ impl Writer {
 
         Ok(())
     }
-
-    fn handle_celestia_block_tick(&self) {}
 }
