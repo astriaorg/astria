@@ -8,7 +8,6 @@ use astria_sequencer_relayer::{
         SequencerNamespaceData,
         SignedNamespaceData,
     },
-    keys::public_key_to_address,
     sequencer_block::SequencerBlock,
     types::{
         Commit,
@@ -26,7 +25,10 @@ use color_eyre::eyre::{
     ensure,
     WrapErr as _,
 };
-use ed25519_dalek::Verifier;
+use ed25519_consensus::{
+    Signature,
+    VerificationKey,
+};
 use prost::Message;
 use tendermint::{
     account::Id as AccountId,
@@ -45,7 +47,7 @@ use tendermint::{
         CanonicalVote,
     },
     Hash,
-    Signature,
+    Signature as TendermintSignature,
     Time,
 };
 use tendermint_proto::types::CommitSig as RawCommitSig;
@@ -111,7 +113,7 @@ impl BlockVerifier {
             .address;
 
         // verify the namespace data signing public key matches the proposer address
-        let res_address = public_key_to_address(&data.public_key.0)
+        let res_address = public_key_to_bech32_address(&data.public_key.0)
             .wrap_err("failed to convert namespace data public key to address")?;
         if res_address != expected_proposer_address {
             bail!(
@@ -281,7 +283,7 @@ fn ensure_commit_has_quorum(
         };
 
         // verify address in signature matches validator pubkey
-        let address_from_pubkey = public_key_to_address(&validator.pub_key.key.0)
+        let address_from_pubkey = public_key_to_bech32_address(&validator.pub_key.key.0)
             .wrap_err("failed to convert validator public key to address")?;
         ensure!(
             address_from_pubkey == validator_address,
@@ -342,10 +344,10 @@ fn verify_vote_signature(
     public_key_bytes: &[u8],
     signature_bytes: &[u8],
 ) -> eyre::Result<()> {
-    let public_key = ed25519_dalek::PublicKey::from_bytes(public_key_bytes)
+    let public_key = VerificationKey::try_from(public_key_bytes)
         .wrap_err("failed to create public key from vote")?;
-    let signature = ed25519_dalek::Signature::from_bytes(signature_bytes)
-        .wrap_err("failed to create signature from vote")?;
+    let signature =
+        Signature::try_from(signature_bytes).wrap_err("failed to create signature from vote")?;
 
     let canonical_vote = CanonicalVote {
         vote_type: vote::Type::Precommit,
@@ -369,10 +371,10 @@ fn verify_vote_signature(
 
     public_key
         .verify(
+            &signature,
             &tendermint_proto::types::CanonicalVote::try_from(canonical_vote)
                 .wrap_err("failed to turn commit canonical vote into proto type")?
                 .encode_length_delimited_to_vec(),
-            &signature,
         )
         .wrap_err("failed to verify vote signature")?;
     Ok(())
@@ -388,7 +390,7 @@ fn calculate_last_commit_hash(commit: &Commit) -> Hash {
             match v.block_id_flag.as_str() {
                 "BLOCK_ID_FLAG_COMMIT" => {
                     let commit_sig = TendermintCommitSig::BlockIdFlagCommit {
-                        signature: Some(Signature::try_from(v.signature.clone().0).ok()?),
+                        signature: Some(TendermintSignature::try_from(v.signature.clone().0).ok()?),
                         validator_address: AccountId::try_from(v.validator_address.clone().0)
                             .ok()?,
                         timestamp: Time::parse_from_rfc3339(&v.timestamp).ok()?,
@@ -397,7 +399,7 @@ fn calculate_last_commit_hash(commit: &Commit) -> Hash {
                 }
                 "BLOCK_ID_FLAG_NIL" => {
                     let commit_sig = TendermintCommitSig::BlockIdFlagNil {
-                        signature: Some(Signature::try_from(v.signature.clone().0).ok()?),
+                        signature: Some(TendermintSignature::try_from(v.signature.clone().0).ok()?),
                         validator_address: AccountId::try_from(v.validator_address.clone().0)
                             .ok()?,
                         timestamp: Time::parse_from_rfc3339(&v.timestamp).ok()?,
@@ -416,6 +418,30 @@ fn calculate_last_commit_hash(commit: &Commit) -> Hash {
     Hash::Sha256(merkle::simple_hash_from_byte_vectors::<
         crypto::default::Sha256,
     >(&signatures))
+}
+
+fn public_key_to_bech32_address(key: &[u8]) -> eyre::Result<String> {
+    use sha2::{
+        digest::typenum::Unsigned as _,
+        Digest as _,
+    };
+    const ADDRESS_LENGTH: usize = 20;
+    // Compile time assert to protect against accidentally setting a
+    // address length shorter than 32 bytes (the output of sha256).
+    // Note on allow: https://github.com/rust-lang/rust-clippy/issues/8159
+    #[allow(clippy::assertions_on_constants)]
+    const _: () = assert!(ADDRESS_LENGTH <= sha2::digest::consts::U32::USIZE);
+
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(key);
+    let result = hasher.finalize();
+    let address = bech32::encode(
+        "metrovalcons",
+        (&result.as_slice()[..ADDRESS_LENGTH]).to_base32(),
+        Variant::Bech32,
+    )
+    .wrap_err("failed converting hashed key to bech32 address")?;
+    Ok(address)
 }
 
 #[cfg(test)]

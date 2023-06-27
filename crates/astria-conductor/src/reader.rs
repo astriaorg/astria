@@ -14,6 +14,7 @@ use color_eyre::eyre::{
     Result,
     WrapErr as _,
 };
+use ed25519_consensus::VerificationKey;
 use tokio::{
     sync::mpsc::{
         self,
@@ -205,19 +206,19 @@ impl Reader {
         Ok(blocks)
     }
 
+    /// get the full SequencerBlock from the base SignedNamespaceData
     async fn get_sequencer_block_from_namespace_data(
         &self,
         data: &SignedNamespaceData<SequencerNamespaceData>,
     ) -> Result<SequencerBlock> {
-        // get the full SequencerBlock
         // the reason the public key type needs to be converted is due to serialization
         // constraints, probably fix this later
-        let public_key = ed25519_dalek::PublicKey::from_bytes(&data.public_key.0)?;
+        let verification_key = VerificationKey::try_from(&*data.public_key.0)?;
 
         // pass the public key to `get_sequencer_block` which does the signature validation for us
         let block = self
             .celestia_client
-            .get_sequencer_block(&data.data, Some(&public_key))
+            .get_sequencer_block(&data.data, Some(verification_key))
             .await
             .map_err(|e| eyre!("failed to get rollup data: {}", e))?;
 

@@ -316,7 +316,7 @@ dependencies = [
  "bech32",
  "clap",
  "color-eyre",
- "ed25519-dalek",
+ "ed25519-consensus",
  "figment",
  "futures",
  "hex",
@@ -386,7 +386,7 @@ dependencies = [
  "bytes",
  "eyre",
  "hex",
- "rand 0.7.3",
+ "rand 0.8.5",
  "reqwest",
  "serde",
  "serde_json",
@@ -430,25 +430,30 @@ dependencies = [
  "astria-sequencer-relayer-test",
  "axum",
  "base64 0.21.0",
+ "base64-serde",
  "bech32",
  "clap",
  "dirs",
- "ed25519-dalek",
+ "ed25519-consensus",
  "eyre",
  "figment",
  "futures",
  "hex",
  "http",
  "prost",
- "rand 0.7.3",
+ "rand_core 0.6.4",
  "reqwest",
  "serde",
  "serde_json",
  "sha2 0.10.6",
+ "subtle-encoding",
+ "tempfile",
  "tendermint",
+ "tendermint-config",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "zeroize",
 ]
 
 [[package]]
@@ -667,6 +672,16 @@ name = "base64"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4a4ddaa51a5bc52a6948f74c06d20aaaddb71924eab79b8c97a8c556e942d6a"
+
+[[package]]
+name = "base64-serde"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba368df5de76a5bea49aaf0cf1b39ccfbbef176924d1ba5db3e4135216cbe3c7"
+dependencies = [
+ "base64 0.21.0",
+ "serde",
+]
 
 [[package]]
 name = "base64ct"
@@ -1463,7 +1478,9 @@ dependencies = [
  "curve25519-dalek-ng",
  "hex",
  "rand_core 0.6.4",
+ "serde",
  "sha2 0.9.9",
+ "thiserror",
  "zeroize",
 ]
 
@@ -1900,6 +1917,9 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "hex_fmt"
@@ -4743,6 +4763,20 @@ dependencies = [
  "tendermint-proto",
  "time",
  "zeroize",
+]
+
+[[package]]
+name = "tendermint-config"
+version = "0.32.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7dbb7610ef8422d5886116868e48ab6a9ea72859b3bf9021c6d87318e5600225"
+dependencies = [
+ "flex-error",
+ "serde",
+ "serde_json",
+ "tendermint",
+ "toml",
+ "url",
 ]
 
 [[package]]

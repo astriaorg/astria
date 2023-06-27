@@ -15,15 +15,14 @@ base64 = { workspace = true }
 bech32 = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 figment = { workspace = true, features = ["env"] }
-ed25519-dalek = { workspace = true }
 eyre = { workspace = true }
 futures = { workspace = true }
-hex = { workspace = true }
+hex = { workspace = true, features = ["serde"] }
 prost = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-tendermint = { workspace = true }
+tendermint = { workspace = true, features = ["rust-crypto"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tokio = { workspace = true, features = [ "macros", "rt-multi-thread" ] }
@@ -31,8 +30,14 @@ tokio = { workspace = true, features = [ "macros", "rt-multi-thread" ] }
 astria-gossipnet = { path = "../astria-gossipnet", features = [ "mdns" ] }
 astria-proto = { path = "../astria-proto" }
 astria-rs-cnc = { path = "../astria-rs-cnc" }
+base64-serde = "0.7.0"
+zeroize = { version = "1.6.0", features = ["zeroize_derive"] }
+tendermint-config.workspace = true
+ed25519-consensus = { workspace = true }
+subtle-encoding = "0.5.1"
 
 [dev-dependencies]
 astria-sequencer-relayer-test = { path = "../astria-sequencer-relayer-test"}
 figment = { workspace = true, features = ["test"] }
-rand = { workspace = true, features = [ "getrandom" ] }
+rand_core = { version = "0.6", features = [ "getrandom" ] }
+tempfile.workspace = true
