@@ -94,11 +94,11 @@ impl BlockVerifier {
             .wrap_err("failed to verify signature of signed namepsace data")?;
 
         // get validator set for this height
-        let height = data
+        let height: u64 = data
             .data
             .header
             .height
-            .parse::<u64>()
+            .parse()
             .wrap_err("failed to parse header height")?;
         let validator_set = self
             .tendermint_client
@@ -115,13 +115,13 @@ impl BlockVerifier {
         // verify the namespace data signing public key matches the proposer address
         let res_address = public_key_to_bech32_address(&data.public_key.0)
             .wrap_err("failed to convert namespace data public key to address")?;
-        if res_address != expected_proposer_address {
-            bail!(
+        ensure!(
+            res_address == expected_proposer_address,
+            format!(
                 "public key mismatch: expected {}, got {}",
-                expected_proposer_address,
-                res_address
-            );
-        }
+                expected_proposer_address, res_address
+            ),
+        );
 
         Ok(())
     }
