@@ -117,10 +117,7 @@ impl BlockVerifier {
             .wrap_err("failed to convert namespace data public key to address")?;
         ensure!(
             res_address == expected_proposer_address,
-            format!(
-                "public key mismatch: expected {}, got {}",
-                expected_proposer_address, res_address
-            ),
+            "public key mismatch: expected {expected_proposer_address}, got {res_address}",
         );
 
         Ok(())
@@ -171,10 +168,8 @@ impl BlockVerifier {
 
         ensure!(
             received_proposer_address == expected_proposer_address,
-            format!(
-                "proposer address mismatch: expected {}, got {}",
-                expected_proposer_address, received_proposer_address
-            ),
+            "proposer address mismatch: expected `{expected_proposer_address}`, got \
+             `{received_proposer_address}`",
         );
 
         // validate that commit signatures hash to header.last_commit_hash

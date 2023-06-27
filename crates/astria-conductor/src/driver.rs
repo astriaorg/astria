@@ -69,6 +69,9 @@ pub struct Driver {
     /// The channel used to send messages to the executor task.
     executor_tx: executor::Sender,
 
+    /// The gossip network must be wrapped in a `SyncWrapper` for now, as the transport
+    /// within the gossip network is not `Send`.
+    /// See https://github.com/astriaorg/astria/issues/111 for more details.
     network: SyncWrapper<GossipNetwork>,
 
     block_verifier: Arc<BlockVerifier>,
@@ -84,7 +87,7 @@ impl Driver {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let (executor_join_handle, executor_tx) = executor::spawn(&conf, alert_tx.clone())
             .await
-            .wrap_err("failed to construct block verifier")?;
+            .wrap_err("failed to construct Executor")?;
 
         let block_verifier = Arc::new(
             BlockVerifier::new(&conf.tendermint_url)
@@ -97,7 +100,7 @@ impl Driver {
             let (reader_join_handle, reader_tx) =
                 reader::spawn(&conf, executor_tx.clone(), block_verifier.clone())
                     .await
-                    .wrap_err("failed to construct Reader")?;
+                    .wrap_err("failed to construct data availability Reader")?;
             (Some(reader_join_handle), Some(reader_tx))
         };
 
@@ -126,7 +129,9 @@ impl Driver {
             select! {
                 res = self.network.get_mut().0.next() => {
                     if let Some(res) = res {
-                        self.handle_network_event(res).await.wrap_err("failed to handle network event")?;
+                        if let Err(e) = self.handle_network_event(res).await {
+                           debug!(error = ?e, "failed to handle network event");
+                        }
                     }
                 },
                 cmd = self.cmd_rx.recv() => {
