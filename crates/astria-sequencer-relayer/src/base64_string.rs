@@ -27,6 +27,12 @@ impl Base64String {
     }
 }
 
+impl AsRef<[u8]> for Base64String {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
 impl fmt::Display for Base64String {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", general_purpose::STANDARD.encode(&self.0))

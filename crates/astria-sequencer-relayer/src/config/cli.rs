@@ -33,13 +33,13 @@ pub(crate) struct Args {
 
     /// Expected block time of the sequencer in milliseconds;
     /// ie. how often we should poll the sequencer.
-    #[arg(short, long)]
+    #[arg(long)]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub(crate) sequencer_block_time: Option<u64>,
 
     /// Expected block time of Celestia in milliseconds;
     /// ie. how often we should write to Celestia.
-    #[arg(short, long)]
+    #[arg(long)]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub(crate) celestia_block_time: Option<u64>,
 

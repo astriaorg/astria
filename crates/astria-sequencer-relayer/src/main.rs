@@ -8,14 +8,10 @@ use astria_sequencer_relayer::{
     config,
     data_availability::CelestiaClientBuilder,
     network::GossipNetwork,
-    relayer::{
-        Relayer,
-        ValidatorPrivateKeyFile,
-    },
+    relayer::Relayer,
     sequencer::SequencerClient,
     writer::Writer,
 };
-use dirs::home_dir;
 use tracing::{
     info,
     warn,
@@ -34,19 +30,9 @@ async fn main() {
     });
     info!(config = cfg_json, "running astria-sequencer-relayer");
 
-    // unmarshal validator private key file
-    let home_dir = home_dir().unwrap();
-    let file_path = home_dir.join(&cfg.validator_key_file);
-    info!("using validator keys located at {}", file_path.display());
-
-    let key_file =
-        std::fs::read_to_string(file_path).expect("failed to read validator private key file");
-    let key_file: ValidatorPrivateKeyFile =
-        serde_json::from_str(&key_file).expect("failed to unmarshal validator key file");
-
-    let sequencer_client =
-        SequencerClient::new(cfg.sequencer_endpoint).expect("failed to create sequencer client");
-    let da_client = CelestiaClientBuilder::new(cfg.celestia_endpoint)
+    let sequencer_client = SequencerClient::new(cfg.sequencer_endpoint.clone())
+        .expect("failed to create sequencer client");
+    let da_client = CelestiaClientBuilder::new(cfg.celestia_endpoint.clone())
         .gas_limit(cfg.gas_limit)
         .build()
         .expect("failed to create data availability client");
@@ -55,13 +41,8 @@ async fn main() {
         tokio::time::interval(time::Duration::from_millis(cfg.sequencer_block_time));
     let (block_tx, block_rx) = tokio::sync::watch::channel(None);
 
-    let mut relayer = Relayer::new(
-        sequencer_client,
-        key_file.clone(),
-        sequencer_interval,
-        block_tx,
-    )
-    .expect("failed to create relayer");
+    let mut relayer = Relayer::new(cfg.clone(), sequencer_client, sequencer_interval, block_tx)
+        .expect("failed to create relayer");
 
     if cfg.disable_writing {
         relayer.disable_writing();
@@ -83,7 +64,8 @@ async fn main() {
             GossipNetwork::new(cfg.p2p_port, block_rx.clone()).expect("failed to create network");
         let network_handle = network.run();
 
-        let writer = Writer::new(key_file, da_client, writer_interval, block_rx);
+        let writer = Writer::new(cfg, da_client, writer_interval, block_rx)
+            .expect("failed to create writer");
         let writer_handle = writer.run();
         tokio::try_join!(relayer_handle, network_handle, writer_handle)
             .expect("failed to join tasks");
@@ -93,7 +75,8 @@ async fn main() {
         let network_handle = network.run();
         tokio::try_join!(relayer_handle, network_handle).expect("failed to join tasks");
     } else if cfg.disable_network && !cfg.disable_writing {
-        let writer = Writer::new(key_file, da_client, writer_interval, block_rx);
+        let writer = Writer::new(cfg, da_client, writer_interval, block_rx)
+            .expect("failed to create writer");
         let writer_handle = writer.run();
         tokio::try_join!(relayer_handle, writer_handle).expect("failed to join tasks");
     } else {

@@ -5,8 +5,10 @@ use bech32::{
     ToBase32,
     Variant,
 };
-use eyre::Result;
-use serde::Deserialize;
+use eyre::{
+    Result,
+    WrapErr as _,
+};
 use tokio::{
     sync::watch,
     task::JoinHandle,
@@ -18,30 +20,15 @@ use tracing::{
 };
 
 use crate::{
-    keys::validator_hex_to_address,
     sequencer::SequencerClient,
     sequencer_block::SequencerBlock,
+    validator::Validator,
 };
-
-#[derive(Deserialize, Clone)]
-pub struct ValidatorPrivateKeyFile {
-    pub address: String,
-    pub pub_key: KeyWithType,
-    pub priv_key: KeyWithType,
-}
-
-#[derive(Deserialize, Clone)]
-pub struct KeyWithType {
-    #[serde(rename = "type")]
-    pub key_type: String,
-    pub value: String,
-}
 
 pub struct Relayer {
     sequencer_client: SequencerClient,
     disable_writing: bool,
-    validator_address: String,
-    validator_address_bytes: Vec<u8>,
+    validator: Validator,
     interval: Interval,
     block_tx: watch::Sender<Option<SequencerBlock>>,
 
@@ -62,26 +49,20 @@ impl State {
 
 impl Relayer {
     pub fn new(
+        cfg: crate::config::Config,
         sequencer_client: SequencerClient,
-        key_file: ValidatorPrivateKeyFile,
         interval: Interval,
         block_tx: watch::Sender<Option<SequencerBlock>>,
     ) -> Result<Self> {
-        // generate our bech32 validator address
-        let validator_address = validator_hex_to_address(&key_file.address)
-            .expect("failed to convert validator address to bech32");
-
-        // generate our validator address bytes
-        let validator_address_bytes = hex::decode(&key_file.address)
-            .expect("failed to decode validator address; must be hex string");
+        let validator = Validator::from_path(cfg.validator_key_file)
+            .wrap_err("failed to get validator info from file")?;
 
         let (state, _) = watch::channel(State::default());
 
         Ok(Self {
             sequencer_client,
             disable_writing: false,
-            validator_address,
-            validator_address_bytes,
+            validator,
             interval,
             block_tx,
             state,
@@ -118,7 +99,7 @@ impl Relayer {
         info!("got block with height {} from sequencer", height);
         new_state.current_sequencer_height.replace(height);
 
-        if resp.block.header.proposer_address.0 != self.validator_address_bytes {
+        if resp.block.header.proposer_address.as_ref() != self.validator.address.as_ref() {
             let proposer_address = bech32::encode(
                 "metrovalcons",
                 resp.block.header.proposer_address.0.to_base32(),
@@ -127,7 +108,7 @@ impl Relayer {
             .expect("should encode block proposer address");
             info!(
                 %proposer_address,
-                validator_address = %self.validator_address,
+                validator_address = %self.validator.bech32_address,
                 "ignoring block: proposer address is not ours",
             );
             return Ok(new_state);

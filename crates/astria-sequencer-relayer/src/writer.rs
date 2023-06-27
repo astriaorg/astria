@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use ed25519_dalek::Keypair;
+use ed25519_consensus::SigningKey;
 use eyre::WrapErr as _;
 use tokio::{
     sync::watch,
@@ -12,15 +12,13 @@ use tracing::{
 };
 
 use crate::{
-    base64_string::Base64String,
     data_availability::CelestiaClient,
-    keys::private_key_bytes_to_keypair,
-    relayer::ValidatorPrivateKeyFile,
     sequencer_block::SequencerBlock,
+    validator::Validator,
 };
 
 pub struct Writer {
-    keypair: ed25519_dalek::Keypair,
+    validator: Validator,
     da_client: Arc<CelestiaClient>,
     da_block_interval: Interval,
     block_rx: watch::Receiver<Option<SequencerBlock>>,
@@ -28,25 +26,20 @@ pub struct Writer {
 
 impl Writer {
     pub fn new(
-        key_file: ValidatorPrivateKeyFile,
+        cfg: crate::config::Config,
         da_client: CelestiaClient,
         da_block_interval: Interval,
         block_rx: watch::Receiver<Option<SequencerBlock>>,
-    ) -> Self {
-        // generate our private-public keypair
-        let keypair = private_key_bytes_to_keypair(
-            &Base64String::from_string(key_file.priv_key.value)
-                .expect("failed to decode validator private key; must be base64 string")
-                .0,
-        )
-        .expect("failed to convert validator private key to keypair");
+    ) -> eyre::Result<Self> {
+        let validator = Validator::from_path(cfg.validator_key_file)
+            .wrap_err("failed to get validator info from file")?;
 
-        Self {
-            keypair,
+        Ok(Self {
+            validator,
             da_client: Arc::new(da_client),
             da_block_interval,
             block_rx,
-        }
+        })
     }
 
     pub fn run(mut self) -> tokio::task::JoinHandle<()> {
@@ -80,12 +73,19 @@ impl Writer {
         let tx_count = sequencer_block.rollup_txs.len() + sequencer_block.sequencer_txs.len();
         let height = sequencer_block.header.height.clone();
         let da_client = self.da_client.clone();
-        let keypair_bytes = self.keypair.to_bytes();
-        let keypair = Keypair::from_bytes(&keypair_bytes).wrap_err("should copy keypair")?;
+        let signing_key_bytes = self.validator.signing_key.to_bytes();
+        let signing_key = SigningKey::from(signing_key_bytes);
 
         // TODO: batch this!!!!!
         tokio::task::spawn(async move {
-            match da_client.submit_block(sequencer_block, &keypair).await {
+            match da_client
+                .submit_block(
+                    sequencer_block,
+                    &signing_key,
+                    signing_key.verification_key(),
+                )
+                .await
+            {
                 Ok(resp) => {
                     // new_state
                     //     .current_data_availability_height
