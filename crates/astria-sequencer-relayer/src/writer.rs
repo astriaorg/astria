@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use ed25519_dalek::Keypair;
+use eyre::WrapErr as _;
 use tokio::{
     sync::watch,
     time::Interval,
@@ -51,43 +52,60 @@ impl Writer {
     pub fn run(mut self) -> tokio::task::JoinHandle<()> {
         tokio::task::spawn(async move {
             loop {
-                let res = self.block_rx.changed().await;
-                if let Err(e) = res {
-                    warn!(error = ?e, "block_rx channel closed");
-                    break;
-                };
-
-                let Some(sequencer_block) = self.block_rx.borrow().clone() else {
-                    panic!("block_rx should not receive None")
-                };
-
-                let tx_count =
-                    sequencer_block.rollup_txs.len() + sequencer_block.sequencer_txs.len();
-                let height = sequencer_block.header.height.clone();
-                let da_client = self.da_client.clone();
-                let keypair_bytes = self.keypair.to_bytes();
-                let keypair = Keypair::from_bytes(&keypair_bytes).expect("should copy keypair");
-
-                tokio::task::spawn(async move {
-                    match da_client.submit_block(sequencer_block, &keypair).await {
-                        Ok(resp) => {
-                            // new_state
-                            //     .current_data_availability_height
-                            //     .replace(resp.height);
-                            info!(
-                                sequencer_block = height,
-                                da_layer_block = resp.height,
-                                tx_count,
-                                "submitted sequencer block to DA layer",
-                            );
-                        }
-                        Err(e) => warn!(error = ?e, "failed to submit block to DA layer"),
+                tokio::select! {
+                    _ = self.da_block_interval.tick() => {
+                        self.handle_celestia_block_tick();
                     }
-                });
+                    res = self.block_rx.changed() => {
+                        if let Err(e) = res {
+                            warn!(error = ?e, "block_rx channel closed");
+                            break;
+                        };
 
-                // TODO: deal with updating DA height
-                // Ok(new_state)
+                        let Some(sequencer_block) = self.block_rx.borrow().clone() else {
+                            panic!("block_rx should not receive None")
+                        };
+
+                        match self.handle_new_block(sequencer_block) {
+                            Ok(_) => {}
+                            Err(e) => warn!(error = ?e, "failed to handle new block"),
+                        }
+                    }
+                }
             }
         })
     }
+
+    fn handle_new_block(&self, sequencer_block: SequencerBlock) -> eyre::Result<()> {
+        let tx_count = sequencer_block.rollup_txs.len() + sequencer_block.sequencer_txs.len();
+        let height = sequencer_block.header.height.clone();
+        let da_client = self.da_client.clone();
+        let keypair_bytes = self.keypair.to_bytes();
+        let keypair = Keypair::from_bytes(&keypair_bytes).wrap_err("should copy keypair")?;
+
+        // TODO: batch this!!!!!
+        tokio::task::spawn(async move {
+            match da_client.submit_block(sequencer_block, &keypair).await {
+                Ok(resp) => {
+                    // new_state
+                    //     .current_data_availability_height
+                    //     .replace(resp.height);
+                    info!(
+                        sequencer_block = height,
+                        da_layer_block = resp.height,
+                        tx_count,
+                        "submitted sequencer block to DA layer",
+                    );
+                }
+                Err(e) => warn!(error = ?e, "failed to submit block to DA layer"),
+            }
+        });
+
+        // TODO: deal with updating DA height
+        // Ok(new_state)
+
+        Ok(())
+    }
+
+    fn handle_celestia_block_tick(&self) {}
 }
