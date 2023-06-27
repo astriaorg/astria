@@ -19,10 +19,10 @@ pub enum Command {
 #[derive(Debug, Deserialize, Parser, Serialize)]
 pub struct GenesisParserArgs {
     #[clap(long)]
-    pub sequencer_genesis_file: String,
+    pub source_genesis_file: String,
 
     #[clap(long)]
-    pub cometbft_genesis_file: String,
+    pub destination_genesis_file: String,
 }
 
 impl Config {
