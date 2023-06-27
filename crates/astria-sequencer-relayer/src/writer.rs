@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use ed25519_dalek::Keypair;
-use tokio::sync::watch;
+use tokio::{
+    sync::watch,
+    time::Interval,
+};
 use tracing::{
     info,
     warn,
@@ -18,6 +21,7 @@ use crate::{
 pub struct Writer {
     keypair: ed25519_dalek::Keypair,
     da_client: Arc<CelestiaClient>,
+    da_block_interval: Interval,
     block_rx: watch::Receiver<Option<SequencerBlock>>,
 }
 
@@ -25,6 +29,7 @@ impl Writer {
     pub fn new(
         key_file: ValidatorPrivateKeyFile,
         da_client: CelestiaClient,
+        da_block_interval: Interval,
         block_rx: watch::Receiver<Option<SequencerBlock>>,
     ) -> Self {
         // generate our private-public keypair
@@ -38,6 +43,7 @@ impl Writer {
         Self {
             keypair,
             da_client: Arc::new(da_client),
+            da_block_interval,
             block_rx,
         }
     }

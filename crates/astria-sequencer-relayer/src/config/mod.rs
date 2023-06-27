@@ -12,7 +12,8 @@ use serde::{
 };
 mod cli;
 
-const DEFAULT_BLOCK_TIME: u64 = 1000;
+const DEFAULT_SEQUENCER_BLOCK_TIME: u64 = 1000;
+const DEFAULT_CELESTIA_BLOCK_TIME: u64 = 15_000;
 const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26659";
 const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:1317";
 const DEFAULT_VALIDATOR_KEY_FILE: &str = ".metro/config/priv_validator_key.json";
@@ -52,7 +53,8 @@ pub struct Config {
     pub gas_limit: u64,
     pub disable_writing: bool,
     pub disable_network: bool,
-    pub block_time: u64,
+    pub sequencer_block_time: u64,
+    pub celestia_block_time: u64,
     pub validator_key_file: String,
     pub rpc_port: u16,
     pub p2p_port: u16,
@@ -85,7 +87,8 @@ impl Default for Config {
             gas_limit: crate::data_availability::DEFAULT_PFD_GAS_LIMIT,
             disable_writing: false,
             disable_network: false,
-            block_time: DEFAULT_BLOCK_TIME,
+            sequencer_block_time: DEFAULT_SEQUENCER_BLOCK_TIME,
+            celestia_block_time: DEFAULT_CELESTIA_BLOCK_TIME,
             validator_key_file: DEFAULT_VALIDATOR_KEY_FILE.into(),
             rpc_port: DEFAULT_RPC_LISTEN_PORT,
             p2p_port: DEFAULT_GOSSIP_PORT,
@@ -112,7 +115,8 @@ astria-sequencer-relayer
     --gas-limit 9999
     --disable-writing
     --disable-network
-    --block-time 9999
+    --sequencer-block-time 9999
+    --celestia-block-time 8888
     --validator-key-file /cli/key
     --rpc-port 9999
     --p2p-port 9999
@@ -135,7 +139,8 @@ astria-sequencer-relayer
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_GAS_LIMIT", 5555);
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_DISABLE_WRITING", true);
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_DISABLE_NETWORK", true);
-        jail.set_env("ASTRIA_SEQUENCER_RELAYER_BLOCK_TIME", 5555);
+        jail.set_env("ASTRIA_SEQUENCER_RELAYER_SEQUENCER_BLOCK_TIME", 5555);
+        jail.set_env("ASTRIA_SEQUENCER_RELAYER_CELESTIA_BLOCK_TIME", 5555);
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_VALIDATOR_KEY_FILE", "/env/key");
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_RPC_PORT", 5555);
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_P2P_PORT", 5555);
@@ -155,7 +160,8 @@ astria-sequencer-relayer
                 gas_limit: 9999,
                 disable_writing: true,
                 disable_network: true,
-                block_time: 9999,
+                sequencer_block_time: 9999,
+                celestia_block_time: 8888,
                 validator_key_file: "/cli/key".into(),
                 rpc_port: 9999,
                 p2p_port: 9999,
@@ -178,7 +184,8 @@ astria-sequencer-relayer
                 gas_limit: 5555,
                 disable_writing: true,
                 disable_network: true,
-                block_time: 5555,
+                sequencer_block_time: 5555,
+                celestia_block_time: 5555,
                 validator_key_file: "/env/key".into(),
                 rpc_port: 5555,
                 p2p_port: 5555,

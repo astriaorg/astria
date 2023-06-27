@@ -51,13 +51,17 @@ async fn main() {
         .build()
         .expect("failed to create data availability client");
 
-    let sleep_duration = time::Duration::from_millis(cfg.block_time);
-    let interval = tokio::time::interval(sleep_duration);
-
+    let sequencer_interval =
+        tokio::time::interval(time::Duration::from_millis(cfg.sequencer_block_time));
     let (block_tx, block_rx) = tokio::sync::watch::channel(None);
 
-    let mut relayer = Relayer::new(sequencer_client, key_file.clone(), interval, block_tx)
-        .expect("failed to create relayer");
+    let mut relayer = Relayer::new(
+        sequencer_client,
+        key_file.clone(),
+        sequencer_interval,
+        block_tx,
+    )
+    .expect("failed to create relayer");
 
     if cfg.disable_writing {
         relayer.disable_writing();
@@ -71,12 +75,15 @@ async fn main() {
         api::start(api_addr, relayer_state).await;
     });
 
+    let writer_interval =
+        tokio::time::interval(time::Duration::from_millis(cfg.celestia_block_time));
+
     if !cfg.disable_writing && !cfg.disable_network {
         let network =
             GossipNetwork::new(cfg.p2p_port, block_rx.clone()).expect("failed to create network");
         let network_handle = network.run();
 
-        let writer = Writer::new(key_file, da_client, block_rx);
+        let writer = Writer::new(key_file, da_client, writer_interval, block_rx);
         let writer_handle = writer.run();
         tokio::try_join!(relayer_handle, network_handle, writer_handle)
             .expect("failed to join tasks");
@@ -86,7 +93,7 @@ async fn main() {
         let network_handle = network.run();
         tokio::try_join!(relayer_handle, network_handle).expect("failed to join tasks");
     } else if cfg.disable_network && !cfg.disable_writing {
-        let writer = Writer::new(key_file, da_client, block_rx);
+        let writer = Writer::new(key_file, da_client, writer_interval, block_rx);
         let writer_handle = writer.run();
         tokio::try_join!(relayer_handle, writer_handle).expect("failed to join tasks");
     } else {
