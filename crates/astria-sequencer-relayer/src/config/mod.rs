@@ -44,7 +44,7 @@ pub fn get() -> Result<Config, figment::Error> {
     Config::with_cli(cli_config)
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 /// The single config for creating an astria-sequencer-relayer service.
 pub struct Config {
     pub sequencer_endpoint: String,

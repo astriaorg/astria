@@ -8,13 +8,9 @@ use astria_sequencer_relayer::{
     config,
     data_availability::CelestiaClientBuilder,
     network::GossipNetwork,
-    relayer::{
-        Relayer,
-        ValidatorPrivateKeyFile,
-    },
+    relayer::Relayer,
     sequencer::SequencerClient,
 };
-use dirs::home_dir;
 use tracing::{
     info,
     warn,
@@ -33,19 +29,9 @@ async fn main() {
     });
     info!(config = cfg_json, "running astria-sequencer-relayer");
 
-    // unmarshal validator private key file
-    let home_dir = home_dir().unwrap();
-    let file_path = home_dir.join(&cfg.validator_key_file);
-    info!("using validator keys located at {}", file_path.display());
-
-    let key_file =
-        std::fs::read_to_string(file_path).expect("failed to read validator private key file");
-    let key_file: ValidatorPrivateKeyFile =
-        serde_json::from_str(&key_file).expect("failed to unmarshal validator key file");
-
-    let sequencer_client =
-        SequencerClient::new(cfg.sequencer_endpoint).expect("failed to create sequencer client");
-    let da_client = CelestiaClientBuilder::new(cfg.celestia_endpoint)
+    let sequencer_client = SequencerClient::new(cfg.sequencer_endpoint.clone())
+        .expect("failed to create sequencer client");
+    let da_client = CelestiaClientBuilder::new(cfg.celestia_endpoint.clone())
         .gas_limit(cfg.gas_limit)
         .build()
         .expect("failed to create data availability client");
@@ -58,7 +44,7 @@ async fn main() {
     let network = GossipNetwork::new(cfg.p2p_port, block_rx).expect("failed to create network");
     let network_handle = network.run();
 
-    let mut relayer = Relayer::new(sequencer_client, da_client, key_file, interval, block_tx)
+    let mut relayer = Relayer::new(cfg.clone(), sequencer_client, da_client, interval, block_tx)
         .expect("failed to create relayer");
 
     if cfg.disable_writing {
