@@ -484,6 +484,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-sequencer-utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "borsh",
+ "bytes",
+ "clap",
+ "futures",
+ "hex",
+ "is-terminal",
+ "penumbra-storage",
+ "penumbra-tower-trace",
+ "serde",
+ "serde_json",
+ "sha2 0.10.6",
+ "tendermint",
+ "tendermint-proto",
+ "tokio",
+ "tower",
+ "tower-abci",
+ "tower-actor",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "async-io"
 version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
