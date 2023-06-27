@@ -4,7 +4,6 @@ use astria_composer::{
     telemetry,
 };
 use color_eyre::eyre;
-use tracing::error;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
@@ -12,12 +11,11 @@ async fn main() -> eyre::Result<()> {
     telemetry::init(std::io::stdout).expect("failed to initialize tracing");
 
     let searcher = Searcher::new(cfg.searcher)?;
-    let searcher_ask = tokio::spawn(searcher.run());
+    let searcher_task = tokio::spawn(searcher.run());
 
     tokio::select! {
-        outcome = searcher_ask => {
-            // TODO
-            error!("searcher exited early: {:?}", outcome);
+        outcome = searcher_task => {
+            // TODO: report exit
         }
     }
 
