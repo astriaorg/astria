@@ -9,9 +9,10 @@ use serde::{
     Serialize,
 };
 
+/// The length of an account address in bytes.
 pub(crate) const ADDRESS_LEN: usize = 20;
 
-/// Address represents an account address.
+/// Represents an account address.
 #[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub(crate) struct Address([u8; ADDRESS_LEN]);
 

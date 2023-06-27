@@ -30,6 +30,9 @@ use crate::{
     },
 };
 
+/// Represents a transaction signed by a user.
+/// It contains the signature and the public key of the user,
+/// as well as the transaction itself.
 #[derive(Debug, Clone)]
 pub(crate) struct Transaction {
     pub(crate) signature: Signature,
