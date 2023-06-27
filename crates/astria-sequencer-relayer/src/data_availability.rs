@@ -5,12 +5,10 @@ use astria_rs_cnc::{
     NamespacedSharesResponse,
     PayForDataResponse,
 };
-use ed25519_dalek::{
-    ed25519::signature::Signature,
-    Keypair,
-    PublicKey,
-    Signer,
-    Verifier,
+use ed25519_consensus::{
+    Signature,
+    SigningKey,
+    VerificationKey,
 };
 use eyre::{
     bail,
@@ -82,16 +80,16 @@ impl<D: NamespaceData> SignedNamespaceData<D> {
     }
 
     pub fn verify(&self) -> eyre::Result<()> {
-        let public_key = PublicKey::from_bytes(&self.public_key.0)
+        let verification_key = VerificationKey::try_from(&*self.public_key.0)
             .wrap_err("failed deserializing public key from bytes")?;
-        let signature = Signature::from_bytes(&self.signature.0)
+        let signature = Signature::try_from(&*self.signature.0)
             .wrap_err("failed deserializing signature from bytes")?;
         let data_bytes = self
             .data
             .hash()
             .wrap_err("failed converting data to bytes")?;
-        public_key
-            .verify(&data_bytes, &signature)
+        verification_key
+            .verify(&signature, &data_bytes)
             .wrap_err("failed verifying signature")?;
         Ok(())
     }
@@ -111,12 +109,16 @@ where
         Ok(hash.to_vec())
     }
 
-    fn to_signed(self, keypair: &Keypair) -> eyre::Result<SignedNamespaceData<Self>> {
+    fn to_signed(
+        self,
+        signing_key: &SigningKey,
+        verification_key: VerificationKey,
+    ) -> eyre::Result<SignedNamespaceData<Self>> {
         let hash = self.hash().wrap_err("failed hashing namespace data")?;
-        let signature = Base64String(keypair.sign(&hash).as_bytes().to_vec());
+        let signature = Base64String(signing_key.sign(&hash).to_bytes().to_vec());
         let data = SignedNamespaceData::new(
             self,
-            Base64String(keypair.public.to_bytes().to_vec()),
+            Base64String(verification_key.to_bytes().into()),
             signature,
         );
         Ok(data)
@@ -230,7 +232,8 @@ impl CelestiaClient {
     pub async fn submit_block(
         &self,
         block: SequencerBlock,
-        keypair: &Keypair,
+        signing_key: &SigningKey,
+        verification_key: VerificationKey,
     ) -> eyre::Result<SubmitBlockResponse> {
         let mut namespace_to_block_num: HashMap<String, u64> = HashMap::new();
         let mut block_height_and_namespace: Vec<(u64, String)> = Vec::new();
@@ -246,7 +249,7 @@ impl CelestiaClient {
                 rollup_txs: txs,
             };
             let rollup_data_bytes = rollup_namespace_data
-                .to_signed(keypair)
+                .to_signed(signing_key, verification_key)
                 .wrap_err("failed signing rollup namespace data")?
                 .to_bytes()
                 .wrap_err("failed converting signed rollupdata namespace data to bytes")?;
@@ -273,7 +276,7 @@ impl CelestiaClient {
         };
 
         let bytes = sequencer_namespace_data
-            .to_signed(keypair)
+            .to_signed(signing_key, verification_key)
             .wrap_err("failed signing sequencer namespace data")?
             .to_bytes()
             .wrap_err("failed converting signed namespace data to bytes")?;
@@ -312,7 +315,7 @@ impl CelestiaClient {
     pub async fn get_sequencer_namespace_data(
         &self,
         height: u64,
-        public_key: Option<&PublicKey>,
+        verification_key: Option<VerificationKey>,
     ) -> eyre::Result<Vec<SignedNamespaceData<SequencerNamespaceData>>> {
         let namespaced_data_response = self
             .client
@@ -330,13 +333,13 @@ impl CelestiaClient {
             .iter()
             .filter_map(|d| {
                 let data = SignedNamespaceData::<SequencerNamespaceData>::from_bytes(&d.0).ok()?;
-                let Some(public_key) = public_key else {
+                let Some(verification_key) = verification_key else {
                     return Some(data);
                 };
 
                 let hash = data.data.hash().ok()?;
-                let signature = Signature::from_bytes(&data.signature.0).ok()?;
-                public_key.verify(&hash, &signature).ok()?;
+                let signature = Signature::try_from(&*data.signature.0).ok()?;
+                verification_key.verify(&signature, &hash).ok()?;
                 Some(data)
             })
             .collect::<Vec<_>>();
@@ -351,17 +354,17 @@ impl CelestiaClient {
     pub async fn get_blocks(
         &self,
         height: u64,
-        public_key: Option<&PublicKey>,
+        verification_key: Option<VerificationKey>,
     ) -> eyre::Result<Vec<SequencerBlock>> {
         let sequencer_namespace_datas = self
-            .get_sequencer_namespace_data(height, public_key)
+            .get_sequencer_namespace_data(height, verification_key)
             .await?;
         let mut blocks = Vec::with_capacity(sequencer_namespace_datas.len());
 
         // for all the sequencer datas retrieved, create the corresponding SequencerBlock
         for sequencer_namespace_data in &sequencer_namespace_datas {
             blocks.push(
-                self.get_sequencer_block(&sequencer_namespace_data.data, public_key)
+                self.get_sequencer_block(&sequencer_namespace_data.data, verification_key)
                     .await?,
             );
         }
@@ -374,7 +377,7 @@ impl CelestiaClient {
     pub async fn get_sequencer_block(
         &self,
         data: &SequencerNamespaceData,
-        public_key: Option<&PublicKey>,
+        verification_key: Option<VerificationKey>,
     ) -> eyre::Result<SequencerBlock> {
         let mut rollup_txs_map = HashMap::new();
 
@@ -385,7 +388,7 @@ impl CelestiaClient {
                     &data.block_hash.0,
                     rollup_namespace,
                     *height,
-                    public_key,
+                    verification_key,
                 )
                 .await
                 .wrap_err_with(|| {
@@ -420,7 +423,7 @@ impl CelestiaClient {
         block_hash: &[u8],
         rollup_namespace: &str,
         height: u64,
-        public_key: Option<&PublicKey>,
+        verification_key: Option<VerificationKey>,
     ) -> eyre::Result<Option<Vec<IndexedTransaction>>> {
         let namespaced_data_response = self
             .client
@@ -445,12 +448,12 @@ impl CelestiaClient {
                     Err(_) => return false,
                 };
 
-                match Signature::from_bytes(&d.signature.0) {
+                match Signature::try_from(&*d.signature.0) {
                     Ok(sig) => {
-                        let Some(public_key) = public_key else {
+                        let Some(verification_key) = verification_key else {
                             return true;
                         };
-                        public_key.verify(&hash, &sig).is_ok()
+                        verification_key.verify(&sig, &hash).is_ok()
                     }
                     Err(_) => false,
                 }

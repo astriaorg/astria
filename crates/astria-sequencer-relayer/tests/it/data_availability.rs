@@ -16,11 +16,11 @@ use astria_sequencer_relayer::{
     },
 };
 use astria_sequencer_relayer_test::init_test;
-use ed25519_dalek::{
-    Keypair,
-    PublicKey,
+use ed25519_consensus::{
+    SigningKey,
+    VerificationKey,
 };
-use rand::rngs::OsRng;
+use rand_core::OsRng;
 
 fn empty_commit() -> Commit {
     Commit {
@@ -71,18 +71,25 @@ async fn get_blocks_public_key_filter() {
     };
 
     println!("submitting block");
-    let keypair = Keypair::generate(&mut OsRng);
-    let submit_block_resp = client.submit_block(block, &keypair).await.unwrap();
+    let signing_key = SigningKey::new(OsRng);
+    let verification_key = VerificationKey::from(&signing_key);
+    let submit_block_resp = client
+        .submit_block(block, &signing_key, verification_key)
+        .await
+        .unwrap();
     let height = submit_block_resp
         .namespace_to_block_num
         .get(&DEFAULT_NAMESPACE.to_string())
         .unwrap();
 
     // generate new, different key
-    let keypair = Keypair::generate(&mut OsRng);
-    let public_key = PublicKey::from_bytes(&keypair.public.to_bytes()).unwrap();
+    let signing_key = SigningKey::new(OsRng);
+    let verification_key = VerificationKey::from(&signing_key);
     println!("getting blocks");
-    let resp = client.get_blocks(*height, Some(&public_key)).await.unwrap();
+    let resp = client
+        .get_blocks(*height, Some(verification_key))
+        .await
+        .unwrap();
     assert!(resp.is_empty());
 }
 
@@ -117,10 +124,13 @@ async fn celestia_client() {
         }],
     );
 
-    let keypair = Keypair::generate(&mut OsRng);
-    let public_key = PublicKey::from_bytes(&keypair.public.to_bytes()).unwrap();
+    let signing_key = SigningKey::new(OsRng);
+    let verification_key = VerificationKey::from(&signing_key);
 
-    let submit_block_resp = client.submit_block(block, &keypair).await.unwrap();
+    let submit_block_resp = client
+        .submit_block(block, &signing_key, verification_key)
+        .await
+        .unwrap();
     let height = submit_block_resp
         .namespace_to_block_num
         .get(&DEFAULT_NAMESPACE.to_string())
@@ -131,7 +141,10 @@ async fn celestia_client() {
     assert_eq!(resp.height, *height);
 
     // test get_blocks
-    let resp = client.get_blocks(*height, Some(&public_key)).await.unwrap();
+    let resp = client
+        .get_blocks(*height, Some(verification_key))
+        .await
+        .unwrap();
     assert_eq!(resp.len(), 1);
     assert_eq!(resp[0].block_hash, block_hash);
     assert_eq!(resp[0].header, Default::default());
