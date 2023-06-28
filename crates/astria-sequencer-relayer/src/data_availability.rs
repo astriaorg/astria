@@ -53,6 +53,12 @@ pub struct SubmitBlockResponse {
     pub namespace_to_block_num: HashMap<String, u64>,
 }
 
+/// SubmitBlocksResponse is the response to a SubmitBlocks request.
+/// It contains the height the blocks were written to.
+pub struct SubmitBlocksResponse {
+    pub height: u64,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SignedNamespaceData<D> {
     pub data: D,
@@ -223,6 +229,19 @@ impl CelestiaClient {
             .await
             .wrap_err("failed submitting pay for data to client")?;
         Ok(pay_for_data_response)
+    }
+
+    pub async fn submit_blocks(
+        &self,
+        blocks: Vec<SequencerBlock>,
+        signing_key: &SigningKey,
+        verification_key: VerificationKey,
+    ) -> eyre::Result<SubmitBlocksResponse> {
+        // TODO
+
+        Ok(SubmitBlocksResponse {
+            height: 0,
+        })
     }
 
     /// submit_block submits a block to Celestia.

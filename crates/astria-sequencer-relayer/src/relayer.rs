@@ -10,10 +10,7 @@ use eyre::{
     WrapErr as _,
 };
 use tokio::{
-    sync::{
-        mpsc::UnboundedSender,
-        watch,
-    },
+    sync::watch,
     task::JoinHandle,
     time::Interval,
 };
@@ -23,7 +20,6 @@ use tracing::{
 };
 
 use crate::{
-    data_availability::CelestiaClient,
     sequencer::SequencerClient,
     sequencer_block::SequencerBlock,
     validator::Validator,
@@ -31,11 +27,10 @@ use crate::{
 
 pub struct Relayer {
     sequencer_client: SequencerClient,
-    da_client: CelestiaClient,
     disable_writing: bool,
     validator: Validator,
     interval: Interval,
-    block_tx: UnboundedSender<SequencerBlock>,
+    block_tx: watch::Sender<Option<SequencerBlock>>,
 
     state: watch::Sender<State>,
 }
@@ -56,9 +51,8 @@ impl Relayer {
     pub fn new(
         cfg: crate::config::Config,
         sequencer_client: SequencerClient,
-        da_client: CelestiaClient,
         interval: Interval,
-        block_tx: UnboundedSender<SequencerBlock>,
+        block_tx: watch::Sender<Option<SequencerBlock>>,
     ) -> Result<Self> {
         let validator = Validator::from_path(cfg.validator_key_file)
             .wrap_err("failed to get validator info from file")?;
@@ -67,7 +61,6 @@ impl Relayer {
 
         Ok(Self {
             sequencer_client,
-            da_client,
             disable_writing: false,
             validator,
             interval,
@@ -129,34 +122,11 @@ impl Relayer {
             }
         };
 
-        self.block_tx.send(sequencer_block.clone())?;
+        self.block_tx.send(Some(sequencer_block))?;
         if self.disable_writing {
             return Ok(new_state);
         }
 
-        let tx_count = sequencer_block.rollup_txs.len() + sequencer_block.sequencer_txs.len();
-        match self
-            .da_client
-            .submit_block(
-                sequencer_block,
-                &self.validator.signing_key,
-                self.validator.verification_key,
-            )
-            .await
-        {
-            Ok(resp) => {
-                new_state
-                    .current_data_availability_height
-                    .replace(resp.height);
-                info!(
-                    sequencer_block = height,
-                    da_layer_block = resp.height,
-                    tx_count,
-                    "submitted sequencer block to DA layer",
-                );
-            }
-            Err(e) => warn!(error = ?e, "failed to submit block to DA layer"),
-        }
         Ok(new_state)
     }
 

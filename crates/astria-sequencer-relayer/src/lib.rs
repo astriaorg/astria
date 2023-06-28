@@ -11,3 +11,4 @@ pub mod tests;
 pub mod transaction;
 pub mod types;
 pub mod validator;
+pub mod writer;
