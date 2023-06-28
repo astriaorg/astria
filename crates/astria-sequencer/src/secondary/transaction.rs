@@ -20,13 +20,24 @@ use crate::accounts::{
     },
 };
 
+/// Represents an opaque transaction destined for a rollup.
+/// It only contains a nonce (of the sender account) and data
+/// which are bytes to be interpreted by the rollup.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub struct Transaction {
+pub(crate) struct Transaction {
     nonce: Nonce,
     data: Vec<u8>,
 }
 
 impl Transaction {
+    #[allow(dead_code)]
+    pub(crate) fn new(nonce: Nonce, data: Vec<u8>) -> Self {
+        Self {
+            nonce,
+            data,
+        }
+    }
+
     pub(crate) fn to_proto(&self) -> astria_proto::sequencer::v1::SecondaryTransaction {
         astria_proto::sequencer::v1::SecondaryTransaction {
             nonce: self.nonce.into(),
@@ -34,18 +45,13 @@ impl Transaction {
         }
     }
 
-    pub(crate) fn from_proto(
+    pub(crate) fn try_from_proto(
         proto: &astria_proto::sequencer::v1::SecondaryTransaction,
     ) -> Result<Self> {
         Ok(Self {
             nonce: Nonce::from(proto.nonce),
             data: proto.data.clone(),
         })
-    }
-
-    #[allow(clippy::unnecessary_wraps, clippy::unused_self)]
-    pub(crate) fn check_stateless(&self) -> Result<()> {
-        Ok(())
     }
 
     pub(crate) async fn check_stateful<S: StateReadExt + 'static>(

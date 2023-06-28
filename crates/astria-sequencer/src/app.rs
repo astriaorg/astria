@@ -225,7 +225,7 @@ mod test {
     use crate::{
         accounts::{
             state_ext::StateReadExt as _,
-            transaction::Transaction,
+            transaction::Transaction as AccountsTransaction,
             types::{
                 Address,
                 Balance,
@@ -235,6 +235,7 @@ mod test {
         },
         crypto::SigningKey,
         genesis::Account,
+        secondary::transaction::Transaction as SecondaryTransaction,
         transaction::unsigned::Transaction as UnsignedTransaction,
     };
 
@@ -375,7 +376,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_app_deliver_tx() {
+    async fn test_app_deliver_tx_transfer() {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -398,7 +399,7 @@ mod test {
         let alice = address_from_hex_string(ALICE_ADDRESS);
         let bob = address_from_hex_string(BOB_ADDRESS);
         let value = Balance::from(333_333);
-        let tx = UnsignedTransaction::AccountsTransaction(Transaction::new(
+        let tx = UnsignedTransaction::AccountsTransaction(AccountsTransaction::new(
             bob.clone(),
             value,
             Nonce::from(1),
@@ -416,6 +417,38 @@ mod test {
             Balance::from(10u128.pow(19)) - value
         );
         assert_eq!(app.state.get_account_nonce(&bob).await.unwrap(), 0);
+        assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_app_deliver_tx_secondary() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut app = App::new(snapshot);
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+        };
+        app.init_chain(genesis_state).await.unwrap();
+
+        // this secret key corresponds to ALICE_ADDRESS
+        let alice_secret_bytes: [u8; 32] =
+            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let alice_keypair = SigningKey::from(alice_secret_bytes);
+        let alice = Address::try_from(&alice_keypair).unwrap();
+
+        let tx = UnsignedTransaction::SecondaryTransaction(SecondaryTransaction::new(
+            Nonce::from(1),
+            b"helloworld".to_vec(),
+        ));
+        let signed_tx = tx.sign(&alice_keypair);
+        let bytes = signed_tx.to_proto();
+
+        app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);
     }
 

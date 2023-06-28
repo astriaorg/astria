@@ -108,7 +108,7 @@ mod test {
                     Self::AccountsTransaction(AccountsTransaction::try_from_proto(&tx)?)
                 }
                 ProtoSecondaryTransaction(tx) => {
-                    Self::SecondaryTransaction(SecondaryTransaction::from_proto(&tx)?)
+                    Self::SecondaryTransaction(SecondaryTransaction::try_from_proto(&tx)?)
                 }
             })
         }
