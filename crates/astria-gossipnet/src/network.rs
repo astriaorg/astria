@@ -82,32 +82,42 @@ impl NetworkBuilder {
         }
     }
 
+    /// The bootnodes to initially connect to.
     pub fn bootnodes(mut self, bootnodes: Vec<String>) -> Self {
         self.bootnodes = Some(bootnodes);
         self
     }
 
+    /// The port to listen on.
+    /// If not provided, a random port will be chosen.
     pub fn port(mut self, port: u16) -> Self {
         self.port = port;
         self
     }
 
+    /// The keypair to use for the node.
+    /// If not provided, a new keypair will be generated.
     pub fn keypair(mut self, keypair: Keypair) -> Self {
         // TODO: load/store keypair from disk
         self.keypair = Some(keypair);
         self
     }
 
+    /// Whether to enable mDNS discovery.
     pub fn with_mdns(mut self, with_mdns: bool) -> Self {
         self.with_mdns = with_mdns;
         self
     }
 
+    /// Whether to enable kademlia DHT discovery.
+    /// Note: the query timeout is set by default to 60 seconds.
     pub fn with_kademlia(mut self, with_kademlia: bool) -> Self {
         self.with_kademlia = with_kademlia;
         self
     }
 
+    /// Builds the `Network`.
+    /// Creates a TCP transport, builds a swarm, and connects to the bootnodes.
     pub fn build(self) -> Result<Network> {
         let keypair = self.keypair.unwrap_or(Keypair::generate_ed25519());
         let public_key = keypair.public();
@@ -132,7 +142,7 @@ impl NetworkBuilder {
             .validation_mode(gossipsub::ValidationMode::Strict) // the default is Strict (enforce message signing)
             .message_id_fn(message_id_fn) // content-address messages so that duplicates aren't propagated
             .build()
-            .map_err(|e| eyre!("failed to build gossipsub config: {}", e))?;
+            .map_err(|e| eyre!("failed to create gossipsub behaviour: `{e}`"))?;
 
         // build a gossipsub network behaviour
         let gossipsub = gossipsub::Behaviour::new(
@@ -144,7 +154,7 @@ impl NetworkBuilder {
         let mut swarm = {
             let kademlia = if self.with_kademlia {
                 let mut cfg = KademliaConfig::default();
-                cfg.set_query_timeout(Duration::from_secs(5 * 60));
+                cfg.set_query_timeout(Duration::from_secs(60));
                 let store = MemoryStore::new(local_peer_id);
                 Some(Kademlia::with_config(local_peer_id, store, cfg))
             } else {
@@ -174,32 +184,41 @@ impl NetworkBuilder {
         };
 
         let listen_addr = format!("/ip4/0.0.0.0/tcp/{}", self.port);
-        swarm.listen_on(listen_addr.parse()?)?;
+        swarm
+            .listen_on(
+                listen_addr
+                    .parse()
+                    .wrap_err("failed to parse listen addr")?,
+            )
+            .wrap_err("swarm failed to listen on address")?;
 
         if let Some(addrs) = self.bootnodes {
             addrs.iter().try_for_each(|addr| -> Result<_> {
-                let mut maddr: Multiaddr = addr.parse()?;
-                swarm.dial(maddr.clone())?;
+                let mut maddr: Multiaddr = addr
+                    .parse()
+                    .wrap_err("failed to parse bootnode multiaddress")?;
+                swarm
+                    .dial(maddr.clone())
+                    .wrap_err("failed to dial bootnode")?;
 
-                let Some(peer_id) = maddr.pop() else {
-                    return Err(eyre!("failed to parse peer id from addr: {}", addr));
+                let Some(maybe_peer_id) = maddr.pop() else {
+                    bail!("failed to parse peer id from addr: `{addr}`");
                 };
 
-                match peer_id {
+                match maybe_peer_id {
                     Protocol::P2p(peer_id) => {
-                        let peer_id = match PeerId::from_multihash(peer_id) {
-                            Ok(peer_id) => peer_id,
-                            Err(e) => {
-                                return Err(eyre!("failed to parse peer id from addr: {:?}", e));
-                            }
-                        };
-
+                        let peer_id = PeerId::from_multihash(peer_id)
+                            .map_err(|e| eyre!("failed to parse peer id from addr: {:?}", e))?;
                         if let Some(kademlia) = swarm.behaviour_mut().kademlia.as_mut() {
                             kademlia.add_address(&peer_id, maddr);
                         }
                     }
-                    _ => {
-                        return Err(eyre!("failed to parse peer id from addr: {}", addr));
+                    other => {
+                        bail!(
+                            "failed to parse peer id from addr {}, received {}",
+                            addr,
+                            other
+                        );
                     }
                 }
 
@@ -211,7 +230,6 @@ impl NetworkBuilder {
             multiaddrs: vec![],
             local_peer_id,
             swarm,
-            terminated: false,
         })
     }
 }
@@ -222,26 +240,42 @@ impl Default for NetworkBuilder {
     }
 }
 
+/// The `Network` struct represents a network with gossipsub enabled.
+/// It is able to publish and subscribe to gossipsub topics.
+/// It additionally has the `ping` and `identify` protocols enabled.
+///
+/// If kademlia is enabled, it is also able to discover peers via random walk.
 pub struct Network {
     pub(crate) multiaddrs: Vec<Multiaddr>,
     pub(crate) local_peer_id: PeerId,
     pub(crate) swarm: Swarm<GossipnetBehaviour>,
-    pub(crate) terminated: bool,
 }
 
 impl Network {
+    /// Returns the external listening addresses of the peer as received from
+    /// `SwarmEvent::NewListenAddr`.
     pub fn multiaddrs(&self) -> Vec<Multiaddr> {
         self.multiaddrs.clone()
     }
 
+    /// Bootstraps the node to join the DHT.
+    /// see https://docs.rs/libp2p-kad/latest/libp2p_kad/struct.Kademlia.html#method.bootstrap
     pub async fn bootstrap(&mut self) -> Result<()> {
-        if let Some(kademlia) = self.swarm.behaviour_mut().kademlia.as_mut() {
-            kademlia.bootstrap().map(|_| ()).map_err(|e| eyre!(e))
-        } else {
+        let Some(kademlia) = self.swarm.behaviour_mut().kademlia.as_mut() else {
             bail!("kademlia is not enabled")
-        }
+        };
+        kademlia
+            .bootstrap()
+            .map(|_| ())
+            .wrap_err("failed to bootstrap kademlia")
     }
 
+    /// Attempts to discover new peers via DHT random walk.
+    /// It does a DHT query for the closest peers to a random peer ID.
+    ///
+    /// Since the `identify` protocol is enabled, it allows us to discover the
+    /// listen addresses of new peers, which are added to the routing table
+    /// when `libp2p::identify::Event::Received` is handled.
     pub async fn random_walk(&mut self) -> Result<QueryId> {
         if let Some(kademlia) = self.swarm.behaviour_mut().kademlia.as_mut() {
             Ok(kademlia.get_closest_peers(PeerId::random()))
@@ -250,6 +284,7 @@ impl Network {
         }
     }
 
+    /// Publishes a message to a gossipsub topic.
     pub async fn publish(&mut self, message: Vec<u8>, topic: Sha256Topic) -> Result<MessageId> {
         self.swarm
             .behaviour_mut()
@@ -258,6 +293,7 @@ impl Network {
             .wrap_err("failed to publish message")
     }
 
+    /// Subscribes to a gossipsub topic.
     pub fn subscribe(&mut self, topic: &Sha256Topic) {
         self.swarm
             .behaviour_mut()
@@ -266,6 +302,7 @@ impl Network {
             .unwrap();
     }
 
+    /// Unsubscribes from a gossipsub topic.
     pub fn unsubscribe(&mut self, topic: &Sha256Topic) {
         self.swarm
             .behaviour_mut()
@@ -274,7 +311,8 @@ impl Network {
             .unwrap();
     }
 
-    pub fn peer_count(&self) -> usize {
+    /// Returns the number of peers currently connected.
+    pub fn num_peers(&self) -> usize {
         self.swarm.network_info().num_peers()
     }
 }

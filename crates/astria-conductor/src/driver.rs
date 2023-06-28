@@ -25,6 +25,7 @@ use tokio::{
 use tracing::{
     debug,
     info,
+    warn,
 };
 
 use crate::{
@@ -136,7 +137,7 @@ impl Driver {
                                 }
                             }
                             Err(err) => {
-                                debug!(error = ?err, "network error");
+                                warn!(error = ?err, "encountered error while polling p2p network");
                             }
                         }
                     }

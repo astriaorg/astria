@@ -59,7 +59,6 @@ impl futures::Stream for Network {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         while let Poll::Ready(maybe_event) = self.swarm.poll_next_unpin(cx) {
             let Some(event) = maybe_event else {
-                self.terminated = true;
                 return Poll::Ready(None);
             };
 
@@ -259,13 +258,13 @@ impl Network {
                     debug!("bootstrapping ok");
                     None
                 }
-                _ => {
-                    debug!(query_id = ?id, result = ?result, "got query result");
+                other => {
+                    debug!(query_id = ?id, result = ?other, "got query result");
                     None
                 }
             },
-            _ => {
-                debug!(event = ?event, "unhandled kademlia event");
+            other => {
+                debug!(event = ?other, "unhandled kademlia event");
                 None
             }
         }
