@@ -236,11 +236,11 @@ async fn test_dht_discovery() {
             let event = event.unwrap();
             if let Event::GossipsubPeerConnected(peer_id) = event {
                 println!("Charlie connected to {:?}", peer_id);
-                if charlie.peer_count() == 1 {
+                if charlie.num_peers() == 1 {
                     charlie.random_walk().await.unwrap();
                 }
 
-                if charlie.peer_count() == 2 {
+                if charlie.num_peers() == 2 {
                     charlie_tx.send(()).unwrap();
                     return;
                 }
