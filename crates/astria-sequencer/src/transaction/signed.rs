@@ -91,9 +91,9 @@ impl Transaction {
             ProtoAccountsTransaction(tx) => {
                 UnsignedTransaction::AccountsTransaction(AccountsTransaction::try_from_proto(&tx)?)
             }
-            ProtoSecondaryTransaction(tx) => UnsignedTransaction::SecondaryTransaction(
-                SecondaryTransaction::try_from_proto(&tx)?,
-            ),
+            ProtoSecondaryTransaction(tx) => {
+                UnsignedTransaction::SecondaryTransaction(SecondaryTransaction::from_proto(&tx))
+            }
         };
         let signed_tx = Transaction {
             transaction,
@@ -110,8 +110,8 @@ impl ActionHandler for Transaction {
     fn check_stateless(&self) -> Result<()> {
         self.verify_signature()?;
         match &self.transaction {
-            UnsignedTransaction::AccountsTransaction(_) => Ok(()),
-            UnsignedTransaction::SecondaryTransaction(_) => Ok(()),
+            UnsignedTransaction::AccountsTransaction(_)
+            | UnsignedTransaction::SecondaryTransaction(_) => Ok(()),
         }
     }
 

@@ -45,13 +45,11 @@ impl Transaction {
         }
     }
 
-    pub(crate) fn try_from_proto(
-        proto: &astria_proto::sequencer::v1::SecondaryTransaction,
-    ) -> Result<Self> {
-        Ok(Self {
+    pub(crate) fn from_proto(proto: &astria_proto::sequencer::v1::SecondaryTransaction) -> Self {
+        Self {
             nonce: Nonce::from(proto.nonce),
             data: proto.data.clone(),
-        })
+        }
     }
 
     pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
