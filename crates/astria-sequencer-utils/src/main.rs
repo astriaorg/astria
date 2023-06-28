@@ -22,7 +22,7 @@ async fn main() {
             GenesisParser::propigate_data(args)
                 .await
                 .expect("failed to propagate data");
-            info!("genesis parsing complete")
+            info!("genesis parsing complete");
         }
     }
 }
