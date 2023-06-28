@@ -1,5 +1,6 @@
 use clap::Parser;
 use figment::{
+    map,
     providers::{
         Env,
         Serialized,
@@ -18,10 +19,19 @@ pub mod searcher;
 // potentially move to a separate module so it can be imported into searcher and block_builder?
 const DEFAULT_LOG: &str = "info";
 
+fn default_log() -> String {
+    DEFAULT_LOG.into()
+}
+
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 /// The high-level config for creating an astria-composer service.
 pub struct Config {
+    /// Log level. One of debug, info, warn, or error
+    #[serde(default = "default_log")]
     pub log: String,
+
+    /// Config for Searcher service
+    #[serde(default = "searcher::Config::default")]
     pub searcher: searcher::Config,
     // TODO: add block_builder
 }
@@ -34,11 +44,16 @@ impl Config {
     /// the `[config::get]` utility function is the main entry point
     fn with_cli(cli_config: cli::Args) -> Result<Config, figment::Error> {
         let rust_log = Env::prefixed("RUST_").split("_").only(&["log"]);
+
+        // parse searcher args
+        let searcher = searcher::Config::with_cli(cli_config.clone())?;
+
         Figment::new()
             .merge(Serialized::defaults(Config::default()))
             .merge(rust_log)
-            .merge(Env::prefixed("ASTRIA_SEQUENCER_RELAYER_"))
+            .merge(Env::prefixed("ASTRIA_COMPOSER_"))
             .merge(Serialized::defaults(cli_config))
+            .merge(Serialized::defaults(map!["searcher" => searcher]))
             .extract()
     }
 }
@@ -46,7 +61,7 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            log: DEFAULT_LOG.into(),
+            log: default_log(),
             searcher: searcher::Config::default(),
         }
     }
@@ -77,6 +92,8 @@ pub fn get() -> Result<Config, figment::Error> {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use clap::Parser;
     use color_eyre::eyre;
     use figment::Jail;
@@ -85,12 +102,19 @@ mod tests {
         cli,
         Config,
     };
+    use crate::{
+        config::searcher,
+        types::rollup::ChainId,
+    };
 
     const NO_CLI_ARGS: &str = "astria-composer";
     const ALL_CLI_ARGS: &str = r#"
 astria-composer
-    --log=debug
-    --searcher-endpoint=foo
+    --log debug
+    --sequencer-endpoint http://localhost:1310
+    --searcher-api-url http://localhost:8080
+    --searcher-chain-id testnet
+    --searcher-execution-rpc-url http://localhost:50050
     "#;
 
     fn make_args(args: &str) -> eyre::Result<cli::Args, clap::Error> {
@@ -98,8 +122,17 @@ astria-composer
     }
 
     fn set_all_env(jail: &mut Jail) {
-        jail.set_env("", "");
-        todo!("set all env vars here")
+        jail.set_env("ASTRIA_COMPOSER_LOG", "warn");
+        jail.set_env("ASTRIA_COMPOSER_SEQUENCER_URL", "http://sequencer.env");
+        jail.set_env(
+            "ASTRIA_COMPOSER_SEARCHER_API_URL",
+            "http://api.searcher.env",
+        );
+        jail.set_env("ASTRIA_COMPOSER_SEARCHER_CHAIN_ID", "mainnet");
+        jail.set_env(
+            "ASTRIA_COMPOSER_SEARCHER_EXECUTION_RPC_URL",
+            "http://execution.searcher.env",
+        );
     }
 
     #[test]
@@ -107,10 +140,15 @@ astria-composer
         Jail::expect_with(|jail| {
             set_all_env(jail);
             let cli_args = make_args(ALL_CLI_ARGS).unwrap();
-            let actual = Config::with_cli(cli_args).unwrap();
+            let actual = Config::with_cli(cli_args.clone()).unwrap();
             let expected = Config {
-                log: todo!(),
-                searcher: todo!(),
+                log: "debug".into(),
+                searcher: searcher::Config {
+                    sequencer_url: "http://localhost:1310".into(),
+                    api_url: "http://localhost:8080".into(),
+                    chain_id: ChainId::from_str("testnet").unwrap(),
+                    execution_rpc_url: "http://localhost:50050".into(),
+                },
             };
             assert_eq!(expected, actual);
             Ok(())
@@ -124,8 +162,13 @@ astria-composer
             let cli_args = make_args(NO_CLI_ARGS).unwrap();
             let actual = Config::with_cli(cli_args).unwrap();
             let expected = Config {
-                log: todo!(),
-                searcher: todo!(),
+                log: "debug".into(),
+                searcher: searcher::Config {
+                    sequencer_url: "http://sequencer.env".into(),
+                    api_url: "http://api.searcher.env".into(),
+                    chain_id: ChainId::from_str("mainnet").unwrap(),
+                    execution_rpc_url: "http://execution.searcher.env".into(),
+                },
             };
             assert_eq!(expected, actual);
             Ok(())
@@ -136,11 +179,11 @@ astria-composer
     fn astria_log_overrides_rust_log() {
         Jail::expect_with(|jail| {
             jail.set_env("RUST_LOG", "rust=trace");
-            jail.set_env("ASTRIA_COMPOSER_LOG", "env=debug");
+            jail.set_env("ASTRIA_COMPOSER_LOG", "debug");
             let cli_args = make_args(NO_CLI_ARGS).unwrap();
             let actual = Config::with_cli(cli_args).unwrap();
             let expected = Config {
-                log: "env=debug".into(),
+                log: "debug".into(),
                 ..Config::default()
             };
             assert_eq!(expected, actual);
