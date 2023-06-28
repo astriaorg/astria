@@ -18,10 +18,10 @@ pub enum Command {
 
 #[derive(Debug, Deserialize, Parser, Serialize)]
 pub struct GenesisParserArgs {
-    #[clap(long)]
+    #[clap(long, short = 's')]
     pub source_genesis_file: String,
 
-    #[clap(long)]
+    #[clap(long, short = 'd')]
     pub destination_genesis_file: String,
 }
 
