@@ -25,6 +25,7 @@ use tokio::{
 use tracing::{
     debug,
     info,
+    warn,
 };
 
 use crate::{
@@ -129,8 +130,15 @@ impl Driver {
             select! {
                 res = self.network.get_mut().0.next() => {
                     if let Some(res) = res {
-                        if let Err(e) = self.handle_network_event(res).await {
-                           debug!(error = ?e, "failed to handle network event");
+                        match res {
+                            Ok(event) => {
+                                if let Err(e) = self.handle_network_event(event).await {
+                                    debug!(error = ?e, "failed to handle network event");
+                                }
+                            }
+                            Err(err) => {
+                                warn!(error = ?err, "encountered error while polling p2p network");
+                            }
                         }
                     }
                 },
@@ -152,7 +160,7 @@ impl Driver {
             NetworkEvent::NewListenAddr(addr) => {
                 info!("listening on {}", addr);
             }
-            NetworkEvent::Message(msg) => {
+            NetworkEvent::GossipsubMessage(msg) => {
                 debug!("received gossip message: {:?}", msg);
                 let block = SequencerBlock::from_bytes(&msg.data)
                     .wrap_err("failed to deserialize SequencerBlock received from network")?;
