@@ -28,8 +28,8 @@ use crate::{
         StateWriteExt as _,
     },
     transaction::{
+        signed::Transaction as SignedTransaction,
         ActionHandler as _,
-        SignedTransaction,
     },
 };
 
@@ -230,12 +230,20 @@ mod test {
                 Address,
                 Balance,
                 Nonce,
+                ADDRESS_LEN,
             },
         },
-        crypto::Keypair,
+        crypto::SigningKey,
         genesis::Account,
-        transaction::UnsignedTransaction,
+        transaction::unsigned::Transaction as UnsignedTransaction,
     };
+
+    /// attempts to decode the given hex string into an address.
+    fn address_from_hex_string(s: &str) -> Address {
+        let bytes = hex::decode(s).unwrap();
+        let arr: [u8; ADDRESS_LEN] = bytes.try_into().unwrap();
+        Address::from_array(arr)
+    }
 
     // generated with test `generate_default_keys()`
     const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
@@ -245,15 +253,15 @@ mod test {
     fn default_genesis_accounts() -> Vec<Account> {
         vec![
             Account {
-                address: Address::unsafe_from_hex_string(ALICE_ADDRESS),
+                address: address_from_hex_string(ALICE_ADDRESS),
                 balance: 10u128.pow(19).into(),
             },
             Account {
-                address: Address::unsafe_from_hex_string(BOB_ADDRESS),
+                address: address_from_hex_string(BOB_ADDRESS),
                 balance: 10u128.pow(19).into(),
             },
             Account {
-                address: Address::unsafe_from_hex_string(CAROL_ADDRESS),
+                address: address_from_hex_string(CAROL_ADDRESS),
                 balance: 10u128.pow(19).into(),
             },
         ]
@@ -278,6 +286,36 @@ mod test {
                 app: 0,
                 block: 0,
             },
+        }
+    }
+
+    impl SignedTransaction {
+        #[must_use]
+        pub(crate) fn to_proto(&self) -> Vec<u8> {
+            use astria_proto::sequencer::v1::{
+                unsigned_transaction::Value::{
+                    AccountsTransaction as ProtoAccountsTransaction,
+                    SecondaryTransaction as ProtoSecondaryTransaction,
+                },
+                SignedTransaction as ProtoSignedTransaction,
+                UnsignedTransaction as ProtoUnsignedTransaction,
+            };
+            use prost::Message as _;
+
+            let proto = ProtoSignedTransaction {
+                transaction: Some(match &self.transaction {
+                    UnsignedTransaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
+                        value: Some(ProtoAccountsTransaction(tx.to_proto())),
+                    },
+                    UnsignedTransaction::SecondaryTransaction(tx) => ProtoUnsignedTransaction {
+                        value: Some(ProtoSecondaryTransaction(tx.to_proto())),
+                    },
+                }),
+                signature: self.signature.to_bytes().to_vec(),
+                public_key: self.public_key.to_bytes().to_vec(),
+            };
+
+            proto.encode_length_delimited_to_vec()
         }
     }
 
@@ -349,12 +387,16 @@ mod test {
         app.init_chain(genesis_state).await.unwrap();
 
         // transfer funds from Alice to Bob
-        // this keypair corresponds to ALICE_ADDRESS
-        let keypair_bytes = hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90d5bf4a3fcce717b0388bcc2749ebc148ad9969b23f45ee1b605fd58778576ac4").unwrap();
-        let alice_keypair = Keypair::from_bytes(&keypair_bytes).unwrap();
+        // this secret key corresponds to ALICE_ADDRESS
+        let alice_secret_bytes: [u8; 32] =
+            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let alice_keypair = SigningKey::from(alice_secret_bytes);
 
-        let alice = Address::unsafe_from_hex_string(ALICE_ADDRESS);
-        let bob = Address::unsafe_from_hex_string(BOB_ADDRESS);
+        let alice = address_from_hex_string(ALICE_ADDRESS);
+        let bob = address_from_hex_string(BOB_ADDRESS);
         let value = Balance::from(333_333);
         let tx = UnsignedTransaction::AccountsTransaction(Transaction::new(
             bob.clone(),
@@ -362,7 +404,7 @@ mod test {
             Nonce::from(1),
         ));
         let signed_tx = tx.sign(&alice_keypair);
-        let bytes = signed_tx.to_vec();
+        let bytes = signed_tx.to_proto();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(

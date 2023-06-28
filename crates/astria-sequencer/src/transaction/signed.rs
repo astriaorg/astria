@@ -1,5 +1,4 @@
 use anyhow::{
-    anyhow,
     bail,
     Context as _,
     Result,
@@ -10,7 +9,6 @@ use astria_proto::sequencer::v1::{
         SecondaryTransaction as ProtoSecondaryTransaction,
     },
     SignedTransaction as ProtoSignedTransaction,
-    UnsignedTransaction as ProtoUnsignedTransaction,
 };
 use async_trait::async_trait;
 use penumbra_storage::{
@@ -26,36 +24,36 @@ use crate::{
         types::Address,
     },
     crypto::{
-        PublicKey,
         Signature,
-        Verifier,
+        VerificationKey,
     },
-    hash,
     secondary::transaction::Transaction as SecondaryTransaction,
     transaction::{
+        unsigned::Transaction as UnsignedTransaction,
         ActionHandler,
-        TransactionHash,
-        UnsignedTransaction,
     },
 };
 
+/// Represents a transaction signed by a user.
+/// It contains the signature and the public key of the user,
+/// as well as the transaction itself.
 #[derive(Debug, Clone)]
-pub struct SignedTransaction {
-    pub signature: Signature,
-    pub public_key: PublicKey,
-    pub transaction: UnsignedTransaction,
+pub(crate) struct Transaction {
+    pub(crate) signature: Signature,
+    pub(crate) public_key: VerificationKey,
+    pub(crate) transaction: UnsignedTransaction,
 }
 
-impl SignedTransaction {
+impl Transaction {
     /// Verifies the transaction signature.
     /// The transaction signature message is the hash of the transaction.
     ///
     /// # Errors
     ///
     /// - If the signature is invalid
-    pub fn verify_signature(&self) -> Result<()> {
+    pub(crate) fn verify_signature(&self) -> Result<()> {
         self.public_key
-            .verify(&self.transaction.hash(), &self.signature)
+            .verify(&self.signature, &self.transaction.hash())
             .context("failed to verify transaction signature")
     }
 
@@ -64,28 +62,8 @@ impl SignedTransaction {
     /// # Errors
     ///
     /// - If the public key cannot be converted into an address
-    pub fn signer_address(&self) -> Result<Address> {
+    pub(crate) fn signer_address(&self) -> Result<Address> {
         Address::try_from(&self.public_key)
-    }
-
-    #[must_use]
-    pub fn to_vec(&self) -> Vec<u8> {
-        let tx = match &self.transaction {
-            UnsignedTransaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
-                value: Some(ProtoAccountsTransaction(tx.to_proto())),
-            },
-            UnsignedTransaction::SecondaryTransaction(tx) => ProtoUnsignedTransaction {
-                value: Some(ProtoSecondaryTransaction(tx.to_proto())),
-            },
-        };
-
-        let proto = ProtoSignedTransaction {
-            transaction: Some(tx),
-            signature: self.signature.to_bytes().to_vec(),
-            public_key: self.public_key.to_bytes().to_vec(),
-        };
-
-        proto.encode_length_delimited_to_vec()
     }
 
     /// Attempts to decode a signed transaction from the given bytes.
@@ -98,7 +76,7 @@ impl SignedTransaction {
     ///   component)
     /// - If the signature cannot be decoded
     /// - If the public key cannot be decoded
-    pub fn try_from_slice(bytes: &[u8]) -> Result<Self> {
+    pub(crate) fn try_from_slice(bytes: &[u8]) -> Result<Self> {
         let proto_tx: ProtoSignedTransaction =
             ProtoSignedTransaction::decode_length_delimited(bytes)?;
         let Some(proto_transaction) = proto_tx.transaction else {
@@ -111,39 +89,28 @@ impl SignedTransaction {
 
         let transaction = match value {
             ProtoAccountsTransaction(tx) => {
-                UnsignedTransaction::AccountsTransaction(AccountsTransaction::from_proto(&tx)?)
+                UnsignedTransaction::AccountsTransaction(AccountsTransaction::try_from_proto(&tx)?)
             }
             ProtoSecondaryTransaction(tx) => {
                 UnsignedTransaction::SecondaryTransaction(SecondaryTransaction::from_proto(&tx)?)
             }
         };
-        let signed_tx = SignedTransaction {
+        let signed_tx = Transaction {
             transaction,
-            signature: Signature::from_bytes(&proto_tx.signature)?,
-            public_key: PublicKey::from_bytes(&proto_tx.public_key)?,
+            signature: Signature::try_from(proto_tx.signature.as_slice())?,
+            public_key: VerificationKey::try_from(proto_tx.public_key.as_slice())?,
         };
         Ok(signed_tx)
-    }
-
-    /// Returns the sha256 hash of the encoded transaction.
-    ///
-    /// # Errors
-    ///
-    /// - If the hash cannot be converted into 32 bytes
-    pub fn hash(&self) -> Result<TransactionHash> {
-        hash(&self.to_vec())
-            .try_into()
-            .map_err(|_| anyhow!("failed to turn hash into 32 bytes"))
     }
 }
 
 #[async_trait]
-impl ActionHandler for SignedTransaction {
+impl ActionHandler for Transaction {
     #[instrument]
     fn check_stateless(&self) -> Result<()> {
         self.verify_signature()?;
         match &self.transaction {
-            UnsignedTransaction::AccountsTransaction(tx) => tx.check_stateless(),
+            UnsignedTransaction::AccountsTransaction(_) => Ok(()),
             UnsignedTransaction::SecondaryTransaction(tx) => tx.check_stateless(),
         }
     }

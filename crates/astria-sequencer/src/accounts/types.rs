@@ -9,20 +9,21 @@ use serde::{
     Serialize,
 };
 
-const ADDRESS_LEN: usize = 20;
+/// The length of an account address in bytes.
+pub(crate) const ADDRESS_LEN: usize = 20;
 
-/// Address represents an account address.
+/// Represents an account address.
 #[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub struct Address([u8; ADDRESS_LEN]);
+pub(crate) struct Address([u8; ADDRESS_LEN]);
 
-impl TryFrom<Vec<u8>> for Address {
-    type Error = anyhow::Error;
+impl Address {
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
 
-    fn try_from(bytes: Vec<u8>) -> std::result::Result<Self, Self::Error> {
-        let arr: [u8; ADDRESS_LEN] = bytes
-            .try_into()
-            .map_err(|_| anyhow!("invalid address length"))?;
-        Ok(Address(arr))
+    #[allow(dead_code)]
+    pub(crate) fn from_array(arr: [u8; ADDRESS_LEN]) -> Self {
+        Self(arr)
     }
 }
 
@@ -49,10 +50,10 @@ impl TryFrom<&str> for Address {
     }
 }
 
-impl TryFrom<&crate::crypto::PublicKey> for Address {
+impl TryFrom<&crate::crypto::VerificationKey> for Address {
     type Error = anyhow::Error;
 
-    fn try_from(public_key: &crate::crypto::PublicKey) -> Result<Self, Self::Error> {
+    fn try_from(public_key: &crate::crypto::VerificationKey) -> Result<Self, Self::Error> {
         let bytes = crate::hash(public_key.as_bytes());
         let arr: [u8; ADDRESS_LEN] = bytes[0..ADDRESS_LEN]
             .try_into()
@@ -61,11 +62,11 @@ impl TryFrom<&crate::crypto::PublicKey> for Address {
     }
 }
 
-impl TryFrom<&crate::crypto::Keypair> for Address {
+impl TryFrom<&crate::crypto::SigningKey> for Address {
     type Error = anyhow::Error;
 
-    fn try_from(keypair: &crate::crypto::Keypair) -> Result<Self, Self::Error> {
-        let bytes = crate::hash(keypair.public.as_bytes());
+    fn try_from(secret_key: &crate::crypto::SigningKey) -> Result<Self, Self::Error> {
+        let bytes = crate::hash(secret_key.verification_key().as_bytes());
         let arr: [u8; ADDRESS_LEN] = bytes[0..ADDRESS_LEN]
             .try_into()
             .map_err(|_| anyhow!("invalid address hex length"))?;
@@ -76,23 +77,6 @@ impl TryFrom<&crate::crypto::Keypair> for Address {
 impl std::fmt::Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", hex::encode(self.0))
-    }
-}
-
-impl Address {
-    /// attempts to decode the given hex string into an address.
-    /// WARNING: this function panics on failure; use `try_from` instead.
-    pub fn unsafe_from_hex_string(s: &str) -> Self {
-        let bytes = hex::decode(s).unwrap();
-        let arr: [u8; ADDRESS_LEN] = bytes
-            .try_into()
-            .map_err(|_| anyhow!("invalid address hex length"))
-            .unwrap();
-        Address(arr)
-    }
-
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.0
     }
 }
 
@@ -110,7 +94,7 @@ impl Address {
     Ord,
     Debug,
 )]
-pub struct Balance(u128);
+pub(crate) struct Balance(u128);
 
 impl Balance {
     pub(crate) fn into_inner(self) -> u128 {
@@ -182,7 +166,7 @@ impl From<Balance> for ProtoBalance {
     Ord,
     Debug,
 )]
-pub struct Nonce(u32);
+pub(crate) struct Nonce(u32);
 
 impl Nonce {
     pub(crate) fn into_inner(self) -> u32 {

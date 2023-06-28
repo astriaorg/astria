@@ -4,12 +4,15 @@ package astria.sequencer.v1;
 
 import "astria/primitive/v1/types.proto";
 
+// `SignedTransaction` is a transaction that has been signed by the given public key.
+// It wraps an `UnsignedTransaction` with a signature and public key.
 message SignedTransaction {
     bytes signature = 1;
     bytes public_key = 2;
     UnsignedTransaction transaction = 3;
 }
 
+// `UnsignedTransaction` is a transaction that does not have an attached signature.
 message UnsignedTransaction {
     oneof value {
         AccountsTransaction accounts_transaction = 1;
@@ -17,6 +20,7 @@ message UnsignedTransaction {
     }   
 }
 
+// `AccountsTransaction` represents a value transfer transaction.
 message AccountsTransaction {
     bytes to = 1;
     astria.primitive.v1.Uint128 amount = 2;
