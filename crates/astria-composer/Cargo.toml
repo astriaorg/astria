@@ -8,13 +8,13 @@ edition = "2021"
 [dependencies]
 async-trait = { workspace = true }
 color-eyre = { workspace = true }
-figment = { workspace = true, features = ["toml", "env"] }
-tokio = { workspace = true }
-serde = { workspace = true, features = ["derive"]  }
+figment = { workspace = true, features = ["toml", "env", "test"] }
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
 clap = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["ansi", "json"] }
+tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 reqwest = { workspace = true, features = ["json"] }
 # TODO: should these be moved to workspace? 
 is-terminal = "0.4.7" # also appears in astria-conductor
