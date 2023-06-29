@@ -33,7 +33,7 @@ use crate::{
 
 /// Represents an unsigned sequencer chain transaction.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Transaction {
+pub(crate) struct Transaction {
     pub(crate) nonce: Nonce,
     pub(crate) actions: Vec<Action>,
 }
