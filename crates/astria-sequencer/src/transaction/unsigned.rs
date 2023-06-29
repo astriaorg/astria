@@ -3,14 +3,7 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_proto::sequencer::v1::{
-    action::Value::{
-        SecondaryAction as ProtoSecondaryTransaction,
-        Transfer as ProtoAccountsTransaction,
-    },
-    Action as ProtoAction,
-    UnsignedTransaction as ProtoUnsignedTransaction,
-};
+use astria_proto::sequencer::v1::UnsignedTransaction as ProtoUnsignedTransaction;
 use prost::Message as _;
 use serde::{
     Deserialize,
@@ -18,14 +11,12 @@ use serde::{
 };
 use tracing::instrument;
 
-use super::ActionHandler;
 use crate::{
     accounts::{
         state_ext::{
             StateReadExt,
             StateWriteExt,
         },
-        transaction::Transfer as AccountsTransaction,
         types::{
             Address,
             Nonce,
@@ -33,49 +24,12 @@ use crate::{
     },
     crypto::SigningKey,
     hash,
-    secondary::transaction::Transaction as SecondaryTransaction,
-    transaction::signed::Transaction as SignedTransaction,
+    transaction::{
+        action::Action,
+        signed::Transaction as SignedTransaction,
+        ActionHandler,
+    },
 };
-
-/// Represents an action on a specific module.
-/// This type wraps all the different module-specific actions.
-/// If a new action type is added, it should be added to this enum.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[non_exhaustive]
-pub(crate) enum Action {
-    AccountsAction(AccountsTransaction),
-    SecondaryAction(SecondaryTransaction),
-}
-
-impl Action {
-    pub(crate) fn to_proto(&self) -> ProtoAction {
-        match &self {
-            Action::AccountsAction(tx) => ProtoAction {
-                value: Some(ProtoAccountsTransaction(tx.to_proto())),
-            },
-            Action::SecondaryAction(tx) => ProtoAction {
-                value: Some(ProtoSecondaryTransaction(tx.to_proto())),
-            },
-        }
-    }
-
-    pub(crate) fn try_from_proto(proto: &ProtoAction) -> Result<Self> {
-        Ok(
-            match proto
-                .value
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("missing value"))?
-            {
-                ProtoAccountsTransaction(tx) => {
-                    Action::AccountsAction(AccountsTransaction::try_from_proto(tx)?)
-                }
-                ProtoSecondaryTransaction(tx) => {
-                    Action::SecondaryAction(SecondaryTransaction::from_proto(tx))
-                }
-            },
-        )
-    }
-}
 
 /// Represents an unsigned sequencer chain transaction.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -192,11 +146,14 @@ mod test {
     use rand::rngs::OsRng;
 
     use super::*;
-    use crate::accounts::types::{
-        Address,
-        Balance,
-        Nonce,
-        ADDRESS_LEN,
+    use crate::accounts::{
+        transaction::Transfer,
+        types::{
+            Address,
+            Balance,
+            Nonce,
+            ADDRESS_LEN,
+        },
     };
 
     const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
@@ -228,7 +185,7 @@ mod test {
     fn test_unsigned_transaction() {
         let tx = Transaction {
             nonce: Nonce::from(1),
-            actions: vec![Action::AccountsAction(AccountsTransaction::new(
+            actions: vec![Action::AccountsAction(Transfer::new(
                 address_from_hex_string(BOB_ADDRESS),
                 Balance::from(333_333),
             ))],

@@ -233,9 +233,9 @@ mod test {
         crypto::SigningKey,
         genesis::Account,
         secondary::transaction::Transaction as SecondaryTransaction,
-        transaction::unsigned::{
-            Action,
-            Transaction as UnsignedTransaction,
+        transaction::{
+            action::Action,
+            unsigned::Transaction as UnsignedTransaction,
         },
     };
 
