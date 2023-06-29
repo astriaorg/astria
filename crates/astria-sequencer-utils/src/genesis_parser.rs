@@ -31,14 +31,14 @@ impl GenesisParser {
             .context("failed deserializing sequencer genesis state from file")?;
 
         // load cometbft genesis data
-        let destination_genesis_file_path = File::open(data.destination_genesis_file.clone())
+        let destination_genesis_file_path = File::open(data.destination_genesis_file.as_str())
             .context("failed to open cometbft genesis file")?;
         let mut destination_genesis_data: Value =
             serde_json::from_reader(&destination_genesis_file_path)
                 .context("failed deserializing cometbft genesis state from file")?;
 
         // merge sequencer genesis data into cometbft genesis data
-        merge_values(&mut destination_genesis_data, &source_genesis_data);
+        merge_json(&mut destination_genesis_data, &source_genesis_data);
 
         // write new state
         let dest_file = File::create(Path::new(data.destination_genesis_file.as_str()))
@@ -50,15 +50,14 @@ impl GenesisParser {
 }
 
 /// Merges a source JSON Value into a destination JSON Value.
-fn merge_values(a: &mut Value, b: &Value) {
+// inpiration for this function came from: https://stackoverflow.com/questions/47070876/how-can-i-merge-two-json-objects-with-rust
+fn merge_json(a: &mut Value, b: &Value) {
     match (a, b) {
-        (&mut Value::Object(ref mut a), Value::Object(b)) => {
+        (Value::Object(a), Value::Object(b)) => {
             for (k, v) in b {
-                merge_values(a.entry(k.clone()).or_insert(Value::Null), v);
+                merge_json(a.entry(k).or_insert(Value::Null), v);
             }
         }
-        (a, b) => {
-            *a = b.clone();
-        }
+        (a, b) => *a = b.clone(),
     }
 }
