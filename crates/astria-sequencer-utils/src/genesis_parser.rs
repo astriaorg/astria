@@ -4,6 +4,7 @@ use std::{
 };
 
 use eyre::{
+    // Report,
     Result,
     WrapErr,
 };
@@ -17,6 +18,12 @@ use crate::config::Config;
 pub struct GenesisParser;
 
 impl GenesisParser {
+    /// Propagates json data from one json file to another.
+    ///
+    /// # Errors
+    ///
+    /// An `eyre::Result` is returned if either source genesis files cannot be opened,
+    /// or if the destination genesis file cannot be saved.
     pub fn propagate_data(data: Config) -> Result<()> {
         println!("loading genesis json data for propigation:");
         println!("\tsource genesis file: {}", data.source_genesis_file);
