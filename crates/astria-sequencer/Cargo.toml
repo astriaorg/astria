@@ -7,7 +7,6 @@ edition = "2021"
 astria-proto = {path = "../astria-proto"}
 
 anyhow = "1"
-borsh = "0.10.3"
 is-terminal = "0.4.7"
 # commit builds off v0.54.1
 penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "d8d5cd0b00876380147d7ddc7f3005178e3d9ae0" }
@@ -18,6 +17,7 @@ tower-abci = "0.8.0"
 tower-actor = "0.1.0"
 
 async-trait = { workspace = true }
+borsh = { workspace = true }
 bytes = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 ed25519-consensus = { workspace = true }

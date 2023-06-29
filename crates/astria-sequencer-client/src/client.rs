@@ -28,7 +28,7 @@ use tendermint_rpc::{
 /// Default Tendermint base URL.
 pub const DEFAULT_TENDERMINT_BASE_URL: &str = "http://localhost:26657";
 
-/// Tendermint client which is used to interact with the Sequencer node.
+/// Tendermint HTTP client which is used to interact with the Sequencer node.
 pub struct Client {
     client: HttpClient,
 }
@@ -40,6 +40,8 @@ impl Client {
         })
     }
 
+    /// Returns the balance of the given account at the given height.
+    /// If no height is given, the latest height is used.
     pub async fn get_balance(
         &self,
         address: &Address,
@@ -66,6 +68,8 @@ impl Client {
         }
     }
 
+    /// Returns the nonce of the given account at the given height.
+    /// If no height is given, the latest height is used.
     pub async fn get_nonce(
         &self,
         address: &Address,
@@ -94,6 +98,7 @@ impl Client {
 
     /// Submits the given transaction to the Sequencer node.
     /// This method blocks until the transaction is checked, but not until it's committed.
+    /// It returns the results of `CheckTx`.
     pub async fn submit_transaction_sync(
         &self,
         tx: signed::Transaction,
@@ -108,6 +113,7 @@ impl Client {
 
     /// Submits the given transaction to the Sequencer node.
     /// This method blocks until the transaction is committed.
+    /// It returns the results of `CheckTx` and `DeliverTx`.
     pub async fn submit_transaction_commit(
         &self,
         tx: signed::Transaction,

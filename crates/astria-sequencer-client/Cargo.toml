@@ -6,9 +6,9 @@ edition = "2021"
 [dependencies]
 astria-sequencer = { path = "../astria-sequencer" }
 
-borsh = "0.10.3"
 tendermint-rpc = { version = "0.32", features = ["http-client"]}
 
+borsh = { workspace = true }
 ed25519-consensus = { workspace = true }
 eyre = { workspace = true }
 hex = { workspace = true }
