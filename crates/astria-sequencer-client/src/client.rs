@@ -34,6 +34,11 @@ pub struct Client {
 }
 
 impl Client {
+    /// Creates a new Tendermint client with the given base URL.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the client could not be created.
     pub fn new(base_url: &str) -> eyre::Result<Self> {
         Ok(Client {
             client: HttpClient::new(base_url).wrap_err("failed to initialize tendermint client")?,
@@ -42,6 +47,11 @@ impl Client {
 
     /// Returns the balance of the given account at the given height.
     /// If no height is given, the latest height is used.
+    ///
+    /// # Errors
+    ///
+    /// - If calling the tendermint RPC endpoint fails.
+    /// - If the response from the server is invalid.
     pub async fn get_balance(
         &self,
         address: &Address,
@@ -70,6 +80,11 @@ impl Client {
 
     /// Returns the nonce of the given account at the given height.
     /// If no height is given, the latest height is used.
+    ///
+    /// # Errors
+    ///
+    /// - If calling the tendermint RPC endpoint fails.
+    /// - If the response from the server is invalid.
     pub async fn get_nonce(
         &self,
         address: &Address,
@@ -99,6 +114,10 @@ impl Client {
     /// Submits the given transaction to the Sequencer node.
     /// This method blocks until the transaction is checked, but not until it's committed.
     /// It returns the results of `CheckTx`.
+    ///
+    /// # Errors
+    ///
+    /// - If calling the tendermint RPC endpoint fails.
     pub async fn submit_transaction_sync(
         &self,
         tx: signed::Transaction,
@@ -113,6 +132,10 @@ impl Client {
     /// Submits the given transaction to the Sequencer node.
     /// This method blocks until the transaction is committed.
     /// It returns the results of `CheckTx` and `DeliverTx`.
+    ///
+    /// # Errors
+    ///
+    /// - If calling the tendermint RPC endpoint fails.
     pub async fn submit_transaction_commit(
         &self,
         tx: signed::Transaction,
