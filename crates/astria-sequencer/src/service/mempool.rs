@@ -21,10 +21,7 @@ use tower::Service;
 use tower_abci::BoxError;
 use tracing::Instrument;
 
-use crate::transaction::{
-    signed::Transaction as SignedTransaction,
-    ActionHandler as _,
-};
+use crate::transaction::signed::Transaction as SignedTransaction;
 
 /// Mempool handles [`request::CheckTx`] abci requests.
 //

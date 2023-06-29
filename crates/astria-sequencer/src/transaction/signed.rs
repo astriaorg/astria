@@ -3,14 +3,7 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_proto::sequencer::v1::{
-    unsigned_transaction::Value::{
-        AccountsTransaction as ProtoAccountsTransaction,
-        SecondaryTransaction as ProtoSecondaryTransaction,
-    },
-    SignedTransaction as ProtoSignedTransaction,
-};
-use async_trait::async_trait;
+use astria_proto::sequencer::v1::SignedTransaction as ProtoSignedTransaction;
 use penumbra_storage::{
     StateRead,
     StateWrite,
@@ -18,20 +11,17 @@ use penumbra_storage::{
 use prost::Message as _;
 use tracing::instrument;
 
+use super::{
+    unsigned,
+    ActionHandler,
+};
 use crate::{
-    accounts::{
-        transaction::Transaction as AccountsTransaction,
-        types::Address,
-    },
+    accounts::types::Address,
     crypto::{
         Signature,
         VerificationKey,
     },
-    secondary::transaction::Transaction as SecondaryTransaction,
-    transaction::{
-        unsigned::Transaction as UnsignedTransaction,
-        ActionHandler,
-    },
+    transaction::unsigned::Transaction as UnsignedTransaction,
 };
 
 /// Represents a transaction signed by a user.
@@ -83,18 +73,7 @@ impl Transaction {
             bail!("transaction is missing");
         };
 
-        let Some(value) = proto_transaction.value else {
-            bail!("unsigned transaction value missing")
-        };
-
-        let transaction = match value {
-            ProtoAccountsTransaction(tx) => {
-                UnsignedTransaction::AccountsTransaction(AccountsTransaction::try_from_proto(&tx)?)
-            }
-            ProtoSecondaryTransaction(tx) => {
-                UnsignedTransaction::SecondaryTransaction(SecondaryTransaction::from_proto(&tx))
-            }
-        };
+        let transaction = unsigned::Transaction::try_from_proto(&proto_transaction)?;
         let signed_tx = Transaction {
             transaction,
             signature: Signature::try_from(proto_tx.signature.as_slice())?,
@@ -104,38 +83,25 @@ impl Transaction {
     }
 }
 
-#[async_trait]
-impl ActionHandler for Transaction {
+impl Transaction {
     #[instrument]
-    fn check_stateless(&self) -> Result<()> {
+    pub(crate) fn check_stateless(&self) -> Result<()> {
         self.verify_signature()?;
-        match &self.transaction {
-            UnsignedTransaction::AccountsTransaction(_)
-            | UnsignedTransaction::SecondaryTransaction(_) => Ok(()),
-        }
+        self.transaction.check_stateless()?;
+        Ok(())
     }
 
     #[instrument(skip(state))]
-    async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()> {
-        match &self.transaction {
-            UnsignedTransaction::AccountsTransaction(tx) => {
-                tx.check_stateful(state, &self.signer_address()?).await
-            }
-            UnsignedTransaction::SecondaryTransaction(tx) => {
-                tx.check_stateful(state, &self.signer_address()?).await
-            }
-        }
+    pub(crate) async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()> {
+        self.transaction
+            .check_stateful(state, &self.signer_address()?)
+            .await
     }
 
     #[instrument(skip(state))]
-    async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()> {
-        match &self.transaction {
-            UnsignedTransaction::AccountsTransaction(tx) => {
-                tx.execute(state, &self.signer_address()?).await
-            }
-            UnsignedTransaction::SecondaryTransaction(tx) => {
-                tx.execute(state, &self.signer_address()?).await
-            }
-        }
+    pub(crate) async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()> {
+        self.transaction
+            .execute(state, &self.signer_address()?)
+            .await
     }
 }

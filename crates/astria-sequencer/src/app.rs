@@ -27,10 +27,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::{
-        signed::Transaction as SignedTransaction,
-        ActionHandler as _,
-    },
+    transaction::signed::Transaction as SignedTransaction,
 };
 
 /// The application hash, used to verify the application state.
@@ -225,7 +222,7 @@ mod test {
     use crate::{
         accounts::{
             state_ext::StateReadExt as _,
-            transaction::Transaction as AccountsTransaction,
+            transaction::Transfer,
             types::{
                 Address,
                 Balance,
@@ -236,7 +233,10 @@ mod test {
         crypto::SigningKey,
         genesis::Account,
         secondary::transaction::Transaction as SecondaryTransaction,
-        transaction::unsigned::Transaction as UnsignedTransaction,
+        transaction::unsigned::{
+            Action,
+            Transaction as UnsignedTransaction,
+        },
     };
 
     /// attempts to decode the given hex string into an address.
@@ -293,25 +293,11 @@ mod test {
     impl SignedTransaction {
         #[must_use]
         pub(crate) fn to_proto(&self) -> Vec<u8> {
-            use astria_proto::sequencer::v1::{
-                unsigned_transaction::Value::{
-                    AccountsTransaction as ProtoAccountsTransaction,
-                    SecondaryTransaction as ProtoSecondaryTransaction,
-                },
-                SignedTransaction as ProtoSignedTransaction,
-                UnsignedTransaction as ProtoUnsignedTransaction,
-            };
+            use astria_proto::sequencer::v1::SignedTransaction as ProtoSignedTransaction;
             use prost::Message as _;
 
             let proto = ProtoSignedTransaction {
-                transaction: Some(match &self.transaction {
-                    UnsignedTransaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
-                        value: Some(ProtoAccountsTransaction(tx.to_proto())),
-                    },
-                    UnsignedTransaction::SecondaryTransaction(tx) => ProtoUnsignedTransaction {
-                        value: Some(ProtoSecondaryTransaction(tx.to_proto())),
-                    },
-                }),
+                transaction: Some(self.transaction.to_proto()),
                 signature: self.signature.to_bytes().to_vec(),
                 public_key: self.public_key.to_bytes().to_vec(),
             };
@@ -399,11 +385,10 @@ mod test {
         let alice = address_from_hex_string(ALICE_ADDRESS);
         let bob = address_from_hex_string(BOB_ADDRESS);
         let value = Balance::from(333_333);
-        let tx = UnsignedTransaction::AccountsTransaction(AccountsTransaction::new(
-            bob.clone(),
-            value,
-            Nonce::from(1),
-        ));
+        let tx = UnsignedTransaction {
+            nonce: Nonce::from(1),
+            actions: vec![Action::AccountsAction(Transfer::new(bob.clone(), value))],
+        };
         let signed_tx = tx.sign(&alice_keypair);
         let bytes = signed_tx.to_proto();
 
@@ -441,10 +426,14 @@ mod test {
         let alice_keypair = SigningKey::from(alice_secret_bytes);
         let alice = Address::try_from(&alice_keypair).unwrap();
 
-        let tx = UnsignedTransaction::SecondaryTransaction(SecondaryTransaction::new(
-            Nonce::from(1),
-            b"helloworld".to_vec(),
-        ));
+        let tx = UnsignedTransaction {
+            nonce: Nonce::from(1),
+            actions: vec![Action::SecondaryAction(SecondaryTransaction::new(
+                b"testchainid".to_vec(),
+                b"helloworld".to_vec(),
+            ))],
+        };
+
         let signed_tx = tx.sign(&alice_keypair);
         let bytes = signed_tx.to_proto();
 
