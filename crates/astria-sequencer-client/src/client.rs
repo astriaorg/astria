@@ -1,105 +1,100 @@
-use std::time::Duration;
-
 use astria_sequencer::{
-    accounts::types::{
-        Address,
-        Balance,
-        Nonce,
+    accounts::{
+        query::QueryResponse,
+        types::{
+            Address,
+            Balance,
+            Nonce,
+        },
     },
     transaction::signed,
 };
 use borsh::BorshDeserialize;
 use eyre::{
     self,
+    bail,
     WrapErr as _,
 };
-use reqwest::{
-    self,
-    ClientBuilder,
+use tendermint::block::Height;
+use tendermint_rpc::{
+    endpoint::broadcast::{
+        tx_commit::Response as BroadcastTxCommitResponse,
+        tx_sync::Response as BroadcastTxSyncResponse,
+    },
+    Client as _,
+    HttpClient,
 };
-use serde::Deserialize;
 
 const DEFAULT_TENDERMINT_BASE_URL: &str = "http://localhost:26657";
 
 /// Tendermint client which is used to interact with the Sequencer node.
 pub struct Client {
-    pub client: reqwest::Client,
-    pub base_url: String,
+    client: HttpClient,
 }
 
 impl Client {
     pub fn new(base_url: &str) -> eyre::Result<Self> {
-        let http_client = ClientBuilder::new()
-            .timeout(Duration::from_secs(5))
-            .build()
-            .wrap_err("failed initializing http client")?;
-
         Ok(Client {
-            client: http_client,
-            base_url: base_url.to_string(),
+            client: HttpClient::new(base_url).wrap_err("failed to initialize tendermint client")?,
         })
     }
 
+    /// Creates a new client with the default Tendermint base URL
+    /// which is `http://localhost:26657`.
     pub fn default() -> eyre::Result<Self> {
         Self::new(DEFAULT_TENDERMINT_BASE_URL)
     }
 
-    pub async fn get_balance(&self, address: &Address, height: u64) -> eyre::Result<Balance> {
-        let url = format!(
-            "{}/abci_query?path=%2Faccounts%2Fbalance%2F{}&data=IHAVENOIDEA&height={}&prove=false",
-            self.base_url,
-            address.to_string(),
-            height
-        );
+    pub async fn get_balance(
+        &self,
+        address: &Address,
+        height: Option<Height>,
+    ) -> eyre::Result<Balance> {
         let response = self
             .client
-            .get(&url)
-            .send()
+            .abci_query(
+                Some(format!("accounts/balance/{}", &address.to_string())),
+                vec![],
+                height,
+                false,
+            )
             .await
-            .wrap_err("failed to send request")?;
+            .wrap_err("failed to call abci_query")?;
 
-        let response = response
-            .error_for_status()
-            .wrap_err("server responded with error code")?
-            .json::<QueryResponse>()
-            .await
-            .wrap_err("failed reading JSON response from server")?;
+        let balance = QueryResponse::try_from_slice(&response.value)
+            .wrap_err("failed to deserialize balance bytes")?;
 
-        let balance = Balance::try_from_slice(
-            &hex::decode(response.response.value)
-                .wrap_err("failed to decode query response value hex strng")?,
-        )
-        .wrap_err("failed to deserialize balance bytes")?;
-        Ok(balance)
+        if let QueryResponse::BalanceResponse(balance) = balance {
+            return Ok(balance);
+        } else {
+            bail!("received invalid response from server: {:?}", &response);
+        }
     }
 
-    pub async fn get_nonce(&self, address: &Address, height: u64) -> eyre::Result<Nonce> {
-        let url = format!(
-            "{}/abci_query?path=%2Faccounts%2Fnonce%2F{}&data=IHAVENOIDEA&height={}&prove=false",
-            self.base_url,
-            address.to_string(),
-            height
-        );
+    pub async fn get_nonce(
+        &self,
+        address: &Address,
+        height: Option<Height>,
+    ) -> eyre::Result<Nonce> {
         let response = self
             .client
-            .get(&url)
-            .send()
+            .abci_query(
+                Some(format!("accounts/nonce/{}", &address.to_string())),
+                vec![],
+                height,
+                false,
+            )
             .await
-            .wrap_err("failed to send request")?;
+            .wrap_err("failed to call abci_query")?;
 
-        let response = response
-            .error_for_status()
-            .wrap_err("server responded with error code")?
-            .json::<QueryResponse>()
-            .await
-            .wrap_err("failed reading JSON response from server")?;
+        let nonce = QueryResponse::try_from_slice(&response.value)
+            .wrap_err("failed to deserialize balance bytes")?;
 
-        let nonce = Nonce::try_from_slice(
-            &hex::decode(response.response.value)
-                .wrap_err("failed to decode query response value hex strng")?,
-        )
-        .wrap_err("failed to deserialize nonce bytes")?;
-        Ok(nonce)
+        if let QueryResponse::NonceResponse(nonce) = nonce {
+            return Ok(nonce);
+        } else {
+            bail!("received invalid response from server: {:?}", &response);
+        }
     }
 
     /// Submits the given transaction to the Sequencer node.
@@ -107,26 +102,13 @@ impl Client {
     pub async fn submit_transaction_sync(
         &self,
         tx: signed::Transaction,
-    ) -> eyre::Result<SubmitTransactionResponse> {
-        let url = format!("{}/broadcast_tx_sync", self.base_url);
+    ) -> eyre::Result<BroadcastTxSyncResponse> {
         let tx_bytes = tx.to_proto();
-        let tx_hex = hex::encode(&tx_bytes);
-        let params = [("tx", tx_hex)];
-        let response = self
+        Ok(self
             .client
-            .post(&url)
-            .form(&params)
-            .send()
+            .broadcast_tx_sync(tx_bytes)
             .await
-            .wrap_err("failed to send transaction")?;
-
-        let response = response
-            .error_for_status()
-            .wrap_err("server responded with error code")?
-            .json::<SubmitTransactionResponse>()
-            .await
-            .wrap_err("failed reading JSON response from server")?;
-        Ok(response)
+            .wrap_err("failed to call broadcast_tx_sync")?)
     }
 
     /// Submits the given transaction to the Sequencer node.
@@ -134,79 +116,63 @@ impl Client {
     pub async fn submit_transaction_commit(
         &self,
         tx: signed::Transaction,
-    ) -> eyre::Result<SubmitTransactionCommitResponse> {
-        let url = format!("{}/broadcast_tx_commit", self.base_url);
+    ) -> eyre::Result<BroadcastTxCommitResponse> {
         let tx_bytes = tx.to_proto();
-        let tx_hex = hex::encode(&tx_bytes);
-        let params = [("tx", tx_hex)];
-        let response = self
+        Ok(self
             .client
-            .post(&url)
-            .form(&params)
-            .send()
+            .broadcast_tx_commit(tx_bytes)
             .await
-            .wrap_err("failed to send transaction")?;
-
-        let response = response
-            .error_for_status()
-            .wrap_err("server responded with error code")?
-            .json::<SubmitTransactionCommitResponse>()
-            .await
-            .wrap_err("failed reading JSON response from server")?;
-        Ok(response)
+            .wrap_err("failed to call broadcast_tx_commit")?)
     }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SubmitTransactionResponse {
-    pub code: String,
-    pub data: String,
-    pub log: String,
-    pub codespace: String,
-    // TODO: this is a hex string; decode it as such
-    pub hash: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SubmitTransactionCommitResponse {
-    pub check_tx: TransactionResponse,
-    pub deliver_tx: TransactionResponse,
-    pub hash: String,
-    pub height: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TransactionResponse {
-    pub code: String,
-    pub data: String,
-    pub log: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct QueryResponse {
-    pub response: Response,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Response {
-    pub code: u32,
-    pub log: String,
-    pub index: u32,
-    pub key: String,
-    pub value: String,
-    pub proof: String,
-    pub height: u32,
 }
 
 #[cfg(test)]
 mod test {
+    use astria_sequencer::{
+        accounts::transaction::Transaction,
+        transaction::unsigned::Transaction as UnsignedTransaction,
+    };
+    use ed25519_consensus::SigningKey;
+
     use super::*;
+
+    const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
+    const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
 
     #[tokio::test]
     async fn test_get_balance() {
         let client = Client::default().unwrap();
-        let address = Address::try_from("1c0c490f1b5528d8173c5de46d131160e4b2c0c3").unwrap();
-        let balance = client.get_balance(&address, 0).await.unwrap();
-        assert_eq!(balance, Balance::from(1000000));
+        let address = Address::try_from(ALICE_ADDRESS).unwrap();
+        let nonce = client.get_nonce(&address, None).await.unwrap();
+        assert_eq!(nonce, Nonce::from(0));
+        let balance = client.get_balance(&address, None).await.unwrap();
+        assert_eq!(balance, Balance::from(10_u128.pow(18)));
+    }
+
+    #[tokio::test]
+    async fn test_submit_tx_commit() {
+        let alice_secret_bytes: [u8; 32] =
+            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let alice_keypair = SigningKey::from(alice_secret_bytes);
+
+        let alice = Address::try_from(ALICE_ADDRESS).unwrap();
+        let bob = Address::try_from(BOB_ADDRESS).unwrap();
+        let value = Balance::from(333_333);
+        let tx = UnsignedTransaction::AccountsTransaction(Transaction::new(
+            bob.clone(),
+            value,
+            Nonce::from(1),
+        ));
+        let signed_tx = tx.sign(&alice_keypair);
+
+        let client = Client::default().unwrap();
+        let response = client.submit_transaction_commit(signed_tx).await.unwrap();
+        assert_eq!(response.check_tx.code, 0.into());
+        assert_eq!(response.deliver_tx.code, 0.into());
+        let nonce = client.get_nonce(&alice, None).await.unwrap();
+        assert_eq!(nonce, Nonce::from(1));
     }
 }

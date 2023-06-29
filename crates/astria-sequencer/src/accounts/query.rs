@@ -45,7 +45,7 @@ impl QueryRequest {
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Debug)]
-pub(crate) enum QueryResponse {
+pub enum QueryResponse {
     BalanceResponse(Balance),
     NonceResponse(Nonce),
 }

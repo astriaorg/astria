@@ -37,9 +37,8 @@ impl Transaction {
     }
 
     /// Signs the transaction with the given keypair.
-    #[allow(dead_code)]
     #[must_use]
-    pub(crate) fn sign(self, secret_key: &SigningKey) -> SignedTransaction {
+    pub fn sign(self, secret_key: &SigningKey) -> SignedTransaction {
         let signature = secret_key.sign(&self.hash());
         SignedTransaction {
             transaction: self,
