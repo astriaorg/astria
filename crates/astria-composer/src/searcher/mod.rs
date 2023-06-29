@@ -10,6 +10,7 @@ use axum::{
 use thiserror::Error;
 use tokio::task::JoinError;
 
+use self::api::ApiError;
 use crate::config::searcher::{
     Config,
     ConfigError,
@@ -22,7 +23,9 @@ pub enum SearcherError {
     #[error("invalid config")]
     InvalidConfig(#[from] ConfigError),
     #[error("api error")]
-    ApiError(#[from] hyper::Error),
+    ApiError(#[from] ApiError),
+    #[error("task error")]
+    TaskError(#[from] JoinError),
 }
 
 #[derive(Debug)]
@@ -65,11 +68,21 @@ impl Searcher {
             api_url,
         } = self;
 
-        let api_task = tokio::spawn(Self::run_api(api_url, state.clone()));
+        let api_task = tokio::spawn(api::run(api_url, state.clone()));
         tokio::select! {
             o = api_task => {
+                match o {
+                    Ok(task_result) => {
+                        match task_result {
+                            Ok(()) => report_exit("api server", Ok(())),
                 // TODO: maybe handle api server failing and only return SearcherError::ApiError if can't?
-                report_exit("api server", o);
+                            Err(e) => report_exit("api server", Err(SearcherError::ApiError(e))),
+                        }
+                    }
+                    Err(e) => {
+                        report_exit("api server", Err(SearcherError::TaskError(e)))
+                    }
+                }
             }
         }
     }
@@ -82,30 +95,38 @@ impl Searcher {
         Ok(axum::Server::bind(&api_url)
             .serve(api_router.into_make_service())
             .await
-            .map_err(SearcherError::ApiError)?)
+            .map_err(|e| SearcherError::ApiError(e.into()))?)
     }
 }
 
-fn report_exit(task_name: &str, outcome: Result<Result<(), SearcherError>, JoinError>) {
+fn report_exit(task_name: &str, outcome: Result<(), SearcherError>) {
     match outcome {
-        Ok(Ok(())) => tracing::info!(task = task_name, "task exited successfully"),
-        Ok(Err(e)) => {
-            tracing::error!(task = task_name, error.msg = %e, errir.cause = ?e, "task exited with error")
-        }
-        Err(e) => {
-            tracing::error!(task = task_name, error.msg = %e, errir.cause = ?e, "task failed to complete")
-        }
+        Ok(()) => tracing::info!(task = task_name, "task exited successfully"),
+        Err(e) => match e {
+            SearcherError::TaskError(join_err) => {
+                tracing::error!(task = task_name, error.msg = %join_err, error.cause = ?join_err, "task failed to complete")
+            }
+            service_err => {
+                tracing::error!(task = task_name, error.msg = %service_err, error.cause = ?service_err, "task exited with error")
+            }
+        },
     }
 }
 
 mod tests {
-    #[test]
-    fn new_from_valid_config() {
-        todo!("successful init from valid config")
-    }
+    use super::Searcher;
+    use crate::{
+        config::searcher::{
+            Config,
+            ConfigError,
+        },
+        searcher::SearcherError,
+    };
 
     #[test]
-    fn new_from_invalid_config_fails() {
-        todo!("failed init from invalid config")
+    fn new_from_valid_config() {
+        let cfg = Config::default();
+        let searcher = Searcher::new(cfg);
+        assert!(searcher.is_ok())
     }
 }

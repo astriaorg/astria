@@ -111,10 +111,10 @@ mod tests {
     const ALL_CLI_ARGS: &str = r#"
 astria-composer
     --log debug
-    --sequencer-endpoint http://localhost:1310
-    --searcher-api-url http://localhost:8080
-    --searcher-chain-id testnet
-    --searcher-execution-rpc-url http://localhost:50050
+    --sequencer-url 127.0.0.1:1310
+    --searcher-api-url 127.0.0.1:7070
+    --searcher-chain-id clinet
+    --searcher-execution-rpc-url 127.0.0.1:60061
     "#;
 
     fn make_args(args: &str) -> eyre::Result<cli::Args, clap::Error> {
@@ -123,15 +123,12 @@ astria-composer
 
     fn set_all_env(jail: &mut Jail) {
         jail.set_env("ASTRIA_COMPOSER_LOG", "warn");
-        jail.set_env("ASTRIA_COMPOSER_SEQUENCER_URL", "http://sequencer.env");
-        jail.set_env(
-            "ASTRIA_COMPOSER_SEARCHER_API_URL",
-            "http://api.searcher.env",
-        );
-        jail.set_env("ASTRIA_COMPOSER_SEARCHER_CHAIN_ID", "mainnet");
+        jail.set_env("ASTRIA_COMPOSER_SEQUENCER_URL", "127.0.0.1:1210");
+        jail.set_env("ASTRIA_COMPOSER_SEARCHER_API_URL", "127.0.0.1:5050");
+        jail.set_env("ASTRIA_COMPOSER_SEARCHER_CHAIN_ID", "envnet");
         jail.set_env(
             "ASTRIA_COMPOSER_SEARCHER_EXECUTION_RPC_URL",
-            "http://execution.searcher.env",
+            "127.0.0.1:40041",
         );
     }
 
@@ -140,14 +137,14 @@ astria-composer
         Jail::expect_with(|jail| {
             set_all_env(jail);
             let cli_args = make_args(ALL_CLI_ARGS).unwrap();
-            let actual = Config::with_cli(cli_args.clone()).unwrap();
+            let actual = Config::with_cli(cli_args).unwrap();
             let expected = Config {
                 log: "debug".into(),
                 searcher: searcher::Config {
-                    sequencer_url: "http://localhost:1310".into(),
-                    api_url: "http://localhost:8080".into(),
-                    chain_id: ChainId::from_str("testnet").unwrap(),
-                    execution_rpc_url: "http://localhost:50050".into(),
+                    sequencer_url: "127.0.0.1:1310".parse().unwrap(),
+                    api_url: "127.0.0.1:7070".parse().unwrap(),
+                    chain_id: ChainId::from_str("clinet").unwrap(),
+                    execution_rpc_url: "127.0.0.1:60061".parse().unwrap(),
                 },
             };
             assert_eq!(expected, actual);
@@ -162,12 +159,12 @@ astria-composer
             let cli_args = make_args(NO_CLI_ARGS).unwrap();
             let actual = Config::with_cli(cli_args).unwrap();
             let expected = Config {
-                log: "debug".into(),
+                log: "warn".into(),
                 searcher: searcher::Config {
-                    sequencer_url: "http://sequencer.env".into(),
-                    api_url: "http://api.searcher.env".into(),
-                    chain_id: ChainId::from_str("mainnet").unwrap(),
-                    execution_rpc_url: "http://execution.searcher.env".into(),
+                    sequencer_url: "127.0.0.1:1210".parse().unwrap(),
+                    api_url: "127.0.0.1:5050".parse().unwrap(),
+                    chain_id: ChainId::from_str("envnet").unwrap(),
+                    execution_rpc_url: "127.0.0.1:40041".parse().unwrap(),
                 },
             };
             assert_eq!(expected, actual);

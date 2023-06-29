@@ -1,12 +1,35 @@
-use std::sync::Arc;
+use std::{
+    net::SocketAddr,
+    sync::Arc,
+};
 
 use axum::{
     extract::State,
     response::IntoResponse,
+    routing::get,
+    Router,
 };
 use serde::Serialize;
+use thiserror::Error;
 
 use super::State as SearcherState;
+
+#[derive(Debug, Error)]
+pub enum ApiError {
+    #[error("api server error")]
+    ServerError(#[from] hyper::Error),
+}
+
+pub(super) async fn run(api_url: SocketAddr, state: Arc<SearcherState>) -> Result<(), ApiError> {
+    let api_router = Router::new()
+        .route("/healthz", get(healthz))
+        .with_state(state);
+
+    Ok(axum::Server::bind(&api_url)
+        .serve(api_router.into_make_service())
+        .await
+        .map_err(ApiError::ServerError)?)
+}
 
 pub(super) enum Healthz {
     Ok,
