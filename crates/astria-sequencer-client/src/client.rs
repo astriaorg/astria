@@ -25,7 +25,8 @@ use tendermint_rpc::{
     HttpClient,
 };
 
-const DEFAULT_TENDERMINT_BASE_URL: &str = "http://localhost:26657";
+/// Default Tendermint base URL.
+pub const DEFAULT_TENDERMINT_BASE_URL: &str = "http://localhost:26657";
 
 /// Tendermint client which is used to interact with the Sequencer node.
 pub struct Client {
@@ -37,12 +38,6 @@ impl Client {
         Ok(Client {
             client: HttpClient::new(base_url).wrap_err("failed to initialize tendermint client")?,
         })
-    }
-
-    /// Creates a new client with the default Tendermint base URL
-    /// which is `http://localhost:26657`.
-    pub fn default() -> eyre::Result<Self> {
-        Self::new(DEFAULT_TENDERMINT_BASE_URL)
     }
 
     pub async fn get_balance(
@@ -65,7 +60,7 @@ impl Client {
             .wrap_err("failed to deserialize balance bytes")?;
 
         if let QueryResponse::BalanceResponse(balance) = balance {
-            return Ok(balance);
+            Ok(balance)
         } else {
             bail!("received invalid response from server: {:?}", &response);
         }
@@ -91,7 +86,7 @@ impl Client {
             .wrap_err("failed to deserialize balance bytes")?;
 
         if let QueryResponse::NonceResponse(nonce) = nonce {
-            return Ok(nonce);
+            Ok(nonce)
         } else {
             bail!("received invalid response from server: {:?}", &response);
         }
@@ -104,11 +99,11 @@ impl Client {
         tx: signed::Transaction,
     ) -> eyre::Result<BroadcastTxSyncResponse> {
         let tx_bytes = tx.to_proto();
-        Ok(self
+        self
             .client
             .broadcast_tx_sync(tx_bytes)
             .await
-            .wrap_err("failed to call broadcast_tx_sync")?)
+            .wrap_err("failed to call broadcast_tx_sync")
     }
 
     /// Submits the given transaction to the Sequencer node.
@@ -118,11 +113,11 @@ impl Client {
         tx: signed::Transaction,
     ) -> eyre::Result<BroadcastTxCommitResponse> {
         let tx_bytes = tx.to_proto();
-        Ok(self
+        self
             .client
             .broadcast_tx_commit(tx_bytes)
             .await
-            .wrap_err("failed to call broadcast_tx_commit")?)
+            .wrap_err("failed to call broadcast_tx_commit")
     }
 }
 
@@ -139,9 +134,10 @@ mod test {
     const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
     const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
 
+    #[ignore = "requires running cometbft and sequencer node"]
     #[tokio::test]
     async fn test_get_balance() {
-        let client = Client::default().unwrap();
+        let client = Client::new(DEFAULT_TENDERMINT_BASE_URL).unwrap();
         let address = Address::try_from(ALICE_ADDRESS).unwrap();
         let nonce = client.get_nonce(&address, None).await.unwrap();
         assert_eq!(nonce, Nonce::from(0));
@@ -149,6 +145,7 @@ mod test {
         assert_eq!(balance, Balance::from(10_u128.pow(18)));
     }
 
+    #[ignore = "requires running cometbft and sequencer node"]
     #[tokio::test]
     async fn test_submit_tx_commit() {
         let alice_secret_bytes: [u8; 32] =
@@ -168,7 +165,7 @@ mod test {
         ));
         let signed_tx = tx.sign(&alice_keypair);
 
-        let client = Client::default().unwrap();
+        let client = Client::new(DEFAULT_TENDERMINT_BASE_URL).unwrap();
         let response = client.submit_transaction_commit(signed_tx).await.unwrap();
         assert_eq!(response.check_tx.code, 0.into());
         assert_eq!(response.deliver_tx.code, 0.into());
