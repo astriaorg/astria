@@ -17,7 +17,7 @@ use crate::config::Config;
 pub struct GenesisParser;
 
 impl GenesisParser {
-    pub fn propigate_data(data: Config) -> Result<()> {
+    pub fn propagate_data(data: Config) -> Result<()> {
         println!("loading genesis json data for propigation:");
         println!("\tsource genesis file: {}", data.source_genesis_file);
         println!(
