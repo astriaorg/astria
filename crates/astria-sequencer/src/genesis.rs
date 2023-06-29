@@ -26,6 +26,7 @@ impl GenesisState {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Account {
+    #[serde(with = "hex::serde")]
     pub(crate) address: Address,
     pub(crate) balance: Balance,
 }
