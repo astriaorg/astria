@@ -1,6 +1,6 @@
 use astria_sequencer::{
     accounts::{
-        query::QueryResponse,
+        query::Response as QueryResponse,
         types::{
             Address,
             Balance,
@@ -104,8 +104,7 @@ impl Client {
         tx: signed::Transaction,
     ) -> eyre::Result<BroadcastTxSyncResponse> {
         let tx_bytes = tx.to_proto();
-        self
-            .client
+        self.client
             .broadcast_tx_sync(tx_bytes)
             .await
             .wrap_err("failed to call broadcast_tx_sync")
@@ -119,8 +118,7 @@ impl Client {
         tx: signed::Transaction,
     ) -> eyre::Result<BroadcastTxCommitResponse> {
         let tx_bytes = tx.to_proto();
-        self
-            .client
+        self.client
             .broadcast_tx_commit(tx_bytes)
             .await
             .wrap_err("failed to call broadcast_tx_commit")

@@ -43,9 +43,7 @@ pub struct Transaction {
 impl Transaction {
     #[must_use]
     pub fn to_proto(&self) -> Vec<u8> {
-        use astria_proto::sequencer::v1::{
-            UnsignedTransaction as ProtoUnsignedTransaction,
-        };
+        use astria_proto::sequencer::v1::UnsignedTransaction as ProtoUnsignedTransaction;
         use prost::Message as _;
 
         let proto = ProtoSignedTransaction {

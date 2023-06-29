@@ -156,7 +156,7 @@ async fn handle_query(
 
 #[non_exhaustive]
 pub(crate) enum Query {
-    AccountsQuery(crate::accounts::query::QueryRequest),
+    AccountsQuery(crate::accounts::query::Request),
 }
 
 #[instrument]
@@ -169,7 +169,7 @@ fn decode_query(path: &str) -> anyhow::Result<Query> {
 
     match component {
         "accounts" => {
-            let request = crate::accounts::query::QueryRequest::decode(parts)
+            let request = crate::accounts::query::Request::decode(parts)
                 .context("failed to decode accounts query from path parts")?;
             Ok(Query::AccountsQuery(request))
         }

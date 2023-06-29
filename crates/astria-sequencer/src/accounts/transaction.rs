@@ -31,7 +31,7 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    #[allow(dead_code)]
+    #[must_use]
     pub fn new(to: Address, amount: Balance, nonce: Nonce) -> Self {
         Self {
             to,
