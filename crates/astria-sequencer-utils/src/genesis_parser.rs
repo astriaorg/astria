@@ -12,13 +12,18 @@ use serde_json::{
     Value,
 };
 
-use crate::config::GenesisParserArgs;
+use crate::config::Config;
 
 pub struct GenesisParser;
 
 impl GenesisParser {
-    pub fn propigate_data(data: GenesisParserArgs) -> Result<()> {
-        println!("loading genesis json data for propigation");
+    pub fn propigate_data(data: Config) -> Result<()> {
+        println!("loading genesis json data for propigation:");
+        println!("\tsource genesis file: {}", data.source_genesis_file);
+        println!(
+            "\tdestination genesis file: {}",
+            data.destination_genesis_file
+        );
         // load sequencer genesis data
         let source_genesis_file_path = File::open(data.source_genesis_file)
             .context("failed to open sequencer genesis file")?;

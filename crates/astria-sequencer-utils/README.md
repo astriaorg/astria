@@ -6,11 +6,7 @@
 
 ## Usage
 
-Avaliable commands:
-
-- genesis-parse
-
-The `genesis-parse` command requires two flags: `--source-genesis-file` and `--destination-genesis-file`.
+Running requires two flags: `--source-genesis-file` and `--destination-genesis-file`.
 These can be shortened to `-s` and `-d`.
 The command takes all data in the source file and merges that data into the destination file, overwriting the original destination file.
 
@@ -19,5 +15,5 @@ The command takes all data in the source file and merges that data into the dest
 In astria-sequencer-utils/:
 ```sh
 cargo build
-cargo run -- genesis-parse -s=<source json path> -d=<destination json path>
+cargo run -- -s=<source json path> -d=<destination json path>
 ```
