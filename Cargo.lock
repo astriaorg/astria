@@ -487,9 +487,8 @@ dependencies = [
 name = "astria-sequencer-utils"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "clap",
- "is-terminal",
+ "eyre",
  "serde",
  "serde_json",
 ]
