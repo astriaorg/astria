@@ -2,10 +2,10 @@ use clap::Parser;
 
 #[derive(Debug, Parser)]
 pub struct Config {
-    #[clap(long, short = 's')]
+    #[clap(long)]
     pub source_genesis_file: String,
 
-    #[clap(long, short = 'd')]
+    #[clap(long)]
     pub destination_genesis_file: String,
 }
 
