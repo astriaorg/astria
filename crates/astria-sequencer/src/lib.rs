@@ -1,4 +1,4 @@
-pub(crate) mod accounts;
+pub mod accounts;
 pub(crate) mod app;
 pub(crate) mod app_hash;
 pub(crate) mod component;

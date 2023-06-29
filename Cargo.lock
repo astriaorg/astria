@@ -437,11 +437,13 @@ name = "astria-sequencer-client"
 version = "0.1.0"
 dependencies = [
  "astria-sequencer",
+ "borsh",
  "eyre",
  "hex",
  "reqwest",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

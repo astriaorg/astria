@@ -6,8 +6,11 @@ edition = "2021"
 [dependencies]
 astria-sequencer = { path = "../astria-sequencer" }
 
+borsh = "0.10.3"
+
 eyre = { workspace = true }
 hex = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+tokio = { workspace = true }
