@@ -147,7 +147,7 @@ mod test {
 
     use super::*;
     use crate::accounts::{
-        transaction::Transfer,
+        action::Transfer,
         types::{
             Address,
             Balance,

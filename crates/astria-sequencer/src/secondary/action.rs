@@ -20,12 +20,12 @@ use crate::{
 /// It only contains the chain ID of the destination rollup and data
 /// which are bytes to be interpreted by the rollup.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub(crate) struct Transaction {
+pub(crate) struct Action {
     chain_id: Vec<u8>,
     data: Vec<u8>,
 }
 
-impl Transaction {
+impl Action {
     #[allow(dead_code)]
     pub(crate) fn new(chain_id: Vec<u8>, data: Vec<u8>) -> Self {
         Self {
@@ -50,7 +50,7 @@ impl Transaction {
 }
 
 #[async_trait::async_trait]
-impl ActionHandler for Transaction {
+impl ActionHandler for Action {
     fn check_stateless(&self) -> Result<()> {
         Ok(())
     }

@@ -221,8 +221,8 @@ mod test {
     use super::*;
     use crate::{
         accounts::{
+            action::Transfer,
             state_ext::StateReadExt as _,
-            transaction::Transfer,
             types::{
                 Address,
                 Balance,
@@ -232,7 +232,7 @@ mod test {
         },
         crypto::SigningKey,
         genesis::Account,
-        secondary::transaction::Transaction as SecondaryTransaction,
+        secondary::action::Action as SecondaryAction,
         transaction::{
             action::Action,
             unsigned::Transaction as UnsignedTransaction,
@@ -428,7 +428,7 @@ mod test {
 
         let tx = UnsignedTransaction {
             nonce: Nonce::from(1),
-            actions: vec![Action::SecondaryAction(SecondaryTransaction::new(
+            actions: vec![Action::SecondaryAction(SecondaryAction::new(
                 b"testchainid".to_vec(),
                 b"helloworld".to_vec(),
             ))],

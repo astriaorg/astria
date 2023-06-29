@@ -1,8 +1,8 @@
 use anyhow::Result;
 use astria_proto::sequencer::v1::{
     action::Value::{
-        SecondaryAction as ProtoSecondaryTransaction,
-        Transfer as ProtoAccountsTransaction,
+        SecondaryAction as ProtoSecondaryAction,
+        Transfer as ProtoTransfer,
     },
     Action as ProtoAction,
 };
@@ -12,8 +12,8 @@ use serde::{
 };
 
 use crate::{
-    accounts::transaction::Transfer as AccountsTransaction,
-    secondary::transaction::Transaction as SecondaryTransaction,
+    accounts::action::Transfer,
+    secondary::action::Action as SecondaryAction,
 };
 
 /// Represents an action on a specific module.
@@ -22,18 +22,18 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub(crate) enum Action {
-    AccountsAction(AccountsTransaction),
-    SecondaryAction(SecondaryTransaction),
+    AccountsAction(Transfer),
+    SecondaryAction(SecondaryAction),
 }
 
 impl Action {
     pub(crate) fn to_proto(&self) -> ProtoAction {
         match &self {
             Action::AccountsAction(tx) => ProtoAction {
-                value: Some(ProtoAccountsTransaction(tx.to_proto())),
+                value: Some(ProtoTransfer(tx.to_proto())),
             },
             Action::SecondaryAction(tx) => ProtoAction {
-                value: Some(ProtoSecondaryTransaction(tx.to_proto())),
+                value: Some(ProtoSecondaryAction(tx.to_proto())),
             },
         }
     }
@@ -45,11 +45,9 @@ impl Action {
                 .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("missing value"))?
             {
-                ProtoAccountsTransaction(tx) => {
-                    Action::AccountsAction(AccountsTransaction::try_from_proto(tx)?)
-                }
-                ProtoSecondaryTransaction(tx) => {
-                    Action::SecondaryAction(SecondaryTransaction::from_proto(tx))
+                ProtoTransfer(tx) => Action::AccountsAction(Transfer::try_from_proto(tx)?),
+                ProtoSecondaryAction(tx) => {
+                    Action::SecondaryAction(SecondaryAction::from_proto(tx))
                 }
             },
         )

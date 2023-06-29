@@ -20,8 +20,8 @@ message UnsignedTransaction {
 
 message Action {
     oneof value {
-        Transfer transfer = 2;
-        SecondaryAction secondary_action = 3;
+        Transfer transfer = 1;
+        SecondaryAction secondary_action = 2;
     }   
 }
 
