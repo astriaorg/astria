@@ -27,6 +27,18 @@ impl Address {
     }
 }
 
+impl hex::FromHex for Address {
+    type Error = anyhow::Error;
+
+    fn from_hex<T: AsRef<[u8]>>(hex: T) -> std::result::Result<Self, Self::Error> {
+        let bytes = hex::decode(hex)?;
+        let arr: [u8; ADDRESS_LEN] = bytes
+            .try_into()
+            .map_err(|_| anyhow!("invalid address hex length"))?;
+        Ok(Self(arr))
+    }
+}
+
 impl TryFrom<&[u8]> for Address {
     type Error = anyhow::Error;
 
