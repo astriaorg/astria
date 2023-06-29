@@ -1,0 +1,13 @@
+[package]
+name = "astria-sequencer-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+astria-sequencer = { path = "../astria-sequencer" }
+
+eyre = { workspace = true }
+hex = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }

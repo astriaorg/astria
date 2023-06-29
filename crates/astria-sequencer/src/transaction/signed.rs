@@ -34,13 +34,33 @@ use crate::{
 /// It contains the signature and the public key of the user,
 /// as well as the transaction itself.
 #[derive(Debug, Clone)]
-pub(crate) struct Transaction {
+pub struct Transaction {
     pub(crate) signature: Signature,
     pub(crate) public_key: VerificationKey,
     pub(crate) transaction: UnsignedTransaction,
 }
 
 impl Transaction {
+    #[must_use]
+    pub fn to_proto(&self) -> Vec<u8> {
+        use astria_proto::sequencer::v1::{
+            UnsignedTransaction as ProtoUnsignedTransaction,
+        };
+        use prost::Message as _;
+
+        let proto = ProtoSignedTransaction {
+            transaction: Some(match &self.transaction {
+                UnsignedTransaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
+                    value: Some(ProtoAccountsTransaction(tx.to_proto())),
+                },
+            }),
+            signature: self.signature.to_bytes().to_vec(),
+            public_key: self.public_key.to_bytes().to_vec(),
+        };
+
+        proto.encode_length_delimited_to_vec()
+    }
+
     /// Verifies the transaction signature.
     /// The transaction signature message is the hash of the transaction.
     ///

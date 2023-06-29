@@ -20,7 +20,7 @@ use crate::{
 /// If a new transaction type is added, it should be added to this enum.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
-pub(crate) enum Transaction {
+pub enum Transaction {
     AccountsTransaction(AccountsTransaction),
 }
 

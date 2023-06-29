@@ -433,6 +433,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-sequencer-client"
+version = "0.1.0"
+dependencies = [
+ "astria-sequencer",
+ "eyre",
+ "hex",
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "astria-sequencer-relayer"
 version = "0.1.0"
 dependencies = [

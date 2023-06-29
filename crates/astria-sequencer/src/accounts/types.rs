@@ -14,7 +14,7 @@ pub(crate) const ADDRESS_LEN: usize = 20;
 
 /// Represents an account address.
 #[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub(crate) struct Address([u8; ADDRESS_LEN]);
+pub struct Address([u8; ADDRESS_LEN]);
 
 impl Address {
     pub(crate) fn as_bytes(&self) -> &[u8] {
@@ -94,7 +94,7 @@ impl std::fmt::Display for Address {
     Ord,
     Debug,
 )]
-pub(crate) struct Balance(u128);
+pub struct Balance(u128);
 
 impl Balance {
     pub(crate) fn into_inner(self) -> u128 {
@@ -166,7 +166,7 @@ impl From<Balance> for ProtoBalance {
     Ord,
     Debug,
 )]
-pub(crate) struct Nonce(u32);
+pub struct Nonce(u32);
 
 impl Nonce {
     pub(crate) fn into_inner(self) -> u32 {

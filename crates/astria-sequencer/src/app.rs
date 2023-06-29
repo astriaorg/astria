@@ -289,30 +289,6 @@ mod test {
         }
     }
 
-    impl SignedTransaction {
-        #[must_use]
-        pub(crate) fn to_proto(&self) -> Vec<u8> {
-            use astria_proto::sequencer::v1::{
-                unsigned_transaction::Value::AccountsTransaction as ProtoAccountsTransaction,
-                SignedTransaction as ProtoSignedTransaction,
-                UnsignedTransaction as ProtoUnsignedTransaction,
-            };
-            use prost::Message as _;
-
-            let proto = ProtoSignedTransaction {
-                transaction: Some(match &self.transaction {
-                    UnsignedTransaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
-                        value: Some(ProtoAccountsTransaction(tx.to_proto())),
-                    },
-                }),
-                signature: self.signature.to_bytes().to_vec(),
-                public_key: self.public_key.to_bytes().to_vec(),
-            };
-
-            proto.encode_length_delimited_to_vec()
-        }
-    }
-
     #[tokio::test]
     async fn test_app_genesis_and_init_chain() {
         let storage = penumbra_storage::TempStorage::new()

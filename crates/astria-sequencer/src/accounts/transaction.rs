@@ -24,7 +24,7 @@ use crate::accounts::{
 
 /// Represents a value-transfer transaction.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub(crate) struct Transaction {
+pub struct Transaction {
     to: Address,
     amount: Balance,
     nonce: Nonce,
@@ -32,7 +32,7 @@ pub(crate) struct Transaction {
 
 impl Transaction {
     #[allow(dead_code)]
-    pub(crate) fn new(to: Address, amount: Balance, nonce: Nonce) -> Self {
+    pub fn new(to: Address, amount: Balance, nonce: Nonce) -> Self {
         Self {
             to,
             amount,
