@@ -17,8 +17,6 @@ use tracing_subscriber::{
     },
 };
 
-use crate::config::Config;
-
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("invalid log directive")]
