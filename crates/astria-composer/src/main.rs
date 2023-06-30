@@ -8,7 +8,7 @@ use color_eyre::eyre;
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     let cfg = config::get().expect("failed to read configuration");
-    telemetry::init(std::io::stdout).expect("failed to initialize tracing");
+    telemetry::init(&cfg.log, std::io::stdout).expect("failed to initialize tracing");
 
     let _searcher = Searcher::new(&cfg.searcher)?.run().await;
 

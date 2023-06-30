@@ -11,10 +11,11 @@ use astria_composer::{
 use once_cell::sync::Lazy;
 
 static TRACING: Lazy<()> = Lazy::new(|| {
-    let res = if std::env::var_os("TEST_LOG").is_some() {
-        telemetry::init(std::io::stdout)
+    let res = if let Some(log_os_string) = std::env::var_os("TEST_LOG") {
+        let log = log_os_string.into_string().unwrap();
+        telemetry::init(&log, std::io::stdout)
     } else {
-        telemetry::init(std::io::sink)
+        telemetry::init(&"info", std::io::sink)
     };
     if res.is_err() {
         eprintln!("failed setting up telemetry for tests: {res:?}");

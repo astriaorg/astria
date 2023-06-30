@@ -4,6 +4,11 @@ use serde::Serialize;
 #[derive(Debug, Parser, Serialize, Clone)]
 #[command(author, version, about, long_about = None)]
 pub(crate) struct Args {
+    /// Log level. One of debug, info, warn, or error
+    #[arg(short, long)]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub(crate) log: Option<String>,
+
     /// Sequencer node RPC endpoint.
     #[arg(long)]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
