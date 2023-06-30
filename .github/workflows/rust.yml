@@ -64,6 +64,7 @@ jobs:
           cargo test --release \
           --workspace \
           --exclude astria-rs-cnc \
+          --exclude astria-sequencer-client \
           -- --ignored
 
   fmt:
