@@ -44,7 +44,6 @@ impl Transfer {
         ProtoAccountsTransaction {
             to: self.to.as_bytes().to_vec(),
             amount: Some(self.amount.into()),
-            // nonce: self.nonce.into(),
         }
     }
 
