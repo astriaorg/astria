@@ -99,7 +99,7 @@ impl Relayer {
             return Ok(new_state);
         }
 
-        info!("got block with height {} from sequencer", height);
+        info!(height = ?height, tx_count = resp.block.data.txs.len(), "got block from sequencer");
         new_state.current_sequencer_height.replace(height);
 
         if resp.block.header.proposer_address.as_ref() != self.validator.address.as_ref() {
