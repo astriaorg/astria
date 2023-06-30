@@ -3,10 +3,6 @@ use std::{
     sync::Arc,
 };
 
-use axum::{
-    routing::get,
-    Router,
-};
 use thiserror::Error;
 use tokio::task::JoinError;
 
@@ -86,17 +82,6 @@ impl Searcher {
             }
         }
     }
-
-    async fn run_api(api_url: SocketAddr, state: Arc<State>) -> Result<(), SearcherError> {
-        let api_router = Router::new()
-            .route("/healthz", get(api::healthz))
-            .with_state(state);
-
-        Ok(axum::Server::bind(&api_url)
-            .serve(api_router.into_make_service())
-            .await
-            .map_err(|e| SearcherError::ApiError(e.into()))?)
-    }
 }
 
 fn report_exit(task_name: &str, outcome: Result<(), SearcherError>) {
@@ -114,19 +99,15 @@ fn report_exit(task_name: &str, outcome: Result<(), SearcherError>) {
 }
 
 mod tests {
-    use super::Searcher;
     use crate::{
-        config::searcher::{
-            Config,
-            ConfigError,
-        },
-        searcher::SearcherError,
+        config::Config,
+        searcher::Searcher,
     };
 
     #[test]
     fn new_from_valid_config() {
         let cfg = Config::default();
-        let searcher = Searcher::new(cfg);
+        let searcher = Searcher::new(cfg.searcher);
         assert!(searcher.is_ok())
     }
 }

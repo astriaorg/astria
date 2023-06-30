@@ -320,6 +320,7 @@ dependencies = [
  "figment",
  "hyper",
  "is-terminal",
+ "once_cell",
  "reqwest",
  "serde",
  "thiserror",

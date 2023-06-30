@@ -110,7 +110,7 @@ mod tests {
     const NO_CLI_ARGS: &str = "astria-composer";
     const ALL_CLI_ARGS: &str = r#"
 astria-composer
-    --log debug
+    --log cli=debug
     --sequencer-url 127.0.0.1:1310
     --searcher-api-url 127.0.0.1:7070
     --searcher-chain-id clinet
@@ -122,7 +122,7 @@ astria-composer
     }
 
     fn set_all_env(jail: &mut Jail) {
-        jail.set_env("ASTRIA_COMPOSER_LOG", "warn");
+        jail.set_env("ASTRIA_COMPOSER_LOG", "env=warn");
         jail.set_env("ASTRIA_COMPOSER_SEQUENCER_URL", "127.0.0.1:1210");
         jail.set_env("ASTRIA_COMPOSER_SEARCHER_API_URL", "127.0.0.1:5050");
         jail.set_env("ASTRIA_COMPOSER_SEARCHER_CHAIN_ID", "envnet");
@@ -139,7 +139,7 @@ astria-composer
             let cli_args = make_args(ALL_CLI_ARGS).unwrap();
             let actual = Config::with_cli(cli_args).unwrap();
             let expected = Config {
-                log: "debug".into(),
+                log: "cli=debug".into(),
                 searcher: searcher::Config {
                     sequencer_url: "127.0.0.1:1310".parse().unwrap(),
                     api_url: "127.0.0.1:7070".parse().unwrap(),
@@ -159,7 +159,7 @@ astria-composer
             let cli_args = make_args(NO_CLI_ARGS).unwrap();
             let actual = Config::with_cli(cli_args).unwrap();
             let expected = Config {
-                log: "warn".into(),
+                log: "env=warn".into(),
                 searcher: searcher::Config {
                     sequencer_url: "127.0.0.1:1210".parse().unwrap(),
                     api_url: "127.0.0.1:5050".parse().unwrap(),

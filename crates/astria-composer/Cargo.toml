@@ -21,3 +21,6 @@ is-terminal = "0.4.7" # also appears in astria-conductor
 axum = "0.6.16" # also appears in astria-sequencer-relayer
 tokio-stream = { version = "0.1" }
 hyper = "0.14.27"
+
+[dev-dependencies]
+once_cell = { workspace = true }

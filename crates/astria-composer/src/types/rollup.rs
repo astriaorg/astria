@@ -13,7 +13,7 @@ pub enum ChainIdError {
 }
 
 /// Chain ID for a rollup
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct ChainId(String);
 
 impl FromStr for ChainId {

@@ -11,6 +11,7 @@ use axum::{
 };
 use serde::Serialize;
 use thiserror::Error;
+use tracing::info;
 
 use super::State as SearcherState;
 
@@ -25,10 +26,12 @@ pub(super) async fn run(api_url: SocketAddr, state: Arc<SearcherState>) -> Resul
         .route("/healthz", get(healthz))
         .with_state(state);
 
-    Ok(axum::Server::bind(&api_url)
+    info!(?api_url, "starting api server");
+
+    axum::Server::bind(&api_url)
         .serve(api_router.into_make_service())
         .await
-        .map_err(ApiError::ServerError)?)
+        .map_err(ApiError::ServerError)
 }
 
 pub(super) enum Healthz {

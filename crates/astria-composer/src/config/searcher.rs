@@ -37,15 +37,15 @@ pub enum ConfigError {
     MissingCliField(String),
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Config {
-    /// Address of the RPC server for the sequencer chain
-    #[serde(default = "default_sequencer_url")]
-    pub sequencer_url: SocketAddr,
-
     /// Address of the API server
     #[serde(default = "default_api_url")]
     pub api_url: SocketAddr,
+
+    /// Address of the RPC server for the sequencer chain
+    #[serde(default = "default_sequencer_url")]
+    pub sequencer_url: SocketAddr,
 
     /// Chain ID that we want to connect to
     #[serde(default = "default_chain_id")]
@@ -67,17 +67,17 @@ impl Config {
         #[derive(Debug, Deserialize, Serialize, PartialEq)]
         struct SearcherArgs {
             #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-            sequencer_url: Option<String>,
-            #[serde(skip_serializing_if = "::std::option::Option::is_none")]
             api_url: Option<String>,
+            #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+            sequencer_url: Option<String>,
             #[serde(skip_serializing_if = "::std::option::Option::is_none")]
             chain_id: Option<String>,
             #[serde(skip_serializing_if = "::std::option::Option::is_none")]
             execution_rpc_url: Option<String>,
         }
         let searcher_args = SearcherArgs {
-            sequencer_url: cli_config.sequencer_url,
             api_url: cli_config.searcher_api_url,
+            sequencer_url: cli_config.sequencer_url,
             chain_id: cli_config.searcher_chain_id,
             execution_rpc_url: cli_config.searcher_execution_rpc_url,
         };
@@ -102,6 +102,10 @@ impl Default for Config {
     }
 }
 
+pub(super) fn default_api_url() -> SocketAddr {
+    DEFAULT_API_URL.parse().unwrap()
+}
+
 pub(super) fn default_sequencer_url() -> SocketAddr {
     DEFAULT_SEQUENCER_URL.parse().unwrap()
 }
@@ -112,8 +116,4 @@ pub(super) fn default_chain_id() -> ChainId {
 
 pub(super) fn default_execution_rpc_url() -> SocketAddr {
     DEFAULT_EXECUTION_RPC_URL.parse().unwrap()
-}
-
-pub(super) fn default_api_url() -> SocketAddr {
-    DEFAULT_API_URL.parse().unwrap()
 }
