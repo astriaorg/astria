@@ -23,8 +23,8 @@ use super::cli;
 use crate::types::rollup::ChainId;
 
 const DEFAULT_SEQUENCER_URL: &str = "127.0.0.1:1317";
-const DEFAULT_API_URL: &str = "127.0.0.1:8080";
-const DEFAULT_CHAIN_ID: &str = "ethereum";
+const DEFAULT_API_PORT: u16 = 8080;
+const DEFAULT_CHAIN_ID: &str = "rolluptest";
 const DEFAULT_EXECUTION_RPC_URL: &str = "127.0.0.1:50051";
 
 #[derive(Debug, Error)]
@@ -40,8 +40,8 @@ pub enum Error {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Config {
     /// Address of the API server
-    #[serde(default = "default_api_url")]
-    pub api_url: SocketAddr,
+    #[serde(default = "default_api_port")]
+    pub api_port: u16,
 
     /// Address of the RPC server for the sequencer chain
     #[serde(default = "default_sequencer_url")]
@@ -67,7 +67,7 @@ impl Config {
         #[derive(Debug, Deserialize, Serialize, PartialEq)]
         struct SearcherArgs {
             #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-            api_url: Option<String>,
+            api_port: Option<u16>,
             #[serde(skip_serializing_if = "::std::option::Option::is_none")]
             sequencer_url: Option<String>,
             #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -76,7 +76,7 @@ impl Config {
             execution_rpc_url: Option<String>,
         }
         let searcher_args = SearcherArgs {
-            api_url: cli_config.searcher_api_url,
+            api_port: cli_config.searcher_api_port,
             sequencer_url: cli_config.sequencer_url,
             chain_id: cli_config.searcher_chain_id,
             execution_rpc_url: cli_config.searcher_execution_rpc_url,
@@ -89,6 +89,12 @@ impl Config {
             .merge(Serialized::defaults(searcher_args))
             .extract()
     }
+
+    pub fn api_url(port: u16) -> Result<SocketAddr, Error> {
+        format!("127.0.0.1:{}", port)
+            .parse()
+            .map_err(|e| Error::InvalidApiUrl(e).into())
+    }
 }
 
 impl Default for Config {
@@ -97,13 +103,13 @@ impl Default for Config {
             sequencer_url: default_sequencer_url(),
             chain_id: default_chain_id(),
             execution_rpc_url: default_execution_rpc_url(),
-            api_url: default_api_url(),
+            api_port: default_api_port(),
         }
     }
 }
 
-pub(super) fn default_api_url() -> SocketAddr {
-    DEFAULT_API_URL.parse().unwrap()
+pub(super) fn default_api_port() -> u16 {
+    DEFAULT_API_PORT
 }
 
 pub(super) fn default_sequencer_url() -> SocketAddr {

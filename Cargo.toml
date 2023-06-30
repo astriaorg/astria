@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+  "crates/astria-composer",
   "crates/astria-conductor",
   "crates/astria-conductor-test",
   "crates/astria-gossipnet",
@@ -9,7 +10,6 @@ members = [
   "crates/astria-sequencer",
   "crates/astria-sequencer-relayer",
   "crates/astria-sequencer-relayer-test",
-  "crates/astria-composer"
 ]
 
 [workspace.dependencies]

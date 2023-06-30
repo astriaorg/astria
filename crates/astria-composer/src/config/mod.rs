@@ -15,21 +15,9 @@ use serde::{
 mod cli;
 pub mod searcher;
 
-// TODO: add more default values
-// potentially move to a separate module so it can be imported into searcher and block_builder?
-const DEFAULT_LOG: &str = "info";
-
-fn default_log() -> String {
-    DEFAULT_LOG.into()
-}
-
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 /// The high-level config for creating an astria-composer service.
 pub struct Config {
-    /// Log level. One of debug, info, warn, or error
-    #[serde(default = "default_log")]
-    pub log: String,
-
     /// Config for Searcher service
     #[serde(default = "searcher::Config::default")]
     pub searcher: searcher::Config,
@@ -61,7 +49,6 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            log: default_log(),
             searcher: searcher::Config::default(),
         }
     }
@@ -110,9 +97,8 @@ mod tests {
     const NO_CLI_ARGS: &str = "astria-composer";
     const ALL_CLI_ARGS: &str = r#"
 astria-composer
-    --log cli=debug
     --sequencer-url 127.0.0.1:1310
-    --searcher-api-url 127.0.0.1:7070
+    --searcher-api-port 7070
     --searcher-chain-id clinet
     --searcher-execution-rpc-url 127.0.0.1:60061
     "#;
@@ -124,7 +110,7 @@ astria-composer
     fn set_all_env(jail: &mut Jail) {
         jail.set_env("ASTRIA_COMPOSER_LOG", "env=warn");
         jail.set_env("ASTRIA_COMPOSER_SEQUENCER_URL", "127.0.0.1:1210");
-        jail.set_env("ASTRIA_COMPOSER_SEARCHER_API_URL", "127.0.0.1:5050");
+        jail.set_env("ASTRIA_COMPOSER_SEARCHER_API_PORT", "5050");
         jail.set_env("ASTRIA_COMPOSER_SEARCHER_CHAIN_ID", "envnet");
         jail.set_env(
             "ASTRIA_COMPOSER_SEARCHER_EXECUTION_RPC_URL",
@@ -139,10 +125,9 @@ astria-composer
             let cli_args = make_args(ALL_CLI_ARGS).unwrap();
             let actual = Config::with_cli(cli_args).unwrap();
             let expected = Config {
-                log: "cli=debug".into(),
                 searcher: searcher::Config {
                     sequencer_url: "127.0.0.1:1310".parse().unwrap(),
-                    api_url: "127.0.0.1:7070".parse().unwrap(),
+                    api_port: 7070,
                     chain_id: ChainId::from_str("clinet").unwrap(),
                     execution_rpc_url: "127.0.0.1:60061".parse().unwrap(),
                 },
@@ -159,29 +144,12 @@ astria-composer
             let cli_args = make_args(NO_CLI_ARGS).unwrap();
             let actual = Config::with_cli(cli_args).unwrap();
             let expected = Config {
-                log: "env=warn".into(),
                 searcher: searcher::Config {
                     sequencer_url: "127.0.0.1:1210".parse().unwrap(),
-                    api_url: "127.0.0.1:5050".parse().unwrap(),
+                    api_port: 5050,
                     chain_id: ChainId::from_str("envnet").unwrap(),
                     execution_rpc_url: "127.0.0.1:40041".parse().unwrap(),
                 },
-            };
-            assert_eq!(expected, actual);
-            Ok(())
-        });
-    }
-
-    #[test]
-    fn astria_log_overrides_rust_log() {
-        Jail::expect_with(|jail| {
-            jail.set_env("RUST_LOG", "rust=trace");
-            jail.set_env("ASTRIA_COMPOSER_LOG", "debug");
-            let cli_args = make_args(NO_CLI_ARGS).unwrap();
-            let actual = Config::with_cli(cli_args).unwrap();
-            let expected = Config {
-                log: "debug".into(),
-                ..Config::default()
             };
             assert_eq!(expected, actual);
             Ok(())

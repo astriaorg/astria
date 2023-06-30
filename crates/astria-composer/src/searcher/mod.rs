@@ -31,7 +31,7 @@ pub struct Searcher {
 }
 
 impl Searcher {
-    pub fn new(config: &Config) -> Result<Self, Error> {
+    pub fn new(cfg: &Config) -> Result<Self, Error> {
         // configure rollup tx collector
         // configure rollup tx bundler
         // configure rollup tx executor
@@ -39,15 +39,13 @@ impl Searcher {
         // init searcher state
         let state = Arc::new(State());
 
-        // parse api url from config and init api router
+        // parse api url from config
+        let api_url = Config::api_url(cfg.api_port)?;
+
         Ok(Self {
             state,
-            api_url: config.api_url,
+            api_url,
         })
-    }
-
-    pub fn api_url(&self) -> SocketAddr {
-        self.api_url
     }
 
     /// Runs the Searcher and blocks until all subtasks have exited.
