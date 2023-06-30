@@ -25,7 +25,7 @@ use crate::types::rollup::ChainId;
 const DEFAULT_SEQUENCER_URL: &str = "127.0.0.1:1317";
 const DEFAULT_API_PORT: u16 = 8080;
 const DEFAULT_CHAIN_ID: &str = "rolluptest";
-const DEFAULT_EXECUTION_RPC_URL: &str = "127.0.0.1:50051";
+const DEFAULT_EXECUTION_WS_URL: &str = "127.0.0.1:8546";
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -52,8 +52,8 @@ pub struct Config {
     pub chain_id: ChainId,
 
     /// Address of the RPC server for execution
-    #[serde(default = "default_execution_rpc_url")]
-    pub execution_rpc_url: SocketAddr,
+    #[serde(default = "default_execution_ws_url")]
+    pub execution_ws_url: SocketAddr,
 }
 
 impl Config {
@@ -73,13 +73,13 @@ impl Config {
             #[serde(skip_serializing_if = "::std::option::Option::is_none")]
             chain_id: Option<String>,
             #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-            execution_rpc_url: Option<String>,
+            execution_ws_url: Option<String>,
         }
         let searcher_args = SearcherArgs {
             api_port: cli_config.searcher_api_port,
             sequencer_url: cli_config.sequencer_url,
             chain_id: cli_config.searcher_chain_id,
-            execution_rpc_url: cli_config.searcher_execution_rpc_url,
+            execution_ws_url: cli_config.searcher_execution_ws_url,
         };
 
         Figment::new()
@@ -106,7 +106,7 @@ impl Default for Config {
         Self {
             sequencer_url: default_sequencer_url(),
             chain_id: default_chain_id(),
-            execution_rpc_url: default_execution_rpc_url(),
+            execution_ws_url: default_execution_ws_url(),
             api_port: default_api_port(),
         }
     }
@@ -124,6 +124,6 @@ pub(super) fn default_chain_id() -> ChainId {
     ChainId::from_str(DEFAULT_CHAIN_ID).unwrap()
 }
 
-pub(super) fn default_execution_rpc_url() -> SocketAddr {
-    DEFAULT_EXECUTION_RPC_URL.parse().unwrap()
+pub(super) fn default_execution_ws_url() -> SocketAddr {
+    DEFAULT_EXECUTION_WS_URL.parse().unwrap()
 }

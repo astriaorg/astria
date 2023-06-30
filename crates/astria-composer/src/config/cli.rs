@@ -22,5 +22,5 @@ pub(crate) struct Args {
     /// Address of the RPC server for execution
     #[arg(long)]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub(crate) searcher_execution_rpc_url: Option<String>,
+    pub(crate) searcher_execution_ws_url: Option<String>,
 }

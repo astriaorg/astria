@@ -92,7 +92,7 @@ astria-composer
     --sequencer-url 127.0.0.1:1310
     --searcher-api-port 7070
     --searcher-chain-id clinet
-    --searcher-execution-rpc-url 127.0.0.1:60061
+    --searcher-execution-ws-url 127.0.0.1:60061
     "#;
 
     fn make_args(args: &str) -> eyre::Result<cli::Args, clap::Error> {
@@ -105,7 +105,7 @@ astria-composer
         jail.set_env("ASTRIA_COMPOSER_SEARCHER_API_PORT", "5050");
         jail.set_env("ASTRIA_COMPOSER_SEARCHER_CHAIN_ID", "envnet");
         jail.set_env(
-            "ASTRIA_COMPOSER_SEARCHER_EXECUTION_RPC_URL",
+            "ASTRIA_COMPOSER_SEARCHER_EXECUTION_WS_URL",
             "127.0.0.1:40041",
         );
     }
@@ -121,7 +121,7 @@ astria-composer
                     sequencer_url: "127.0.0.1:1310".parse().unwrap(),
                     api_port: 7070,
                     chain_id: ChainId::from_str("clinet").unwrap(),
-                    execution_rpc_url: "127.0.0.1:60061".parse().unwrap(),
+                    execution_ws_url: "127.0.0.1:60061".parse().unwrap(),
                 },
             };
             assert_eq!(expected, actual);
@@ -140,7 +140,7 @@ astria-composer
                     sequencer_url: "127.0.0.1:1210".parse().unwrap(),
                     api_port: 5050,
                     chain_id: ChainId::from_str("envnet").unwrap(),
-                    execution_rpc_url: "127.0.0.1:40041".parse().unwrap(),
+                    execution_ws_url: "127.0.0.1:40041".parse().unwrap(),
                 },
             };
             assert_eq!(expected, actual);
