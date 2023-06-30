@@ -14,11 +14,6 @@ use astria_sequencer_relayer::{
         CommitSig,
     },
 };
-use bech32::{
-    self,
-    ToBase32,
-    Variant,
-};
 use color_eyre::eyre::{
     self,
     bail,
@@ -60,8 +55,6 @@ use crate::tendermint::{
     TendermintClient,
     ValidatorSet,
 };
-
-const METRO_VALIDATOR_ADDRESS_PREFIX: &str = "metrovalcons";
 
 /// `BlockVerifier` is responsible for verifying the correctness of a block
 /// before executing it.
@@ -107,17 +100,20 @@ impl BlockVerifier {
             .wrap_err("failed to get validator set")?;
 
         // find proposer address for this height
-        let expected_proposer_address = validator_set
+        let expected_proposer_public_key = validator_set
             .get_proposer()
             .wrap_err("failed to get proposer from validator set")?
-            .address;
+            .pub_key
+            .key
+            .0;
 
-        // verify the namespace data signing public key matches the proposer address
-        let res_address = public_key_to_bech32_address(&data.public_key.0)
-            .wrap_err("failed to convert namespace data public key to address")?;
+        // verify the namespace data signing public key matches the proposer public key
+        let proposer_public_key = &data.public_key.0;
         ensure!(
-            res_address == expected_proposer_address,
-            "public key mismatch: expected {expected_proposer_address}, got {res_address}",
+            proposer_public_key == &expected_proposer_public_key,
+            "public key mismatch: expected {}, got {}",
+            hex::encode(expected_proposer_public_key),
+            hex::encode(proposer_public_key),
         );
 
         Ok(())
@@ -153,18 +149,21 @@ impl BlockVerifier {
             .wrap_err("failed to get validator set")?;
 
         // find proposer address for this height
-        let expected_proposer_address = validator_set
-            .get_proposer()
-            .wrap_err("failed to get proposer from validator set")?
-            .address;
+        let expected_proposer_address = public_key_bytes_to_address(
+            validator_set
+                .get_proposer()
+                .wrap_err("failed to get proposer from validator set")?
+                .pub_key
+                .key
+                .0
+                .as_slice(),
+        )
+        .wrap_err("failed to convert proposer public key to address")?;
 
         // check if the proposer address matches the sequencer block's proposer
-        let received_proposer_address = bech32::encode(
-            METRO_VALIDATOR_ADDRESS_PREFIX,
-            block.header.proposer_address.0.to_base32(),
-            Variant::Bech32,
-        )
-        .wrap_err("failed converting bytes to bech32 address")?;
+        let received_proposer_address =
+            AccountId::try_from(block.header.proposer_address.0.clone())
+                .wrap_err("failed to convert proposer address bytes")?;
 
         ensure!(
             received_proposer_address == expected_proposer_address,
@@ -219,6 +218,12 @@ impl BlockVerifier {
     }
 }
 
+fn public_key_bytes_to_address(public_key_bytes: &[u8]) -> eyre::Result<AccountId> {
+    let public_key = tendermint::crypto::ed25519::VerificationKey::try_from(public_key_bytes)
+        .wrap_err("failed to convert proposer public key bytes")?;
+    Ok(AccountId::from(public_key))
+}
+
 /// This function ensures that the given Commit has quorum, ie that the Commit contains >2/3 voting
 /// power. It performs the following checks:
 /// - the height of the commit matches the block height of the validator set
@@ -255,7 +260,10 @@ fn ensure_commit_has_quorum(
     let validator_map = validator_set
         .validators
         .iter()
-        .map(|v| (&v.address, v)) // address is in bech32
+        .filter_map(|v| {
+            let address = public_key_bytes_to_address(&v.pub_key.key.0).ok()?;
+            Some((address, v))
+        })
         .collect::<HashMap<_, _>>();
 
     let mut commit_voting_power = 0u64;
@@ -267,18 +275,14 @@ fn ensure_commit_has_quorum(
         }
 
         // verify validator exists in validator set
-        let validator_address = bech32::encode(
-            METRO_VALIDATOR_ADDRESS_PREFIX,
-            vote.validator_address.0.to_base32(),
-            Variant::Bech32,
-        )
-        .wrap_err("failed to encode validator address to bech32")?;
+        let validator_address = AccountId::try_from(vote.validator_address.0.clone())
+            .wrap_err("failed to convert vote validator address bytes")?;
         let Some(validator) = validator_map.get(&validator_address) else {
             bail!("validator {} not found in validator set", validator_address);
         };
 
         // verify address in signature matches validator pubkey
-        let address_from_pubkey = public_key_to_bech32_address(&validator.pub_key.key.0)
+        let address_from_pubkey = public_key_bytes_to_address(&validator.pub_key.key.0)
             .wrap_err("failed to convert validator public key to address")?;
         ensure!(
             address_from_pubkey == validator_address,
@@ -413,30 +417,6 @@ fn calculate_last_commit_hash(commit: &Commit) -> Hash {
     Hash::Sha256(merkle::simple_hash_from_byte_vectors::<
         crypto::default::Sha256,
     >(&signatures))
-}
-
-fn public_key_to_bech32_address(key: &[u8]) -> eyre::Result<String> {
-    use sha2::{
-        digest::typenum::Unsigned as _,
-        Digest as _,
-    };
-    const ADDRESS_LENGTH: usize = 20;
-    // Compile time assert to protect against accidentally setting a
-    // address length shorter than 32 bytes (the output of sha256).
-    // Note on allow: https://github.com/rust-lang/rust-clippy/issues/8159
-    #[allow(clippy::assertions_on_constants)]
-    const _: () = assert!(ADDRESS_LENGTH <= sha2::digest::consts::U32::USIZE);
-
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(key);
-    let result = hasher.finalize();
-    let address = bech32::encode(
-        "metrovalcons",
-        (&result.as_slice()[..ADDRESS_LENGTH]).to_base32(),
-        Variant::Bech32,
-    )
-    .wrap_err("failed converting hashed key to bech32 address")?;
-    Ok(address)
 }
 
 #[cfg(test)]

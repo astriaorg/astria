@@ -1,14 +1,10 @@
 use std::str::FromStr;
 
-use bech32::{
-    self,
-    ToBase32,
-    Variant,
-};
 use eyre::{
     Result,
     WrapErr as _,
 };
+use tendermint::account::Id as AccountId;
 use tokio::{
     sync::{
         mpsc::UnboundedSender,
@@ -107,15 +103,13 @@ impl Relayer {
         new_state.current_sequencer_height.replace(height);
 
         if resp.block.header.proposer_address.as_ref() != self.validator.address.as_ref() {
-            let proposer_address = bech32::encode(
-                "metrovalcons",
-                resp.block.header.proposer_address.0.to_base32(),
-                Variant::Bech32,
-            )
-            .expect("should encode block proposer address");
+            let proposer_address =
+                AccountId::try_from(resp.block.header.proposer_address.0.clone())
+                    .wrap_err("failed to convert proposer address")?;
+
             info!(
                 %proposer_address,
-                validator_address = %self.validator.bech32_address,
+                validator_address = %self.validator.address,
                 "ignoring block: proposer address is not ours",
             );
             return Ok(new_state);
