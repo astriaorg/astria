@@ -17,9 +17,12 @@ use eyre::{
 };
 use tendermint::block::Height;
 use tendermint_rpc::{
-    endpoint::broadcast::{
-        tx_commit::Response as BroadcastTxCommitResponse,
-        tx_sync::Response as BroadcastTxSyncResponse,
+    endpoint::{
+        block::Response as BlockResponse,
+        broadcast::{
+            tx_commit::Response as BroadcastTxCommitResponse,
+            tx_sync::Response as BroadcastTxSyncResponse,
+        },
     },
     Client as _,
     HttpClient,
@@ -43,6 +46,34 @@ impl Client {
         Ok(Client {
             client: HttpClient::new(base_url).wrap_err("failed to initialize tendermint client")?,
         })
+    }
+
+    /// Returns the latest block.
+    ///
+    /// # Errors
+    ///
+    /// - If calling the tendermint RPC endpoint fails.
+    pub async fn get_latest_block(&self) -> eyre::Result<BlockResponse> {
+        let block = self
+            .client
+            .latest_block()
+            .await
+            .wrap_err("failed to call latest_block")?;
+        Ok(block)
+    }
+
+    /// Returns the block at the given height.
+    ///
+    /// # Errors
+    ///
+    /// - If calling the tendermint RPC endpoint fails.
+    pub async fn get_block(&self, height: Height) -> eyre::Result<BlockResponse> {
+        let block = self
+            .client
+            .block(height)
+            .await
+            .wrap_err("failed to call block")?;
+        Ok(block)
     }
 
     /// Returns the balance of the given account at the given height.
@@ -198,5 +229,13 @@ mod test {
         assert_eq!(response.deliver_tx.code, 0.into());
         let nonce = client.get_nonce(&alice, None).await.unwrap();
         assert_eq!(nonce, Nonce::from(1));
+    }
+
+    #[ignore = "requires running cometbft and sequencer node"]
+    #[tokio::test]
+    async fn test_get_latest_block() {
+        let client = Client::new(DEFAULT_TENDERMINT_BASE_URL).unwrap();
+        let block = client.get_latest_block().await.unwrap();
+        assert!(block.block.header.height.value() >= 1);
     }
 }
