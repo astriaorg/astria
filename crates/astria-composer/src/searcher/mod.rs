@@ -17,7 +17,7 @@ pub enum Error {
     #[error("invalid config")]
     InvalidConfig(#[from] config::Error),
     #[error("api error")]
-    ApiError(#[from] api::Error),
+    ApiError(#[from] hyper::Error),
     #[error("task error")]
     TaskError(#[from] JoinError),
 }
@@ -66,13 +66,7 @@ impl Searcher {
         tokio::select! {
             o = api_task => {
                 match o {
-                    Ok(task_result) => {
-                        match task_result {
-                            Ok(()) => report_exit("api server", Ok(())),
-                // TODO: maybe handle api server failing and only return SearcherError::ApiError if can't?
-                            Err(e) => report_exit("api server", Err(Error::ApiError(e))),
-                        }
-                    }
+                    Ok(task_result) => report_exit("api server", task_result.map_err(Error::ApiError)),
                     Err(e) => report_exit("api server", Err(Error::TaskError(e))),
 
                 }
