@@ -57,8 +57,8 @@ impl GenesisParser {
     }
 }
 
-/// Merges a source JSON Value into a destination JSON Value.
-// context: https://stackoverflow.com/questions/47070876/how-can-i-merge-two-json-objects-with-rust
+/// Merges a source JSON Value into a destination JSON Value context:
+// https://stackoverflow.com/questions/47070876/how-can-i-merge-two-json-objects-with-rust
 fn merge_json(a: &mut Value, b: &Value) {
     match (a, b) {
         (Value::Object(a), Value::Object(b)) => {
@@ -67,5 +67,76 @@ fn merge_json(a: &mut Value, b: &Value) {
             }
         }
         (a, b) => *a = b.clone(),
+    }
+}
+
+// This is your test module
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+
+    #[test]
+    fn merge_json_test() {
+        let mut a = json!({
+            "genesis_time": "2023-06-21T15:58:36.741257Z",
+            "initial_height": "0",
+            "consensus_params": {
+                "validator": {
+                    "pub_key_types": [
+                      "ed25519"
+                    ]
+                  }
+            }
+        });
+
+        let b = json!({
+            "accounts": [
+              {
+                "address": "alice",
+                "balance": 1000
+              },
+              {
+                "address": "bob",
+                "balance": 1000
+              },
+              {
+                "address": "charlie",
+                "balance": 1000
+              }
+            ],
+        });
+
+        let output = json!({
+            "genesis_time": "2023-06-21T15:58:36.741257Z",
+            "initial_height": "0",
+            "consensus_params": {
+                "validator": {
+                    "pub_key_types": [
+                      "ed25519"
+                    ]
+                  }
+            },
+            "accounts": [
+              {
+                "address": "alice",
+                "balance": 1000
+              },
+              {
+                "address": "bob",
+                "balance": 1000
+              },
+              {
+                "address": "charlie",
+                "balance": 1000
+              }
+            ],
+        });
+
+        merge_json(&mut a, &b);
+
+        assert_eq!(a, output);
     }
 }
