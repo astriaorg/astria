@@ -16,11 +16,9 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 reqwest = { workspace = true, features = ["json"] }
-# TODO: should these be moved to workspace? 
-is-terminal = "0.4.7" # also appears in astria-conductor
-axum = "0.6.16" # also appears in astria-sequencer-relayer
-tokio-stream = { version = "0.1" }
-hyper = "0.14.27"
+is-terminal = { workspace = true }
+axum = { workspace = true }
+hyper = { workspace = true }
 
 [dev-dependencies]
 once_cell = { workspace = true }
