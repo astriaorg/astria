@@ -149,7 +149,7 @@ astria-composer
             };
             assert_eq!(expected, actual);
             Ok(())
-        })
+        });
     }
 
     #[test]
@@ -169,7 +169,7 @@ astria-composer
             };
             assert_eq!(expected, actual);
             Ok(())
-        })
+        });
     }
 
     #[test]

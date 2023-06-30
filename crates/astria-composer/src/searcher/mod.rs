@@ -3,23 +3,21 @@ use std::{
     sync::Arc,
 };
 
-use thiserror::Error;
 use tokio::task::JoinError;
 
-use self::api::ApiError;
 use crate::config::searcher::{
+    self as config,
     Config,
-    ConfigError,
 };
 
 mod api;
 
-#[derive(Debug, Error)]
-pub enum SearcherError {
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
     #[error("invalid config")]
-    InvalidConfig(#[from] ConfigError),
+    InvalidConfig(#[from] config::Error),
     #[error("api error")]
-    ApiError(#[from] ApiError),
+    ApiError(#[from] api::Error),
     #[error("task error")]
     TaskError(#[from] JoinError),
 }
@@ -33,7 +31,7 @@ pub struct Searcher {
 }
 
 impl Searcher {
-    pub fn new(config: Config) -> Result<Self, SearcherError> {
+    pub fn new(config: &Config) -> Result<Self, Error> {
         // configure rollup tx collector
         // configure rollup tx bundler
         // configure rollup tx executor
@@ -72,27 +70,26 @@ impl Searcher {
                         match task_result {
                             Ok(()) => report_exit("api server", Ok(())),
                 // TODO: maybe handle api server failing and only return SearcherError::ApiError if can't?
-                            Err(e) => report_exit("api server", Err(SearcherError::ApiError(e))),
+                            Err(e) => report_exit("api server", Err(Error::ApiError(e))),
                         }
                     }
-                    Err(e) => {
-                        report_exit("api server", Err(SearcherError::TaskError(e)))
-                    }
+                    Err(e) => report_exit("api server", Err(Error::TaskError(e))),
+
                 }
             }
         }
     }
 }
 
-fn report_exit(task_name: &str, outcome: Result<(), SearcherError>) {
+fn report_exit(task_name: &str, outcome: Result<(), Error>) {
     match outcome {
         Ok(()) => tracing::info!(task = task_name, "task exited successfully"),
         Err(e) => match e {
-            SearcherError::TaskError(join_err) => {
-                tracing::error!(task = task_name, error.msg = %join_err, error.cause = ?join_err, "task failed to complete")
+            Error::TaskError(join_err) => {
+                tracing::error!(task = task_name, error.msg = %join_err, error.cause = ?join_err, "task failed to complete");
             }
             service_err => {
-                tracing::error!(task = task_name, error.msg = %service_err, error.cause = ?service_err, "task exited with error")
+                tracing::error!(task = task_name, error.msg = %service_err, error.cause = ?service_err, "task exited with error");
             }
         },
     }
@@ -107,7 +104,7 @@ mod tests {
     #[test]
     fn new_from_valid_config() {
         let cfg = Config::default();
-        let searcher = Searcher::new(cfg.searcher);
-        assert!(searcher.is_ok())
+        let searcher = Searcher::new(&cfg.searcher);
+        assert!(searcher.is_ok());
     }
 }

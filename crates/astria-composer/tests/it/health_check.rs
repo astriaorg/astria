@@ -1,5 +1,3 @@
-use tracing::info;
-
 use crate::helpers::spawn_app;
 
 #[tokio::test]

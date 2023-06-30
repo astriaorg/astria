@@ -33,7 +33,7 @@ pub struct TestApp {
 pub async fn spawn_app() -> TestApp {
     init_env();
     let config = config::get().unwrap();
-    let searcher = searcher::Searcher::new(config.searcher.clone()).unwrap();
+    let searcher = searcher::Searcher::new(&config.searcher.clone()).unwrap();
 
     let _ = tokio::spawn(searcher.run());
 

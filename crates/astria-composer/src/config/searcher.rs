@@ -28,7 +28,7 @@ const DEFAULT_CHAIN_ID: &str = "ethereum";
 const DEFAULT_EXECUTION_RPC_URL: &str = "127.0.0.1:50051";
 
 #[derive(Debug, Error)]
-pub enum ConfigError {
+pub enum Error {
     #[error("invalid config")]
     ConfigExtraction(#[from] figment::Error),
     #[error("invalid api_url")]
