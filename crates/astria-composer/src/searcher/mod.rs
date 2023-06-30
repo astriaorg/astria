@@ -95,6 +95,7 @@ fn report_exit(task_name: &str, outcome: Result<(), Error>) {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use crate::{
         config::searcher::Config,
