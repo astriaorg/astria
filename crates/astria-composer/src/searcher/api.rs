@@ -31,7 +31,7 @@ pub(super) async fn run(
 
 pub(super) enum Healthz {
     Ok,
-    Degraded,
+    _Degraded,
 }
 
 impl IntoResponse for Healthz {
@@ -42,7 +42,7 @@ impl IntoResponse for Healthz {
         }
         let (status, msg) = match self {
             Self::Ok => (axum::http::StatusCode::OK, "ok"),
-            Self::Degraded => (axum::http::StatusCode::GATEWAY_TIMEOUT, "degraded"),
+            Self::_Degraded => (axum::http::StatusCode::GATEWAY_TIMEOUT, "degraded"),
         };
         let mut response = axum::Json(HealthzBody {
             status: msg,

@@ -31,6 +31,11 @@ pub struct Searcher {
 }
 
 impl Searcher {
+    /// Constructs a new Searcher service from config.
+    ///
+    /// # Errors
+    /// Returns a `searcher::Error::InvalidConfig` if there is an error constructing `api_url` from
+    /// the port specified in config.
     pub fn new(cfg: &Config) -> Result<Self, Error> {
         // configure rollup tx collector
         // configure rollup tx bundler
@@ -54,6 +59,9 @@ impl Searcher {
     /// - rollup tx collector
     /// - rollup tx bundler
     /// - rollup tx executor
+    /// # Errors
+    /// Returns a `searcher::Error` if the Searcher fails to start or if any of the subtasks fail
+    /// and cannot be recovered.
     pub async fn run(self) {
         let Self {
             state,
@@ -89,14 +97,14 @@ fn report_exit(task_name: &str, outcome: Result<(), Error>) {
 
 mod tests {
     use crate::{
-        config::Config,
+        config::searcher::Config,
         searcher::Searcher,
     };
 
     #[test]
     fn new_from_valid_config() {
         let cfg = Config::default();
-        let searcher = Searcher::new(&cfg.searcher);
+        let searcher = Searcher::new(&cfg);
         assert!(searcher.is_ok());
     }
 }

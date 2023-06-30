@@ -15,7 +15,7 @@ use serde::{
 mod cli;
 pub mod searcher;
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Default)]
 /// The high-level config for creating an astria-composer service.
 pub struct Config {
     /// Config for Searcher service
@@ -43,14 +43,6 @@ impl Config {
             .merge(Serialized::defaults(cli_config))
             .merge(Serialized::defaults(map!["searcher" => searcher]))
             .extract()
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            searcher: searcher::Config::default(),
-        }
     }
 }
 

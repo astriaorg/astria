@@ -90,10 +90,14 @@ impl Config {
             .extract()
     }
 
+    /// Returns the API URL from the port specified in config
+    ///
+    /// # Errors
+    /// Wraps the parse error with a [`Error::InvalidApiUrl`]
     pub fn api_url(port: u16) -> Result<SocketAddr, Error> {
-        format!("127.0.0.1:{}", port)
+        format!("127.0.0.1:{port}")
             .parse()
-            .map_err(|e| Error::InvalidApiUrl(e).into())
+            .map_err(Error::InvalidApiUrl)
     }
 }
 
