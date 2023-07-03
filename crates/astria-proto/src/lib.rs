@@ -86,7 +86,7 @@ mod primitive_impls {
         #[track_caller]
         fn u128_roundtrip_check(expected: u128) {
             let pb: Uint128 = expected.into();
-            let actual: u128 = (&pb).into();
+            let actual: u128 = pb.into();
             assert_eq!(expected, actual);
         }
         #[test]
