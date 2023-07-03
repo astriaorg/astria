@@ -242,7 +242,7 @@ mod test {
     fn address_from_hex_string(s: &str) -> Address {
         let bytes = hex::decode(s).unwrap();
         let arr: [u8; ADDRESS_LEN] = bytes.try_into().unwrap();
-        Address::from_array(arr)
+        Address(arr)
     }
 
     // generated with test `generate_default_keys()`

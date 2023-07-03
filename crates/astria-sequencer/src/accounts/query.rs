@@ -33,12 +33,12 @@ impl Request {
         let address = path.pop_front().ok_or(anyhow!("missing address"))?;
 
         match query_type {
-            "balance" => Ok(Self::BalanceQuery(
-                Address::try_from(address).context("failed to parse address")?,
-            )),
-            "nonce" => Ok(Self::NonceQuery(
-                Address::try_from(address).context("failed to parse address")?,
-            )),
+            "balance" => Ok(Self::BalanceQuery(Address::try_from_str(address).context(
+                "failed to parse address while constructing balance query request",
+            )?)),
+            "nonce" => Ok(Self::NonceQuery(Address::try_from_str(address).context(
+                "failed to parse address while constructing nonce query request",
+            )?)),
             other => bail!("invalid query type: `{other}`"),
         }
     }
