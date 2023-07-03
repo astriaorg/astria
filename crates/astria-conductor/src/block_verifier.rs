@@ -52,6 +52,7 @@ use tracing::{
 };
 
 use crate::tendermint::{
+    KeyWithType,
     TendermintClient,
     ValidatorSet,
 };
@@ -150,13 +151,10 @@ impl BlockVerifier {
 
         // find proposer address for this height
         let expected_proposer_address = public_key_bytes_to_address(
-            validator_set
+            &validator_set
                 .get_proposer()
                 .wrap_err("failed to get proposer from validator set")?
-                .pub_key
-                .key
-                .0
-                .as_slice(),
+                .pub_key,
         )
         .wrap_err("failed to convert proposer public key to address")?;
 
@@ -218,9 +216,10 @@ impl BlockVerifier {
     }
 }
 
-fn public_key_bytes_to_address(public_key_bytes: &[u8]) -> eyre::Result<AccountId> {
-    let public_key = tendermint::crypto::ed25519::VerificationKey::try_from(public_key_bytes)
-        .wrap_err("failed to convert proposer public key bytes")?;
+fn public_key_bytes_to_address(public_key: &KeyWithType) -> eyre::Result<AccountId> {
+    let public_key =
+        tendermint::crypto::ed25519::VerificationKey::try_from(public_key.key.0.as_slice())
+            .wrap_err("failed to convert proposer public key bytes")?;
     Ok(AccountId::from(public_key))
 }
 
@@ -261,7 +260,7 @@ fn ensure_commit_has_quorum(
         .validators
         .iter()
         .filter_map(|v| {
-            let address = public_key_bytes_to_address(&v.pub_key.key.0).ok()?;
+            let address = public_key_bytes_to_address(&v.pub_key).ok()?;
             Some((address, v))
         })
         .collect::<HashMap<_, _>>();
@@ -282,7 +281,7 @@ fn ensure_commit_has_quorum(
         };
 
         // verify address in signature matches validator pubkey
-        let address_from_pubkey = public_key_bytes_to_address(&validator.pub_key.key.0)
+        let address_from_pubkey = public_key_bytes_to_address(&validator.pub_key)
             .wrap_err("failed to convert validator public key to address")?;
         ensure!(
             address_from_pubkey == validator_address,
