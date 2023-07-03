@@ -57,6 +57,12 @@ pub struct Validator {
     pub proposer_priority: i64,
 }
 
+impl Validator {
+    pub(crate) fn get_public_key_bytes(&self) -> Vec<u8> {
+        self.pub_key.key.0.clone()
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct KeyWithType {
     #[serde(rename = "@type")]

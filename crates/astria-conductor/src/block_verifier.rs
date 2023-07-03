@@ -104,9 +104,7 @@ impl BlockVerifier {
         let expected_proposer_public_key = validator_set
             .get_proposer()
             .wrap_err("failed to get proposer from validator set")?
-            .pub_key
-            .key
-            .0;
+            .get_public_key_bytes();
 
         // verify the namespace data signing public key matches the proposer public key
         let proposer_public_key = &data.public_key.0;
