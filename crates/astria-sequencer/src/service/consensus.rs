@@ -59,7 +59,10 @@ impl Consensus {
             }
             // `send` returns the sent message if sending fail, so we are dropping it.
             if rsp_sender.send(rsp).is_err() {
-                warn!(parent: &span, "failed returning consensus response to request sender; dropping response");
+                warn!(
+                    parent: &span,
+                    "failed returning consensus response to request sender; dropping response"
+                );
             }
         }
         Ok(())

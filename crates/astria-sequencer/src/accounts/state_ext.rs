@@ -43,7 +43,8 @@ pub(crate) trait StateReadExt: StateRead {
         let Some(bytes) = self
             .get_raw(&balance_storage_key(address))
             .await
-            .context("failed reading raw account balance from state")? else {
+            .context("failed reading raw account balance from state")?
+        else {
             debug!("account balance not found, returning 0");
             return Ok(Balance::from(0));
         };
