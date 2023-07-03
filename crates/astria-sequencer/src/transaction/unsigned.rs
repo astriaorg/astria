@@ -92,7 +92,7 @@ mod test {
 
             Ok(match value {
                 ProtoAccountsTransaction(tx) => {
-                    Self::AccountsTransaction(AccountsTransaction::try_from_proto(&tx)?)
+                    Self::AccountsTransaction(AccountsTransaction::try_from_proto(tx)?)
                 }
             })
         }

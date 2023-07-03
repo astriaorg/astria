@@ -90,7 +90,7 @@ impl Balance {
         self.0
     }
 
-    pub(crate) fn to_proto(&self) -> ProtoBalance {
+    pub(crate) fn as_proto(&self) -> ProtoBalance {
         ProtoBalance::from(self.0)
     }
 
