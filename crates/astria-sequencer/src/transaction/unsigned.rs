@@ -89,7 +89,8 @@ impl ActionHandler for Transaction {
     fn check_stateless(&self) -> Result<()> {
         for action in &self.actions {
             match action {
-                Action::AccountsAction(_) | Action::SecondaryAction(_) => {}
+                Action::AccountsAction(tx) => tx.check_stateless()?,
+                Action::SecondaryAction(tx) => tx.check_stateless()?,
             }
         }
         Ok(())
@@ -102,6 +103,15 @@ impl ActionHandler for Transaction {
     ) -> Result<()> {
         let curr_nonce = state.get_account_nonce(from).await?;
         ensure!(curr_nonce < self.nonce, "invalid nonce");
+
+        // do we need to make a StateDelta here so we can check the actions on the successive state?
+        for action in &self.actions {
+            match action {
+                Action::AccountsAction(tx) => tx.check_stateful(state, from).await?,
+                Action::SecondaryAction(tx) => tx.check_stateful(state, from).await?,
+            }
+        }
+
         Ok(())
     }
 
