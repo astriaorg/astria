@@ -58,8 +58,8 @@ impl Transaction {
     /// # Errors
     ///
     /// - If the public key cannot be converted into an address
-    pub(crate) fn signer_address(&self) -> Result<Address> {
-        Address::try_from(&self.public_key)
+    pub(crate) fn signer_address(&self) -> Address {
+        Address::from_verification_key(&self.public_key)
     }
 
     /// Attempts to decode a signed transaction from the given bytes.
@@ -111,7 +111,7 @@ impl ActionHandler for Transaction {
     async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()> {
         match &self.transaction {
             UnsignedTransaction::AccountsTransaction(tx) => {
-                tx.check_stateful(state, &self.signer_address()?).await
+                tx.check_stateful(state, &self.signer_address()).await
             }
         }
     }
@@ -120,7 +120,7 @@ impl ActionHandler for Transaction {
     async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()> {
         match &self.transaction {
             UnsignedTransaction::AccountsTransaction(tx) => {
-                tx.execute(state, &self.signer_address()?).await
+                tx.execute(state, &self.signer_address()).await
             }
         }
     }

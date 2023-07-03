@@ -25,18 +25,17 @@ pub(crate) enum Transaction {
 }
 
 impl Transaction {
-    /// Attempts to encode the unsigned transaction into bytes.
+    /// Converts the transaction into its protobuf representation.
     #[must_use]
-    pub(crate) fn to_vec(&self) -> Vec<u8> {
+    pub(crate) fn to_proto(&self) -> ProtoUnsignedTransaction {
         match &self {
             Transaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
                 value: Some(ProtoAccountsTransaction(tx.to_proto())),
             },
         }
-        .encode_length_delimited_to_vec()
     }
 
-    /// Signs the transaction with the given keypair.
+    /// Signs the transaction with the given signing key.
     #[allow(dead_code)]
     #[must_use]
     pub(crate) fn sign(self, secret_key: &SigningKey) -> SignedTransaction {
@@ -49,7 +48,7 @@ impl Transaction {
     }
 
     pub(crate) fn hash(&self) -> Vec<u8> {
-        hash(&self.to_vec())
+        hash(&self.to_proto().encode_length_delimited_to_vec())
     }
 }
 
@@ -57,7 +56,6 @@ impl Transaction {
 mod test {
     use anyhow::{
         bail,
-        Context as _,
         Result,
     };
     use rand::rngs::OsRng;
@@ -76,24 +74,21 @@ mod test {
     fn address_from_hex_string(s: &str) -> Address {
         let bytes = hex::decode(s).unwrap();
         let arr: [u8; ADDRESS_LEN] = bytes.try_into().unwrap();
-        Address::from_array(arr)
+        Address(arr)
     }
 
     impl Transaction {
-        /// Attempts to decode an unsigned transaction from the given bytes.
+        /// Converts the protobuf representation into the corresponding `Transaction` type.
         ///
         /// # Errors
         ///
-        /// - If the bytes cannot be decoded into the prost-generated `UnsignedTransaction` type
         /// - If the value is missing
         /// - If the value is not a valid transaction type (ie. does not correspond to any
         ///   component)
-        fn try_from_slice(bytes: &[u8]) -> Result<Self> {
-            let proto = ProtoUnsignedTransaction::decode_length_delimited(bytes)
-                .context("failed to decode unsigned transaction")?;
-            let Some(value) = proto.value else {
-            bail!("invalid unsigned transaction; missing value");
-        };
+        fn try_from_proto(proto: &ProtoUnsignedTransaction) -> Result<Self> {
+            let Some(ref value) = proto.value else {
+                bail!("invalid unsigned transaction; missing value");
+            };
 
             Ok(match value {
                 ProtoAccountsTransaction(tx) => {
@@ -110,8 +105,9 @@ mod test {
             Balance::from(333_333),
             Nonce::from(1),
         ));
-        let bytes = tx.to_vec();
-        let tx2 = Transaction::try_from_slice(&bytes).unwrap();
+        let bytes = tx.to_proto().encode_length_delimited_to_vec();
+        let proto = ProtoUnsignedTransaction::decode_length_delimited(bytes.as_slice()).unwrap();
+        let tx2 = Transaction::try_from_proto(&proto).unwrap();
         assert_eq!(tx, tx2);
         println!("0x{}", hex::encode(bytes));
 

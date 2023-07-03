@@ -43,7 +43,7 @@ impl Transaction {
     pub(crate) fn to_proto(&self) -> ProtoAccountsTransaction {
         ProtoAccountsTransaction {
             to: self.to.as_bytes().to_vec(),
-            amount: Some(self.amount.into()),
+            amount: Some(self.amount.to_proto()),
             nonce: self.nonce.into(),
         }
     }
@@ -51,11 +51,12 @@ impl Transaction {
     pub(crate) fn try_from_proto(proto: &ProtoAccountsTransaction) -> Result<Self> {
         Ok(Self {
             to: Address::try_from(proto.to.as_ref() as &[u8])?,
-            amount: proto
-                .amount
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("missing amount"))?
-                .into(),
+            amount: Balance::from_proto(
+                *proto
+                    .amount
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("missing amount"))?,
+            ),
             nonce: Nonce::from(proto.nonce),
         })
     }
