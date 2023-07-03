@@ -17,3 +17,6 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tendermint = { workspace = true }
 tokio = { workspace = true }
+
+[dev-dependencies]
+wiremock = "0.5"

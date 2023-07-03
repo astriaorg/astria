@@ -21,7 +21,7 @@ impl Address {
         &self.0
     }
 
-    pub(crate) fn try_from_str(s: &str) -> anyhow::Result<Self> {
+    pub fn try_from_str(s: &str) -> anyhow::Result<Self> {
         let bytes = hex::decode(s)?;
         let arr: [u8; ADDRESS_LEN] = bytes
             .try_into()

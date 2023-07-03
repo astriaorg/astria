@@ -196,7 +196,7 @@ mod test {
     #[tokio::test]
     async fn test_get_balance() {
         let client = Client::new(DEFAULT_TENDERMINT_BASE_URL).unwrap();
-        let address = Address::try_from(ALICE_ADDRESS).unwrap();
+        let address = Address::try_from_str(ALICE_ADDRESS).unwrap();
         let nonce = client.get_nonce(&address, None).await.unwrap();
         assert_eq!(nonce, Nonce::from(0));
         let balance = client.get_balance(&address, None).await.unwrap();
@@ -213,8 +213,8 @@ mod test {
                 .unwrap();
         let alice_keypair = SigningKey::from(alice_secret_bytes);
 
-        let alice = Address::try_from(ALICE_ADDRESS).unwrap();
-        let bob = Address::try_from(BOB_ADDRESS).unwrap();
+        let alice = Address::try_from_str(ALICE_ADDRESS).unwrap();
+        let bob = Address::try_from_str(BOB_ADDRESS).unwrap();
         let value = Balance::from(333_333);
         let tx = UnsignedTransaction::AccountsTransaction(Transaction::new(
             bob.clone(),
