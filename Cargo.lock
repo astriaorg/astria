@@ -5036,8 +5036,7 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.32.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a46ec6b25b028097ab682ffae11d09d64fe1e2535833b902f26a278a0f88a705"
+source = "git+https://github.com/astriaorg/tendermint-rs.git?rev=a816d6363780c2ed0c3288e6b6e01adee71cf1a5#a816d6363780c2ed0c3288e6b6e01adee71cf1a5"
 dependencies = [
  "bytes",
  "digest 0.10.6",
@@ -5065,8 +5064,7 @@ dependencies = [
 [[package]]
 name = "tendermint-config"
 version = "0.32.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dbb7610ef8422d5886116868e48ab6a9ea72859b3bf9021c6d87318e5600225"
+source = "git+https://github.com/astriaorg/tendermint-rs.git?rev=a816d6363780c2ed0c3288e6b6e01adee71cf1a5#a816d6363780c2ed0c3288e6b6e01adee71cf1a5"
 dependencies = [
  "flex-error",
  "serde",
@@ -5079,8 +5077,7 @@ dependencies = [
 [[package]]
 name = "tendermint-proto"
 version = "0.32.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ce23c8ff0e6634eb4c3c4aeed45076dc97dac91aac5501a905a67fa222e165b"
+source = "git+https://github.com/astriaorg/tendermint-rs.git?rev=a816d6363780c2ed0c3288e6b6e01adee71cf1a5#a816d6363780c2ed0c3288e6b6e01adee71cf1a5"
 dependencies = [
  "bytes",
  "flex-error",
@@ -5097,8 +5094,7 @@ dependencies = [
 [[package]]
 name = "tendermint-rpc"
 version = "0.32.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd2cc789170db5a35d4e0bb2490035c03ef96df08f119bee25fd8dab5a09aa25"
+source = "git+https://github.com/astriaorg/tendermint-rs.git?rev=a816d6363780c2ed0c3288e6b6e01adee71cf1a5#a816d6363780c2ed0c3288e6b6e01adee71cf1a5"
 dependencies = [
  "async-trait",
  "bytes",

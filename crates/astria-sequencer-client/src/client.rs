@@ -194,6 +194,11 @@ mod test {
     use ed25519_consensus::SigningKey;
     use serde_json::json;
     use tendermint::Hash;
+    use tendermint_rpc::{
+        endpoint::broadcast::tx_commit::DialectResponse,
+        response::Wrapper,
+        Id,
+    };
     use wiremock::{
         matchers::{
             body_partial_json,
@@ -210,21 +215,21 @@ mod test {
     const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
     const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
 
-    /// JSON-RPC response wrapper (i.e. message envelope)
-    #[derive(Debug, serde::Deserialize, serde::Serialize, Clone)]
-    struct Wrapper<R> {
-        /// JSON-RPC version
-        jsonrpc: String,
+    // /// JSON-RPC response wrapper (i.e. message envelope)
+    // #[derive(Debug, serde::Deserialize, serde::Serialize, Clone)]
+    // struct Wrapper<R> {
+    //     /// JSON-RPC version
+    //     jsonrpc: String,
 
-        /// Identifier included in request
-        id: u64,
+    //     /// Identifier included in request
+    //     id: u64,
 
-        /// Results of request (if successful)
-        result: Option<R>,
+    //     /// Results of request (if successful)
+    //     result: Option<R>,
 
-        /// Error message if unsuccessful
-        error: Option<String>,
-    }
+    //     /// Error message if unsuccessful
+    //     error: Option<String>,
+    // }
 
     /// A mock tendermint server for testing.
     struct MockTendermintServer {
@@ -253,12 +258,7 @@ mod test {
                     ..Default::default()
                 },
             };
-            let wrapper = Wrapper {
-                jsonrpc: "2.0".to_string(),
-                id: 1,
-                result: Some(response),
-                error: None,
-            };
+            let wrapper = Wrapper::new_with_id(Id::Num(1), Some(response), None);
             Mock::given(body_partial_json(&expected_body))
                 .and(body_string_contains(query_path))
                 .respond_with(
@@ -270,16 +270,11 @@ mod test {
                 .await;
         }
 
-        async fn register_broadcast_tx_sync_response(&self, response: &BroadcastTxSyncResponse) {
+        async fn register_broadcast_tx_sync_response(&self, response: BroadcastTxSyncResponse) {
             let expected_body = json!({
                 "method": "broadcast_tx_sync"
             });
-            let wrapper = Wrapper {
-                jsonrpc: "2.0".to_string(),
-                id: 1,
-                result: Some(response.clone()),
-                error: None,
-            };
+            let wrapper = Wrapper::new_with_id(Id::Num(1), Some(response), None);
             Mock::given(body_partial_json(&expected_body))
                 .respond_with(
                     ResponseTemplate::new(200)
@@ -292,17 +287,12 @@ mod test {
 
         async fn register_broadcast_tx_commit_response(
             &self,
-            response: &BroadcastTxCommitResponse,
+            response: DialectResponse<tendermint_rpc::dialect::v0_37::Event>,
         ) {
             let expected_body = json!({
                 "method": "broadcast_tx_commit"
             });
-            let wrapper = Wrapper {
-                jsonrpc: "2.0".to_string(),
-                id: 1,
-                result: Some(response.clone()),
-                error: None,
-            };
+            let wrapper = Wrapper::new_with_id(Id::Num(1), Some(response), None);
             Mock::given(body_partial_json(&expected_body))
                 .respond_with(
                     ResponseTemplate::new(200)
@@ -313,16 +303,11 @@ mod test {
                 .await;
         }
 
-        async fn register_block_response(&self, response: &BlockResponse) {
+        async fn register_block_response(&self, response: BlockResponse) {
             let expected_body = json!({
                 "method": "block"
             });
-            let wrapper = Wrapper {
-                jsonrpc: "2.0".to_string(),
-                id: 1,
-                result: Some(response.clone()),
-                error: None,
-            };
+            let wrapper = Wrapper::new_with_id(Id::Num(1), Some(response), None);
             Mock::given(body_partial_json(&expected_body))
                 .respond_with(
                     ResponseTemplate::new(200)
@@ -389,7 +374,7 @@ mod test {
             hash: Hash::Sha256([0; 32]),
         };
         server
-            .register_broadcast_tx_sync_response(&server_response)
+            .register_broadcast_tx_sync_response(server_response.clone())
             .await;
         let signed_tx = create_signed_transaction();
 
@@ -401,19 +386,20 @@ mod test {
         assert_eq!(response.hash, server_response.hash);
     }
 
-    #[ignore = "response parse error"]
     #[tokio::test]
     async fn test_submit_tx_commit() {
+        use tendermint_rpc::dialect;
+
         let server = MockTendermintServer::new().await;
 
-        let server_response = BroadcastTxCommitResponse {
-            check_tx: tendermint::abci::response::CheckTx::default(),
-            deliver_tx: tendermint::abci::response::DeliverTx::default(),
+        let server_response = DialectResponse::<tendermint_rpc::dialect::v0_37::Event> {
+            check_tx: dialect::CheckTx::default(),
+            deliver_tx: dialect::DeliverTx::default(),
             hash: Hash::Sha256([0; 32]),
             height: Height::from(1u32),
         };
         server
-            .register_broadcast_tx_commit_response(&server_response)
+            .register_broadcast_tx_commit_response(server_response)
             .await;
 
         let signed_tx = create_signed_transaction();
@@ -476,7 +462,7 @@ mod test {
             )
             .unwrap(),
         };
-        server.register_block_response(&server_response).await;
+        server.register_block_response(server_response).await;
 
         let client = Client::new(&server.address()).unwrap();
         let block = client.get_latest_block().await.unwrap();
