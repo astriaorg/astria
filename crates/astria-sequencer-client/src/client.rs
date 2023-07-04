@@ -235,7 +235,7 @@ mod test {
         }
 
         fn address(&self) -> String {
-            format!("http://{}", self.mock_server.address().to_string())
+            format!("http://{}", self.mock_server.address())
         }
 
         async fn register_abci_query_response(&self, query_path: &str, response: &QueryResponse) {
@@ -360,7 +360,7 @@ mod test {
         let server_response = BroadcastTxSyncResponse {
             code: 0.into(),
             data: vec![].into(),
-            log: "".into(),
+            log: String::new(),
             hash: Hash::Sha256([0; 32]),
         };
         server
