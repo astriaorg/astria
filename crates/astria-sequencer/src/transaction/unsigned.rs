@@ -48,6 +48,7 @@ impl Unsigned {
         }
     }
 
+    /// Returns the sha256 hash of the protobuf-encoded transaction.
     pub(crate) fn hash(&self) -> Vec<u8> {
         hash(&self.to_proto().encode_length_delimited_to_vec())
     }
@@ -116,6 +117,7 @@ mod test {
 
         let secret_key: SigningKey = SigningKey::new(OsRng);
         let signed = tx.into_signed(&secret_key);
-        signed.verify_signature().unwrap();
+        let bytes = signed.to_proto().encode_length_delimited_to_vec();
+        Signed::try_from_slice(bytes.as_slice()).unwrap();
     }
 }

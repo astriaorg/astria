@@ -33,6 +33,8 @@ use crate::{
 /// Represents a transaction signed by a user.
 /// It contains the signature and the public key of the user,
 /// as well as the transaction itself.
+///
+/// Invariant: this type can only be constructed with a valid signature.
 #[derive(Debug, Clone)]
 pub(crate) struct Signed {
     pub(crate) signature: Signature,
@@ -47,7 +49,7 @@ impl Signed {
     /// # Errors
     ///
     /// - If the signature is invalid
-    pub(crate) fn verify_signature(&self) -> Result<()> {
+    fn verify_signature(&self) -> Result<()> {
         self.public_key
             .verify(&self.signature, &self.transaction.hash())
             .context("failed to verify transaction signature")
@@ -72,6 +74,7 @@ impl Signed {
     ///   component)
     /// - If the signature cannot be decoded
     /// - If the public key cannot be decoded
+    /// - If the signature is invalid
     pub(crate) fn try_from_slice(bytes: &[u8]) -> Result<Self> {
         let proto_tx: ProtoSignedTransaction =
             ProtoSignedTransaction::decode_length_delimited(bytes)?;
@@ -93,6 +96,8 @@ impl Signed {
             signature: Signature::try_from(proto_tx.signature.as_slice())?,
             public_key: VerificationKey::try_from(proto_tx.public_key.as_slice())?,
         };
+        signed_tx.verify_signature()?;
+
         Ok(signed_tx)
     }
 }

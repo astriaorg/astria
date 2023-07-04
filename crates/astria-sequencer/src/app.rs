@@ -289,17 +289,17 @@ mod test {
         }
     }
 
+    use astria_proto::sequencer::v1::{
+        unsigned_transaction::Value::AccountsTransaction as ProtoAccountsTransaction,
+        SignedTransaction as ProtoSignedTransaction,
+        UnsignedTransaction as ProtoUnsignedTransaction,
+    };
+    use prost::Message as _;
+
     impl Signed {
         #[must_use]
-        pub(crate) fn to_proto(&self) -> Vec<u8> {
-            use astria_proto::sequencer::v1::{
-                unsigned_transaction::Value::AccountsTransaction as ProtoAccountsTransaction,
-                SignedTransaction as ProtoSignedTransaction,
-                UnsignedTransaction as ProtoUnsignedTransaction,
-            };
-            use prost::Message as _;
-
-            let proto = ProtoSignedTransaction {
+        pub(crate) fn to_proto(&self) -> ProtoSignedTransaction {
+            ProtoSignedTransaction {
                 transaction: Some(match &self.transaction {
                     Unsigned::AccountsTransaction(tx) => ProtoUnsignedTransaction {
                         value: Some(ProtoAccountsTransaction(tx.to_proto())),
@@ -307,9 +307,7 @@ mod test {
                 }),
                 signature: self.signature.to_bytes().to_vec(),
                 public_key: self.public_key.to_bytes().to_vec(),
-            };
-
-            proto.encode_length_delimited_to_vec()
+            }
         }
     }
 
@@ -395,7 +393,7 @@ mod test {
         let tx =
             Unsigned::AccountsTransaction(Transaction::new(bob.clone(), value, Nonce::from(1)));
         let signed_tx = tx.into_signed(&alice_keypair);
-        let bytes = signed_tx.to_proto();
+        let bytes = signed_tx.to_proto().encode_length_delimited_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(

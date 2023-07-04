@@ -24,6 +24,7 @@ message UnsignedTransaction {
 }
 
 // `AccountsTransaction` represents a value transfer transaction.
+//
 // Note: all values must be set (ie. not `None`), otherwise it will
 // be considered invalid by the sequencer.
 message AccountsTransaction {
