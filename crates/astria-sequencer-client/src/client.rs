@@ -187,8 +187,11 @@ mod test {
     };
 
     use astria_sequencer::{
-        accounts::transaction::Transaction,
-        transaction::Unsigned,
+        accounts::TransferAction,
+        transaction::{
+            Action,
+            Unsigned,
+        },
     };
     use borsh::BorshSerialize;
     use ed25519_consensus::SigningKey;
@@ -311,11 +314,11 @@ mod test {
                 .unwrap();
         let alice_keypair = SigningKey::from(alice_secret_bytes);
 
-        let tx = Unsigned::AccountsTransaction(Transaction::new(
+        let actions = vec![Action::TransferAction(TransferAction::new(
             Address::try_from_str(BOB_ADDRESS).unwrap(),
             Balance::from(333_333),
-            Nonce::from(1),
-        ));
+        ))];
+        let tx = Unsigned::new_with_actions(Nonce::from(1), actions);
         tx.into_signed(&alice_keypair)
     }
 
