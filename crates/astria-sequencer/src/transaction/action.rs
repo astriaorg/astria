@@ -13,7 +13,7 @@ use serde::{
 
 use crate::{
     accounts::TransferAction,
-    secondary::Action as SecondaryAction,
+    sequence::Action as SequenceAction,
 };
 
 /// Represents an action on a specific module.
@@ -22,17 +22,17 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub(crate) enum Action {
-    AccountsAction(TransferAction),
-    SecondaryAction(SecondaryAction),
+    TransferAction(TransferAction),
+    SequenceAction(SequenceAction),
 }
 
 impl Action {
     pub(crate) fn to_proto(&self) -> ProtoAction {
         match &self {
-            Action::AccountsAction(tx) => ProtoAction {
+            Action::TransferAction(tx) => ProtoAction {
                 value: Some(ProtoTransferAction(tx.to_proto())),
             },
-            Action::SecondaryAction(tx) => ProtoAction {
+            Action::SequenceAction(tx) => ProtoAction {
                 value: Some(ProtoSequenceAction(tx.to_proto())),
             },
         }
@@ -46,9 +46,9 @@ impl Action {
                 .ok_or_else(|| anyhow::anyhow!("missing value"))?
             {
                 ProtoTransferAction(tx) => {
-                    Action::AccountsAction(TransferAction::try_from_proto(tx)?)
+                    Action::TransferAction(TransferAction::try_from_proto(tx)?)
                 }
-                ProtoSequenceAction(tx) => Action::SecondaryAction(SecondaryAction::from_proto(tx)),
+                ProtoSequenceAction(tx) => Action::SequenceAction(SequenceAction::from_proto(tx)),
             },
         )
     }

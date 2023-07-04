@@ -84,8 +84,8 @@ impl ActionHandler for Unsigned {
     fn check_stateless(&self) -> Result<()> {
         for action in &self.actions {
             match action {
-                Action::AccountsAction(tx) => tx.check_stateless()?,
-                Action::SecondaryAction(tx) => tx.check_stateless()?,
+                Action::TransferAction(tx) => tx.check_stateless()?,
+                Action::SequenceAction(tx) => tx.check_stateless()?,
             }
         }
         Ok(())
@@ -102,8 +102,8 @@ impl ActionHandler for Unsigned {
         // do we need to make a StateDelta here so we can check the actions on the successive state?
         for action in &self.actions {
             match action {
-                Action::AccountsAction(tx) => tx.check_stateful(state, from).await?,
-                Action::SecondaryAction(tx) => tx.check_stateful(state, from).await?,
+                Action::TransferAction(tx) => tx.check_stateful(state, from).await?,
+                Action::SequenceAction(tx) => tx.check_stateful(state, from).await?,
             }
         }
 
@@ -129,10 +129,10 @@ impl ActionHandler for Unsigned {
 
         for action in &self.actions {
             match action {
-                Action::AccountsAction(tx) => {
+                Action::TransferAction(tx) => {
                     tx.execute(state, from).await?;
                 }
-                Action::SecondaryAction(tx) => {
+                Action::SequenceAction(tx) => {
                     tx.execute(state, from).await?;
                 }
             }
@@ -189,7 +189,7 @@ mod test {
     fn test_unsigned_transaction() {
         let tx = Unsigned {
             nonce: Nonce::from(1),
-            actions: vec![Action::AccountsAction(TransferAction::new(
+            actions: vec![Action::TransferAction(TransferAction::new(
                 address_from_hex_string(BOB_ADDRESS),
                 Balance::from(333_333),
             ))],

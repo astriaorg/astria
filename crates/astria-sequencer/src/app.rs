@@ -234,7 +234,7 @@ mod test {
         },
         crypto::SigningKey,
         genesis::Account,
-        secondary::action::Action as SecondaryAction,
+        sequence::Action as SequenceAction,
         transaction::{
             action::Action,
             Unsigned,
@@ -384,7 +384,7 @@ mod test {
         let value = Balance::from(333_333);
         let tx = Unsigned {
             nonce: Nonce::from(1),
-            actions: vec![Action::AccountsAction(TransferAction::new(
+            actions: vec![Action::TransferAction(TransferAction::new(
                 bob.clone(),
                 value,
             ))],
@@ -406,7 +406,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_app_deliver_tx_secondary() {
+    async fn test_app_deliver_tx_sequence() {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -428,7 +428,7 @@ mod test {
 
         let tx = Unsigned {
             nonce: Nonce::from(1),
-            actions: vec![Action::SecondaryAction(SecondaryAction::new(
+            actions: vec![Action::SequenceAction(SequenceAction::new(
                 b"testchainid".to_vec(),
                 b"helloworld".to_vec(),
             ))],
