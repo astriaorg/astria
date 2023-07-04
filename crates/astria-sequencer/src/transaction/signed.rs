@@ -64,21 +64,18 @@ impl Signed {
         Address::from_verification_key(&self.public_key)
     }
 
-    /// Attempts to decode a signed transaction from the given bytes.
+    /// Converts the protobuf signed transaction into a `SignedTransaction`.
     ///
     /// # Errors
     ///
-    /// - If the bytes cannot be decoded into the prost-generated `SignedTransaction` type
     /// - If the transaction value is missing
     /// - If the transaction value is not a valid transaction type (ie. does not correspond to any
     ///   component)
     /// - If the signature cannot be decoded
     /// - If the public key cannot be decoded
     /// - If the signature is invalid
-    pub(crate) fn try_from_slice(bytes: &[u8]) -> Result<Self> {
-        let proto_tx: ProtoSignedTransaction =
-            ProtoSignedTransaction::decode_length_delimited(bytes)?;
-        let Some(proto_transaction) = proto_tx.transaction else {
+    pub(crate) fn try_from_proto(proto: ProtoSignedTransaction) -> Result<Self> {
+        let Some(proto_transaction) = proto.transaction else {
             bail!("transaction is missing");
         };
 
@@ -93,12 +90,25 @@ impl Signed {
         };
         let signed_tx = Signed {
             transaction,
-            signature: Signature::try_from(proto_tx.signature.as_slice())?,
-            public_key: VerificationKey::try_from(proto_tx.public_key.as_slice())?,
+            signature: Signature::try_from(proto.signature.as_slice())?,
+            public_key: VerificationKey::try_from(proto.public_key.as_slice())?,
         };
         signed_tx.verify_signature()?;
 
         Ok(signed_tx)
+    }
+
+    /// Attempts to convert a slice into a `SignedTransaction`, where the slice
+    /// is an encoded protobuf signed transaction.
+    ///
+    /// # Errors
+    ///
+    /// - If the slice cannot be decoded into a protobuf signed transaction
+    /// - If the protobuf signed transaction cannot be converted into a `SignedTransaction`
+    pub(crate) fn try_from_slice(slice: &[u8]) -> Result<Self> {
+        let proto = ProtoSignedTransaction::decode_length_delimited(slice)
+            .context("failed to decode slice to proto signed transaction")?;
+        Self::try_from_proto(proto)
     }
 }
 
