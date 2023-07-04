@@ -67,8 +67,8 @@ impl Relayer {
     /// Returns one of the following errors:
     /// + failed to read the validator keys from the path in cfg;
     /// + failed to construct a client to the sequencer;
-    /// + failed to construct a client to the data availability layer (if cfg.disable_writing is
-    /// set)
+    /// + failed to construct a client to the data availability layer (unless `cfg.disable_writing`
+    ///   is set).
     pub fn new(
         cfg: &crate::config::Config,
         block_tx: UnboundedSender<SequencerBlock>,
