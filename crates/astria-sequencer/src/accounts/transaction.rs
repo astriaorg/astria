@@ -3,53 +3,78 @@ use anyhow::{
     Context,
     Result,
 };
-use async_trait::async_trait;
-use borsh::{
-    BorshDeserialize,
-    BorshSerialize,
+use astria_proto::sequencer::v1::AccountsTransaction as ProtoAccountsTransaction;
+use serde::{
+    Deserialize,
+    Serialize,
 };
 use tracing::instrument;
 
-use crate::{
-    accounts::{
-        state_ext::{
-            StateReadExt,
-            StateWriteExt,
-        },
-        types::{
-            Address,
-            Balance,
-            Nonce,
-        },
+use crate::accounts::{
+    state_ext::{
+        StateReadExt,
+        StateWriteExt,
     },
-    transaction::ActionHandler,
+    types::{
+        Address,
+        Balance,
+        Nonce,
+    },
 };
 
-#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, PartialEq, Eq)]
+/// Represents a value-transfer transaction.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub(crate) struct Transaction {
-    pub(crate) to: Address,
-    pub(crate) from: Address,
-    pub(crate) amount: Balance,
-    pub(crate) nonce: Nonce,
+    to: Address,
+    amount: Balance,
+    nonce: Nonce,
 }
 
-#[async_trait]
-impl ActionHandler for Transaction {
-    fn check_stateless(&self) -> Result<()> {
-        Ok(())
+impl Transaction {
+    #[allow(dead_code)]
+    pub(crate) fn new(to: Address, amount: Balance, nonce: Nonce) -> Self {
+        Self {
+            to,
+            amount,
+            nonce,
+        }
     }
 
-    async fn check_stateful<S: StateReadExt + 'static>(&self, state: &S) -> Result<()> {
-        let curr_nonce = state
-            .get_account_nonce(&self.from)
-            .await
-            .context("failed getting `from` account nonce")?;
+    pub(crate) fn to_proto(&self) -> ProtoAccountsTransaction {
+        ProtoAccountsTransaction {
+            to: self.to.as_bytes().to_vec(),
+            amount: Some(self.amount.as_proto()),
+            nonce: self.nonce.into(),
+        }
+    }
+
+    pub(crate) fn try_from_proto(proto: &ProtoAccountsTransaction) -> Result<Self> {
+        Ok(Self {
+            to: Address::try_from(proto.to.as_ref() as &[u8])?,
+            amount: Balance::from_proto(
+                *proto
+                    .amount
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("missing amount"))?,
+            ),
+            nonce: Nonce::from(proto.nonce),
+        })
+    }
+}
+
+impl Transaction {
+    pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
+        &self,
+        state: &S,
+        from: &Address,
+    ) -> Result<()> {
+        let curr_nonce = state.get_account_nonce(from).await?;
 
         // TODO: do nonces start at 0 or 1? this assumes an account's first tx has nonce 1.
         ensure!(curr_nonce < self.nonce, "invalid nonce",);
 
         let curr_balance = state
-            .get_account_balance(&self.from)
+            .get_account_balance(from)
             .await
             .context("failed getting `from` account balance")?;
         ensure!(curr_balance >= self.amount, "insufficient funds",);
@@ -60,19 +85,22 @@ impl ActionHandler for Transaction {
     #[instrument(
         skip_all,
         fields(
-            to = self.to.as_ref(),
-            from = self.from.as_ref(),
+            to = self.to.to_string(),
             amount = self.amount.into_inner(),
             nonce = self.nonce.into_inner(),
         )
     )]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S) -> Result<()> {
+    pub(crate) async fn execute<S: StateWriteExt>(
+        &self,
+        state: &mut S,
+        from: &Address,
+    ) -> Result<()> {
         let from_balance = state
-            .get_account_balance(&self.from)
+            .get_account_balance(from)
             .await
             .context("failed getting `from` account balance")?;
         let from_nonce = state
-            .get_account_nonce(&self.from)
+            .get_account_nonce(from)
             .await
             .context("failed getting `from` nonce")?;
         let to_balance = state
@@ -80,10 +108,10 @@ impl ActionHandler for Transaction {
             .await
             .context("failed getting `to` account balance")?;
         state
-            .put_account_balance(&self.from, from_balance - self.amount)
+            .put_account_balance(from, from_balance - self.amount)
             .context("failed updating `from` account balance")?;
         state
-            .put_account_nonce(&self.from, from_nonce + Nonce::from(1))
+            .put_account_nonce(from, from_nonce + Nonce::from(1))
             .context("failed updating `from` nonce")?;
         state
             .put_account_balance(&self.to, to_balance + self.amount)

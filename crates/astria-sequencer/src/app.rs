@@ -4,7 +4,6 @@ use anyhow::{
     Context,
     Result,
 };
-use borsh::BorshDeserialize as _;
 use penumbra_storage::{
     ArcStateDeltaExt,
     Snapshot,
@@ -30,7 +29,7 @@ use crate::{
     },
     transaction::{
         ActionHandler as _,
-        Transaction,
+        Signed,
     },
 };
 
@@ -108,8 +107,8 @@ impl App {
 
     #[instrument(name = "App:deliver_tx", skip(self))]
     pub(crate) async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
-        let tx = Transaction::try_from_slice(tx)
-            .context("failed deserializing transaction from bytes")?;
+        let tx =
+            Signed::try_from_slice(tx).context("failed deserializing transaction from bytes")?;
 
         let tx2 = tx.clone();
         let stateless = tokio::spawn(async move { tx2.check_stateless() });
@@ -208,7 +207,6 @@ impl App {
 
 #[cfg(test)]
 mod test {
-    use borsh::BorshSerialize as _;
     use tendermint::{
         abci::types::CommitInfo,
         account,
@@ -226,28 +224,44 @@ mod test {
     use super::*;
     use crate::{
         accounts::{
-            self,
             state_ext::StateReadExt as _,
+            transaction::Transaction,
             types::{
                 Address,
                 Balance,
+                Nonce,
+                ADDRESS_LEN,
             },
         },
+        crypto::SigningKey,
         genesis::Account,
+        transaction::Unsigned,
     };
+
+    /// attempts to decode the given hex string into an address.
+    fn address_from_hex_string(s: &str) -> Address {
+        let bytes = hex::decode(s).unwrap();
+        let arr: [u8; ADDRESS_LEN] = bytes.try_into().unwrap();
+        Address(arr)
+    }
+
+    // generated with test `generate_default_keys()`
+    const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
+    const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
+    const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871";
 
     fn default_genesis_accounts() -> Vec<Account> {
         vec![
             Account {
-                address: "alice".into(),
+                address: address_from_hex_string(ALICE_ADDRESS),
                 balance: 10u128.pow(19).into(),
             },
             Account {
-                address: "bob".into(),
+                address: address_from_hex_string(BOB_ADDRESS),
                 balance: 10u128.pow(19).into(),
             },
             Account {
-                address: "carol".into(),
+                address: address_from_hex_string(CAROL_ADDRESS),
                 balance: 10u128.pow(19).into(),
             },
         ]
@@ -272,6 +286,28 @@ mod test {
                 app: 0,
                 block: 0,
             },
+        }
+    }
+
+    use astria_proto::sequencer::v1::{
+        unsigned_transaction::Value::AccountsTransaction as ProtoAccountsTransaction,
+        SignedTransaction as ProtoSignedTransaction,
+        UnsignedTransaction as ProtoUnsignedTransaction,
+    };
+    use prost::Message as _;
+
+    impl Signed {
+        #[must_use]
+        pub(crate) fn to_proto(&self) -> ProtoSignedTransaction {
+            ProtoSignedTransaction {
+                transaction: Some(match &self.transaction {
+                    Unsigned::AccountsTransaction(tx) => ProtoUnsignedTransaction {
+                        value: Some(ProtoAccountsTransaction(tx.to_proto())),
+                    },
+                }),
+                signature: self.signature.to_bytes().to_vec(),
+                public_key: self.public_key.to_bytes().to_vec(),
+            }
         }
     }
 
@@ -343,26 +379,30 @@ mod test {
         app.init_chain(genesis_state).await.unwrap();
 
         // transfer funds from Alice to Bob
-        let alice = Address::from("alice");
-        let bob = Address::from("bob");
-        let amount = Balance::from(333_333);
-        let nonce = 1.into();
-        let tx = Transaction::AccountsTransaction(accounts::transaction::Transaction {
-            from: alice.clone(),
-            to: bob.clone(),
-            amount,
-            nonce,
-        });
-        let bytes = tx.try_to_vec().unwrap();
+        // this secret key corresponds to ALICE_ADDRESS
+        let alice_secret_bytes: [u8; 32] =
+            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let alice_keypair = SigningKey::from(alice_secret_bytes);
+
+        let alice = address_from_hex_string(ALICE_ADDRESS);
+        let bob = address_from_hex_string(BOB_ADDRESS);
+        let value = Balance::from(333_333);
+        let tx =
+            Unsigned::AccountsTransaction(Transaction::new(bob.clone(), value, Nonce::from(1)));
+        let signed_tx = tx.into_signed(&alice_keypair);
+        let bytes = signed_tx.to_proto().encode_length_delimited_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(
             app.state.get_account_balance(&bob).await.unwrap(),
-            amount + 10u128.pow(19)
+            value + 10u128.pow(19)
         );
         assert_eq!(
             app.state.get_account_balance(&alice).await.unwrap(),
-            Balance::from(10u128.pow(19)) - amount
+            Balance::from(10u128.pow(19)) - value
         );
         assert_eq!(app.state.get_account_nonce(&bob).await.unwrap(), 0);
         assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);

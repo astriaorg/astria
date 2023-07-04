@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package astria.sequencer.v1;
+
+import "astria/primitive/v1/types.proto";
+
+// `SignedTransaction` is a transaction that has
+// been signed by the given public key.
+// It wraps an `UnsignedTransaction` with a 
+// signature and public key.
+message SignedTransaction {
+    bytes signature = 1;
+    bytes public_key = 2;
+    UnsignedTransaction transaction = 3;
+}
+
+// `UnsignedTransaction` is a transaction that does 
+// not have an attached signature.
+// Note: `value` must be set, it cannot be `None`.
+message UnsignedTransaction {
+    oneof value {
+        AccountsTransaction accounts_transaction = 1;
+    }   
+}
+
+// `AccountsTransaction` represents a value transfer transaction.
+//
+// Note: all values must be set (ie. not `None`), otherwise it will
+// be considered invalid by the sequencer.
+message AccountsTransaction {
+    bytes to = 1;
+    astria.primitive.v1.Uint128 amount = 2;
+    uint32 nonce = 3;
+}
