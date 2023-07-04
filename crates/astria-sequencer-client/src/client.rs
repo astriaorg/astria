@@ -181,6 +181,11 @@ impl Client {
 
 #[cfg(test)]
 mod test {
+    use std::{
+        str::FromStr,
+        vec,
+    };
+
     use astria_sequencer::{
         accounts::transaction::Transaction,
         transaction::Unsigned,
@@ -307,6 +312,26 @@ mod test {
                 .mount(&self.mock_server)
                 .await;
         }
+
+        async fn register_block_response(&self, response: &BlockResponse) {
+            let expected_body = json!({
+                "method": "block"
+            });
+            let wrapper = Wrapper {
+                jsonrpc: "2.0".to_string(),
+                id: 1,
+                result: Some(response.clone()),
+                error: None,
+            };
+            Mock::given(body_partial_json(&expected_body))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(&wrapper)
+                        .append_header("Content-Type", "application/json"),
+                )
+                .mount(&self.mock_server)
+                .await;
+        }
     }
 
     fn create_signed_transaction() -> Signed {
@@ -399,11 +424,62 @@ mod test {
         assert_eq!(response.deliver_tx.code, 0.into());
     }
 
-    #[ignore = "requires running cometbft and sequencer node"]
     #[tokio::test]
     async fn test_get_latest_block() {
-        let client = Client::new(DEFAULT_TENDERMINT_BASE_URL).unwrap();
+        use tendermint::{
+            account,
+            block::{
+                header::Version,
+                parts::Header as PartSetHeader,
+                Block,
+                Header,
+                Height,
+                Id as BlockId,
+            },
+            chain,
+            evidence,
+            hash::AppHash,
+            Hash,
+            Time,
+        };
+
+        let server = MockTendermintServer::new().await;
+
+        let server_response = BlockResponse {
+            block_id: BlockId {
+                hash: Hash::Sha256([0; 32]),
+                part_set_header: PartSetHeader::new(0, Hash::None).unwrap(),
+            },
+            block: Block::new(
+                Header {
+                    version: Version {
+                        block: 0,
+                        app: 0,
+                    },
+                    chain_id: chain::Id::try_from("test").unwrap(),
+                    height: Height::from(1u32),
+                    time: Time::now(),
+                    last_block_id: None,
+                    last_commit_hash: None,
+                    data_hash: None,
+                    validators_hash: Hash::Sha256([0; 32]),
+                    next_validators_hash: Hash::Sha256([0; 32]),
+                    consensus_hash: Hash::Sha256([0; 32]),
+                    app_hash: AppHash::try_from([0; 32].to_vec()).unwrap(),
+                    last_results_hash: None,
+                    evidence_hash: None,
+                    proposer_address: account::Id::from_str(BOB_ADDRESS).unwrap(),
+                },
+                vec![],
+                evidence::List::default(),
+                None,
+            )
+            .unwrap(),
+        };
+        server.register_block_response(&server_response).await;
+
+        let client = Client::new(&server.address()).unwrap();
         let block = client.get_latest_block().await.unwrap();
-        assert!(block.block.header.height.value() >= 1);
+        assert!(block.block.header.height.value() == 1);
     }
 }
