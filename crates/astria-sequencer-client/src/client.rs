@@ -185,27 +185,131 @@ mod test {
         accounts::transaction::Transaction,
         transaction::unsigned::Transaction as UnsignedTransaction,
     };
+    use borsh::BorshSerialize;
     use ed25519_consensus::SigningKey;
+    use serde_json::json;
+    use tendermint::Hash;
+    use wiremock::{
+        matchers::{
+            body_partial_json,
+            body_string_contains,
+        },
+        Mock,
+        MockServer,
+        ResponseTemplate,
+    };
 
     use super::*;
 
+    // see astria-sequencer/src/crypto.rs for how these keys/addresses were generated
     const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
     const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
 
-    #[ignore = "requires running cometbft and sequencer node"]
-    #[tokio::test]
-    async fn test_get_balance() {
-        let client = Client::new(DEFAULT_TENDERMINT_BASE_URL).unwrap();
-        let address = Address::try_from_str(ALICE_ADDRESS).unwrap();
-        let nonce = client.get_nonce(&address, None).await.unwrap();
-        assert_eq!(nonce, Nonce::from(0));
-        let balance = client.get_balance(&address, None).await.unwrap();
-        assert_eq!(balance, Balance::from(10_u128.pow(18)));
+    /// JSON-RPC response wrapper (i.e. message envelope)
+    #[derive(Debug, serde::Deserialize, serde::Serialize, Clone)]
+    struct Wrapper<R> {
+        /// JSON-RPC version
+        jsonrpc: String,
+
+        /// Identifier included in request
+        id: u64,
+
+        /// Results of request (if successful)
+        result: Option<R>,
+
+        /// Error message if unsuccessful
+        error: Option<String>,
     }
 
-    #[ignore = "requires running cometbft and sequencer node"]
-    #[tokio::test]
-    async fn test_submit_tx_commit() {
+    /// A mock tendermint server for testing.
+    struct MockTendermintServer {
+        mock_server: MockServer,
+    }
+
+    impl MockTendermintServer {
+        async fn new() -> Self {
+            let mock_server = MockServer::start().await;
+            MockTendermintServer {
+                mock_server,
+            }
+        }
+
+        fn address(&self) -> String {
+            format!("http://{}", self.mock_server.address().to_string())
+        }
+
+        async fn register_abci_query_response(&self, query_path: &str, response: &QueryResponse) {
+            let expected_body = json!({
+                "method": "abci_query"
+            });
+            let response = tendermint_rpc::endpoint::abci_query::Response {
+                response: tendermint_rpc::endpoint::abci_query::AbciQuery {
+                    value: response.try_to_vec().unwrap(),
+                    ..Default::default()
+                },
+            };
+            let wrapper = Wrapper {
+                jsonrpc: "2.0".to_string(),
+                id: 1,
+                result: Some(response),
+                error: None,
+            };
+            Mock::given(body_partial_json(&expected_body))
+                .and(body_string_contains(query_path))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(&wrapper)
+                        .append_header("Content-Type", "application/json"),
+                )
+                .mount(&self.mock_server)
+                .await;
+        }
+
+        async fn register_broadcast_tx_sync_response(&self, response: &BroadcastTxSyncResponse) {
+            let expected_body = json!({
+                "method": "broadcast_tx_sync"
+            });
+            let wrapper = Wrapper {
+                jsonrpc: "2.0".to_string(),
+                id: 1,
+                result: Some(response.clone()),
+                error: None,
+            };
+            Mock::given(body_partial_json(&expected_body))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(&wrapper)
+                        .append_header("Content-Type", "application/json"),
+                )
+                .mount(&self.mock_server)
+                .await;
+        }
+
+        async fn register_broadcast_tx_commit_response(
+            &self,
+            response: &BroadcastTxCommitResponse,
+        ) {
+            let expected_body = json!({
+                "method": "broadcast_tx_commit"
+            });
+            let wrapper = Wrapper {
+                jsonrpc: "2.0".to_string(),
+                id: 1,
+                result: Some(response.clone()),
+                error: None,
+            };
+            Mock::given(body_partial_json(&expected_body))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(&wrapper)
+                        .append_header("Content-Type", "application/json"),
+                )
+                .mount(&self.mock_server)
+                .await;
+        }
+    }
+
+    fn create_signed_transaction() -> signed::Transaction {
         let alice_secret_bytes: [u8; 32] =
             hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
                 .unwrap()
@@ -213,22 +317,86 @@ mod test {
                 .unwrap();
         let alice_keypair = SigningKey::from(alice_secret_bytes);
 
-        let alice = Address::try_from_str(ALICE_ADDRESS).unwrap();
-        let bob = Address::try_from_str(BOB_ADDRESS).unwrap();
-        let value = Balance::from(333_333);
         let tx = UnsignedTransaction::AccountsTransaction(Transaction::new(
-            bob.clone(),
-            value,
+            Address::try_from_str(BOB_ADDRESS).unwrap(),
+            Balance::from(333_333),
             Nonce::from(1),
         ));
-        let signed_tx = tx.sign(&alice_keypair);
+        tx.sign(&alice_keypair)
+    }
 
-        let client = Client::new(DEFAULT_TENDERMINT_BASE_URL).unwrap();
+    #[tokio::test]
+    async fn test_get_nonce_and_balance() {
+        let server = MockTendermintServer::new().await;
+
+        let nonce_response = Nonce::from(0);
+        server
+            .register_abci_query_response(
+                "accounts/nonce",
+                &QueryResponse::NonceResponse(nonce_response),
+            )
+            .await;
+
+        let balance_response = Balance::from(10_u128.pow(18));
+        server
+            .register_abci_query_response(
+                "accounts/balance",
+                &QueryResponse::BalanceResponse(balance_response),
+            )
+            .await;
+
+        let client = Client::new(&server.address()).unwrap();
+        let address = Address::try_from_str(ALICE_ADDRESS).unwrap();
+        let nonce = client.get_nonce(&address, None).await.unwrap();
+        assert_eq!(nonce, nonce_response);
+        let balance = client.get_balance(&address, None).await.unwrap();
+        assert_eq!(balance, balance_response);
+    }
+
+    #[tokio::test]
+    async fn test_submit_tx_sync() {
+        let server = MockTendermintServer::new().await;
+
+        let server_response = BroadcastTxSyncResponse {
+            code: 0.into(),
+            data: vec![].into(),
+            log: "".into(),
+            hash: Hash::Sha256([0; 32]),
+        };
+        server
+            .register_broadcast_tx_sync_response(&server_response)
+            .await;
+        let signed_tx = create_signed_transaction();
+
+        let client = Client::new(&server.address()).unwrap();
+        let response = client.submit_transaction_sync(signed_tx).await.unwrap();
+        assert_eq!(response.code, server_response.code);
+        assert_eq!(response.data, server_response.data);
+        assert_eq!(response.log, server_response.log);
+        assert_eq!(response.hash, server_response.hash);
+    }
+
+    #[ignore = "response parse error"]
+    #[tokio::test]
+    async fn test_submit_tx_commit() {
+        let server = MockTendermintServer::new().await;
+
+        let server_response = BroadcastTxCommitResponse {
+            check_tx: tendermint::abci::response::CheckTx::default(),
+            deliver_tx: tendermint::abci::response::DeliverTx::default(),
+            hash: Hash::Sha256([0; 32]),
+            height: Height::from(1u32),
+        };
+        server
+            .register_broadcast_tx_commit_response(&server_response)
+            .await;
+
+        let signed_tx = create_signed_transaction();
+
+        let client = Client::new(&server.address()).unwrap();
         let response = client.submit_transaction_commit(signed_tx).await.unwrap();
         assert_eq!(response.check_tx.code, 0.into());
         assert_eq!(response.deliver_tx.code, 0.into());
-        let nonce = client.get_nonce(&alice, None).await.unwrap();
-        assert_eq!(nonce, Nonce::from(1));
     }
 
     #[ignore = "requires running cometbft and sequencer node"]

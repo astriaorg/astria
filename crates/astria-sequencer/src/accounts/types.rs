@@ -22,9 +22,9 @@ impl Address {
     }
 
     /// Decodes an address from a hex string.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// - if the string is not valid hex
     /// - if the string is not 20 bytes long
     pub fn try_from_str(s: &str) -> anyhow::Result<Self> {

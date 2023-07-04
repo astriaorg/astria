@@ -19,4 +19,5 @@ tendermint = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]
+tracing-subscriber = { workspace = true }
 wiremock = "0.5"
