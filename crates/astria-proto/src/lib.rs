@@ -70,8 +70,8 @@ mod primitive_impls {
         }
     }
 
-    impl From<&Uint128> for u128 {
-        fn from(pb: &Uint128) -> u128 {
+    impl From<Uint128> for u128 {
+        fn from(pb: Uint128) -> u128 {
             let [l0, l1, l2, l3, l4, l5, l6, l7] = pb.lo.to_be_bytes();
             let [h0, h1, h2, h3, h4, h5, h6, h7] = pb.hi.to_be_bytes();
             u128::from_be_bytes([
@@ -86,7 +86,7 @@ mod primitive_impls {
         #[track_caller]
         fn u128_roundtrip_check(expected: u128) {
             let pb: Uint128 = expected.into();
-            let actual: u128 = (&pb).into();
+            let actual: u128 = pb.into();
             assert_eq!(expected, actual);
         }
         #[test]

@@ -8,7 +8,6 @@ use futures::StreamExt;
 use tokio::{
     select,
     sync::mpsc::UnboundedReceiver,
-    task::JoinHandle,
 };
 use tracing::{
     debug,
@@ -25,7 +24,7 @@ pub struct GossipNetwork {
 }
 
 impl GossipNetwork {
-    pub fn new(p2p_port: u16, block_rx: UnboundedReceiver<SequencerBlock>) -> Result<Self> {
+    pub(crate) fn new(p2p_port: u16, block_rx: UnboundedReceiver<SequencerBlock>) -> Result<Self> {
         let network = NetworkBuilder::new().port(p2p_port).build()?;
         Ok(Self {
             network,
@@ -33,26 +32,34 @@ impl GossipNetwork {
         })
     }
 
-    pub fn run(mut self) -> JoinHandle<()> {
-        tokio::task::spawn(async move {
-            loop {
-                select! {
-                    block = self.block_rx.recv() => {
-                        if let Some(block) = block {
-                            match self.publish(&block).await {
-                                Ok(()) => debug!(block_hash = ?block.block_hash, "published block to network"),
-                                Err(e) => warn!(?e, "failed to publish block to network"),
-                            };
-                        }
-                    },
-                    event = self.network.next() => {
-                        if let Some(event) = event {
-                            debug!(?event, "got event from network");
-                        }
-                    },
-                }
+    /// Runs the gossip network.
+    ///
+    /// # Errors
+    ///
+    /// `GossipNetwork::run` never returns an error. The return type is
+    /// only set to `eyre::Result` for convenient use in `SequencerRelayer`.
+    pub(crate) async fn run(mut self) -> eyre::Result<()> {
+        loop {
+            select! {
+                block = self.block_rx.recv() => {
+                    if let Some(block) = block {
+                        match self.publish(&block).await {
+                            Ok(()) => debug!(block_hash = ?block.block_hash, "published block to network"),
+                            Err(e) => warn!(?e, "failed to publish block to network"),
+                        };
+                    }
+                },
+                event = self.network.next() => {
+                    if let Some(event) = event {
+                        debug!(?event, "got event from network");
+                    }
+                },
             }
-        })
+        }
+        // Return Ok to make the types align (see the method's doc comment why this is necessary).
+        // Allow unreachable code to quiet warnings
+        #[allow(unreachable_code)]
+        Ok(())
     }
 
     async fn publish(&mut self, block: &SequencerBlock) -> Result<()> {

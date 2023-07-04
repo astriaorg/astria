@@ -34,10 +34,12 @@ impl QueryRequest {
 
         match query_type {
             "balance" => Ok(QueryRequest::BalanceQuery(
-                Address::try_from(address).context("failed to parse address")?,
+                Address::try_from_str(address)
+                    .context("failed to parse address while constructing balance query request")?,
             )),
             "nonce" => Ok(QueryRequest::NonceQuery(
-                Address::try_from(address).context("failed to parse address")?,
+                Address::try_from_str(address)
+                    .context("failed to parse address while constructing nonce query request")?,
             )),
             other => bail!("invalid query type: `{other}`"),
         }

@@ -22,7 +22,7 @@ bytes = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 ed25519-consensus = { workspace = true }
 futures = { workspace = true }
-hex = { workspace = true }
+hex = { workspace = true, features = ["serde"] }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"]  }
 serde_json = { workspace = true }

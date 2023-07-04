@@ -11,37 +11,38 @@ use penumbra_storage::{
 use prost::Message as _;
 use tracing::instrument;
 
-use super::{
-    unsigned,
-    ActionHandler,
-};
 use crate::{
     accounts::types::Address,
     crypto::{
         Signature,
         VerificationKey,
     },
-    transaction::unsigned::Transaction as UnsignedTransaction,
+    transaction::{
+        ActionHandler,
+        Unsigned,
+    },
 };
 
 /// Represents a transaction signed by a user.
 /// It contains the signature and the public key of the user,
 /// as well as the transaction itself.
+///
+/// Invariant: this type can only be constructed with a valid signature.
 #[derive(Debug, Clone)]
-pub(crate) struct Transaction {
+pub(crate) struct Signed {
     pub(crate) signature: Signature,
     pub(crate) public_key: VerificationKey,
-    pub(crate) transaction: UnsignedTransaction,
+    pub(crate) transaction: Unsigned,
 }
 
-impl Transaction {
+impl Signed {
     /// Verifies the transaction signature.
     /// The transaction signature message is the hash of the transaction.
     ///
     /// # Errors
     ///
     /// - If the signature is invalid
-    pub(crate) fn verify_signature(&self) -> Result<()> {
+    fn verify_signature(&self) -> Result<()> {
         self.public_key
             .verify(&self.signature, &self.transaction.hash())
             .context("failed to verify transaction signature")
@@ -52,38 +53,51 @@ impl Transaction {
     /// # Errors
     ///
     /// - If the public key cannot be converted into an address
-    pub(crate) fn signer_address(&self) -> Result<Address> {
-        Address::try_from(&self.public_key)
+    pub(crate) fn signer_address(&self) -> Address {
+        Address::from_verification_key(&self.public_key)
     }
 
-    /// Attempts to decode a signed transaction from the given bytes.
+    /// Converts the protobuf signed transaction into a `SignedTransaction`.
     ///
     /// # Errors
     ///
-    /// - If the bytes cannot be decoded into the prost-generated `SignedTransaction` type
     /// - If the transaction value is missing
     /// - If the transaction value is not a valid transaction type (ie. does not correspond to any
     ///   component)
     /// - If the signature cannot be decoded
     /// - If the public key cannot be decoded
-    pub(crate) fn try_from_slice(bytes: &[u8]) -> Result<Self> {
-        let proto_tx: ProtoSignedTransaction =
-            ProtoSignedTransaction::decode_length_delimited(bytes)?;
-        let Some(proto_transaction) = proto_tx.transaction else {
+    /// - If the signature is invalid
+    pub(crate) fn try_from_proto(proto: ProtoSignedTransaction) -> Result<Self> {
+        let Some(proto_transaction) = proto.transaction else {
             bail!("transaction is missing");
         };
+        let transaction = Unsigned::try_from_proto(&proto_transaction)?;
 
-        let transaction = unsigned::Transaction::try_from_proto(&proto_transaction)?;
-        let signed_tx = Transaction {
+        let signed_tx = Signed {
             transaction,
-            signature: Signature::try_from(proto_tx.signature.as_slice())?,
-            public_key: VerificationKey::try_from(proto_tx.public_key.as_slice())?,
+            signature: Signature::try_from(proto.signature.as_slice())?,
+            public_key: VerificationKey::try_from(proto.public_key.as_slice())?,
         };
+        signed_tx.verify_signature()?;
+
         Ok(signed_tx)
+    }
+
+    /// Attempts to convert a slice into a `SignedTransaction`, where the slice
+    /// is an encoded protobuf signed transaction.
+    ///
+    /// # Errors
+    ///
+    /// - If the slice cannot be decoded into a protobuf signed transaction
+    /// - If the protobuf signed transaction cannot be converted into a `SignedTransaction`
+    pub(crate) fn try_from_slice(slice: &[u8]) -> Result<Self> {
+        let proto = ProtoSignedTransaction::decode_length_delimited(slice)
+            .context("failed to decode slice to proto signed transaction")?;
+        Self::try_from_proto(proto)
     }
 }
 
-impl Transaction {
+impl Signed {
     #[instrument]
     pub(crate) fn check_stateless(&self) -> Result<()> {
         self.verify_signature()?;
@@ -94,14 +108,14 @@ impl Transaction {
     #[instrument(skip(state))]
     pub(crate) async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()> {
         self.transaction
-            .check_stateful(state, &self.signer_address()?)
+            .check_stateful(state, &self.signer_address())
             .await
     }
 
     #[instrument(skip(state))]
     pub(crate) async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()> {
         self.transaction
-            .execute(state, &self.signer_address()?)
+            .execute(state, &self.signer_address())
             .await
     }
 }

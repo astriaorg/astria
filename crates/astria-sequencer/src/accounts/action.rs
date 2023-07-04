@@ -3,7 +3,8 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_proto::sequencer::v1::Transfer as ProtoAccountsTransaction;
+// TODO rename
+use astria_proto::sequencer::v1::TransferAction as ProtoAccountsTransaction;
 use serde::{
     Deserialize,
     Serialize,
@@ -43,18 +44,19 @@ impl Transfer {
     pub(crate) fn to_proto(&self) -> ProtoAccountsTransaction {
         ProtoAccountsTransaction {
             to: self.to.as_bytes().to_vec(),
-            amount: Some(self.amount.into()),
+            amount: Some(self.amount.as_proto()),
         }
     }
 
     pub(crate) fn try_from_proto(proto: &ProtoAccountsTransaction) -> Result<Self> {
         Ok(Self {
             to: Address::try_from(proto.to.as_ref() as &[u8])?,
-            amount: proto
-                .amount
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("missing amount"))?
-                .into(),
+            amount: Balance::from_proto(
+                *proto
+                    .amount
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("missing amount"))?,
+            ),
         })
     }
 }

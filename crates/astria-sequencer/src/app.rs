@@ -27,7 +27,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::signed::Transaction as SignedTransaction,
+    transaction::Signed,
 };
 
 /// The application hash, used to verify the application state.
@@ -104,8 +104,8 @@ impl App {
 
     #[instrument(name = "App:deliver_tx", skip(self))]
     pub(crate) async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
-        let tx = SignedTransaction::try_from_slice(tx)
-            .context("failed deserializing transaction from bytes")?;
+        let tx =
+            Signed::try_from_slice(tx).context("failed deserializing transaction from bytes")?;
 
         let tx2 = tx.clone();
         let stateless = tokio::spawn(async move { tx2.check_stateless() });
@@ -204,6 +204,8 @@ impl App {
 
 #[cfg(test)]
 mod test {
+    use astria_proto::sequencer::v1::SignedTransaction as ProtoSignedTransaction;
+    use prost::Message as _;
     use tendermint::{
         abci::types::CommitInfo,
         account,
@@ -235,7 +237,7 @@ mod test {
         secondary::action::Action as SecondaryAction,
         transaction::{
             action::Action,
-            unsigned::Transaction as UnsignedTransaction,
+            Unsigned,
         },
     };
 
@@ -243,7 +245,7 @@ mod test {
     fn address_from_hex_string(s: &str) -> Address {
         let bytes = hex::decode(s).unwrap();
         let arr: [u8; ADDRESS_LEN] = bytes.try_into().unwrap();
-        Address::from_array(arr)
+        Address(arr)
     }
 
     // generated with test `generate_default_keys()`
@@ -290,19 +292,14 @@ mod test {
         }
     }
 
-    impl SignedTransaction {
+    impl Signed {
         #[must_use]
-        pub(crate) fn to_proto(&self) -> Vec<u8> {
-            use astria_proto::sequencer::v1::SignedTransaction as ProtoSignedTransaction;
-            use prost::Message as _;
-
-            let proto = ProtoSignedTransaction {
+        pub(crate) fn to_proto(&self) -> ProtoSignedTransaction {
+            ProtoSignedTransaction {
                 transaction: Some(self.transaction.to_proto()),
                 signature: self.signature.to_bytes().to_vec(),
                 public_key: self.public_key.to_bytes().to_vec(),
-            };
-
-            proto.encode_length_delimited_to_vec()
+            }
         }
     }
 
@@ -385,12 +382,12 @@ mod test {
         let alice = address_from_hex_string(ALICE_ADDRESS);
         let bob = address_from_hex_string(BOB_ADDRESS);
         let value = Balance::from(333_333);
-        let tx = UnsignedTransaction {
+        let tx = Unsigned {
             nonce: Nonce::from(1),
             actions: vec![Action::AccountsAction(Transfer::new(bob.clone(), value))],
         };
-        let signed_tx = tx.sign(&alice_keypair);
-        let bytes = signed_tx.to_proto();
+        let signed_tx = tx.into_signed(&alice_keypair);
+        let bytes = signed_tx.to_proto().encode_length_delimited_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(
@@ -423,10 +420,10 @@ mod test {
                 .unwrap()
                 .try_into()
                 .unwrap();
-        let alice_keypair = SigningKey::from(alice_secret_bytes);
-        let alice = Address::try_from(&alice_keypair).unwrap();
+        let alice_signing_key = SigningKey::from(alice_secret_bytes);
+        let alice = Address::from_verification_key(&alice_signing_key.verification_key());
 
-        let tx = UnsignedTransaction {
+        let tx = Unsigned {
             nonce: Nonce::from(1),
             actions: vec![Action::SecondaryAction(SecondaryAction::new(
                 b"testchainid".to_vec(),
@@ -434,8 +431,8 @@ mod test {
             ))],
         };
 
-        let signed_tx = tx.sign(&alice_keypair);
-        let bytes = signed_tx.to_proto();
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        let bytes = signed_tx.to_proto().encode_length_delimited_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);

@@ -1,4 +1,7 @@
-use std::net::SocketAddr;
+use std::{
+    future::Future,
+    net::SocketAddr,
+};
 
 use axum::{
     extract::State,
@@ -10,23 +13,27 @@ use axum::{
     Json,
     Router,
 };
+use eyre::Report;
+use futures::TryFutureExt as _;
 use http::status::StatusCode;
 use serde::Serialize;
 use tokio::sync::watch::Receiver;
 
 use crate::relayer::State as RelayerState;
 
-pub async fn start(addr: SocketAddr, relayer_state: Receiver<RelayerState>) {
+pub(crate) fn start(
+    port: u16,
+    relayer_state: Receiver<RelayerState>,
+) -> impl Future<Output = eyre::Result<()>> + Unpin {
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let app = Router::new()
         .route("/healthz", get(get_healthz))
         .route("/readyz", get(get_readyz))
         .route("/status", get(get_status))
         .with_state(relayer_state);
-
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
-        .await
-        .expect("app server exited unexpectedly");
+        .map_err(|e| Report::new(e).wrap_err("failed to server API"))
 }
 
 async fn get_healthz(State(relayer_status): State<Receiver<RelayerState>>) -> Healthz {

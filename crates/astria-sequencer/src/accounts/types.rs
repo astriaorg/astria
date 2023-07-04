@@ -14,16 +14,41 @@ pub(crate) const ADDRESS_LEN: usize = 20;
 
 /// Represents an account address.
 #[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub(crate) struct Address([u8; ADDRESS_LEN]);
+pub(crate) struct Address(pub(crate) [u8; ADDRESS_LEN]);
 
 impl Address {
     pub(crate) fn as_bytes(&self) -> &[u8] {
         &self.0
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn from_array(arr: [u8; ADDRESS_LEN]) -> Self {
-        Self(arr)
+    pub(crate) fn try_from_str(s: &str) -> anyhow::Result<Self> {
+        let bytes = hex::decode(s)?;
+        let arr: [u8; ADDRESS_LEN] = bytes
+            .try_into()
+            .map_err(|_| anyhow!("invalid address hex length"))?;
+        Ok(Self(arr))
+    }
+
+    /// Returns the address of the account associated with the given verification key,
+    /// which is calculated as the first 20 bytes of the sha256 hash of the verification key.
+    pub(crate) fn from_verification_key(public_key: &crate::crypto::VerificationKey) -> Self {
+        let bytes = crate::hash(public_key.as_bytes());
+        let arr: [u8; ADDRESS_LEN] = bytes[0..ADDRESS_LEN]
+            .try_into()
+            .expect("can convert 32 byte hash to 20 byte array");
+        Address(arr)
+    }
+}
+
+impl hex::FromHex for Address {
+    type Error = anyhow::Error;
+
+    fn from_hex<T: AsRef<[u8]>>(hex: T) -> std::result::Result<Self, Self::Error> {
+        let bytes = hex::decode(hex)?;
+        let arr: [u8; ADDRESS_LEN] = bytes
+            .try_into()
+            .map_err(|_| anyhow!("invalid address hex length"))?;
+        Ok(Self(arr))
     }
 }
 
@@ -34,42 +59,6 @@ impl TryFrom<&[u8]> for Address {
         let arr: [u8; ADDRESS_LEN] = bytes
             .try_into()
             .map_err(|_| anyhow!("invalid address length"))?;
-        Ok(Address(arr))
-    }
-}
-
-impl TryFrom<&str> for Address {
-    type Error = anyhow::Error;
-
-    fn try_from(s: &str) -> std::result::Result<Self, Self::Error> {
-        let bytes = hex::decode(s)?;
-        let arr: [u8; ADDRESS_LEN] = bytes
-            .try_into()
-            .map_err(|_| anyhow!("invalid address hex length"))?;
-        Ok(Address(arr))
-    }
-}
-
-impl TryFrom<&crate::crypto::VerificationKey> for Address {
-    type Error = anyhow::Error;
-
-    fn try_from(public_key: &crate::crypto::VerificationKey) -> Result<Self, Self::Error> {
-        let bytes = crate::hash(public_key.as_bytes());
-        let arr: [u8; ADDRESS_LEN] = bytes[0..ADDRESS_LEN]
-            .try_into()
-            .map_err(|_| anyhow!("invalid address hex length"))?;
-        Ok(Address(arr))
-    }
-}
-
-impl TryFrom<&crate::crypto::SigningKey> for Address {
-    type Error = anyhow::Error;
-
-    fn try_from(secret_key: &crate::crypto::SigningKey) -> Result<Self, Self::Error> {
-        let bytes = crate::hash(secret_key.verification_key().as_bytes());
-        let arr: [u8; ADDRESS_LEN] = bytes[0..ADDRESS_LEN]
-            .try_into()
-            .map_err(|_| anyhow!("invalid address hex length"))?;
         Ok(Address(arr))
     }
 }
@@ -99,6 +88,14 @@ pub(crate) struct Balance(u128);
 impl Balance {
     pub(crate) fn into_inner(self) -> u128 {
         self.0
+    }
+
+    pub(crate) fn as_proto(&self) -> ProtoBalance {
+        ProtoBalance::from(self.0)
+    }
+
+    pub(crate) fn from_proto(proto: ProtoBalance) -> Self {
+        Self(proto.into())
     }
 }
 
@@ -137,18 +134,6 @@ impl std::ops::Sub<u128> for Balance {
 
     fn sub(self, rhs: u128) -> Self::Output {
         Self(self.0 - rhs)
-    }
-}
-
-impl From<&ProtoBalance> for Balance {
-    fn from(proto: &ProtoBalance) -> Self {
-        Self(proto.into())
-    }
-}
-
-impl From<Balance> for ProtoBalance {
-    fn from(balance: Balance) -> Self {
-        balance.0.into()
     }
 }
 

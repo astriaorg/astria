@@ -26,25 +26,19 @@ use crate::{
     hash,
     transaction::{
         action::Action,
-        signed::Transaction as SignedTransaction,
         ActionHandler,
+        Signed,
     },
 };
 
 /// Represents an unsigned sequencer chain transaction.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct Transaction {
+pub(crate) struct Unsigned {
     pub(crate) nonce: Nonce,
     pub(crate) actions: Vec<Action>,
 }
 
-impl Transaction {
-    /// Attempts to encode the unsigned transaction into bytes.
-    #[must_use]
-    pub(crate) fn to_vec(&self) -> Vec<u8> {
-        self.to_proto().encode_length_delimited_to_vec()
-    }
-
+impl Unsigned {
     pub(crate) fn to_proto(&self) -> ProtoUnsignedTransaction {
         let mut proto = ProtoUnsignedTransaction {
             nonce: self.nonce.into(),
@@ -67,25 +61,26 @@ impl Transaction {
         })
     }
 
-    /// Signs the transaction with the given keypair.
+    /// Signs the transaction with the given signing key.
     #[allow(dead_code)]
     #[must_use]
-    pub(crate) fn sign(self, secret_key: &SigningKey) -> SignedTransaction {
+    pub(crate) fn into_signed(self, secret_key: &SigningKey) -> Signed {
         let signature = secret_key.sign(&self.hash());
-        SignedTransaction {
+        Signed {
             transaction: self,
             signature,
             public_key: secret_key.verification_key(),
         }
     }
 
+    /// Returns the sha256 hash of the protobuf-encoded transaction.
     pub(crate) fn hash(&self) -> Vec<u8> {
-        hash(&self.to_vec())
+        hash(&self.to_proto().encode_length_delimited_to_vec())
     }
 }
 
 #[async_trait::async_trait]
-impl ActionHandler for Transaction {
+impl ActionHandler for Unsigned {
     fn check_stateless(&self) -> Result<()> {
         for action in &self.actions {
             match action {
@@ -172,15 +167,14 @@ mod test {
     fn address_from_hex_string(s: &str) -> Address {
         let bytes = hex::decode(s).unwrap();
         let arr: [u8; ADDRESS_LEN] = bytes.try_into().unwrap();
-        Address::from_array(arr)
+        Address(arr)
     }
 
-    impl Transaction {
-        /// Attempts to decode an unsigned transaction from the given bytes.
+    impl Unsigned {
+        /// Converts the encoded protobuf bytes into the corresponding `Transaction` type.
         ///
         /// # Errors
         ///
-        /// - If the bytes cannot be decoded into the prost-generated `UnsignedTransaction` type
         /// - If the value is missing
         /// - If the value is not a valid transaction type (ie. does not correspond to any
         ///   component)
@@ -193,20 +187,21 @@ mod test {
 
     #[test]
     fn test_unsigned_transaction() {
-        let tx = Transaction {
+        let tx = Unsigned {
             nonce: Nonce::from(1),
             actions: vec![Action::AccountsAction(Transfer::new(
                 address_from_hex_string(BOB_ADDRESS),
                 Balance::from(333_333),
             ))],
         };
-        let bytes = tx.to_vec();
-        let tx2 = Transaction::try_from_slice(&bytes).unwrap();
+        let bytes = tx.to_proto().encode_length_delimited_to_vec();
+        let tx2 = Unsigned::try_from_slice(&bytes).unwrap();
         assert_eq!(tx, tx2);
         println!("0x{}", hex::encode(bytes));
 
         let secret_key: SigningKey = SigningKey::new(OsRng);
-        let signed = tx.sign(&secret_key);
-        signed.verify_signature().unwrap();
+        let signed = tx.into_signed(&secret_key);
+        let bytes = signed.to_proto().encode_length_delimited_to_vec();
+        Signed::try_from_slice(bytes.as_slice()).unwrap();
     }
 }
