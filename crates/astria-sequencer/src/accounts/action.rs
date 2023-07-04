@@ -25,7 +25,7 @@ use crate::{
 };
 
 /// Represents a value-transfer action.
-#[allow(clippy::module_name_repetitions)]
+#[allow(clippy::module_name_repetitions)] // TODO: rename this to `Transfer`?
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct TransferAction {
     to: Address,
