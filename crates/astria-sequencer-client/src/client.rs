@@ -215,22 +215,6 @@ mod test {
     const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
     const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
 
-    // /// JSON-RPC response wrapper (i.e. message envelope)
-    // #[derive(Debug, serde::Deserialize, serde::Serialize, Clone)]
-    // struct Wrapper<R> {
-    //     /// JSON-RPC version
-    //     jsonrpc: String,
-
-    //     /// Identifier included in request
-    //     id: u64,
-
-    //     /// Results of request (if successful)
-    //     result: Option<R>,
-
-    //     /// Error message if unsuccessful
-    //     error: Option<String>,
-    // }
-
     /// A mock tendermint server for testing.
     struct MockTendermintServer {
         mock_server: MockServer,
