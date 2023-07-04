@@ -1,29 +1,34 @@
-use std::str::FromStr;
-
-use bech32::{
-    self,
-    ToBase32,
-    Variant,
+use std::{
+    str::FromStr,
+    time::Duration,
 };
+
 use eyre::{
     Result,
     WrapErr as _,
 };
+use tendermint::account::Id as AccountId;
 use tokio::{
     sync::{
         mpsc::UnboundedSender,
-        watch,
+        watch::{
+            self,
+            Receiver,
+        },
     },
-    task::JoinHandle,
-    time::Interval,
+    time,
 };
 use tracing::{
+    debug,
     info,
     warn,
 };
 
 use crate::{
-    data_availability::CelestiaClient,
+    data_availability::{
+        CelestiaClient,
+        CelestiaClientBuilder,
+    },
     sequencer::SequencerClient,
     sequencer_block::SequencerBlock,
     validator::Validator,
@@ -31,13 +36,11 @@ use crate::{
 
 pub struct Relayer {
     sequencer_client: SequencerClient,
-    da_client: CelestiaClient,
-    disable_writing: bool,
+    data_availability_client: Option<CelestiaClient>,
     validator: Validator,
-    interval: Interval,
+    sequencer_poll_period: Duration,
     block_tx: UnboundedSender<SequencerBlock>,
-
-    state: watch::Sender<State>,
+    state_tx: watch::Sender<State>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -53,39 +56,54 @@ impl State {
 }
 
 impl Relayer {
+    /// Instantiates a `Relayer`.
+    ///
+    /// # Errors
+    ///
+    /// Returns one of the following errors:
+    /// + failed to read the validator keys from the path in cfg;
+    /// + failed to construct a client to the sequencer;
+    /// + failed to construct a client to the data availability layer (unless `cfg.disable_writing`
+    ///   is set).
     pub fn new(
-        cfg: crate::config::Config,
-        sequencer_client: SequencerClient,
-        da_client: CelestiaClient,
-        interval: Interval,
+        cfg: &crate::config::Config,
         block_tx: UnboundedSender<SequencerBlock>,
     ) -> Result<Self> {
-        let validator = Validator::from_path(cfg.validator_key_file)
+        let validator = Validator::from_path(&cfg.validator_key_file)
             .wrap_err("failed to get validator info from file")?;
 
-        let (state, _) = watch::channel(State::default());
+        let sequencer_client = SequencerClient::new(cfg.sequencer_endpoint.clone())
+            .wrap_err("failed to create sequencer client")?;
+
+        let data_availability_client = if cfg.disable_writing {
+            debug!("disabling writing to data availability layer requested; disabling");
+            None
+        } else {
+            let client = CelestiaClientBuilder::new(cfg.celestia_endpoint.clone())
+                .gas_limit(cfg.gas_limit)
+                .build()
+                .wrap_err("failed to create data availability client")?;
+            Some(client)
+        };
+
+        let (state_tx, _) = watch::channel(State::default());
 
         Ok(Self {
             sequencer_client,
-            da_client,
-            disable_writing: false,
+            data_availability_client,
+            sequencer_poll_period: Duration::from_millis(cfg.block_time),
             validator,
-            interval,
             block_tx,
-            state,
+            state_tx,
         })
     }
 
-    pub fn disable_writing(&mut self) {
-        self.disable_writing = true;
-    }
-
-    pub fn subscribe_to_state(&self) -> watch::Receiver<State> {
-        self.state.subscribe()
+    pub(crate) fn subscribe_to_state(&self) -> Receiver<State> {
+        self.state_tx.subscribe()
     }
 
     async fn get_and_submit_latest_block(&self) -> eyre::Result<State> {
-        let mut new_state = (*self.state.borrow()).clone();
+        let mut new_state = (*self.state_tx.borrow()).clone();
         let resp = self.sequencer_client.get_latest_block().await?;
 
         let maybe_height: Result<u64, <u64 as FromStr>::Err> = resp.block.header.height.parse();
@@ -103,19 +121,17 @@ impl Relayer {
             return Ok(new_state);
         }
 
-        info!("got block with height {} from sequencer", height);
+        info!(height = ?height, tx_count = resp.block.data.txs.len(), "got block from sequencer");
         new_state.current_sequencer_height.replace(height);
 
         if resp.block.header.proposer_address.as_ref() != self.validator.address.as_ref() {
-            let proposer_address = bech32::encode(
-                "metrovalcons",
-                resp.block.header.proposer_address.0.to_base32(),
-                Variant::Bech32,
-            )
-            .expect("should encode block proposer address");
+            let proposer_address =
+                AccountId::try_from(resp.block.header.proposer_address.0.clone())
+                    .wrap_err("failed to convert proposer address")?;
+
             info!(
                 %proposer_address,
-                validator_address = %self.validator.bech32_address,
+                validator_address = %self.validator.address,
                 "ignoring block: proposer address is not ours",
             );
             return Ok(new_state);
@@ -130,48 +146,54 @@ impl Relayer {
         };
 
         self.block_tx.send(sequencer_block.clone())?;
-        if self.disable_writing {
-            return Ok(new_state);
-        }
-
         let tx_count = sequencer_block.rollup_txs.len() + sequencer_block.sequencer_txs.len();
-        match self
-            .da_client
-            .submit_block(
-                sequencer_block,
-                &self.validator.signing_key,
-                self.validator.verification_key,
-            )
-            .await
-        {
-            Ok(resp) => {
-                new_state
-                    .current_data_availability_height
-                    .replace(resp.height);
-                info!(
-                    sequencer_block = height,
-                    da_layer_block = resp.height,
-                    tx_count,
-                    "submitted sequencer block to DA layer",
-                );
+        if let Some(client) = &self.data_availability_client {
+            match client
+                .submit_block(
+                    sequencer_block,
+                    &self.validator.signing_key,
+                    self.validator.verification_key,
+                )
+                .await
+            {
+                Ok(resp) => {
+                    new_state
+                        .current_data_availability_height
+                        .replace(resp.height);
+                    info!(
+                        sequencer_block = height,
+                        da_layer_block = resp.height,
+                        tx_count,
+                        "submitted sequencer block to DA layer",
+                    );
+                }
+                Err(e) => warn!(error = ?e, "failed to submit block to DA layer"),
             }
-            Err(e) => warn!(error = ?e, "failed to submit block to DA layer"),
         }
         Ok(new_state)
     }
 
-    pub fn run(mut self) -> JoinHandle<()> {
-        tokio::task::spawn(async move {
-            loop {
-                self.interval.tick().await;
-                match self.get_and_submit_latest_block().await {
-                    Err(e) => warn!(error = ?e, "failed to get latest block from sequencer"),
-                    Ok(new_state) if new_state != *self.state.borrow() => {
-                        _ = self.state.send_replace(new_state);
-                    }
-                    Ok(_) => {}
+    /// Runs the relayer worker.
+    ///
+    /// # Errors
+    ///
+    /// `Relayer::run` never returns an error. The return type is
+    /// only set to `eyre::Result` for convenient use in `SequencerRelayer`.
+    pub(crate) async fn run(self) -> eyre::Result<()> {
+        let mut interval = time::interval(self.sequencer_poll_period);
+        loop {
+            interval.tick().await;
+            match self.get_and_submit_latest_block().await {
+                Err(e) => warn!(error = ?e, "failed to get latest block from sequencer"),
+                Ok(new_state) if new_state != *self.state_tx.borrow() => {
+                    _ = self.state_tx.send_replace(new_state);
                 }
+                Ok(_) => {}
             }
-        })
+        }
+        // Return Ok to make the types align (see the method's doc comment why this is necessary).
+        // Allow unreachable code to quiet warnings
+        #[allow(unreachable_code)]
+        Ok(())
     }
 }

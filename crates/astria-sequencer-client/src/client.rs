@@ -7,7 +7,7 @@ use astria_sequencer::{
             Nonce,
         },
     },
-    transaction::signed,
+    transaction::Signed,
 };
 use borsh::BorshDeserialize;
 use eyre::{
@@ -151,9 +151,9 @@ impl Client {
     /// - If calling the tendermint RPC endpoint fails.
     pub async fn submit_transaction_sync(
         &self,
-        tx: signed::Transaction,
+        tx: Signed,
     ) -> eyre::Result<BroadcastTxSyncResponse> {
-        let tx_bytes = tx.to_proto();
+        let tx_bytes = tx.to_bytes();
         self.client
             .broadcast_tx_sync(tx_bytes)
             .await
@@ -169,9 +169,9 @@ impl Client {
     /// - If calling the tendermint RPC endpoint fails.
     pub async fn submit_transaction_commit(
         &self,
-        tx: signed::Transaction,
+        tx: Signed,
     ) -> eyre::Result<BroadcastTxCommitResponse> {
-        let tx_bytes = tx.to_proto();
+        let tx_bytes = tx.to_bytes();
         self.client
             .broadcast_tx_commit(tx_bytes)
             .await
@@ -183,7 +183,7 @@ impl Client {
 mod test {
     use astria_sequencer::{
         accounts::transaction::Transaction,
-        transaction::unsigned::Transaction as UnsignedTransaction,
+        transaction::Unsigned,
     };
     use borsh::BorshSerialize;
     use ed25519_consensus::SigningKey;
@@ -309,7 +309,7 @@ mod test {
         }
     }
 
-    fn create_signed_transaction() -> signed::Transaction {
+    fn create_signed_transaction() -> Signed {
         let alice_secret_bytes: [u8; 32] =
             hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
                 .unwrap()
@@ -317,12 +317,12 @@ mod test {
                 .unwrap();
         let alice_keypair = SigningKey::from(alice_secret_bytes);
 
-        let tx = UnsignedTransaction::AccountsTransaction(Transaction::new(
+        let tx = Unsigned::AccountsTransaction(Transaction::new(
             Address::try_from_str(BOB_ADDRESS).unwrap(),
             Balance::from(333_333),
             Nonce::from(1),
         ));
-        tx.sign(&alice_keypair)
+        tx.into_signed(&alice_keypair)
     }
 
     #[tokio::test]

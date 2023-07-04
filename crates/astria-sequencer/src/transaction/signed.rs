@@ -6,6 +6,7 @@ use anyhow::{
 use astria_proto::sequencer::v1::{
     unsigned_transaction::Value::AccountsTransaction as ProtoAccountsTransaction,
     SignedTransaction as ProtoSignedTransaction,
+    UnsignedTransaction as ProtoUnsignedTransaction,
 };
 use async_trait::async_trait;
 use penumbra_storage::{
@@ -25,38 +26,40 @@ use crate::{
         VerificationKey,
     },
     transaction::{
-        unsigned::Transaction as UnsignedTransaction,
         ActionHandler,
+        Unsigned,
     },
 };
 
 /// Represents a transaction signed by a user.
 /// It contains the signature and the public key of the user,
 /// as well as the transaction itself.
+///
+/// Invariant: this type can only be constructed with a valid signature.
 #[derive(Debug, Clone)]
-pub struct Transaction {
+pub struct Signed {
     pub(crate) signature: Signature,
     pub(crate) public_key: VerificationKey,
-    pub(crate) transaction: UnsignedTransaction,
+    pub(crate) transaction: Unsigned,
 }
 
-impl Transaction {
+impl Signed {
     #[must_use]
-    pub fn to_proto(&self) -> Vec<u8> {
-        use astria_proto::sequencer::v1::UnsignedTransaction as ProtoUnsignedTransaction;
-        use prost::Message as _;
-
-        let proto = ProtoSignedTransaction {
+    pub fn to_proto(&self) -> ProtoSignedTransaction {
+        ProtoSignedTransaction {
             transaction: Some(match &self.transaction {
-                UnsignedTransaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
+                Unsigned::AccountsTransaction(tx) => ProtoUnsignedTransaction {
                     value: Some(ProtoAccountsTransaction(tx.to_proto())),
                 },
             }),
             signature: self.signature.to_bytes().to_vec(),
             public_key: self.public_key.to_bytes().to_vec(),
-        };
+        }
+    }
 
-        proto.encode_length_delimited_to_vec()
+    #[must_use]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.to_proto().encode_length_delimited_to_vec()
     }
 
     /// Verifies the transaction signature.
@@ -65,7 +68,7 @@ impl Transaction {
     /// # Errors
     ///
     /// - If the signature is invalid
-    pub(crate) fn verify_signature(&self) -> Result<()> {
+    fn verify_signature(&self) -> Result<()> {
         self.public_key
             .verify(&self.signature, &self.transaction.hash())
             .context("failed to verify transaction signature")
@@ -80,20 +83,18 @@ impl Transaction {
         Address::from_verification_key(&self.public_key)
     }
 
-    /// Attempts to decode a signed transaction from the given bytes.
+    /// Converts the protobuf signed transaction into a `SignedTransaction`.
     ///
     /// # Errors
     ///
-    /// - If the bytes cannot be decoded into the prost-generated `SignedTransaction` type
     /// - If the transaction value is missing
     /// - If the transaction value is not a valid transaction type (ie. does not correspond to any
     ///   component)
     /// - If the signature cannot be decoded
     /// - If the public key cannot be decoded
-    pub(crate) fn try_from_slice(bytes: &[u8]) -> Result<Self> {
-        let proto_tx: ProtoSignedTransaction =
-            ProtoSignedTransaction::decode_length_delimited(bytes)?;
-        let Some(proto_transaction) = proto_tx.transaction else {
+    /// - If the signature is invalid
+    pub(crate) fn try_from_proto(proto: ProtoSignedTransaction) -> Result<Self> {
+        let Some(proto_transaction) = proto.transaction else {
             bail!("transaction is missing");
         };
 
@@ -103,32 +104,47 @@ impl Transaction {
 
         let transaction = match value {
             ProtoAccountsTransaction(tx) => {
-                UnsignedTransaction::AccountsTransaction(AccountsTransaction::try_from_proto(&tx)?)
+                Unsigned::AccountsTransaction(AccountsTransaction::try_from_proto(&tx)?)
             }
         };
-        let signed_tx = Transaction {
+        let signed_tx = Signed {
             transaction,
-            signature: Signature::try_from(proto_tx.signature.as_slice())?,
-            public_key: VerificationKey::try_from(proto_tx.public_key.as_slice())?,
+            signature: Signature::try_from(proto.signature.as_slice())?,
+            public_key: VerificationKey::try_from(proto.public_key.as_slice())?,
         };
+        signed_tx.verify_signature()?;
+
         Ok(signed_tx)
+    }
+
+    /// Attempts to convert a slice into a `SignedTransaction`, where the slice
+    /// is an encoded protobuf signed transaction.
+    ///
+    /// # Errors
+    ///
+    /// - If the slice cannot be decoded into a protobuf signed transaction
+    /// - If the protobuf signed transaction cannot be converted into a `SignedTransaction`
+    pub(crate) fn try_from_slice(slice: &[u8]) -> Result<Self> {
+        let proto = ProtoSignedTransaction::decode_length_delimited(slice)
+            .context("failed to decode slice to proto signed transaction")?;
+        Self::try_from_proto(proto)
     }
 }
 
 #[async_trait]
-impl ActionHandler for Transaction {
+impl ActionHandler for Signed {
     #[instrument]
     fn check_stateless(&self) -> Result<()> {
         self.verify_signature()?;
         match &self.transaction {
-            UnsignedTransaction::AccountsTransaction(_) => Ok(()),
+            Unsigned::AccountsTransaction(_) => Ok(()),
         }
     }
 
     #[instrument(skip(state))]
     async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()> {
         match &self.transaction {
-            UnsignedTransaction::AccountsTransaction(tx) => {
+            Unsigned::AccountsTransaction(tx) => {
                 tx.check_stateful(state, &self.signer_address()).await
             }
         }
@@ -137,9 +153,7 @@ impl ActionHandler for Transaction {
     #[instrument(skip(state))]
     async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()> {
         match &self.transaction {
-            UnsignedTransaction::AccountsTransaction(tx) => {
-                tx.execute(state, &self.signer_address()).await
-            }
+            Unsigned::AccountsTransaction(tx) => tx.execute(state, &self.signer_address()).await,
         }
     }
 }
