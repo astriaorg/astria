@@ -27,10 +27,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::{
-        ActionHandler as _,
-        Signed,
-    },
+    transaction::Signed,
 };
 
 /// The application hash, used to verify the application state.
@@ -207,6 +204,8 @@ impl App {
 
 #[cfg(test)]
 mod test {
+    use astria_proto::sequencer::v1::SignedTransaction as ProtoSignedTransaction;
+    use prost::Message as _;
     use tendermint::{
         abci::types::CommitInfo,
         account,
@@ -225,17 +224,21 @@ mod test {
     use crate::{
         accounts::{
             state_ext::StateReadExt as _,
-            transaction::Transaction,
             types::{
                 Address,
                 Balance,
                 Nonce,
                 ADDRESS_LEN,
             },
+            TransferAction,
         },
         crypto::SigningKey,
         genesis::Account,
-        transaction::Unsigned,
+        sequence::Action as SequenceAction,
+        transaction::{
+            action::Action,
+            Unsigned,
+        },
     };
 
     /// attempts to decode the given hex string into an address.
@@ -289,22 +292,11 @@ mod test {
         }
     }
 
-    use astria_proto::sequencer::v1::{
-        unsigned_transaction::Value::AccountsTransaction as ProtoAccountsTransaction,
-        SignedTransaction as ProtoSignedTransaction,
-        UnsignedTransaction as ProtoUnsignedTransaction,
-    };
-    use prost::Message as _;
-
     impl Signed {
         #[must_use]
         pub(crate) fn to_proto(&self) -> ProtoSignedTransaction {
             ProtoSignedTransaction {
-                transaction: Some(match &self.transaction {
-                    Unsigned::AccountsTransaction(tx) => ProtoUnsignedTransaction {
-                        value: Some(ProtoAccountsTransaction(tx.to_proto())),
-                    },
-                }),
+                transaction: Some(self.transaction.to_proto()),
                 signature: self.signature.to_bytes().to_vec(),
                 public_key: self.public_key.to_bytes().to_vec(),
             }
@@ -367,7 +359,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_app_deliver_tx() {
+    async fn test_app_deliver_tx_transfer() {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -390,8 +382,13 @@ mod test {
         let alice = address_from_hex_string(ALICE_ADDRESS);
         let bob = address_from_hex_string(BOB_ADDRESS);
         let value = Balance::from(333_333);
-        let tx =
-            Unsigned::AccountsTransaction(Transaction::new(bob.clone(), value, Nonce::from(1)));
+        let tx = Unsigned {
+            nonce: Nonce::from(1),
+            actions: vec![Action::TransferAction(TransferAction::new(
+                bob.clone(),
+                value,
+            ))],
+        };
         let signed_tx = tx.into_signed(&alice_keypair);
         let bytes = signed_tx.to_proto().encode_length_delimited_to_vec();
 
@@ -405,6 +402,42 @@ mod test {
             Balance::from(10u128.pow(19)) - value
         );
         assert_eq!(app.state.get_account_nonce(&bob).await.unwrap(), 0);
+        assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_app_deliver_tx_sequence() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut app = App::new(snapshot);
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+        };
+        app.init_chain(genesis_state).await.unwrap();
+
+        // this secret key corresponds to ALICE_ADDRESS
+        let alice_secret_bytes: [u8; 32] =
+            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let alice_signing_key = SigningKey::from(alice_secret_bytes);
+        let alice = Address::from_verification_key(&alice_signing_key.verification_key());
+
+        let tx = Unsigned {
+            nonce: Nonce::from(1),
+            actions: vec![Action::SequenceAction(SequenceAction::new(
+                b"testchainid".to_vec(),
+                b"helloworld".to_vec(),
+            ))],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        let bytes = signed_tx.to_proto().encode_length_delimited_to_vec();
+
+        app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);
     }
 

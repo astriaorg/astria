@@ -1,3 +1,4 @@
+pub(crate) mod action;
 pub(crate) mod action_handler;
 pub(crate) mod signed;
 pub(crate) mod unsigned;

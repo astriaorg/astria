@@ -5,9 +5,21 @@ use penumbra_storage::{
     StateWrite,
 };
 
+use crate::accounts::types::Address;
+
 #[async_trait]
 pub(crate) trait ActionHandler {
-    fn check_stateless(&self) -> Result<()>;
-    async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()>;
-    async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()>;
+    fn check_stateless(&self) -> Result<()> {
+        Ok(())
+    }
+    async fn check_stateful<S: StateRead + 'static>(
+        &self,
+        _state: &S,
+        _from: &Address,
+    ) -> Result<()> {
+        Ok(())
+    }
+    async fn execute<S: StateWrite>(&self, _state: &mut S, _from: &Address) -> Result<()> {
+        Ok(())
+    }
 }
