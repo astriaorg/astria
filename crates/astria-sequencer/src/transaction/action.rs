@@ -1,8 +1,8 @@
 use anyhow::Result;
 use astria_proto::sequencer::v1::{
     action::Value::{
-        SecondaryAction as ProtoSecondaryAction,
-        Transfer as ProtoTransfer,
+        SequenceAction as ProtoSequenceAction,
+        TransferAction as ProtoTransferAction,
     },
     Action as ProtoAction,
 };
@@ -12,8 +12,8 @@ use serde::{
 };
 
 use crate::{
-    accounts::action::Transfer,
-    secondary::action::Action as SecondaryAction,
+    accounts::TransferAction,
+    secondary::Action as SecondaryAction,
 };
 
 /// Represents an action on a specific module.
@@ -22,7 +22,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub(crate) enum Action {
-    AccountsAction(Transfer),
+    AccountsAction(TransferAction),
     SecondaryAction(SecondaryAction),
 }
 
@@ -30,10 +30,10 @@ impl Action {
     pub(crate) fn to_proto(&self) -> ProtoAction {
         match &self {
             Action::AccountsAction(tx) => ProtoAction {
-                value: Some(ProtoTransfer(tx.to_proto())),
+                value: Some(ProtoTransferAction(tx.to_proto())),
             },
             Action::SecondaryAction(tx) => ProtoAction {
-                value: Some(ProtoSecondaryAction(tx.to_proto())),
+                value: Some(ProtoSequenceAction(tx.to_proto())),
             },
         }
     }
@@ -45,10 +45,10 @@ impl Action {
                 .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("missing value"))?
             {
-                ProtoTransfer(tx) => Action::AccountsAction(Transfer::try_from_proto(tx)?),
-                ProtoSecondaryAction(tx) => {
-                    Action::SecondaryAction(SecondaryAction::from_proto(tx))
+                ProtoTransferAction(tx) => {
+                    Action::AccountsAction(TransferAction::try_from_proto(tx)?)
                 }
+                ProtoSequenceAction(tx) => Action::SecondaryAction(SecondaryAction::from_proto(tx)),
             },
         )
     }

@@ -223,7 +223,6 @@ mod test {
     use super::*;
     use crate::{
         accounts::{
-            action::Transfer,
             state_ext::StateReadExt as _,
             types::{
                 Address,
@@ -231,6 +230,7 @@ mod test {
                 Nonce,
                 ADDRESS_LEN,
             },
+            TransferAction,
         },
         crypto::SigningKey,
         genesis::Account,
@@ -384,7 +384,10 @@ mod test {
         let value = Balance::from(333_333);
         let tx = Unsigned {
             nonce: Nonce::from(1),
-            actions: vec![Action::AccountsAction(Transfer::new(bob.clone(), value))],
+            actions: vec![Action::AccountsAction(TransferAction::new(
+                bob.clone(),
+                value,
+            ))],
         };
         let signed_tx = tx.into_signed(&alice_keypair);
         let bytes = signed_tx.to_proto().encode_length_delimited_to_vec();

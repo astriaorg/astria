@@ -1,4 +1,5 @@
 use anyhow::Result;
+use astria_proto::sequencer::v1::SequenceAction as ProtoSequenceAction;
 use serde::{
     Deserialize,
     Serialize,
@@ -34,14 +35,14 @@ impl Action {
         }
     }
 
-    pub(crate) fn to_proto(&self) -> astria_proto::sequencer::v1::SecondaryAction {
-        astria_proto::sequencer::v1::SecondaryAction {
+    pub(crate) fn to_proto(&self) -> ProtoSequenceAction {
+        ProtoSequenceAction {
             chain_id: self.chain_id.clone(),
             data: self.data.clone(),
         }
     }
 
-    pub(crate) fn from_proto(proto: &astria_proto::sequencer::v1::SecondaryAction) -> Self {
+    pub(crate) fn from_proto(proto: &ProtoSequenceAction) -> Self {
         Self {
             chain_id: proto.chain_id.clone(),
             data: proto.data.clone(),

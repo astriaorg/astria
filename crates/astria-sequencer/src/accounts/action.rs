@@ -3,8 +3,7 @@ use anyhow::{
     Context,
     Result,
 };
-// TODO rename
-use astria_proto::sequencer::v1::TransferAction as ProtoAccountsTransaction;
+use astria_proto::sequencer::v1::TransferAction as ProtoTransferAction;
 use serde::{
     Deserialize,
     Serialize,
@@ -25,14 +24,14 @@ use crate::{
     transaction::action_handler::ActionHandler,
 };
 
-/// Represents a value-transfer transaction.
+/// Represents a value-transfer action.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub(crate) struct Transfer {
+pub(crate) struct TransferAction {
     to: Address,
     amount: Balance,
 }
 
-impl Transfer {
+impl TransferAction {
     #[allow(dead_code)]
     pub(crate) fn new(to: Address, amount: Balance) -> Self {
         Self {
@@ -41,14 +40,14 @@ impl Transfer {
         }
     }
 
-    pub(crate) fn to_proto(&self) -> ProtoAccountsTransaction {
-        ProtoAccountsTransaction {
+    pub(crate) fn to_proto(&self) -> ProtoTransferAction {
+        ProtoTransferAction {
             to: self.to.as_bytes().to_vec(),
             amount: Some(self.amount.as_proto()),
         }
     }
 
-    pub(crate) fn try_from_proto(proto: &ProtoAccountsTransaction) -> Result<Self> {
+    pub(crate) fn try_from_proto(proto: &ProtoTransferAction) -> Result<Self> {
         Ok(Self {
             to: Address::try_from(proto.to.as_ref() as &[u8])?,
             amount: Balance::from_proto(
@@ -62,7 +61,7 @@ impl Transfer {
 }
 
 #[async_trait::async_trait]
-impl ActionHandler for Transfer {
+impl ActionHandler for TransferAction {
     fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
