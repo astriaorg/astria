@@ -208,7 +208,10 @@ impl<C: ExecutionClient> Executor<C> {
 
         // get transactions for our namespace
         let Some(txs) = block.rollup_txs.get(&self.namespace) else {
-            info!(height = block.header.height, "sequencer block did not contains txs for namespace");
+            info!(
+                height = block.header.height,
+                "sequencer block did not contains txs for namespace"
+            );
             return Ok(None);
         };
 
@@ -288,7 +291,11 @@ impl<C: ExecutionClient> Executor<C> {
                 // try executing the block as it hasn't been executed before
                 // execute_block will check if our namespace has txs; if so, it'll return the
                 // resulting execution block hash, otherwise None
-                let Some(execution_block_hash) = self.execute_block(block).await.wrap_err("failed to execute block")? else {
+                let Some(execution_block_hash) = self
+                    .execute_block(block)
+                    .await
+                    .wrap_err("failed to execute block")?
+                else {
                     // no txs for our namespace, nothing to do
                     debug!("execute_block returned None; skipping finalize_block");
                     return Ok(());

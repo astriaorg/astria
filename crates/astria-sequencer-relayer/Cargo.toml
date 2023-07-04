@@ -12,7 +12,6 @@ http = "0.2.9"
 sha2 = "0.10"
 
 base64 = { workspace = true }
-bech32 = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 figment = { workspace = true, features = ["env"] }
 eyre = { workspace = true }

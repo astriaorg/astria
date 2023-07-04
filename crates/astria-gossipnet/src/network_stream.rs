@@ -69,7 +69,10 @@ impl futures::Stream for Network {
                     debug!(address = ?address, "new listening address");
                     let maddr_str = format!("{}/p2p/{}", address, self.local_peer_id);
                     let Ok(multiaddr) = Multiaddr::from_str(&maddr_str) else {
-                        return Poll::Ready(Some(Err(eyre!("failed to parse multiaddr: {:?}", maddr_str))));
+                        return Poll::Ready(Some(Err(eyre!(
+                            "failed to parse multiaddr: {:?}",
+                            maddr_str
+                        ))));
                     };
 
                     self.multiaddrs.push(multiaddr);
