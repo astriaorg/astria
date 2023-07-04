@@ -25,8 +25,8 @@ use crate::{
         VerificationKey,
     },
     transaction::{
-        unsigned::Transaction as UnsignedTransaction,
         ActionHandler,
+        Unsigned,
     },
 };
 
@@ -34,13 +34,13 @@ use crate::{
 /// It contains the signature and the public key of the user,
 /// as well as the transaction itself.
 #[derive(Debug, Clone)]
-pub(crate) struct Transaction {
+pub(crate) struct Signed {
     pub(crate) signature: Signature,
     pub(crate) public_key: VerificationKey,
-    pub(crate) transaction: UnsignedTransaction,
+    pub(crate) transaction: Unsigned,
 }
 
-impl Transaction {
+impl Signed {
     /// Verifies the transaction signature.
     /// The transaction signature message is the hash of the transaction.
     ///
@@ -85,10 +85,10 @@ impl Transaction {
 
         let transaction = match value {
             ProtoAccountsTransaction(tx) => {
-                UnsignedTransaction::AccountsTransaction(AccountsTransaction::try_from_proto(&tx)?)
+                Unsigned::AccountsTransaction(AccountsTransaction::try_from_proto(&tx)?)
             }
         };
-        let signed_tx = Transaction {
+        let signed_tx = Signed {
             transaction,
             signature: Signature::try_from(proto_tx.signature.as_slice())?,
             public_key: VerificationKey::try_from(proto_tx.public_key.as_slice())?,
@@ -98,19 +98,19 @@ impl Transaction {
 }
 
 #[async_trait]
-impl ActionHandler for Transaction {
+impl ActionHandler for Signed {
     #[instrument]
     fn check_stateless(&self) -> Result<()> {
         self.verify_signature()?;
         match &self.transaction {
-            UnsignedTransaction::AccountsTransaction(_) => Ok(()),
+            Unsigned::AccountsTransaction(_) => Ok(()),
         }
     }
 
     #[instrument(skip(state))]
     async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()> {
         match &self.transaction {
-            UnsignedTransaction::AccountsTransaction(tx) => {
+            Unsigned::AccountsTransaction(tx) => {
                 tx.check_stateful(state, &self.signer_address()).await
             }
         }
@@ -119,9 +119,7 @@ impl ActionHandler for Transaction {
     #[instrument(skip(state))]
     async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()> {
         match &self.transaction {
-            UnsignedTransaction::AccountsTransaction(tx) => {
-                tx.execute(state, &self.signer_address()).await
-            }
+            Unsigned::AccountsTransaction(tx) => tx.execute(state, &self.signer_address()).await,
         }
     }
 }

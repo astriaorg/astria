@@ -12,24 +12,25 @@ use crate::{
     accounts::transaction::Transaction as AccountsTransaction,
     crypto::SigningKey,
     hash,
-    transaction::signed::Transaction as SignedTransaction,
+    transaction::Signed,
 };
 
 /// Represents an unsigned sequencer chain transaction.
+///
 /// This type wraps all the different module-specific transactions.
 /// If a new transaction type is added, it should be added to this enum.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
-pub(crate) enum Transaction {
+pub(crate) enum Unsigned {
     AccountsTransaction(AccountsTransaction),
 }
 
-impl Transaction {
+impl Unsigned {
     /// Converts the transaction into its protobuf representation.
     #[must_use]
     pub(crate) fn to_proto(&self) -> ProtoUnsignedTransaction {
         match &self {
-            Transaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
+            Unsigned::AccountsTransaction(tx) => ProtoUnsignedTransaction {
                 value: Some(ProtoAccountsTransaction(tx.to_proto())),
             },
         }
@@ -38,9 +39,9 @@ impl Transaction {
     /// Signs the transaction with the given signing key.
     #[allow(dead_code)]
     #[must_use]
-    pub(crate) fn sign(self, secret_key: &SigningKey) -> SignedTransaction {
+    pub(crate) fn into_signed(self, secret_key: &SigningKey) -> Signed {
         let signature = secret_key.sign(&self.hash());
-        SignedTransaction {
+        Signed {
             transaction: self,
             signature,
             public_key: secret_key.verification_key(),
@@ -56,6 +57,7 @@ impl Transaction {
 mod test {
     use anyhow::{
         bail,
+        Context,
         Result,
     };
     use rand::rngs::OsRng;
@@ -77,7 +79,7 @@ mod test {
         Address(arr)
     }
 
-    impl Transaction {
+    impl Unsigned {
         /// Converts the protobuf representation into the corresponding `Transaction` type.
         ///
         /// # Errors
@@ -91,28 +93,29 @@ mod test {
             };
 
             Ok(match value {
-                ProtoAccountsTransaction(tx) => {
-                    Self::AccountsTransaction(AccountsTransaction::try_from_proto(tx)?)
-                }
+                ProtoAccountsTransaction(tx) => Self::AccountsTransaction(
+                    AccountsTransaction::try_from_proto(tx)
+                        .context("failed to convert proto to AccountsTransaction")?,
+                ),
             })
         }
     }
 
     #[test]
     fn test_unsigned_transaction() {
-        let tx = Transaction::AccountsTransaction(AccountsTransaction::new(
+        let tx = Unsigned::AccountsTransaction(AccountsTransaction::new(
             address_from_hex_string(BOB_ADDRESS),
             Balance::from(333_333),
             Nonce::from(1),
         ));
         let bytes = tx.to_proto().encode_length_delimited_to_vec();
         let proto = ProtoUnsignedTransaction::decode_length_delimited(bytes.as_slice()).unwrap();
-        let tx2 = Transaction::try_from_proto(&proto).unwrap();
+        let tx2 = Unsigned::try_from_proto(&proto).unwrap();
         assert_eq!(tx, tx2);
         println!("0x{}", hex::encode(bytes));
 
         let secret_key: SigningKey = SigningKey::new(OsRng);
-        let signed = tx.sign(&secret_key);
+        let signed = tx.into_signed(&secret_key);
         signed.verify_signature().unwrap();
     }
 }

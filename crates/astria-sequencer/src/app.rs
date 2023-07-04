@@ -28,8 +28,8 @@ use crate::{
         StateWriteExt as _,
     },
     transaction::{
-        signed::Transaction as SignedTransaction,
         ActionHandler as _,
+        Signed,
     },
 };
 
@@ -107,8 +107,8 @@ impl App {
 
     #[instrument(name = "App:deliver_tx", skip(self))]
     pub(crate) async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
-        let tx = SignedTransaction::try_from_slice(tx)
-            .context("failed deserializing transaction from bytes")?;
+        let tx =
+            Signed::try_from_slice(tx).context("failed deserializing transaction from bytes")?;
 
         let tx2 = tx.clone();
         let stateless = tokio::spawn(async move { tx2.check_stateless() });
@@ -235,7 +235,7 @@ mod test {
         },
         crypto::SigningKey,
         genesis::Account,
-        transaction::unsigned::Transaction as UnsignedTransaction,
+        transaction::Unsigned,
     };
 
     /// attempts to decode the given hex string into an address.
@@ -289,7 +289,7 @@ mod test {
         }
     }
 
-    impl SignedTransaction {
+    impl Signed {
         #[must_use]
         pub(crate) fn to_proto(&self) -> Vec<u8> {
             use astria_proto::sequencer::v1::{
@@ -301,7 +301,7 @@ mod test {
 
             let proto = ProtoSignedTransaction {
                 transaction: Some(match &self.transaction {
-                    UnsignedTransaction::AccountsTransaction(tx) => ProtoUnsignedTransaction {
+                    Unsigned::AccountsTransaction(tx) => ProtoUnsignedTransaction {
                         value: Some(ProtoAccountsTransaction(tx.to_proto())),
                     },
                 }),
@@ -392,12 +392,9 @@ mod test {
         let alice = address_from_hex_string(ALICE_ADDRESS);
         let bob = address_from_hex_string(BOB_ADDRESS);
         let value = Balance::from(333_333);
-        let tx = UnsignedTransaction::AccountsTransaction(Transaction::new(
-            bob.clone(),
-            value,
-            Nonce::from(1),
-        ));
-        let signed_tx = tx.sign(&alice_keypair);
+        let tx =
+            Unsigned::AccountsTransaction(Transaction::new(bob.clone(), value, Nonce::from(1)));
+        let signed_tx = tx.into_signed(&alice_keypair);
         let bytes = signed_tx.to_proto();
 
         app.deliver_tx(&bytes).await.unwrap();
