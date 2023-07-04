@@ -49,7 +49,8 @@ impl TransferAction {
 
     pub(crate) fn try_from_proto(proto: &ProtoTransferAction) -> Result<Self> {
         Ok(Self {
-            to: Address::try_from(proto.to.as_ref() as &[u8])?,
+            to: Address::try_from(proto.to.as_slice())
+                .context("failed to convert proto address to Address")?,
             amount: Balance::from_proto(
                 *proto
                     .amount
