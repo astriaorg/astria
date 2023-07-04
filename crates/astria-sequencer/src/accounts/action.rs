@@ -63,10 +63,6 @@ impl TransferAction {
 
 #[async_trait::async_trait]
 impl ActionHandler for TransferAction {
-    fn check_stateless(&self) -> Result<()> {
-        Ok(())
-    }
-
     async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,

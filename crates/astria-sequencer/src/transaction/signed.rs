@@ -71,7 +71,8 @@ impl Signed {
         let Some(proto_transaction) = proto.transaction else {
             bail!("transaction is missing");
         };
-        let transaction = Unsigned::try_from_proto(&proto_transaction)?;
+        let transaction = Unsigned::try_from_proto(&proto_transaction)
+            .context("failed to convert proto to unsigned transaction")?;
 
         let signed_tx = Signed {
             transaction,
@@ -101,7 +102,9 @@ impl Signed {
     #[instrument]
     pub(crate) fn check_stateless(&self) -> Result<()> {
         self.verify_signature()?;
-        self.transaction.check_stateless()?;
+        self.transaction
+            .check_stateless()
+            .context("stateless check failed")?;
         Ok(())
     }
 

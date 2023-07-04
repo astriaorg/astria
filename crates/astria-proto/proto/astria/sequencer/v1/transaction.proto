@@ -38,6 +38,11 @@ message TransferAction {
     astria.primitive.v1.Uint128 amount = 2;
 }
 
+// `SequenceAction` represents a transaction destined for another
+// chain, ordered by the sequencer.
+//
+// It contains the chain ID of the destination chain, and the
+// opaque transaction data.
 message SequenceAction {
     bytes chain_id = 1;
     bytes data = 2;

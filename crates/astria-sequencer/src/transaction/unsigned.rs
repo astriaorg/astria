@@ -84,8 +84,12 @@ impl ActionHandler for Unsigned {
     fn check_stateless(&self) -> Result<()> {
         for action in &self.actions {
             match action {
-                Action::TransferAction(tx) => tx.check_stateless()?,
-                Action::SequenceAction(tx) => tx.check_stateless()?,
+                Action::TransferAction(tx) => tx
+                    .check_stateless()
+                    .context("stateless check failed for TransferAction")?,
+                Action::SequenceAction(tx) => tx
+                    .check_stateless()
+                    .context("stateless check failed for SequenceAction")?,
             }
         }
         Ok(())
@@ -102,8 +106,14 @@ impl ActionHandler for Unsigned {
         // do we need to make a StateDelta here so we can check the actions on the successive state?
         for action in &self.actions {
             match action {
-                Action::TransferAction(tx) => tx.check_stateful(state, from).await?,
-                Action::SequenceAction(tx) => tx.check_stateful(state, from).await?,
+                Action::TransferAction(tx) => tx
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for TransferAction")?,
+                Action::SequenceAction(tx) => tx
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for SequenceAction")?,
             }
         }
 
@@ -114,6 +124,7 @@ impl ActionHandler for Unsigned {
         skip_all,
         fields(
             nonce = self.nonce.into_inner(),
+            from = from.to_string(),
         )
     )]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: &Address) -> Result<()> {
@@ -130,10 +141,14 @@ impl ActionHandler for Unsigned {
         for action in &self.actions {
             match action {
                 Action::TransferAction(tx) => {
-                    tx.execute(state, from).await?;
+                    tx.execute(state, from)
+                        .await
+                        .context("execution failed for TransferAction")?;
                 }
                 Action::SequenceAction(tx) => {
-                    tx.execute(state, from).await?;
+                    tx.execute(state, from)
+                        .await
+                        .context("execution failed for SequenceAction")?;
                 }
             }
         }

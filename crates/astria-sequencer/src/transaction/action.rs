@@ -1,9 +1,9 @@
-use anyhow::Result;
+use anyhow::{
+    Context,
+    Result,
+};
 use astria_proto::sequencer::v1::{
-    action::Value::{
-        SequenceAction as ProtoSequenceAction,
-        TransferAction as ProtoTransferAction,
-    },
+    action::Value as ProtoValue,
     Action as ProtoAction,
 };
 use serde::{
@@ -13,27 +13,28 @@ use serde::{
 
 use crate::{
     accounts::TransferAction,
-    sequence::Action as SequenceAction,
+    sequence,
 };
 
 /// Represents an action on a specific module.
+///
 /// This type wraps all the different module-specific actions.
 /// If a new action type is added, it should be added to this enum.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub(crate) enum Action {
     TransferAction(TransferAction),
-    SequenceAction(SequenceAction),
+    SequenceAction(sequence::Action),
 }
 
 impl Action {
     pub(crate) fn to_proto(&self) -> ProtoAction {
         match &self {
             Action::TransferAction(tx) => ProtoAction {
-                value: Some(ProtoTransferAction(tx.to_proto())),
+                value: Some(ProtoValue::TransferAction(tx.to_proto())),
             },
             Action::SequenceAction(tx) => ProtoAction {
-                value: Some(ProtoSequenceAction(tx.to_proto())),
+                value: Some(ProtoValue::SequenceAction(tx.to_proto())),
             },
         }
     }
@@ -45,10 +46,13 @@ impl Action {
                 .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("missing value"))?
             {
-                ProtoTransferAction(tx) => {
-                    Action::TransferAction(TransferAction::try_from_proto(tx)?)
+                ProtoValue::TransferAction(tx) => Action::TransferAction(
+                    TransferAction::try_from_proto(tx)
+                        .context("failed to convert proto to TransferAction")?,
+                ),
+                ProtoValue::SequenceAction(tx) => {
+                    Action::SequenceAction(sequence::Action::from_proto(tx))
                 }
-                ProtoSequenceAction(tx) => Action::SequenceAction(SequenceAction::from_proto(tx)),
             },
         )
     }
