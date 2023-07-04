@@ -5,7 +5,7 @@ package astria.execution.v1;
 import "google/protobuf/timestamp.proto";
 
 message DoBlockRequest {
-  bytes prev_state_root = 1;
+  bytes prev_block_hash = 1;
   repeated bytes transactions = 2;
   google.protobuf.Timestamp timestamp = 3;
 }

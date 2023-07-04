@@ -15,7 +15,7 @@ use tracing::info;
 pub(crate) trait ExecutionClient: crate::private::Sealed {
     async fn call_do_block(
         &mut self,
-        prev_state_root: Vec<u8>,
+        prev_block_hash: Vec<u8>,
         transactions: Vec<Vec<u8>>,
         timestamp: Option<Timestamp>,
     ) -> Result<DoBlockResponse>;
@@ -64,8 +64,7 @@ impl ExecutionClient for ExecutionRpcClient {
         timestamp: Option<Timestamp>,
     ) -> Result<DoBlockResponse> {
         let request = DoBlockRequest {
-            // TODO: this field name should actually be prev_block_hash!
-            prev_state_root: prev_block_hash,
+            prev_block_hash,
             transactions,
             timestamp,
         };
