@@ -15,7 +15,11 @@ use tracing::instrument;
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
     async fn get_block_height(&self) -> Result<u64> {
-        let Some(bytes) = self.get_raw("block_height").await.context("failed to read raw block_height from state")? else {
+        let Some(bytes) = self
+            .get_raw("block_height")
+            .await
+            .context("failed to read raw block_height from state")?
+        else {
             bail!("block height not found state");
         };
         let Ok(bytes): Result<[u8; 8], _> = bytes.try_into() else {
@@ -26,7 +30,11 @@ pub(crate) trait StateReadExt: StateRead {
 
     #[instrument(skip(self))]
     async fn get_block_timestamp(&self) -> Result<Time> {
-        let Some(bytes) = self.get_raw("block_timestamp").await.context("failed to read raw block_timestamp from state")? else {
+        let Some(bytes) = self
+            .get_raw("block_timestamp")
+            .await
+            .context("failed to read raw block_timestamp from state")?
+        else {
             bail!("block timestamp not found");
         };
         // no extra allocations in the happy path (meaning the bytes are utf8)

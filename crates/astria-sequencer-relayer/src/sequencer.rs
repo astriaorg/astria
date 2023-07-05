@@ -57,31 +57,3 @@ impl SequencerClient {
             .wrap_err("failed reading server response as json")
     }
 }
-
-#[cfg(test)]
-mod test {
-    use bech32::{
-        self,
-        FromBase32,
-        Variant,
-    };
-
-    use crate::base64_string::Base64String;
-
-    #[test]
-    fn test_decode_validator_address() {
-        // when we get a validator address from a block, it's in base64
-        let validator_address_from_block =
-            Base64String::from_string("ehH7+Y2s/jspdUgMZ8fy8a1BqUo=".to_string()).unwrap();
-
-        // validator address from bech32; retrieved with `metro tendermint show-address`
-        let (hrp, data, variant) =
-            bech32::decode("metrovalcons10gglh7vd4nlrk2t4fqxx03lj7xk5r22202rwyt").unwrap();
-        assert_eq!(hrp, "metrovalcons");
-        assert_eq!(
-            Vec::<u8>::from_base32(&data).unwrap(),
-            validator_address_from_block.0
-        );
-        assert_eq!(variant, Variant::Bech32);
-    }
-}

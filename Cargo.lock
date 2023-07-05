@@ -319,7 +319,6 @@ dependencies = [
  "astria-rs-cnc",
  "astria-sequencer-relayer",
  "async-trait",
- "bech32",
  "clap",
  "color-eyre",
  "ed25519-consensus",
@@ -406,15 +405,19 @@ name = "astria-sequencer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "astria-proto",
  "async-trait",
  "borsh",
  "bytes",
  "clap",
+ "ed25519-consensus",
  "futures",
  "hex",
  "is-terminal",
  "penumbra-storage",
  "penumbra-tower-trace",
+ "prost",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "sha2 0.10.6",
@@ -439,7 +442,6 @@ dependencies = [
  "axum",
  "base64 0.21.0",
  "base64-serde",
- "bech32",
  "clap",
  "dirs",
  "ed25519-consensus",
@@ -706,12 +708,6 @@ name = "base64ct"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
-
-[[package]]
-name = "bech32"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
 
 [[package]]
 name = "bincode"
