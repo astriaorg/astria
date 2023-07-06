@@ -53,7 +53,7 @@ pub struct Config {
 
     /// Address of the RPC server for execution
     #[serde(default = "default_execution_ws_url")]
-    pub execution_ws_url: SocketAddr,
+    pub execution_ws_url: String,
 }
 
 impl Config {
@@ -124,6 +124,6 @@ pub(super) fn default_chain_id() -> ChainId {
     ChainId::from_str(DEFAULT_CHAIN_ID).unwrap()
 }
 
-pub(super) fn default_execution_ws_url() -> SocketAddr {
-    DEFAULT_EXECUTION_WS_URL.parse().unwrap()
+pub(super) fn default_execution_ws_url() -> String {
+    DEFAULT_EXECUTION_WS_URL.to_string()
 }

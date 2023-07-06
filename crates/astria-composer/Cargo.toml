@@ -19,6 +19,8 @@ reqwest = { workspace = true, features = ["json"] }
 is-terminal = { workspace = true }
 axum = { workspace = true }
 hyper = { workspace = true }
+ethers = { version = "2.0.7", features = ["ws"] }
+tokio-stream = "0.1.14"
 
 [dev-dependencies]
 once_cell = { workspace = true }
