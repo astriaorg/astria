@@ -35,7 +35,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Unsigned {
     pub(crate) nonce: Nonce,
-    pub(crate) actions: Vec<Action>,
+    pub actions: Vec<Action>,
 }
 
 impl Unsigned {

@@ -2,21 +2,20 @@ use std::collections::HashMap;
 
 use astria_sequencer_relayer::{
     base64_string::Base64String,
-    data_availability::CelestiaClientBuilder,
-    types::{
+    da::CelestiaClientBuilder,
+    sequencer_block::{
         get_namespace,
         IndexedTransaction,
-        ParsedSequencerBlockData,
+        SequencerBlock,
         DEFAULT_NAMESPACE,
     },
-    utils::default_header,
 };
 use astria_sequencer_relayer_test::init_test;
-use ed25519_consensus::{
-    SigningKey,
-    VerificationKey,
+use ed25519_dalek::{
+    Keypair,
+    PublicKey,
 };
-use rand_core::OsRng;
+use rand::rngs::OsRng;
 
 #[tokio::test]
 #[ignore = "very slow init of test environment"]
@@ -37,41 +36,32 @@ async fn get_blocks_public_key_filter() {
     let bridge_endpoint = test_env.bridge_endpoint();
     let client = CelestiaClientBuilder::new(bridge_endpoint).build().unwrap();
 
+    let tx = Base64String(b"noot_was_here".to_vec());
+
     let block_hash = Base64String(vec![99; 32]);
-    let mut block = ParsedSequencerBlockData {
+    let block = SequencerBlock {
         block_hash: block_hash.clone(),
-        header: default_header(),
-        last_commit: None,
+        header: Default::default(),
+        sequencer_txs: vec![IndexedTransaction {
+            index: 0,
+            transaction: tx.clone(),
+        }],
         rollup_txs: HashMap::new(),
     };
-    block.rollup_txs.insert(
-        get_namespace(b"test"),
-        vec![IndexedTransaction {
-            block_index: 0,
-            transaction: b"noot_was_here".to_vec(),
-        }],
-    );
 
     println!("submitting block");
-    let signing_key = SigningKey::new(OsRng);
-    let verification_key = VerificationKey::from(&signing_key);
-    let submit_block_resp = client
-        .submit_block(block, &signing_key, verification_key)
-        .await
-        .unwrap();
+    let keypair = Keypair::generate(&mut OsRng);
+    let submit_block_resp = client.submit_block(block, &keypair).await.unwrap();
     let height = submit_block_resp
         .namespace_to_block_num
         .get(&DEFAULT_NAMESPACE.to_string())
         .unwrap();
 
     // generate new, different key
-    let signing_key = SigningKey::new(OsRng);
-    let verification_key = VerificationKey::from(&signing_key);
+    let keypair = Keypair::generate(&mut OsRng);
+    let public_key = PublicKey::from_bytes(&keypair.public.to_bytes()).unwrap();
     println!("getting blocks");
-    let resp = client
-        .get_blocks(*height, Some(verification_key))
-        .await
-        .unwrap();
+    let resp = client.get_blocks(*height, Some(&public_key)).await.unwrap();
     assert!(resp.is_empty());
 }
 
@@ -83,31 +73,32 @@ async fn celestia_client() {
     let bridge_endpoint = test_env.bridge_endpoint();
     let client = CelestiaClientBuilder::new(bridge_endpoint).build().unwrap();
 
+    let tx = Base64String(b"noot_was_here".to_vec());
     let secondary_namespace = get_namespace(b"test_namespace");
-    let secondary_tx = b"noot_was_here".to_vec();
+    let secondary_tx = Base64String(b"noot_was_here_too".to_vec());
 
     let block_hash = Base64String(vec![99; 32]);
-    let mut block = ParsedSequencerBlockData {
+    let mut block = SequencerBlock {
         block_hash: block_hash.clone(),
-        header: default_header(),
-        last_commit: None,
+        header: Default::default(),
+        sequencer_txs: vec![IndexedTransaction {
+            index: 0,
+            transaction: tx.clone(),
+        }],
         rollup_txs: HashMap::new(),
     };
     block.rollup_txs.insert(
         secondary_namespace.clone(),
         vec![IndexedTransaction {
-            block_index: 1,
+            index: 1,
             transaction: secondary_tx.clone(),
         }],
     );
 
-    let signing_key = SigningKey::new(OsRng);
-    let verification_key = VerificationKey::from(&signing_key);
+    let keypair = Keypair::generate(&mut OsRng);
+    let public_key = PublicKey::from_bytes(&keypair.public.to_bytes()).unwrap();
 
-    let submit_block_resp = client
-        .submit_block(block, &signing_key, verification_key)
-        .await
-        .unwrap();
+    let submit_block_resp = client.submit_block(block, &keypair).await.unwrap();
     let height = submit_block_resp
         .namespace_to_block_num
         .get(&DEFAULT_NAMESPACE.to_string())
@@ -118,15 +109,15 @@ async fn celestia_client() {
     assert_eq!(resp.height, *height);
 
     // test get_blocks
-    let resp = client
-        .get_blocks(*height, Some(verification_key))
-        .await
-        .unwrap();
+    let resp = client.get_blocks(*height, Some(&public_key)).await.unwrap();
     assert_eq!(resp.len(), 1);
     assert_eq!(resp[0].block_hash, block_hash);
-    assert_eq!(resp[0].header, default_header());
+    assert_eq!(resp[0].header, Default::default());
+    assert_eq!(resp[0].sequencer_txs.len(), 1);
+    assert_eq!(resp[0].sequencer_txs[0].index, 0);
+    assert_eq!(resp[0].sequencer_txs[0].transaction, tx);
     assert_eq!(resp[0].rollup_txs.len(), 1);
-    assert_eq!(resp[0].rollup_txs[&secondary_namespace][0].block_index, 1);
+    assert_eq!(resp[0].rollup_txs[&secondary_namespace][0].index, 1);
     assert_eq!(
         resp[0].rollup_txs[&secondary_namespace][0].transaction,
         secondary_tx

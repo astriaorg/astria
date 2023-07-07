@@ -38,7 +38,7 @@ fn default_celestia_node_url() -> String {
 }
 
 fn default_tendermint_url() -> String {
-    "http://localhost:1317".to_string()
+    "http://localhost:26657".to_string()
 }
 
 fn default_chain_id() -> String {

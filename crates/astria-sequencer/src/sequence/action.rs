@@ -11,8 +11,8 @@ use crate::transaction::action_handler::ActionHandler;
 /// which are bytes to be interpreted by the rollup.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Action {
-    chain_id: Vec<u8>,
-    data: Vec<u8>,
+    pub chain_id: Vec<u8>,
+    pub data: Vec<u8>,
 }
 
 impl Action {

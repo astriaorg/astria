@@ -1,4 +1,4 @@
-use astria_sequencer_relayer::sequencer::SequencerClient;
+use astria_sequencer_client::Client;
 use astria_sequencer_relayer_test::init_test;
 
 #[tokio::test]
@@ -6,7 +6,7 @@ use astria_sequencer_relayer_test::init_test;
 async fn get_latest_block() {
     let test_env = init_test().await;
     let sequencer_endpoint = test_env.sequencer_endpoint();
-    let client = SequencerClient::new(sequencer_endpoint).unwrap();
+    let client = Client::new(&sequencer_endpoint).unwrap();
 
     client.get_latest_block().await.unwrap();
 }
@@ -16,9 +16,8 @@ async fn get_latest_block() {
 async fn get_block() {
     let test_env = init_test().await;
     let sequencer_endpoint = test_env.sequencer_endpoint();
-    let client = SequencerClient::new(sequencer_endpoint).unwrap();
+    let client = Client::new(&sequencer_endpoint).unwrap();
 
     let resp = client.get_latest_block().await.unwrap();
-    let height: u64 = resp.block.header.height.parse().unwrap();
-    client.get_block(height).await.unwrap();
+    client.get_block(resp.block.header.height).await.unwrap();
 }

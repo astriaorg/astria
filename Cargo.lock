@@ -327,6 +327,7 @@ dependencies = [
  "astria-gossipnet",
  "astria-proto",
  "astria-rs-cnc",
+ "astria-sequencer-client",
  "astria-sequencer-relayer",
  "async-trait",
  "clap",
@@ -346,6 +347,7 @@ dependencies = [
  "sync_wrapper",
  "tendermint",
  "tendermint-proto",
+ "tendermint-rpc",
  "tokio",
  "tonic 0.9.2",
  "tracing",
@@ -450,6 +452,7 @@ dependencies = [
  "ed25519-consensus",
  "eyre",
  "hex",
+ "reqwest",
  "serde",
  "serde_json",
  "tendermint",
@@ -466,6 +469,7 @@ dependencies = [
  "astria-gossipnet",
  "astria-proto",
  "astria-rs-cnc",
+ "astria-sequencer-client",
  "astria-sequencer-relayer-test",
  "axum",
  "base64 0.21.0",
@@ -477,6 +481,7 @@ dependencies = [
  "figment",
  "futures",
  "hex",
+ "home",
  "http",
  "prost",
  "rand_core 0.6.4",
@@ -2067,6 +2072,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
 dependencies = [
  "digest 0.10.6",
+]
+
+[[package]]
+name = "home"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5444c27eef6923071f7ebcc33e3444508466a76f7a2b93da00ed6e19f30c1ddb"
+dependencies = [
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

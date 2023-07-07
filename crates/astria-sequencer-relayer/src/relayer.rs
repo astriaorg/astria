@@ -1,13 +1,10 @@
-use std::{
-    str::FromStr,
-    time::Duration,
-};
+use std::time::Duration;
 
+use astria_sequencer_client::Client as SequencerClient;
 use eyre::{
     Result,
     WrapErr as _,
 };
-use tendermint::account::Id as AccountId;
 use tokio::{
     sync::{
         mpsc::UnboundedSender,
@@ -29,8 +26,7 @@ use crate::{
         CelestiaClient,
         CelestiaClientBuilder,
     },
-    sequencer::SequencerClient,
-    sequencer_block::SequencerBlock,
+    types::ParsedSequencerBlockData,
     validator::Validator,
 };
 
@@ -39,7 +35,7 @@ pub struct Relayer {
     data_availability_client: Option<CelestiaClient>,
     validator: Validator,
     sequencer_poll_period: Duration,
-    block_tx: UnboundedSender<SequencerBlock>,
+    block_tx: UnboundedSender<ParsedSequencerBlockData>,
     state_tx: watch::Sender<State>,
 }
 
@@ -67,12 +63,12 @@ impl Relayer {
     ///   is set).
     pub fn new(
         cfg: &crate::config::Config,
-        block_tx: UnboundedSender<SequencerBlock>,
+        block_tx: UnboundedSender<ParsedSequencerBlockData>,
     ) -> Result<Self> {
         let validator = Validator::from_path(&cfg.validator_key_file)
             .wrap_err("failed to get validator info from file")?;
 
-        let sequencer_client = SequencerClient::new(cfg.sequencer_endpoint.clone())
+        let sequencer_client = SequencerClient::new(&cfg.sequencer_endpoint)
             .wrap_err("failed to create sequencer client")?;
 
         let data_availability_client = if cfg.disable_writing {
@@ -106,29 +102,16 @@ impl Relayer {
         let mut new_state = (*self.state_tx.borrow()).clone();
         let resp = self.sequencer_client.get_latest_block().await?;
 
-        let maybe_height: Result<u64, <u64 as FromStr>::Err> = resp.block.header.height.parse();
-        if let Err(e) = maybe_height {
-            warn!(
-                error = ?e,
-                "got invalid block height {} from sequencer",
-                resp.block.header.height,
-            );
-            return Ok(new_state);
-        }
-
-        let height = maybe_height.unwrap();
+        let height = resp.block.header.height.value();
         if height <= *new_state.current_sequencer_height.get_or_insert(height) {
             return Ok(new_state);
         }
 
-        info!(height = ?height, tx_count = resp.block.data.txs.len(), "got block from sequencer");
+        info!(height = ?height, tx_count = resp.block.data.len(), "got block from sequencer");
         new_state.current_sequencer_height.replace(height);
 
         if resp.block.header.proposer_address.as_ref() != self.validator.address.as_ref() {
-            let proposer_address =
-                AccountId::try_from(resp.block.header.proposer_address.0.clone())
-                    .wrap_err("failed to convert proposer address")?;
-
+            let proposer_address = resp.block.header.proposer_address;
             info!(
                 %proposer_address,
                 validator_address = %self.validator.address,
@@ -137,7 +120,7 @@ impl Relayer {
             return Ok(new_state);
         }
 
-        let sequencer_block = match SequencerBlock::from_cosmos_block(resp.block) {
+        let sequencer_block = match ParsedSequencerBlockData::from_tendermint_block(resp.block) {
             Ok(block) => block,
             Err(e) => {
                 warn!(error = ?e, "failed to convert block to DA block");
@@ -146,7 +129,7 @@ impl Relayer {
         };
 
         self.block_tx.send(sequencer_block.clone())?;
-        let tx_count = sequencer_block.rollup_txs.len() + sequencer_block.sequencer_txs.len();
+        let namespace_count = sequencer_block.rollup_txs.len();
         if let Some(client) = &self.data_availability_client {
             match client
                 .submit_block(
@@ -163,7 +146,7 @@ impl Relayer {
                     info!(
                         sequencer_block = height,
                         da_layer_block = resp.height,
-                        tx_count,
+                        namespace_count = namespace_count,
                         "submitted sequencer block to DA layer",
                     );
                 }

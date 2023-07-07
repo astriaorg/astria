@@ -29,7 +29,10 @@ tokio = { workspace = true, features = [ "macros", "rt-multi-thread" ] }
 astria-gossipnet = { path = "../astria-gossipnet" }
 astria-proto = { path = "../astria-proto" }
 astria-rs-cnc = { path = "../astria-rs-cnc" }
+astria-sequencer-client = { path = "../astria-sequencer-client" }
+
 base64-serde = "0.7.0"
+home = "0.5.5"
 zeroize = { version = "1.6.0", features = ["zeroize_derive"] }
 tendermint-config.workspace = true
 ed25519-consensus = { workspace = true }

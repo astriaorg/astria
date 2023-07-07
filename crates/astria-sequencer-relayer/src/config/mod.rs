@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use clap::Parser as _;
 use figment::{
     providers::{
@@ -10,12 +12,13 @@ use serde::{
     Deserialize,
     Serialize,
 };
+
 mod cli;
 
-const DEFAULT_BLOCK_TIME: u64 = 3000;
+const DEFAULT_BLOCK_TIME: u64 = 1000;
 const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26659";
-const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:1317";
-const DEFAULT_VALIDATOR_KEY_FILE: &str = ".metro/config/priv_validator_key.json";
+const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:26657";
+const DEFAULT_VALIDATOR_KEY_FILE: &str = ".cometbft/config/priv_validator_key.json";
 
 const DEFAULT_RPC_LISTEN_PORT: u16 = 2450;
 const DEFAULT_GOSSIP_PORT: u16 = 33900;
@@ -84,7 +87,11 @@ impl Default for Config {
             gas_limit: crate::data_availability::DEFAULT_PFD_GAS_LIMIT,
             disable_writing: false,
             block_time: DEFAULT_BLOCK_TIME,
-            validator_key_file: DEFAULT_VALIDATOR_KEY_FILE.into(),
+            validator_key_file: Path::new(&home::home_dir().unwrap())
+                .join(DEFAULT_VALIDATOR_KEY_FILE)
+                .to_str()
+                .unwrap_or(DEFAULT_VALIDATOR_KEY_FILE)
+                .to_string(),
             rpc_port: DEFAULT_RPC_LISTEN_PORT,
             p2p_port: DEFAULT_GOSSIP_PORT,
             log: DEFAULT_LOG_DIRECTIVE.into(),

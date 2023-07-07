@@ -32,7 +32,7 @@ use crate::{
 pub struct Signed {
     pub(crate) signature: Signature,
     pub(crate) public_key: VerificationKey,
-    pub(crate) transaction: Unsigned,
+    pub transaction: Unsigned,
 }
 
 impl Signed {
@@ -105,7 +105,7 @@ impl Signed {
     ///
     /// - If the slice cannot be decoded into a protobuf signed transaction
     /// - If the protobuf signed transaction cannot be converted into a `SignedTransaction`
-    pub(crate) fn try_from_slice(slice: &[u8]) -> Result<Self> {
+    pub fn try_from_slice(slice: &[u8]) -> Result<Self> {
         let proto = ProtoSignedTransaction::decode_length_delimited(slice)
             .context("failed to decode slice to proto signed transaction")?;
         Self::try_from_proto(proto)
