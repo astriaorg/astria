@@ -1,11 +1,11 @@
-pub(crate) mod accounts;
+pub mod accounts;
 pub(crate) mod app;
 pub(crate) mod app_hash;
 pub(crate) mod component;
 pub mod config;
 pub(crate) mod crypto;
 pub(crate) mod genesis;
-pub(crate) mod sequence;
+pub mod sequence;
 mod sequencer;
 pub(crate) mod service;
 pub(crate) mod state_ext;

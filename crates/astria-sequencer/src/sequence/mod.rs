@@ -1,3 +1,3 @@
 pub(crate) mod action;
 
-pub(crate) use action::Action;
+pub use action::Action;

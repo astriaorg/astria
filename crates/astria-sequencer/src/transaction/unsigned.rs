@@ -33,12 +33,21 @@ use crate::{
 
 /// Represents an unsigned sequencer chain transaction.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct Unsigned {
+pub struct Unsigned {
     pub(crate) nonce: Nonce,
     pub(crate) actions: Vec<Action>,
 }
 
 impl Unsigned {
+    /// Creates a new unsigned transaction with the given nonce and actions.
+    #[must_use]
+    pub fn new_with_actions(nonce: Nonce, actions: Vec<Action>) -> Self {
+        Self {
+            nonce,
+            actions,
+        }
+    }
+
     pub(crate) fn to_proto(&self) -> ProtoUnsignedTransaction {
         let mut proto = ProtoUnsignedTransaction {
             nonce: self.nonce.into(),
@@ -62,9 +71,8 @@ impl Unsigned {
     }
 
     /// Signs the transaction with the given signing key.
-    #[allow(dead_code)]
     #[must_use]
-    pub(crate) fn into_signed(self, secret_key: &SigningKey) -> Signed {
+    pub fn into_signed(self, secret_key: &SigningKey) -> Signed {
         let signature = secret_key.sign(&self.hash());
         Signed {
             transaction: self,
@@ -173,7 +181,7 @@ mod test {
             Nonce,
             ADDRESS_LEN,
         },
-        TransferAction,
+        Transfer,
     };
 
     const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
@@ -204,7 +212,7 @@ mod test {
     fn test_unsigned_transaction() {
         let tx = Unsigned {
             nonce: Nonce::from(1),
-            actions: vec![Action::TransferAction(TransferAction::new(
+            actions: vec![Action::TransferAction(Transfer::new(
                 address_from_hex_string(BOB_ADDRESS),
                 Balance::from(333_333),
             ))],

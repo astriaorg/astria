@@ -204,7 +204,6 @@ impl App {
 
 #[cfg(test)]
 mod test {
-    use astria_proto::sequencer::v1::SignedTransaction as ProtoSignedTransaction;
     use prost::Message as _;
     use tendermint::{
         abci::types::CommitInfo,
@@ -230,7 +229,7 @@ mod test {
                 Nonce,
                 ADDRESS_LEN,
             },
-            TransferAction,
+            Transfer,
         },
         crypto::SigningKey,
         genesis::Account,
@@ -289,17 +288,6 @@ mod test {
                 app: 0,
                 block: 0,
             },
-        }
-    }
-
-    impl Signed {
-        #[must_use]
-        pub(crate) fn to_proto(&self) -> ProtoSignedTransaction {
-            ProtoSignedTransaction {
-                transaction: Some(self.transaction.to_proto()),
-                signature: self.signature.to_bytes().to_vec(),
-                public_key: self.public_key.to_bytes().to_vec(),
-            }
         }
     }
 
@@ -384,10 +372,7 @@ mod test {
         let value = Balance::from(333_333);
         let tx = Unsigned {
             nonce: Nonce::from(1),
-            actions: vec![Action::TransferAction(TransferAction::new(
-                bob.clone(),
-                value,
-            ))],
+            actions: vec![Action::TransferAction(Transfer::new(bob.clone(), value))],
         };
         let signed_tx = tx.into_signed(&alice_keypair);
         let bytes = signed_tx.to_proto().encode_length_delimited_to_vec();

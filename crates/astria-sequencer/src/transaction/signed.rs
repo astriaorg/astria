@@ -29,13 +29,27 @@ use crate::{
 ///
 /// Invariant: this type can only be constructed with a valid signature.
 #[derive(Debug, Clone)]
-pub(crate) struct Signed {
+pub struct Signed {
     pub(crate) signature: Signature,
     pub(crate) public_key: VerificationKey,
     pub(crate) transaction: Unsigned,
 }
 
 impl Signed {
+    #[must_use]
+    pub(crate) fn to_proto(&self) -> ProtoSignedTransaction {
+        ProtoSignedTransaction {
+            transaction: Some(self.transaction.to_proto()),
+            signature: self.signature.to_bytes().to_vec(),
+            public_key: self.public_key.to_bytes().to_vec(),
+        }
+    }
+
+    #[must_use]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.to_proto().encode_length_delimited_to_vec()
+    }
+
     /// Verifies the transaction signature.
     /// The transaction signature message is the hash of the transaction.
     ///

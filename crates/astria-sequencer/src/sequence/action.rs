@@ -10,7 +10,7 @@ use crate::transaction::action_handler::ActionHandler;
 /// It only contains the chain ID of the destination rollup and data
 /// which are bytes to be interpreted by the rollup.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub(crate) struct Action {
+pub struct Action {
     chain_id: Vec<u8>,
     data: Vec<u8>,
 }

@@ -14,14 +14,20 @@ pub(crate) const ADDRESS_LEN: usize = 20;
 
 /// Represents an account address.
 #[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub(crate) struct Address(pub(crate) [u8; ADDRESS_LEN]);
+pub struct Address(pub(crate) [u8; ADDRESS_LEN]);
 
 impl Address {
     pub(crate) fn as_bytes(&self) -> &[u8] {
         &self.0
     }
 
-    pub(crate) fn try_from_str(s: &str) -> anyhow::Result<Self> {
+    /// Decodes an address from a hex string.
+    ///
+    /// # Errors
+    ///
+    /// - if the string is not valid hex
+    /// - if the string is not 20 bytes long
+    pub fn try_from_str(s: &str) -> anyhow::Result<Self> {
         let bytes = hex::decode(s)?;
         let arr: [u8; ADDRESS_LEN] = bytes
             .try_into()
@@ -83,7 +89,7 @@ impl std::fmt::Display for Address {
     Ord,
     Debug,
 )]
-pub(crate) struct Balance(u128);
+pub struct Balance(u128);
 
 impl Balance {
     pub(crate) fn into_inner(self) -> u128 {
@@ -151,7 +157,7 @@ impl std::ops::Sub<u128> for Balance {
     Ord,
     Debug,
 )]
-pub(crate) struct Nonce(u32);
+pub struct Nonce(u32);
 
 impl Nonce {
     pub(crate) fn into_inner(self) -> u32 {

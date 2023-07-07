@@ -7,6 +7,7 @@ members = [
   "crates/astria-proto",
   "crates/astria-rs-cnc",
   "crates/astria-sequencer",
+  "crates/astria-sequencer-client",
   "crates/astria-sequencer-relayer",
   "crates/astria-sequencer-relayer-test",
   "crates/astria-sequencer-utils",
@@ -15,6 +16,7 @@ members = [
 [workspace.dependencies]
 async-trait = "0.1.52"
 base64 = "0.21"
+borsh = "0.10.3"
 bytes = "1.4"
 clap = "4"
 color-eyre = "0.6"
@@ -55,3 +57,14 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 uuid = "1.3.1"
 which = "4.4.0"
+
+[patch.crates-io]
+# fix for astria-sequencer-client 
+# https://github.com/informalsystems/tendermint-rs/compare/v0.32.0...astriaorg:tendermint-rs:noot/v0.32.0-fix?expand=1
+# this has been merged into main: https://github.com/informalsystems/tendermint-rs/commit/9854a66205cdbea720f016061a9d427bd8162b12
+# however main also contains changes for tendermint v0.38, which removes BeginBlock/EndBlock/DeliverTx,
+# and has not yet been tagged as a release yet
+tendermint = { git = "https://github.com/astriaorg/tendermint-rs.git", rev = "a816d6363780c2ed0c3288e6b6e01adee71cf1a5" }
+tendermint-config = { git = "https://github.com/astriaorg/tendermint-rs.git", rev = "a816d6363780c2ed0c3288e6b6e01adee71cf1a5" }
+tendermint-proto = { git = "https://github.com/astriaorg/tendermint-rs.git", rev = "a816d6363780c2ed0c3288e6b6e01adee71cf1a5" }
+tendermint-rpc = { git = "https://github.com/astriaorg/tendermint-rs.git", rev = "a816d6363780c2ed0c3288e6b6e01adee71cf1a5" }
