@@ -7,7 +7,6 @@ edition = "2021"
 sync_wrapper = "0.1.2"
 
 async-trait = { workspace = true }
-bech32 = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 color-eyre = { workspace = true }
 ed25519-consensus = { workspace = true }

@@ -22,26 +22,30 @@ use crate::accounts::{
 };
 
 #[derive(BorshDeserialize, BorshSerialize, Debug)]
-pub(crate) enum QueryRequest {
+pub(crate) enum Request {
     BalanceQuery(Address),
     NonceQuery(Address),
 }
 
-impl QueryRequest {
-    pub(crate) fn decode(mut path: VecDeque<&str>) -> Result<QueryRequest> {
+impl Request {
+    pub(crate) fn decode(mut path: VecDeque<&str>) -> Result<Self> {
         let query_type = path.pop_front().ok_or(anyhow!("missing query type"))?;
         let address = path.pop_front().ok_or(anyhow!("missing address"))?;
 
         match query_type {
-            "balance" => Ok(QueryRequest::BalanceQuery(Address::from(address))),
-            "nonce" => Ok(QueryRequest::NonceQuery(Address::from(address))),
+            "balance" => Ok(Self::BalanceQuery(Address::try_from_str(address).context(
+                "failed to parse address while constructing balance query request",
+            )?)),
+            "nonce" => Ok(Self::NonceQuery(Address::try_from_str(address).context(
+                "failed to parse address while constructing nonce query request",
+            )?)),
             other => bail!("invalid query type: `{other}`"),
         }
     }
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Debug)]
-pub(crate) enum QueryResponse {
+pub enum Response {
     BalanceResponse(Balance),
     NonceResponse(Nonce),
 }
@@ -58,22 +62,22 @@ impl QueryHandler {
     pub(crate) async fn handle<S: StateReadExt>(
         &self,
         state: S,
-        query: QueryRequest,
-    ) -> Result<QueryResponse> {
+        query: Request,
+    ) -> Result<Response> {
         match query {
-            QueryRequest::BalanceQuery(address) => {
+            Request::BalanceQuery(address) => {
                 let balance = state
                     .get_account_balance(&address)
                     .await
                     .context("failed getting account balance")?;
-                Ok(QueryResponse::BalanceResponse(balance))
+                Ok(Response::BalanceResponse(balance))
             }
-            QueryRequest::NonceQuery(address) => {
+            Request::NonceQuery(address) => {
                 let nonce = state
                     .get_account_nonce(&address)
                     .await
                     .context("failed getting account nonce")?;
-                Ok(QueryResponse::NonceResponse(nonce))
+                Ok(Response::NonceResponse(nonce))
             }
         }
     }

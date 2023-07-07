@@ -37,8 +37,8 @@ async fn test_gossip_two_nodes() {
         alice.subscribe(&topic);
 
         let Some(event) = alice.next().await else {
-                panic!("expected stream event");
-            };
+            panic!("expected stream event");
+        };
 
         match event.unwrap() {
             Event::NewListenAddr(addr) => {
@@ -54,8 +54,8 @@ async fn test_gossip_two_nodes() {
 
         loop {
             let Some(event) = alice.next().await else {
-                    break;
-                };
+                break;
+            };
 
             match event.unwrap() {
                 Event::GossipsubPeerConnected(peer_id) => {
@@ -143,8 +143,8 @@ async fn test_dht_discovery() {
             .unwrap();
 
         let Some(event) = alice.next().await else {
-                panic!("expected stream event");
-            };
+            panic!("expected stream event");
+        };
 
         match event.unwrap() {
             Event::NewListenAddr(addr) => {
@@ -230,8 +230,8 @@ async fn test_dht_discovery() {
 
         loop {
             let Some(event) = charlie.next().await else {
-                        break;
-                    };
+                break;
+            };
 
             let event = event.unwrap();
             if let Event::GossipsubPeerConnected(peer_id) = event {
