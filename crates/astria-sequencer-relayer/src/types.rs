@@ -178,9 +178,7 @@ impl ParsedSequencerBlockData {
                 general_purpose::STANDARD.encode(tx.as_slice())
             );
 
-            let tx = parse_sequencer_tx(tx)?;
-            // let msgs = cosmos_tx_body_to_sequencer_msgs(tx_body)?;
-
+            let tx = parse_sequencer_tx(tx).wrap_err("failed to parse sequencer tx")?;
             for action in tx.transaction.actions {
                 if let Action::SequenceAction(action) = action {
                     let namespace = get_namespace(&action.chain_id);
