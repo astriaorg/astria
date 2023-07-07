@@ -65,13 +65,9 @@ impl BlockVerifier {
         &self,
         data: &SignedNamespaceData<SequencerNamespaceData>,
     ) -> eyre::Result<()> {
-        tracing::info!(height = ?data.data.header.height, "verifying signature");
-
         // verify the block signature
         data.verify()
             .wrap_err("failed to verify signature of signed namepsace data")?;
-
-        tracing::info!(height = ?data.data.header.height, "getting validator set");
 
         // get validator set for this height
         let height = data.data.header.height.value() as u32;
@@ -81,15 +77,11 @@ impl BlockVerifier {
             .await
             .wrap_err("failed to get validator set")?;
 
-        tracing::info!(height = ?data.data.header.height, "getting proposer for height");
-
         // find proposer address for this height
         let expected_proposer_public_key = get_proposer(&validator_set)
             .wrap_err("failed to get proposer from validator set")?
             .pub_key
             .to_bytes();
-
-        tracing::info!(height = ?data.data.header.height, "checking if proposer is expected");
 
         // verify the namespace data signing public key matches the proposer public key
         let proposer_public_key = &data.public_key.0;
@@ -99,8 +91,6 @@ impl BlockVerifier {
             hex::encode(expected_proposer_public_key),
             hex::encode(proposer_public_key),
         );
-
-        tracing::info!("ok");
 
         Ok(())
     }
