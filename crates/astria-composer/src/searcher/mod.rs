@@ -1,7 +1,18 @@
-use std::net::SocketAddr;
+use std::{
+    net::SocketAddr,
+    sync::Arc,
+};
 
-use astria_sequencer::transaction::Unsigned as SequencerUnsignedTx;
-use ethers::types::Transaction;
+use astria_sequencer::{
+    accounts::types::Address,
+    transaction::Unsigned as SequencerUnsignedTx,
+};
+use astria_sequencer_client::Client as SequencerClient;
+use ed25519_consensus::SigningKey;
+use ethers::{
+    prelude::rand::seq,
+    types::Transaction,
+};
 use tokio::{
     sync::broadcast::{
         self,
@@ -24,7 +35,6 @@ use crate::config::searcher::{
     self as config,
     Config,
 };
-
 mod api;
 mod bundler;
 mod collector;
@@ -44,6 +54,8 @@ pub enum Error {
     BundlerError(#[source] bundler::Error),
     #[error("executor error")]
     ExecutorError(#[source] executor::Error),
+    #[error("sequencer client init failed")]
+    SequencerClientInit,
 }
 
 pub struct Searcher {
@@ -67,15 +79,19 @@ impl Searcher {
             .map_err(Error::CollectorError)?;
 
         // configure rollup tx bundler
+        let sequencer_client = Arc::new(
+            SequencerClient::new(&cfg.sequencer_url).map_err(|_| Error::SequencerClientInit)?,
+        );
+
         let bundler = Bundler::new(
-            &cfg.sequencer_url,
-            cfg.sequencer_address.clone(),
+            sequencer_client.clone(),
+            cfg.sequencer_address.to_string(),
             cfg.chain_id.clone(),
         )
         .map_err(Error::BundlerError)?;
 
         // configure rollup tx executor
-        let executor = SequencerExecutor::new();
+        let executor = SequencerExecutor::new(sequencer_client.clone(), &cfg.sequencer_secret);
 
         // parse api url from config
         let api_url = Config::api_url(cfg.api_port).map_err(Error::InvalidConfig)?;

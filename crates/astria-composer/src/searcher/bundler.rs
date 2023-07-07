@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use astria_sequencer::{
     accounts::types::{
         Address as SequencerAddress,
@@ -30,21 +32,21 @@ use super::{
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("invalid sequencer address: {0}")]
+    InvalidSequencerAddress(String),
     #[error("failed to get sequencer nonce")]
     GetNonceFailed,
     #[error("receiving event failed")]
     EventRecv(#[source] RecvError),
     #[error("sending action failed")]
     ActionSend(#[source] SendError<Action>),
-    #[error("sequencer client init failed")]
-    SequencerClientInit,
 }
 
 /// Struct for bundling transactions into sequencer txs.
 // TODO: configure as "train with capacity", i.e. max number of txs to bundle and sequencer block
 // time
 pub struct Bundler {
-    sequencer_client: SequencerClient,
+    sequencer_client: Arc<SequencerClient>,
     sequencer_address: SequencerAddress,
     rollup_chain_id: String,
     current_nonce: Option<Nonce>,
@@ -52,12 +54,12 @@ pub struct Bundler {
 
 impl Bundler {
     pub(super) fn new(
-        sequencer_url: &str,
-        sequencer_address: SequencerAddress,
+        sequencer_client: Arc<SequencerClient>,
+        sequencer_addr: String,
         rollup_chain_id: String,
     ) -> Result<Self, Error> {
-        let sequencer_client =
-            SequencerClient::new(sequencer_url).map_err(|e| Error::SequencerClientInit)?;
+        let sequencer_address = SequencerAddress::try_from_str(&sequencer_addr)
+            .map_err(|_| Error::InvalidSequencerAddress(sequencer_addr))?;
         Ok(Self {
             sequencer_client,
             sequencer_address,

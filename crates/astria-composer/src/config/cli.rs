@@ -19,6 +19,11 @@ pub(crate) struct Args {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub(crate) sequencer_address: Option<String>,
 
+    /// Sequencer signing key secret.
+    #[arg(long)]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub(crate) sequencer_secret: Option<String>,
+
     /// Address of the API server
     #[arg(long)]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]

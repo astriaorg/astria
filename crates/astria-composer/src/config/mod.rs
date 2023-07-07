@@ -107,8 +107,10 @@ mod tests {
     const ALL_CLI_ARGS: &str = r#"
 astria-composer
     --log cli=debug
-    --sequencer-url 127.0.0.1:1310
     --searcher-api-port 7070
+    --sequencer-url 127.0.0.1:1310
+    --sequencer-address cliaddress
+    --sequencer-secret clisecret
     --searcher-chain-id clinet
     --searcher-execution-ws-url 127.0.0.1:60061
     "#;
@@ -119,8 +121,10 @@ astria-composer
 
     fn set_all_env(jail: &mut Jail) {
         jail.set_env("ASTRIA_COMPOSER_LOG", "env=warn");
-        jail.set_env("ASTRIA_COMPOSER_SEQUENCER_URL", "127.0.0.1:1210");
         jail.set_env("ASTRIA_COMPOSER_SEARCHER_API_PORT", "5050");
+        jail.set_env("ASTRIA_COMPOSER_SEQUENCER_URL", "127.0.0.1:1210");
+        jail.set_env("ASTRIA_COMPOSER_SEQUENCER_SECRET", "envsecret");
+        jail.set_env("ASTRIA_COMPOSER_SEQUENCER_ADDRESS", "envaddress");
         jail.set_env("ASTRIA_COMPOSER_SEARCHER_CHAIN_ID", "envnet");
         jail.set_env(
             "ASTRIA_COMPOSER_SEARCHER_EXECUTION_WS_URL",
@@ -138,6 +142,8 @@ astria-composer
                 log: "cli=debug".into(),
                 searcher: searcher::Config {
                     sequencer_url: "127.0.0.1:1310".parse().unwrap(),
+                    sequencer_address: "cliaddress".to_string(),
+                    sequencer_secret: "clisecret".to_string(),
                     api_port: 7070,
                     chain_id: "clinet".to_string(),
                     execution_ws_url: "127.0.0.1:60061".parse().unwrap(),
@@ -158,6 +164,8 @@ astria-composer
                 log: "env=warn".into(),
                 searcher: searcher::Config {
                     sequencer_url: "127.0.0.1:1210".parse().unwrap(),
+                    sequencer_address: "envaddress".to_string(),
+                    sequencer_secret: "envsecret".to_string(),
                     api_port: 5050,
                     chain_id: "envnet".to_string(),
                     execution_ws_url: "127.0.0.1:40041".parse().unwrap(),
