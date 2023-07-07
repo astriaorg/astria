@@ -1,3 +1,4 @@
+use astria_sequencer::accounts::types::Nonce;
 use tokio::sync::broadcast::{
     error::RecvError,
     Receiver,
@@ -11,6 +12,8 @@ use super::Action;
 pub enum Error {
     #[error("receiving action failed")]
     ActionRecv(#[source] RecvError),
+    #[error("invalid nonce")]
+    InvalidNonce(Nonce),
 }
 
 pub struct SequencerExecutor();
@@ -37,7 +40,7 @@ impl SequencerExecutor {
 
     async fn process_action(action: Action) {
         match action {
-            Action::SendSequencerSecondaryTx => {
+            Action::SendSequencerSecondaryTx(_tx) => {
                 todo!("sign tx and send to sequencer")
             }
         }

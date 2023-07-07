@@ -14,6 +14,11 @@ pub(crate) struct Args {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub(crate) sequencer_url: Option<String>,
 
+    /// Sequencer node RPC endpoint.
+    #[arg(long)]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub(crate) sequencer_address: Option<String>,
+
     /// Address of the API server
     #[arg(long)]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]

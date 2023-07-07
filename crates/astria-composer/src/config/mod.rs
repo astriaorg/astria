@@ -92,7 +92,6 @@ pub fn get() -> Result<Config, figment::Error> {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
 
     use clap::Parser;
     use color_eyre::eyre;
@@ -102,10 +101,7 @@ mod tests {
         cli,
         Config,
     };
-    use crate::{
-        config::searcher,
-        types::rollup::ChainId,
-    };
+    use crate::config::searcher;
 
     const NO_CLI_ARGS: &str = "astria-composer";
     const ALL_CLI_ARGS: &str = r#"
@@ -143,7 +139,7 @@ astria-composer
                 searcher: searcher::Config {
                     sequencer_url: "127.0.0.1:1310".parse().unwrap(),
                     api_port: 7070,
-                    chain_id: ChainId::from_str("clinet").unwrap(),
+                    chain_id: "clinet".to_string(),
                     execution_ws_url: "127.0.0.1:60061".parse().unwrap(),
                 },
             };
@@ -163,7 +159,7 @@ astria-composer
                 searcher: searcher::Config {
                     sequencer_url: "127.0.0.1:1210".parse().unwrap(),
                     api_port: 5050,
-                    chain_id: ChainId::from_str("envnet").unwrap(),
+                    chain_id: "envnet".to_string(),
                     execution_ws_url: "127.0.0.1:40041".parse().unwrap(),
                 },
             };

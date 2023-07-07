@@ -20,8 +20,8 @@ use super::{
 
 pub(super) async fn run(
     api_url: SocketAddr,
-    event_rx: Receiver<Event>,
-    action_rx: Receiver<Action>,
+    _event_rx: Receiver<Event>,
+    _action_rx: Receiver<Action>,
 ) -> Result<(), hyper::Error> {
     let api_router = Router::new().route("/healthz", get(healthz));
     // TODO: add routes for events and actions

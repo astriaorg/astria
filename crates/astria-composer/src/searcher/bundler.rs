@@ -1,3 +1,15 @@
+use astria_sequencer::{
+    accounts::types::{
+        Address as SequencerAddress,
+        Nonce,
+    },
+    sequence::Action as SequenceAction,
+    transaction::{
+        action::Action as SequencerAction,
+        Unsigned,
+    },
+};
+use astria_sequencer_client::Client as SequencerClient;
 use tokio::sync::broadcast::{
     error::{
         RecvError,
@@ -18,21 +30,51 @@ use super::{
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("failed to get sequencer nonce")]
+    GetNonceFailed,
     #[error("receiving event failed")]
     EventRecv(#[source] RecvError),
     #[error("sending action failed")]
     ActionSend(#[source] SendError<Action>),
+    #[error("sequencer client init failed")]
+    SequencerClientInit,
 }
 
-pub struct Bundler();
+/// Struct for bundling transactions into sequencer txs.
+// TODO: configure as "train with capacity", i.e. max number of txs to bundle and sequencer block
+// time
+pub struct Bundler {
+    sequencer_client: SequencerClient,
+    sequencer_address: SequencerAddress,
+    rollup_chain_id: String,
+    current_nonce: Option<Nonce>,
+}
 
 impl Bundler {
-    pub(super) fn new() -> Self {
-        Self()
+    pub(super) fn new(
+        sequencer_url: &str,
+        sequencer_address: SequencerAddress,
+        rollup_chain_id: String,
+    ) -> Result<Self, Error> {
+        let sequencer_client =
+            SequencerClient::new(sequencer_url).map_err(|e| Error::SequencerClientInit)?;
+        Ok(Self {
+            sequencer_client,
+            sequencer_address,
+            rollup_chain_id,
+            current_nonce: None,
+        })
     }
 
+    /// Runs the Bundler service, listening for new transactions from the event channel,
+    /// bundling them into sequencer txs and sending to the action channel.
+    ///
+    /// # Errors
+    /// - `Error::EventRecv` if receiving an event from the event channel fails
+    /// - `Error::ActionSend` if sending an action to the action channel fails
+    /// - `Error::GetNonce` if getting the nonce from the sequencer fails
     pub(super) async fn run(
-        self,
+        mut self,
         mut event_rx: Receiver<Event>,
         action_tx: Sender<Action>,
     ) -> Result<(), Error> {
@@ -40,12 +82,12 @@ impl Bundler {
         loop {
             match event_rx.recv().await {
                 Ok(event) => {
-                    let action = Self::process_event(event);
+                    let action = self.process_event(event).await?;
                     match action_tx.send(action.clone()) {
                         Ok(_) => trace!(action=?action, "action sent"),
                         Err(e) => {
                             error!(error=?e, "sending action failed");
-                            // todo!("kill the executor?");
+                            // todo!("kill the bundler?");
                             return Err(Error::ActionSend(e));
                         }
                     }
@@ -59,13 +101,54 @@ impl Bundler {
         }
     }
 
-    fn process_event(event: Event) -> Action {
+    /// Processes an event to produce an action.
+    ///
+    /// # Errors
+    ///
+    /// - `Error::GetNonceFailed` if getting the nonce from the sequencer fails
+    async fn process_event(&mut self, event: Event) -> Result<Action, Error> {
         match event {
             Event::NewTx(tx) => {
                 // serialize and pack into sequencer tx
+                let data = tx.rlp().to_vec();
+                let chain_id = self.rollup_chain_id.clone().into_bytes();
+                // TODO: SequenceAction::new() needs to be pub
+                let seq_action =
+                    SequencerAction::SequenceAction(SequenceAction::new(chain_id, data));
+
+                // get nonce
+                let nonce = self.get_nonce().await?;
+
+                let tx = Unsigned::new_with_actions(nonce, vec![seq_action]);
                 // send action with sequencer tx
-                Action::SendSequencerSecondaryTx
+                Ok(Action::SendSequencerSecondaryTx(tx))
             }
         }
+    }
+
+    /// Gets the nonce from the sequencer. If the current nonce is nonce, fetches nonce from the
+    /// sequencer, returning None if the request failed. Otherwise, increments the current nonce and
+    /// returns it.
+    ///
+    /// # Errors
+    /// Returns `Error::GetNonceFailed` if getting the nonce from the sequencer fails
+    async fn get_nonce(&mut self) -> Result<Nonce, Error> {
+        // get nonce if None otherwise increment it
+        if let Some(nonce) = self.current_nonce {
+            self.current_nonce = Some(nonce + Nonce::from(1));
+        } else {
+            self.current_nonce = self
+                .sequencer_client
+                .get_nonce(&self.sequencer_address, None)
+                .await
+                .ok();
+        }
+        self.current_nonce.ok_or(Error::GetNonceFailed)
+    }
+
+    /// Resets the nonce to None. Used from `Searcher::run()` if transaction execution fails
+    /// because of nonce mismatch.
+    pub(super) fn reset_nonce(&mut self) {
+        self.current_nonce = None;
     }
 }

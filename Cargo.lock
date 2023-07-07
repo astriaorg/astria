@@ -348,6 +348,8 @@ dependencies = [
 name = "astria-composer"
 version = "0.1.0"
 dependencies = [
+ "astria-sequencer",
+ "astria-sequencer-client",
  "async-trait",
  "axum",
  "clap",

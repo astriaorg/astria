@@ -1,10 +1,6 @@
-use alloc::task;
-use std::{
-    net::SocketAddr,
-    sync::Arc,
-};
+use std::net::SocketAddr;
 
-use axum::response;
+use astria_sequencer::transaction::Unsigned as SequencerUnsignedTx;
 use ethers::types::Transaction;
 use tokio::{
     sync::broadcast::{
@@ -71,7 +67,12 @@ impl Searcher {
             .map_err(Error::CollectorError)?;
 
         // configure rollup tx bundler
-        let bundler = Bundler::new();
+        let bundler = Bundler::new(
+            &cfg.sequencer_url,
+            cfg.sequencer_address.clone(),
+            cfg.chain_id.clone(),
+        )
+        .map_err(Error::BundlerError)?;
 
         // configure rollup tx executor
         let executor = SequencerExecutor::new();
@@ -89,8 +90,8 @@ impl Searcher {
 
     /// Runs the Searcher and blocks until all subtasks have exited.
     /// - api server
-    /// TODO:
     /// - rollup tx collector
+    /// TODO:
     /// - rollup tx bundler
     /// - rollup tx executor
     ///
@@ -141,7 +142,14 @@ impl Searcher {
             }
             o = executor_task => {
                 match o {
-                    Ok(task_result) => report_exit("executor", task_result.map_err(Error::ExecutorError)),
+                    Ok(task_result) => {
+                        match task_result {
+                            Err(executor::Error::InvalidNonce(_nonce)) => {
+                                todo!("handle invalid nonce by resetting bundler's nonce and readding the tx to event queue");
+                            },
+                            result => report_exit("executor", result.map_err(Error::ExecutorError)),
+                        }
+                    },
                     Err(e) => report_exit("sequencer executor", Err(Error::TaskError(e))),
                 }
             }
@@ -170,7 +178,7 @@ pub enum Event {
 
 #[derive(Debug, Clone)]
 pub enum Action {
-    SendSequencerSecondaryTx,
+    SendSequencerSecondaryTx(SequencerUnsignedTx),
 }
 
 #[cfg(test)]
