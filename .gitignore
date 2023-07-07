@@ -5,3 +5,6 @@ target/
 .idea
 # direnv
 .envrc
+
+# mac os
+.DS_Store

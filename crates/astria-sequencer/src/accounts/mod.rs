@@ -4,4 +4,4 @@ pub mod query;
 pub(crate) mod state_ext;
 pub mod types;
 
-pub use action::TransferAction;
+pub use action::Transfer;

@@ -25,14 +25,14 @@ use crate::{
 };
 
 /// Represents a value-transfer action.
-#[allow(clippy::module_name_repetitions)] // TODO: rename this to `Transfer`?
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub struct TransferAction {
+pub struct Transfer {
     to: Address,
     amount: Balance,
 }
 
-impl TransferAction {
+impl Transfer {
     #[must_use]
     pub fn new(to: Address, amount: Balance) -> Self {
         Self {
@@ -63,7 +63,7 @@ impl TransferAction {
 }
 
 #[async_trait::async_trait]
-impl ActionHandler for TransferAction {
+impl ActionHandler for Transfer {
     async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,

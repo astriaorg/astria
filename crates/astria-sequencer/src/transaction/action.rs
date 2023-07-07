@@ -12,7 +12,7 @@ use serde::{
 };
 
 use crate::{
-    accounts::TransferAction,
+    accounts::Transfer,
     sequence,
 };
 
@@ -23,7 +23,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Action {
-    TransferAction(TransferAction),
+    TransferAction(Transfer),
     SequenceAction(sequence::Action),
 }
 
@@ -47,7 +47,7 @@ impl Action {
                 .ok_or_else(|| anyhow::anyhow!("missing value"))?
             {
                 ProtoValue::TransferAction(tx) => Action::TransferAction(
-                    TransferAction::try_from_proto(tx)
+                    Transfer::try_from_proto(tx)
                         .context("failed to convert proto to TransferAction")?,
                 ),
                 ProtoValue::SequenceAction(tx) => {

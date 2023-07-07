@@ -1,6 +1,6 @@
 use astria_sequencer::{
     accounts::{
-        query::Response as QueryResponse,
+        query,
         types::{
             Address,
             Balance,
@@ -9,7 +9,7 @@ use astria_sequencer::{
     },
     transaction::Signed,
 };
-use borsh::BorshDeserialize;
+use borsh::BorshDeserialize as _;
 use eyre::{
     self,
     bail,
@@ -20,8 +20,8 @@ use tendermint_rpc::{
     endpoint::{
         block::Response as BlockResponse,
         broadcast::{
-            tx_commit::Response as BroadcastTxCommitResponse,
-            tx_sync::Response as BroadcastTxSyncResponse,
+            tx_commit,
+            tx_sync,
         },
     },
     Client as _,
@@ -99,14 +99,20 @@ impl Client {
             .await
             .wrap_err("failed to call abci_query")?;
 
-        let balance = QueryResponse::try_from_slice(&response.value)
-            .wrap_err("failed to deserialize balance bytes")?;
+        let maybe_balance =
+            <query::Response as borsh::BorshDeserialize>::try_from_slice(&response.value)
+                .wrap_err("failed to deserialize balance bytes")?;
 
-        if let QueryResponse::BalanceResponse(balance) = balance {
-            Ok(balance)
-        } else {
-            bail!("received invalid response from server: {:?}", &response);
-        }
+        let query::Response::BalanceResponse(balance) = maybe_balance else {
+            bail!(
+                "received invalid response from server: {:?}, expected BalanceResponse, got \
+                 variant: {:?}",
+                &response,
+                maybe_balance
+            );
+        };
+
+        Ok(balance)
     }
 
     /// Returns the nonce of the given account at the given height.
@@ -124,7 +130,7 @@ impl Client {
         let response = self
             .client
             .abci_query(
-                Some(format!("accounts/nonce/{}", &address.to_string())),
+                Some(format!("accounts/nonce/{address}")),
                 vec![],
                 height,
                 false,
@@ -132,27 +138,30 @@ impl Client {
             .await
             .wrap_err("failed to call abci_query")?;
 
-        let nonce = QueryResponse::try_from_slice(&response.value)
+        let maybe_nonce = query::Response::try_from_slice(&response.value)
             .wrap_err("failed to deserialize balance bytes")?;
 
-        if let QueryResponse::NonceResponse(nonce) = nonce {
-            Ok(nonce)
-        } else {
-            bail!("received invalid response from server: {:?}", &response);
-        }
+        let query::Response::NonceResponse(nonce) = maybe_nonce else {
+            bail!(
+                "received invalid response from server: {:?}, expected NonceResponse, got \
+                 variant: {:?}",
+                &response,
+                maybe_nonce
+            );
+        };
+
+        Ok(nonce)
     }
 
     /// Submits the given transaction to the Sequencer node.
+    ///
     /// This method blocks until the transaction is checked, but not until it's committed.
     /// It returns the results of `CheckTx`.
     ///
     /// # Errors
     ///
     /// - If calling the tendermint RPC endpoint fails.
-    pub async fn submit_transaction_sync(
-        &self,
-        tx: Signed,
-    ) -> eyre::Result<BroadcastTxSyncResponse> {
+    pub async fn submit_transaction_sync(&self, tx: Signed) -> eyre::Result<tx_sync::Response> {
         let tx_bytes = tx.to_bytes();
         self.client
             .broadcast_tx_sync(tx_bytes)
@@ -161,16 +170,14 @@ impl Client {
     }
 
     /// Submits the given transaction to the Sequencer node.
+    ///
     /// This method blocks until the transaction is committed.
     /// It returns the results of `CheckTx` and `DeliverTx`.
     ///
     /// # Errors
     ///
     /// - If calling the tendermint RPC endpoint fails.
-    pub async fn submit_transaction_commit(
-        &self,
-        tx: Signed,
-    ) -> eyre::Result<BroadcastTxCommitResponse> {
+    pub async fn submit_transaction_commit(&self, tx: Signed) -> eyre::Result<tx_commit::Response> {
         let tx_bytes = tx.to_bytes();
         self.client
             .broadcast_tx_commit(tx_bytes)
@@ -187,7 +194,7 @@ mod test {
     };
 
     use astria_sequencer::{
-        accounts::TransferAction,
+        accounts::Transfer,
         transaction::{
             Action,
             Unsigned,
@@ -235,7 +242,7 @@ mod test {
             format!("http://{}", self.mock_server.address())
         }
 
-        async fn register_abci_query_response(&self, query_path: &str, response: &QueryResponse) {
+        async fn register_abci_query_response(&self, query_path: &str, response: &query::Response) {
             let expected_body = json!({
                 "method": "abci_query"
             });
@@ -257,7 +264,7 @@ mod test {
                 .await;
         }
 
-        async fn register_broadcast_tx_sync_response(&self, response: BroadcastTxSyncResponse) {
+        async fn register_broadcast_tx_sync_response(&self, response: tx_sync::Response) {
             let expected_body = json!({
                 "method": "broadcast_tx_sync"
             });
@@ -314,7 +321,7 @@ mod test {
                 .unwrap();
         let alice_keypair = SigningKey::from(alice_secret_bytes);
 
-        let actions = vec![Action::TransferAction(TransferAction::new(
+        let actions = vec![Action::TransferAction(Transfer::new(
             Address::try_from_str(BOB_ADDRESS).unwrap(),
             Balance::from(333_333),
         ))];
@@ -323,14 +330,14 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_get_nonce_and_balance() {
+    async fn get_nonce_and_balance() {
         let server = MockTendermintServer::new().await;
 
         let nonce_response = Nonce::from(0);
         server
             .register_abci_query_response(
                 "accounts/nonce",
-                &QueryResponse::NonceResponse(nonce_response),
+                &query::Response::NonceResponse(nonce_response),
             )
             .await;
 
@@ -338,7 +345,7 @@ mod test {
         server
             .register_abci_query_response(
                 "accounts/balance",
-                &QueryResponse::BalanceResponse(balance_response),
+                &query::Response::BalanceResponse(balance_response),
             )
             .await;
 
@@ -351,10 +358,10 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_submit_tx_sync() {
+    async fn submit_tx_sync() {
         let server = MockTendermintServer::new().await;
 
-        let server_response = BroadcastTxSyncResponse {
+        let server_response = tx_sync::Response {
             code: 0.into(),
             data: vec![].into(),
             log: String::new(),
@@ -374,7 +381,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_submit_tx_commit() {
+    async fn submit_tx_commit() {
         use tendermint_rpc::dialect;
 
         let server = MockTendermintServer::new().await;
@@ -398,7 +405,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_get_latest_block() {
+    async fn get_latest_block() {
         use tendermint::{
             account,
             block::{

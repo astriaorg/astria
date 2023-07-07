@@ -181,7 +181,7 @@ mod test {
             Nonce,
             ADDRESS_LEN,
         },
-        TransferAction,
+        Transfer,
     };
 
     const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
@@ -212,7 +212,7 @@ mod test {
     fn test_unsigned_transaction() {
         let tx = Unsigned {
             nonce: Nonce::from(1),
-            actions: vec![Action::TransferAction(TransferAction::new(
+            actions: vec![Action::TransferAction(Transfer::new(
                 address_from_hex_string(BOB_ADDRESS),
                 Balance::from(333_333),
             ))],
