@@ -13,7 +13,7 @@ async fn main() -> eyre::Result<()> {
 
     info!(?cfg, "starting astria-composer");
 
-    let _searcher = Searcher::new(&cfg.searcher)?.run().await;
+    let _searcher = Searcher::new(&cfg.searcher).await?.run().await;
 
     Ok(())
 }

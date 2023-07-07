@@ -22,10 +22,10 @@ use thiserror::Error;
 use super::cli;
 use crate::types::rollup::ChainId;
 
-const DEFAULT_SEQUENCER_URL: &str = "127.0.0.1:1317";
 const DEFAULT_API_PORT: u16 = 8080;
-const DEFAULT_CHAIN_ID: &str = "rolluptest";
-const DEFAULT_EXECUTION_WS_URL: &str = "127.0.0.1:8546";
+const DEFAULT_SEQUENCER_URL: &str = "127.0.0.1:1317";
+const DEFAULT_CHAIN_ID: &str = "912559";
+const DEFAULT_EXECUTION_WS_URL: &str = "ws-executor.astria.localdev.me";
 
 #[derive(Debug, Error)]
 pub enum Error {

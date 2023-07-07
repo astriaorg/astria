@@ -11,25 +11,32 @@ use tokio::{
     },
     task::JoinError,
 };
+use tracing::{
+    error,
+    info,
+};
 
+use self::collector::TxCollector;
 use crate::config::searcher::{
     self as config,
     Config,
 };
 
 mod api;
+mod bundler;
 mod collector;
+mod executor;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("invalid config")]
-    InvalidConfig(#[from] config::Error),
+    InvalidConfig(#[source] config::Error),
     #[error("task error")]
-    TaskError(#[from] JoinError),
+    TaskError(#[source] JoinError),
     #[error("api error")]
-    ApiError(#[from] hyper::Error),
+    ApiError(#[source] hyper::Error),
     #[error("collector error")]
-    CollectorError(#[from] collector::Error),
+    CollectorError(#[source] collector::Error),
 }
 
 #[derive(Debug)]
@@ -38,7 +45,7 @@ pub(crate) struct State();
 pub struct Searcher {
     state: Arc<State>,
     api_url: SocketAddr,
-    execution_ws_url: String,
+    tx_collector: TxCollector,
 }
 
 impl Searcher {
@@ -48,8 +55,11 @@ impl Searcher {
     ///
     /// Returns a `searcher::Error::InvalidConfig` if there is an error constructing `api_url` from
     /// the port specified in config.
-    pub fn new(cfg: &Config) -> Result<Self, Error> {
+    pub async fn new(cfg: &Config) -> Result<Self, Error> {
         // configure rollup tx collector
+        let tx_collector = TxCollector::new(&cfg.execution_ws_url)
+            .await
+            .map_err(Error::CollectorError)?;
         // configure rollup tx bundler
         // configure rollup tx executor
 
@@ -57,12 +67,12 @@ impl Searcher {
         let state = Arc::new(State());
 
         // parse api url from config
-        let api_url = Config::api_url(cfg.api_port)?;
+        let api_url = Config::api_url(cfg.api_port).map_err(Error::InvalidConfig)?;
 
         Ok(Self {
             state,
             api_url,
-            execution_ws_url: format!("wss://{}", cfg.execution_ws_url),
+            tx_collector,
         })
     }
 
@@ -81,19 +91,18 @@ impl Searcher {
         let Self {
             state,
             api_url,
-            execution_ws_url,
+            tx_collector,
         } = self;
 
         // collector -> bundler
         let (event_tx, _event_rx): (mpsc::Sender<Event>, mpsc::Receiver<Event>) =
             mpsc::channel(512);
-        // bundler -> sequencer client
+        // bundler -> executor
         let (_action_tx, _action_rx): (oneshot::Sender<Action>, oneshot::Receiver<Action>) =
             oneshot::channel();
 
         let api_task = tokio::spawn(api::run(api_url, state.clone()));
-        let collector_task =
-            tokio::spawn(async move { collector::run(execution_ws_url, event_tx).await });
+        let collector_task = tokio::spawn(tx_collector.run(event_tx));
 
         tokio::select! {
             o = api_task => {
@@ -115,13 +124,13 @@ impl Searcher {
 
 fn report_exit(task_name: &str, outcome: Result<(), Error>) {
     match outcome {
-        Ok(()) => tracing::info!(task = task_name, "task exited successfully"),
+        Ok(()) => info!(task = task_name, "task exited successfully"),
         Err(e) => match e {
             Error::TaskError(join_err) => {
-                tracing::error!(task = task_name, error.msg = %join_err, error.cause = ?join_err, "task failed to complete");
+                error!(task = task_name, error.msg = %join_err, error.cause = ?join_err, "task failed to complete");
             }
             service_err => {
-                tracing::error!(task = task_name, error.msg = %service_err, error.cause = ?service_err, "task exited with error");
+                error!(task = task_name, error.msg = %service_err, error.cause = ?service_err, "task exited with error");
             }
         },
     }
@@ -133,7 +142,9 @@ pub enum Event {
 }
 
 #[derive(Debug, Clone)]
-pub enum Action {}
+pub enum Action {
+    SendSequencerSecondaryTx,
+}
 
 #[cfg(test)]
 mod tests {
@@ -142,10 +153,10 @@ mod tests {
         searcher::Searcher,
     };
 
-    #[test]
-    fn new_from_valid_config() {
+    #[tokio::test]
+    async fn new_from_valid_config() {
         let cfg = Config::default();
-        let searcher = Searcher::new(&cfg);
+        let searcher = Searcher::new(&cfg).await;
         assert!(searcher.is_ok());
     }
 }
