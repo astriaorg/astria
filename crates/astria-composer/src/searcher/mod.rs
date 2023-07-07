@@ -5,9 +5,10 @@ use std::{
 
 use ethers::types::Transaction;
 use tokio::{
-    sync::{
-        mpsc,
-        oneshot,
+    sync::broadcast::{
+        self,
+        Receiver,
+        Sender,
     },
     task::JoinError,
 };
@@ -16,7 +17,11 @@ use tracing::{
     info,
 };
 
-use self::collector::TxCollector;
+use self::{
+    bundler::Bundler,
+    collector::TxCollector,
+    executor::Executor,
+};
 use crate::config::searcher::{
     self as config,
     Config,
@@ -39,13 +44,11 @@ pub enum Error {
     CollectorError(#[source] collector::Error),
 }
 
-#[derive(Debug)]
-pub(crate) struct State();
-
 pub struct Searcher {
-    state: Arc<State>,
     api_url: SocketAddr,
     tx_collector: TxCollector,
+    bundler: Bundler,
+    executor: Executor,
 }
 
 impl Searcher {
@@ -60,19 +63,21 @@ impl Searcher {
         let tx_collector = TxCollector::new(&cfg.execution_ws_url)
             .await
             .map_err(Error::CollectorError)?;
-        // configure rollup tx bundler
-        // configure rollup tx executor
 
-        // init searcher state
-        let state = Arc::new(State());
+        // configure rollup tx bundler
+        let bundler = Bundler::new();
+
+        // configure rollup tx executor
+        let executor = Executor::new();
 
         // parse api url from config
         let api_url = Config::api_url(cfg.api_port).map_err(Error::InvalidConfig)?;
 
         Ok(Self {
-            state,
             api_url,
             tx_collector,
+            bundler,
+            executor,
         })
     }
 
@@ -89,20 +94,22 @@ impl Searcher {
     /// and cannot be recovered.
     pub async fn run(self) {
         let Self {
-            state,
             api_url,
             tx_collector,
+            bundler,
+            executor,
         } = self;
 
         // collector -> bundler
-        let (event_tx, _event_rx): (mpsc::Sender<Event>, mpsc::Receiver<Event>) =
-            mpsc::channel(512);
+        let (event_tx, event_rx): (Sender<Event>, Receiver<Event>) = broadcast::channel(512);
         // bundler -> executor
-        let (_action_tx, _action_rx): (oneshot::Sender<Action>, oneshot::Receiver<Action>) =
-            oneshot::channel();
+        let (action_tx, action_rx): (Sender<Action>, Receiver<Action>) = broadcast::channel(512);
 
-        let api_task = tokio::spawn(api::run(api_url, state.clone()));
+        let mut bundler_event_rx = event_tx.subscribe();
+
+        let api_task = tokio::spawn(api::run(api_url, event_rx, action_rx));
         let collector_task = tokio::spawn(tx_collector.run(event_tx));
+        let bundler_task = tokio::spawn(async move { bundler.run(bundler_event_rx, action_tx) });
 
         tokio::select! {
             o = api_task => {

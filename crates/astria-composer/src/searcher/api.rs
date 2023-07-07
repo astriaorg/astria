@@ -10,17 +10,21 @@ use axum::{
     Router,
 };
 use serde::Serialize;
+use tokio::sync::broadcast::Receiver;
 use tracing::info;
 
-use super::State as SearcherState;
+use super::{
+    Action,
+    Event,
+};
 
 pub(super) async fn run(
     api_url: SocketAddr,
-    state: Arc<SearcherState>,
+    event_rx: Receiver<Event>,
+    action_rx: Receiver<Action>,
 ) -> Result<(), hyper::Error> {
-    let api_router = Router::new()
-        .route("/healthz", get(healthz))
-        .with_state(state);
+    let api_router = Router::new().route("/healthz", get(healthz));
+    // TODO: add routes for events and actions
 
     info!(?api_url, "starting api server");
 
@@ -53,7 +57,7 @@ impl IntoResponse for Healthz {
     }
 }
 
-pub(super) async fn healthz(_state: State<Arc<SearcherState>>) -> Healthz {
+pub(super) async fn healthz() -> Healthz {
     // TODO: check against state
     Healthz::Ok
 }

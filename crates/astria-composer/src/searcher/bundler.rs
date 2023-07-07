@@ -1,6 +1,14 @@
-use tokio::sync::{
-    mpsc,
-    oneshot,
+use tokio::sync::broadcast::{
+    error::{
+        RecvError,
+        SendError,
+    },
+    Receiver,
+    Sender,
+};
+use tracing::{
+    error,
+    trace,
 };
 
 use super::{
@@ -9,7 +17,12 @@ use super::{
 };
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {}
+pub enum Error {
+    #[error("receiving event failed")]
+    EventRecv(#[source] RecvError),
+    #[error("sending action failed")]
+    ActionSend(#[source] SendError<Action>),
+}
 
 pub struct Bundler();
 
@@ -17,15 +30,42 @@ impl Bundler {
     pub(super) fn new() -> Self {
         Self()
     }
-}
 
-pub(super) async fn run(
-    event_rx: mpsc::Receiver<Event>,
-    action_tx: oneshot::Sender<Action>,
-) -> Result<(), Error> {
-    // grab collected tx
+    pub(super) async fn run(
+        self,
+        mut event_rx: Receiver<Event>,
+        action_tx: Sender<Action>,
+    ) -> Result<(), Error> {
+        // grab event
+        loop {
+            match event_rx.recv().await {
+                Ok(event) => {
+                    let action = Self::process_event(event);
+                    match action_tx.send(action.clone()) {
+                        Ok(_) => trace!(action=?action, "action sent"),
+                        Err(e) => {
+                            error!(error=?e, "sending action failed");
+                            // todo!("kill the executor?");
+                            return Err(Error::ActionSend(e));
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!(error=?e, "receiving event failed");
+                    // todo!("kill the bundler?");
+                    return Err(Error::EventRecv(e));
+                }
+            }
+        }
+    }
 
-    // serialize and pack into sequencer tx
-    // send action with sequencer tx
-    Ok(())
+    fn process_event(event: Event) -> Action {
+        match event {
+            Event::NewTx(tx) => {
+                // serialize and pack into sequencer tx
+                // send action with sequencer tx
+                Action::SendSequencerSecondaryTx
+            }
+        }
+    }
 }

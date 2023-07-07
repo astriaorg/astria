@@ -5,7 +5,7 @@ use ethers::providers::{
     StreamExt,
     Ws,
 };
-use tokio::sync::mpsc::Sender;
+use tokio::sync::broadcast::Sender;
 use tracing::{
     error,
     info,
@@ -20,6 +20,8 @@ pub enum Error {
     ProviderInit(#[source] ProviderError),
     #[error("provider failed to get transactions subscription")]
     ProviderSubscriptionError(#[source] ProviderError),
+    #[error("sending event failed")]
+    EventSend(#[source] tokio::sync::broadcast::error::SendError<Event>),
 }
 
 pub struct TxCollector {
@@ -66,8 +68,8 @@ impl TxCollector {
         // pass txs to event channel
         let mut event_stream = Box::pin(stream);
         while let Some(event) = event_stream.next().await {
-            match event_tx.send(event.clone()).await {
-                Ok(()) => trace!(?event, "NewTx was read from execution node"),
+            match event_tx.send(event.clone()) {
+                Ok(_) => trace!(?event, "NewTx was read from execution node"),
                 Err(e) => {
                     error!(error=?e, "sending NewTx event failed");
                     todo!("kill the tx collector")
