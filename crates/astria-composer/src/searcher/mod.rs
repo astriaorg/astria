@@ -1,8 +1,10 @@
+use alloc::task;
 use std::{
     net::SocketAddr,
     sync::Arc,
 };
 
+use axum::response;
 use ethers::types::Transaction;
 use tokio::{
     sync::broadcast::{
@@ -20,7 +22,7 @@ use tracing::{
 use self::{
     bundler::Bundler,
     collector::TxCollector,
-    executor::Executor,
+    executor::SequencerExecutor,
 };
 use crate::config::searcher::{
     self as config,
@@ -42,13 +44,17 @@ pub enum Error {
     ApiError(#[source] hyper::Error),
     #[error("collector error")]
     CollectorError(#[source] collector::Error),
+    #[error("bundler error")]
+    BundlerError(#[source] bundler::Error),
+    #[error("executor error")]
+    ExecutorError(#[source] executor::Error),
 }
 
 pub struct Searcher {
     api_url: SocketAddr,
     tx_collector: TxCollector,
     bundler: Bundler,
-    executor: Executor,
+    executor: SequencerExecutor,
 }
 
 impl Searcher {
@@ -68,7 +74,7 @@ impl Searcher {
         let bundler = Bundler::new();
 
         // configure rollup tx executor
-        let executor = Executor::new();
+        let executor = SequencerExecutor::new();
 
         // parse api url from config
         let api_url = Config::api_url(cfg.api_port).map_err(Error::InvalidConfig)?;
@@ -105,11 +111,13 @@ impl Searcher {
         // bundler -> executor
         let (action_tx, action_rx): (Sender<Action>, Receiver<Action>) = broadcast::channel(512);
 
-        let mut bundler_event_rx = event_tx.subscribe();
+        let api_event_rx = event_tx.subscribe();
+        let api_action_rx = action_tx.subscribe();
 
-        let api_task = tokio::spawn(api::run(api_url, event_rx, action_rx));
+        let api_task = tokio::spawn(api::run(api_url, api_event_rx, api_action_rx));
         let collector_task = tokio::spawn(tx_collector.run(event_tx));
-        let bundler_task = tokio::spawn(async move { bundler.run(bundler_event_rx, action_tx) });
+        let bundler_task = tokio::spawn(bundler.run(event_rx, action_tx));
+        let executor_task = tokio::spawn(executor.run(action_rx));
 
         tokio::select! {
             o = api_task => {
@@ -123,6 +131,18 @@ impl Searcher {
                 match o {
                     Ok(task_result) => report_exit("rollup tx collector", task_result.map_err(Error::CollectorError)),
                     Err(e) => report_exit("rollup tx collector", Err(Error::TaskError(e))),
+                }
+            }
+            o = bundler_task => {
+                match o {
+                    Ok(task_result) => report_exit("bundler", task_result.map_err(Error::BundlerError)),
+                    Err(e) => report_exit("bundler", Err(Error::TaskError(e))),
+                }
+            }
+            o = executor_task => {
+                match o {
+                    Ok(task_result) => report_exit("executor", task_result.map_err(Error::ExecutorError)),
+                    Err(e) => report_exit("sequencer executor", Err(Error::TaskError(e))),
                 }
             }
         }
