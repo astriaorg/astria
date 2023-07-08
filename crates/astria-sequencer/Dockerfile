@@ -34,6 +34,10 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef as builder
 COPY --from=planner /build/recipe.json recipe.json
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    librocksdb-dev
+
 ARG TARGETPLATFORM
 ENV ROCKSDB_LIB_DIR=/usr/lib
 RUN case "$TARGETPLATFORM" in \
