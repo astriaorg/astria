@@ -35,7 +35,7 @@ FROM chef as builder
 COPY --from=planner /build/recipe.json recipe.json
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+    && apt-get install -y \
     librocksdb-dev
 
 ARG TARGETPLATFORM
