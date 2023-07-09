@@ -39,7 +39,6 @@ RUN apt-get update \
     librocksdb-dev
 
 ARG TARGETPLATFORM
-# ENV ROCKSDB_LIB_DIR=/usr/lib
 RUN case "$TARGETPLATFORM" in \
     "linux/arm64") target="aarch64-unknown-linux-gnu" ;; \
     "linux/amd64") target="x86_64-unknown-linux-gnu" ;; \
