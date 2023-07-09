@@ -16,6 +16,11 @@ pub(crate) struct Args {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub(crate) celestia_endpoint: Option<String>,
 
+    /// The bearer token used to interact with the celestia node RPC.
+    #[arg(long)]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub(crate) celestia_bearer_token: Option<String>,
+
     /// Gas limit for transactions sent to Celestia.
     #[arg(short, long)]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]

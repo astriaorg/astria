@@ -1,31 +1,52 @@
 apiVersion: v1
 data:
+  generate-token.sh: |
+    #!/bin/sh -x
+    celestia bridge auth admin \
+      --node.store "$home_dir/bridge" \
+      --keyring.accname validator > "$home_dir"/.admin_token
   init-bridge.sh: |
-    #!/bin/sh
+    #!/bin/sh -x
 
     set -o errexit -o nounset
 
-    ./celestia bridge init \
+    celestia bridge init \
       --node.store "$home_dir/bridge" \
       --core.ip 127.0.0.1
     cp -r "$home_dir/keyring-test" "$home_dir/bridge/keys/"
-  start-bridge.sh: "#!/bin/bash\n\nset -o errexit -o nounset -o pipefail\n\ngenesis_hash=$(curl
-    -s -S -X GET \"http://127.0.0.1:26657/block?height=1\" | jq -r '.result.block_id.hash')\nif
-    [ -z \"$genesis_hash\" ] \nthen\n  echo \"did not receive genesis hash from celestia;
-    exiting\"\n  exit 1\nelse\n  echo \"genesis hash received: $genesis_hash\"\nfi\n\nexport
-    CELESTIA_CUSTOM=\"test:$genesis_hash\"\n  # --p2p.network \"test:$celestia_custom\"\nexport
-    GOLOG_LOG_LEVEL=\"debug\"\nexec ./celestia bridge start \\\n  --node.store \"$home_dir/bridge\"
-    \\\n  --gateway \\\n  --keyring.accname \"$validator_key_name\"\n"
+  start-bridge.sh: |
+    #!/bin/sh -x
+
+    set -o errexit -o nounset -o pipefail
+
+    if genesis_hash=$(curl -s -S -X GET "http://127.0.0.1:26657/block?height=1" | jq -er '.result.block_id.hash');
+    then
+      : "genesis hash received successfully"
+    else
+      echo "did not receive genesis hash from celestia; exiting"
+      exit 1
+    fi
+
+    echo "using genesis hash: $genesis_hash"
+
+    export GOLOG_LOG_LEVEL="debug"
+    export CELESTIA_CUSTOM="test:$genesis_hash"
+    exec celestia bridge start \
+      --node.store "$home_dir/bridge" \
+      --gateway \
+      --keyring.accname "$validator_key_name"
 kind: ConfigMap
 metadata:
-  name: bridge-scripts-kmtkbk7fc7
+  name: bridge-scripts-4bttthc8ck
 ---
 apiVersion: v1
 data:
   init-celestia-appd.sh: |
-    #!/bin/sh
+    #!/bin/sh -x
 
     set -o errexit -o nounset
+
+    rm -rf "$home_dir"/*
 
     celestia-appd init "$chainid" \
       --chain-id "$chainid" \
@@ -48,23 +69,20 @@ data:
       --keyring-backend="$keyring_backend" \
       --chain-id "$chainid" \
       --home "$home_dir" \
-      --orchestrator-address "$validator_key" \
       --evm-address "$evm_address"
 
     celestia-appd collect-gentxs --home "$home_dir"
+    sed -i'.bak' 's/timeout_commit = "25s"/timeout_commit = "1s"/g' $home_dir/config/config.toml
   start-celestia-appd.sh: |
     #!/bin/sh
 
     set -o errexit -o nounset
 
-    sed -i'.bak' 's/timeout_commit = "25s"/timeout_commit = "1s"/g' $home_dir/config/config.toml
-    sed -i'.bak' 's/timeout_propose = "10s"/timeout_propose = "1s"/g' $home_dir/config/config.toml
-
     # Start the celestia-app
     exec celestia-appd start --home "${home_dir}"
 kind: ConfigMap
 metadata:
-  name: celestia-appd-scripts-ffk5t7kfc2
+  name: celestia-appd-scripts-4k665bchh4
 ---
 apiVersion: v1
 data:
@@ -224,9 +242,12 @@ spec:
   - name: sequencer-svc
     port: 1318
     targetPort: sequencer-svc
-  - name: bridge-svc
+  - name: bridge-rest
     port: 26659
-    targetPort: bridge-svc
+    targetPort: bridge-rest
+  - name: bridge-jsonrpc
+    port: 26658
+    targetPort: bridge-jsonrpc
   selector:
     app: conductor-environment
 ---
@@ -252,7 +273,7 @@ spec:
         envFrom:
         - configMapRef:
             name: celestia-env
-        image: ghcr.io/astriaorg/celestia-app:v0.11.0
+        image: ghcr.io/celestiaorg/celestia-app:v1.0.0-rc7
         name: celestia-app
         ports:
         - containerPort: 26657
@@ -266,11 +287,24 @@ spec:
         envFrom:
         - configMapRef:
             name: celestia-env
-        image: ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7
+        image: ghcr.io/astriaorg/test-images-celestia-node:v0.11.0-rc7
+        lifecycle:
+          postStart:
+            exec:
+              command:
+              - /scripts/generate-token.sh
         name: celestia-bridge
         ports:
         - containerPort: 26659
-          name: bridge-svc
+          name: bridge-rest
+        - containerPort: 26658
+          name: bridge-jsonrpc
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /header/1
+            port: bridge-rest
+          periodSeconds: 10
         volumeMounts:
         - mountPath: /scripts/
           name: bridge-scripts-volume
@@ -297,7 +331,7 @@ spec:
         envFrom:
         - configMapRef:
             name: sequencer-relayer-env
-        image: docker.io/library/debian:bookworm-slim
+        image: docker.io/library/buildpack-deps:bookworm-curl
         name: astria-sequencer-relayer
         volumeMounts:
         - mountPath: /usr/local/bin/astria-sequencer-relayer
@@ -333,7 +367,7 @@ spec:
         envFrom:
         - configMapRef:
             name: celestia-env
-        image: ghcr.io/astriaorg/celestia-app:v0.11.0
+        image: ghcr.io/celestiaorg/celestia-app:v1.0.0-rc7
         name: init-celestia-app
         volumeMounts:
         - mountPath: /scripts/
@@ -345,7 +379,7 @@ spec:
         envFrom:
         - configMapRef:
             name: celestia-env
-        image: ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7
+        image: ghcr.io/astriaorg/test-images-celestia-node:v0.11.0-rc7
         name: init-bridge
         volumeMounts:
         - mountPath: /scripts/
@@ -400,25 +434,28 @@ spec:
           name: metro-scripts-volume
         - mountPath: /home/metro
           name: metro-home-vol
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
       volumes:
       - hostPath:
           path: /tmp/astria/astria-sequencer-relayer
           type: File
         name: astria-sequencer-relayer-binary
       - configMap:
-          defaultMode: 320
-          name: bridge-scripts-kmtkbk7fc7
+          defaultMode: 360
+          name: bridge-scripts-4bttthc8ck
         name: bridge-scripts-volume
       - configMap:
-          defaultMode: 320
+          defaultMode: 360
           name: metro-scripts-58b899ftcg
         name: metro-scripts-volume
       - configMap:
-          defaultMode: 320
-          name: celestia-appd-scripts-ffk5t7kfc2
+          defaultMode: 360
+          name: celestia-appd-scripts-4k665bchh4
         name: celestia-appd-scripts-volume
       - configMap:
-          defaultMode: 320
+          defaultMode: 360
           name: executor-scripts-c44cc226h7
         name: executor-scripts-volume
       - emptyDir: {}

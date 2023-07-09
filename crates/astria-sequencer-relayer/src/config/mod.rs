@@ -13,7 +13,7 @@ use serde::{
 mod cli;
 
 const DEFAULT_BLOCK_TIME: u64 = 3000;
-const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26659";
+const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26658";
 const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:1317";
 const DEFAULT_VALIDATOR_KEY_FILE: &str = ".metro/config/priv_validator_key.json";
 
@@ -49,6 +49,7 @@ pub fn get() -> Result<Config, figment::Error> {
 pub struct Config {
     pub sequencer_endpoint: String,
     pub celestia_endpoint: String,
+    pub celestia_bearer_token: String,
     pub gas_limit: u64,
     pub disable_writing: bool,
     pub block_time: u64,
@@ -80,6 +81,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             celestia_endpoint: DEFAULT_CELESTIA_ENDPOINT.into(),
+            celestia_bearer_token: String::new(),
             sequencer_endpoint: DEFAULT_SEQUENCER_ENDPOINT.into(),
             gas_limit: crate::data_availability::DEFAULT_PFD_GAS_LIMIT,
             disable_writing: false,
@@ -105,8 +107,9 @@ mod tests {
     const NO_CLI_ARGS: &str = "astria-sequencer-relayer";
     const ALL_CLI_ARGS: &str = r#"
 astria-sequencer-relayer
-    --sequencer-endpoint http://sequencer.cli
     --celestia-endpoint http://celestia.cli
+    --celestia-bearer-token clibearertoken
+    --sequencer-endpoint http://sequencer.cli
     --gas-limit 9999
     --disable-writing
     --block-time 9999
@@ -129,6 +132,10 @@ astria-sequencer-relayer
             "ASTRIA_SEQUENCER_RELAYER_CELESTIA_ENDPOINT",
             "http://celestia.env",
         );
+        jail.set_env(
+            "ASTRIA_SEQUENCER_RELAYER_CELESTIA_BEARER_TOKEN",
+            "envbearertoken",
+        );
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_GAS_LIMIT", 5555);
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_DISABLE_WRITING", true);
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_BLOCK_TIME", 5555);
@@ -148,6 +155,7 @@ astria-sequencer-relayer
             let expected = Config {
                 sequencer_endpoint: "http://sequencer.cli".into(),
                 celestia_endpoint: "http://celestia.cli".into(),
+                celestia_bearer_token: "clibearertoken".into(),
                 gas_limit: 9999,
                 disable_writing: true,
                 block_time: 9999,
@@ -170,6 +178,7 @@ astria-sequencer-relayer
             let expected = Config {
                 sequencer_endpoint: "http://sequencer.env".into(),
                 celestia_endpoint: "http://celestia.env".into(),
+                celestia_bearer_token: "envbearertoken".into(),
                 gas_limit: 5555,
                 disable_writing: true,
                 block_time: 5555,

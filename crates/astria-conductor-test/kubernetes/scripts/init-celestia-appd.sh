@@ -1,6 +1,8 @@
-#!/bin/sh
+#!/bin/sh -x
 
 set -o errexit -o nounset
+
+rm -rf "$home_dir"/*
 
 celestia-appd init "$chainid" \
   --chain-id "$chainid" \
@@ -23,7 +25,7 @@ celestia-appd gentx \
   --keyring-backend="$keyring_backend" \
   --chain-id "$chainid" \
   --home "$home_dir" \
-  --orchestrator-address "$validator_key" \
   --evm-address "$evm_address"
 
 celestia-appd collect-gentxs --home "$home_dir"
+sed -i'.bak' 's/timeout_commit = "25s"/timeout_commit = "1s"/g' $home_dir/config/config.toml

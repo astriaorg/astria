@@ -15,11 +15,14 @@ spec:
       labels:
         app: conductor-environment
     spec:
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: "OnRootMismatch"
       initContainers:
         - command:
           - /scripts/init-celestia-appd.sh
           name: init-celestia-app
-          image: "ghcr.io/astriaorg/celestia-app:v0.11.0"
+          image: "ghcr.io/celestiaorg/celestia-app:v1.0.0-rc7"
           volumeMounts:
             - mountPath: /scripts/
               name: celestia-appd-scripts-volume
@@ -31,7 +34,7 @@ spec:
         - command:
           - /scripts/init-bridge.sh
           name: init-bridge
-          image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
+          image: "ghcr.io/astriaorg/test-images-celestia-node:v0.11.0-rc7"
           volumeMounts:
             - mountPath: /scripts/
               name: bridge-scripts-volume
@@ -52,9 +55,9 @@ spec:
           envFrom:
             - configMapRef:
                 name: metro-env
-        - command:
+        - name: configure-geth
+          command:
           - /scripts/configure-geth.sh
-          name: configure-geth
           image: ghcr.io/astriaorg/go-ethereum:0.0.3
           volumeMounts:
             - mountPath: /scripts/
@@ -91,7 +94,7 @@ spec:
       containers:
         - name: celestia-app
           command: ["/scripts/start-celestia-appd.sh"]
-          image: "ghcr.io/astriaorg/celestia-app:v0.11.0"
+          image: "ghcr.io/celestiaorg/celestia-app:v1.0.0-rc7"
           envFrom:
             - configMapRef:
                 name: celestia-env
@@ -105,7 +108,7 @@ spec:
         - name: celestia-bridge
           command:
           - /scripts/start-bridge.sh
-          image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
+          image: "ghcr.io/astriaorg/test-images-celestia-node:v0.11.0-rc7"
           volumeMounts:
             - mountPath: /scripts/
               name: bridge-scripts-volume
@@ -116,7 +119,19 @@ spec:
                 name: celestia-env
           ports:
             - containerPort: 26659
-              name: bridge-svc
+              name: bridge-rest
+            - containerPort: 26658
+              name: bridge-jsonrpc
+          startupProbe:
+            httpGet:
+              path: /header/1
+              port: bridge-rest
+            failureThreshold: 30
+            periodSeconds: 10
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/scripts/generate-token.sh"]
         - name: metro-sequencer
           command: ["/scripts/start-metro.sh"]
           image: "ghcr.io/astriaorg/metro:0.0.3"
@@ -133,7 +148,7 @@ spec:
             - configMapRef:
                 name: metro-env
         - name: astria-sequencer-relayer
-          image: docker.io/library/debian:bookworm-slim
+          image: docker.io/library/buildpack-deps:bookworm-curl
           command: ["/usr/local/bin/astria-sequencer-relayer"]
           volumeMounts:
             - mountPath: /usr/local/bin/astria-sequencer-relayer
@@ -173,19 +188,19 @@ spec:
       - name: bridge-scripts-volume
         configMap:
           name: bridge-scripts
-          defaultMode: 0500
+          defaultMode: 0550
       - name: metro-scripts-volume
         configMap:
           name: metro-scripts
-          defaultMode: 0500
+          defaultMode: 0550
       - name: celestia-appd-scripts-volume
         configMap:
           name: celestia-appd-scripts
-          defaultMode: 0500
+          defaultMode: 0550
       - name: executor-scripts-volume
         configMap:
           name: executor-scripts
-          defaultMode: 0500
+          defaultMode: 0550
       - emptyDir: {}
         name: celestia-home-vol
       - emptyDir: {}

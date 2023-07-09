@@ -15,6 +15,7 @@ use crate::types::*;
 static BLOCK_ENDPOINT: &str = "/cosmos/base/tendermint/v1beta1/blocks/";
 static LATEST_BLOCK_ENDPOINT: &str = "/cosmos/base/tendermint/v1beta1/blocks/latest";
 
+#[derive(Debug, Clone)]
 pub struct SequencerClient {
     endpoint: String,
     http_client: Client,
@@ -49,11 +50,15 @@ impl SequencerClient {
         req: Option<Req>,
     ) -> eyre::Result<Resp> {
         let response: ReqwestResponse = self.http_client.get(&endpoint).json(&req).send().await?;
-        response
+        let rsp = response
             .error_for_status()
-            .wrap_err("server returned error status")?
-            .json::<Resp>()
+            .wrap_err("server returned error status")?;
+        let txt = rsp
+            .text()
             .await
-            .wrap_err("failed reading server response as json")
+            .wrap_err("failed reading server response as plain text")?;
+        let json_deser = &mut serde_json::Deserializer::from_str(&txt);
+        let resp: Result<Resp, _> = serde_path_to_error::deserialize(json_deser);
+        resp.wrap_err("failed deserializing server response as json")
     }
 }

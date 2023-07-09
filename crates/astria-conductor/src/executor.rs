@@ -438,10 +438,9 @@ mod test {
     async fn execute_block_with_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = get_namespace(b"test");
-        let (mut executor, _) =
-            Executor::new(MockExecutionClient::new(), namespace.clone(), alert_tx)
-                .await
-                .unwrap();
+        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
+            .await
+            .unwrap();
 
         let expected_exection_hash = hash(&executor.execution_state);
         let mut block = get_test_block();
@@ -465,10 +464,9 @@ mod test {
     async fn execute_block_without_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = get_namespace(b"test");
-        let (mut executor, _) =
-            Executor::new(MockExecutionClient::new(), namespace.clone(), alert_tx)
-                .await
-                .unwrap();
+        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
+            .await
+            .unwrap();
 
         let block = get_test_block();
         let execution_block_hash = executor.execute_block(block).await.unwrap();
@@ -483,7 +481,7 @@ mod test {
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace.clone(), alert_tx)
+        let (mut executor, _) = Executor::new(execution_client, namespace, alert_tx)
             .await
             .unwrap();
 
@@ -525,7 +523,7 @@ mod test {
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace.clone(), alert_tx)
+        let (mut executor, _) = Executor::new(execution_client, namespace, alert_tx)
             .await
             .unwrap();
 
