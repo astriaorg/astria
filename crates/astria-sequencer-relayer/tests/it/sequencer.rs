@@ -9,7 +9,7 @@ async fn get_latest_block() {
     let _client = Client::new(&sequencer_endpoint).unwrap();
 
     // TODO: fix test env
-    //client.get_latest_block().await.unwrap();
+    // client.get_latest_block().await.unwrap();
 }
 
 #[tokio::test]

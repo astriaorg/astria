@@ -26,8 +26,8 @@ spec:
           image: "ghcr.io/astriaorg/sequencer:pr-137"
           command: ["sh", "-c", "'true'"]
         - name: prepull-cometbft
-          image: "ghcr.io/astriaorg/cometbft:0.0.1"
-          zcommand: ["sh", "-c", "'true'"]
+          image: "ghcr.io/noot99/cometbft:latest"
+          command: ["sh", "-c", "'true'"]
         - name: prepull-dasel
           image: ghcr.io/tomwright/dasel:alpine
           command: ["sh", "-c", "'true'"]

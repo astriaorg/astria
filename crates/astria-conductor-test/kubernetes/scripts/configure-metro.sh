@@ -1,5 +1,7 @@
 #!/bin/sh
 
+# TODO do we need to do this for cometbft?? probably
+
 set -o errexit -o nounset -o pipefail
 
 # change ports that we know metro will not receive messages on

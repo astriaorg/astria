@@ -34,7 +34,7 @@ jobs:
       - name: Copy binaries to tmp
         run: |
           mkdir -p /tmp/astria
-          cp target/release/{astria-conductor,astria-sequencer-relayer} /tmp/astria/
+          cp target/release/{astria-conductor,astria-sequencer-relayer,astria-sequencer} /tmp/astria/
       # FIXME: the gossipnet and rs-cnc tests are currently broken in CI:
       #        https://github.com/astriaorg/astria/issues/25
       - name: Build tests
