@@ -39,7 +39,5 @@ async fn should_get_new_block() {
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 
-    // TODO: re-add this once the kubernetes test environment uses sequencer+cometbft
-    // assert!(!blocks.is_empty());
-    _ = blocks;
+    assert!(!blocks.is_empty());
 }
