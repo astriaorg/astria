@@ -59,6 +59,10 @@ jobs:
       - run: just perform-prepull
       - run: just wait-for-ingress-controller
       - run: just wait-for-prepull
+      - run: just start-celestia-jsonrpc-test-deployment
+      - run: just wait-for-celestia-jsonrpc-test-deployment
+      - name: wait 5 seconds for ingress to pick up rules, services
+        run: sleep 5
       - name: Run heavy tests
         run: |
           cargo test --release \
