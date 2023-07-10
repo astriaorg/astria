@@ -82,9 +82,12 @@ impl Client {
     /// # Errors
     ///
     /// - If calling the tendermint RPC endpoint fails.
-    pub async fn get_validator_set(&self, height: Height) -> eyre::Result<validators::Response> {
+    pub async fn get_validator_set<T: Into<Height>>(
+        &self,
+        height: T,
+    ) -> eyre::Result<validators::Response> {
         self.client
-            .validators(height, tendermint_rpc::Paging::Default)
+            .validators(height.into(), tendermint_rpc::Paging::Default)
             .await
             .wrap_err("failed to get validator set")
     }

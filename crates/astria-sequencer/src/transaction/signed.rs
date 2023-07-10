@@ -32,7 +32,7 @@ use crate::{
 pub struct Signed {
     pub(crate) signature: Signature,
     pub(crate) public_key: VerificationKey,
-    pub transaction: Unsigned,
+    pub(crate) transaction: Unsigned,
 }
 
 impl Signed {
@@ -48,6 +48,11 @@ impl Signed {
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
         self.to_proto().encode_length_delimited_to_vec()
+    }
+
+    #[must_use]
+    pub fn transaction(&self) -> &Unsigned {
+        &self.transaction
     }
 
     /// Verifies the transaction signature.

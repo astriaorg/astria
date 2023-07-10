@@ -157,8 +157,11 @@ impl ParsedSequencerBlockData {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
-        serde_json::from_slice(bytes)
-            .wrap_err("failed deserializing signed namespace data from bytes")
+        let data: Self = serde_json::from_slice(bytes)
+            .wrap_err("failed deserializing signed namespace data from bytes")?;
+        data.verify_block_hash()
+            .wrap_err("failed to verify block hash")?;
+        Ok(data)
     }
 
     /// Converts a Tendermint block into a `ParsedSequencerBlockData`.
@@ -174,12 +177,13 @@ impl ParsedSequencerBlockData {
 
         for (index, tx) in b.data.iter().enumerate() {
             debug!(
-                "parsing tx: {:?}",
-                general_purpose::STANDARD.encode(tx.as_slice())
+                index,
+                bytes = general_purpose::STANDARD.encode(tx.as_slice()),
+                "parsing data from tendermint block",
             );
 
             let tx = parse_sequencer_tx(tx).wrap_err("failed to parse sequencer tx")?;
-            for action in tx.transaction.actions {
+            tx.transaction().actions.iter().for_each(|action| {
                 if let Action::SequenceAction(action) = action {
                     let namespace = get_namespace(&action.chain_id);
                     let txs = rollup_txs.entry(namespace).or_insert(vec![]);
@@ -188,15 +192,19 @@ impl ParsedSequencerBlockData {
                         transaction: action.data.clone(),
                     });
                 }
-            }
+            });
         }
 
-        Ok(Self {
+        let data = Self {
             block_hash: Base64String(b.header.hash().as_bytes().to_vec()),
             header: b.header,
             last_commit: b.last_commit,
             rollup_txs,
-        })
+        };
+
+        data.verify_block_hash()
+            .wrap_err("failed to verify block hash")?;
+        Ok(data)
     }
 
     /// verify_data_hash verifies that the merkle root of the tree consisting of all the

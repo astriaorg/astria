@@ -65,7 +65,7 @@ pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinH
 }
 
 // Given `Time`, convert to protobuf timestamp
-fn convert_str_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> {
+fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> {
     use tendermint_proto::google::protobuf::Timestamp as TendermintTimestamp;
     let TendermintTimestamp {
         seconds,
@@ -190,7 +190,10 @@ impl<C: ExecutionClient> Executor<C> {
     /// if the block has already been executed, it returns the previously-computed
     /// execution block hash.
     /// if there are no relevant transactions in the SequencerBlock, it returns None.
-    async fn execute_block(&mut self, block: ParsedSequencerBlockData) -> Result<Option<Vec<u8>>> {
+    async fn execute_block(
+        &mut self,
+        mut block: ParsedSequencerBlockData,
+    ) -> Result<Option<Vec<u8>>> {
         if let Some(execution_hash) = self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
             debug!(
                 height = block.header.height.value(),
@@ -201,7 +204,7 @@ impl<C: ExecutionClient> Executor<C> {
         }
 
         // get transactions for our namespace
-        let Some(txs) = block.rollup_txs.get(&self.namespace) else {
+        let Some(txs) = block.rollup_txs.remove(&self.namespace) else {
             info!(
                 height = block.header.height.value(),
                 "sequencer block did not contains txs for namespace"
@@ -217,12 +220,9 @@ impl<C: ExecutionClient> Executor<C> {
             "executing block with given parent block",
         );
 
-        let txs = txs
-            .iter()
-            .map(|tx| tx.transaction.clone())
-            .collect::<Vec<_>>();
+        let txs = txs.into_iter().map(|tx| tx.transaction).collect::<Vec<_>>();
 
-        let timestamp = convert_str_to_prost_timestamp(block.header.time)
+        let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
         let response = self

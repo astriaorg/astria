@@ -87,11 +87,7 @@ impl Default for Config {
             gas_limit: crate::data_availability::DEFAULT_PFD_GAS_LIMIT,
             disable_writing: false,
             block_time: DEFAULT_BLOCK_TIME,
-            validator_key_file: Path::new(&home::home_dir().unwrap())
-                .join(DEFAULT_VALIDATOR_KEY_FILE)
-                .to_str()
-                .unwrap_or(DEFAULT_VALIDATOR_KEY_FILE)
-                .to_string(),
+            validator_key_file: DEFAULT_VALIDATOR_KEY_FILE.into(),
             rpc_port: DEFAULT_RPC_LISTEN_PORT,
             p2p_port: DEFAULT_GOSSIP_PORT,
             log: DEFAULT_LOG_DIRECTIVE.into(),

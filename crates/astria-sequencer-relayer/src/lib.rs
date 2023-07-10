@@ -5,8 +5,6 @@ pub mod data_availability;
 pub mod network;
 pub mod relayer;
 pub mod sequencer_relayer;
-#[cfg(test)]
-pub mod tests;
 pub mod transaction;
 pub mod types;
 pub mod utils;

@@ -70,10 +70,12 @@ impl BlockVerifier {
             .wrap_err("failed to verify signature of signed namepsace data")?;
 
         // get validator set for this height
-        let height = data.data.header.height.value() as u32;
+        let height: u32 = data.data.header.height.value().try_into().expect(
+            "a tendermint height (currently non-negative i32) should always fit into a u32",
+        );
         let validator_set = self
             .sequencer_client
-            .get_validator_set((height - 1).into())
+            .get_validator_set(height)
             .await
             .wrap_err("failed to get validator set")?;
 
@@ -111,12 +113,14 @@ impl BlockVerifier {
         block: &ParsedSequencerBlockData,
     ) -> eyre::Result<()> {
         // sequencer block's height
-        let height = block.header.height.value() as u32;
+        let height: u32 = block.header.height.value().try_into().expect(
+            "a tendermint height (currently non-negative i32) should always fit into a u32",
+        );
 
         // get validator set for this height
         let validator_set = self
             .sequencer_client
-            .get_validator_set((height - 1).into())
+            .get_validator_set(height)
             .await
             .wrap_err("failed to get validator set")?;
 
