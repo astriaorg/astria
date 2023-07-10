@@ -19,9 +19,15 @@ spec:
         - name: prepull-celestia-node
           image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
           command: ["sh", "-c", "'true'"]
-        - name: prepull-metro
-          image: "ghcr.io/astriaorg/metro:0.0.3"
+        # - name: prepull-metro
+        #   image: "ghcr.io/astriaorg/metro:0.0.3"
+        #   command: ["sh", "-c", "'true'"]
+        - name: prepull-sequencer
+          image: "ghcr.io/astriaorg/sequencer:pr-137"
           command: ["sh", "-c", "'true'"]
+        - name: prepull-cometbft
+          image: "ghcr.io/astriaorg/cometbft:0.0.1"
+          zcommand: ["sh", "-c", "'true'"]
         - name: prepull-dasel
           image: ghcr.io/tomwright/dasel:alpine
           command: ["sh", "-c", "'true'"]
@@ -29,7 +35,7 @@ spec:
           image: ghcr.io/astriaorg/go-ethereum:0.0.3
           command: ["sh", "-c", "'true'"]
         - name: prepull-sequencer-relayer
-          image: "ghcr.io/astriaorg/sequencer-relayer:sha-574f422-debug"
+          image: "ghcr.io/astriaorg/sequencer-relayer:pr-137"
           command: ["sh", "-c", "'true'"]
       containers:
         - name: pause

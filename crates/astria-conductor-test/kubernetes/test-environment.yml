@@ -127,89 +127,8 @@ metadata:
 ---
 apiVersion: v1
 data:
-  chainid: private
-  coins: 1000000000000000utick
-  evm_address: 0x966e6f22781EF6a6A82BBB4DB3df8E225DfD9488
-  home_dir: /home/metro
-  keyring_backend: test
-  validator_key_name: validator
-  validator_stake: 5000000000utick
-kind: ConfigMap
-metadata:
-  name: metro-env
----
-apiVersion: v1
-data:
-  configure-metro.sh: |
-    #!/bin/sh
-
-    set -o errexit -o nounset -o pipefail
-
-    # change ports that we know metro will not receive messages on
-    # so they won't interfere with celestia-app ports:
-    #
-    # ~/.metro # netstat -lntp
-    # Active Internet connections (only servers)
-    # Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name
-    #                     config.toml:.rpc.pprof_laddr
-    # tcp        0      0 127.0.0.1:6060          0.0.0.0:*               LISTEN      110/metro
-    #                     config.toml:.rpc.laddr
-    # tcp        0      0 :::26657                :::*                    LISTEN      110/metro
-    #                     p2p.laddr
-    # tcp        0      0 :::26656                :::*                    LISTEN      110/metro
-    #                     app.toml:.api.address
-    # tcp        0      0 :::1317                 :::*                    LISTEN      110/metro
-    #                     app.toml:.grpc.address
-    # tcp        0      0 :::9091                 :::*                    LISTEN      110/metro
-    #                     app.toml:.grpc-web.address
-    # tcp        0      0 :::9090                 :::*                    LISTEN      110/metro
-    dasel put -r toml '.rpc.pprof_laddr' -t string -v "127.0.0.1:60000" -f "$home_dir/config/config.toml"
-    dasel put -r toml '.rpc.laddr' -t string -v "tcp://0.0.0.0:60001" -f "$home_dir/config/config.toml"
-    dasel put -r toml '.p2p.laddr' -t string -v "tcp://0.0.0.0:60002" -f "$home_dir/config/config.toml"
-    dasel put -r toml '.api.address' -t string -v "tcp://0.0.0.0:1318" -f "$home_dir/config/app.toml"
-    dasel put -r toml '.grpc.address' -t string -v "0.0.0.0:9100" -f "$home_dir/config/app.toml"
-    dasel put -r toml '.grpc-web.address' -t string -v "0.0.0.0:9101" -f "$home_dir/config/app.toml"
-  init-metro.sh: |
-    #!/bin/sh
-
-    set -o errexit -o nounset
-
-    metro init "$chainid" \
-      --chain-id "$chainid" \
-      --home "$home_dir"
-
-    metro keys add "$validator_key_name" \
-      --keyring-backend="$keyring_backend" \
-      --home "$home_dir"
-
-    validator_key=$(metro keys show "$validator_key_name" -a --keyring-backend="$keyring_backend" --home "$home_dir")
-    metro add-genesis-account "$validator_key" "$coins" \
-      --home "$home_dir"
-
-    metro gentx "$validator_key_name" "$validator_stake" \
-      --keyring-backend="$keyring_backend" \
-      --chain-id "$chainid" \
-      --orchestrator-address "$validator_key" \
-      --evm-address "$evm_address" \
-      --home "$home_dir"
-
-    metro collect-gentxs \
-      --home "$home_dir"
-  start-metro.sh: |
-    #!/bin/sh
-
-    set -o errexit -o nounset
-
-    # Start the celestia-app
-    exec metro start --home "${home_dir}"
-kind: ConfigMap
-metadata:
-  name: metro-scripts-58b899ftcg
----
-apiVersion: v1
-data:
   astria_sequencer_relayer_celestia_endpoint: http://localhost:26659
-  astria_sequencer_relayer_sequencer_endpoint: http://localhost:1318
+  astria_sequencer_relayer_sequencer_endpoint: http://localhost:26657
   astria_sequencer_relayer_validator_key_file: /root/.metro/config/priv_validator_key.json
 kind: ConfigMap
 metadata:
@@ -277,21 +196,32 @@ spec:
         - mountPath: /home/celestia
           name: celestia-home-vol
       - command:
-        - /scripts/start-metro.sh
+        - /usr/local/bin/astria-sequencer
         envFrom:
         - configMapRef:
-            name: metro-env
-        image: ghcr.io/astriaorg/metro:0.0.3
-        name: metro-sequencer
+            name: sequencer-env
+        image: ghcr.io/astriaorg/sequencer:pr-137
+        name: astria-sequencer
         ports:
-        - containerPort: 1318
+        - containerPort: 26658
           name: sequencer-svc
         - containerPort: 9100
         volumeMounts:
-        - mountPath: /scripts/
-          name: metro-scripts-volume
-        - mountPath: /home/metro
-          name: metro-home-vol
+        - mountPath: /home/sequencer
+          name: sequencer-home-vol
+      - command:
+        - /usr/local/bin/cometbft start
+        envFrom:
+        - configMapRef:
+            name: cometbft-env
+        image: ghcr.io/astriaorg/cometbft:0.0.1
+        name: cometbft
+        ports:
+        - containerPort: 26657
+          name: cometbft-svc
+        volumeMounts:
+        - mountPath: /home/cometbft
+          name: cometbft-home-vol
       - command:
         - /usr/local/bin/astria-sequencer-relayer
         envFrom:
@@ -305,8 +235,8 @@ spec:
           readOnly: true
         - mountPath: /home/relayer
           name: relayer-home-vol
-        - mountPath: /root/.metro
-          name: metro-home-vol
+        - mountPath: /root/.cometbft
+          name: cometbft-home-vol
           readOnly: true
       - command:
         - /scripts/start-geth.sh
@@ -324,8 +254,6 @@ spec:
           readOnly: true
         - mountPath: /home/geth
           name: executor-home-vol
-        - mountPath: /root/.metro
-          name: metro-home-vol
           readOnly: true
       initContainers:
       - command:
@@ -353,17 +281,15 @@ spec:
         - mountPath: /home/celestia
           name: celestia-home-vol
       - command:
-        - /scripts/init-metro.sh
+        - /usr/local/bin/cometbft init
         envFrom:
         - configMapRef:
-            name: metro-env
-        image: ghcr.io/astriaorg/metro:0.0.3
-        name: init-metro
+            name: cometbft-env
+        image: ghcr.io/astriaorg/cometbft:0.0.1
+        name: init-cometbft
         volumeMounts:
-        - mountPath: /scripts/
-          name: metro-scripts-volume
-        - mountPath: /home/metro
-          name: metro-home-vol
+        - mountPath: /home/cometbft
+          name: cometbft-home-vol
       - command:
         - /scripts/configure-geth.sh
         envFrom:
@@ -388,18 +314,6 @@ spec:
           name: executor-scripts-volume
         - mountPath: /home/geth
           name: executor-home-vol
-      - command:
-        - /scripts/configure-metro.sh
-        envFrom:
-        - configMapRef:
-            name: metro-env
-        image: ghcr.io/tomwright/dasel:alpine
-        name: configure-metro
-        volumeMounts:
-        - mountPath: /scripts/
-          name: metro-scripts-volume
-        - mountPath: /home/metro
-          name: metro-home-vol
       volumes:
       - hostPath:
           path: /tmp/astria/astria-sequencer-relayer
@@ -411,10 +325,6 @@ spec:
         name: bridge-scripts-volume
       - configMap:
           defaultMode: 320
-          name: metro-scripts-58b899ftcg
-        name: metro-scripts-volume
-      - configMap:
-          defaultMode: 320
           name: celestia-appd-scripts-ffk5t7kfc2
         name: celestia-appd-scripts-volume
       - configMap:
@@ -424,7 +334,9 @@ spec:
       - emptyDir: {}
         name: celestia-home-vol
       - emptyDir: {}
-        name: metro-home-vol
+        name: cometbft-home-vol
+      - emptyDir: {}
+        name: sequencer-home-vol
       - emptyDir: {}
         name: executor-home-vol
       - emptyDir: {}

@@ -41,17 +41,15 @@ spec:
             - configMapRef:
                 name: celestia-env
         - command:
-          - /scripts/init-metro.sh
-          name: init-metro
-          image: "ghcr.io/astriaorg/metro:0.0.3"
+          - /usr/local/bin/cometbft init
+          name: init-cometbft
+          image: "ghcr.io/astriaorg/cometbft:0.0.1"
           volumeMounts:
-            - mountPath: /scripts/
-              name: metro-scripts-volume
-            - mountPath: /home/metro
-              name: metro-home-vol
+            - mountPath: /home/cometbft
+              name: cometbft-home-vol
           envFrom:
             - configMapRef:
-                name: metro-env
+                name: cometbft-env
         - command:
           - /scripts/configure-geth.sh
           name: configure-geth
@@ -76,18 +74,18 @@ spec:
           envFrom:
             - configMapRef:
                 name: geth-env
-        - command:
-          - /scripts/configure-metro.sh
-          name: configure-metro
-          image: ghcr.io/tomwright/dasel:alpine
-          envFrom:
-            - configMapRef:
-                name: metro-env
-          volumeMounts:
-            - mountPath: /scripts/
-              name: metro-scripts-volume
-            - mountPath: /home/metro
-              name: metro-home-vol
+        # - command:
+        #   - /scripts/configure-metro.sh
+        #   name: configure-metro
+        #   image: ghcr.io/tomwright/dasel:alpine
+        #   envFrom:
+        #     - configMapRef:
+        #         name: metro-env
+        #   volumeMounts:
+        #     - mountPath: /scripts/
+        #       name: metro-scripts-volume
+        #     - mountPath: /home/metro
+        #       name: metro-home-vol
       containers:
         - name: celestia-app
           command: ["/scripts/start-celestia-appd.sh"]
@@ -117,21 +115,47 @@ spec:
           ports:
             - containerPort: 26659
               name: bridge-svc
-        - name: metro-sequencer
-          command: ["/scripts/start-metro.sh"]
-          image: "ghcr.io/astriaorg/metro:0.0.3"
+        # - name: metro-sequencer
+        #   command: ["/scripts/start-metro.sh"]
+        #   image: "ghcr.io/astriaorg/metro:0.0.3"
+        #   ports:
+        #     - containerPort: 1318
+        #       name: sequencer-svc
+        #     - containerPort: 9100
+        #   volumeMounts:
+        #     - mountPath: /scripts/
+        #       name: metro-scripts-volume
+        #     - mountPath: /home/metro
+        #       name: metro-home-vol
+        #   envFrom:
+        #     - configMapRef:
+        #         name: metro-env
+        - name: astria-sequencer
+          # TODO: genesis state?
+          command: ["/usr/local/bin/astria-sequencer"]
+          image: "ghcr.io/astriaorg/sequencer:pr-137"
           ports:
-            - containerPort: 1318
+            - containerPort: 26658
               name: sequencer-svc
             - containerPort: 9100
           volumeMounts:
-            - mountPath: /scripts/
-              name: metro-scripts-volume
-            - mountPath: /home/metro
-              name: metro-home-vol
+            - mountPath: /home/sequencer
+              name: sequencer-home-vol
           envFrom:
             - configMapRef:
-                name: metro-env
+                name: sequencer-env
+        - name: cometbft
+          command: ["/usr/local/bin/cometbft start"]
+          image: "ghcr.io/astriaorg/cometbft:0.0.1"
+          ports:
+            - containerPort: 26657
+              name: cometbft-svc
+          volumeMounts:
+            - mountPath: /home/cometbft
+              name: cometbft-home-vol
+          envFrom:
+            - configMapRef:
+                name: cometbft-env
         - name: astria-sequencer-relayer
           image: docker.io/library/debian:bookworm-slim
           command: ["/usr/local/bin/astria-sequencer-relayer"]
@@ -141,8 +165,8 @@ spec:
               readOnly: true
             - mountPath: /home/relayer
               name: relayer-home-vol
-            - mountPath: /root/.metro
-              name: metro-home-vol
+            - mountPath: /root/.cometbft
+              name: cometbft-home-vol
               readOnly: true
           envFrom:
             - configMapRef:
@@ -156,8 +180,8 @@ spec:
               readOnly: true
             - mountPath: /home/geth
               name: executor-home-vol
-            - mountPath: /root/.metro
-              name: metro-home-vol
+            # - mountPath: /root/.metro
+            #   name: metro-home-vol
               readOnly: true
           envFrom:
             - configMapRef:
@@ -174,10 +198,10 @@ spec:
         configMap:
           name: bridge-scripts
           defaultMode: 0500
-      - name: metro-scripts-volume
-        configMap:
-          name: metro-scripts
-          defaultMode: 0500
+      # - name: metro-scripts-volume
+      #   configMap:
+      #     name: metro-scripts
+      #     defaultMode: 0500
       - name: celestia-appd-scripts-volume
         configMap:
           name: celestia-appd-scripts
@@ -189,7 +213,9 @@ spec:
       - emptyDir: {}
         name: celestia-home-vol
       - emptyDir: {}
-        name: metro-home-vol
+        name: cometbft-home-vol
+      - emptyDir: {}
+        name: sequencer-home-vol
       - emptyDir: {}
         name: executor-home-vol
       - emptyDir: {}
