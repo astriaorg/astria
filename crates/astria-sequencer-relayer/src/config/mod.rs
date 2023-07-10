@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use clap::Parser as _;
 use figment::{
     providers::{
