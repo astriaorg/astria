@@ -12,6 +12,7 @@ use astria_sequencer::{
     },
 };
 use astria_sequencer_client::Client as SequencerClient;
+use ethers::types::Transaction;
 use tokio::sync::broadcast::{
     error::{
         RecvError,
@@ -110,22 +111,29 @@ impl Bundler {
     /// - `Error::GetNonceFailed` if getting the nonce from the sequencer fails
     async fn process_event(&mut self, event: Event) -> Result<Action, Error> {
         match event {
-            Event::NewTx(tx) => {
-                // serialize and pack into sequencer tx
-                let data = tx.rlp().to_vec();
-                let chain_id = self.rollup_chain_id.clone().into_bytes();
-                // TODO: SequenceAction::new() needs to be pub
-                let seq_action =
-                    SequencerAction::SequenceAction(SequenceAction::new(chain_id, data));
-
-                // get nonce
-                let nonce = self.get_nonce().await?;
-
-                let tx = Unsigned::new_with_actions(nonce, vec![seq_action]);
-                // send action with sequencer tx
-                Ok(Action::SendSequencerSecondaryTx(tx))
-            }
+            Event::NewTx(tx) => self.handle_new_tx(tx).await,
         }
+    }
+
+    /// Handles a new transaction event by serializing it into a sequencer tx.
+    ///
+    /// # Errors
+    ///
+    /// - `Error::GetNonceFailed` if getting the nonce from the sequencer fails (only when nonce is
+    ///   None)
+    async fn handle_new_tx(&mut self, tx: Transaction) -> Result<Action, Error> {
+        // serialize and pack into sequencer tx
+        let data = tx.rlp().to_vec();
+        let chain_id = self.rollup_chain_id.clone().into_bytes();
+        // TODO: SequenceAction::new() needs to be pub
+        let seq_action = SequencerAction::SequenceAction(SequenceAction::new(chain_id, data));
+
+        // get nonce
+        let nonce = self.get_nonce().await?;
+
+        let tx = Unsigned::new_with_actions(nonce, vec![seq_action]);
+        // send action with sequencer tx
+        Ok(Action::SendSequencerSecondaryTx(tx))
     }
 
     /// Gets the nonce from the sequencer. If the current nonce is nonce, fetches nonce from the
@@ -150,7 +158,7 @@ impl Bundler {
 
     /// Resets the nonce to None. Used from `Searcher::run()` if transaction execution fails
     /// because of nonce mismatch.
-    pub(super) fn reset_nonce(&mut self) {
+    pub(super) fn _reset_nonce(&mut self) {
         self.current_nonce = None;
     }
 }

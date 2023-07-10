@@ -1,13 +1,19 @@
 use std::sync::Arc;
 
-use astria_sequencer::accounts::types::Nonce;
+use astria_sequencer::{
+    accounts::types::Nonce,
+    transaction::Unsigned,
+};
 use astria_sequencer_client::Client as SequencerClient;
 use ed25519_consensus::SigningKey;
 use tokio::sync::broadcast::{
     error::RecvError,
     Receiver,
 };
-use tracing::error;
+use tracing::{
+    error,
+    trace,
+};
 
 use super::Action;
 
@@ -23,9 +29,9 @@ pub enum Error {
     TxSubmissionFailed,
 }
 
+/// Struct for executing sequencer actions
 pub struct SequencerExecutor {
     sequencer_client: Arc<SequencerClient>,
-    // TODO: add sequencer key
     sequencer_key: SigningKey,
 }
 
@@ -39,6 +45,13 @@ impl SequencerExecutor {
         }
     }
 
+    /// Run the executor, listening for new actions from the actions channel and processing them,
+    /// e.g. by submitting sequencer txs.
+    ///
+    /// # Errors
+    ///
+    /// - `Error::ActionRecv` if receiving an action from the channel fails
+    /// - `Error::TxSubmissionFailed` if the sequencer tx submission fails
     pub(super) async fn run(self, mut action_rx: Receiver<Action>) -> Result<(), Error> {
         loop {
             match action_rx.recv().await {
@@ -54,26 +67,42 @@ impl SequencerExecutor {
         }
     }
 
+    /// Process an action.
+    ///
+    /// # Errors
+    ///
+    /// - `Error::TxSubmissionFailed` if the sequencer tx submission fails
     async fn process_action(&self, action: Action) -> Result<(), Error> {
         match action {
             Action::SendSequencerSecondaryTx(tx) => {
-                let signed = tx.into_signed(&self.sequencer_key);
-                let submission_response = self
-                    .sequencer_client
-                    .submit_transaction_sync(signed.clone())
-                    .await
-                    .map_err(|_| {
-                        error!(tx=?signed, "sequencer tx submission failed");
-                        Error::TxSubmissionFailed
-                    })?;
-
-                // TODO: is there more error checking that should be done on this?
-                if submission_response.code != 0.into() {
-                    error!(tx=?signed, "sequencer tx submission failed");
-                    return Err(Error::TxSubmissionFailed);
-                }
-                Ok(())
+                self.handle_send_sequencer_secondary_tx(tx).await
             }
         }
+    }
+
+    /// Handle a `SendSequencerSecondaryTx` action.
+    ///
+    /// # Errors
+    ///
+    /// - `Error::TxSubmissionFailed` if the sequencer tx submission fails
+    async fn handle_send_sequencer_secondary_tx(&self, tx: Unsigned) -> Result<(), Error> {
+        let signed = tx.into_signed(&self.sequencer_key);
+        let submission_response = self
+            .sequencer_client
+            .submit_transaction_sync(signed.clone())
+            .await
+            .map_err(|_| {
+                error!(tx=?signed, "sequencer tx submission failed");
+                Error::TxSubmissionFailed
+            })?;
+
+        // TODO: is there more error checking that should be done on this?
+        if submission_response.code != 0.into() {
+            error!(tx=?signed, "sequencer tx submission failed");
+            return Err(Error::TxSubmissionFailed);
+        } else {
+            trace!(tx=?signed, "sequencer tx submitted")
+        }
+        Ok(())
     }
 }

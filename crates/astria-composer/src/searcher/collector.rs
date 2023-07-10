@@ -5,7 +5,10 @@ use ethers::providers::{
     StreamExt,
     Ws,
 };
-use tokio::sync::broadcast::Sender;
+use tokio::sync::broadcast::{
+    error::SendError,
+    Sender,
+};
 use tracing::{
     error,
     info,
@@ -21,7 +24,7 @@ pub enum Error {
     #[error("provider failed to get transactions subscription")]
     ProviderSubscriptionError(#[source] ProviderError),
     #[error("sending event failed")]
-    EventSend(#[source] tokio::sync::broadcast::error::SendError<Event>),
+    EventSend(#[source] SendError<Event>),
 }
 
 pub struct TxCollector {
@@ -34,8 +37,7 @@ impl TxCollector {
     ///
     /// # Errors
     ///
-    /// Returns a `searcher::Error::ProviderInit` if there is an error initializing a provider to
-    /// the endpoint.
+    /// - `Error::ProviderInit` if there is an error initializing a provider to the endpoint.
     pub(super) async fn new(ws_url: &str) -> Result<Self, Error> {
         let provider = Provider::<Ws>::connect(format!("ws://{}", ws_url))
             .await
@@ -48,10 +50,10 @@ impl TxCollector {
 
     /// Runs the TxCollector service, listening for new transactions from the execution node and
     /// sending them to the event channel.
+    ///
     /// # Errors
     ///
-    /// Returns a `searcher::Error::ProviderGetTx` if there is an error getting transactions from
-    /// the node.
+    /// - `Error::ProviderGetTx` if there is an error getting transactions from the node.
     pub(super) async fn run(self, event_tx: Sender<Event>) -> Result<(), Error> {
         // get stream of pending txs from execution node
         let stream = self

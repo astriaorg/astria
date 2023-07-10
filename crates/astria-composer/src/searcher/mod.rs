@@ -70,8 +70,11 @@ impl Searcher {
     ///
     /// # Errors
     ///
-    /// Returns a `searcher::Error::InvalidConfig` if there is an error constructing `api_url` from
+    /// - `Error::InvalidConfig` if there is an error constructing `api_url` from
     /// the port specified in config.
+    /// - `Error::CollectorError` if there is an error initializing the tx collector.
+    /// - `Error::BundlerError` if there is an error initializing the tx bundler.
+    /// - `Error::SequencerClientInit` if there is an error initializing the sequencer client.
     pub async fn new(cfg: &Config) -> Result<Self, Error> {
         // configure rollup tx collector
         let tx_collector = TxCollector::new(&cfg.execution_ws_url)
@@ -104,16 +107,15 @@ impl Searcher {
         })
     }
 
-    /// Runs the Searcher and blocks until all subtasks have exited.
+    /// Runs the Searcher and blocks until all subtasks have exited:
     /// - api server
-    /// - rollup tx collector
-    /// TODO:
-    /// - rollup tx bundler
-    /// - rollup tx executor
+    /// - tx collector
+    /// - bundler
+    /// - executor
     ///
     /// # Errors
     ///
-    /// Returns a `searcher::Error` if the Searcher fails to start or if any of the subtasks fail
+    /// - `searcher::Error` if the Searcher fails to start or if any of the subtasks fail
     /// and cannot be recovered.
     pub async fn run(self) {
         let Self {
@@ -161,7 +163,7 @@ impl Searcher {
                     Ok(task_result) => {
                         match task_result {
                             Err(executor::Error::InvalidNonce(_nonce)) => {
-                                todo!("handle invalid nonce by resetting bundler's nonce and readding the tx to event queue");
+                                todo!("handle invalid nonce by resetting bundler's nonce (reset_nonce) and readding the tx to event queue");
                             },
                             result => report_exit("executor", result.map_err(Error::ExecutorError)),
                         }
