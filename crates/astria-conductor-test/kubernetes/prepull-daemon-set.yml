@@ -22,9 +22,9 @@ spec:
         # - name: prepull-metro
         #   image: "ghcr.io/astriaorg/metro:0.0.3"
         #   command: ["sh", "-c", "'true'"]
-        - name: prepull-sequencer
-          image: "ghcr.io/astriaorg/sequencer:pr-137"
-          command: ["sh", "-c", "'true'"]
+        # - name: prepull-sequencer
+        #   image: "ghcr.io/astriaorg/sequencer:pr-137"
+        #   command: ["sh", "-c", "'true'"]
         - name: prepull-cometbft
           image: "ghcr.io/noot99/cometbft:latest"
           command: ["sh", "-c", "'true'"]
@@ -34,9 +34,9 @@ spec:
         - name: prepull-go-ethereum
           image: ghcr.io/astriaorg/go-ethereum:0.0.3
           command: ["sh", "-c", "'true'"]
-        - name: prepull-sequencer-relayer
-          image: "ghcr.io/astriaorg/sequencer-relayer:pr-137"
-          command: ["sh", "-c", "'true'"]
+        # - name: prepull-sequencer-relayer
+        #   image: "ghcr.io/astriaorg/sequencer-relayer:pr-137"
+        #   command: ["sh", "-c", "'true'"]
       containers:
         - name: pause
           image: gcr.io/google_containers/pause

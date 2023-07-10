@@ -44,5 +44,5 @@ metadata:
 data:
   astria_sequencer_relayer_sequencer_endpoint: "http://localhost:26657"
   astria_sequencer_relayer_celestia_endpoint: "http://localhost:26659"
-  astria_sequencer_relayer_validator_key_file: "/root/.metro/config/priv_validator_key.json"
+  astria_sequencer_relayer_validator_key_file: "/root/.cometbft/config/priv_validator_key.json"
 ---

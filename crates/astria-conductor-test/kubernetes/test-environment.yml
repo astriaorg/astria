@@ -129,7 +129,7 @@ apiVersion: v1
 data:
   astria_sequencer_relayer_celestia_endpoint: http://localhost:26659
   astria_sequencer_relayer_sequencer_endpoint: http://localhost:26657
-  astria_sequencer_relayer_validator_key_file: /root/.metro/config/priv_validator_key.json
+  astria_sequencer_relayer_validator_key_file: /root/.cometbft/config/priv_validator_key.json
 kind: ConfigMap
 metadata:
   name: sequencer-relayer-env
@@ -141,7 +141,7 @@ metadata:
 spec:
   ports:
   - name: sequencer-svc
-    port: 1318
+    port: 26657
     targetPort: sequencer-svc
   - name: bridge-svc
     port: 26659
@@ -210,11 +210,11 @@ spec:
         - mountPath: /home/sequencer
           name: sequencer-home-vol
       - command:
-        - /usr/local/bin/cometbft start
+        - /home/cometbft/cometbft start
         envFrom:
         - configMapRef:
             name: cometbft-env
-        image: ghcr.io/astriaorg/cometbft:0.0.1
+        image: ghcr.io/noot99/cometbft:latest
         name: cometbft
         ports:
         - containerPort: 26657
@@ -281,11 +281,11 @@ spec:
         - mountPath: /home/celestia
           name: celestia-home-vol
       - command:
-        - /usr/local/bin/cometbft init
+        - /home/cometbft/cometbft init
         envFrom:
         - configMapRef:
             name: cometbft-env
-        image: ghcr.io/astriaorg/cometbft:0.0.1
+        image: ghcr.io/noot99/cometbft:latest
         name: init-cometbft
         volumeMounts:
         - mountPath: /home/cometbft
