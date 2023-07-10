@@ -245,12 +245,11 @@ mod test {
 
     #[test]
     fn sequencer_block_to_bytes() {
+        let header = crate::utils::default_header();
+        let block_hash = header.hash();
         let mut expected = ParsedSequencerBlockData {
-            block_hash: Base64String::from_string(
-                "Ojskac/Fi5G00alQZms+tdtIox53cWWjBmIGEnWG1+M=".to_string(),
-            )
-            .unwrap(),
-            header: crate::utils::default_header(),
+            block_hash: Base64String::from_bytes(block_hash.as_bytes()),
+            header,
             last_commit: None,
             rollup_txs: HashMap::new(),
         };
