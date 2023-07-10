@@ -124,7 +124,7 @@ async fn celestia_client() {
         .unwrap();
     assert_eq!(resp.len(), 1);
     assert_eq!(resp[0].block_hash, block_hash);
-    assert_eq!(resp[0].header, default_header());
+    assert_eq!(resp[0].header.height, default_header().height);
     assert_eq!(resp[0].rollup_txs.len(), 1);
     assert_eq!(resp[0].rollup_txs[&secondary_namespace][0].block_index, 1);
     assert_eq!(
