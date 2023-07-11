@@ -25,7 +25,7 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
       fi; \
       apt install -y librocksdb-dev:amd64; \
     fi; \
-    apt install -y libclang-dev clang protobuf-compiler;
+    apt install -y libclang-dev clang protobuf-compiler ca-certificates;
 
 # install buf cli
 RUN BIN="/usr/local/bin" && \
