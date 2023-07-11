@@ -21,16 +21,16 @@ jobs:
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: conductor
-      dockerfile: crates/astria-conductor/Dockerfile
+      dockerfile: astria-conductor
 
   sequencer:
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: sequencer
-      dockerfile: crates/astria-sequencer/Dockerfile
+      target-binary: astria-sequencer
 
   sequencer-relayer:
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: sequencer-relayer
-      dockerfile: crates/astria-sequencer-relayer/Dockerfile
+      target-binary: astria-sequencer-relayer
