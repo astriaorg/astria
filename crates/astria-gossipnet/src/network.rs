@@ -97,7 +97,7 @@ impl NetworkBuilder {
 
     /// Specify the keypair to use from a file.
     /// The file should contain a hex-encoded 32-byte ed25519 secret key.
-    pub fn keypair_from_file(mut self, path: &str) -> Result<Self> {
+    pub fn keypair_from_file<P: AsRef<std::path::Path>>(mut self, path: P) -> Result<Self> {
         let key_string = std::fs::read_to_string(path).wrap_err("failed to read keypair file")?;
         if key_string.len() < 64 {
             bail!("keypair file is too short");
@@ -113,7 +113,6 @@ impl NetworkBuilder {
     /// The keypair to use for the node.
     /// If not provided, a new keypair will be generated.
     pub fn keypair(mut self, keypair: Keypair) -> Self {
-        // TODO: load/store keypair from disk
         self.keypair = Some(keypair);
         self
     }

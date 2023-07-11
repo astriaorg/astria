@@ -17,6 +17,20 @@ use tokio::{
 const TEST_TOPIC: &str = "test";
 
 #[tokio::test]
+async fn keypair_from_file() {
+    let key_string = "241ccaff3cc8681385b2cf92a82b49ab2e9c6410f7b6191322867c4299de42d8";
+    let path = std::env::temp_dir().join("test.key");
+    std::fs::write(path.clone(), key_string).unwrap();
+
+    NetworkBuilder::new()
+        .keypair_from_file(path)
+        .unwrap()
+        .with_mdns(false)
+        .build()
+        .unwrap();
+}
+
+#[tokio::test]
 async fn test_gossip_two_nodes() {
     let (bootnode_tx, bootnode_rx) = oneshot::channel();
     let (alice_tx, mut alice_rx) = oneshot::channel();
