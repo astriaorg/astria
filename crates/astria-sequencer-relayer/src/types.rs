@@ -201,13 +201,13 @@ impl SequencerBlockData {
             );
 
             let tx = parse_sequencer_tx(tx).wrap_err("failed to parse sequencer tx")?;
-            tx.transaction().actions.iter().for_each(|action| {
+            tx.transaction().actions().iter().for_each(|action| {
                 if let Action::SequenceAction(action) = action {
-                    let namespace = get_namespace(&action.chain_id);
+                    let namespace = get_namespace(action.chain_id());
                     let txs = rollup_txs.entry(namespace).or_insert(vec![]);
                     txs.push(IndexedTransaction {
                         block_index: index,
-                        transaction: action.data.clone(),
+                        transaction: action.data().to_vec(),
                     });
                 }
             });
