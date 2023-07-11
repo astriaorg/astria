@@ -106,12 +106,12 @@ spec:
   - name: cometbft-svc
     port: 26657
     targetPort: cometbft-svc
-  # - name: sequencer-svc
-  #   port: 26658
-  #   targetPort: sequencer-svc
+  - name: sequencer-svc
+    port: 26658
+    targetPort: sequencer-svc
   - name: bridge-rest
     port: 26659
-    targetPort: bridge-restfmt
+    targetPort: bridge-rest
   - name: bridge-jsonrpc
     port: 26658
     targetPort: bridge-jsonrpc
@@ -181,9 +181,6 @@ spec:
         - /usr/local/bin/astria-sequencer
         image: docker.io/library/debian:bookworm-slim
         name: astria-sequencer
-        ports:
-        - containerPort: 26658
-          name: sequencer-svc
         volumeMounts:
         - mountPath: /usr/local/bin/astria-sequencer
           name: astria-sequencer-binary
