@@ -10,6 +10,10 @@ pub struct Config {
     #[serde(default = "default_celestia_node_url")]
     pub celestia_node_url: String,
 
+    /// The JWT bearer token supplied with each jsonrpc call
+    #[serde(default)]
+    pub celestia_bearer_token: String,
+
     /// URL of the Tendermint node (sequencer/metro)
     #[serde(default = "default_tendermint_url")]
     pub tendermint_url: String,
@@ -34,7 +38,7 @@ pub struct Config {
 //   in Cli always override values from a Config file, which we don't want.
 
 fn default_celestia_node_url() -> String {
-    "http://localhost:26659".to_string()
+    "http://localhost:26658".to_string()
 }
 
 fn default_tendermint_url() -> String {

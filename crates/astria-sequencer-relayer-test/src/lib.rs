@@ -67,19 +67,27 @@ static STOP_POD_TX: Lazy<UnboundedSender<String>> = Lazy::new(|| {
 });
 
 pub async fn init_test() -> TestEnvironment {
-    TestEnvironment::init().await
+    if let Some(namespace) = std::env::var_os("NAMESPACE") {
+        let namespace = namespace
+            .into_string()
+            .expect("NAMESPACE env var should contain a valid utf8");
+        TestEnvironment::predefined(namespace).await
+    } else {
+        TestEnvironment::init().await
+    }
 }
 
 pub struct TestEnvironment {
     pub host: String,
     pub namespace: String,
-    pub tx: UnboundedSender<String>,
+    pub bearer_token: String,
+    pub tx: Option<UnboundedSender<String>>,
 }
 
 impl TestEnvironment {
     pub fn bridge_endpoint(&self) -> String {
         format!(
-            "http://{namespace}.localdev.me/bridge",
+            "http://{namespace}.localdev.me:80/jsonrpc/",
             namespace = self.namespace
         )
     }
@@ -89,6 +97,27 @@ impl TestEnvironment {
             "http://{namespace}.localdev.me/sequencer",
             namespace = self.namespace
         )
+    }
+
+    /// Return a predefined test environment by reading the `HOST` and `NAMESPACE` environment
+    /// variables.
+    ///
+    /// This is useful when debugging. Tests should probably be filtered so that multiple tests are
+    /// not run against the same test environment leading to spurious errors.
+    ///
+    /// When a test environment is created this way its namespace will not be destroyed when
+    /// dropped.
+    async fn predefined(namespace: String) -> Self {
+        let host =
+            std::env::var("HOST").unwrap_or_else(|_| format!("http://{namespace}.localdev.me"));
+        let bearer_token =
+            astria_test_utils::extract_bearer_token_from_celestia_node(&namespace).await;
+        TestEnvironment {
+            host,
+            namespace,
+            bearer_token,
+            tx: None,
+        }
     }
 
     async fn init() -> Self {
@@ -154,10 +183,14 @@ impl TestEnvironment {
         );
 
         let host = format!("http://{namespace}.localdev.me");
+
+        let bearer_token =
+            astria_test_utils::extract_bearer_token_from_celestia_node(&namespace).await;
         Self {
             host,
             namespace,
-            tx: Lazy::force(&STOP_POD_TX).clone(),
+            bearer_token,
+            tx: Some(Lazy::force(&STOP_POD_TX).clone()),
         }
     }
 }
@@ -179,12 +212,14 @@ fn is_deployment_available() -> impl Condition<Deployment> {
 
 impl Drop for TestEnvironment {
     fn drop(&mut self) {
-        if let Err(e) = self.tx.send(self.namespace.clone()) {
-            eprintln!(
-                "failed sending kubernetes namespace `{namespace}` to cleanup task while dropping \
-                 TestEnvironment: {e:?}",
-                namespace = self.namespace,
-            )
+        if let Some(tx) = &mut self.tx {
+            if let Err(e) = tx.send(self.namespace.clone()) {
+                eprintln!(
+                    "failed sending kubernetes namespace `{namespace}` to cleanup task while \
+                     dropping TestEnvironment: {e:?}",
+                    namespace = self.namespace,
+                )
+            }
         }
     }
 }
@@ -317,7 +352,7 @@ async fn wait_until_sequencer_is_available(namespace: &str) {
     let client = reqwest::Client::builder()
         .build()
         .expect("building a basic reqwest client should never fail");
-    // TODO
+    // TODO: update this to use the sequencer `block` endpoint
     let url = reqwest::Url::parse(&format!(
         "http://{namespace}.localdev.me/sequencer/cosmos/base/tendermint/v1beta1/blocks/latest"
     ))

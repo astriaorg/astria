@@ -11,17 +11,27 @@ use crate::transaction::action_handler::ActionHandler;
 /// which are bytes to be interpreted by the rollup.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Action {
-    pub chain_id: Vec<u8>,
-    pub data: Vec<u8>,
+    pub(crate) chain_id: Vec<u8>,
+    pub(crate) data: Vec<u8>,
 }
 
 impl Action {
-    #[allow(dead_code)]
-    pub(crate) fn new(chain_id: Vec<u8>, data: Vec<u8>) -> Self {
+    #[must_use]
+    pub fn new(chain_id: Vec<u8>, data: Vec<u8>) -> Self {
         Self {
             chain_id,
             data,
         }
+    }
+
+    #[must_use]
+    pub fn chain_id(&self) -> &[u8] {
+        &self.chain_id
+    }
+
+    #[must_use]
+    pub fn data(&self) -> &[u8] {
+        &self.data
     }
 
     pub(crate) fn to_proto(&self) -> ProtoSequenceAction {

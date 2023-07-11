@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: astria-celestia-jsonrpc-client-test
+  labels:
+    app.kubernetes.io/name: astria-celestia-jsonrpc-client-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: astria-celestia-jsonrpc-client-test
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: astria-celestia-jsonrpc-client-test
+    spec:
+      securityContext:
+        runAsUser: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: "OnRootMismatch"
+      initContainers:
+        - name: init-celestia-app
+          command: 
+          - /scripts/init-celestia-appd.sh
+          image: "ghcr.io/celestiaorg/celestia-app:v1.0.0-rc7"
+          volumeMounts:
+            - mountPath: /scripts
+              name: celestia-appd-scripts-volume
+              readOnly: true
+            - mountPath: /home/celestia
+              name: celestia-home
+          envFrom:
+            - configMapRef:
+                name: celestia-config
+        - command:
+          - /scripts/init-bridge.sh
+          name: init-bridge
+          image: "ghcr.io/astriaorg/test-images-celestia-node:v0.11.0-rc7"
+          volumeMounts:
+            - mountPath: /scripts/
+              name: bridge-scripts-volume
+              readOnly: true
+            - mountPath: /home/celestia
+              name: celestia-home
+          envFrom:
+            - configMapRef:
+                name: celestia-config
+      containers:
+        - name: celestia-app
+          command: ["/scripts/start-celestia-appd.sh"]
+          image: "ghcr.io/celestiaorg/celestia-app:v1.0.0-rc7"
+          envFrom:
+            - configMapRef:
+                name: celestia-config
+          volumeMounts:
+          - mountPath: /scripts/
+            name: celestia-appd-scripts-volume
+            readOnly: true
+          - mountPath: /home/celestia
+            name: celestia-home
+        - name: celestia-bridge
+          command:
+          - /scripts/start-bridge.sh
+          image: "ghcr.io/astriaorg/test-images-celestia-node:v0.11.0-rc7"
+          volumeMounts:
+            - mountPath: /scripts/
+              name: bridge-scripts-volume
+              readOnly: true
+            - mountPath: /home/celestia
+              name: celestia-home
+          envFrom:
+            - configMapRef:
+                name: celestia-config
+          ports:
+            - containerPort: 26659
+              name: bridge-rest
+            - containerPort: 26658
+              name: bridge-jsonrpc
+          startupProbe:
+            httpGet:
+              path: /header/1
+              port: bridge-rest
+            failureThreshold: 30
+            periodSeconds: 10
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/scripts/generate-token.sh"]
+      volumes:
+      - name: bridge-scripts-volume
+        configMap:
+          name: bridge-scripts
+          defaultMode: 0550
+      - name: celestia-appd-scripts-volume
+        configMap:
+          name: celestia-appd-scripts
+          defaultMode: 0550
+      - emptyDir: {}
+        name: celestia-home

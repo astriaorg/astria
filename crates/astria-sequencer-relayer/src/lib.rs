@@ -10,4 +10,6 @@ pub mod types;
 pub mod utils;
 pub mod validator;
 
+pub(crate) mod serde;
+
 pub use sequencer_relayer::SequencerRelayer;

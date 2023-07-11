@@ -1,8 +1,10 @@
 use std::{
     collections::HashMap,
     fmt,
+    ops::Deref,
 };
 
+use astria_celestia_jsonrpc_client::blob::NAMESPACE_ID_AVAILABLE_LEN;
 use astria_sequencer_client::{
     Action,
     SignedTransaction,
@@ -46,17 +48,28 @@ use crate::base64_string::Base64String;
 /// The default namespace blocks are written to.
 /// A block in this namespace contains "pointers" to the rollup txs contained
 /// in that block; ie. a list of tuples of (DA block height, namespace).
-pub static DEFAULT_NAMESPACE: Namespace = Namespace(*b"astriasq");
+pub static DEFAULT_NAMESPACE: Namespace = Namespace(*b"astriasequ");
 
 /// Namespace represents a Celestia namespace.
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct Namespace([u8; 8]);
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub struct Namespace([u8; NAMESPACE_ID_AVAILABLE_LEN]);
+
+impl Deref for Namespace {
+    type Target = [u8; NAMESPACE_ID_AVAILABLE_LEN];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl Namespace {
     pub fn from_string(s: &str) -> eyre::Result<Self> {
         let bytes = hex::decode(s).wrap_err("failed reading string as hex encoded bytes")?;
-        ensure!(bytes.len() == 8, "string must encode exactly 8 bytes",);
-        let mut namespace = [0u8; 8];
+        ensure!(
+            bytes.len() == NAMESPACE_ID_AVAILABLE_LEN,
+            "string encoded wrong number of bytes",
+        );
+        let mut namespace = [0u8; NAMESPACE_ID_AVAILABLE_LEN];
         namespace.copy_from_slice(&bytes);
         Ok(Namespace(namespace))
     }
@@ -117,12 +130,17 @@ impl<'de> Visitor<'de> for NamespaceVisitor {
     }
 }
 
-/// get_namespace returns an 8-byte namespace given a byte slice.
+/// get_namespace returns an 10-byte namespace given a byte slice.
 pub fn get_namespace(bytes: &[u8]) -> Namespace {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     let result = hasher.finalize();
-    Namespace(result[0..8].to_owned().try_into().unwrap())
+    Namespace(
+        result[0..NAMESPACE_ID_AVAILABLE_LEN]
+            .to_owned()
+            .try_into()
+            .unwrap(),
+    )
 }
 
 /// IndexedTransaction represents a sequencer transaction along with the index
@@ -135,13 +153,13 @@ pub struct IndexedTransaction {
     pub transaction: Vec<u8>,
 }
 
-/// ParsedSequencerBlockData represents a sequencer block's data
+/// SequencerBlockData represents a sequencer block's data
 /// to be submitted to the DA layer.
 ///
 /// TODO: compression or a better serialization method?
 /// TODO: merkle proofs for each rollup's transactions
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
-pub struct ParsedSequencerBlockData {
+pub struct SequencerBlockData {
     pub block_hash: Base64String,
     pub header: Header,
     /// This field should be set for every block with height > 1.
@@ -150,7 +168,7 @@ pub struct ParsedSequencerBlockData {
     pub rollup_txs: HashMap<Namespace, Vec<IndexedTransaction>>,
 }
 
-impl ParsedSequencerBlockData {
+impl SequencerBlockData {
     pub fn to_bytes(&self) -> eyre::Result<Vec<u8>> {
         // TODO: don't use json, use our own serializer (or protobuf for now?)
         serde_json::to_vec(self).wrap_err("failed serializing signed namespace data to json")
@@ -164,7 +182,7 @@ impl ParsedSequencerBlockData {
         Ok(data)
     }
 
-    /// Converts a Tendermint block into a `ParsedSequencerBlockData`.
+    /// Converts a Tendermint block into a `SequencerBlockData`.
     /// it parses the block for `SequenceAction`s and namespaces them accordingly.
     pub fn from_tendermint_block(b: Block) -> eyre::Result<Self> {
         if b.header.data_hash.is_none() {
@@ -183,13 +201,13 @@ impl ParsedSequencerBlockData {
             );
 
             let tx = parse_sequencer_tx(tx).wrap_err("failed to parse sequencer tx")?;
-            tx.transaction().actions.iter().for_each(|action| {
+            tx.transaction().actions().iter().for_each(|action| {
                 if let Action::SequenceAction(action) = action {
-                    let namespace = get_namespace(&action.chain_id);
+                    let namespace = get_namespace(action.chain_id());
                     let txs = rollup_txs.entry(namespace).or_insert(vec![]);
                     txs.push(IndexedTransaction {
                         block_index: index,
-                        transaction: action.data.clone(),
+                        transaction: action.data().to_vec(),
                     });
                 }
             });
@@ -238,7 +256,7 @@ mod test {
 
     use super::{
         IndexedTransaction,
-        ParsedSequencerBlockData,
+        SequencerBlockData,
         DEFAULT_NAMESPACE,
     };
     use crate::base64_string::Base64String;
@@ -247,14 +265,14 @@ mod test {
     fn sequencer_block_to_bytes() {
         let header = crate::utils::default_header();
         let block_hash = header.hash();
-        let mut expected = ParsedSequencerBlockData {
+        let mut expected = SequencerBlockData {
             block_hash: Base64String::from_bytes(block_hash.as_bytes()),
             header,
             last_commit: None,
             rollup_txs: HashMap::new(),
         };
         expected.rollup_txs.insert(
-            DEFAULT_NAMESPACE.clone(),
+            DEFAULT_NAMESPACE,
             vec![IndexedTransaction {
                 block_index: 0,
                 transaction: vec![0x44, 0x55, 0x66],
@@ -262,7 +280,7 @@ mod test {
         );
 
         let bytes = expected.to_bytes().unwrap();
-        let actual = ParsedSequencerBlockData::from_bytes(&bytes).unwrap();
+        let actual = SequencerBlockData::from_bytes(&bytes).unwrap();
         assert_eq!(expected, actual);
     }
 }

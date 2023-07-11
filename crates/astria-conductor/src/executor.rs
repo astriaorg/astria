@@ -5,7 +5,7 @@ use astria_sequencer_relayer::{
     types::{
         get_namespace,
         Namespace,
-        ParsedSequencerBlockData,
+        SequencerBlockData,
     },
 };
 use color_eyre::eyre::{
@@ -81,11 +81,11 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> 
 pub enum ExecutorCommand {
     /// used when a block is received from the gossip network
     BlockReceivedFromGossipNetwork {
-        block: Box<ParsedSequencerBlockData>,
+        block: Box<SequencerBlockData>,
     },
     /// used when a block is received from the reader (Celestia)
     BlockReceivedFromDataAvailability {
-        block: Box<ParsedSequencerBlockData>,
+        block: Box<SequencerBlockData>,
     },
     Shutdown,
 }
@@ -190,10 +190,7 @@ impl<C: ExecutionClient> Executor<C> {
     /// if the block has already been executed, it returns the previously-computed
     /// execution block hash.
     /// if there are no relevant transactions in the SequencerBlock, it returns None.
-    async fn execute_block(
-        &mut self,
-        mut block: ParsedSequencerBlockData,
-    ) -> Result<Option<Vec<u8>>> {
+    async fn execute_block(&mut self, mut block: SequencerBlockData) -> Result<Option<Vec<u8>>> {
         if let Some(execution_hash) = self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
             debug!(
                 height = block.header.height.value(),
@@ -246,7 +243,7 @@ impl<C: ExecutionClient> Executor<C> {
 
     async fn handle_block_received_from_data_availability(
         &mut self,
-        block: ParsedSequencerBlockData,
+        block: SequencerBlockData,
     ) -> Result<()> {
         let sequencer_block_hash = block.block_hash.clone();
         let maybe_execution_block_hash = self
@@ -382,8 +379,8 @@ mod test {
         hasher.finalize().to_vec()
     }
 
-    fn get_test_block() -> ParsedSequencerBlockData {
-        ParsedSequencerBlockData {
+    fn get_test_block() -> SequencerBlockData {
+        SequencerBlockData {
             block_hash: Base64String(hash(b"block1")),
             header: astria_sequencer_relayer::utils::default_header(),
             last_commit: None,
@@ -395,10 +392,9 @@ mod test {
     async fn execute_block_with_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = get_namespace(b"test");
-        let (mut executor, _) =
-            Executor::new(MockExecutionClient::new(), namespace.clone(), alert_tx)
-                .await
-                .unwrap();
+        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
+            .await
+            .unwrap();
 
         let expected_exection_hash = hash(&executor.execution_state);
         let mut block = get_test_block();
@@ -422,10 +418,9 @@ mod test {
     async fn execute_block_without_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = get_namespace(b"test");
-        let (mut executor, _) =
-            Executor::new(MockExecutionClient::new(), namespace.clone(), alert_tx)
-                .await
-                .unwrap();
+        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
+            .await
+            .unwrap();
 
         let block = get_test_block();
         let execution_block_hash = executor.execute_block(block).await.unwrap();
@@ -440,11 +435,11 @@ mod test {
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace.clone(), alert_tx)
+        let (mut executor, _) = Executor::new(execution_client, namespace, alert_tx)
             .await
             .unwrap();
 
-        let mut block: ParsedSequencerBlockData = get_test_block();
+        let mut block: SequencerBlockData = get_test_block();
         block.rollup_txs.insert(
             namespace,
             vec![IndexedTransaction {
@@ -482,11 +477,11 @@ mod test {
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace.clone(), alert_tx)
+        let (mut executor, _) = Executor::new(execution_client, namespace, alert_tx)
             .await
             .unwrap();
 
-        let block: ParsedSequencerBlockData = get_test_block();
+        let block: SequencerBlockData = get_test_block();
         let previous_execution_state = executor.execution_state.clone();
 
         executor

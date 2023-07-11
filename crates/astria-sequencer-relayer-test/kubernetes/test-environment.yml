@@ -1,45 +1,52 @@
 apiVersion: v1
 data:
+  generate-token.sh: |
+    #!/bin/sh -x
+    celestia bridge auth admin \
+      --node.store "$home_dir/bridge" \
+      --keyring.accname validator > "$home_dir"/.admin_token
   init-bridge.sh: |
-    #!/bin/sh
+    #!/bin/sh -x
 
     set -o errexit -o nounset
 
-    ./celestia bridge init \
+    celestia bridge init \
       --node.store "$home_dir/bridge" \
       --core.ip 127.0.0.1
     cp -r "$home_dir/keyring-test" "$home_dir/bridge/keys/"
   start-bridge.sh: |
-    #!/bin/bash
+    #!/bin/sh -x
 
     set -o errexit -o nounset -o pipefail
 
-    genesis_hash=$(curl -s -S -X GET "http://127.0.0.1:26657/block?height=1" | jq -r '.result.block_id.hash')
-    if [ -z "$genesis_hash" ]
+    if genesis_hash=$(curl -s -S -X GET "http://127.0.0.1:26657/block?height=1" | jq -er '.result.block_id.hash');
     then
+      : "genesis hash received successfully"
+    else
       echo "did not receive genesis hash from celestia; exiting"
       exit 1
-    else
-      echo "genesis hash received: $genesis_hash"
     fi
 
-    export CELESTIA_CUSTOM="test:$genesis_hash"
-      # --p2p.network "test:$celestia_custom"
+    echo "using genesis hash: $genesis_hash"
+
     export GOLOG_LOG_LEVEL="debug"
-    exec ./celestia bridge start \
+    export CELESTIA_CUSTOM="test:$genesis_hash"
+    exec celestia bridge start \
       --node.store "$home_dir/bridge" \
       --gateway \
       --keyring.accname "$validator_key_name"
 kind: ConfigMap
 metadata:
-  name: bridge-scripts-tctfb6gktd
+  name: bridge-scripts-4bttthc8ck
 ---
 apiVersion: v1
 data:
   init-celestia-appd.sh: |
-    #!/bin/sh
+    #!/bin/sh -x
 
     set -o errexit -o nounset
+
+    rm -rf "$home_dir"/*
 
     celestia-appd init "$chainid" \
       --chain-id "$chainid" \
@@ -50,7 +57,7 @@ data:
       --keyring-backend="$keyring_backend" \
       --home "$home_dir"
 
-    validator_key=`celestia-appd keys show "$validator_key_name" -a --keyring-backend="$keyring_backend" --home "$home_dir"`
+    validator_key=$(celestia-appd keys show "$validator_key_name" -a --keyring-backend="$keyring_backend" --home "$home_dir")
     celestia-appd add-genesis-account \
       "$validator_key" \
       --home "$home_dir" \
@@ -62,10 +69,10 @@ data:
       --keyring-backend="$keyring_backend" \
       --chain-id "$chainid" \
       --home "$home_dir" \
-      --orchestrator-address "$validator_key" \
       --evm-address "$evm_address"
 
     celestia-appd collect-gentxs --home "$home_dir"
+    sed -i'.bak' 's/timeout_commit = "25s"/timeout_commit = "1s"/g' $home_dir/config/config.toml
   start-celestia-appd.sh: |
     #!/bin/sh
 
@@ -75,7 +82,7 @@ data:
     exec celestia-appd start --home "${home_dir}"
 kind: ConfigMap
 metadata:
-  name: celestia-appd-scripts-mgmh8g995k
+  name: celestia-appd-scripts-4k665bchh4
 ---
 apiVersion: v1
 data:
@@ -102,9 +109,12 @@ spec:
   - name: sequencer-svc
     port: 26658
     targetPort: sequencer-svc
-  - name: bridge-svc
+  - name: bridge-rest
     port: 26659
-    targetPort: bridge-svc
+    targetPort: bridge-rest
+  - name: bridge-jsonrpc
+    port: 26658
+    targetPort: bridge-jsonrpc
   selector:
     app: sequencer-relayer-environment
 ---
@@ -130,7 +140,7 @@ spec:
         envFrom:
         - configMapRef:
             name: sequencer-relayer-environment-celestia-config
-        image: ghcr.io/astriaorg/celestia-app:v0.11.0
+        image: ghcr.io/celestiaorg/celestia-app:v1.0.0-rc7
         name: celestia-app
         volumeMounts:
         - mountPath: /scripts/
@@ -143,16 +153,23 @@ spec:
         envFrom:
         - configMapRef:
             name: sequencer-relayer-environment-celestia-config
-        image: ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7
+        image: ghcr.io/astriaorg/test-images-celestia-node:v0.11.0-rc7
+        lifecycle:
+          postStart:
+            exec:
+              command:
+              - /scripts/generate-token.sh
         name: celestia-bridge
         ports:
         - containerPort: 26659
-          name: bridge-svc
+          name: bridge-rest
+        - containerPort: 26658
+          name: bridge-jsonrpc
         startupProbe:
           failureThreshold: 30
           httpGet:
             path: /header/1
-            port: bridge-svc
+            port: bridge-rest
           periodSeconds: 10
         volumeMounts:
         - mountPath: /scripts/
@@ -184,7 +201,7 @@ spec:
         envFrom:
         - configMapRef:
             name: sequencer-relayer-environment-celestia-config
-        image: ghcr.io/astriaorg/celestia-app:v0.11.0
+        image: ghcr.io/celestiaorg/celestia-app:v1.0.0-rc7
         name: init-celestia-app
         volumeMounts:
         - mountPath: /scripts
@@ -197,7 +214,7 @@ spec:
         envFrom:
         - configMapRef:
             name: sequencer-relayer-environment-celestia-config
-        image: ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7
+        image: ghcr.io/astriaorg/test-images-celestia-node:v0.11.0-rc7
         name: init-bridge
         volumeMounts:
         - mountPath: /scripts/
@@ -209,6 +226,9 @@ spec:
         - /home/cometbft/cometbft init
         image: ghcr.io/noot99/cometbft:latest
         name: init-cometbft
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
       volumes:
       - hostPath:
           path: /tmp/astria/astria-sequencer
@@ -216,11 +236,11 @@ spec:
         name: astria-sequencer-binary
       - configMap:
           defaultMode: 320
-          name: bridge-scripts-tctfb6gktd
+          name: bridge-scripts-4bttthc8ck
         name: bridge-scripts-volume
       - configMap:
           defaultMode: 320
-          name: celestia-appd-scripts-mgmh8g995k
+          name: celestia-appd-scripts-4k665bchh4
         name: celestia-appd-scripts-volume
       - emptyDir: {}
         name: celestia-home

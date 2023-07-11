@@ -35,7 +35,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Unsigned {
     pub(crate) nonce: Nonce,
-    pub actions: Vec<Action>,
+    pub(crate) actions: Vec<Action>,
 }
 
 impl Unsigned {
@@ -46,6 +46,11 @@ impl Unsigned {
             nonce,
             actions,
         }
+    }
+
+    #[must_use]
+    pub fn actions(&self) -> &[Action] {
+        &self.actions
     }
 
     pub(crate) fn to_proto(&self) -> ProtoUnsignedTransaction {

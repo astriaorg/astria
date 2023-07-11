@@ -26,7 +26,7 @@ jobs:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
       # This step is required for tests
-      - name: Build astria conductor and sequencer-relayer
+      - name: Build astria conductor, sequencer, and sequencer-relayer
         run: |
           cargo build --release \
             --bin astria-conductor \
@@ -36,18 +36,10 @@ jobs:
         run: |
           mkdir -p /tmp/astria
           cp target/release/{astria-conductor,astria-sequencer-relayer,astria-sequencer} /tmp/astria/
-      # FIXME: the gossipnet and rs-cnc tests are currently broken in CI:
-      #        https://github.com/astriaorg/astria/issues/25
       - name: Build tests
-        run: |
-          cargo test --release --no-run \
-          --workspace \
-          --exclude astria-rs-cnc
+        run: cargo test --release --no-run --workspace
       - name: Run light tests
-        run: |
-          cargo test --release \
-          --workspace \
-          --exclude astria-rs-cnc
+        run: cargo test --release --workspace
       - name: create kubernetes in docker cluster
         uses: helm/kind-action@v1.5.0
         with:
@@ -60,11 +52,14 @@ jobs:
       - run: just perform-prepull
       - run: just wait-for-ingress-controller
       - run: just wait-for-prepull
+      - run: just start-celestia-jsonrpc-test-deployment
+      - run: just wait-for-celestia-jsonrpc-test-deployment
+      - name: wait 5 seconds for ingress to pick up rules, services
+        run: sleep 5
       - name: Run heavy tests
         run: |
           cargo test --release \
           --workspace \
-          --exclude astria-rs-cnc \
           -- --ignored
 
   fmt:
@@ -104,7 +99,6 @@ jobs:
           --exclude astria-sequencer-relayer \
           --exclude astria-sequencer-relayer-test \
           --exclude astria-gossipnet \
-          --exclude astria-rs-cnc \
           -- -W clippy::pedantic -D warnings
       - name: run default clippy
         run: cargo clippy --workspace --all-targets -- -D warnings

@@ -6,7 +6,7 @@ use astria_sequencer_relayer::{
         SequencerNamespaceData,
         SignedNamespaceData,
     },
-    types::ParsedSequencerBlockData,
+    types::SequencerBlockData,
 };
 use color_eyre::eyre::{
     self,
@@ -110,7 +110,7 @@ impl BlockVerifier {
     /// - validate the block was actually finalized; ie >2/3 stake signed off on it
     pub(crate) async fn validate_sequencer_block(
         &self,
-        block: &ParsedSequencerBlockData,
+        block: &SequencerBlockData,
     ) -> eyre::Result<()> {
         // sequencer block's height
         let height: u32 = block.header.height.value().try_into().expect(
