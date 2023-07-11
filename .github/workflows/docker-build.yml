@@ -21,7 +21,7 @@ jobs:
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: conductor
-      dockerfile: astria-conductor
+      target-binary: astria-conductor
 
   sequencer:
     uses: './.github/workflows/reusable-docker-build.yml'
