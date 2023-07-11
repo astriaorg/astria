@@ -1,9 +1,12 @@
 use std::collections::HashMap;
 
-use astria_rs_cnc::{
-    CelestiaNodeClient,
-    NamespacedSharesResponse,
-    PayForDataResponse,
+use astria_celestia_jsonrpc_client::{
+    blob::{
+        self,
+        GetAllRequest,
+    },
+    state,
+    Client,
 };
 use ed25519_consensus::{
     Signature,
@@ -43,14 +46,14 @@ use crate::{
 };
 
 pub const DEFAULT_PFD_GAS_LIMIT: u64 = 1_000_000;
-const DEFAULT_PFD_FEE: i64 = 2_000;
+const DEFAULT_PFD_FEE: u128 = 2_000;
 
 /// SubmitBlockResponse is the response to a SubmitBlock request.
 /// It contains a map of namespaces to the block number that it was written to.
 pub struct SubmitBlockResponse {
     /// the height the base namespace was written to
     pub height: u64,
-    pub namespace_to_block_num: HashMap<String, u64>,
+    pub namespace_to_block_num: HashMap<Namespace, u64>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -140,7 +143,7 @@ pub struct SequencerNamespaceData {
     pub last_commit: Commit,
     pub sequencer_txs: Vec<IndexedTransaction>,
     /// vector of (block height, namespace) tuples
-    pub rollup_namespaces: Vec<(u64, String)>,
+    pub rollup_namespaces: Vec<(u64, Namespace)>,
 }
 
 impl NamespaceData for SequencerNamespaceData {}
@@ -154,75 +157,119 @@ struct RollupNamespaceData {
 
 impl NamespaceData for RollupNamespaceData {}
 
+#[derive(Debug)]
 pub struct CelestiaClientBuilder {
-    endpoint: String,
-    gas_limit: Option<u64>,
+    endpoint: Option<String>,
+    bearer_token: Option<String>,
+    gas_limit: u64,
+    fee: u128,
+}
+
+impl Default for CelestiaClientBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CelestiaClientBuilder {
-    pub fn new(endpoint: String) -> Self {
+    /// Create a celestia client builder with its fields default initialized.
+    pub(crate) fn new() -> Self {
         Self {
-            endpoint,
-            gas_limit: None,
+            endpoint: None,
+            bearer_token: None,
+            gas_limit: DEFAULT_PFD_GAS_LIMIT,
+            fee: DEFAULT_PFD_FEE,
+        }
+    }
+
+    pub fn endpoint(self, endpoint: &str) -> Self {
+        Self {
+            endpoint: Some(endpoint.to_string()),
+            ..self
+        }
+    }
+
+    pub fn bearer_token(self, bearer_token: &str) -> Self {
+        Self {
+            bearer_token: Some(bearer_token.to_string()),
+            ..self
+        }
+    }
+
+    pub fn gas_limit(self, gas_limit: u64) -> Self {
+        Self {
+            gas_limit,
+            ..self
+        }
+    }
+
+    pub fn fee(self, fee: u128) -> Self {
+        Self {
+            fee,
+            ..self
         }
     }
 
     pub fn build(self) -> eyre::Result<CelestiaClient> {
-        let cnc = CelestiaNodeClient::builder()
-            .base_url(self.endpoint)
-            .wrap_err("failed to set base URL for celestia node client; bad URL?")?
-            .build()
-            .wrap_err("failed creating celestia node client")?;
+        let Self {
+            endpoint,
+            bearer_token,
+            gas_limit,
+            fee,
+        } = self;
+        let client = {
+            Client::builder()
+                .set_endpoint(endpoint)
+                .set_bearer_token(bearer_token)
+                .build()
+                .wrap_err("failed constructing a celestia jsonrpc client")?
+        };
         Ok(CelestiaClient {
-            client: cnc,
-            gas_limit: self.gas_limit.unwrap_or(DEFAULT_PFD_GAS_LIMIT),
+            client,
+            gas_limit,
+            fee,
         })
-    }
-
-    /// sets the gas limit to be used for PFDs.
-    pub fn gas_limit(self, gas_limit: u64) -> Self {
-        Self {
-            gas_limit: Some(gas_limit),
-            ..self
-        }
     }
 }
 
 /// CelestiaClient is a DataAvailabilityClient that submits blocks to a Celestia Node.
 pub struct CelestiaClient {
-    client: CelestiaNodeClient,
+    client: Client,
     gas_limit: u64,
+    fee: u128,
 }
 
 impl CelestiaClient {
+    pub fn builder() -> CelestiaClientBuilder {
+        CelestiaClientBuilder::new()
+    }
+
     pub async fn get_latest_height(&self) -> eyre::Result<u64> {
         let res = self
             .client
-            .namespaced_data(&DEFAULT_NAMESPACE.to_string(), 0)
+            .header_network_head()
             .await
-            .wrap_err("failed requesting namespaced data")?;
-        let Some(height) = res.height else {
-            bail!("no height found in namespaced data received by celestia client");
-        };
-        Ok(height)
+            .wrap_err("failed calling getting network head of celestia")?;
+        Ok(res.height())
     }
 
     async fn submit_namespaced_data(
         &self,
-        namespace: &str,
+        namespace_id: [u8; blob::NAMESPACE_ID_AVAILABLE_LEN],
         data: &[u8],
-    ) -> eyre::Result<PayForDataResponse> {
-        let pay_for_data_response = self
-            .client
-            .submit_pay_for_data(
-                namespace,
-                &data.to_vec().into(),
-                DEFAULT_PFD_FEE,
-                self.gas_limit,
-            )
+    ) -> eyre::Result<state::SubmitPayForBlobResponse> {
+        let req = state::SubmitPayForBlobRequest {
+            fee: self.fee,
+            gas_limit: self.gas_limit,
+            blobs: vec![blob::Blob {
+                namespace_id,
+                data: data.to_vec(),
+            }],
+        };
+        self.client
+            .state_submit_pay_for_blob(req)
             .await
-            .wrap_err("failed submitting pay for data to client")?;
-        Ok(pay_for_data_response)
+            .wrap_err("failed submitting pay for data to client")
     }
 
     /// submit_block submits a block to Celestia.
@@ -235,10 +282,12 @@ impl CelestiaClient {
         signing_key: &SigningKey,
         verification_key: VerificationKey,
     ) -> eyre::Result<SubmitBlockResponse> {
-        let mut namespace_to_block_num: HashMap<String, u64> = HashMap::new();
-        let mut block_height_and_namespace: Vec<(u64, String)> = Vec::new();
+        let mut namespace_to_block_num: HashMap<Namespace, u64> = HashMap::new();
+        let mut block_height_and_namespace: Vec<(u64, Namespace)> = Vec::new();
 
         // first, format and submit data for each rollup namespace
+        //
+        // TODO: This could probably now be combined into one submission?
         for (namespace, txs) in block.rollup_txs {
             debug!(
                 "submitting rollup namespace data for namespace {}",
@@ -253,16 +302,12 @@ impl CelestiaClient {
                 .wrap_err("failed signing rollup namespace data")?
                 .to_bytes()
                 .wrap_err("failed converting signed rollupdata namespace data to bytes")?;
-            let resp = self
-                .submit_namespaced_data(&namespace.to_string(), &rollup_data_bytes)
+            let rsp = self
+                .submit_namespaced_data(*namespace, &rollup_data_bytes)
                 .await
                 .wrap_err("failed submitting signed rollup namespaced data")?;
-
-            let Some(height) = resp.height else {
-                bail!("no height found in namespaced data received by celestia client");
-            };
-            let namespace = namespace.to_string();
-            namespace_to_block_num.insert(namespace.clone(), height);
+            let height = rsp.height;
+            namespace_to_block_num.insert(namespace, height);
             block_height_and_namespace.push((height, namespace))
         }
 
@@ -280,34 +325,18 @@ impl CelestiaClient {
             .wrap_err("failed signing sequencer namespace data")?
             .to_bytes()
             .wrap_err("failed converting signed namespace data to bytes")?;
-        let resp = self
-            .submit_namespaced_data(&DEFAULT_NAMESPACE.to_string(), &bytes)
+        // TODO: Could this also be thrown into the submission above?
+        let rsp = self
+            .submit_namespaced_data(*DEFAULT_NAMESPACE, &bytes)
             .await
             .wrap_err("failed submitting namespaced data")?;
 
-        let Some(height) = resp.height else {
-            bail!("no height returned from pay for data");
-        };
-
-        namespace_to_block_num.insert(DEFAULT_NAMESPACE.to_string(), height);
-
+        let height = rsp.height;
+        namespace_to_block_num.insert(DEFAULT_NAMESPACE, height);
         Ok(SubmitBlockResponse {
             height,
             namespace_to_block_num,
         })
-    }
-
-    /// check_block_availability checks if what shares are written to a given height.
-    pub async fn check_block_availability(
-        &self,
-        height: u64,
-    ) -> eyre::Result<NamespacedSharesResponse> {
-        let resp = self
-            .client
-            .namespaced_shares(&DEFAULT_NAMESPACE.to_string(), height)
-            .await
-            .wrap_err("failed accessing namespaced shares")?;
-        Ok(resp)
     }
 
     /// get_sequencer_namespace_data returns all the signed sequencer namespace data at a given
@@ -317,9 +346,13 @@ impl CelestiaClient {
         height: u64,
         verification_key: Option<VerificationKey>,
     ) -> eyre::Result<Vec<SignedNamespaceData<SequencerNamespaceData>>> {
-        let namespaced_data_response = self
+        let req = GetAllRequest {
+            height,
+            namespace_ids: vec![*DEFAULT_NAMESPACE],
+        };
+        let rsp = self
             .client
-            .namespaced_data(&DEFAULT_NAMESPACE.to_string(), height)
+            .blob_get_all(req)
             .await
             .wrap_err("failed getting namespaced data")?;
 
@@ -327,12 +360,12 @@ impl CelestiaClient {
         // optionally, only find data that was signed by the given public key
         // NOTE: there should NOT be multiple datas with the same block hash and signer;
         // should we check here, or should the caller check?
-        let sequencer_namespace_datas = namespaced_data_response
-            .data
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|d| {
-                let data = SignedNamespaceData::<SequencerNamespaceData>::from_bytes(&d.0).ok()?;
+        let sequencer_namespace_datas = rsp
+            .blobs
+            .into_iter()
+            .filter_map(|blob| {
+                let data =
+                    SignedNamespaceData::<SequencerNamespaceData>::from_bytes(&blob.data).ok()?;
                 let Some(verification_key) = verification_key else {
                     return Some(data);
                 };
@@ -344,32 +377,6 @@ impl CelestiaClient {
             })
             .collect::<Vec<_>>();
         Ok(sequencer_namespace_datas)
-    }
-
-    /// get_blocks retrieves all blocks written to Celestia at the given height.
-    /// If a public key is provided, it will only return blocks signed by that public key.
-    /// It might return multiple blocks, because there might be multiple written to
-    /// the same height.
-    /// The caller should probably check that there are no conflicting blocks.
-    pub async fn get_blocks(
-        &self,
-        height: u64,
-        verification_key: Option<VerificationKey>,
-    ) -> eyre::Result<Vec<SequencerBlock>> {
-        let sequencer_namespace_datas = self
-            .get_sequencer_namespace_data(height, verification_key)
-            .await?;
-        let mut blocks = Vec::with_capacity(sequencer_namespace_datas.len());
-
-        // for all the sequencer datas retrieved, create the corresponding SequencerBlock
-        for sequencer_namespace_data in &sequencer_namespace_datas {
-            blocks.push(
-                self.get_sequencer_block(&sequencer_namespace_data.data, verification_key)
-                    .await?,
-            );
-        }
-
-        Ok(blocks)
     }
 
     /// get_sequencer_block returns the full SequencerBlock (with all rollup data) for the given
@@ -386,7 +393,7 @@ impl CelestiaClient {
             let rollup_txs = self
                 .get_rollup_data_for_block(
                     &data.block_hash.0,
-                    rollup_namespace,
+                    *rollup_namespace,
                     *height,
                     verification_key,
                 )
@@ -403,10 +410,7 @@ impl CelestiaClient {
                 warn!("no rollup data found for namespace {rollup_namespace}");
                 continue 'namespaces;
             };
-            let namespace = Namespace::from_string(rollup_namespace).wrap_err_with(|| {
-                format!("failed constructing namespaces from rollup namespace `{rollup_namespace}`")
-            })?;
-            rollup_txs_map.insert(namespace, rollup_txs);
+            rollup_txs_map.insert(*rollup_namespace, rollup_txs);
         }
 
         Ok(SequencerBlock {
@@ -421,21 +425,26 @@ impl CelestiaClient {
     async fn get_rollup_data_for_block(
         &self,
         block_hash: &[u8],
-        rollup_namespace: &str,
+        rollup_namespace: Namespace,
         height: u64,
         verification_key: Option<VerificationKey>,
     ) -> eyre::Result<Option<Vec<IndexedTransaction>>> {
-        let namespaced_data_response = self
+        let req = GetAllRequest {
+            height,
+            namespace_ids: vec![*rollup_namespace],
+        };
+        let rsp = self
             .client
-            .namespaced_data(rollup_namespace, height)
+            .blob_get_all(req)
             .await
             .wrap_err("failed getting namespaced data")?;
 
-        let datas = namespaced_data_response.data.unwrap_or_default();
-        let mut rollup_datas = datas
+        let mut rollup_datas = rsp
+            .blobs
             .iter()
-            .filter_map(|d| {
-                if let Ok(data) = SignedNamespaceData::<RollupNamespaceData>::from_bytes(&d.0) {
+            .filter_map(|blob| {
+                if let Ok(data) = SignedNamespaceData::<RollupNamespaceData>::from_bytes(&blob.data)
+                {
                     Some(data)
                 } else {
                     warn!("failed to deserialize rollup namespace data");

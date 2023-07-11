@@ -9,18 +9,25 @@ spec:
   - host: test.localdev.me
     http:
       paths:
-        - pathType: Prefix
-          path: "/sequencer/(.*)"
+        - path: "/sequencer/(.*)"
+          pathType: ImplementationSpecific
           backend:
             service:
               name: sequencer-relayer-environment-service
               port:
                 number: 1318
-        - pathType: Prefix
-          path: "/bridge/(.*)"
+        - path: /bridge/(.*)
+          pathType: ImplementationSpecific
           backend:
             service:
               name: sequencer-relayer-environment-service
               port:
-                number: 26659
+                name: bridge-rest
+        - path: /jsonrpc/(.*)
+          pathType: ImplementationSpecific
+          backend:
+            service:
+              name: sequencer-relayer-environment-service
+              port:
+                name: bridge-jsonrpc
 ---

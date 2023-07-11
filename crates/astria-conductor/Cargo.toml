@@ -29,7 +29,6 @@ tracing-subscriber = { workspace = true, features = ["ansi", "json"] }
 
 astria-proto = { path = "../astria-proto" }
 astria-gossipnet = { path = "../astria-gossipnet" }
-astria-rs-cnc = { path = "../astria-rs-cnc" }
 astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 
 [dev-dependencies]

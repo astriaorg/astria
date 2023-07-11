@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+astria-test-utils = { path = "../astria-test-utils" }
 eyre = { workspace = true }
 k8s-openapi = { workspace = true }
 kube = { workspace = true, features = ["client", "runtime"] }

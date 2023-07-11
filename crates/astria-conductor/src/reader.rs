@@ -3,7 +3,6 @@ use std::sync::Arc;
 use astria_sequencer_relayer::{
     data_availability::{
         CelestiaClient,
-        CelestiaClientBuilder,
         SequencerNamespaceData,
         SignedNamespaceData,
     },
@@ -51,9 +50,14 @@ pub(crate) async fn spawn(
     block_verifier: Arc<BlockVerifier>,
 ) -> Result<(JoinHandle, Sender)> {
     info!("Spawning reader task.");
-    let (mut reader, reader_tx) = Reader::new(&conf.celestia_node_url, executor_tx, block_verifier)
-        .await
-        .wrap_err("failed to create Reader")?;
+    let (mut reader, reader_tx) = Reader::new(
+        &conf.celestia_node_url,
+        &conf.celestia_bearer_token,
+        executor_tx,
+        block_verifier,
+    )
+    .await
+    .wrap_err("failed to create Reader")?;
     let join_handle = task::spawn(async move { reader.run().await });
     info!("Spawned reader task.");
     Ok((join_handle, reader_tx))
@@ -87,11 +91,14 @@ impl Reader {
     /// Creates a new Reader instance and returns a command sender and an alert receiver.
     pub async fn new(
         celestia_node_url: &str,
+        celestia_bearer_token: &str,
         executor_tx: executor::Sender,
         block_verifier: Arc<BlockVerifier>,
     ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let celestia_client = CelestiaClientBuilder::new(celestia_node_url.to_owned())
+        let celestia_client = CelestiaClient::builder()
+            .endpoint(celestia_node_url)
+            .bearer_token(celestia_bearer_token)
             .build()
             .wrap_err("failed creating celestia client")?;
 

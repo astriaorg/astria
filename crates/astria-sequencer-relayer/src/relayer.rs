@@ -25,10 +25,7 @@ use tracing::{
 };
 
 use crate::{
-    data_availability::{
-        CelestiaClient,
-        CelestiaClientBuilder,
-    },
+    data_availability::CelestiaClient,
     sequencer::SequencerClient,
     sequencer_block::SequencerBlock,
     validator::Validator,
@@ -79,7 +76,9 @@ impl Relayer {
             debug!("disabling writing to data availability layer requested; disabling");
             None
         } else {
-            let client = CelestiaClientBuilder::new(cfg.celestia_endpoint.clone())
+            let client = CelestiaClient::builder()
+                .endpoint(&cfg.celestia_endpoint)
+                .bearer_token(&cfg.celestia_bearer_token)
                 .gas_limit(cfg.gas_limit)
                 .build()
                 .wrap_err("failed to create data availability client")?;
