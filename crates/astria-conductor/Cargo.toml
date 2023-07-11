@@ -34,5 +34,4 @@ astria-sequencer-client = { path = "../astria-sequencer-client" }
 astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 
 [dev-dependencies]
-astria-conductor-test = { path = "../astria-conductor-test" }
 once_cell = { workspace = true }

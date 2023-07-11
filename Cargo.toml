@@ -3,7 +3,6 @@
 members = [
   "crates/astria-celestia-jsonrpc-client",
   "crates/astria-conductor",
-  "crates/astria-conductor-test",
   "crates/astria-gossipnet",
   "crates/astria-proto",
   "crates/astria-sequencer",
