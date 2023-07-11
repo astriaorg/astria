@@ -13,7 +13,6 @@ To learn more about Astria, please visit [astria.org](https://astria.org).
 * [conductor](https://github.com/astriaorg/astria/tree/main/crates/astria-conductor)
 * [gossipnet](https://github.com/astriaorg/astria/tree/main/crates/astria-gossipnet)
 * [proto](https://github.com/astriaorg/astria/tree/main/crates/astria-proto)
-* [rs-cnc](https://github.com/astriaorg/astria/tree/main/crates/astria-rs-cnc)
 * [sequencer-relayer](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer-relayer)
 
 ## Contributing

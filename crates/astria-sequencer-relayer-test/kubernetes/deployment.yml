@@ -14,11 +14,14 @@ spec:
       labels:
         app: sequencer-relayer-environment
     spec:
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: "OnRootMismatch"
       initContainers:
         - command:
           - /scripts/init-celestia-appd.sh
           name: init-celestia-app
-          image: "ghcr.io/astriaorg/celestia-app:v0.11.0"
+          image: "ghcr.io/celestiaorg/celestia-app:v1.0.0-rc7"
           volumeMounts:
             - mountPath: /scripts
               name: celestia-appd-scripts-volume
@@ -31,7 +34,7 @@ spec:
         - command:
           - /scripts/init-bridge.sh
           name: init-bridge
-          image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
+          image: "ghcr.io/astriaorg/test-images-celestia-node:v0.11.0-rc7"
           volumeMounts:
             - mountPath: /scripts/
               name: bridge-scripts-volume
@@ -70,7 +73,7 @@ spec:
       containers:
         - name: celestia-app
           command: ["/scripts/start-celestia-appd.sh"]
-          image: "ghcr.io/astriaorg/celestia-app:v0.11.0"
+          image: "ghcr.io/celestiaorg/celestia-app:v1.0.0-rc7"
           envFrom:
             - configMapRef:
                 name: sequencer-relayer-environment-celestia-config
@@ -83,7 +86,7 @@ spec:
         - name: celestia-bridge
           command:
           - /scripts/start-bridge.sh
-          image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
+          image: "ghcr.io/astriaorg/test-images-celestia-node:v0.11.0-rc7"
           volumeMounts:
             - mountPath: /scripts/
               name: bridge-scripts-volume
@@ -95,13 +98,19 @@ spec:
                 name: sequencer-relayer-environment-celestia-config
           ports:
             - containerPort: 26659
-              name: bridge-svc
+              name: bridge-rest
+            - containerPort: 26658
+              name: bridge-jsonrpc
           startupProbe:
             httpGet:
               path: /header/1
-              port: bridge-svc
+              port: bridge-rest
             failureThreshold: 30
             periodSeconds: 10
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/scripts/generate-token.sh"]
         - name: metro-sequencer
           command: ["/scripts/start-metro.sh"]
           image: "ghcr.io/astriaorg/metro:0.0.2"
@@ -140,4 +149,3 @@ spec:
         name: celestia-home
       - emptyDir: {}
         name: metro-home
-  

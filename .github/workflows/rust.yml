@@ -35,18 +35,10 @@ jobs:
         run: |
           mkdir -p /tmp/astria
           cp target/release/{astria-conductor,astria-sequencer-relayer} /tmp/astria/
-      # FIXME: the gossipnet and rs-cnc tests are currently broken in CI:
-      #        https://github.com/astriaorg/astria/issues/25
       - name: Build tests
-        run: |
-          cargo test --release --no-run \
-          --workspace \
-          --exclude astria-rs-cnc
+        run: cargo test --release --no-run --workspace
       - name: Run light tests
-        run: |
-          cargo test --release \
-          --workspace \
-          --exclude astria-rs-cnc
+        run: cargo test --release --workspace
       - name: create kubernetes in docker cluster
         uses: helm/kind-action@v1.5.0
         with:
@@ -67,7 +59,6 @@ jobs:
         run: |
           cargo test --release \
           --workspace \
-          --exclude astria-rs-cnc \
           -- --ignored
 
   fmt:
@@ -107,7 +98,6 @@ jobs:
           --exclude astria-sequencer-relayer \
           --exclude astria-sequencer-relayer-test \
           --exclude astria-gossipnet \
-          --exclude astria-rs-cnc \
           -- -W clippy::pedantic -D warnings
       - name: run default clippy
         run: cargo clippy --workspace --all-targets -- -D warnings

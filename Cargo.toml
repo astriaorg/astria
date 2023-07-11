@@ -6,7 +6,6 @@ members = [
   "crates/astria-conductor-test",
   "crates/astria-gossipnet",
   "crates/astria-proto",
-  "crates/astria-rs-cnc",
   "crates/astria-sequencer",
   "crates/astria-sequencer-client",
   "crates/astria-sequencer-relayer",
@@ -43,7 +42,6 @@ serde_json = "1"
 serde_yaml = "0.9"
 prost = "0.11"
 prost-types = "0.11"
-rand = "0.8"
 # disable default features and explicitly enable rustls-tls to ensure openssl is disabled
 # in the entire workspace
 reqwest = { version = "0.11", default-features = false, features = [

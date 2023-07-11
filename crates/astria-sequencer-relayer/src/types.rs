@@ -1,8 +1,10 @@
 use std::{
     collections::HashMap,
     fmt,
+    ops::Deref,
 };
 
+use astria_celestia_jsonrpc_client::blob::NAMESPACE_ID_AVAILABLE_LEN;
 use astria_sequencer_client::{
     Action,
     SignedTransaction,
@@ -46,17 +48,28 @@ use crate::base64_string::Base64String;
 /// The default namespace blocks are written to.
 /// A block in this namespace contains "pointers" to the rollup txs contained
 /// in that block; ie. a list of tuples of (DA block height, namespace).
-pub static DEFAULT_NAMESPACE: Namespace = Namespace(*b"astriasq");
+pub static DEFAULT_NAMESPACE: Namespace = Namespace(*b"astriasequ");
 
 /// Namespace represents a Celestia namespace.
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct Namespace([u8; 8]);
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub struct Namespace([u8; NAMESPACE_ID_AVAILABLE_LEN]);
+
+impl Deref for Namespace {
+    type Target = [u8; NAMESPACE_ID_AVAILABLE_LEN];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl Namespace {
     pub fn from_string(s: &str) -> eyre::Result<Self> {
         let bytes = hex::decode(s).wrap_err("failed reading string as hex encoded bytes")?;
-        ensure!(bytes.len() == 8, "string must encode exactly 8 bytes",);
-        let mut namespace = [0u8; 8];
+        ensure!(
+            bytes.len() == NAMESPACE_ID_AVAILABLE_LEN,
+            "string encoded wrong number of bytes",
+        );
+        let mut namespace = [0u8; NAMESPACE_ID_AVAILABLE_LEN];
         namespace.copy_from_slice(&bytes);
         Ok(Namespace(namespace))
     }
@@ -254,7 +267,7 @@ mod test {
             rollup_txs: HashMap::new(),
         };
         expected.rollup_txs.insert(
-            DEFAULT_NAMESPACE.clone(),
+            DEFAULT_NAMESPACE,
             vec![IndexedTransaction {
                 block_index: 0,
                 transaction: vec![0x44, 0x55, 0x66],

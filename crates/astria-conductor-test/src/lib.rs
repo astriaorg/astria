@@ -73,13 +73,14 @@ pub async fn init_test() -> TestEnvironment {
 pub struct TestEnvironment {
     pub host: String,
     pub namespace: String,
+    pub bearer_token: String,
     pub tx: UnboundedSender<String>,
 }
 
 impl TestEnvironment {
     pub fn bridge_endpoint(&self) -> String {
         format!(
-            "http://{namespace}.localdev.me/bridge",
+            "http://{namespace}.localdev.me:80/jsonrpc/",
             namespace = self.namespace
         )
     }
@@ -154,9 +155,12 @@ impl TestEnvironment {
         );
 
         let host = format!("http://{namespace}.localdev.me");
+        let bearer_token =
+            astria_test_utils::extract_bearer_token_from_celestia_node(&namespace).await;
         Self {
             host,
             namespace,
+            bearer_token,
             tx: Lazy::force(&STOP_POD_TX).clone(),
         }
     }
