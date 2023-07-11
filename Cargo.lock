@@ -392,6 +392,7 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "futures",
+ "hex",
  "libp2p",
  "multiaddr",
  "tokio",

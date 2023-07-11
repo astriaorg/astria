@@ -32,6 +32,9 @@ pub struct Config {
 
     /// Bootnodes for the P2P network
     pub bootnodes: Vec<String>,
+
+    /// Path to the libp2p private key file
+    pub libp2p_private_key: Option<String>,
 }
 
 // NOTE - using default fns instead of defaults in Cli because defaults

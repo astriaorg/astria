@@ -9,6 +9,7 @@ multiaddr = "0.17"
 
 color-eyre = { workspace = true }
 futures = { workspace = true }
+hex = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]

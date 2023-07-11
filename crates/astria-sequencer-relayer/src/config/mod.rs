@@ -56,6 +56,8 @@ pub struct Config {
     pub validator_key_file: String,
     pub rpc_port: u16,
     pub p2p_port: u16,
+    pub bootnodes: Vec<String>,
+    pub libp2p_private_key: Option<String>,
     pub log: String,
 }
 
@@ -89,6 +91,8 @@ impl Default for Config {
             validator_key_file: DEFAULT_VALIDATOR_KEY_FILE.into(),
             rpc_port: DEFAULT_RPC_LISTEN_PORT,
             p2p_port: DEFAULT_GOSSIP_PORT,
+            bootnodes: Vec::new(),
+            libp2p_private_key: None,
             log: DEFAULT_LOG_DIRECTIVE.into(),
         }
     }
@@ -162,6 +166,8 @@ astria-sequencer-relayer
                 validator_key_file: "/cli/key".into(),
                 rpc_port: 9999,
                 p2p_port: 9999,
+                bootnodes: Vec::new(),
+                libp2p_private_key: None,
                 log: "cli=warn".into(),
             };
             assert_eq!(expected, actual);
@@ -185,6 +191,8 @@ astria-sequencer-relayer
                 validator_key_file: "/env/key".into(),
                 rpc_port: 5555,
                 p2p_port: 5555,
+                bootnodes: Vec::new(),
+                libp2p_private_key: None,
                 log: "env=debug".into(),
             };
             assert_eq!(expected, actual);
