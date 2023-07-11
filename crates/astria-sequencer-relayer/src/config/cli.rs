@@ -54,12 +54,12 @@ pub(crate) struct Args {
 
     /// Libp2p addresses of nodes to connect to.
     #[arg(long = "bootnodes")]
-    pub bootnodes: Vec<String>,
+    pub(crate) bootnodes: Vec<String>,
 
     /// Path to the libp2p private key file.
     #[arg(long = "libp2p-private-key")]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub libp2p_private_key: Option<String>,
+    pub(crate) libp2p_private_key: Option<String>,
 
     /// Log level. One of debug, info, warn, or error
     #[arg(short, long)]
