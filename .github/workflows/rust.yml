@@ -30,7 +30,8 @@ jobs:
         run: |
           cargo build --release \
             --bin astria-conductor \
-            --bin astria-sequencer-relayer
+            --bin astria-sequencer-relayer \
+            --bin astria-sequencer
       - name: Copy binaries to tmp
         run: |
           mkdir -p /tmp/astria
