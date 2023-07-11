@@ -96,9 +96,9 @@ spec:
             - mountPath: /usr/local/bin/astria-sequencer
               name: astria-sequencer-binary
               readOnly: true
-          ports:
-            - containerPort: 26658
-              name: sequencer-svc
+          # ports:
+          #   - containerPort: 26658
+          #     name: sequencer-svc
         #   startupProbe:
         #     httpGet:
         #       path: /blocks

@@ -106,12 +106,12 @@ spec:
   - name: cometbft-svc
     port: 26657
     targetPort: cometbft-svc
-  - name: sequencer-svc
-    port: 26658
-    targetPort: sequencer-svc
+  # - name: sequencer-svc
+  #   port: 26658
+  #   targetPort: sequencer-svc
   - name: bridge-rest
     port: 26659
-    targetPort: bridge-rest
+    targetPort: bridge-restfmt
   - name: bridge-jsonrpc
     port: 26658
     targetPort: bridge-jsonrpc
