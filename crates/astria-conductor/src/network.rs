@@ -18,7 +18,7 @@ impl GossipNetwork {
         let mut builder = NetworkBuilder::new().bootnodes(bootnodes);
         if let Some(libp2p_private_key) = libp2p_private_key {
             builder = builder
-                .keypair_from_file(&libp2p_private_key)
+                .keypair_from_file(libp2p_private_key)
                 .wrap_err("failed to load libp2p private key")?;
         }
         let mut network = builder.build().wrap_err("failed to build gossip network")?;
