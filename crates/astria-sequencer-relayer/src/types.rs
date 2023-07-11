@@ -130,12 +130,17 @@ impl<'de> Visitor<'de> for NamespaceVisitor {
     }
 }
 
-/// get_namespace returns an 8-byte namespace given a byte slice.
+/// get_namespace returns an 10-byte namespace given a byte slice.
 pub fn get_namespace(bytes: &[u8]) -> Namespace {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     let result = hasher.finalize();
-    Namespace(result[0..8].to_owned().try_into().unwrap())
+    Namespace(
+        result[0..NAMESPACE_ID_AVAILABLE_LEN]
+            .to_owned()
+            .try_into()
+            .unwrap(),
+    )
 }
 
 /// IndexedTransaction represents a sequencer transaction along with the index
