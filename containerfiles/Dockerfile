@@ -94,5 +94,6 @@ FROM debian:bookworm-slim
 ARG TARGETBINARY
 WORKDIR /app/
 EXPOSE 2450
+COPY --from=chef /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /build/target/release/$TARGETBINARY /usr/local/bin/$TARGETBINARY
 ENTRYPOINT ["/usr/local/bin/$TARGETBINARY"]
