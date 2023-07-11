@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+  "crates/astria-celestia-jsonrpc-client",
   "crates/astria-conductor",
   "crates/astria-conductor-test",
   "crates/astria-gossipnet",
@@ -11,6 +12,7 @@ members = [
   "crates/astria-sequencer-relayer",
   "crates/astria-sequencer-relayer-test",
   "crates/astria-sequencer-utils",
+  "crates/astria-test-utils",
 ]
 
 [workspace.dependencies]
