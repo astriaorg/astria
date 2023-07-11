@@ -109,13 +109,15 @@ data:
 
     set -o errexit -o nounset
 
+    # TODO: need to remove --metro.addr and --metro.port
+    # requires the conductor, or we just make a mock execution engine for testing
     geth --datadir $home_dir/.astriageth/ --http --http.addr "0.0.0.0" --http.port=8545 \
       --ws --ws.addr "0.0.0.0" --ws.port=8545 --networkid=1337 --http.corsdomain='*' --ws.origins='*' \
       --grpc --grpc.addr "0.0.0.0" --grpc.port 50051 \
       --metro.addr "0.0.0.0" --metro.port 9100
 kind: ConfigMap
 metadata:
-  name: executor-scripts-c44cc226h7
+  name: executor-scripts-b7m429tfcm
 ---
 apiVersion: v1
 data:
@@ -329,7 +331,7 @@ spec:
         name: celestia-appd-scripts-volume
       - configMap:
           defaultMode: 320
-          name: executor-scripts-c44cc226h7
+          name: executor-scripts-b7m429tfcm
         name: executor-scripts-volume
       - emptyDir: {}
         name: celestia-home-vol
