@@ -135,13 +135,13 @@ pub struct IndexedTransaction {
     pub transaction: Vec<u8>,
 }
 
-/// ParsedSequencerBlockData represents a sequencer block's data
+/// SequencerBlockData represents a sequencer block's data
 /// to be submitted to the DA layer.
 ///
 /// TODO: compression or a better serialization method?
 /// TODO: merkle proofs for each rollup's transactions
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
-pub struct ParsedSequencerBlockData {
+pub struct SequencerBlockData {
     pub block_hash: Base64String,
     pub header: Header,
     /// This field should be set for every block with height > 1.
@@ -150,7 +150,7 @@ pub struct ParsedSequencerBlockData {
     pub rollup_txs: HashMap<Namespace, Vec<IndexedTransaction>>,
 }
 
-impl ParsedSequencerBlockData {
+impl SequencerBlockData {
     pub fn to_bytes(&self) -> eyre::Result<Vec<u8>> {
         // TODO: don't use json, use our own serializer (or protobuf for now?)
         serde_json::to_vec(self).wrap_err("failed serializing signed namespace data to json")
@@ -164,7 +164,7 @@ impl ParsedSequencerBlockData {
         Ok(data)
     }
 
-    /// Converts a Tendermint block into a `ParsedSequencerBlockData`.
+    /// Converts a Tendermint block into a `SequencerBlockData`.
     /// it parses the block for `SequenceAction`s and namespaces them accordingly.
     pub fn from_tendermint_block(b: Block) -> eyre::Result<Self> {
         if b.header.data_hash.is_none() {
@@ -238,7 +238,7 @@ mod test {
 
     use super::{
         IndexedTransaction,
-        ParsedSequencerBlockData,
+        SequencerBlockData,
         DEFAULT_NAMESPACE,
     };
     use crate::base64_string::Base64String;
@@ -247,7 +247,7 @@ mod test {
     fn sequencer_block_to_bytes() {
         let header = crate::utils::default_header();
         let block_hash = header.hash();
-        let mut expected = ParsedSequencerBlockData {
+        let mut expected = SequencerBlockData {
             block_hash: Base64String::from_bytes(block_hash.as_bytes()),
             header,
             last_commit: None,
@@ -262,7 +262,7 @@ mod test {
         );
 
         let bytes = expected.to_bytes().unwrap();
-        let actual = ParsedSequencerBlockData::from_bytes(&bytes).unwrap();
+        let actual = SequencerBlockData::from_bytes(&bytes).unwrap();
         assert_eq!(expected, actual);
     }
 }

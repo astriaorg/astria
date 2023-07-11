@@ -6,7 +6,7 @@ use astria_sequencer_relayer::{
     types::{
         get_namespace,
         IndexedTransaction,
-        ParsedSequencerBlockData,
+        SequencerBlockData,
         DEFAULT_NAMESPACE,
     },
     utils::default_header,
@@ -38,7 +38,7 @@ async fn get_blocks_public_key_filter() {
     let client = CelestiaClientBuilder::new(bridge_endpoint).build().unwrap();
 
     let block_hash = Base64String(vec![99; 32]);
-    let mut block = ParsedSequencerBlockData {
+    let mut block = SequencerBlockData {
         block_hash: block_hash.clone(),
         header: default_header(),
         last_commit: None,
@@ -87,7 +87,7 @@ async fn celestia_client() {
     let secondary_tx = b"noot_was_here".to_vec();
 
     let block_hash = Base64String(vec![99; 32]);
-    let mut block = ParsedSequencerBlockData {
+    let mut block = SequencerBlockData {
         block_hash: block_hash.clone(),
         header: default_header(),
         last_commit: None,

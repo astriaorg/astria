@@ -26,7 +26,7 @@ use crate::{
         CelestiaClient,
         CelestiaClientBuilder,
     },
-    types::ParsedSequencerBlockData,
+    types::SequencerBlockData,
     validator::Validator,
 };
 
@@ -35,7 +35,7 @@ pub struct Relayer {
     data_availability_client: Option<CelestiaClient>,
     validator: Validator,
     sequencer_poll_period: Duration,
-    block_tx: UnboundedSender<ParsedSequencerBlockData>,
+    block_tx: UnboundedSender<SequencerBlockData>,
     state_tx: watch::Sender<State>,
 }
 
@@ -63,7 +63,7 @@ impl Relayer {
     ///   is set).
     pub fn new(
         cfg: &crate::config::Config,
-        block_tx: UnboundedSender<ParsedSequencerBlockData>,
+        block_tx: UnboundedSender<SequencerBlockData>,
     ) -> Result<Self> {
         let validator = Validator::from_path(&cfg.validator_key_file)
             .wrap_err("failed to get validator info from file")?;
@@ -120,7 +120,7 @@ impl Relayer {
             return Ok(new_state);
         }
 
-        let sequencer_block = match ParsedSequencerBlockData::from_tendermint_block(resp.block) {
+        let sequencer_block = match SequencerBlockData::from_tendermint_block(resp.block) {
             Ok(block) => block,
             Err(e) => {
                 warn!(error = ?e, "failed to convert block to DA block");

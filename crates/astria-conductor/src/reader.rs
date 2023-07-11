@@ -7,7 +7,7 @@ use astria_sequencer_relayer::{
         SequencerNamespaceData,
         SignedNamespaceData,
     },
-    types::ParsedSequencerBlockData,
+    types::SequencerBlockData,
 };
 use color_eyre::eyre::{
     eyre,
@@ -143,7 +143,7 @@ impl Reader {
     }
 
     /// get_new_blocks fetches any new sequencer blocks from Celestia.
-    pub async fn get_new_blocks(&mut self) -> Result<Vec<ParsedSequencerBlockData>> {
+    pub async fn get_new_blocks(&mut self) -> Result<Vec<SequencerBlockData>> {
         debug!("ReaderCommand::GetNewBlocks");
         let mut blocks = vec![];
 
@@ -216,7 +216,7 @@ impl Reader {
     async fn get_sequencer_block_from_namespace_data(
         &self,
         data: &SignedNamespaceData<SequencerNamespaceData>,
-    ) -> Result<ParsedSequencerBlockData> {
+    ) -> Result<SequencerBlockData> {
         // the reason the public key type needs to be converted is due to serialization
         // constraints, probably fix this later
         let verification_key = VerificationKey::try_from(&*data.public_key.0)?;
@@ -232,7 +232,7 @@ impl Reader {
     }
 
     /// Processes an individual block
-    async fn process_block(&self, block: ParsedSequencerBlockData) -> Result<()> {
+    async fn process_block(&self, block: SequencerBlockData) -> Result<()> {
         self.executor_tx.send(
             executor::ExecutorCommand::BlockReceivedFromDataAvailability {
                 block: Box::new(block),

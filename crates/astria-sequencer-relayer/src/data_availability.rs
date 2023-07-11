@@ -37,7 +37,7 @@ use crate::{
     types::{
         IndexedTransaction,
         Namespace,
-        ParsedSequencerBlockData,
+        SequencerBlockData,
         DEFAULT_NAMESPACE,
     },
 };
@@ -232,7 +232,7 @@ impl CelestiaClient {
     /// along with any transactions that were not for a specific rollup.
     pub async fn submit_block(
         &self,
-        block: ParsedSequencerBlockData,
+        block: SequencerBlockData,
         signing_key: &SigningKey,
         verification_key: VerificationKey,
     ) -> eyre::Result<SubmitBlockResponse> {
@@ -355,7 +355,7 @@ impl CelestiaClient {
         &self,
         height: u64,
         verification_key: Option<VerificationKey>,
-    ) -> eyre::Result<Vec<ParsedSequencerBlockData>> {
+    ) -> eyre::Result<Vec<SequencerBlockData>> {
         let sequencer_namespace_datas = self
             .get_sequencer_namespace_data(height, verification_key)
             .await?;
@@ -378,7 +378,7 @@ impl CelestiaClient {
         &self,
         data: &SequencerNamespaceData,
         verification_key: Option<VerificationKey>,
-    ) -> eyre::Result<ParsedSequencerBlockData> {
+    ) -> eyre::Result<SequencerBlockData> {
         let mut rollup_txs_map = HashMap::new();
 
         // for each rollup namespace, retrieve the corresponding rollup data
@@ -409,7 +409,7 @@ impl CelestiaClient {
             rollup_txs_map.insert(namespace, rollup_txs);
         }
 
-        Ok(ParsedSequencerBlockData {
+        Ok(SequencerBlockData {
             block_hash: data.block_hash.clone(),
             header: data.header.clone(),
             last_commit: data.last_commit.clone(),
