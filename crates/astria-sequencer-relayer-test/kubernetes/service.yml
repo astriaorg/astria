@@ -6,8 +6,11 @@ spec:
   selector:
     app: sequencer-relayer-environment
   ports:
+    - name: cometbft-svc
+      port: 26657
+      targetPort: cometbft-svc
     - name: sequencer-svc
-      port: 1318
+      port: 26658
       targetPort: sequencer-svc
     - name: bridge-svc
       port: 26659

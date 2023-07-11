@@ -15,7 +15,7 @@ spec:
             service:
               name: sequencer-relayer-environment-service
               port:
-                number: 1318
+                number: 26657
         - pathType: Prefix
           path: "/bridge/(.*)"
           backend:

@@ -19,8 +19,8 @@ spec:
         - name: prepull-celestia-node
           image: "ghcr.io/astriaorg/celestia-node:test-sha-07fa3e7"
           command: ["sh", "-c", "'true'"]
-        - name: prepull-metro
-          image: "ghcr.io/astriaorg/metro:0.0.2"
+        - name: prepull-cometbft
+          image: "ghcr.io/noot99/cometbft:latest"
           command: ["sh", "-c", "'true'"]
         - name: prepull-dasel
           image: ghcr.io/tomwright/dasel:alpine
