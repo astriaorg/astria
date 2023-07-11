@@ -25,10 +25,3 @@ Unit tests:
 ```
 cargo test -p astria-conductor
 ```
-
-Integration tests:
-```
-just deploy-ingress
-just perform-prepull
-cargo test -p astria-conductor -- --ignored
-```
