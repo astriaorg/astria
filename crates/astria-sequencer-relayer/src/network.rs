@@ -30,7 +30,10 @@ pub struct GossipNetwork {
 }
 
 impl GossipNetwork {
-    pub(crate) fn new(cfg: &Config, block_rx: UnboundedReceiver<SequencerBlockData>) -> Result<Self> {
+    pub(crate) fn new(
+        cfg: &Config,
+        block_rx: UnboundedReceiver<SequencerBlockData>,
+    ) -> Result<Self> {
         let mut builder = NetworkBuilder::new()
             .bootnodes(cfg.bootnodes.clone())
             .port(cfg.p2p_port);
