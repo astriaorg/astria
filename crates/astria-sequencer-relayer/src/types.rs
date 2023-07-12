@@ -43,8 +43,6 @@ use tendermint::{
 };
 use tracing::debug;
 
-use crate::base64_string::Base64String;
-
 /// The default namespace blocks are written to.
 /// A block in this namespace contains "pointers" to the rollup txs contained
 /// in that block; ie. a list of tuples of (DA block height, namespace).
@@ -63,6 +61,10 @@ impl Deref for Namespace {
 }
 
 impl Namespace {
+    pub(crate) fn new(inner: [u8; NAMESPACE_ID_AVAILABLE_LEN]) -> Self {
+        Self(inner)
+    }
+
     pub fn from_string(s: &str) -> eyre::Result<Self> {
         let bytes = hex::decode(s).wrap_err("failed reading string as hex encoded bytes")?;
         ensure!(
@@ -160,7 +162,8 @@ pub struct IndexedTransaction {
 /// TODO: merkle proofs for each rollup's transactions
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct SequencerBlockData {
-    pub block_hash: Base64String,
+    #[serde(with = "crate::serde::Base64Standard")]
+    pub block_hash: Vec<u8>,
     pub header: Header,
     /// This field should be set for every block with height > 1.
     pub last_commit: Option<Commit>,
@@ -214,7 +217,7 @@ impl SequencerBlockData {
         }
 
         let data = Self {
-            block_hash: Base64String(b.header.hash().as_bytes().to_vec()),
+            block_hash: b.header.hash().as_bytes().to_vec(),
             header: b.header,
             last_commit: b.last_commit,
             rollup_txs,
@@ -238,7 +241,7 @@ impl SequencerBlockData {
     pub fn verify_block_hash(&self) -> eyre::Result<()> {
         let block_hash = self.header.hash();
         ensure!(
-            block_hash.as_bytes() == self.block_hash.0,
+            block_hash.as_bytes() == self.block_hash,
             "block hash calculated from tendermint header does not match block hash stored in \
              sequencer block",
         );

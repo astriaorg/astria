@@ -1,23 +1,23 @@
-use std::time::Duration;
-
-use astria_sequencer_client::Client as SequencerClient;
+use astria_sequencer_client::BlockResponse;
 use eyre::{
+    bail,
+    ensure,
     Result,
     WrapErr as _,
 };
-use tokio::{
-    sync::{
-        mpsc::UnboundedSender,
-        watch::{
-            self,
-            Receiver,
-        },
+use tokio::sync::{
+    mpsc::{
+        UnboundedReceiver,
+        UnboundedSender,
     },
-    time,
+    watch::{
+        self,
+        Receiver,
+    },
 };
 use tracing::{
     debug,
-    info,
+    instrument,
     warn,
 };
 
@@ -28,10 +28,9 @@ use crate::{
 };
 
 pub struct Relayer {
-    sequencer_client: SequencerClient,
     data_availability_client: Option<CelestiaClient>,
     validator: Validator,
-    sequencer_poll_period: Duration,
+    sequencer_blocks_rx: UnboundedReceiver<BlockResponse>,
     block_tx: UnboundedSender<SequencerBlockData>,
     state_tx: watch::Sender<State>,
 }
@@ -55,18 +54,15 @@ impl Relayer {
     ///
     /// Returns one of the following errors:
     /// + failed to read the validator keys from the path in cfg;
-    /// + failed to construct a client to the sequencer;
     /// + failed to construct a client to the data availability layer (unless `cfg.disable_writing`
     ///   is set).
     pub fn new(
         cfg: &crate::config::Config,
+        sequencer_blocks_rx: UnboundedReceiver<BlockResponse>,
         block_tx: UnboundedSender<SequencerBlockData>,
     ) -> Result<Self> {
         let validator = Validator::from_path(&cfg.validator_key_file)
             .wrap_err("failed to get validator info from file")?;
-
-        let sequencer_client = SequencerClient::new(&cfg.sequencer_endpoint)
-            .wrap_err("failed to create sequencer client")?;
 
         let data_availability_client = if cfg.disable_writing {
             debug!("disabling writing to data availability layer requested; disabling");
@@ -84,10 +80,9 @@ impl Relayer {
         let (state_tx, _) = watch::channel(State::default());
 
         Ok(Self {
-            sequencer_client,
             data_availability_client,
-            sequencer_poll_period: Duration::from_millis(cfg.block_time),
             validator,
+            sequencer_blocks_rx,
             block_tx,
             state_tx,
         })
@@ -97,62 +92,85 @@ impl Relayer {
         self.state_tx.subscribe()
     }
 
-    async fn get_and_submit_latest_block(&self) -> eyre::Result<State> {
-        let mut new_state = (*self.state_tx.borrow()).clone();
-        let resp = self.sequencer_client.get_latest_block().await?;
-
-        let height = resp.block.header.height.value();
-        if height <= *new_state.current_sequencer_height.get_or_insert(height) {
-            return Ok(new_state);
-        }
-
-        info!(height = ?height, tx_count = resp.block.data.len(), "got block from sequencer");
-        new_state.current_sequencer_height.replace(height);
-
-        if resp.block.header.proposer_address.as_ref() != self.validator.address.as_ref() {
-            let proposer_address = resp.block.header.proposer_address;
-            info!(
-                %proposer_address,
-                validator_address = %self.validator.address,
-                "ignoring block: proposer address is not ours",
+    fn convert_block_response_to_sequencer_block_data(
+        &self,
+        res: BlockResponse,
+        current_height: Option<u64>,
+    ) -> eyre::Result<SequencerBlockData> {
+        if let Some(current_height) = current_height {
+            ensure!(
+                res.block.header.height.value() > current_height,
+                "sequencer block response had height below current height tracked in relayer"
             );
-            return Ok(new_state);
         }
+        ensure!(
+            res.block.header.proposer_address == self.validator.address,
+            "proposer recorded in sequencer block does not match internal validator"
+        );
+        let sequencer_block_data = SequencerBlockData::from_tendermint_block(res.block)
+            .wrap_err("failed converting sequencer block response to sequencer block data")?;
+        Ok(sequencer_block_data)
+    }
 
-        let sequencer_block = match SequencerBlockData::from_tendermint_block(resp.block) {
-            Ok(block) => block,
-            Err(e) => {
-                warn!(error = ?e, "failed to convert block to DA block");
-                return Ok(new_state);
+    #[instrument(skip_all)]
+    async fn submit_blocks(&self, block_responses: Vec<BlockResponse>) -> State {
+        let mut new_state = (*self.state_tx.borrow()).clone();
+        let mut all_converted_blocks = Vec::with_capacity(block_responses.len());
+        for res in block_responses {
+            match self.convert_block_response_to_sequencer_block_data(
+                res,
+                new_state.current_sequencer_height,
+            ) {
+                Ok(converted) => {
+                    if let Err(error) = self.block_tx.send(converted.clone()) {
+                        warn!(?error, "failed sending sequencer block data to gossip task");
+                    }
+                    all_converted_blocks.push(converted)
+                }
+                Err(error) => {
+                    // TODO: better event field, maybe with a way to identify the block?
+                    warn!(?error, "dropping block response");
+                }
             }
+        }
+        // get the max sequencer height from the valid blocks; the result of this op is `None` if
+        // the vector is empty.
+        let Some(max_sequencer_height) = all_converted_blocks
+            .iter()
+            .map(|block| block.header.height.value())
+            .max()
+        else {
+            warn!(
+                "no blocks remained after conversion; not submitting blocks to data availability \
+                 layer"
+            );
+            return new_state;
         };
-
-        self.block_tx.send(sequencer_block.clone())?;
-        let namespace_count = sequencer_block.rollup_txs.len();
+        new_state
+            .current_sequencer_height
+            .replace(max_sequencer_height);
         if let Some(client) = &self.data_availability_client {
             match client
-                .submit_block(
-                    sequencer_block,
+                .submit_all_blocks(
+                    all_converted_blocks,
                     &self.validator.signing_key,
                     self.validator.verification_key,
                 )
                 .await
             {
-                Ok(resp) => {
+                Ok(res) => {
                     new_state
                         .current_data_availability_height
-                        .replace(resp.height);
-                    info!(
-                        sequencer_block = height,
-                        da_layer_block = resp.height,
-                        namespace_count = namespace_count,
-                        "submitted sequencer block to DA layer",
-                    );
+                        .replace(res.height);
                 }
-                Err(e) => warn!(error = ?e, "failed to submit block to DA layer"),
+                Err(e) => warn!(
+                    error.msg = %e,
+                    error.cause_chain = ?e,
+                    "failed to submit block to data availability layer",
+                ),
             }
         }
-        Ok(new_state)
+        new_state
     }
 
     /// Runs the relayer worker.
@@ -161,16 +179,34 @@ impl Relayer {
     ///
     /// `Relayer::run` never returns an error. The return type is
     /// only set to `eyre::Result` for convenient use in `SequencerRelayer`.
-    pub(crate) async fn run(self) -> eyre::Result<()> {
-        let mut interval = time::interval(self.sequencer_poll_period);
+    pub(crate) async fn run(mut self) -> eyre::Result<()> {
+        use tokio::sync::mpsc::error::TryRecvError;
         loop {
-            interval.tick().await;
-            match self.get_and_submit_latest_block().await {
-                Err(e) => warn!(error = ?e, "failed to get latest block from sequencer"),
-                Ok(new_state) if new_state != *self.state_tx.borrow() => {
-                    _ = self.state_tx.send_replace(new_state);
+            // First wait until a new block is available
+            let Some(new_block) = self.sequencer_blocks_rx.recv().await else {
+                bail!("sequencer block channel closed unexpectedly");
+            };
+            let mut new_blocks = vec![new_block];
+            // Then drain the channel
+            'drain_channel: loop {
+                match self.sequencer_blocks_rx.try_recv() {
+                    Ok(block) => new_blocks.push(block),
+                    Err(e) => {
+                        if matches!(e, TryRecvError::Disconnected) {
+                            warn!(
+                                num_outstanding = new_blocks.len(),
+                                "sequencer sequencer block channel closed unexpectedly; \
+                                 attempting to submit outstanding blocks to data availability \
+                                 layer"
+                            );
+                        }
+                        break 'drain_channel;
+                    }
                 }
-                Ok(_) => {}
+            }
+            let new_state = self.submit_blocks(new_blocks).await;
+            if new_state != *self.state_tx.borrow() {
+                _ = self.state_tx.send_replace(new_state);
             }
         }
         // Return Ok to make the types align (see the method's doc comment why this is necessary).
