@@ -1,19 +1,15 @@
 use std::sync::Arc;
 
 use astria_sequencer_relayer::{
-    data_availability::{
-        CelestiaClient,
-        SequencerNamespaceData,
-        SignedNamespaceData,
-    },
+    data_availability::CelestiaClient,
     types::SequencerBlockData,
 };
 use color_eyre::eyre::{
+    self,
+    ensure,
     eyre,
-    Result,
     WrapErr as _,
 };
-use ed25519_consensus::VerificationKey;
 use tokio::{
     sync::mpsc::{
         self,
@@ -23,9 +19,8 @@ use tokio::{
     task,
 };
 use tracing::{
-    debug,
-    error,
     info,
+    instrument,
     warn,
 };
 
@@ -35,7 +30,7 @@ use crate::{
     executor,
 };
 
-pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
+pub(crate) type JoinHandle = task::JoinHandle<eyre::Result<()>>;
 
 /// The channel for sending commands to the reader task.
 pub type Sender = UnboundedSender<ReaderCommand>;
@@ -48,7 +43,7 @@ pub(crate) async fn spawn(
     conf: &Config,
     executor_tx: executor::Sender,
     block_verifier: Arc<BlockVerifier>,
-) -> Result<(JoinHandle, Sender)> {
+) -> eyre::Result<(JoinHandle, Sender)> {
     info!("Spawning reader task.");
     let (mut reader, reader_tx) = Reader::new(
         &conf.celestia_node_url,
@@ -94,7 +89,7 @@ impl Reader {
         celestia_bearer_token: &str,
         executor_tx: executor::Sender,
         block_verifier: Arc<BlockVerifier>,
-    ) -> Result<(Self, Sender)> {
+    ) -> eyre::Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let celestia_client = CelestiaClient::builder()
             .endpoint(celestia_node_url)
@@ -119,7 +114,7 @@ impl Reader {
         ))
     }
 
-    async fn run(&mut self) -> Result<()> {
+    async fn run(&mut self) -> eyre::Result<()> {
         info!("Starting reader event loop.");
 
         while let Some(cmd) = self.cmd_rx.recv().await {
@@ -150,65 +145,72 @@ impl Reader {
     }
 
     /// get_new_blocks fetches any new sequencer blocks from Celestia.
-    pub async fn get_new_blocks(&mut self) -> Result<Vec<SequencerBlockData>> {
-        debug!("ReaderCommand::GetNewBlocks");
-        let mut blocks = vec![];
-
+    #[instrument(name = "Reader::get_new_blocks", skip_all)]
+    pub async fn get_new_blocks(&mut self) -> eyre::Result<Vec<SequencerBlockData>> {
         // get the latest celestia block height
         let prev_height = self.curr_block_height;
-        self.curr_block_height = self.celestia_client.get_latest_height().await?;
-        info!(
-            "checking celestia blocks {} to {}",
-            prev_height, self.curr_block_height
+        let curr_block_height = self
+            .celestia_client
+            .get_latest_height()
+            .await
+            .wrap_err("failed getting latest height from celestia")?;
+        ensure!(
+            curr_block_height > self.curr_block_height,
+            "no new celestia height"
         );
 
+        info!(
+            height.start = prev_height,
+            height.end = curr_block_height,
+            "checking celestia blocks for range of heights",
+        );
+
+        let mut blocks = vec![];
         // check for any new sequencer blocks written from the previous to current block height
-        for height in prev_height..self.curr_block_height {
-            let res = self
+        'check_heights: for height in prev_height..=self.curr_block_height {
+            let sequencer_namespaced_datas = match self
                 .celestia_client
-                .get_sequencer_namespace_data(height, None)
-                .await;
-
-            match res {
-                Ok(datas) => {
-                    // continue as celestia block doesn't have a sequencer block
-                    if datas.is_empty() {
-                        continue;
-                    };
-
-                    for data in datas {
-                        // validate data
-                        self.block_verifier
-                            .validate_signed_namespace_data(&data)
-                            .await
-                            .wrap_err("failed to validate signed namepsace data")?;
-
-                        let block = match self.get_sequencer_block_from_namespace_data(&data).await
-                        {
-                            Ok(block) => block,
-                            Err(e) => {
-                                // this means someone submitted an invalid block to celestia;
-                                // we can ignore it
-                                warn!(error = ?e, "failed to get sequencer block from namespace data");
-                                continue;
-                            }
-                        };
-
-                        if let Err(e) = self.block_verifier.validate_sequencer_block(&block).await {
-                            // this means someone submitted an invalid block to celestia;
-                            // we can ignore it
-                            warn!(error = ?e, "sequencer block failed validation");
-                            continue;
-                        }
-
-                        blocks.push(block);
-                    }
-                }
+                .get_sequencer_namespace_data(height)
+                .await
+            {
+                Ok(datas) => datas,
                 Err(e) => {
-                    // just log the error for now.
-                    // any blocks that weren't fetched will be handled in the next cycle
-                    error!("{}", e.to_string());
+                    warn!(error.msg = %e, error.cause_chain = ?e, height, "failed getting sequencer namespace data from data availability layer");
+                    continue 'check_heights;
                 }
+            };
+            'get_sequencer_blocks: for data in sequencer_namespaced_datas {
+                if let Err(e) = self
+                    .block_verifier
+                    .validate_signed_namespace_data(&data)
+                    .await
+                {
+                    // FIXME: provide more information here to identify the particular block?
+                    warn!(error.msg = %e, error.cause_chain = ?e, "failed to validate signed namespace data; skipping");
+                    continue 'get_sequencer_blocks;
+                }
+
+                let block = match self
+                    .celestia_client
+                    .get_all_rollup_data_from_sequencer_namespace_data(height, &data)
+                    .await
+                    .wrap_err("failed to get rollup data")
+                {
+                    Ok(block) => block,
+                    Err(e) => {
+                        // this means someone submitted an invalid block to celestia;
+                        // we can ignore it
+                        warn!(error.msg = %e, error.cause_chain = ?e, "failed to get sequencer block from namespace data");
+                        continue 'get_sequencer_blocks;
+                    }
+                };
+                if let Err(e) = self.block_verifier.validate_sequencer_block(&block).await {
+                    // this means someone submitted an invalid block to celestia;
+                    // we can ignore it
+                    warn!(error.msg = %e, error.cause_chain = ?e, "failed to validating sequencer block");
+                    continue 'get_sequencer_blocks;
+                }
+                blocks.push(block);
             }
         }
 
@@ -219,27 +221,8 @@ impl Reader {
         Ok(blocks)
     }
 
-    /// get the full SequencerBlock from the base SignedNamespaceData
-    async fn get_sequencer_block_from_namespace_data(
-        &self,
-        data: &SignedNamespaceData<SequencerNamespaceData>,
-    ) -> Result<SequencerBlockData> {
-        // the reason the public key type needs to be converted is due to serialization
-        // constraints, probably fix this later
-        let verification_key = VerificationKey::try_from(&*data.public_key)?;
-
-        // pass the public key to `get_sequencer_block` which does the signature validation for us
-        let block = self
-            .celestia_client
-            .get_sequencer_block(&data.data, Some(verification_key))
-            .await
-            .map_err(|e| eyre!("failed to get rollup data: {}", e))?;
-
-        Ok(block)
-    }
-
     /// Processes an individual block
-    async fn process_block(&self, block: SequencerBlockData) -> Result<()> {
+    async fn process_block(&self, block: SequencerBlockData) -> eyre::Result<()> {
         self.executor_tx.send(
             executor::ExecutorCommand::BlockReceivedFromDataAvailability {
                 block: Box::new(block),
