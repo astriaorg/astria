@@ -59,7 +59,7 @@ pub struct Config {
     pub rpc_port: u16,
     pub p2p_port: u16,
     #[serde(deserialize_with = "bootnodes_deserialize")]
-    pub bootnodes: Vec<String>,
+    pub bootnodes: Option<Vec<String>>,
     pub libp2p_private_key: Option<String>,
     pub log: String,
 }
@@ -94,21 +94,28 @@ impl Default for Config {
             validator_key_file: DEFAULT_VALIDATOR_KEY_FILE.into(),
             rpc_port: DEFAULT_RPC_LISTEN_PORT,
             p2p_port: DEFAULT_GOSSIP_PORT,
-            bootnodes: Vec::new(),
+            bootnodes: None,
             libp2p_private_key: None,
             log: DEFAULT_LOG_DIRECTIVE.into(),
         }
     }
 }
 
-fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    Ok(String::deserialize(deserializer)?
-        .split(',')
-        .map(|item| item.to_owned())
-        .collect())
+    let maybe_bootnodes: Option<String> = Option::deserialize(deserializer)?;
+    if maybe_bootnodes.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(
+        maybe_bootnodes
+            .unwrap()
+            .split(',')
+            .map(|item| item.to_owned())
+            .collect(),
+    ))
 }
 
 #[cfg(test)]
@@ -161,6 +168,14 @@ astria-sequencer-relayer
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_VALIDATOR_KEY_FILE", "/env/key");
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_RPC_PORT", 5555);
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_P2P_PORT", 5555);
+        jail.set_env(
+            "ASTRIA_SEQUENCER_RELAYER_BOOTNODES",
+            "/cli/bootnode3,/cli/bootnode4",
+        );
+        jail.set_env(
+            "ASTRIA_SEQUENCER_RELAYER_LIBP2P_PRIVATE_KEY",
+            "envlibp2p.key",
+        );
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_LOG", "env=debug");
     }
 
@@ -181,7 +196,10 @@ astria-sequencer-relayer
                 validator_key_file: "/cli/key".into(),
                 rpc_port: 9999,
                 p2p_port: 9999,
-                bootnodes: vec!["/cli/bootnode1".to_string(), "/cli/bootnode2".to_string()],
+                bootnodes: Some(vec![
+                    "/cli/bootnode1".to_string(),
+                    "/cli/bootnode2".to_string(),
+                ]),
                 libp2p_private_key: Some("libp2p.key".to_string()),
                 log: "cli=warn".into(),
             };
@@ -206,8 +224,11 @@ astria-sequencer-relayer
                 validator_key_file: "/env/key".into(),
                 rpc_port: 5555,
                 p2p_port: 5555,
-                bootnodes: Vec::new(),
-                libp2p_private_key: None,
+                bootnodes: Some(vec![
+                    "/cli/bootnode3".to_string(),
+                    "/cli/bootnode4".to_string(),
+                ]),
+                libp2p_private_key: Some("envlibp2p.key".to_string()),
                 log: "env=debug".into(),
             };
             assert_eq!(expected, actual);

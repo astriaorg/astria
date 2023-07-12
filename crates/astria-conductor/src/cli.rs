@@ -25,7 +25,8 @@ pub struct Cli {
 
     /// Comma-separated string of libp2p addresses of nodes to connect to.
     #[arg(long = "bootnodes")]
-    pub bootnodes: String,
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub bootnodes: Option<String>,
 
     /// Path to the libp2p private key file.
     #[arg(long = "libp2p-private-key")]

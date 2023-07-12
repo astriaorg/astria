@@ -34,9 +34,12 @@ impl GossipNetwork {
         cfg: &Config,
         block_rx: UnboundedReceiver<SequencerBlockData>,
     ) -> Result<Self> {
-        let mut builder = NetworkBuilder::new()
-            .bootnodes(cfg.bootnodes.clone())
-            .port(cfg.p2p_port);
+        let mut builder = NetworkBuilder::new().port(cfg.p2p_port);
+
+        if let Some(bootnodes) = &cfg.bootnodes {
+            builder = builder.bootnodes(bootnodes.clone());
+        }
+
         if let Some(libp2p_private_key) = &cfg.libp2p_private_key {
             builder = builder
                 .keypair_from_file(libp2p_private_key)
@@ -44,7 +47,6 @@ impl GossipNetwork {
         }
 
         let network = builder.build().wrap_err("failed to build gossip network")?;
-
         Ok(Self {
             network,
             block_rx,
