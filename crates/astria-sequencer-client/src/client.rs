@@ -23,6 +23,7 @@ use tendermint_rpc::{
             tx_commit,
             tx_sync,
         },
+        validators,
     },
     Client as _,
     HttpClient,
@@ -74,6 +75,21 @@ impl Client {
             .await
             .wrap_err("failed to call block")?;
         Ok(block)
+    }
+
+    /// Returns the validator set at the given height.
+    ///
+    /// # Errors
+    ///
+    /// - If calling the tendermint RPC endpoint fails.
+    pub async fn get_validator_set<T: Into<Height>>(
+        &self,
+        height: T,
+    ) -> eyre::Result<validators::Response> {
+        self.client
+            .validators(height.into(), tendermint_rpc::Paging::Default)
+            .await
+            .wrap_err("failed to get validator set")
     }
 
     /// Returns the balance of the given account at the given height.

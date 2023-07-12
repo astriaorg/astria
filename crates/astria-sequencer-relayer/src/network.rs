@@ -14,17 +14,20 @@ use tracing::{
     warn,
 };
 
-use crate::sequencer_block::SequencerBlock;
+use crate::types::SequencerBlockData;
 
 const BLOCKS_TOPIC: &str = "blocks";
 
 pub struct GossipNetwork {
     network: Network,
-    block_rx: UnboundedReceiver<SequencerBlock>,
+    block_rx: UnboundedReceiver<SequencerBlockData>,
 }
 
 impl GossipNetwork {
-    pub(crate) fn new(p2p_port: u16, block_rx: UnboundedReceiver<SequencerBlock>) -> Result<Self> {
+    pub(crate) fn new(
+        p2p_port: u16,
+        block_rx: UnboundedReceiver<SequencerBlockData>,
+    ) -> Result<Self> {
         let network = NetworkBuilder::new().port(p2p_port).build()?;
         Ok(Self {
             network,
@@ -62,7 +65,7 @@ impl GossipNetwork {
         Ok(())
     }
 
-    async fn publish(&mut self, block: &SequencerBlock) -> Result<()> {
+    async fn publish(&mut self, block: &SequencerBlockData) -> Result<()> {
         self.network
             .publish(block.to_bytes()?, Sha256Topic::new(BLOCKS_TOPIC))
             .await?;

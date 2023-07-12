@@ -18,7 +18,6 @@ pub(crate) mod executor;
 pub mod network;
 pub mod reader;
 pub mod telemetry;
-pub mod tendermint;
 
 mod private {
     #[allow(unreachable_pub)]

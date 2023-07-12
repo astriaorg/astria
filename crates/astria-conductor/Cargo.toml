@@ -22,6 +22,7 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 tendermint = { workspace = true }
 tendermint-proto = { workspace = true }
+tendermint-rpc = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
@@ -29,8 +30,8 @@ tracing-subscriber = { workspace = true, features = ["ansi", "json"] }
 
 astria-proto = { path = "../astria-proto" }
 astria-gossipnet = { path = "../astria-gossipnet" }
+astria-sequencer-client = { path = "../astria-sequencer-client" }
 astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 
 [dev-dependencies]
-astria-conductor-test = { path = "../astria-conductor-test" }
 once_cell = { workspace = true }

@@ -6,7 +6,7 @@ use astria_sequencer_relayer::{
         SequencerNamespaceData,
         SignedNamespaceData,
     },
-    sequencer_block::SequencerBlock,
+    types::SequencerBlockData,
 };
 use color_eyre::eyre::{
     eyre,
@@ -105,6 +105,8 @@ impl Reader {
         // TODO: we should probably pass in the height we want to start at from some genesis/config
         // file
         let curr_block_height = celestia_client.get_latest_height().await?;
+        info!(da_height = curr_block_height, "creating Reader");
+
         Ok((
             Self {
                 cmd_rx,
@@ -123,10 +125,14 @@ impl Reader {
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
                 ReaderCommand::GetNewBlocks => {
-                    let blocks = self
-                        .get_new_blocks()
-                        .await
-                        .map_err(|e| eyre!("failed to get new block: {}", e))?;
+                    let blocks = match self.get_new_blocks().await {
+                        Ok(blocks) => blocks,
+                        Err(e) => {
+                            warn!(error = ?e, "failed to get new blocks");
+                            continue;
+                        }
+                    };
+
                     for block in blocks {
                         self.process_block(block)
                             .await
@@ -144,7 +150,7 @@ impl Reader {
     }
 
     /// get_new_blocks fetches any new sequencer blocks from Celestia.
-    pub async fn get_new_blocks(&mut self) -> Result<Vec<SequencerBlock>> {
+    pub async fn get_new_blocks(&mut self) -> Result<Vec<SequencerBlockData>> {
         debug!("ReaderCommand::GetNewBlocks");
         let mut blocks = vec![];
 
@@ -217,7 +223,7 @@ impl Reader {
     async fn get_sequencer_block_from_namespace_data(
         &self,
         data: &SignedNamespaceData<SequencerNamespaceData>,
-    ) -> Result<SequencerBlock> {
+    ) -> Result<SequencerBlockData> {
         // the reason the public key type needs to be converted is due to serialization
         // constraints, probably fix this later
         let verification_key = VerificationKey::try_from(&*data.public_key.0)?;
@@ -233,7 +239,7 @@ impl Reader {
     }
 
     /// Processes an individual block
-    async fn process_block(&self, block: SequencerBlock) -> Result<()> {
+    async fn process_block(&self, block: SequencerBlockData) -> Result<()> {
         self.executor_tx.send(
             executor::ExecutorCommand::BlockReceivedFromDataAvailability {
                 block: Box::new(block),
