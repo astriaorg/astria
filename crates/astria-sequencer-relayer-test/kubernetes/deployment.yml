@@ -47,7 +47,7 @@ spec:
         - command:
           - /home/cometbft/cometbft init
           name: init-cometbft
-          image: "ghcr.io/noot99/cometbft:latest"
+          image: "ghcr.io/astriaorg/cometbft:0.0.2"
       containers:
         - name: celestia-app
           command: ["/scripts/start-celestia-appd.sh"]
@@ -107,7 +107,7 @@ spec:
         #     periodSeconds: 10
         - name: cometbft
           command: ["/home/cometbft/cometbft start"]
-          image: "ghcr.io/noot99/cometbft:latest"
+          image: "ghcr.io/astriaorg/cometbft:0.0.2"
           ports:
             - containerPort: 26657
               name: cometbft-svc

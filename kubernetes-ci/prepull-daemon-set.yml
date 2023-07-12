@@ -20,7 +20,7 @@ spec:
           image: ghcr.io/astriaorg/test-images-celestia-node:v0.11.0-rc7
           command: ["sh", "-c", "'true'"]
         - name: prepull-cometbft
-          image: "ghcr.io/noot99/cometbft:latest"
+          image: "ghcr.io/astriaorg/cometbft:0.0.2"
           command: ["sh", "-c", "'true'"]
         - name: prepull-dasel
           image: ghcr.io/tomwright/dasel:alpine

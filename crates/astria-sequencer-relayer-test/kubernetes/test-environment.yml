@@ -187,7 +187,7 @@ spec:
           readOnly: true
       - command:
         - /home/cometbft/cometbft start
-        image: ghcr.io/noot99/cometbft:latest
+        image: ghcr.io/astriaorg/cometbft:0.0.2
         name: cometbft
         ports:
         - containerPort: 26657
@@ -221,7 +221,7 @@ spec:
           name: celestia-home
       - command:
         - /home/cometbft/cometbft init
-        image: ghcr.io/noot99/cometbft:latest
+        image: ghcr.io/astriaorg/cometbft:0.0.2
         name: init-cometbft
       securityContext:
         fsGroup: 10001
