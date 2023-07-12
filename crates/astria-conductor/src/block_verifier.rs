@@ -86,7 +86,7 @@ impl BlockVerifier {
             .to_bytes();
 
         // verify the namespace data signing public key matches the proposer public key
-        let proposer_public_key = &data.public_key.0;
+        let proposer_public_key = &data.public_key;
         ensure!(
             proposer_public_key == &expected_proposer_public_key,
             "public key mismatch: expected {}, got {}",

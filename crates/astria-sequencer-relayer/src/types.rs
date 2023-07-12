@@ -61,6 +61,10 @@ impl Deref for Namespace {
 }
 
 impl Namespace {
+    pub(crate) fn new(inner: [u8; NAMESPACE_ID_AVAILABLE_LEN]) -> Self {
+        Self(inner)
+    }
+
     pub fn from_string(s: &str) -> eyre::Result<Self> {
         let bytes = hex::decode(s).wrap_err("failed reading string as hex encoded bytes")?;
         ensure!(
