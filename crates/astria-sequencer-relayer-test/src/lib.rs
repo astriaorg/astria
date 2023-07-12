@@ -352,6 +352,7 @@ async fn wait_until_sequencer_is_available(namespace: &str) {
     let client = reqwest::Client::builder()
         .build()
         .expect("building a basic reqwest client should never fail");
+    // TODO: update this to use the sequencer `block` endpoint
     let url = reqwest::Url::parse(&format!(
         "http://{namespace}.localdev.me/sequencer/cosmos/base/tendermint/v1beta1/blocks/latest"
     ))
