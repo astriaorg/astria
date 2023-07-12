@@ -4,6 +4,7 @@ pub mod config;
 pub mod data_availability;
 pub mod network;
 pub mod relayer;
+pub(crate) mod sequencer_poller;
 pub mod sequencer_relayer;
 pub mod transaction;
 pub mod types;

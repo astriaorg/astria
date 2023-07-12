@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use astria_celestia_jsonrpc_client::{
     blob::{
         self,
@@ -13,10 +11,7 @@ use ed25519_consensus::{
     SigningKey,
     VerificationKey,
 };
-use eyre::{
-    bail,
-    WrapErr as _,
-};
+use eyre::WrapErr as _;
 use serde::{
     de::DeserializeOwned,
     Deserialize,
@@ -30,10 +25,7 @@ use tendermint::block::{
     Commit,
     Header,
 };
-use tracing::{
-    debug,
-    warn,
-};
+use tracing::warn;
 
 use crate::{
     base64_string::Base64String,
@@ -49,11 +41,8 @@ pub const DEFAULT_PFD_GAS_LIMIT: u64 = 1_000_000;
 const DEFAULT_PFD_FEE: u128 = 2_000;
 
 /// SubmitBlockResponse is the response to a SubmitBlock request.
-/// It contains a map of namespaces to the block number that it was written to.
 pub struct SubmitBlockResponse {
-    /// the height the base namespace was written to
     pub height: u64,
-    pub namespace_to_block_num: HashMap<Namespace, u64>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -141,10 +130,7 @@ pub struct SequencerNamespaceData {
     pub block_hash: Base64String,
     pub header: Header,
     pub last_commit: Option<Commit>,
-    /// vector of (block height, namespace) tuples
-    /// TODO: can get rid of block height when multiple
-    /// blobs are written atomically
-    pub rollup_namespaces: Vec<(u64, Namespace)>,
+    pub rollup_namespaces: Vec<Namespace>,
 }
 
 impl NamespaceData for SequencerNamespaceData {}
@@ -256,16 +242,12 @@ impl CelestiaClient {
 
     async fn submit_namespaced_data(
         &self,
-        namespace_id: [u8; blob::NAMESPACE_ID_AVAILABLE_LEN],
-        data: &[u8],
+        blobs: Vec<blob::Blob>,
     ) -> eyre::Result<state::SubmitPayForBlobResponse> {
         let req = state::SubmitPayForBlobRequest {
             fee: self.fee,
             gas_limit: self.gas_limit,
-            blobs: vec![blob::Blob {
-                namespace_id,
-                data: data.to_vec(),
-            }],
+            blobs,
         };
         self.client
             .state_submit_pay_for_blob(req)
@@ -274,68 +256,36 @@ impl CelestiaClient {
     }
 
     /// submit_block submits a block to Celestia.
-    /// It first writes all the rollup namespace data, then writes the sequencer namespace data.
-    /// The sequencer namespace data contains all the rollup namespaces that were written,
-    /// along with any transactions that were not for a specific rollup.
-    pub async fn submit_block(
+    pub async fn submit_all_blocks(
         &self,
-        block: SequencerBlockData,
+        blocks: Vec<SequencerBlockData>,
         signing_key: &SigningKey,
         verification_key: VerificationKey,
     ) -> eyre::Result<SubmitBlockResponse> {
-        let mut namespace_to_block_num: HashMap<Namespace, u64> = HashMap::new();
-        let mut block_height_and_namespace: Vec<(u64, Namespace)> = Vec::new();
-
-        // first, format and submit data for each rollup namespace
-        //
-        // TODO: This could probably now be combined into one submission?
-        for (namespace, txs) in block.rollup_txs {
-            debug!(
-                "submitting rollup namespace data for namespace {}",
-                namespace
-            );
-            let rollup_namespace_data = RollupNamespaceData {
-                block_hash: block.block_hash.clone(),
-                rollup_txs: txs,
+        let num_expected_blobs = blocks.iter().map(|block| block.rollup_txs.len() + 1).sum();
+        let mut all_blobs = Vec::with_capacity(num_expected_blobs);
+        'assemble_blobs: for block in blocks {
+            let mut blobs = match assemble_blobs_from_sequencer_block_data(
+                block,
+                signing_key,
+                verification_key,
+            ) {
+                Ok(blobs) => blobs,
+                Err(e) => {
+                    warn!(e.msg = %e, e.cause_chain = ?e, "failed assembling blobs from sequencer block data; skipping");
+                    continue 'assemble_blobs;
+                }
             };
-            let rollup_data_bytes = rollup_namespace_data
-                .to_signed(signing_key, verification_key)
-                .wrap_err("failed signing rollup namespace data")?
-                .to_bytes()
-                .wrap_err("failed converting signed rollupdata namespace data to bytes")?;
-            let rsp = self
-                .submit_namespaced_data(*namespace, &rollup_data_bytes)
-                .await
-                .wrap_err("failed submitting signed rollup namespaced data")?;
-            let height = rsp.height;
-            namespace_to_block_num.insert(namespace, height);
-            block_height_and_namespace.push((height, namespace))
+            all_blobs.append(&mut blobs);
         }
 
-        // then, format and submit data to the base sequencer namespace
-        let sequencer_namespace_data = SequencerNamespaceData {
-            block_hash: block.block_hash.clone(),
-            header: block.header,
-            last_commit: block.last_commit,
-            rollup_namespaces: block_height_and_namespace,
-        };
-
-        let bytes = sequencer_namespace_data
-            .to_signed(signing_key, verification_key)
-            .wrap_err("failed signing sequencer namespace data")?
-            .to_bytes()
-            .wrap_err("failed converting signed namespace data to bytes")?;
-        // TODO: Could this also be thrown into the submission above?
         let rsp = self
-            .submit_namespaced_data(*DEFAULT_NAMESPACE, &bytes)
+            .submit_namespaced_data(all_blobs)
             .await
-            .wrap_err("failed submitting namespaced data")?;
-
+            .wrap_err("failed submitting namespaced data to data availability layer")?;
         let height = rsp.height;
-        namespace_to_block_num.insert(DEFAULT_NAMESPACE, height);
         Ok(SubmitBlockResponse {
             height,
-            namespace_to_block_num,
         })
     }
 
@@ -379,104 +329,138 @@ impl CelestiaClient {
         Ok(sequencer_namespace_datas)
     }
 
-    /// get_sequencer_block returns the full SequencerBlock (with all rollup data) for the given
-    /// SequencerNamespaceData.
-    pub async fn get_sequencer_block(
-        &self,
-        data: &SequencerNamespaceData,
-        verification_key: Option<VerificationKey>,
-    ) -> eyre::Result<SequencerBlockData> {
-        let mut rollup_txs_map = HashMap::new();
+    //     /// get_sequencer_block returns the full SequencerBlock (with all rollup data) for the
+    // given     /// SequencerNamespaceData.
+    //     pub async fn get_sequencer_block(
+    //         &self,
+    //         height: u64,
+    //         data: &SequencerNamespaceData,
+    //         verification_key: Option<VerificationKey>,
+    //     ) -> eyre::Result<SequencerBlockData> { let mut rollup_txs_map = HashMap::new();
 
-        // for each rollup namespace, retrieve the corresponding rollup data
-        'namespaces: for (height, rollup_namespace) in &data.rollup_namespaces {
-            let rollup_txs = self
-                .get_rollup_data_for_block(
-                    &data.block_hash.0,
-                    *rollup_namespace,
-                    *height,
-                    verification_key,
-                )
-                .await
-                .wrap_err_with(|| {
-                    format!(
-                        "failed getting rollup data for block at height `{height}` in rollup \
-                         namespace `{rollup_namespace}`"
-                    )
-                })?;
-            let Some(rollup_txs) = rollup_txs else {
-                // this shouldn't happen; if a sequencer block claims to have written data to some
-                // rollup namespace, it should exist
-                warn!("no rollup data found for namespace {rollup_namespace}");
-                continue 'namespaces;
-            };
-            rollup_txs_map.insert(*rollup_namespace, rollup_txs);
-        }
+    //         // for each rollup namespace, retrieve the corresponding rollup data
+    //         'namespaces: for rollup_namespace in &data.rollup_namespaces {
+    //             let rollup_txs = self
+    //                 .get_rollup_data_for_block(
+    //                     &data.block_hash.0,
+    //                     *rollup_namespace,
+    //                     height,
+    //                     verification_key,
+    //                 )
+    //                 .await
+    //                 .wrap_err_with(|| {
+    //                     format!(
+    //                         "failed getting rollup data for block at height `{height}` in rollup
+    // \                          namespace `{rollup_namespace}`"
+    //                     )
+    //                 })?;
+    //             let Some(rollup_txs) = rollup_txs else {
+    //                 // this shouldn't happen; if a sequencer block claims to have written data to
+    // some                 // rollup namespace, it should exist
+    //                 warn!("no rollup data found for namespace {rollup_namespace}");
+    //                 continue 'namespaces;
+    //             };
+    //             rollup_txs_map.insert(*rollup_namespace, rollup_txs);
+    //         }
 
-        Ok(SequencerBlockData {
-            block_hash: data.block_hash.clone(),
-            header: data.header.clone(),
-            last_commit: data.last_commit.clone(),
-            rollup_txs: rollup_txs_map,
-        })
-    }
+    //         Ok(SequencerBlockData {
+    //             block_hash: data.block_hash.clone(),
+    //             header: data.header.clone(),
+    //             last_commit: data.last_commit.clone(),
+    //             rollup_txs: rollup_txs_map,
+    //         })
+    //     }
 
-    async fn get_rollup_data_for_block(
-        &self,
-        block_hash: &[u8],
-        rollup_namespace: Namespace,
-        height: u64,
-        verification_key: Option<VerificationKey>,
-    ) -> eyre::Result<Option<Vec<IndexedTransaction>>> {
-        let req = GetAllRequest {
-            height,
-            namespace_ids: vec![*rollup_namespace],
+    //     async fn get_rollup_data_for_block(
+    //         &self,
+    //         block_hash: &[u8],
+    //         rollup_namespace: Namespace,
+    //         height: u64,
+    //         verification_key: Option<VerificationKey>,
+    //     ) -> eyre::Result<Option<Vec<IndexedTransaction>>> { let req = GetAllRequest { height,
+    //       namespace_ids: vec![*rollup_namespace], }; let rsp = self .client .blob_get_all(req)
+    //       .await .wrap_err("failed getting namespaced data")?;
+
+    //         let mut rollup_datas = rsp
+    //             .blobs
+    //             .iter()
+    //             .filter_map(|blob| {
+    //                 if let Ok(data) =
+    // SignedNamespaceData::<RollupNamespaceData>::from_bytes(&blob.data)                 {
+    //                     Some(data)
+    //                 } else {
+    //                     warn!("failed to deserialize rollup namespace data");
+    //                     None
+    //                 }
+    //             })
+    //             .filter(|d| {
+    //                 let hash = match d.data.hash() {
+    //                     Ok(hash) => hash,
+    //                     Err(_) => return false,
+    //                 };
+
+    //                 match Signature::try_from(&*d.signature.0) {
+    //                     Ok(sig) => {
+    //                         let Some(verification_key) = verification_key else {
+    //                             return true;
+    //                         };
+    //                         verification_key.verify(&sig, &hash).is_ok()
+    //                     }
+    //                     Err(_) => false,
+    //                 }
+    //             })
+    //             .filter(|d| d.data.block_hash.0 == block_hash);
+
+    //         let Some(rollup_data_for_block) = rollup_datas.next() else {
+    //             return Ok(None);
+    //         };
+
+    //         // there should NOT be multiple datas with the same block hash and signer
+    //         if rollup_datas.next().is_some() {
+    //             bail!("multiple rollup datas with the same block hash and signer");
+    //         }
+
+    //         Ok(Some(rollup_data_for_block.data.rollup_txs))
+    //     }
+}
+
+fn assemble_blobs_from_sequencer_block_data(
+    block_data: SequencerBlockData,
+    signing_key: &SigningKey,
+    verification_key: VerificationKey,
+) -> eyre::Result<Vec<blob::Blob>> {
+    let mut blobs = Vec::with_capacity(block_data.rollup_txs.len() + 1);
+    let mut namespaces = Vec::with_capacity(block_data.rollup_txs.len() + 1);
+    for (namespace, txs) in block_data.rollup_txs {
+        let rollup_namespace_data = RollupNamespaceData {
+            block_hash: block_data.block_hash.clone(),
+            rollup_txs: txs,
         };
-        let rsp = self
-            .client
-            .blob_get_all(req)
-            .await
-            .wrap_err("failed getting namespaced data")?;
-
-        let mut rollup_datas = rsp
-            .blobs
-            .iter()
-            .filter_map(|blob| {
-                if let Ok(data) = SignedNamespaceData::<RollupNamespaceData>::from_bytes(&blob.data)
-                {
-                    Some(data)
-                } else {
-                    warn!("failed to deserialize rollup namespace data");
-                    None
-                }
-            })
-            .filter(|d| {
-                let hash = match d.data.hash() {
-                    Ok(hash) => hash,
-                    Err(_) => return false,
-                };
-
-                match Signature::try_from(&*d.signature.0) {
-                    Ok(sig) => {
-                        let Some(verification_key) = verification_key else {
-                            return true;
-                        };
-                        verification_key.verify(&sig, &hash).is_ok()
-                    }
-                    Err(_) => false,
-                }
-            })
-            .filter(|d| d.data.block_hash.0 == block_hash);
-
-        let Some(rollup_data_for_block) = rollup_datas.next() else {
-            return Ok(None);
-        };
-
-        // there should NOT be multiple datas with the same block hash and signer
-        if rollup_datas.next().is_some() {
-            bail!("multiple rollup datas with the same block hash and signer");
-        }
-
-        Ok(Some(rollup_data_for_block.data.rollup_txs))
+        let data = rollup_namespace_data
+            .to_signed(signing_key, verification_key)
+            .wrap_err("failed signing rollup namespace data")?
+            .to_bytes()
+            .wrap_err("failed converting signed rollupdata namespace data to bytes")?;
+        blobs.push(blob::Blob {
+            namespace_id: *namespace,
+            data,
+        });
+        namespaces.push(namespace);
     }
+    let sequencer_namespace_data = SequencerNamespaceData {
+        block_hash: block_data.block_hash.clone(),
+        header: block_data.header,
+        last_commit: block_data.last_commit,
+        rollup_namespaces: namespaces,
+    };
+    let data = sequencer_namespace_data
+        .to_signed(signing_key, verification_key)
+        .wrap_err("failed signing sequencer namespace data")?
+        .to_bytes()
+        .wrap_err("failed converting signed namespace data to bytes")?;
+    blobs.push(blob::Blob {
+        namespace_id: *DEFAULT_NAMESPACE,
+        data,
+    });
+    Ok(blobs)
 }
