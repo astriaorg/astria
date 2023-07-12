@@ -77,7 +77,7 @@ spec:
           ports:
             - containerPort: 26659
               name: bridge-rest
-            - containerPort: 26658
+            - containerPort: 26690
               name: bridge-jsonrpc
           startupProbe:
             httpGet:
@@ -96,9 +96,9 @@ spec:
             - mountPath: /usr/local/bin/astria-sequencer
               name: astria-sequencer-binary
               readOnly: true
-          # ports:
-          #   - containerPort: 26658
-          #     name: sequencer-svc
+          ports:
+            - containerPort: 26658
+              name: sequencer-svc
         #   startupProbe:
         #     httpGet:
         #       path: /blocks

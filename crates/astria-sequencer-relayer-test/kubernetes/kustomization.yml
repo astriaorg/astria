@@ -5,11 +5,6 @@ resources:
 - deployment.yml
 - service.yml
 configMapGenerator:
-# - name: metro-scripts
-#   files:
-#   - scripts/configure-metro.sh
-#   - scripts/init-metro.sh
-#   - scripts/start-metro.sh
 - name: celestia-appd-scripts
   files:
   - scripts/init-celestia-appd.sh

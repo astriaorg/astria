@@ -17,4 +17,5 @@ export CELESTIA_CUSTOM="test:$genesis_hash"
 exec celestia bridge start \
   --node.store "$home_dir/bridge" \
   --gateway \
-  --keyring.accname "$validator_key_name"
+  --keyring.accname "$validator_key_name" \ 
+  --rpc.port 26690

@@ -14,30 +14,16 @@ data:
       --node.store "$home_dir/bridge" \
       --core.ip 127.0.0.1
     cp -r "$home_dir/keyring-test" "$home_dir/bridge/keys/"
-  start-bridge.sh: |
-    #!/bin/sh -x
-
-    set -o errexit -o nounset -o pipefail
-
-    if genesis_hash=$(curl -s -S -X GET "http://127.0.0.1:26657/block?height=1" | jq -er '.result.block_id.hash');
-    then
-      : "genesis hash received successfully"
-    else
-      echo "did not receive genesis hash from celestia; exiting"
-      exit 1
-    fi
-
-    echo "using genesis hash: $genesis_hash"
-
-    export GOLOG_LOG_LEVEL="debug"
-    export CELESTIA_CUSTOM="test:$genesis_hash"
-    exec celestia bridge start \
-      --node.store "$home_dir/bridge" \
-      --gateway \
-      --keyring.accname "$validator_key_name"
+  start-bridge.sh: "#!/bin/sh -x\n\nset -o errexit -o nounset -o pipefail\n\nif genesis_hash=$(curl
+    -s -S -X GET \"http://127.0.0.1:26657/block?height=1\" | jq -er '.result.block_id.hash');\nthen\n
+    \ : \"genesis hash received successfully\"\nelse\n  echo \"did not receive genesis
+    hash from celestia; exiting\"\n  exit 1\nfi\n\necho \"using genesis hash: $genesis_hash\"\n\nexport
+    GOLOG_LOG_LEVEL=\"debug\"\nexport CELESTIA_CUSTOM=\"test:$genesis_hash\"\nexec
+    celestia bridge start \\\n  --node.store \"$home_dir/bridge\" \\\n  --gateway
+    \\\n  --keyring.accname \"$validator_key_name\" \\ \n  --rpc.port 26690\n"
 kind: ConfigMap
 metadata:
-  name: bridge-scripts-4bttthc8ck
+  name: bridge-scripts-6tbc68f5cc
 ---
 apiVersion: v1
 data:
@@ -113,7 +99,7 @@ spec:
     port: 26659
     targetPort: bridge-rest
   - name: bridge-jsonrpc
-    port: 26658
+    port: 26690
     targetPort: bridge-jsonrpc
   selector:
     app: sequencer-relayer-environment
@@ -163,7 +149,7 @@ spec:
         ports:
         - containerPort: 26659
           name: bridge-rest
-        - containerPort: 26658
+        - containerPort: 26690
           name: bridge-jsonrpc
         startupProbe:
           failureThreshold: 30
@@ -181,6 +167,9 @@ spec:
         - /usr/local/bin/astria-sequencer
         image: docker.io/library/debian:bookworm-slim
         name: astria-sequencer
+        ports:
+        - containerPort: 26658
+          name: sequencer-svc
         volumeMounts:
         - mountPath: /usr/local/bin/astria-sequencer
           name: astria-sequencer-binary
@@ -233,7 +222,7 @@ spec:
         name: astria-sequencer-binary
       - configMap:
           defaultMode: 320
-          name: bridge-scripts-4bttthc8ck
+          name: bridge-scripts-6tbc68f5cc
         name: bridge-scripts-volume
       - configMap:
           defaultMode: 320

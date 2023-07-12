@@ -38,6 +38,7 @@ pub struct Config {
 //   in Cli always override values from a Config file, which we don't want.
 
 fn default_celestia_node_url() -> String {
+    // TODO: this will often conflict with astria-sequencer as it's the default ABCI port
     "http://localhost:26658".to_string()
 }
 

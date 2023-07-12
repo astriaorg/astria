@@ -16,5 +16,5 @@ spec:
       port: 26659
       targetPort: bridge-rest
     - name: bridge-jsonrpc
-      port: 26658
+      port: 26690
       targetPort: bridge-jsonrpc
