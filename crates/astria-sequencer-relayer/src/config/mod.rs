@@ -10,12 +10,13 @@ use serde::{
     Deserialize,
     Serialize,
 };
+
 mod cli;
 
-const DEFAULT_BLOCK_TIME: u64 = 3000;
+const DEFAULT_BLOCK_TIME: u64 = 1000;
 const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26658";
-const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:1317";
-const DEFAULT_VALIDATOR_KEY_FILE: &str = ".metro/config/priv_validator_key.json";
+const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:26657";
+const DEFAULT_VALIDATOR_KEY_FILE: &str = ".cometbft/config/priv_validator_key.json";
 
 const DEFAULT_RPC_LISTEN_PORT: u16 = 2450;
 const DEFAULT_GOSSIP_PORT: u16 = 33900;

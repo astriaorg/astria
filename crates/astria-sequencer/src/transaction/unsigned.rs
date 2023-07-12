@@ -48,6 +48,11 @@ impl Unsigned {
         }
     }
 
+    #[must_use]
+    pub fn actions(&self) -> &[Action] {
+        &self.actions
+    }
+
     pub(crate) fn to_proto(&self) -> ProtoUnsignedTransaction {
         let mut proto = ProtoUnsignedTransaction {
             nonce: self.nonce.into(),
