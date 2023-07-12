@@ -3,7 +3,10 @@ use astria_gossipnet::network::{
     NetworkBuilder,
     Sha256Topic,
 };
-use eyre::Result;
+use eyre::{
+    Result,
+    WrapErr as _,
+};
 use futures::StreamExt;
 use tokio::{
     select,
@@ -14,7 +17,10 @@ use tracing::{
     warn,
 };
 
-use crate::types::SequencerBlockData;
+use crate::{
+    config::Config,
+    types::SequencerBlockData,
+};
 
 const BLOCKS_TOPIC: &str = "blocks";
 
@@ -25,10 +31,22 @@ pub struct GossipNetwork {
 
 impl GossipNetwork {
     pub(crate) fn new(
-        p2p_port: u16,
+        cfg: &Config,
         block_rx: UnboundedReceiver<SequencerBlockData>,
     ) -> Result<Self> {
-        let network = NetworkBuilder::new().port(p2p_port).build()?;
+        let mut builder = NetworkBuilder::new().port(cfg.p2p_port);
+
+        if let Some(bootnodes) = &cfg.bootnodes {
+            builder = builder.bootnodes(bootnodes.clone());
+        }
+
+        if let Some(libp2p_private_key) = &cfg.libp2p_private_key {
+            builder = builder
+                .keypair_from_file(libp2p_private_key)
+                .wrap_err("failed to load libp2p private key")?;
+        }
+
+        let network = builder.build().wrap_err("failed to build gossip network")?;
         Ok(Self {
             network,
             block_rx,

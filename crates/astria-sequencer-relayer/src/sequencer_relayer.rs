@@ -22,11 +22,11 @@ impl SequencerRelayer {
     ///
     /// Returns an error if constructing the gossip network or the relayer
     /// worked failed.
-    pub fn new(cfg: &Config) -> eyre::Result<Self> {
+    pub fn new(cfg: Config) -> eyre::Result<Self> {
         let (block_tx, block_rx) = tokio::sync::mpsc::unbounded_channel();
-        let gossip_net = GossipNetwork::new(cfg.p2p_port, block_rx)
-            .wrap_err("failed to create gossip network")?;
-        let relayer = Relayer::new(cfg, block_tx).wrap_err("failed to create relayer")?;
+        let gossip_net =
+            GossipNetwork::new(&cfg, block_rx).wrap_err("failed to create gossip network")?;
+        let relayer = Relayer::new(&cfg, block_tx).wrap_err("failed to create relayer")?;
         let state_rx = relayer.subscribe_to_state();
         let api_server = Box::new(api::start(cfg.rpc_port, state_rx));
         Ok(Self {
