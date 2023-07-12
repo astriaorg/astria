@@ -31,10 +31,22 @@ pub struct Config {
     pub disable_finalization: bool,
 
     /// Bootnodes for the P2P network
+    #[serde(deserialize_with = "bootnodes_deserialize")]
     pub bootnodes: Vec<String>,
 
     /// Path to the libp2p private key file
     pub libp2p_private_key: Option<String>,
+}
+
+fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(String::deserialize(deserializer)
+        .wrap_err("failed to deserialize bootnode string")?
+        .split(',')
+        .map(|item| item.to_owned())
+        .collect())
 }
 
 // NOTE - using default fns instead of defaults in Cli because defaults

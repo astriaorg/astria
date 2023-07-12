@@ -8,6 +8,7 @@ use figment::{
 };
 use serde::{
     Deserialize,
+    Deserializer,
     Serialize,
 };
 
@@ -57,6 +58,7 @@ pub struct Config {
     pub validator_key_file: String,
     pub rpc_port: u16,
     pub p2p_port: u16,
+    #[serde(deserialize_with = "bootnodes_deserialize")]
     pub bootnodes: Vec<String>,
     pub libp2p_private_key: Option<String>,
     pub log: String,
@@ -99,6 +101,16 @@ impl Default for Config {
     }
 }
 
+fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(String::deserialize(deserializer)?
+        .split(',')
+        .map(|item| item.to_owned())
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use clap::Parser as _;
@@ -121,6 +133,8 @@ astria-sequencer-relayer
     --validator-key-file /cli/key
     --rpc-port 9999
     --p2p-port 9999
+    --bootnodes /cli/bootnode1,/cli/bootnode2
+    --libp2p-private-key libp2p.key
     --log cli=warn
 "#;
 
@@ -167,8 +181,8 @@ astria-sequencer-relayer
                 validator_key_file: "/cli/key".into(),
                 rpc_port: 9999,
                 p2p_port: 9999,
-                bootnodes: Vec::new(),
-                libp2p_private_key: None,
+                bootnodes: vec!["/cli/bootnode1".to_string(), "/cli/bootnode2".to_string()],
+                libp2p_private_key: Some("libp2p.key".to_string()),
                 log: "cli=warn".into(),
             };
             assert_eq!(expected, actual);
