@@ -74,7 +74,7 @@ spec:
           ports:
             - containerPort: 26659
               name: bridge-rest
-            - containerPort: 26690
+            - containerPort: 26658
               name: bridge-jsonrpc
           startupProbe:
             httpGet:
