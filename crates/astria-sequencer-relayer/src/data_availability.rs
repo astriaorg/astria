@@ -221,6 +221,7 @@ impl CelestiaClientBuilder {
 }
 
 /// CelestiaClient is a DataAvailabilityClient that submits blocks to a Celestia Node.
+#[derive(Clone, Debug)]
 pub struct CelestiaClient {
     client: Client,
     gas_limit: u64,

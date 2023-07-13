@@ -13,7 +13,7 @@ use zeroize::{
 
 /// `Validator` holds the ed25519 keys to sign and verify tendermint
 /// messages. It also contains its address (`AccountId`) in the tendermint network.
-#[derive(Debug, Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, Debug, Zeroize, ZeroizeOnDrop)]
 pub(crate) struct Validator {
     /// The tendermint validator account address; defined as
     /// Sha256(verification_key)[..20].

@@ -1,6 +1,7 @@
 pub mod api;
 pub mod config;
 pub mod data_availability;
+pub(crate) mod macros;
 pub mod network;
 pub mod relayer;
 pub(crate) mod sequencer_poller;
