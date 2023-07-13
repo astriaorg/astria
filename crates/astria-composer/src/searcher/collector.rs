@@ -27,6 +27,7 @@ pub enum Error {
     EventSend(#[source] SendError<Event>),
 }
 
+#[derive(Debug)]
 pub struct TxCollector {
     provider: Provider<Ws>,
 }

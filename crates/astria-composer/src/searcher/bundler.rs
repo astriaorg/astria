@@ -46,6 +46,7 @@ pub enum Error {
 /// Struct for bundling transactions into sequencer txs.
 // TODO: configure as "train with capacity", i.e. max number of txs to bundle and sequencer block
 // time
+#[derive(Debug)]
 pub struct Bundler {
     sequencer_client: Arc<SequencerClient>,
     sequencer_address: SequencerAddress,

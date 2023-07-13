@@ -41,6 +41,7 @@ mod collector;
 mod executor;
 mod error;
 
+#[derive(Debug)]
 pub struct Searcher {
     api_url: SocketAddr,
     tx_collector: TxCollector,
@@ -193,6 +194,6 @@ mod tests {
     async fn new_from_valid_config() {
         let cfg = Config::default();
         let searcher = Searcher::new(&cfg).await;
-        assert!(searcher.is_ok());
+        assert!(dbg!(searcher).is_ok());
     }
 }

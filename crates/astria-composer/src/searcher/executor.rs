@@ -30,6 +30,7 @@ pub enum Error {
 }
 
 /// Struct for executing sequencer actions
+#[derive(Debug)]
 pub struct SequencerExecutor {
     sequencer_client: Arc<SequencerClient>,
     sequencer_key: SigningKey,
