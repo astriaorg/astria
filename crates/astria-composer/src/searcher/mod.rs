@@ -29,7 +29,7 @@ use tracing::{
 use self::{
     bundler::Bundler,
     collector::TxCollector,
-    executor::SequencerExecutor,
+    executor::SequencerExecutor, error::ComposerError,
 };
 use crate::config::searcher::{
     self as config,
@@ -39,24 +39,7 @@ mod api;
 mod bundler;
 mod collector;
 mod executor;
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("invalid config")]
-    InvalidConfig(#[source] config::Error),
-    #[error("task error")]
-    TaskError(#[source] JoinError),
-    #[error("api error")]
-    ApiError(#[source] hyper::Error),
-    #[error("collector error")]
-    CollectorError(#[source] collector::Error),
-    #[error("bundler error")]
-    BundlerError(#[source] bundler::Error),
-    #[error("executor error")]
-    ExecutorError(#[source] executor::Error),
-    #[error("sequencer client init failed")]
-    SequencerClientInit,
-}
+mod error;
 
 pub struct Searcher {
     api_url: SocketAddr,
@@ -75,15 +58,15 @@ impl Searcher {
     /// - `Error::CollectorError` if there is an error initializing the tx collector.
     /// - `Error::BundlerError` if there is an error initializing the tx bundler.
     /// - `Error::SequencerClientInit` if there is an error initializing the sequencer client.
-    pub async fn new(cfg: &Config) -> Result<Self, Error> {
+    pub async fn new(cfg: &Config) -> Result<Self, ComposerError> {
         // configure rollup tx collector
         let tx_collector = TxCollector::new(&cfg.execution_ws_url)
             .await
-            .map_err(Error::CollectorError)?;
+            .map_err(ComposerError::CollectorError)?;
 
         // configure rollup tx bundler
         let sequencer_client = Arc::new(
-            SequencerClient::new(&cfg.sequencer_url).map_err(|_| Error::SequencerClientInit)?,
+            SequencerClient::new(&cfg.sequencer_url).map_err(|_| ComposerError::SequencerClientInit)?,
         );
 
         let bundler = Bundler::new(
@@ -91,13 +74,13 @@ impl Searcher {
             cfg.sequencer_address.to_string(),
             cfg.chain_id.clone(),
         )
-        .map_err(Error::BundlerError)?;
+        .map_err(ComposerError::BundlerError)?;
 
         // configure rollup tx executor
         let executor = SequencerExecutor::new(sequencer_client.clone(), &cfg.sequencer_secret);
 
         // parse api url from config
-        let api_url = Config::api_url(cfg.api_port).map_err(Error::InvalidConfig)?;
+        let api_url = Config::api_url(cfg.api_port).map_err(ComposerError::InvalidConfig)?;
 
         Ok(Self {
             api_url,
@@ -141,21 +124,21 @@ impl Searcher {
         tokio::select! {
             o = api_task => {
                 match o {
-                    Ok(task_result) => report_exit("api server", task_result.map_err(Error::ApiError)),
-                    Err(e) => report_exit("api server", Err(Error::TaskError(e))),
+                    Ok(task_result) => report_exit("api server", task_result.map_err(ComposerError::ApiError)),
+                    Err(e) => report_exit("api server", Err(ComposerError::TaskError(e))),
 
                 }
             }
             o = collector_task => {
                 match o {
-                    Ok(task_result) => report_exit("rollup tx collector", task_result.map_err(Error::CollectorError)),
-                    Err(e) => report_exit("rollup tx collector", Err(Error::TaskError(e))),
+                    Ok(task_result) => report_exit("rollup tx collector", task_result.map_err(ComposerError::CollectorError)),
+                    Err(e) => report_exit("rollup tx collector", Err(ComposerError::TaskError(e))),
                 }
             }
             o = bundler_task => {
                 match o {
-                    Ok(task_result) => report_exit("bundler", task_result.map_err(Error::BundlerError)),
-                    Err(e) => report_exit("bundler", Err(Error::TaskError(e))),
+                    Ok(task_result) => report_exit("bundler", task_result.map_err(ComposerError::BundlerError)),
+                    Err(e) => report_exit("bundler", Err(ComposerError::TaskError(e))),
                 }
             }
             o = executor_task => {
@@ -165,21 +148,21 @@ impl Searcher {
                             Err(executor::Error::InvalidNonce(_nonce)) => {
                                 todo!("handle invalid nonce by resetting bundler's nonce (reset_nonce) and readding the tx to event queue");
                             },
-                            result => report_exit("executor", result.map_err(Error::ExecutorError)),
+                            result => report_exit("executor", result.map_err(ComposerError::ExecutorError)),
                         }
                     },
-                    Err(e) => report_exit("sequencer executor", Err(Error::TaskError(e))),
+                    Err(e) => report_exit("sequencer executor", Err(ComposerError::TaskError(e))),
                 }
             }
         }
     }
 }
 
-fn report_exit(task_name: &str, outcome: Result<(), Error>) {
+fn report_exit(task_name: &str, outcome: Result<(), ComposerError>) {
     match outcome {
         Ok(()) => info!(task = task_name, "task exited successfully"),
         Err(e) => match e {
-            Error::TaskError(join_err) => {
+            ComposerError::TaskError(join_err) => {
                 error!(task = task_name, error.msg = %join_err, error.cause = ?join_err, "task failed to complete");
             }
             service_err => {
