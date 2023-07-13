@@ -148,7 +148,7 @@ impl Reader {
     #[instrument(name = "Reader::get_new_blocks", skip_all)]
     pub async fn get_new_blocks(&mut self) -> eyre::Result<Vec<SequencerBlockData>> {
         // get the latest celestia block height
-        let prev_height = self.curr_block_height;
+        let first_new_height = self.curr_block_height + 1;
         let curr_block_height = self
             .celestia_client
             .get_latest_height()
@@ -160,14 +160,14 @@ impl Reader {
         );
 
         info!(
-            height.start = prev_height,
+            height.start = first_new_height,
             height.end = curr_block_height,
             "checking celestia blocks for range of heights",
         );
 
         let mut blocks = vec![];
         // check for any new sequencer blocks written from the previous to current block height
-        'check_heights: for height in prev_height..=self.curr_block_height {
+        'check_heights: for height in first_new_height..=self.curr_block_height {
             let sequencer_namespaced_datas = match self
                 .celestia_client
                 .get_sequencer_namespace_data(height)
