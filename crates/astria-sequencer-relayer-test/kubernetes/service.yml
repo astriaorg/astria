@@ -6,12 +6,15 @@ spec:
   selector:
     app: sequencer-relayer-environment
   ports:
+    - name: cometbft-svc
+      port: 26657
+      targetPort: cometbft-svc
     - name: sequencer-svc
-      port: 1318
+      port: 26658
       targetPort: sequencer-svc
     - name: bridge-rest
       port: 26659
       targetPort: bridge-rest
     - name: bridge-jsonrpc
-      port: 26658
+      port: 26690
       targetPort: bridge-jsonrpc

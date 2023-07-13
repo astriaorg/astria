@@ -26,15 +26,16 @@ jobs:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
       # This step is required for tests
-      - name: Build astria conductor and sequencer-relayer
+      - name: Build astria conductor, sequencer, and sequencer-relayer
         run: |
           cargo build --release \
             --bin astria-conductor \
-            --bin astria-sequencer-relayer
+            --bin astria-sequencer-relayer \
+            --bin astria-sequencer
       - name: Copy binaries to tmp
         run: |
           mkdir -p /tmp/astria
-          cp target/release/{astria-conductor,astria-sequencer-relayer} /tmp/astria/
+          cp target/release/{astria-conductor,astria-sequencer-relayer,astria-sequencer} /tmp/astria/
       - name: Build tests
         run: cargo test --release --no-run --workspace
       - name: Run light tests
