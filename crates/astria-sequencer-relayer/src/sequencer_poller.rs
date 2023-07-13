@@ -55,7 +55,7 @@ impl SequencerPoller {
     //
     /// # Errors
     ///
-    /// Returns an error if the channel to send new blocks to the relayer closed.
+    /// Returns an error if the channel to the relayer is closed.
     pub(crate) async fn run(mut self) -> eyre::Result<()> {
         use base64::{
             engine::general_purpose::STANDARD,
