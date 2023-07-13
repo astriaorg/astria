@@ -1,25 +1,34 @@
 use astria_sequencer_relayer::{
     config,
+    telemetry,
     SequencerRelayer,
 };
 use eyre::WrapErr as _;
-use tracing::{
-    info,
-    warn,
-};
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     let cfg = config::get().expect("failed to read configuration");
-    tracing_subscriber::fmt().with_env_filter(&cfg.log).init();
-    let cfg_json = serde_json::to_string(&cfg).unwrap_or_else(|e| {
-        warn!(
-            error = ?e,
-            "failed serializing config as json; will use debug formatting"
-        );
-        format!("{cfg:?}")
-    });
-    info!(config = cfg_json, "starting astria-sequencer-relayer");
+    let (cfg_ser, cfg_dbg) = match serde_json::to_string(&cfg) {
+        Ok(cfg_ser) => {
+            eprintln!("config:\n{cfg_ser}");
+            (Some(cfg_ser), None)
+        }
+        Err(e) => {
+            eprintln!(
+                "failed serializing config to json; will use debug formatting; error:\n{e:?}"
+            );
+            let cfg_dbg = format!("{cfg:?}");
+            eprintln!("config:\n{cfg_dbg}");
+            (None, Some(cfg_dbg))
+        }
+    };
+    telemetry::init(std::io::stdout, &cfg.log).expect("failed to setup telemetry");
+    info!(
+        config = cfg_ser,
+        config.debug = cfg_dbg,
+        "initializing sequencer relayer"
+    );
 
     SequencerRelayer::new(cfg)
         .wrap_err("failed to initialize sequencer relayer")?
