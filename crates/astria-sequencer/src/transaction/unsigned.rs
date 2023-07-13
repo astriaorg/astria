@@ -88,7 +88,7 @@ impl Unsigned {
 
     /// Returns the sha256 hash of the protobuf-encoded transaction.
     pub(crate) fn hash(&self) -> Vec<u8> {
-        hash(&self.to_proto().encode_length_delimited_to_vec())
+        hash(&self.to_proto().encode_to_vec())
     }
 }
 
@@ -207,7 +207,7 @@ mod test {
         /// - If the value is not a valid transaction type (ie. does not correspond to any
         ///   component)
         fn try_from_slice(bytes: &[u8]) -> Result<Self> {
-            let proto = ProtoUnsignedTransaction::decode_length_delimited(bytes)
+            let proto = ProtoUnsignedTransaction::decode(bytes)
                 .context("failed to decode unsigned transaction")?;
             Self::try_from_proto(&proto)
         }
@@ -222,14 +222,14 @@ mod test {
                 Balance::from(333_333),
             ))],
         };
-        let bytes = tx.to_proto().encode_length_delimited_to_vec();
+        let bytes = tx.to_proto().encode_to_vec();
         let tx2 = Unsigned::try_from_slice(&bytes).unwrap();
         assert_eq!(tx, tx2);
         println!("0x{}", hex::encode(bytes));
 
         let secret_key: SigningKey = SigningKey::new(OsRng);
         let signed = tx.into_signed(&secret_key);
-        let bytes = signed.to_proto().encode_length_delimited_to_vec();
+        let bytes = signed.to_proto().encode_to_vec();
         Signed::try_from_slice(bytes.as_slice()).unwrap();
     }
 }

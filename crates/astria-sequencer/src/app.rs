@@ -375,7 +375,7 @@ mod test {
             actions: vec![Action::TransferAction(Transfer::new(bob.clone(), value))],
         };
         let signed_tx = tx.into_signed(&alice_keypair);
-        let bytes = signed_tx.to_proto().encode_length_delimited_to_vec();
+        let bytes = signed_tx.to_proto().encode_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(
@@ -420,7 +420,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let bytes = signed_tx.to_proto().encode_length_delimited_to_vec();
+        let bytes = signed_tx.to_proto().encode_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);
