@@ -25,7 +25,7 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
       fi; \
       apt install -y librocksdb-dev:amd64; \
     fi; \
-    apt install -y libclang-dev clang protobuf-compiler ca-certificates;
+    apt install -y libclang-dev clang protobuf-compiler;
 
 # install buf cli
 RUN BIN="/usr/local/bin" && \
@@ -94,6 +94,6 @@ FROM debian:bookworm-slim
 ARG TARGETBINARY
 WORKDIR /app/
 EXPOSE 2450
-COPY --from=chef /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+RUN apt update && apt install -y wget ca-certificates
 COPY --from=builder /build/target/release/$TARGETBINARY /usr/local/bin/$TARGETBINARY
 ENTRYPOINT ["/usr/local/bin/$TARGETBINARY"]
