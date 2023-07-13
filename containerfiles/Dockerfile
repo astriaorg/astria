@@ -94,5 +94,6 @@ FROM debian:bookworm-slim
 ARG TARGETBINARY
 WORKDIR /app/
 EXPOSE 2450
+RUN apt update && apt install -y wget ca-certificates && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /build/target/release/$TARGETBINARY /usr/local/bin/$TARGETBINARY
 ENTRYPOINT ["/usr/local/bin/$TARGETBINARY"]

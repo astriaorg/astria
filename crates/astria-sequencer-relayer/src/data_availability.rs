@@ -46,7 +46,7 @@ use crate::{
 };
 
 pub const DEFAULT_PFD_GAS_LIMIT: u64 = 1_000_000;
-const DEFAULT_PFD_FEE: u128 = 2_000;
+const DEFAULT_PFD_FEE: u128 = 100_000;
 
 /// SubmitBlockResponse is the response to a SubmitBlock request.
 /// It contains a map of namespaces to the block number that it was written to.
