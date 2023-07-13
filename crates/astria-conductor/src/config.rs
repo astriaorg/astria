@@ -33,9 +33,11 @@ pub struct Config {
 
     /// Bootnodes for the P2P network
     #[serde(deserialize_with = "bootnodes_deserialize")]
+    #[serde(default)]
     pub bootnodes: Option<Vec<String>>,
 
     /// Path to the libp2p private key file
+    #[serde(default)]
     pub libp2p_private_key: Option<String>,
 }
 
