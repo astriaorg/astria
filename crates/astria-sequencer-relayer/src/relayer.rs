@@ -11,15 +11,9 @@ use tokio::{
             UnboundedReceiver,
             UnboundedSender,
         },
-        watch::{
-            self,
-            Receiver,
-        },
+        watch,
     },
-    task::{
-        self,
-        JoinError,
-    },
+    task,
 };
 use tracing::{
     debug,
@@ -101,7 +95,7 @@ impl Relayer {
         })
     }
 
-    pub(crate) fn subscribe_to_state(&self) -> Receiver<State> {
+    pub(crate) fn subscribe_to_state(&self) -> watch::Receiver<State> {
         self.state_tx.subscribe()
     }
 
@@ -121,7 +115,7 @@ impl Relayer {
     #[instrument(skip_all)]
     fn handle_conversion_completed(
         &mut self,
-        join_result: Result<eyre::Result<Option<SequencerBlockData>>, JoinError>,
+        join_result: Result<eyre::Result<Option<SequencerBlockData>>, task::JoinError>,
     ) -> HandleConversionCompletedResult {
         // First check if the join task panicked
         let conversion_result = match join_result {
@@ -155,18 +149,19 @@ impl Relayer {
             // Ignore sequencer responses that were filtered out
             Ok(None) => (),
             // Report if the conversion failed
-            Err(e) => {
-                // TODO: inject the correct tracing span
-                report_err!(
-                    e,
-                    "failed converting sequencer block response to block data"
-                );
-            }
+            // TODO: inject the correct tracing span
+            Err(e) => report_err!(
+                e,
+                "failed converting sequencer block response to block data"
+            ),
         }
         HandleConversionCompletedResult::Handled
     }
 
-    fn handle_submission_completed(&mut self, join_result: Result<eyre::Result<u64>, JoinError>) {
+    fn handle_submission_completed(
+        &mut self,
+        join_result: Result<eyre::Result<u64>, task::JoinError>,
+    ) {
         self.submission_task = None;
         // First check if the join task panicked
         let submission_result = match join_result {
@@ -184,9 +179,7 @@ impl Relayer {
                 state.current_data_availability_height.replace(height);
             }),
             // TODO: add more context to this error, maybe inject a span?
-            Err(e) => {
-                report_err!(e, "submitting blocks to data availability layer failed");
-            }
+            Err(e) => report_err!(e, "submitting blocks to data availability layer failed"),
         }
     }
 
