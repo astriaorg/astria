@@ -117,10 +117,11 @@ impl BlockVerifier {
             "a tendermint height (currently non-negative i32) should always fit into a u32",
         );
 
-        // get validator set for this height
+        // get validator set for the previous height, as the commit contained
+        // in the block is for the previous height
         let validator_set = self
             .sequencer_client
-            .get_validator_set(height)
+            .get_validator_set(height - 1)
             .await
             .wrap_err("failed to get validator set")?;
 
