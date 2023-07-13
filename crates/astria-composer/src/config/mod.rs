@@ -14,6 +14,7 @@ use serde::{
 
 mod cli;
 pub mod searcher;
+pub mod constants;
 
 // TODO: add more default values
 // potentially move to a separate module so it can be imported into searcher and block_builder?

@@ -17,15 +17,7 @@ use serde::{
 };
 use thiserror::Error;
 
-use super::cli;
-
-const DEFAULT_API_PORT: u16 = 8080;
-const DEFAULT_SEQUENCER_URL: &str = "sequencer.astria.localdev.me";
-const DEFAULT_SEQUENCER_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
-const DEFAULT_SEQUENCER_SECRET: &str =
-    "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90";
-const DEFAULT_CHAIN_ID: &str = "912559";
-const DEFAULT_EXECUTION_WS_URL: &str = "ws-executor.astria.localdev.me";
+use super::{cli, constants};
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -129,25 +121,25 @@ impl Default for Config {
 }
 
 pub(super) fn default_api_port() -> u16 {
-    DEFAULT_API_PORT
+    constants::DEFAULT_API_PORT
 }
 
 pub(super) fn default_sequencer_url() -> String {
-    DEFAULT_SEQUENCER_URL.to_string()
+    constants::DEFAULT_SEQUENCER_URL.to_string()
 }
 
 pub(super) fn default_sequencer_address() -> String {
-    DEFAULT_SEQUENCER_ADDRESS.to_string()
+    constants::DEFAULT_SEQUENCER_ADDRESS.to_string()
 }
 
 pub(super) fn default_sequencer_secret() -> String {
-    DEFAULT_SEQUENCER_SECRET.to_string()
+    constants::DEFAULT_SEQUENCER_SECRET.to_string()
 }
 
 pub(super) fn default_chain_id() -> String {
-    DEFAULT_CHAIN_ID.to_string()
+    constants::DEFAULT_CHAIN_ID.to_string()
 }
 
 pub(super) fn default_execution_ws_url() -> String {
-    DEFAULT_EXECUTION_WS_URL.to_string()
+    constants::DEFAULT_EXECUTION_WS_URL.to_string()
 }
