@@ -1,6 +1,6 @@
 macro_rules! report_err {
     ($err:ident, $($msg:tt)+) => (
-        ::tracing::warn!(error.msg = %$err, error.cause_chain = ?$err, $($msg)+);
+        ::tracing::warn!(error.msg = %$err, error.cause_chain = ?$err, $($msg)+)
     )
 }
 
