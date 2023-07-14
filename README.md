@@ -62,6 +62,8 @@ First, start `astria-sequencer`:
 Then, start cometbft:
 ```sh
 cometbft init
+# set block time to 15s 
+sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "15s"/g' ~/.cometbft/config/config.toml
 cometbft start
 ```
 
