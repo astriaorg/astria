@@ -85,7 +85,7 @@ Then, get the Celestia JSON-RPC API token as follows:
 # list pods
 kubectl get -n astria-celestia-jsonrpc-client-test pods
 # replace pod name with name printed above
-kubectl exec -n astria-celestia-jsonrpc-client-test pods/<your-deployment's-pod-with-hashes-etc> -c celestia-bridge -- cat /home/celestia/.admin_token
+kubectl exec -n astria-celestia-jsonrpc-client-test pods/<your-pod-name-with-hashes-etc> -c celestia-bridge -- cat /home/celestia/.admin_token
 ```
 
 Take note of this token, as the relayer step requires it.

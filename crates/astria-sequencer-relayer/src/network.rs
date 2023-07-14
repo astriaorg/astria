@@ -67,7 +67,7 @@ impl GossipNetwork {
                         match self.publish(&block).await {
                             Ok(()) => debug!(block_hash = ?block.block_hash, "published block to network"),
                             Err(e) => {
-                                if e.to_string().contains("InsufficientPeers") {
+                                if e.root_cause().to_string().contains("InsufficientPeers") {
                                     debug!(?e, "failed to publish block to network");
                                     continue;
                                 }
