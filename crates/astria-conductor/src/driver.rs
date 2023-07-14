@@ -6,7 +6,7 @@ use std::sync::{
     Mutex,
 };
 
-use astria_sequencer_relayer::sequencer_block::SequencerBlock;
+use astria_sequencer_relayer::types::SequencerBlockData;
 use color_eyre::eyre::{
     eyre,
     Result,
@@ -112,7 +112,7 @@ impl Driver {
                 reader_tx,
                 executor_tx,
                 network: SyncWrapper::new(
-                    GossipNetwork::new(conf.bootnodes)
+                    GossipNetwork::new(conf.bootnodes, conf.libp2p_private_key)
                         .wrap_err("failed to construct gossip network")?,
                 ),
                 block_verifier,
@@ -162,8 +162,8 @@ impl Driver {
             }
             NetworkEvent::GossipsubMessage(msg) => {
                 debug!("received gossip message: {:?}", msg);
-                let block = SequencerBlock::from_bytes(&msg.data)
-                    .wrap_err("failed to deserialize SequencerBlock received from network")?;
+                let block = SequencerBlockData::from_bytes(&msg.data)
+                    .wrap_err("failed to deserialize SequencerBlockData received from network")?;
 
                 // validate block received from gossip network
                 self.block_verifier
@@ -175,7 +175,7 @@ impl Driver {
                     .send(ExecutorCommand::BlockReceivedFromGossipNetwork {
                         block: Box::new(block),
                     })
-                    .wrap_err("failed to send SequencerBlock from network to executor")?;
+                    .wrap_err("failed to send SequencerBlockData from network to executor")?;
             }
             _ => debug!("received network event: {:?}", event),
         }

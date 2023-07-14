@@ -26,6 +26,10 @@ use sha2::{
     Digest,
     Sha256,
 };
+use tendermint::block::{
+    Commit,
+    Header,
+};
 use tracing::{
     debug,
     warn,
@@ -33,15 +37,11 @@ use tracing::{
 
 use crate::{
     base64_string::Base64String,
-    sequencer_block::{
+    types::{
         IndexedTransaction,
         Namespace,
-        SequencerBlock,
+        SequencerBlockData,
         DEFAULT_NAMESPACE,
-    },
-    types::{
-        Commit,
-        Header,
     },
 };
 
@@ -140,9 +140,10 @@ where
 pub struct SequencerNamespaceData {
     pub block_hash: Base64String,
     pub header: Header,
-    pub last_commit: Commit,
-    pub sequencer_txs: Vec<IndexedTransaction>,
+    pub last_commit: Option<Commit>,
     /// vector of (block height, namespace) tuples
+    /// TODO: can get rid of block height when multiple
+    /// blobs are written atomically
     pub rollup_namespaces: Vec<(u64, Namespace)>,
 }
 
@@ -278,7 +279,7 @@ impl CelestiaClient {
     /// along with any transactions that were not for a specific rollup.
     pub async fn submit_block(
         &self,
-        block: SequencerBlock,
+        block: SequencerBlockData,
         signing_key: &SigningKey,
         verification_key: VerificationKey,
     ) -> eyre::Result<SubmitBlockResponse> {
@@ -316,7 +317,6 @@ impl CelestiaClient {
             block_hash: block.block_hash.clone(),
             header: block.header,
             last_commit: block.last_commit,
-            sequencer_txs: block.sequencer_txs,
             rollup_namespaces: block_height_and_namespace,
         };
 
@@ -385,7 +385,7 @@ impl CelestiaClient {
         &self,
         data: &SequencerNamespaceData,
         verification_key: Option<VerificationKey>,
-    ) -> eyre::Result<SequencerBlock> {
+    ) -> eyre::Result<SequencerBlockData> {
         let mut rollup_txs_map = HashMap::new();
 
         // for each rollup namespace, retrieve the corresponding rollup data
@@ -413,11 +413,10 @@ impl CelestiaClient {
             rollup_txs_map.insert(*rollup_namespace, rollup_txs);
         }
 
-        Ok(SequencerBlock {
+        Ok(SequencerBlockData {
             block_hash: data.block_hash.clone(),
             header: data.header.clone(),
             last_commit: data.last_commit.clone(),
-            sequencer_txs: data.sequencer_txs.clone(),
             rollup_txs: rollup_txs_map,
         })
     }

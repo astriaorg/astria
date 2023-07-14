@@ -1,5 +1,6 @@
 use serde::{
     Deserialize,
+    Deserializer,
     Serialize,
 };
 
@@ -31,7 +32,30 @@ pub struct Config {
     pub disable_finalization: bool,
 
     /// Bootnodes for the P2P network
-    pub bootnodes: Vec<String>,
+    #[serde(deserialize_with = "bootnodes_deserialize")]
+    #[serde(default)]
+    pub bootnodes: Option<Vec<String>>,
+
+    /// Path to the libp2p private key file
+    #[serde(default)]
+    pub libp2p_private_key: Option<String>,
+}
+
+fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let maybe_bootnodes: Option<String> = Option::deserialize(deserializer)?;
+    if maybe_bootnodes.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(
+        maybe_bootnodes
+            .unwrap()
+            .split(',')
+            .map(|item| item.to_owned())
+            .collect(),
+    ))
 }
 
 // NOTE - using default fns instead of defaults in Cli because defaults
@@ -42,7 +66,7 @@ fn default_celestia_node_url() -> String {
 }
 
 fn default_tendermint_url() -> String {
-    "http://localhost:1317".to_string()
+    "http://localhost:26657".to_string()
 }
 
 fn default_chain_id() -> String {

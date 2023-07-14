@@ -9,8 +9,10 @@ multiaddr = "0.17"
 
 color-eyre = { workspace = true }
 futures = { workspace = true }
+hex = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+tempfile = "3.6"
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "sync"] }

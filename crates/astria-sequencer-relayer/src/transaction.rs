@@ -3,20 +3,23 @@ use tendermint::{
     merkle,
 };
 
-use crate::base64_string::Base64String;
-
-pub fn txs_to_data_hash(txs: &[Base64String]) -> TmHash {
-    let txs = txs.iter().map(|tx| tx.0.clone()).collect::<Vec<Vec<u8>>>();
-
+pub fn txs_to_data_hash(hashed_txs: &[Vec<u8>]) -> TmHash {
     TmHash::Sha256(merkle::simple_hash_from_byte_vectors::<
         tendermint::crypto::default::Sha256,
-    >(&txs))
+    >(hashed_txs))
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::sequencer_block::sha256_hash;
+    use crate::base64_string::Base64String;
+
+    fn sha256_hash(data: &[u8]) -> Vec<u8> {
+        use sha2::Digest as _;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(data);
+        hasher.finalize().to_vec()
+    }
 
     #[test]
     fn txs_to_data_hash_test() {
@@ -28,7 +31,7 @@ mod test {
         let expected_hash =
             Base64String::from_string("rRDu3aQf1V37yGSTdf2fv9GSPeZ6/p0wJ9pjBl8IqFc=".to_string())
                 .unwrap();
-        let res = txs_to_data_hash(&[Base64String(hash.to_vec())]);
+        let res = txs_to_data_hash(&[hash]);
         assert_eq!(res.as_bytes(), expected_hash.0);
     }
 }

@@ -23,7 +23,7 @@ https://github.com/facebook/rocksdb/pull/11118
 
 ## Usage
 
-#### Install tendermint
+#### Install cometbft
 Ensure `~/go` is in your `PATH`, or `GOPATH` is set to some other place in your `PATH`.
 
 ```sh
@@ -58,7 +58,7 @@ I[2023-05-16|16:53:56.786] service start                                module=a
 -> data.hex: 0x626173655F617070
 ```
 
-#### Start the tendermint node
+#### Start the cometbft node
 ```sh
 # initialize the node
 cometbft init

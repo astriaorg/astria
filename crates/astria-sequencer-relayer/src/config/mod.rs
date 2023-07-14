@@ -8,14 +8,16 @@ use figment::{
 };
 use serde::{
     Deserialize,
+    Deserializer,
     Serialize,
 };
+
 mod cli;
 
-const DEFAULT_BLOCK_TIME: u64 = 3000;
+const DEFAULT_BLOCK_TIME: u64 = 1000;
 const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26658";
-const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:1317";
-const DEFAULT_VALIDATOR_KEY_FILE: &str = ".metro/config/priv_validator_key.json";
+const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:26657";
+const DEFAULT_VALIDATOR_KEY_FILE: &str = ".cometbft/config/priv_validator_key.json";
 
 const DEFAULT_RPC_LISTEN_PORT: u16 = 2450;
 const DEFAULT_GOSSIP_PORT: u16 = 33900;
@@ -56,6 +58,9 @@ pub struct Config {
     pub validator_key_file: String,
     pub rpc_port: u16,
     pub p2p_port: u16,
+    #[serde(deserialize_with = "bootnodes_deserialize")]
+    pub bootnodes: Option<Vec<String>>,
+    pub libp2p_private_key: Option<String>,
     pub log: String,
 }
 
@@ -89,9 +94,28 @@ impl Default for Config {
             validator_key_file: DEFAULT_VALIDATOR_KEY_FILE.into(),
             rpc_port: DEFAULT_RPC_LISTEN_PORT,
             p2p_port: DEFAULT_GOSSIP_PORT,
+            bootnodes: None,
+            libp2p_private_key: None,
             log: DEFAULT_LOG_DIRECTIVE.into(),
         }
     }
+}
+
+fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let maybe_bootnodes: Option<String> = Option::deserialize(deserializer)?;
+    if maybe_bootnodes.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(
+        maybe_bootnodes
+            .unwrap()
+            .split(',')
+            .map(|item| item.to_owned())
+            .collect(),
+    ))
 }
 
 #[cfg(test)]
@@ -116,6 +140,8 @@ astria-sequencer-relayer
     --validator-key-file /cli/key
     --rpc-port 9999
     --p2p-port 9999
+    --bootnodes /cli/bootnode1,/cli/bootnode2
+    --libp2p-private-key libp2p.key
     --log cli=warn
 "#;
 
@@ -142,6 +168,14 @@ astria-sequencer-relayer
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_VALIDATOR_KEY_FILE", "/env/key");
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_RPC_PORT", 5555);
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_P2P_PORT", 5555);
+        jail.set_env(
+            "ASTRIA_SEQUENCER_RELAYER_BOOTNODES",
+            "/cli/bootnode3,/cli/bootnode4",
+        );
+        jail.set_env(
+            "ASTRIA_SEQUENCER_RELAYER_LIBP2P_PRIVATE_KEY",
+            "envlibp2p.key",
+        );
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_LOG", "env=debug");
     }
 
@@ -162,6 +196,11 @@ astria-sequencer-relayer
                 validator_key_file: "/cli/key".into(),
                 rpc_port: 9999,
                 p2p_port: 9999,
+                bootnodes: Some(vec![
+                    "/cli/bootnode1".to_string(),
+                    "/cli/bootnode2".to_string(),
+                ]),
+                libp2p_private_key: Some("libp2p.key".to_string()),
                 log: "cli=warn".into(),
             };
             assert_eq!(expected, actual);
@@ -185,6 +224,11 @@ astria-sequencer-relayer
                 validator_key_file: "/env/key".into(),
                 rpc_port: 5555,
                 p2p_port: 5555,
+                bootnodes: Some(vec![
+                    "/cli/bootnode3".to_string(),
+                    "/cli/bootnode4".to_string(),
+                ]),
+                libp2p_private_key: Some("envlibp2p.key".to_string()),
                 log: "env=debug".into(),
             };
             assert_eq!(expected, actual);

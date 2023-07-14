@@ -21,7 +21,7 @@ async fn main() -> eyre::Result<()> {
     });
     info!(config = cfg_json, "starting astria-sequencer-relayer");
 
-    SequencerRelayer::new(&cfg)
+    SequencerRelayer::new(cfg)
         .wrap_err("failed to initialize sequencer relayer")?
         .run()
         .await;
