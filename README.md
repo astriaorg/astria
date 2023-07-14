@@ -10,10 +10,119 @@ To learn more about Astria, please visit [astria.org](https://astria.org).
 
 ## Components
 
-* [conductor](https://github.com/astriaorg/astria/tree/main/crates/astria-conductor)
-* [gossipnet](https://github.com/astriaorg/astria/tree/main/crates/astria-gossipnet)
-* [proto](https://github.com/astriaorg/astria/tree/main/crates/astria-proto)
-* [sequencer-relayer](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer-relayer)
+* [conductor](https://github.com/astriaorg/astria/tree/main/crates/astria-conductor): conducts blocks from the data availability layer to the execution layer.
+* [gossipnet](https://github.com/astriaorg/astria/tree/main/crates/astria-gossipnet): libp2p-based gossip network.
+* [proto](https://github.com/astriaorg/astria/tree/main/crates/astria-proto): relevant protobufs for Astria types.
+* [sequencer](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer): ABCI application that defines the sequencer state transition logic.
+* [sequencer-relayer](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer-relayer): relays blocks from the sequencer chain to the data availability layer.
+
+## Build
+
+To build the relevant Astria binaries, you will need [Rust](https://www.rust-lang.org/tools/install) and [Buf](https://buf.build/docs/installation/) installed.
+
+Then:
+```sh
+git clone https://github.com/astriaorg/astria.git
+cd astria
+cargo build --release
+```
+
+## Running locally
+
+The entire stack consists of 6 different binaries. It's recommended to use the setup located in [astriaorg/dev-cluster](https://github.com/astriaorg/dev-cluster), but running everything manually is documented here as well.
+
+To run the entire stack locally, you will additionally need cometbft installed, which requires that [Go](https://go.dev/doc/install) is installed.
+
+The binaries required are as follows:
+- astria-sequencer
+- cometbft
+- astria-sequencer-relayer
+- Celestia
+- astria-conductor
+- Astria's go-ethereum fork
+
+#### Install cometbft
+Ensure `~/go` is in your `PATH`, or `GOPATH` is set to some other place in your `PATH`.
+
+```sh
+git clone https://github.com/astriaorg/cometbft
+cd cometbft
+export GOPATH=~/go
+make install
+```
+
+#### Start the sequencer chain
+
+First, start `astria-sequencer`:
+
+```sh
+./target/debug/astria-sequencer --genesis-file=crates/astria-sequencer/test-genesis.json
+```
+
+Then, start cometbft:
+```sh
+cometbft init
+cometbft start
+```
+
+#### Start Celestia (optional)
+
+Note: this step is optional; we can configure the relayer and conductor to communicate directly.
+
+You will need to have [kind/kubectl installed](https://kind.sigs.k8s.io/docs/user/quick-start/).
+
+The celestia cluster can be started by running the following from the root of the monorepo:
+```sh
+just create-cluster
+just deploy-ingress-controller
+just start-celestia-jsonrpc-test-deployment
+just wait-for-ingress-controller
+just wait-for-celestia-jsonrpc-test-deployment
+```
+
+#### Start the relayer
+
+```sh
+./target/release/astria-sequencer-relayer --validator-key-file=$HOME/.cometbft/config/priv_validator_key.json 
+```
+
+If Celestia is not running, pass the `--disable-writing` flag:
+
+```sh
+./target/release/astria-sequencer-relayer --validator-key-file=$HOME/.cometbft/config/priv_validator_key.json --disable-writing
+```
+
+#### Build and start astria go-ethereum
+
+```sh
+git clone https://github.com/astriaorg/go-ethereum.git
+cd go-ethereum
+make geth
+./build/bin/geth --datadir ~/.astriageth/ init genesis.json
+./build/bin/geth --datadir ~/.astriageth/ --http --http.port=8545 --ws --ws.port=8545 --networkid=1337 --http.corsdomain='*' --ws.origins='*' --grpc --grpc.addr=localhost --grpc.port 50051
+```
+
+#### Start the conductor
+
+```sh
+./target/release/astria-conductor
+```
+
+#### Clean up local environment
+
+Stop all running processes and 
+```sh
+pkill astria-sequencer-relayer && pkill astria-conductor && pkill geth && pkill astria-sequencer && pkill cometbft
+rm -rf ~/.cometbft && rm -rf ~/.astriageth
+just delete-cluster
+```
+
+## Testing
+
+To run unit tests:
+```sh
+cargo test
+```
 
 ## Contributing
 

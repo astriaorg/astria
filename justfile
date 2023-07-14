@@ -21,3 +21,6 @@ wait-for-prepull:
 
 wait-for-celestia-jsonrpc-test-deployment:
   kubectl wait --namespace astria-celestia-jsonrpc-client-test deployment --for=condition=Available --selector=app.kubernetes.io/name=astria-celestia-jsonrpc-client-test --timeout=600s
+
+delete-cluster:
+  kind delete cluster --name astria-celestia-jsonrpc-client-test
