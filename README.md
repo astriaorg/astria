@@ -34,12 +34,14 @@ The entire stack consists of 6 different binaries. It's recommended to use the s
 To run the entire stack locally, you will additionally need cometbft installed, which requires that [Go](https://go.dev/doc/install) is installed.
 
 The binaries required are as follows:
-- astria-sequencer
-- cometbft
-- astria-sequencer-relayer
+- `astria-sequencer`
+- `cometbft`
+- `astria-sequencer-relayer`
 - Celestia
-- astria-conductor
-- Astria's go-ethereum fork
+- `astria-conductor`
+- Astria's `go-ethereum` fork
+
+The first two binaries act as the sequencer chain, while go-ethereum (plus conductor) acts as the "rollup"; it executes sequenced transactions that are destined for that rollup.
 
 #### Install cometbft
 Ensure `~/go` is in your `PATH`, or `GOPATH` is set to some other place in your `PATH`.
@@ -127,6 +129,17 @@ If Celestia is not running, pass the `--disable-finalization` flag:
 ```sh
 ./target/release/astria-conductor --disable-finalization
 ```
+
+#### Sending a transaction to the EVM rollup
+
+Import the following private key into Metamask or other Ethereum wallet:
+```
+0a6996ccaca77a1d48633da20062ae051e11c75f3f561dfd2ac01b0c9c874662
+```
+
+Alternatively, in the go-ethereum step, you can add genesis account allocations inside `go-ethereum/genesis.json` (you will need to re-init geth if you've already initialized it).
+
+Navigate to the `localhost:8545` network. Then, you can send transactions as normal. If you check the logs, you can see them move through the stack from sequencer -> relayer -> DA -> conductor -> geth.
 
 #### Clean up local environment
 
