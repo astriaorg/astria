@@ -1,0 +1,30 @@
+[package]
+name = "astria-composer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+astria-sequencer = { path = "../astria-sequencer" }
+astria-sequencer-client = { path = "../astria-sequencer-client" }
+async-trait = { workspace = true }
+color-eyre = { workspace = true }
+ed25519-consensus = { workspace = true }
+figment = { workspace = true, features = ["toml", "env", "test"] }
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+clap = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
+reqwest = { workspace = true, features = ["json"] }
+is-terminal = { workspace = true }
+axum = { workspace = true }
+hyper = { workspace = true }
+ethers = { version = "2.0.7", features = ["ws"] }
+tokio-stream = "0.1.14"
+hex = { workspace = true }
+
+[dev-dependencies]
+once_cell = { workspace = true }

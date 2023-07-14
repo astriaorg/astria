@@ -6,11 +6,11 @@ license = "MIT OR Apache-2.0"
 rust-version = "1.65"
 
 [dependencies]
-axum = "0.6.16"
 dirs = "5.0"
 http = "0.2.9"
 sha2 = "0.10"
 
+axum = { workspace = true }
 base64 = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 figment = { workspace = true, features = ["env"] }
