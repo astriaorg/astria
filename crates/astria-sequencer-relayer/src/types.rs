@@ -5,10 +5,7 @@ use std::{
 };
 
 use astria_celestia_jsonrpc_client::blob::NAMESPACE_ID_AVAILABLE_LEN;
-use astria_sequencer_client::{
-    Action,
-    SignedTransaction,
-};
+use astria_sequencer_client::SignedTransaction;
 use base64::{
     engine::general_purpose,
     Engine as _,
@@ -205,7 +202,7 @@ impl SequencerBlockData {
 
             let tx = parse_sequencer_tx(tx).wrap_err("failed to parse sequencer tx")?;
             tx.transaction().actions().iter().for_each(|action| {
-                if let Action::SequenceAction(action) = action {
+                if let Some(action) = action.as_sequence() {
                     let namespace = get_namespace(action.chain_id());
                     let txs = rollup_txs.entry(namespace).or_insert(vec![]);
                     txs.push(IndexedTransaction {
