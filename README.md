@@ -108,6 +108,12 @@ make geth
 ./target/release/astria-conductor
 ```
 
+If Celestia is not running, pass the `--disable-finalization` flag:
+
+```sh
+./target/release/astria-conductor --disable-finalization
+```
+
 #### Clean up local environment
 
 Stop all running processes and 
