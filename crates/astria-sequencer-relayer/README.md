@@ -28,23 +28,23 @@ See [`TESTING.md`](./TESTING.md).
 With astria-sequencer/cometbft and Celestia running locally (see below), start the relayer with
 While running the sequencer and Celestia, start the relayer:
 ```sh
-$ cargo run --release
+cargo run --release
 # Or after having built it
-$ ./target/release/astria-sequencer-relayer --validator-key-file=$HOME/.cometbft/config/priv_validator_key.json
+./target/release/astria-sequencer-relayer --validator-key-file=$HOME/.cometbft/config/priv_validator_key.json
 ```
 
 The celestia cluster can be started by running the following from the root of the monorepo:
 ```sh
-$ just create-cluster
-$ just deploy-ingress-controller
-$ just start-celestia-jsonrpc-test-deployment
-$ just wait-for-ingress-controller
-$ just wait-for-celestia-jsonrpc-test-deployment
+just create-cluster
+just deploy-ingress-controller
+just wait-for-ingress-controller
+just start-celestia-jsonrpc-test-deployment
+just wait-for-celestia-jsonrpc-test-deployment
 ```
 
 Alternatively, you can disable writing to Celestia and only publish blocks via gossip:
 ```sh
-$ ./target/release/relayer --disable-writing
+./target/release/relayer --disable-writing
 ```
 
 The relayer automatically listens on `/ip4/127.0.0.1/tcp/33900` and is also able to discover local peers via mDNS.

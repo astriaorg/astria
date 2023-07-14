@@ -75,21 +75,33 @@ The celestia cluster can be started by running the following from the root of th
 ```sh
 just create-cluster
 just deploy-ingress-controller
-just start-celestia-jsonrpc-test-deployment
 just wait-for-ingress-controller
+just start-celestia-jsonrpc-test-deployment
 just wait-for-celestia-jsonrpc-test-deployment
 ```
 
+Then, get the Celestia JSON-RPC API token as follows:
+```sh
+# list pods
+kubectl get -n astria-celestia-jsonrpc-client-test pods
+# replace pod name with name printed above
+kubectl exec -n astria-celestia-jsonrpc-client-test pods/<your-deployment's-pod-with-hashes-etc> -c celestia-bridge -- cat /home/celestia/.admin_token
+```
+
+Take note of this token, as the relayer step requires it.
+
 #### Start the relayer
 
+Pass your token from above to the `--celestia-bearer-token` flag.
+
 ```sh
-./target/release/astria-sequencer-relayer --validator-key-file=$HOME/.cometbft/config/priv_validator_key.json 
+./target/release/astria-sequencer-relayer --celestia-bearer-token=<token-from-above-step> --validator-key-file=$HOME/.cometbft/config/priv_validator_key.json 
 ```
 
 If Celestia is not running, pass the `--disable-writing` flag:
 
 ```sh
-./target/release/astria-sequencer-relayer --validator-key-file=$HOME/.cometbft/config/priv_validator_key.json --disable-writing
+./target/release/astria-sequencer-relayer --celestia-bearer-token=<token-from-above-step>  --validator-key-file=$HOME/.cometbft/config/priv_validator_key.json --disable-writing
 ```
 
 #### Build and start astria go-ethereum
