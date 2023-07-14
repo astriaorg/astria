@@ -45,7 +45,7 @@ impl Client {
         let raw_blobs: Vec<_> = blobs.into_iter().map(Blob::into_raw_blob).collect();
         let raw_json = self
             .inner
-            .submit_pay_for_blob(Fee::from_u128(fee), gas_limit, &raw_blobs)
+            .submit_pay_for_blob(Fee::from_u128(fee), gas_limit, raw_blobs)
             .await
             .map_err(|e| Error::rpc(e, RPC_NAME))?;
         let rsp: SubmitPayForBlobResponse = serde_json::from_str(raw_json.get())

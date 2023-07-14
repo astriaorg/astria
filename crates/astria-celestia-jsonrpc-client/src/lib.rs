@@ -5,6 +5,8 @@ pub mod state;
 pub mod rpc_impl;
 
 pub use rpc_impl::blob::Blob;
+#[cfg(feature = "server")]
+pub use rpc_impl::state::StateServer;
 pub(crate) mod serde;
 #[cfg(test)]
 pub(crate) mod test_utils;
