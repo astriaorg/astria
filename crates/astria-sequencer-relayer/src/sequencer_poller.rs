@@ -62,8 +62,12 @@ impl SequencerPoller {
             Engine as _,
         };
         let mut interval = interval(self.poll_period);
+        // the first tick resolves immediately, so do it now because we don't
+        // want to poll right after start.
+        interval.tick().await;
         loop {
             interval.tick().await;
+            debug!("polling sequencer");
             match self.client.get_latest_block().await {
                 // Drop the block if we have just seen it.
                 Ok(block) if Some(block.block_id.hash) == self.previous_block_hash => {

@@ -16,6 +16,7 @@ pub struct SubmitPayForBlobRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "server", derive(serde::Serialize))]
 pub struct SubmitPayForBlobResponse {
     pub height: u64,
     #[serde(flatten)]

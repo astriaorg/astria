@@ -10,7 +10,10 @@ use eyre::{
 use futures::StreamExt;
 use tokio::{
     select,
-    sync::mpsc::UnboundedReceiver,
+    sync::{
+        mpsc::UnboundedReceiver,
+        oneshot,
+    },
 };
 use tracing::{
     debug,
@@ -23,16 +26,21 @@ use crate::{
 };
 
 const BLOCKS_TOPIC: &str = "blocks";
+fn blocks_topic() -> Sha256Topic {
+    Sha256Topic::new(BLOCKS_TOPIC)
+}
 
 pub struct GossipNetwork {
     network: Network,
     block_rx: UnboundedReceiver<SequencerBlockData>,
+    info_query_rx: UnboundedReceiver<InfoQuery>,
 }
 
 impl GossipNetwork {
     pub(crate) fn new(
         cfg: &Config,
         block_rx: UnboundedReceiver<SequencerBlockData>,
+        info_query_rx: UnboundedReceiver<InfoQuery>,
     ) -> Result<Self> {
         let mut builder = NetworkBuilder::new().port(cfg.p2p_port);
 
@@ -50,6 +58,7 @@ impl GossipNetwork {
         Ok(Self {
             network,
             block_rx,
+            info_query_rx,
         })
     }
 
@@ -76,6 +85,16 @@ impl GossipNetwork {
                         };
                     }
                 },
+                Some(query) = self.info_query_rx.recv() => {
+                    match query {
+                        InfoQuery::NumberOfPeers(tx) => {
+                            let n = self.network.num_subscribed(&blocks_topic());
+                            if let Err(_) = tx.send(n) {
+                                warn!("oneshot sender to respond to number of peers info query dropped before a value could be sent");
+                            }
+                        }
+                    }
+                }
                 event = self.network.next() => {
                     if let Some(event) = event {
                         debug!(?event, "got event from network");
@@ -91,8 +110,12 @@ impl GossipNetwork {
 
     async fn publish(&mut self, block: &SequencerBlockData) -> Result<()> {
         self.network
-            .publish(block.to_bytes()?, Sha256Topic::new(BLOCKS_TOPIC))
+            .publish(block.to_bytes()?, blocks_topic())
             .await?;
         Ok(())
     }
+}
+
+pub(crate) enum InfoQuery {
+    NumberOfPeers(oneshot::Sender<usize>),
 }

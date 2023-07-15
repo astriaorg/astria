@@ -38,10 +38,20 @@ ed25519-consensus = { workspace = true }
 subtle-encoding = "0.5.1"
 serde_path_to_error = "0.1.13"
 is-terminal.workspace = true
+hyper = "0.14.27"
 
 [dev-dependencies]
+astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client", features = ["server"] }
 astria-sequencer-relayer-test = { path = "../astria-sequencer-relayer-test"}
 backon = "0.4.1"
-figment = { workspace = true, features = ["test"] }
 rand_core = { version = "0.6", features = [ "getrandom" ] }
-tempfile.workspace = true
+
+figment = { workspace = true, features = ["test"] }
+jsonrpsee = { workspace = true, features = ["server"] }
+multiaddr = { workspace = true }
+once_cell = { workspace = true }
+tempfile = { workspace = true }
+tendermint-rpc = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }
+wiremock = {workspace = true }
+astria-sequencer = { path = "../astria-sequencer" }

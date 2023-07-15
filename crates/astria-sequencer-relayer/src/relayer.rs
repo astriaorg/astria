@@ -224,7 +224,7 @@ impl Relayer {
             // layer if no submission is in flight.
             if self.data_availability_client.is_some()
                 && !self.queued_blocks.is_empty()
-                && !self.submission_task.is_none()
+                && self.submission_task.is_none()
             {
                 let client = self.data_availability_client.clone().expect(
                     "this should not fail because the if condition of this block checked that a \
@@ -250,7 +250,7 @@ fn convert_block_response_to_sequencer_block_data(
     current_height: Option<u64>,
     validator: Validator,
 ) -> eyre::Result<Option<SequencerBlockData>> {
-    if Some(res.block.header.height.value()) > current_height {
+    if Some(res.block.header.height.value()) <= current_height {
         debug!(
             "sequencer block response contained height at or below the current height tracked in \
              relayer"

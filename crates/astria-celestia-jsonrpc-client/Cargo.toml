@@ -9,7 +9,8 @@ edition = "2021"
 base64.workspace = true
 base64-serde = "0.7.0"
 http = "0.2.9"
-jsonrpsee = { version = "0.18.2", features = ["macros", "client"] }
+
+jsonrpsee = { workspace = true, features = ["macros", "client"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["raw_value"] }
 
