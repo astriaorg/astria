@@ -16,6 +16,7 @@ use axum::{
     Json,
     Router,
 };
+use eyre::WrapErr as _;
 use http::status::StatusCode;
 use hyper::server::conn::AddrIncoming;
 use serde::{
@@ -27,7 +28,6 @@ use tokio::sync::{
     oneshot,
     watch,
 };
-use tracing::warn;
 
 use crate::{
     macros::report_err,
@@ -83,36 +83,53 @@ async fn get_healthz(State(relayer_status): State<RelayerState>) -> Healthz {
     }
 }
 
-async fn get_readyz(State(relayer_status): State<RelayerState>) -> Readyz {
-    match relayer_status.borrow().is_ready() {
-        true => Readyz::Ok,
-        false => Readyz::NotReady,
+/// Handler of a call to `/readyz`.
+///
+/// Returns `Readyz::Ok` if all of the following conditions are met:
+///
+/// + there is at least one subscriber to which sequencer blocks can be gossiped
+/// + there is a current sequencer height (implying a block from sequencer was received)
+/// + there is a current data availability height (implying a height was received from the DA)
+// FIXME: It is sufficient to directly query the current height of the DA to establish readiness.
+//        The way relayer status is updated right now is by waiting for the response from the
+//        state.SubmitPayForBlob RPC.
+async fn get_readyz(
+    State(relayer_status): State<RelayerState>,
+    State(gossipnet_query_tx): State<UnboundedSender<network::InfoQuery>>,
+) -> Readyz {
+    let are_peers_subscribed = match get_number_of_subscribers(gossipnet_query_tx).await {
+        Ok(0) => false,
+        Ok(_) => true,
+        Err(e) => {
+            report_err!(
+                e,
+                "failed querying gossipnet task for its number of subscribers"
+            );
+            false
+        }
+    };
+    let is_relayer_online = relayer_status.borrow().is_ready();
+    if are_peers_subscribed && is_relayer_online {
+        Readyz::Ok
+    } else {
+        Readyz::NotReady
     }
 }
 
 async fn get_status(
     State(relayer_status): State<RelayerState>,
-    State(info_query_tx): State<UnboundedSender<crate::network::InfoQuery>>,
+    State(gossipnet_query_tx): State<UnboundedSender<network::InfoQuery>>,
 ) -> Json<Status> {
-    use crate::network::InfoQuery;
     let relayer::State {
         current_sequencer_height,
         current_data_availability_height,
     } = *relayer_status.borrow();
-    let (info_response_tx, info_response_rx) = oneshot::channel();
-    if let Err(e) = info_query_tx.send(InfoQuery::NumberOfPeers(info_response_tx)) {
-        warn!(error.msg = %e, "failed sending info query to gossip task");
-    }
-    let number_of_subscribed_peers = match info_response_rx.await {
-        Ok(num) => Some(
-            num.try_into()
-                .expect("number of subscribed peers should never exceed u64::MAX"),
-        ),
+    let number_of_subscribed_peers = match get_number_of_subscribers(gossipnet_query_tx).await {
+        Ok(num) => Some(num),
         Err(e) => {
             report_err!(
                 e,
-                "oneshot channel to receive number of subscribers from gossip task dropped before \
-                 a value was sent"
+                "failed querying gossipnet task for its number of subscribers"
             );
             None
         }
@@ -170,6 +187,23 @@ impl IntoResponse for Readyz {
         *response.status_mut() = status;
         response
     }
+}
+
+async fn get_number_of_subscribers(tx: UnboundedSender<network::InfoQuery>) -> eyre::Result<u64> {
+    use eyre::Report;
+    use network::InfoQuery;
+    let (info_response_tx, info_response_rx) = oneshot::channel();
+    tx.send(InfoQuery::NumberOfPeers(info_response_tx))
+        .map_err(|e| {
+            Report::msg(e.to_string()).wrap_err("failed sending info query to gossipnet task")
+        })?;
+    info_response_rx
+        .await
+        .map(|num| {
+            num.try_into()
+                .expect("number of subscribed peers should never exceed u64::MAX")
+        })
+        .wrap_err("one shot channel sent to gossipnet dropped before value was returned")
 }
 
 #[derive(Debug, Deserialize, Serialize)]
