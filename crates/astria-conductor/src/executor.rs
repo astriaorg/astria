@@ -1,12 +1,9 @@
 use std::collections::HashMap;
 
-use astria_sequencer_relayer::{
-    base64_string::Base64String,
-    types::{
-        get_namespace,
-        Namespace,
-        SequencerBlockData,
-    },
+use astria_sequencer_relayer::types::{
+    get_namespace,
+    Namespace,
+    SequencerBlockData,
 };
 use color_eyre::eyre::{
     Result,
@@ -116,7 +113,7 @@ struct Executor<C> {
     /// we need to track the mapping of sequencer block hash -> execution block hash
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
-    sequencer_hash_to_execution_hash: HashMap<Base64String, Vec<u8>>,
+    sequencer_hash_to_execution_hash: HashMap<Vec<u8>, Vec<u8>>,
 }
 
 impl<C: ExecutionClient> Executor<C> {
@@ -292,11 +289,14 @@ impl<C: ExecutionClient> Executor<C> {
     ///
     /// This function returns an error if:
     /// - the call to the execution service's FinalizeBlock function fails
-    #[instrument(ret, err, skip_all, fields(execution_block_hash = hex::encode(&execution_block_hash), %sequencer_block_hash))]
+    #[instrument(ret, err, skip_all, fields(
+        execution_block_hash = hex::encode(&execution_block_hash),
+        sequencer_block_hash = hex::encode(sequencer_block_hash),
+    ))]
     async fn finalize_block(
         &mut self,
         execution_block_hash: Vec<u8>,
-        sequencer_block_hash: &Base64String,
+        sequencer_block_hash: &[u8],
     ) -> Result<()> {
         self.execution_rpc_client
             .call_finalize_block(execution_block_hash)
@@ -381,7 +381,7 @@ mod test {
 
     fn get_test_block() -> SequencerBlockData {
         SequencerBlockData {
-            block_hash: Base64String(hash(b"block1")),
+            block_hash: hash(b"block1"),
             header: astria_sequencer_relayer::utils::default_header(),
             last_commit: None,
             rollup_txs: HashMap::new(),

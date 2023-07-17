@@ -86,7 +86,7 @@ impl BlockVerifier {
             .to_bytes();
 
         // verify the namespace data signing public key matches the proposer public key
-        let proposer_public_key = &data.public_key.0;
+        let proposer_public_key = &data.public_key;
         ensure!(
             proposer_public_key == &expected_proposer_public_key,
             "public key mismatch: expected {}, got {}",
@@ -383,7 +383,6 @@ fn get_proposer(validator_set: &ValidatorSet) -> eyre::Result<Validator> {
 mod test {
     use std::str::FromStr;
 
-    use astria_sequencer_relayer::base64_string::Base64String;
     use tendermint::block::Commit;
 
     use super::*;
@@ -431,6 +430,10 @@ mod test {
 
     #[test]
     fn test_ensure_commit_has_quorum_not_ok() {
+        use base64::engine::{
+            general_purpose::STANDARD,
+            Engine as _,
+        };
         let validator_set = ValidatorSet::new(
             79u32.into(),
             vec![Validator {
@@ -440,12 +443,9 @@ mod test {
                 )
                 .unwrap(),
                 pub_key: tendermint::PublicKey::from_raw_ed25519(
-                    Base64String::from_string(
-                        "tyPnz5GGblrx3PBjQRxZOHbzsPEI1E8lOh62QoPSWLw=".to_string(),
-                    )
-                    .unwrap()
-                    .0
-                    .as_slice(),
+                    &STANDARD
+                        .decode("tyPnz5GGblrx3PBjQRxZOHbzsPEI1E8lOh62QoPSWLw=")
+                        .unwrap(),
                 )
                 .unwrap(),
                 power: 10u32.into(),
