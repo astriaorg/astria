@@ -112,7 +112,7 @@ impl Driver {
                 reader_tx,
                 executor_tx,
                 network: SyncWrapper::new(
-                    GossipNetwork::new(conf.bootnodes, conf.libp2p_private_key)
+                    GossipNetwork::new(conf.bootnodes, conf.libp2p_private_key, conf.libp2p_port)
                         .wrap_err("failed to construct gossip network")?,
                 ),
                 block_verifier,

@@ -39,6 +39,10 @@ pub struct Config {
     /// Path to the libp2p private key file
     #[serde(default)]
     pub libp2p_private_key: Option<String>,
+
+    /// Port to listen on for libp2p
+    #[serde(default = "default_libp2p_port")]
+    pub libp2p_port: u16,
 }
 
 fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
@@ -75,4 +79,8 @@ fn default_chain_id() -> String {
 
 fn default_execution_rpc_url() -> String {
     "http://localhost:50051".to_string()
+}
+
+fn default_libp2p_port() -> u16 {
+    2451
 }
