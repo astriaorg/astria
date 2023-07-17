@@ -23,7 +23,7 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
       else \
         apt update; \
       fi; \
-      apt-geth install -y librocksdb-dev:amd64; \
+      apt-get install -y librocksdb-dev:amd64; \
     fi; \
     apt install -y libclang-dev clang protobuf-compiler;
 
