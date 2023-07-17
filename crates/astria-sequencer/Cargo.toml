@@ -7,7 +7,6 @@ edition = "2021"
 astria-proto = {path = "../astria-proto"}
 
 anyhow = "1"
-is-terminal = "0.4.7"
 # commit builds off v0.54.1
 penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "d8d5cd0b00876380147d7ddc7f3005178e3d9ae0" }
 penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "d8d5cd0b00876380147d7ddc7f3005178e3d9ae0" }
@@ -23,6 +22,7 @@ clap = { workspace = true, features = ["derive"] }
 ed25519-consensus = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
+is-terminal = { workspace = true }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"]  }
 serde_json = { workspace = true }
