@@ -127,6 +127,18 @@ impl Relayer {
             }
         };
 
+        let mut namespaces_to_tx_count = std::collections::HashMap::new();
+        sequencer_block.rollup_txs.iter().for_each(|(ns, txs)| {
+            namespaces_to_tx_count.insert(*ns, txs.len());
+        });
+
+        info!(
+            sequencer_block = height,
+            proposer = ?sequencer_block.header.proposer_address,
+            namespaces_to_tx_count = ?namespaces_to_tx_count,
+            "submitting sequencer block to DA layer",
+        );
+
         self.block_tx.send(sequencer_block.clone())?;
         let namespace_count = sequencer_block.rollup_txs.len();
         if let Some(client) = &self.data_availability_client {

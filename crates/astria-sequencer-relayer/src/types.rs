@@ -51,7 +51,7 @@ use crate::base64_string::Base64String;
 pub static DEFAULT_NAMESPACE: Namespace = Namespace(*b"astriasequ");
 
 /// Namespace represents a Celestia namespace.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Namespace([u8; NAMESPACE_ID_AVAILABLE_LEN]);
 
 impl Deref for Namespace {
@@ -72,6 +72,13 @@ impl Namespace {
         let mut namespace = [0u8; NAMESPACE_ID_AVAILABLE_LEN];
         namespace.copy_from_slice(&bytes);
         Ok(Namespace(namespace))
+    }
+}
+
+impl fmt::Debug for Namespace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // FIXME: `hex::encode` does an extra allocation which could be removed
+        f.write_str(&hex::encode(self.0))
     }
 }
 
