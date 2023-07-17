@@ -130,7 +130,7 @@ impl Relayer {
 
         info!(
             sequencer_block = height,
-            proposer = ?sequencer_block.header.proposer_address,
+            proposer = %sequencer_block.header.proposer_address,
             namespaces_to_tx_count = %NamespaceToTxCount(&sequencer_block.rollup_txs),
             "submitting sequencer block to DA layer",
         );

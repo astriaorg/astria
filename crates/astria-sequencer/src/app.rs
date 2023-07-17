@@ -142,7 +142,7 @@ impl App {
         info!(
             ?tx,
             ?height,
-            sender = tx.signer_address().to_string(),
+            sender = %tx.signer_address(),
             "executed transaction"
         );
         Ok(vec![])
