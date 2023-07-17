@@ -14,7 +14,7 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
       else \
         apt update; \
       fi; \
-      apt-get install -y librocksdb-dev:arm64; \
+      apt install -y librocksdb-dev:arm64; \
     elif [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
       rustup target add x86_64-unknown-linux-gnu; \
       if [ "$BUILDPLATFORM" != "linux/amd64" ]; then \
@@ -23,7 +23,7 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
       else \
         apt update; \
       fi; \
-      apt-get install -y librocksdb-dev:amd64; \
+      apt install -y librocksdb-dev:amd64; \
     fi; \
     apt install -y libclang-dev clang protobuf-compiler;
 
@@ -92,9 +92,8 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then ARCH=aarch64; \
 
 FROM debian:bookworm-slim
 ARG TARGETBINARY
-ENV BINARY_PATH "/usr/local/bin/$TARGETBINARY"
 WORKDIR /app/
 EXPOSE 2450
 RUN apt update && apt install -y wget ca-certificates && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /build/target/release/$TARGETBINARY /usr/local/bin/$TARGETBINARY
-ENTRYPOINT echo ${BINARY_PATH}
+ENTRYPOINT ["/usr/local/bin/$TARGETBINARY"]
