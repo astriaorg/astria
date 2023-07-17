@@ -385,7 +385,7 @@ mod test {
             Engine as _,
         };
         SequencerBlockData {
-            block_hash: STANDARD.decode(&hash(b"block1")).unwrap(),
+            block_hash: STANDARD.decode(hash(b"block1")).unwrap(),
             header: astria_sequencer_relayer::utils::default_header(),
             last_commit: None,
             rollup_txs: HashMap::new(),
