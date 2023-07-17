@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use astria_sequencer_relayer::{
-    base64_string::Base64String,
     data_availability::CelestiaClient,
     types::{
         get_namespace,
@@ -35,7 +34,7 @@ async fn celestia_client() {
     let secondary_namespace = get_namespace(b"test_namespace");
     let secondary_tx = b"noot_was_here".to_vec();
 
-    let block_hash = Base64String(vec![99; 32]);
+    let block_hash = vec![99; 32];
     let mut block = SequencerBlockData {
         block_hash: block_hash.clone(),
         header: default_header(),
