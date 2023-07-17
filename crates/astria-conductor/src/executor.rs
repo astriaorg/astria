@@ -380,8 +380,12 @@ mod test {
     }
 
     fn get_test_block() -> SequencerBlockData {
+        use base64::engine::{
+            general_purpose::STANDARD,
+            Engine as _,
+        };
         SequencerBlockData {
-            block_hash: hash(b"block1"),
+            block_hash: STANDARD.decode(&hash(b"block1")).unwrap(),
             header: astria_sequencer_relayer::utils::default_header(),
             last_commit: None,
             rollup_txs: HashMap::new(),

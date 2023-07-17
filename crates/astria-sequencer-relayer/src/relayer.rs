@@ -180,7 +180,11 @@ impl Relayer {
         match conversion_result {
             // Gossip and collect successfully converted sequencer responses
             Ok(Some(sequencer_block_data)) => {
-                if let Err(_) = self.gossip_block_tx.send(sequencer_block_data.clone()) {
+                if self
+                    .gossip_block_tx
+                    .send(sequencer_block_data.clone())
+                    .is_err()
+                {
                     return HandleConversionCompletedResult::GossipChannelClosed;
                 }
                 // Update the internal state if the block was admitted
@@ -220,7 +224,7 @@ impl Relayer {
             Err(e) => {
                 // TODO: inject the correct tracing span
                 report_err!(e, "submission task failed");
-                return ();
+                return;
             }
         };
         // Then report update the internal state or report if submission failed
@@ -350,8 +354,7 @@ impl Relayer {
         }
         // .await
         // .wrap_err("failed establishing connection to data availability layer")?;
-        let () = self
-            .wait_for_sequencer(5, Duration::from_secs(5), 2.0)
+        self.wait_for_sequencer(5, Duration::from_secs(5), 2.0)
             .await
             .wrap_err("failed establishing connection to the sequencer")?;
 
@@ -412,7 +415,9 @@ impl Relayer {
             }
         };
         self.conversion_workers.abort_all();
-        self.submission_task.as_mut().map(|task| task.abort());
+        if let Some(task) = self.submission_task.as_mut() {
+            task.abort()
+        }
         bail!(stop_msg);
     }
 }
@@ -461,7 +466,7 @@ enum HandleConversionCompletedResult {
 }
 
 impl HandleConversionCompletedResult {
-    fn is_gossip_channel_closed(self) -> bool {
+    fn is_gossip_channel_closed(&self) -> bool {
         matches!(self, Self::GossipChannelClosed)
     }
 }

@@ -89,7 +89,7 @@ impl GossipNetwork {
                     match query {
                         InfoQuery::NumberOfPeers(tx) => {
                             let n = self.network.num_subscribed(&blocks_topic());
-                            if let Err(_) = tx.send(n) {
+                            if tx.send(n).is_err() {
                                 warn!("oneshot sender to respond to number of peers info query dropped before a value could be sent");
                             }
                         }
