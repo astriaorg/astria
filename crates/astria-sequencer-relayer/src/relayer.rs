@@ -23,6 +23,7 @@ use tracing::{
 
 use crate::{
     data_availability::CelestiaClient,
+    serde::NamespaceToTxCount,
     types::SequencerBlockData,
     validator::Validator,
 };
@@ -127,15 +128,10 @@ impl Relayer {
             }
         };
 
-        let mut namespaces_to_tx_count = std::collections::HashMap::new();
-        sequencer_block.rollup_txs.iter().for_each(|(ns, txs)| {
-            namespaces_to_tx_count.insert(*ns, txs.len());
-        });
-
         info!(
             sequencer_block = height,
             proposer = ?sequencer_block.header.proposer_address,
-            namespaces_to_tx_count = ?namespaces_to_tx_count,
+            namespaces_to_tx_count = %NamespaceToTxCount(&sequencer_block.rollup_txs),
             "submitting sequencer block to DA layer",
         );
 

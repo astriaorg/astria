@@ -119,13 +119,19 @@ async fn handle_query(
     // note: request::Query also has a `data` field, which we ignore here
     let query = decode_query(&request.path).context("failed to decode query")?;
 
-    // TODO: handle height requests
+    let state = match request.height.value() {
+        0 => storage.latest_snapshot(),
+        height => storage
+            .snapshot(height)
+            .context("failed to get storage at height")?,
+    };
+
     let key = request.path.clone().into_bytes();
     let value = match query {
         Query::AccountsQuery(request) => {
             let handler = QueryHandler::new();
             handler
-                .handle(storage.latest_snapshot(), request)
+                .handle(state, request)
                 .await
                 .context("failed to handle accounts query")?
         }

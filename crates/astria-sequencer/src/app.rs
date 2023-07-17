@@ -139,7 +139,12 @@ impl App {
             .await
             // TODO: explain why this is an invariant of the system
             .expect("block height should be set");
-        info!(?tx, ?height, "executed transaction");
+        info!(
+            ?tx,
+            ?height,
+            sender = tx.signer_address().to_string(),
+            "executed transaction"
+        );
         Ok(vec![])
     }
 
