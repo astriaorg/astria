@@ -291,7 +291,7 @@ impl<C: ExecutionClient> Executor<C> {
     /// - the call to the execution service's FinalizeBlock function fails
     #[instrument(ret, err, skip_all, fields(
         execution_block_hash = hex::encode(&execution_block_hash),
-        sequencer_block_hash = hex::encode(&sequencer_block_hash),
+        sequencer_block_hash = hex::encode(sequencer_block_hash),
     ))]
     async fn finalize_block(
         &mut self,
