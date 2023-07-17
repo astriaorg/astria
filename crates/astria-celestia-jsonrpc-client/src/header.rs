@@ -8,6 +8,7 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "server", derive(serde::Serialize))]
 pub struct Commit {
     pub height: u64,
     #[serde(flatten)]
@@ -16,6 +17,7 @@ pub struct Commit {
 
 /// The response of the `header.NetworkHead` JSON RPC.
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "server", derive(serde::Serialize))]
 pub struct NetworkHeaderResponse {
     pub commit: Commit,
     #[serde(flatten)]
