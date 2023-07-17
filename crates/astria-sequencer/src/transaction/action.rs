@@ -28,6 +28,7 @@ pub enum Action {
 }
 
 impl Action {
+    #[must_use]
     pub fn as_sequence(&self) -> Option<&sequence::Action> {
         match self {
             Self::SequenceAction(a) => Some(a),
@@ -35,6 +36,7 @@ impl Action {
         }
     }
 
+    #[must_use]
     pub fn as_transfer(&self) -> Option<&Transfer> {
         match self {
             Self::TransferAction(t) => Some(t),
@@ -42,6 +44,7 @@ impl Action {
         }
     }
 
+    #[must_use]
     pub fn new_sequence_action(chain_id: Vec<u8>, data: Vec<u8>) -> Self {
         Self::SequenceAction(sequence::Action::new(chain_id, data))
     }

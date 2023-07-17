@@ -36,7 +36,7 @@ mod u128_string {
     };
 
     #[cfg(feature = "server")]
-    pub fn deserialize<'de, D>(deser: D) -> Result<u128, D::Error>
+    pub(super) fn deserialize<'de, D>(deser: D) -> Result<u128, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
@@ -45,7 +45,7 @@ mod u128_string {
         s.parse::<u128>().map_err(serde::de::Error::custom)
     }
 
-    pub fn serialize<S: Serializer>(val: &u128, ser: S) -> Result<S::Ok, S::Error> {
+    pub(super) fn serialize<S: Serializer>(val: &u128, ser: S) -> Result<S::Ok, S::Error> {
         let val = val.to_string();
         val.serialize(ser)
     }

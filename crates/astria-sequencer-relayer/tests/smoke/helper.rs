@@ -1,8 +1,9 @@
-use std::net::SocketAddr;
+use std::{
+    net::SocketAddr,
+    time::Duration,
+};
 
-use astria_sequencer_client::BlockResponse;
 use astria_sequencer_relayer::{
-    api,
     config::Config,
     telemetry,
     types::SequencerBlockData,
@@ -11,19 +12,31 @@ use astria_sequencer_relayer::{
 };
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
+use serde_json::json;
 use tempfile::NamedTempFile;
+use tendermint_rpc::{
+    endpoint,
+    response::Wrapper,
+    Id,
+};
 use tokio::{
     sync::{
         mpsc,
         oneshot,
     },
     task::JoinHandle,
+    time,
 };
 use tracing::{
     debug,
     info,
 };
-use wiremock::MockServer;
+use wiremock::{
+    matchers::body_partial_json,
+    Mock,
+    MockServer,
+    ResponseTemplate,
+};
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
@@ -63,24 +76,37 @@ pub struct TestSequencerRelayer {
     /// The mocked astria conductor gossip node receiving gossiped messages
     pub conductor: MockConductor,
 
-    pub original_block_response: BlockResponse,
-
     /// The mocked sequencer service (also serving as tendermint jsonrpc?)
     pub sequencer: MockServer,
 
     pub sequencer_relayer: JoinHandle<()>,
 
-    pub _keyfile: NamedTempFile,
-
     pub config: Config,
+
+    pub validator: Validator,
+
+    pub _keyfile: NamedTempFile,
 }
 
-pub async fn spawn_sequencer_relayer() -> TestSequencerRelayer {
+impl TestSequencerRelayer {
+    pub async fn advance_by_block_time(&self) {
+        time::advance(Duration::from_millis(self.config.block_time + 10)).await;
+    }
+}
+
+pub enum CelestiaMode {
+    Immediate,
+    Delayed(u64),
+}
+
+pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequencerRelayer {
     Lazy::force(&TELEMETRY);
+    let mut config = Config::default();
+
     let mut conductor = MockConductor::start();
     let conductor_bootnode = (&mut conductor.bootnode_rx).await.unwrap();
 
-    let mut celestia = MockCelestia::start().await;
+    let mut celestia = MockCelestia::start(config.block_time, celestia_mode).await;
     let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
 
     let (keyfile, validator) = tokio::task::spawn_blocking(|| {
@@ -96,19 +122,15 @@ pub async fn spawn_sequencer_relayer() -> TestSequencerRelayer {
     .await
     .unwrap();
 
-    let block_response = create_block_response(validator);
-    let sequencer = start_mocked_sequencer(block_response.clone()).await;
+    let sequencer = start_mocked_sequencer().await;
 
-    let config = {
-        let mut cfg = Config::default();
-        cfg.bootnodes = Some(vec![conductor_bootnode.to_string()]);
-        cfg.celestia_endpoint = format!("http://{celestia_addr}");
-        cfg.sequencer_endpoint = sequencer.uri();
-        cfg.rpc_port = 0;
-        cfg.p2p_port = 0;
-        cfg.validator_key_file = keyfile.path().to_string_lossy().to_string();
-        cfg
-    };
+    config.bootnodes = Some(vec![conductor_bootnode.to_string()]);
+    config.celestia_endpoint = format!("http://{celestia_addr}");
+    config.sequencer_endpoint = sequencer.uri();
+    config.rpc_port = 0;
+    config.p2p_port = 0;
+    config.validator_key_file = keyfile.path().to_string_lossy().to_string();
+
     info!(config = serde_json::to_string(&config).unwrap());
     let config_clone = config.clone();
     let sequencer_relayer = tokio::task::spawn_blocking(|| SequencerRelayer::new(config_clone))
@@ -118,32 +140,33 @@ pub async fn spawn_sequencer_relayer() -> TestSequencerRelayer {
     let api_address = sequencer_relayer.local_addr();
     let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
 
+    loop_until_sequencer_relayer_is_ready(api_address).await;
+
     TestSequencerRelayer {
         api_address,
         celestia,
         conductor,
         config,
-        original_block_response: block_response,
         sequencer,
         sequencer_relayer,
+        validator,
         _keyfile: keyfile,
     }
 }
 
-pub async fn get_api_status(addr: SocketAddr) -> api::Status {
-    reqwest::get(format!("http://{addr}/status"))
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap()
-}
-
-pub async fn loop_until_conductor_has_subscribed(addr: SocketAddr) {
+pub async fn loop_until_sequencer_relayer_is_ready(addr: SocketAddr) {
+    #[derive(Debug, serde::Deserialize)]
+    struct Readyz {
+        status: String,
+    }
     loop {
-        let state = get_api_status(addr).await;
-        let num_peers = state.number_of_subscribed_peers.unwrap();
-        if num_peers > 0 {
+        let readyz = reqwest::get(format!("http://{addr}/readyz"))
+            .await
+            .unwrap()
+            .json::<Readyz>()
+            .await
+            .unwrap();
+        if readyz.status.to_lowercase() == "ok" {
             break;
         }
     }
@@ -151,6 +174,7 @@ pub async fn loop_until_conductor_has_subscribed(addr: SocketAddr) {
 
 use astria_celestia_jsonrpc_client::rpc_impl::{
     blob::Blob,
+    header::HeaderServer,
     state::{
         Fee,
         StateServer,
@@ -164,51 +188,56 @@ use jsonrpsee::{
 
 pub struct MockCelestia {
     pub addr_rx: oneshot::Receiver<SocketAddr>,
-    pub rpc_confirmed_rx: mpsc::UnboundedReceiver<Vec<Blob>>,
+    pub state_rpc_confirmed_rx: mpsc::UnboundedReceiver<Vec<Blob>>,
     pub _server_handle: ServerHandle,
 }
 
 impl MockCelestia {
-    async fn start() -> Self {
+    async fn start(sequencer_block_time_ms: u64, mode: CelestiaMode) -> Self {
         use jsonrpsee::server::ServerBuilder;
         let (addr_tx, addr_rx) = oneshot::channel();
         let server = ServerBuilder::default().build("127.0.0.1:0").await.unwrap();
         let addr = server.local_addr().unwrap();
         addr_tx.send(addr).unwrap();
-        let (rpc_confirmed_tx, rpc_confirmed_rx) = mpsc::unbounded_channel();
-        let celestia = CelestiaImpl {
-            rpc_confirmed_tx,
+        let (state_rpc_confirmed_tx, state_rpc_confirmed_rx) = mpsc::unbounded_channel();
+        let state_celestia = StateCelestiaImpl {
+            sequencer_block_time_ms,
+            mode,
+            rpc_confirmed_tx: state_rpc_confirmed_tx,
         };
-        let _server_handle = server.start(celestia.into_rpc()).unwrap();
+        let header_celestia = HeaderCelestiaImpl {};
+        let mut merged_celestia = state_celestia.into_rpc();
+        merged_celestia.merge(header_celestia.into_rpc()).unwrap();
+        let _server_handle = server.start(merged_celestia).unwrap();
         Self {
             addr_rx,
-            rpc_confirmed_rx,
+            state_rpc_confirmed_rx,
             _server_handle,
         }
     }
 }
 
-struct CelestiaImpl {
-    rpc_confirmed_tx: mpsc::UnboundedSender<Vec<Blob>>,
-}
+struct HeaderCelestiaImpl;
 
 #[async_trait]
-impl StateServer for CelestiaImpl {
-    async fn submit_pay_for_blob(
-        &self,
-        _fee: Fee,
-        _gas_limit: u64,
-        blobs: Vec<Blob>,
-    ) -> Result<Box<serde_json::value::RawValue>, ErrorObjectOwned> {
-        use astria_celestia_jsonrpc_client::state::SubmitPayForBlobResponse;
-        use serde_json::value::RawValue;
-
-        self.rpc_confirmed_tx.send(blobs).unwrap();
-
+impl HeaderServer for HeaderCelestiaImpl {
+    async fn network_head(&self) -> Result<Box<serde_json::value::RawValue>, ErrorObjectOwned> {
+        use astria_celestia_jsonrpc_client::header::{
+            Commit,
+            NetworkHeaderResponse,
+        };
+        use serde_json::{
+            to_string,
+            value::RawValue,
+            Value,
+        };
         let rsp = RawValue::from_string(
-            serde_json::to_string(&SubmitPayForBlobResponse {
-                height: 100,
-                rest: serde_json::Value::Null,
+            to_string(&NetworkHeaderResponse {
+                commit: Commit {
+                    height: 42,
+                    rest: Value::default(),
+                },
+                inner: Value::default(),
             })
             .unwrap(),
         )
@@ -217,9 +246,48 @@ impl StateServer for CelestiaImpl {
     }
 }
 
+struct StateCelestiaImpl {
+    sequencer_block_time_ms: u64,
+    mode: CelestiaMode,
+    rpc_confirmed_tx: mpsc::UnboundedSender<Vec<Blob>>,
+}
+
+#[async_trait]
+impl StateServer for StateCelestiaImpl {
+    async fn submit_pay_for_blob(
+        &self,
+        _fee: Fee,
+        _gas_limit: u64,
+        blobs: Vec<Blob>,
+    ) -> Result<Box<serde_json::value::RawValue>, ErrorObjectOwned> {
+        use astria_celestia_jsonrpc_client::state::SubmitPayForBlobResponse;
+        use serde_json::{
+            to_string,
+            value::RawValue,
+            Value,
+        };
+
+        self.rpc_confirmed_tx.send(blobs).unwrap();
+
+        let rsp = RawValue::from_string(
+            to_string(&SubmitPayForBlobResponse {
+                height: 100,
+                rest: Value::Null,
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        if let CelestiaMode::Delayed(n) = self.mode {
+            tokio::time::sleep(Duration::from_millis(n * self.sequencer_block_time_ms)).await;
+        }
+
+        Ok(rsp)
+    }
+}
+
 pub struct MockConductor {
     pub bootnode_rx: oneshot::Receiver<Multiaddr>,
-    pub block_rx: oneshot::Receiver<SequencerBlockData>,
+    pub block_rx: mpsc::UnboundedReceiver<SequencerBlockData>,
     pub task: JoinHandle<()>,
 }
 
@@ -239,7 +307,7 @@ impl MockConductor {
             .build()
             .unwrap();
         let (bootnode_tx, bootnode_rx) = oneshot::channel();
-        let (block_tx, block_rx) = oneshot::channel();
+        let (block_tx, block_rx) = mpsc::unbounded_channel();
         let task = tokio::task::spawn(async move {
             use futures::StreamExt as _;
             let event = conductor
@@ -259,9 +327,10 @@ impl MockConductor {
             };
 
             // Wait until sequencer-relayer connects. We have to wait with subscribing to
-            // "blocks" until after the connection is established because otherwise we
-            // have to wait until the next gossipsub heartbeat (which is configured to be
-            // 10 seconds).
+            // the "blocks" topic until after the connection is established because otherwise
+            // we have to wait until the next gossipsub heartbeat (which is configured to be
+            // 10 seconds and runs on a non-tokio timer, i.e. outside its ability to pause and
+            // advance time arbitrarily).
             loop {
                 let Some(event) = conductor.next().await else {
                     break;
@@ -295,7 +364,6 @@ impl MockConductor {
                         debug!(?msg, "conductor received message");
                         let block = SequencerBlockData::from_bytes(&msg.data).unwrap();
                         block_tx.send(block).unwrap();
-                        break;
                     }
                     _ => {}
                 }
@@ -309,7 +377,15 @@ impl MockConductor {
     }
 }
 
-fn create_block_response(validator: Validator) -> BlockResponse {
+// This is necessary because the Deserialize impl for tendermint::block::Block
+// considers the default commit equivalent to being unset.
+fn create_non_default_last_commit() -> tendermint::block::Commit {
+    let mut commit = tendermint::block::Commit::default();
+    commit.height = 2u32.into();
+    commit
+}
+
+fn create_block_response(validator: &Validator, height: u32) -> endpoint::block::Response {
     use astria_sequencer::{
         accounts::types::Nonce,
         transaction::{
@@ -329,11 +405,12 @@ fn create_block_response(validator: Validator) -> BlockResponse {
     };
     let signing_key = validator.signing_key();
 
+    let suffix = height.to_string().into_bytes();
     let signed_tx = Unsigned::new_with_actions(
         Nonce::from(1),
         vec![Action::new_sequence_action(
-            b"test_chain_id".to_vec(),
-            b"hello_world".to_vec(),
+            [b"test_chain_id_", &*suffix].concat(),
+            [b"hello_world_id_", &*suffix].concat(),
         )],
     )
     .into_signed(&signing_key);
@@ -342,7 +419,7 @@ fn create_block_response(validator: Validator) -> BlockResponse {
         &data,
     )));
 
-    BlockResponse {
+    endpoint::block::Response {
         block_id: block::Id {
             hash: Hash::Sha256([0; 32]),
             part_set_header: block::parts::Header::new(0, Hash::None).unwrap(),
@@ -354,7 +431,7 @@ fn create_block_response(validator: Validator) -> BlockResponse {
                     app: 0,
                 },
                 chain_id: chain::Id::try_from("test").unwrap(),
-                height: block::Height::from(1u32),
+                height: block::Height::from(height),
                 time: Time::now(),
                 last_block_id: None,
                 last_commit_hash: None,
@@ -369,29 +446,96 @@ fn create_block_response(validator: Validator) -> BlockResponse {
             },
             data,
             evidence::List::default(),
-            None,
+            // The first height must not, every height after must contain a commit
+            (height != 1).then_some(create_non_default_last_commit()),
         )
         .unwrap(),
     }
 }
 
-// async fn start_mocked_sequencer(validator: Validator) -> MockServer {
-async fn start_mocked_sequencer(response: BlockResponse) -> MockServer {
-    use serde_json::json;
-    use tendermint_rpc::{
-        response::Wrapper,
-        Id,
+async fn start_mocked_sequencer() -> MockServer {
+    use tendermint::{
+        abci,
+        hash::AppHash,
     };
-    use wiremock::{
-        matchers::body_partial_json,
-        Mock,
-        ResponseTemplate,
-    };
+    use tendermint_rpc::endpoint::abci_info;
     let server = MockServer::start().await;
-    let response = Wrapper::new_with_id(Id::Num(1), Some(response), None);
-    Mock::given(body_partial_json(json!({"method": "block"})))
-        .respond_with(ResponseTemplate::new(200).set_body_json(response))
+
+    let abci_response = abci_info::Response {
+        response: abci::response::Info {
+            data: "SequencerRelayerTest".into(),
+            version: "1.0.0".into(),
+            app_version: 1,
+            last_block_height: 5u32.into(),
+            last_block_app_hash: AppHash::try_from([0; 32].to_vec()).unwrap(),
+        },
+    };
+    let abci_response = Wrapper::new_with_id(Id::Num(1), Some(abci_response), None);
+    Mock::given(body_partial_json(json!({"method": "abci_info"})))
+        .respond_with(ResponseTemplate::new(200).set_body_json(abci_response))
         .mount(&server)
         .await;
     server
+}
+
+pub async fn mount_constant_block_response(
+    sequencer_relayer: &TestSequencerRelayer,
+) -> endpoint::block::Response {
+    let block_response = create_block_response(&sequencer_relayer.validator, 1);
+    let wrapped = Wrapper::new_with_id(Id::Num(1), Some(block_response.clone()), None);
+    Mock::given(body_partial_json(json!({"method": "block"})))
+        .respond_with(ResponseTemplate::new(200).set_body_json(wrapped))
+        .mount(&sequencer_relayer.sequencer)
+        .await;
+    block_response
+}
+
+/// Mounts 4 changing mock responses with the last one repeating
+pub async fn mount_4_changing_block_responses(
+    sequencer_relayer: &TestSequencerRelayer,
+) -> Vec<endpoint::block::Response> {
+    async fn create_and_mount_block(
+        delay: Duration,
+        server: &MockServer,
+        validator: &Validator,
+        height: u32,
+    ) -> endpoint::block::Response {
+        let rsp = create_block_response(validator, height);
+        let wrapped = Wrapper::new_with_id(Id::Num(1), Some(rsp.clone()), None);
+        Mock::given(body_partial_json(json!({"method": "block"})))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(wrapped)
+                    .set_delay(delay),
+            )
+            .up_to_n_times(1)
+            .mount(server)
+            .await;
+        rsp
+    }
+
+    let response_delay = Duration::from_millis(sequencer_relayer.config.block_time);
+    let validator = &sequencer_relayer.validator;
+    let server = &sequencer_relayer.sequencer;
+
+    let mut rsps = Vec::new();
+    // The first one resolves immediately
+    rsps.push(create_and_mount_block(Duration::ZERO, server, validator, 1).await);
+
+    for i in 2..=3 {
+        rsps.push(create_and_mount_block(response_delay, server, validator, i).await);
+    }
+
+    // The last one will repeat
+    rsps.push(create_block_response(validator, 4));
+    let wrapped = Wrapper::new_with_id(Id::Num(1), Some(rsps[3].clone()), None);
+    Mock::given(body_partial_json(json!({"method": "block"})))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(wrapped)
+                .set_delay(response_delay),
+        )
+        .mount(&sequencer_relayer.sequencer)
+        .await;
+    rsps
 }

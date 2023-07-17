@@ -8,7 +8,6 @@ members = [
   "crates/astria-sequencer",
   "crates/astria-sequencer-client",
   "crates/astria-sequencer-relayer",
-  "crates/astria-sequencer-relayer-test",
   "crates/astria-sequencer-utils",
   "crates/astria-test-utils",
 ]

@@ -19,10 +19,7 @@ use axum::{
 use eyre::WrapErr as _;
 use http::status::StatusCode;
 use hyper::server::conn::AddrIncoming;
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::Serialize;
 use tokio::sync::{
     mpsc::UnboundedSender,
     oneshot,
@@ -90,9 +87,6 @@ async fn get_healthz(State(relayer_status): State<RelayerState>) -> Healthz {
 /// + there is at least one subscriber to which sequencer blocks can be gossiped
 /// + there is a current sequencer height (implying a block from sequencer was received)
 /// + there is a current data availability height (implying a height was received from the DA)
-// FIXME: It is sufficient to directly query the current height of the DA to establish readiness.
-//        The way relayer status is updated right now is by waiting for the response from the
-//        state.SubmitPayForBlob RPC.
 async fn get_readyz(
     State(relayer_status): State<RelayerState>,
     State(gossipnet_query_tx): State<UnboundedSender<network::InfoQuery>>,
@@ -119,8 +113,10 @@ async fn get_readyz(
 async fn get_status(
     State(relayer_status): State<RelayerState>,
     State(gossipnet_query_tx): State<UnboundedSender<network::InfoQuery>>,
-) -> Json<Status> {
+) -> Json<serde_json::Value> {
     let relayer::State {
+        data_availability_connected,
+        sequencer_connected,
         current_sequencer_height,
         current_data_availability_height,
     } = *relayer_status.borrow();
@@ -134,11 +130,13 @@ async fn get_status(
             None
         }
     };
-    Json(Status {
-        current_sequencer_height,
-        current_data_availability_height,
-        number_of_subscribed_peers,
-    })
+    Json(serde_json::json!({
+        "data_availability_connected": data_availability_connected,
+        "sequencer_connected": sequencer_connected,
+        "current_sequencer_height": current_sequencer_height,
+        "current_data_availability_height": current_data_availability_height,
+        "number_of_subscribed_peers": number_of_subscribed_peers,
+    }))
 }
 
 enum Healthz {
@@ -204,11 +202,4 @@ async fn get_number_of_subscribers(tx: UnboundedSender<network::InfoQuery>) -> e
                 .expect("number of subscribed peers should never exceed u64::MAX")
         })
         .wrap_err("one shot channel sent to gossipnet dropped before value was returned")
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Status {
-    pub current_sequencer_height: Option<u64>,
-    pub current_data_availability_height: Option<u64>,
-    pub number_of_subscribed_peers: Option<u64>,
 }

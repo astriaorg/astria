@@ -27,7 +27,10 @@ use tendermint::block::{
     Commit,
     Header,
 };
-use tracing::warn;
+use tracing::{
+    instrument,
+    warn,
+};
 
 use crate::types::{
     IndexedTransaction,
@@ -233,6 +236,7 @@ impl CelestiaClient {
         CelestiaClientBuilder::new()
     }
 
+    #[instrument(skip_all)]
     pub async fn get_latest_height(&self) -> eyre::Result<u64> {
         let res = self
             .client

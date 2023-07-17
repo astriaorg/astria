@@ -1,19 +1,23 @@
-use astria_sequencer_client::BlockResponse;
+use std::time::Duration;
+
 use eyre::{
     bail,
     Result,
     WrapErr as _,
 };
+use humantime::format_duration;
+use tendermint_rpc::{
+    endpoint::block,
+    HttpClient,
+};
 use tokio::{
     select,
     sync::{
-        mpsc::{
-            UnboundedReceiver,
-            UnboundedSender,
-        },
+        mpsc::UnboundedSender,
         watch,
     },
     task,
+    time::interval,
 };
 use tracing::{
     debug,
@@ -29,25 +33,33 @@ use crate::{
 };
 
 pub struct Relayer {
-    data_availability_client: Option<CelestiaClient>,
+    /// The actual client used to poll the sequencer.
+    sequencer: HttpClient,
+
+    /// The poll period defines the fixed interval at which the sequencer is polled.
+    sequencer_poll_period: Duration,
+
+    data_availability: Option<CelestiaClient>,
     validator: Validator,
-    sequencer_blocks_rx: UnboundedReceiver<BlockResponse>,
     gossip_block_tx: UnboundedSender<SequencerBlockData>,
     state_tx: watch::Sender<State>,
     queued_blocks: Vec<SequencerBlockData>,
     conversion_workers: task::JoinSet<eyre::Result<Option<SequencerBlockData>>>,
     submission_task: Option<task::JoinHandle<eyre::Result<u64>>>,
+    sequencer_task: Option<task::JoinHandle<Result<block::Response, tendermint_rpc::Error>>>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct State {
+    pub(crate) data_availability_connected: bool,
+    pub(crate) sequencer_connected: bool,
     pub(crate) current_sequencer_height: Option<u64>,
     pub(crate) current_data_availability_height: Option<u64>,
 }
 
 impl State {
     pub fn is_ready(&self) -> bool {
-        self.current_sequencer_height.is_some() && self.current_data_availability_height.is_some()
+        self.data_availability_connected && self.sequencer_connected
     }
 }
 
@@ -62,13 +74,15 @@ impl Relayer {
     ///   is set).
     pub fn new(
         cfg: &crate::config::Config,
-        sequencer_blocks_rx: UnboundedReceiver<BlockResponse>,
         gossip_block_tx: UnboundedSender<SequencerBlockData>,
     ) -> Result<Self> {
+        let sequencer = HttpClient::new(&*cfg.sequencer_endpoint)
+            .wrap_err("failed to create sequencer client")?;
+
         let validator = Validator::from_path(&cfg.validator_key_file)
             .wrap_err("failed to get validator info from file")?;
 
-        let data_availability_client = if cfg.disable_writing {
+        let data_availability = if cfg.disable_writing {
             debug!("disabling writing to data availability layer requested; disabling");
             None
         } else {
@@ -84,14 +98,16 @@ impl Relayer {
         let (state_tx, _) = watch::channel(State::default());
 
         Ok(Self {
-            data_availability_client,
+            sequencer,
+            sequencer_poll_period: Duration::from_millis(cfg.block_time),
+            data_availability,
             validator,
-            sequencer_blocks_rx,
             gossip_block_tx,
             state_tx,
             queued_blocks: Vec::new(),
             conversion_workers: task::JoinSet::new(),
             submission_task: None,
+            sequencer_task: None,
         })
     }
 
@@ -99,16 +115,49 @@ impl Relayer {
         self.state_tx.subscribe()
     }
 
-    fn handle_new_block(&mut self, block: BlockResponse) {
-        let current_height = self.state_tx.borrow().current_sequencer_height;
-        let validator = self.validator.clone();
-        // Start the costly conversion; note that the current height at
-        // the time of receipt matters. The internal state might have advanced
-        // past the height recorded in the block while it was converting, but
-        // that's ok.
-        self.conversion_workers.spawn_blocking(move || {
-            convert_block_response_to_sequencer_block_data(block, current_height, validator)
-        });
+    #[instrument(skip_all)]
+    fn handle_sequencer_tick(&mut self) {
+        use tendermint_rpc::Client as _;
+        if self.sequencer_task.is_none() {
+            let client = self.sequencer.clone();
+            self.sequencer_task = Some(tokio::spawn(async move { client.latest_block().await }));
+        } else {
+            debug!("task polling sequencer is currently in flight; not scheduling a new task");
+        }
+    }
+
+    #[instrument(skip_all)]
+    fn handle_sequencer_response(
+        &mut self,
+        join_result: Result<Result<block::Response, tendermint_rpc::Error>, task::JoinError>,
+    ) {
+        debug!("unsetting sequencer task");
+        self.sequencer_task = None;
+        // First check if the join task panicked
+        let request_result = match join_result {
+            Ok(request_result) => request_result,
+            // Report if the task failed, i.e. panicked
+            Err(e) => {
+                // TODO: inject the correct tracing span
+                report_err!(e, "sequencer poll task failed");
+                return;
+            }
+        };
+        match request_result {
+            Ok(block) => {
+                let current_height = self.state_tx.borrow().current_sequencer_height;
+                let validator = self.validator.clone();
+                // Start the costly conversion; note that the current height at
+                // the time of receipt matters. The internal state might have advanced
+                // past the height recorded in the block while it was converting, but
+                // that's ok.
+                self.conversion_workers.spawn_blocking(move || {
+                    convert_block_response_to_sequencer_block_data(block, current_height, validator)
+                });
+            }
+
+            Err(e) => report_err!(e, "failed getting latest block from sequencer"),
+        }
     }
 
     /// Handle the result
@@ -158,6 +207,7 @@ impl Relayer {
         HandleConversionCompletedResult::Handled
     }
 
+    #[instrument(skip_all)]
     fn handle_submission_completed(
         &mut self,
         join_result: Result<eyre::Result<u64>, task::JoinError>,
@@ -183,21 +233,144 @@ impl Relayer {
         }
     }
 
+    /// Wait until a connection to the data availability layer is established.
+    ///
+    /// This function tries to retrieve the latest height from Celestia.
+    /// If it fails, it retries for another `n_retries` times with exponential
+    /// backoff.
+    ///
+    /// # Errors
+    /// An error is returned if calling the data availabilty failed for a total
+    /// of `n_retries + 1` times.
+    #[instrument(name = "Relayer::wait_for_data_availability", skip_all, fields(
+        retries.max_number = n_retries,
+        retries.initial_delay = %format_duration(delay),
+        retries.exponential_factor = factor,
+    ))]
+    async fn wait_for_data_availability_layer(
+        &self,
+        n_retries: usize,
+        delay: Duration,
+        factor: f32,
+    ) -> eyre::Result<()> {
+        use backon::{
+            ExponentialBuilder,
+            Retryable as _,
+        };
+        if let Some(client) = self.data_availability.clone() {
+            debug!("attempting to connect to data availability layer",);
+            let backoff = ExponentialBuilder::default()
+                .with_min_delay(delay)
+                .with_factor(factor)
+                .with_max_times(n_retries);
+            // Clones are necessary because:
+            let height = (|| {
+                let client = client.clone();
+                async move { client.get_latest_height().await }
+            })
+            .retry(&backoff)
+            .await
+            .wrap_err(
+                "failed to retrieve latest height from data availability layer after several \
+                 retries",
+            )?;
+            self.state_tx.send_modify(|state| {
+                state.data_availability_connected = true;
+                state.current_data_availability_height.replace(height);
+            });
+        } else {
+            debug!("writing to data availability disabled");
+        }
+        Ok(())
+    }
+
+    /// Wait until a connection to the sequencer is established.
+    ///
+    /// This function tries to establish a connection to the sequencer by
+    /// querying its abci_info RPC. If it fails, it retries for another `n_retries`
+    /// times with exponential backoff.
+    ///
+    /// # Errors
+    /// An error is returned if calling the data availabilty failed for a total
+    /// of `n_retries + 1` times.
+    #[instrument(name = "Relayer::wait_for_data_availability", skip_all, fields(
+        retries.max_number = n_retries,
+        retries.initial_delay = %format_duration(delay),
+        retries.exponential_factor = factor,
+    ))]
+    async fn wait_for_sequencer(
+        &self,
+        n_retries: usize,
+        delay: Duration,
+        factor: f32,
+    ) -> eyre::Result<()> {
+        use backon::{
+            ExponentialBuilder,
+            Retryable as _,
+        };
+        use tendermint_rpc::Client as _;
+
+        debug!("attempting to connect to data availability layer",);
+        let backoff = ExponentialBuilder::default()
+            .with_min_delay(delay)
+            .with_factor(factor)
+            .with_max_times(n_retries);
+        // Clones are necessary because:
+        (|| {
+            let client = self.sequencer.clone();
+            async move { client.abci_info().await }
+        })
+        .retry(&backoff)
+        .await
+        .wrap_err(
+            "failed to retrieve latest height from data availability layer after several retries",
+        )?;
+        self.state_tx.send_modify(|state| {
+            // ABCI Info also contains information about the last block, but we
+            // purposely don't record it in the state because we want to process
+            // it through `get_latest_block`.
+            state.sequencer_connected = true;
+        });
+        Ok(())
+    }
+
     /// Runs the relayer worker.
     ///
     /// # Errors
     ///
     /// `Relayer::run` never returns an error. The return type is
     /// only set to `eyre::Result` for convenient use in `SequencerRelayer`.
+    #[instrument(name = "Relayer::run", skip_all)]
     pub(crate) async fn run(mut self) -> eyre::Result<()> {
+        let wait_for_da = self.wait_for_data_availability_layer(5, Duration::from_secs(5), 2.0);
+        let wait_for_seq = self.wait_for_sequencer(5, Duration::from_secs(5), 2.0);
+        match tokio::try_join!(wait_for_da, wait_for_seq) {
+            Ok(((), ())) => {}
+            Err(err) => return Err(err).wrap_err("failed to start relayer"),
+        }
+        // .await
+        // .wrap_err("failed establishing connection to data availability layer")?;
+        let () = self
+            .wait_for_sequencer(5, Duration::from_secs(5), 2.0)
+            .await
+            .wrap_err("failed establishing connection to the sequencer")?;
+
+        let mut sequencer_interval = interval(self.sequencer_poll_period);
+        // the first tick resolves immediately, so do it now because we don't
+        // want to poll right after start.
+        sequencer_interval.tick().await;
+
         let stop_msg = loop {
             select!(
-                // Receive new blocks from sequencer poller
-                maybe_new_block = self.sequencer_blocks_rx.recv() => {
-                    match maybe_new_block {
-                        Some(new_block) => self.handle_new_block(new_block),
-                        None => break "sequencer block channel closed unexpectedly",
-                    }
+                // Query sequencer for the latest block if no task is in flight
+                _ = sequencer_interval.tick() => self.handle_sequencer_tick(),
+
+                // Handle the sequencer response by converting it
+                //
+                // NOTE: + wrapping the task in an async block makes this lazy;
+                //       + `unwrap`ping can't fail because this branch is disabled if `None`
+                res = async { self.sequencer_task.as_mut().unwrap().await }, if self.sequencer_task.is_some() => {
+                    self.handle_sequencer_response(res);
                 }
 
                 // Distribute and store converted/admitted blocks
@@ -222,11 +395,11 @@ impl Relayer {
             //
             // This will immediately and eagerly try to submit to the data availability
             // layer if no submission is in flight.
-            if self.data_availability_client.is_some()
+            if self.data_availability.is_some()
                 && !self.queued_blocks.is_empty()
                 && self.submission_task.is_none()
             {
-                let client = self.data_availability_client.clone().expect(
+                let client = self.data_availability.clone().expect(
                     "this should not fail because the if condition of this block checked that a \
                      client is present",
                 );
@@ -246,7 +419,7 @@ impl Relayer {
 
 #[instrument(skip_all)]
 fn convert_block_response_to_sequencer_block_data(
-    res: BlockResponse,
+    res: block::Response,
     current_height: Option<u64>,
     validator: Validator,
 ) -> eyre::Result<Option<SequencerBlockData>> {
