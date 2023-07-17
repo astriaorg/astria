@@ -15,6 +15,7 @@ use tendermint::abci::{
     Event,
 };
 use tracing::{
+    debug,
     info,
     instrument,
 };
@@ -31,7 +32,6 @@ use crate::{
 };
 
 /// The application hash, used to verify the application state.
-/// TODO: this may not be the same as the state root hash?
 pub(crate) type AppHash = penumbra_storage::RootHash;
 
 /// The inter-block state being written to by the application.
@@ -137,7 +137,7 @@ impl App {
             .state
             .get_block_height()
             .await
-            // TODO: explain why this is an invariant of the system
+            // block height must be set, as `begin_block` is always called before `deliver_tx`.
             .expect("block height should be set");
         info!(?tx, ?height, "executed transaction");
         Ok(vec![])
@@ -162,8 +162,21 @@ impl App {
     pub(crate) async fn commit(&mut self, storage: Storage) -> AppHash {
         // We need to extract the State we've built up to commit it.  Fill in a dummy state.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
-        let state = Arc::try_unwrap(std::mem::replace(&mut self.state, Arc::new(dummy_state)))
+
+        let mut state = Arc::try_unwrap(std::mem::replace(&mut self.state, Arc::new(dummy_state)))
             .expect("we have exclusive ownership of the State at commit()");
+
+        // store the storage version indexed by block height
+        let height = state
+            .get_block_height()
+            .await
+            .expect("block height should be set");
+        state.put_storage_version_by_height(height, storage.latest_version().wrapping_add(1));
+        debug!(
+            ?height,
+            version = storage.latest_version().wrapping_add(1),
+            "stored storage version"
+        );
 
         // Commit the pending writes, clearing the state.
         let jmt_root = storage

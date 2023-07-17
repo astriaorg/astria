@@ -36,6 +36,7 @@ use tendermint::{
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::{
+    debug,
     instrument,
     warn,
     Instrument,
@@ -119,13 +120,34 @@ async fn handle_query(
     // note: request::Query also has a `data` field, which we ignore here
     let query = decode_query(&request.path).context("failed to decode query")?;
 
-    // TODO: handle height requests
+    debug!("handling query");
+    let state = match request.height.value() {
+        0 => storage.latest_snapshot(),
+        height => {
+            let version = storage
+                .latest_snapshot()
+                .get_storage_version_by_height(height)
+                .await
+                .context("failed to get storage version from height")?;
+            storage
+                .snapshot(version)
+                .context("failed to get storage at version")?
+        }
+    };
+
+    let height: u32 = state
+        .get_block_height()
+        .await
+        .context("failed to get block height")?
+        .try_into()
+        .context("block height must fit into u32")?;
+
     let key = request.path.clone().into_bytes();
     let value = match query {
         Query::AccountsQuery(request) => {
             let handler = QueryHandler::new();
             handler
-                .handle(storage.latest_snapshot(), request)
+                .handle(state, request)
                 .await
                 .context("failed to handle accounts query")?
         }
@@ -133,19 +155,6 @@ async fn handle_query(
     .try_to_vec()
     .context("failed serializing query response")?;
 
-    let height = storage
-        .latest_snapshot()
-        .get_block_height()
-        .await
-        .context("failed to get block from latest snapshot")?;
-
-    let height = match u32::try_from(height) {
-        Ok(height) => height,
-        Err(e) => {
-            warn!(error = ?e, "casting height u32 failed, using u32::MAX");
-            u32::MAX
-        }
-    };
     Ok(response::Query {
         key: key.into(),
         value: value.into(),
