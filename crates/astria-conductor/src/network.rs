@@ -17,8 +17,9 @@ impl GossipNetwork {
     pub(crate) fn new(
         bootnodes: Option<Vec<String>>,
         libp2p_private_key: Option<String>,
+        port: u16,
     ) -> Result<Self> {
-        let mut builder = NetworkBuilder::new();
+        let mut builder = NetworkBuilder::new().port(port);
 
         if let Some(bootnodes) = bootnodes {
             builder = builder.bootnodes(bootnodes);

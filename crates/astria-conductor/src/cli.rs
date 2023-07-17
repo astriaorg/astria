@@ -33,6 +33,10 @@ pub struct Cli {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub libp2p_private_key: Option<String>,
 
+    #[arg(long = "libp2p-port")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub libp2p_port: Option<u16>,
+
     #[arg(long = "disable-finalization")]
     pub disable_finalization: bool,
 }
