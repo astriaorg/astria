@@ -343,6 +343,7 @@ dependencies = [
  "astria-sequencer-client",
  "astria-sequencer-relayer",
  "async-trait",
+ "base64 0.21.0",
  "clap",
  "color-eyre",
  "ed25519-consensus",
