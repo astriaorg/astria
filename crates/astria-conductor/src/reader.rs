@@ -226,7 +226,7 @@ impl Reader {
     ) -> Result<SequencerBlockData> {
         // the reason the public key type needs to be converted is due to serialization
         // constraints, probably fix this later
-        let verification_key = VerificationKey::try_from(&*data.public_key.0)?;
+        let verification_key = VerificationKey::try_from(&*data.public_key)?;
 
         // pass the public key to `get_sequencer_block` which does the signature validation for us
         let block = self

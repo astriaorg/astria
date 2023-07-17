@@ -35,14 +35,11 @@ use tracing::{
     warn,
 };
 
-use crate::{
-    base64_string::Base64String,
-    types::{
-        IndexedTransaction,
-        Namespace,
-        SequencerBlockData,
-        DEFAULT_NAMESPACE,
-    },
+use crate::types::{
+    IndexedTransaction,
+    Namespace,
+    SequencerBlockData,
+    DEFAULT_NAMESPACE,
 };
 
 pub const DEFAULT_PFD_GAS_LIMIT: u64 = 1_000_000;
@@ -59,12 +56,14 @@ pub struct SubmitBlockResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SignedNamespaceData<D> {
     pub data: D,
-    pub public_key: Base64String,
-    pub signature: Base64String,
+    #[serde(with = "crate::serde::Base64Standard")]
+    pub public_key: Vec<u8>,
+    #[serde(with = "crate::serde::Base64Standard")]
+    pub signature: Vec<u8>,
 }
 
 impl<D: NamespaceData> SignedNamespaceData<D> {
-    fn new(data: D, public_key: Base64String, signature: Base64String) -> Self {
+    fn new(data: D, public_key: Vec<u8>, signature: Vec<u8>) -> Self {
         Self {
             data,
             public_key,
@@ -83,9 +82,9 @@ impl<D: NamespaceData> SignedNamespaceData<D> {
     }
 
     pub fn verify(&self) -> eyre::Result<()> {
-        let verification_key = VerificationKey::try_from(&*self.public_key.0)
+        let verification_key = VerificationKey::try_from(&*self.public_key)
             .wrap_err("failed deserializing public key from bytes")?;
-        let signature = Signature::try_from(&*self.signature.0)
+        let signature = Signature::try_from(&*self.signature)
             .wrap_err("failed deserializing signature from bytes")?;
         let data_bytes = self
             .data
@@ -118,12 +117,8 @@ where
         verification_key: VerificationKey,
     ) -> eyre::Result<SignedNamespaceData<Self>> {
         let hash = self.hash().wrap_err("failed hashing namespace data")?;
-        let signature = Base64String(signing_key.sign(&hash).to_bytes().to_vec());
-        let data = SignedNamespaceData::new(
-            self,
-            Base64String(verification_key.to_bytes().into()),
-            signature,
-        );
+        let signature = signing_key.sign(&hash).to_bytes().to_vec();
+        let data = SignedNamespaceData::new(self, verification_key.to_bytes().to_vec(), signature);
         Ok(data)
     }
 
@@ -138,7 +133,8 @@ where
 /// also written to in the same block.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SequencerNamespaceData {
-    pub block_hash: Base64String,
+    #[serde(with = "crate::serde::Base64Standard")]
+    pub block_hash: Vec<u8>,
     pub header: Header,
     pub last_commit: Option<Commit>,
     /// vector of (block height, namespace) tuples
@@ -152,7 +148,8 @@ impl NamespaceData for SequencerNamespaceData {}
 /// RollupNamespaceData represents the data written to a rollup namespace.
 #[derive(Serialize, Deserialize, Debug)]
 struct RollupNamespaceData {
-    pub(crate) block_hash: Base64String,
+    #[serde(with = "crate::serde::Base64Standard")]
+    pub(crate) block_hash: Vec<u8>,
     pub(crate) rollup_txs: Vec<IndexedTransaction>,
 }
 
@@ -371,7 +368,7 @@ impl CelestiaClient {
                 };
 
                 let hash = data.data.hash().ok()?;
-                let signature = Signature::try_from(&*data.signature.0).ok()?;
+                let signature = Signature::try_from(&*data.signature).ok()?;
                 verification_key.verify(&signature, &hash).ok()?;
                 Some(data)
             })
@@ -392,7 +389,7 @@ impl CelestiaClient {
         'namespaces: for (height, rollup_namespace) in &data.rollup_namespaces {
             let rollup_txs = self
                 .get_rollup_data_for_block(
-                    &data.block_hash.0,
+                    &data.block_hash,
                     *rollup_namespace,
                     *height,
                     verification_key,
@@ -456,7 +453,7 @@ impl CelestiaClient {
                     Err(_) => return false,
                 };
 
-                match Signature::try_from(&*d.signature.0) {
+                match Signature::try_from(&*d.signature) {
                     Ok(sig) => {
                         let Some(verification_key) = verification_key else {
                             return true;
@@ -466,7 +463,7 @@ impl CelestiaClient {
                     Err(_) => false,
                 }
             })
-            .filter(|d| d.data.block_hash.0 == block_hash);
+            .filter(|d| d.data.block_hash == block_hash);
 
         let Some(rollup_data_for_block) = rollup_datas.next() else {
             return Ok(None);
