@@ -37,6 +37,7 @@ tendermint-config.workspace = true
 ed25519-consensus = { workspace = true }
 subtle-encoding = "0.5.1"
 serde_path_to_error = "0.1.13"
+is-terminal.workspace = true
 
 [dev-dependencies]
 astria-sequencer-relayer-test = { path = "../astria-sequencer-relayer-test"}

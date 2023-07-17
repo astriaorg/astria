@@ -92,7 +92,24 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then ARCH=aarch64; \
 
 FROM debian:bookworm-slim
 ARG TARGETBINARY
-WORKDIR /app/
-EXPOSE 2450
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
+      if [ "$BUILDPLATFORM" != "linux/arm64" ]; then \
+        dpkg --add-architecture arm64; \
+      fi; \
+      apt update; \
+      apt install -y librocksdb-dev:arm64; \
+    elif [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
+      if [ "$BUILDPLATFORM" != "linux/amd64" ]; then \
+        dpkg --add-architecture amd64; \
+      fi; \
+      apt update; \
+      apt install -y librocksdb-dev:amd64; \
+    fi; \
+    apt install -y wget ca-certificates; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*;
 COPY --from=builder /build/target/release/$TARGETBINARY /usr/local/bin/$TARGETBINARY
-ENTRYPOINT ["/usr/local/bin/$TARGETBINARY"]
+RUN ln -s /usr/local/bin/$TARGETBINARY /usr/local/bin/entrypoint
+ENTRYPOINT ["/usr/local/bin/entrypoint"]
