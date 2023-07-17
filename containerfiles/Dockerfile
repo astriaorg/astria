@@ -111,5 +111,5 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*;
 COPY --from=builder /build/target/release/$TARGETBINARY /usr/local/bin/$TARGETBINARY
-RUN ln -s $TARGETBINARY /usr/local/bin/entrypoint
+RUN ln -s /usr/local/bin/$TARGETBINARY /usr/local/bin/entrypoint
 ENTRYPOINT ["/usr/local/bin/entrypoint"]
