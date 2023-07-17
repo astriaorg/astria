@@ -29,8 +29,9 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
 
 # install targets
 FROM chef AS planner
+ARG TARGETBINARY
 COPY . .
-RUN cargo chef prepare --recipe-path recipe.json
+RUN cargo chef prepare --bin $TARGETBINARY --recipe-path recipe.json
 
 FROM chef as builder
 COPY --from=planner /build/recipe.json recipe.json
@@ -45,16 +46,17 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then export ROCKSDB_LIB_DIR=/usr/l
         CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
         CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
         PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu; \
-      cargo chef cook --release --target aarch64-unknown-linux-gnu --recipe-path recipe.json; \
+      TARGET_TRIPLE=aarch64-unknown-linux-gnu; \
     elif [ "$TARGETPLATFORM" = "linux/amd64" ] && [ "$BUILDPLATFORM" != "linux/amd64" ]; then \
       export CARGO_TARGET_x86_64_UNKNOWN_LINUX_GNU_LINKER=x86_64-linux-gnu-gcc \
         CC_x86_64_unknown_linux_gnu=x86_64-linux-gnu-gcc \
         CXX_x86_64_unknown_linux_gnu=x86_64-linux-gnu-g++ \
         PKG_CONFIG_SYSROOT_DIR=/usr/x86_64-linux-gnu; \
-      cargo chef cook --release --target x86_64-unknown-linux-gnu --recipe-path recipe.json; \
+      TARGET_TRIPLE=x86_64-unknown-linux-gnu; \
     else \
-      cargo chef cook --release --target $(uname -m)-unknown-linux-gnu --recipe-path recipe.json; \
-    fi;
+      TARGET_TRIPLE=$(uname -m)-unknown-linux-gnu; \
+    fi; \
+    cargo chef cook --release --bin $TARGETBINARY --target $TARGET_TRIPLE --recipe-path recipe.json;
     
 COPY . .
 
@@ -65,16 +67,17 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then export ROCKSDB_LIB_DIR=/usr/l
         CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
         CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
         PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu; \
-      cargo build --release --target aarch64-unknown-linux-gnu --bin $TARGETBINARY; \
+      TARGET_TRIPLE=aarch64-unknown-linux-gnu; \
     elif [ "$TARGETPLATFORM" = "linux/amd64" ] && [ "$BUILDPLATFORM" != "linux/amd64" ]; then \
       export CARGO_TARGET_x86_64_UNKNOWN_LINUX_GNU_LINKER=x86_64-linux-gnu-gcc \
         CC_x86_64_unknown_linux_gnu=x86_64-linux-gnu-gcc \
         CXX_x86_64_unknown_linux_gnu=x86_64-linux-gnu-g++ \
         PKG_CONFIG_SYSROOT_DIR=/usr/x86_64-linux-gnu; \
-      cargo build --release --target x86_64-unknown-linux-gnu --bin $TARGETBINARY; \
+      TARGET_TRIPLE=x86_64-unknown-linux-gnu; \
     else \
-      cargo build --release --target $(uname -m)-unknown-linux-gnu --bin $TARGETBINARY; \
-    fi;
+      TARGET_TRIPLE=$(uname -m)-unknown-linux-gnu; \
+    fi; \
+    cargo build --release --target $TARGET_TRIPLE --bin $TARGETBINARY;
 
 # replace this with `--out` or `--out-dir` once stable
 RUN mkdir -p target/release
