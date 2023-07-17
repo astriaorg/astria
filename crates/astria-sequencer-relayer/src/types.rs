@@ -218,9 +218,6 @@ impl SequencerBlockData {
             last_commit: b.last_commit,
             rollup_txs,
         };
-
-        data.verify_block_hash()
-            .wrap_err("failed to verify block hash")?;
         Ok(data)
     }
 

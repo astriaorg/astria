@@ -465,6 +465,7 @@ dependencies = [
  "futures",
  "hex",
  "http",
+ "is-terminal",
  "prost",
  "rand_core 0.6.4",
  "reqwest",
