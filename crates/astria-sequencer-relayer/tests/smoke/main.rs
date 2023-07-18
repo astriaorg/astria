@@ -1,4 +1,4 @@
-mod helper;
+pub mod helper;
 
 use helper::{
     spawn_sequencer_relayer,
