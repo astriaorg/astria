@@ -141,7 +141,7 @@ impl App {
             .expect("block height should be set");
         info!(
             ?tx,
-            ?height,
+            height,
             sender = %tx.signer_address(),
             "executed transaction"
         );

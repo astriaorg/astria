@@ -33,10 +33,8 @@ impl<'a> Serialize for NamespaceToTxCount<'a> {
 
 impl<'a> std::fmt::Display for NamespaceToTxCount<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Note that this technically throws away the error, but that's
-        // ok because the serialization to serde can only fail if the key
-        // in the map is not valid utf8. However, since we control they
-        // key and guarantee that it is valid utf8 this is ok.
+        // This cannot fail because we are only serializing into a string (unless the system is
+        // OOM).
         f.write_str(&serde_json::to_string(self).map_err(|_| std::fmt::Error)?)
     }
 }
