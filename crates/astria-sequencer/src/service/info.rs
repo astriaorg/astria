@@ -185,3 +185,44 @@ fn decode_query(path: &str) -> anyhow::Result<Query> {
         other => bail!("unknown query path: `{other}`"),
     }
 }
+
+#[cfg(test)]
+mod test {
+    use penumbra_storage::StateDelta;
+    use tendermint::abci::request;
+
+    use super::*;
+    use crate::{
+        accounts::{
+            state_ext::StateWriteExt as _,
+            types::Address,
+        },
+        state_ext::StateWriteExt as _,
+    };
+
+    #[tokio::test]
+    async fn test_handle_query() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+
+        let height = 99;
+        let version = storage.latest_version().wrapping_add(1);
+        let mut state = StateDelta::new(storage.latest_snapshot());
+        state.put_storage_version_by_height(height, version);
+
+        let address = Address::try_from_str("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap();
+        state.put_account_balance(&address, 1000.into()).unwrap();
+        state.put_block_height(height);
+
+        storage.commit(state).await.unwrap();
+
+        let query = request::Query {
+            path: "accounts/balance/a034c743bed8f26cb8ee7b8db2230fd8347ae131".to_string(),
+            data: vec![].into(),
+            height: u32::try_from(height).unwrap().into(),
+            prove: false,
+        };
+        handle_query(storage.clone(), &query).await.unwrap();
+    }
+}
