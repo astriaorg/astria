@@ -335,12 +335,9 @@ impl MockConductor {
                 let Some(event) = conductor.next().await else {
                     break;
                 };
-                match event.unwrap() {
-                    Event::GossipsubPeerConnected(peer_id) => {
-                        debug!(?peer_id, "conductor connected to peer");
-                        break;
-                    }
-                    _ => {}
+                if let Event::GossipsubPeerConnected(peer_id) = event.unwrap() {
+                    debug!(?peer_id, "conductor connected to peer");
+                    break;
                 }
             }
 
@@ -380,9 +377,11 @@ impl MockConductor {
 // This is necessary because the Deserialize impl for tendermint::block::Block
 // considers the default commit equivalent to being unset.
 fn create_non_default_last_commit() -> tendermint::block::Commit {
-    let mut commit = tendermint::block::Commit::default();
-    commit.height = 2u32.into();
-    commit
+    use tendermint::block::Commit;
+    Commit {
+        height: 2u32.into(),
+        ..Commit::default()
+    }
 }
 
 fn create_block_response(validator: &Validator, height: u32) -> endpoint::block::Response {
@@ -413,7 +412,7 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
             [b"hello_world_id_", &*suffix].concat(),
         )],
     )
-    .into_signed(&signing_key);
+    .into_signed(signing_key);
     let data = vec![signed_tx.to_bytes()];
     let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
         &data,
@@ -442,7 +441,7 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
                 app_hash: AppHash::try_from([0; 32].to_vec()).unwrap(),
                 last_results_hash: None,
                 evidence_hash: None,
-                proposer_address: validator.address().clone(),
+                proposer_address: *validator.address(),
             },
             data,
             evidence::List::default(),

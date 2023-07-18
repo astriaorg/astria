@@ -110,11 +110,11 @@ async fn slow_celestia_leads_to_bundled_blobs() {
     let all_blocks = helper::mount_4_changing_block_responses(&sequencer_relayer).await;
 
     // Advance the block 8 times and observe that conductor sees all events immediately
-    for i in 0..4 {
+    for mounted_block in all_blocks.iter().take(4) {
         sequencer_relayer.advance_by_block_time().await;
         let block_seen_by_conductor = sequencer_relayer.conductor.block_rx.recv().await.unwrap();
         assert_eq!(
-            all_blocks[i].block.header.data_hash,
+            mounted_block.block.header.data_hash,
             block_seen_by_conductor.header.data_hash,
         );
     }
