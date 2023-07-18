@@ -10,16 +10,12 @@ use once_cell::sync::Lazy;
 use tokio::task::JoinHandle;
 
 static TRACING: Lazy<()> = Lazy::new(|| {
-    let res = if std::env::var("TEST_LOG").is_ok() {
-        // if TEST_LOG is set, use stdout for tracing at the level specified by RUST_LOG
-        let log = std::env::var("RUST_LOG").unwrap();
-        telemetry::init(&log, std::io::stdout)
+    if std::env::var_os("TEST_LOG").is_some() {
+        let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
+        telemetry::init(std::io::stdout, &filter_directives).unwrap();
     } else {
-        telemetry::init(&"info", std::io::sink)
+        telemetry::init(std::io::sink, "").unwrap();
     };
-    if res.is_err() {
-        eprintln!("failed setting up telemetry for tests: {res:?}");
-    }
 });
 
 pub fn init_env() {

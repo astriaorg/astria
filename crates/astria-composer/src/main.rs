@@ -9,7 +9,7 @@ use tracing::info;
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     let cfg = config::get().expect("failed to read configuration");
-    telemetry::init(&cfg.log, std::io::stdout).expect("failed to initialize tracing");
+    telemetry::init(std::io::stdout, &cfg.log).expect("failed to initialize tracing");
 
     info!(?cfg, "starting astria-composer");
 
