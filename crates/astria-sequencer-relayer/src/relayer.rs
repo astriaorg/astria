@@ -131,8 +131,6 @@ impl Relayer {
         &mut self,
         join_result: Result<Result<block::Response, tendermint_rpc::Error>, task::JoinError>,
     ) {
-        debug!("unsetting sequencer task");
-        self.sequencer_task = None;
         // First check if the join task panicked
         let request_result = match join_result {
             Ok(request_result) => request_result,
@@ -144,7 +142,12 @@ impl Relayer {
             }
         };
         match request_result {
-            Ok(block) => {
+            Ok(rsp) => {
+                debug!(
+                    height = %rsp.block.header.height,
+                    tx.count = rsp.block.data.len(),
+                    "received block from sequencer"
+                );
                 let current_height = self.state_tx.borrow().current_sequencer_height;
                 let validator = self.validator.clone();
                 // Start the costly conversion; note that the current height at
@@ -152,7 +155,7 @@ impl Relayer {
                 // past the height recorded in the block while it was converting, but
                 // that's ok.
                 self.conversion_workers.spawn_blocking(move || {
-                    convert_block_response_to_sequencer_block_data(block, current_height, validator)
+                    convert_block_response_to_sequencer_block_data(rsp, current_height, validator)
                 });
             }
 
@@ -373,6 +376,7 @@ impl Relayer {
                 // NOTE: + wrapping the task in an async block makes this lazy;
                 //       + `unwrap`ping can't fail because this branch is disabled if `None`
                 res = async { self.sequencer_task.as_mut().unwrap().await }, if self.sequencer_task.is_some() => {
+                    self.sequencer_task = None;
                     self.handle_sequencer_response(res);
                 }
 
