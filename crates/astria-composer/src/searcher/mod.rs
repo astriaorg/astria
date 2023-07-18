@@ -32,10 +32,7 @@ use self::{
     error::ComposerError,
     executor::SequencerExecutor,
 };
-use crate::config::searcher::{
-    self as config,
-    Config,
-};
+use crate::Config;
 mod api;
 mod bundler;
 mod collector;
@@ -44,7 +41,7 @@ mod executor;
 
 // #[derive(Debug)]
 pub struct Searcher {
-    api_url: SocketAddr,
+    addr: SocketAddr,
     tx_collector: TxCollector,
     bundler: Bundler,
     executor: SequencerExecutor,
@@ -55,8 +52,6 @@ impl Searcher {
     ///
     /// # Errors
     ///
-    /// - `Error::InvalidConfig` if there is an error constructing `api_url` from
-    /// the port specified in config.
     /// - `Error::CollectorError` if there is an error initializing the tx collector.
     /// - `Error::BundlerError` if there is an error initializing the tx bundler.
     /// - `Error::SequencerClientInit` if there is an error initializing the sequencer client.
@@ -83,10 +78,10 @@ impl Searcher {
         let executor = SequencerExecutor::new(sequencer_client.clone(), &cfg.sequencer_secret);
 
         // parse api url from config
-        let api_url = Config::api_url(cfg.api_port).map_err(ComposerError::InvalidConfig)?;
+        let addr = SocketAddr::from(([127, 0, 0, 1], cfg.api_port));
 
         Ok(Self {
-            api_url,
+            addr,
             tx_collector,
             bundler,
             executor,
@@ -105,7 +100,7 @@ impl Searcher {
     /// and cannot be recovered.
     pub async fn run(self) {
         let Self {
-            api_url,
+            addr,
             tx_collector,
             bundler,
             executor,
@@ -119,7 +114,7 @@ impl Searcher {
         let api_event_rx = event_tx.subscribe();
         let api_action_rx = action_tx.subscribe();
 
-        let api_task = tokio::spawn(api::run(api_url, api_event_rx, api_action_rx));
+        let api_task = tokio::spawn(api::run(addr, api_event_rx, api_action_rx));
         let collector_task = tokio::spawn(tx_collector.run(event_tx));
         let bundler_task = tokio::spawn(bundler.run(event_rx, action_tx));
         let executor_task = tokio::spawn(executor.run(action_rx));

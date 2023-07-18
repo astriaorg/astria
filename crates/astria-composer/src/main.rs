@@ -12,8 +12,9 @@ async fn main() -> eyre::Result<()> {
     telemetry::init(std::io::stdout, &cfg.log).expect("failed to initialize tracing");
 
     info!(?cfg, "starting astria-composer");
+    // let composer = Composer::new(&cfg);
 
-    let _searcher = Searcher::new(&cfg.searcher).await?.run().await;
+    let _searcher = Searcher::new(&cfg).await?.run().await;
 
     Ok(())
 }

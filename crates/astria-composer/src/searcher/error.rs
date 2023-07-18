@@ -1,13 +1,13 @@
 use tokio::task::JoinError;
 
-use super::{executor, bundler, collector};
-use crate::config::searcher::{self as config};
-
+use super::{
+    bundler,
+    collector,
+    executor,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ComposerError {
-    #[error("invalid config")]
-    InvalidConfig(#[source] config::Error),
     #[error("task error")]
     TaskError(#[source] JoinError),
     #[error("api error")]

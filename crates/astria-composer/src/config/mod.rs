@@ -1,6 +1,4 @@
-use clap::Parser;
 use figment::{
-    map,
     providers::{
         Env,
         Serialized,
@@ -12,61 +10,11 @@ use serde::{
     Serialize,
 };
 
-mod cli;
-pub mod searcher;
 pub mod constants;
 
 // TODO: add more default values
 // potentially move to a separate module so it can be imported into searcher and block_builder?
 const DEFAULT_LOG: &str = "info";
-
-fn default_log() -> String {
-    DEFAULT_LOG.into()
-}
-
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
-/// The high-level config for creating an astria-composer service.
-pub struct Config {
-    /// Log level. One of debug, info, warn, or error
-    #[serde(default = "default_log")]
-    pub log: String,
-
-    /// Config for Searcher service
-    #[serde(default = "searcher::Config::default")]
-    pub searcher: searcher::Config,
-    // TODO: add block_builder
-}
-
-impl Config {
-    /// Constructs [`Config`] with command line arguments.
-    ///
-    /// The command line arguments have to be explicitly passed in to make
-    /// the config logic testable. [`Config::with_cli`] is kept private because
-    /// the `[config::get]` utility function is the main entry point
-    fn with_cli(cli_config: cli::Args) -> Result<Config, figment::Error> {
-        let rust_log = Env::prefixed("RUST_").split("_").only(&["log"]);
-
-        // parse searcher args
-        let searcher = searcher::Config::with_cli(cli_config.clone())?;
-
-        Figment::new()
-            .merge(Serialized::defaults(Config::default()))
-            .merge(rust_log)
-            .merge(Env::prefixed("ASTRIA_COMPOSER_"))
-            .merge(Serialized::defaults(cli_config))
-            .merge(Serialized::defaults(map!["searcher" => searcher]))
-            .extract()
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            log: default_log(),
-            searcher: searcher::Config::default(),
-        }
-    }
-}
 
 /// Utility function to read the application's config in one go.
 ///
@@ -78,47 +26,105 @@ impl Default for Config {
 ///
 /// An error is returned if the config could not be read.
 pub fn get() -> Result<Config, figment::Error> {
-    let cli_config = cli::Args::parse();
-    let cmd = <cli::Args as clap::CommandFactory>::command();
-    // We generate `cmd` after making sure the command parses successfully
-    // to access the binary name and version. It is not possible to get this
-    // information through the parsed type itself.
-    eprintln!(
-        "running {name}:{version}",
-        name = cmd.get_name(),
-        version = cmd.get_version().unwrap_or("<no-version-set>"),
-    );
-    Config::with_cli(cli_config)
+    Config::new()
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+/// The high-level config for creating an astria-composer service.
+pub struct Config {
+    /// Log level. One of debug, info, warn, or error
+    #[serde(default = "default_log")]
+    pub log: String,
+
+    /// Address of the API server
+    #[serde(default = "default_api_port")]
+    pub api_port: u16,
+
+    /// Address of the RPC server for the sequencer chain
+    #[serde(default = "default_sequencer_url")]
+    pub sequencer_url: String,
+
+    /// Sequencer address for the bundle signer
+    #[serde(default = "default_sequencer_address")]
+    pub sequencer_address: String,
+
+    /// Sequencer secret for transaction signing
+    #[serde(default = "default_sequencer_address")]
+    pub sequencer_secret: String,
+
+    /// Chain ID that we want to connect to
+    #[serde(default = "default_chain_id")]
+    pub chain_id: String,
+
+    /// Address of the RPC server for execution
+    #[serde(default = "default_execution_ws_url")]
+    pub execution_ws_url: String,
+}
+
+impl Config {
+    /// Constructs [`Config`] with command line arguments.
+    ///
+    /// The command line arguments have to be explicitly passed in to make
+    /// the config logic testable. [`Config::with_cli`] is kept private because
+    /// the `[config::get]` utility function is the main entry point
+    fn new() -> Result<Config, figment::Error> {
+        let rust_log = Env::prefixed("RUST_").split("_").only(&["log"]);
+
+        Figment::from(Serialized::defaults(Config::default()))
+            .merge(rust_log)
+            .merge(Env::prefixed("ASTRIA_COMPOSER_"))
+            .extract()
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            log: default_log(),
+            api_port: default_api_port(),
+            sequencer_url: default_sequencer_url(),
+            sequencer_address: default_sequencer_address(),
+            sequencer_secret: default_sequencer_secret(),
+            chain_id: default_chain_id(),
+            execution_ws_url: default_execution_ws_url(),
+        }
+    }
+}
+
+fn default_log() -> String {
+    DEFAULT_LOG.into()
+}
+
+fn default_api_port() -> u16 {
+    constants::DEFAULT_API_PORT
+}
+
+fn default_sequencer_url() -> String {
+    constants::DEFAULT_SEQUENCER_URL.to_string()
+}
+
+fn default_sequencer_address() -> String {
+    constants::DEFAULT_SEQUENCER_ADDRESS.to_string()
+}
+
+fn default_sequencer_secret() -> String {
+    constants::DEFAULT_SEQUENCER_SECRET.to_string()
+}
+
+fn default_chain_id() -> String {
+    constants::DEFAULT_CHAIN_ID.to_string()
+}
+
+fn default_execution_ws_url() -> String {
+    constants::DEFAULT_EXECUTION_WS_URL.to_string()
 }
 
 #[cfg(test)]
 mod tests {
 
-    use clap::Parser;
-    use color_eyre::eyre;
     use figment::Jail;
 
-    use super::{
-        cli,
-        Config,
-    };
-    use crate::config::searcher;
-
-    const NO_CLI_ARGS: &str = "astria-composer";
-    const ALL_CLI_ARGS: &str = r#"
-astria-composer
-    --log cli=debug
-    --searcher-api-port 7070
-    --sequencer-url 127.0.0.1:1310
-    --sequencer-address cliaddress
-    --sequencer-secret clisecret
-    --searcher-chain-id clinet
-    --searcher-execution-ws-url 127.0.0.1:60061
-    "#;
-
-    fn make_args(args: &str) -> eyre::Result<cli::Args, clap::Error> {
-        cli::Args::try_parse_from(str::split_ascii_whitespace(args))
-    }
+    use super::Config;
 
     fn set_all_env(jail: &mut Jail) {
         jail.set_env("ASTRIA_COMPOSER_LOG", "env=warn");
@@ -134,43 +140,18 @@ astria-composer
     }
 
     #[test]
-    fn cli_overrides_all() {
-        Jail::expect_with(|jail| {
-            set_all_env(jail);
-            let cli_args = make_args(ALL_CLI_ARGS).unwrap();
-            let actual = Config::with_cli(cli_args).unwrap();
-            let expected = Config {
-                log: "cli=debug".into(),
-                searcher: searcher::Config {
-                    sequencer_url: "127.0.0.1:1310".parse().unwrap(),
-                    sequencer_address: "cliaddress".to_string(),
-                    sequencer_secret: "clisecret".to_string(),
-                    api_port: 7070,
-                    chain_id: "clinet".to_string(),
-                    execution_ws_url: "127.0.0.1:60061".parse().unwrap(),
-                },
-            };
-            assert_eq!(expected, actual);
-            Ok(())
-        });
-    }
-
-    #[test]
     fn env_overrides_default() {
         Jail::expect_with(|jail| {
             set_all_env(jail);
-            let cli_args = make_args(NO_CLI_ARGS).unwrap();
-            let actual = Config::with_cli(cli_args).unwrap();
+            let actual = Config::new().unwrap();
             let expected = Config {
                 log: "env=warn".into(),
-                searcher: searcher::Config {
-                    sequencer_url: "127.0.0.1:1210".parse().unwrap(),
-                    sequencer_address: "envaddress".to_string(),
-                    sequencer_secret: "envsecret".to_string(),
-                    api_port: 5050,
-                    chain_id: "envnet".to_string(),
-                    execution_ws_url: "127.0.0.1:40041".parse().unwrap(),
-                },
+                sequencer_url: "127.0.0.1:1210".parse().unwrap(),
+                sequencer_address: "envaddress".to_string(),
+                sequencer_secret: "envsecret".to_string(),
+                api_port: 5050,
+                chain_id: "envnet".to_string(),
+                execution_ws_url: "127.0.0.1:40041".parse().unwrap(),
             };
             assert_eq!(expected, actual);
             Ok(())
