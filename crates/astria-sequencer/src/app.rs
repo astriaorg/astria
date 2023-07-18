@@ -133,12 +133,9 @@ impl App {
             .context("failed executing transaction")?;
         state_tx.apply();
 
-        let height = self
-            .state
-            .get_block_height()
-            .await
-            // block height must be set, as `begin_block` is always called before `deliver_tx`.
-            .expect("block height should be set");
+        let height = self.state.get_block_height().await.expect(
+            "block height must be set, as `begin_block` is always called before `deliver_tx`",
+        );
         info!(?tx, ?height, "executed transaction");
         Ok(vec![])
     }
@@ -167,15 +164,16 @@ impl App {
             .expect("we have exclusive ownership of the State at commit()");
 
         // store the storage version indexed by block height
+        let new_version = storage.latest_version().wrapping_add(1);
         let height = state
             .get_block_height()
             .await
-            .expect("block height should be set");
-        state.put_storage_version_by_height(height, storage.latest_version().wrapping_add(1));
+            .expect("block height must be set, as `begin_block` is always called before `commit`");
+        state.put_storage_version_by_height(height, new_version);
         debug!(
-            ?height,
-            version = storage.latest_version().wrapping_add(1),
-            "stored storage version"
+            height,
+            version = new_version,
+            "stored storage version for height"
         );
 
         // Commit the pending writes, clearing the state.

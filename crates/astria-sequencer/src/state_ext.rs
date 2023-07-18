@@ -11,6 +11,10 @@ use penumbra_storage::{
 use tendermint::Time;
 use tracing::instrument;
 
+fn storage_version_by_height_key(height: u64) -> Vec<u8> {
+    format!("storage_version/{height}").into()
+}
+
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
@@ -44,9 +48,9 @@ pub(crate) trait StateReadExt: StateRead {
 
     #[instrument(skip(self))]
     async fn get_storage_version_by_height(&self, height: u64) -> Result<u64> {
-        let key: Vec<u8> = format!("storage_version/{height}").into();
+        let key = storage_version_by_height_key(height);
         let Some(bytes) = self
-            .nonconsensus_get_raw(key.as_slice())
+            .nonconsensus_get_raw(&key)
             .await
             .context("failed to read raw storage_version from state")?
         else {
@@ -76,7 +80,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
     fn put_storage_version_by_height(&mut self, height: u64, version: u64) {
         self.nonconsensus_put_raw(
-            format!("storage_version/{height}").into(),
+            storage_version_by_height_key(height),
             version.to_be_bytes().to_vec(),
         );
     }

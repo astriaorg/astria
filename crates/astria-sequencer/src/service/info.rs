@@ -135,12 +135,12 @@ async fn handle_query(
         }
     };
 
-    let height: u32 = state
+    let height: Height = state
         .get_block_height()
         .await
         .context("failed to get block height")?
         .try_into()
-        .context("block height must fit into u32")?;
+        .context("internal u64 block height does not fit into tendermint i64 `Height`")?;
 
     let key = request.path.clone().into_bytes();
     let value = match query {
@@ -158,7 +158,7 @@ async fn handle_query(
     Ok(response::Query {
         key: key.into(),
         value: value.into(),
-        height: Height::from(height),
+        height,
         ..Default::default()
     })
 }
