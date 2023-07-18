@@ -29,7 +29,8 @@ use tracing::{
 use self::{
     bundler::Bundler,
     collector::TxCollector,
-    executor::SequencerExecutor, error::ComposerError,
+    error::ComposerError,
+    executor::SequencerExecutor,
 };
 use crate::config::searcher::{
     self as config,
@@ -38,10 +39,10 @@ use crate::config::searcher::{
 mod api;
 mod bundler;
 mod collector;
-mod executor;
 mod error;
+mod executor;
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct Searcher {
     api_url: SocketAddr,
     tx_collector: TxCollector,
@@ -67,7 +68,8 @@ impl Searcher {
 
         // configure rollup tx bundler
         let sequencer_client = Arc::new(
-            SequencerClient::new(&cfg.sequencer_url).map_err(|_| ComposerError::SequencerClientInit)?,
+            SequencerClient::new(&cfg.sequencer_url)
+                .map_err(|_| ComposerError::SequencerClientInit)?,
         );
 
         let bundler = Bundler::new(
@@ -194,6 +196,7 @@ mod tests {
     async fn new_from_valid_config() {
         let cfg = Config::default();
         let searcher = Searcher::new(&cfg).await;
-        assert!(dbg!(searcher).is_ok());
+        assert!(searcher.is_ok());
+        // assert!(dbg!(searcher).is_ok());
     }
 }
