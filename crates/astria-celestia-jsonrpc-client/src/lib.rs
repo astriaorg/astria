@@ -60,13 +60,15 @@ pub struct Error {
 
 impl Error {
     /// Returns inner error kind contained in this error
+    #[must_use]
     pub fn kind(&self) -> &ErrorKind {
         &self.inner
     }
 
     /// Returns the name of the RPC method that failed.
+    #[must_use]
     pub fn rpc_name(&self) -> &str {
-        &self.rpc
+        self.rpc
     }
 
     pub(crate) fn deserialization(e: DeserializationError, rpc: &'static str) -> Self {
