@@ -155,7 +155,7 @@ impl Reader {
             .await
             .wrap_err("failed getting latest height from celestia")?;
         if curr_block_height <= self.curr_block_height {
-            debug!(
+            info!(
                 height.celestia = curr_block_height,
                 height.previous = self.curr_block_height,
                 "no new celestia height"
@@ -163,7 +163,7 @@ impl Reader {
             return Ok(None);
         }
 
-        debug!(
+        info!(
             height.start = first_new_height,
             height.end = curr_block_height,
             "checking celestia blocks for range of heights",
