@@ -40,13 +40,35 @@ pub struct Relayer {
     /// The poll period defines the fixed interval at which the sequencer is polled.
     sequencer_poll_period: Duration,
 
+    // The client for submitting sequencer blocks to the data availability layer.
     data_availability: Option<CelestiaClient>,
+
+    // Carries the signing key to sign sequencer blocks before they are submitted to the data
+    // availability layer or gossiped over the p2p network.
     validator: Validator,
+
+    // The sending half of the channel to the gossip-net worker that gossips soft-commited
+    // sequencer blocks to nodes subscribed to the `blocks` topic.
     gossip_block_tx: UnboundedSender<SequencerBlockData>,
+
+    // A watch channel to track the state of the relayer. Used by the API service.
     state_tx: watch::Sender<State>,
+
+    // Sequencer blocks that have been received but not yet submitted to the data availability
+    // layer (for example, because a submit RPC was currently in flight) .
     queued_blocks: Vec<SequencerBlockData>,
+
+    // A collection of workers to convert a raw cometbft/tendermint block response to
+    // the sequencer block data type.
     conversion_workers: task::JoinSet<eyre::Result<Option<SequencerBlockData>>>,
+
+    // Task to submit blocks to the data availability layer. If this is set it means that
+    // an RPC is currently in flight and new blocks are queued up. They will be submitted
+    // once this task finishes.
     submission_task: Option<task::JoinHandle<eyre::Result<u64>>>,
+
+    // Task to query the sequencer for new blocks. A new request will be sent once this
+    // task returns.
     sequencer_task: Option<task::JoinHandle<Result<block::Response, tendermint_rpc::Error>>>,
 }
 
