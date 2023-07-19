@@ -10,9 +10,7 @@ use tokio::sync::broadcast::{
     Sender,
 };
 use tracing::{
-    debug,
     error,
-    // info,
     instrument,
     trace,
 };
@@ -40,13 +38,12 @@ impl TxCollector {
     ///
     /// # Errors
     ///
+    /// Returns an error if connecting to the websocket provider using the provided url failed.
+    ///
     /// - `Error::ProviderInit` if there is an error initializing a provider to the endpoint.
     #[instrument]
-    pub(super) async fn new(ws_url: &str) -> Result<Self, Error> {
-        let provider = Provider::<Ws>::connect(ws_url)
-            .await
-            .map_err(Error::ProviderInit)?;
-        debug!("connected to execution node");
+    pub(super) async fn new(url: &str) -> Result<Self, ProviderError> {
+        let provider = Provider::<Ws>::connect(url).await?;
         Ok(Self {
             provider,
         })
