@@ -6,8 +6,6 @@ use astria_sequencer_relayer::{
 };
 use color_eyre::eyre::{
     self,
-    ensure,
-    eyre,
     WrapErr as _,
 };
 use tokio::{
@@ -19,6 +17,7 @@ use tokio::{
     task,
 };
 use tracing::{
+    debug,
     info,
     instrument,
     warn,
@@ -127,11 +126,12 @@ impl Reader {
                             continue;
                         }
                     };
-
-                    for block in blocks {
-                        self.process_block(block)
-                            .await
-                            .map_err(|e| eyre!("failed to process block: {}", e))?;
+                    if let Some(blocks) = blocks {
+                        for block in blocks {
+                            if let Err(e) = self.process_block(block).await {
+                                warn!(err.message = %e, err.cause_chain = ?e, "failed to process block");
+                            }
+                        }
                     }
                 }
                 ReaderCommand::Shutdown => {
@@ -146,7 +146,7 @@ impl Reader {
 
     /// get_new_blocks fetches any new sequencer blocks from Celestia.
     #[instrument(name = "Reader::get_new_blocks", skip_all)]
-    pub async fn get_new_blocks(&mut self) -> eyre::Result<Vec<SequencerBlockData>> {
+    pub async fn get_new_blocks(&mut self) -> eyre::Result<Option<Vec<SequencerBlockData>>> {
         // get the latest celestia block height
         let first_new_height = self.curr_block_height + 1;
         let curr_block_height = self
@@ -154,17 +154,20 @@ impl Reader {
             .get_latest_height()
             .await
             .wrap_err("failed getting latest height from celestia")?;
-        ensure!(
-            curr_block_height > self.curr_block_height,
-            "no new celestia height"
-        );
+        if curr_block_height <= self.curr_block_height {
+            debug!(
+                height.celestia = curr_block_height,
+                height.previous = self.curr_block_height,
+                "no new celestia height"
+            );
+            return Ok(None);
+        }
 
-        info!(
+        debug!(
             height.start = first_new_height,
             height.end = curr_block_height,
             "checking celestia blocks for range of heights",
         );
-
         let mut blocks = vec![];
         // check for any new sequencer blocks written from the previous to current block height
         'check_heights: for height in first_new_height..=self.curr_block_height {
@@ -218,7 +221,7 @@ impl Reader {
         // TODO: there isn't a guarantee that the blocks aren't severely out of order,
         // and we need to ensure that there are no gaps between the block heights before processing.
         blocks.sort_by(|a, b| a.header.height.cmp(&b.header.height));
-        Ok(blocks)
+        Ok(Some(blocks))
     }
 
     /// Processes an individual block
