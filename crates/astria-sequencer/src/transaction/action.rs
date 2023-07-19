@@ -28,6 +28,19 @@ pub enum Action {
 }
 
 impl Action {
+    #[must_use]
+    pub fn as_sequence(&self) -> Option<&sequence::Action> {
+        match self {
+            Self::SequenceAction(a) => Some(a),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn new_sequence_action(chain_id: Vec<u8>, data: Vec<u8>) -> Self {
+        Self::SequenceAction(sequence::Action::new(chain_id, data))
+    }
+
     pub(crate) fn to_proto(&self) -> ProtoAction {
         match &self {
             Action::TransferAction(tx) => ProtoAction {

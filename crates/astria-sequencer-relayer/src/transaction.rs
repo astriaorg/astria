@@ -12,6 +12,7 @@ pub fn txs_to_data_hash(hashed_txs: &[Vec<u8>]) -> TmHash {
 #[cfg(test)]
 mod test {
     use super::*;
+
     fn sha256_hash(data: &[u8]) -> Vec<u8> {
         use sha2::Digest as _;
         let mut hasher = sha2::Sha256::new();
