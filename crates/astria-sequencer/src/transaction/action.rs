@@ -37,14 +37,6 @@ impl Action {
     }
 
     #[must_use]
-    pub fn as_transfer(&self) -> Option<&Transfer> {
-        match self {
-            Self::TransferAction(t) => Some(t),
-            _ => None,
-        }
-    }
-
-    #[must_use]
     pub fn new_sequence_action(chain_id: Vec<u8>, data: Vec<u8>) -> Self {
         Self::SequenceAction(sequence::Action::new(chain_id, data))
     }
