@@ -11,6 +11,9 @@ pub(crate) mod serde;
 #[cfg(test)]
 pub(crate) mod test_utils;
 
+// Reexports
+pub use jsonrpsee::core::Error as JsonRpseeError;
+
 #[derive(Debug)]
 pub struct DeserializationError {
     pub(crate) source: serde_json::Error,
@@ -56,6 +59,16 @@ pub struct Error {
 }
 
 impl Error {
+    /// Returns inner error kind contained in this error
+    pub fn kind(&self) -> &ErrorKind {
+        &self.inner
+    }
+
+    /// Returns the name of the RPC method that failed.
+    pub fn rpc_name(&self) -> &str {
+        &self.rpc
+    }
+
     pub(crate) fn deserialization(e: DeserializationError, rpc: &'static str) -> Self {
         Self {
             inner: ErrorKind::Deserialization(e),
