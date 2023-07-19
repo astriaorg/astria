@@ -21,41 +21,35 @@ jobs:
         with:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      # This step is required for tests
-      - name: Build astria conductor and sequencer-relayer
+      - name: Run tests (excluding RPC client, which needs kubernetes)
         run: |
-          cargo build --release \
-            --bin astria-conductor \
-            --bin astria-sequencer-relayer
-      - name: Copy binaries to tmp
-        run: |
-          mkdir -p /tmp/astria
-          cp target/release/{astria-conductor,astria-sequencer-relayer} /tmp/astria/
-      - name: Build tests
-        run: cargo test --release --no-run --workspace
-      - name: Run light tests
-        run: cargo test --release --workspace
+          cargo test --release --workspace \
+          --exclude astria-celestia-jsonrpc-client
+
+  test_rpc_client:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@1.69.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Build the jsonrpc client tests
+        run: cargo test --release --no-run --package astria-celestia-jsonrpc-client
       - name: create kubernetes in docker cluster
         uses: helm/kind-action@v1.5.0
         with:
           version: v0.18.0
-          config: kubernetes-ci/cluster-config.yml
+          config: crates/astria-celestia-jsonrpc-client/k8s/cluster-config.yml
           kubectl_version: v1.27.1
       - name: install just
         uses: taiki-e/install-action@just
       - run: just deploy-ingress-controller
-      - run: just perform-prepull
       - run: just wait-for-ingress-controller
-      - run: just wait-for-prepull
       - run: just start-celestia-jsonrpc-test-deployment
       - run: just wait-for-celestia-jsonrpc-test-deployment
       - name: wait 5 seconds for ingress to pick up rules, services
         run: sleep 5
-      - name: Run heavy tests
-        run: |
-          cargo test --release \
-          --workspace \
-          -- --ignored
+      - name: Run the jsonrpc client tests
+        run: cargo test --release --package astria-celestia-jsonrpc-client -- --ignored
 
   fmt:
     runs-on: ubuntu-22.04
