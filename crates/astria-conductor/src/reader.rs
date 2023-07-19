@@ -17,6 +17,7 @@ use tokio::{
     task,
 };
 use tracing::{
+    debug,
     info,
     instrument,
     warn,
@@ -206,7 +207,14 @@ impl Reader {
                     .await
                     .wrap_err("failed to get rollup data")
                 {
-                    Ok(block) => block,
+                    Ok(Some(block)) => block,
+                    Ok(None) => {
+                        debug!(
+                            height,
+                            "celestia was unable to find rollups for the sequencer namespace"
+                        );
+                        continue;
+                    }
                     Err(e) => {
                         // this means someone submitted an invalid block to celestia;
                         // we can ignore it

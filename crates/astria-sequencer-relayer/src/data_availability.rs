@@ -7,6 +7,7 @@ use astria_celestia_jsonrpc_client::{
     },
     state,
     Client,
+    ErrorKind,
 };
 use ed25519_consensus::{
     Signature,
@@ -351,7 +352,7 @@ impl CelestiaClient {
         &self,
         height: u64,
         namespace_data: &SignedNamespaceData<SequencerNamespaceData>,
-    ) -> eyre::Result<SequencerBlockData> {
+    ) -> eyre::Result<Option<SequencerBlockData>> {
         let verification_key = VerificationKey::try_from(&*namespace_data.public_key)
             .wrap_err("failed constructing verification key from stored bytes")?;
 
@@ -365,11 +366,20 @@ impl CelestiaClient {
             height,
             namespace_ids,
         };
-        let rsp = self
-            .client
-            .blob_get_all(req)
-            .await
-            .wrap_err("failed getting namespaced data")?;
+        let rsp = match self.client.blob_get_all(req).await {
+            Ok(rsp) => rsp,
+            Err(e) => {
+                if let ErrorKind::Rpc(astria_celestia_jsonrpc_client::JsonRpseeError::Call(inner)) =
+                    e.kind()
+                {
+                    if inner.message().contains("blob: not found") {
+                        info!("could not find blobs under the listed namespaces");
+                        return Ok(None);
+                    }
+                }
+                return Err(e).wrap_err("failed getting namespaced data");
+            }
+        };
 
         // get only rollup datas that can be deserialized
         let mut rollup_datas: HashMap<_, _> = rsp
@@ -421,12 +431,12 @@ impl CelestiaClient {
             .into_iter()
             .map(|(namespace, rollup_datas)| (namespace, rollup_datas.data.rollup_txs))
             .collect();
-        Ok(SequencerBlockData {
+        Ok(Some(SequencerBlockData {
             block_hash: namespace_data.data.block_hash.clone(),
             header: namespace_data.data.header.clone(),
             last_commit: namespace_data.data.last_commit.clone(),
             rollup_txs,
-        })
+        }))
     }
 }
 
