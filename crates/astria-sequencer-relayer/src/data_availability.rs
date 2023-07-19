@@ -276,6 +276,10 @@ impl CelestiaClient {
         signing_key: &SigningKey,
         verification_key: VerificationKey,
     ) -> eyre::Result<SubmitBlockResponse> {
+        // The number of total expected blobs is:
+        // + the sum of all rollup transactions in all blocks (each converted to a rollup namespaced
+        //   data), and
+        // + one sequencer namespaced data blob per block.
         let num_expected_blobs = blocks.iter().map(|block| block.rollup_txs.len() + 1).sum();
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
         for block in blocks {
