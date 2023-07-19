@@ -337,7 +337,17 @@ impl CelestiaClient {
         Ok(sequencer_namespace_datas)
     }
 
-    /// get_sequencer_block returns the full SequencerBlock (with all rollup data) for the
+    /// Returns all rollup data for the namespaces recorded in sequencer namespace data.
+    ///
+    /// This function queries the data availability layer for blobs submitted to the namespaces
+    /// listed in `namespace_data`. It then filters those rollup datas that have block
+    /// hashes corresponding to those in `namespace_data`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// + the verification key could not be constructed from the data stored in `namespace_data`;
+    /// + the RPC to fetch the blobs failed.
     pub async fn get_all_rollup_data_from_sequencer_namespace_data(
         &self,
         height: u64,
