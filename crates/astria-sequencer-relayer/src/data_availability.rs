@@ -106,16 +106,16 @@ where
         Ok(hash.to_vec())
     }
 
-    fn to_signed(
-        self,
-        signing_key: &SigningKey,
-        verification_key: VerificationKey,
-    ) -> eyre::Result<SignedNamespaceData<Self>> {
+    fn to_signed(self, signing_key: &SigningKey) -> eyre::Result<SignedNamespaceData<Self>> {
         let hash = self
             .hash_json_serialized_bytes()
             .wrap_err("failed hashing namespace data")?;
         let signature = signing_key.sign(&hash).to_bytes().to_vec();
-        let data = SignedNamespaceData::new(self, verification_key.to_bytes().to_vec(), signature);
+        let data = SignedNamespaceData::new(
+            self,
+            signing_key.verification_key().to_bytes().to_vec(),
+            signature,
+        );
         Ok(data)
     }
 
@@ -274,7 +274,6 @@ impl CelestiaClient {
         &self,
         blocks: Vec<SequencerBlockData>,
         signing_key: &SigningKey,
-        verification_key: VerificationKey,
     ) -> eyre::Result<SubmitBlockResponse> {
         // The number of total expected blobs is:
         // + the sum of all rollup transactions in all blocks (each converted to a rollup namespaced
@@ -283,7 +282,7 @@ impl CelestiaClient {
         let num_expected_blobs = blocks.iter().map(|block| block.rollup_txs.len() + 1).sum();
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
         for block in blocks {
-            match assemble_blobs_from_sequencer_block_data(block, signing_key, verification_key) {
+            match assemble_blobs_from_sequencer_block_data(block, signing_key) {
                 Ok(mut blobs) => {
                     all_blobs.append(&mut blobs);
                 }
@@ -434,7 +433,6 @@ impl CelestiaClient {
 fn assemble_blobs_from_sequencer_block_data(
     block_data: SequencerBlockData,
     signing_key: &SigningKey,
-    verification_key: VerificationKey,
 ) -> eyre::Result<Vec<blob::Blob>> {
     let mut blobs = Vec::with_capacity(block_data.rollup_txs.len() + 1);
     let mut namespaces = Vec::with_capacity(block_data.rollup_txs.len() + 1);
@@ -444,7 +442,7 @@ fn assemble_blobs_from_sequencer_block_data(
             rollup_txs: txs,
         };
         let data = rollup_namespace_data
-            .to_signed(signing_key, verification_key)
+            .to_signed(signing_key)
             .wrap_err("failed signing rollup namespace data")?
             .to_bytes()
             .wrap_err("failed converting signed rollupdata namespace data to bytes")?;
@@ -461,7 +459,7 @@ fn assemble_blobs_from_sequencer_block_data(
         rollup_namespaces: namespaces,
     };
     let data = sequencer_namespace_data
-        .to_signed(signing_key, verification_key)
+        .to_signed(signing_key)
         .wrap_err("failed signing sequencer namespace data")?
         .to_bytes()
         .wrap_err("failed converting signed namespace data to bytes")?;

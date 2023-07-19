@@ -469,11 +469,7 @@ async fn submit_blocks_to_data_availability_layer(
         "submitting collected sequencer blocks to data availability layer",
     );
     let rsp = client
-        .submit_all_blocks(
-            sequencer_block_data,
-            &validator.signing_key,
-            validator.verification_key,
-        )
+        .submit_all_blocks(sequencer_block_data, &validator.signing_key)
         .await?;
     Ok(rsp.height)
 }
