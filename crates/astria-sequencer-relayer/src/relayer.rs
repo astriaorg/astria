@@ -184,6 +184,12 @@ impl Relayer {
         match conversion_result {
             // Gossip and collect successfully converted sequencer responses
             Ok(Some(sequencer_block_data)) => {
+                info!(
+                    height = %sequencer_block_data.header.height,
+                    block_hash = hex::encode(&sequencer_block_data.block_hash),
+                    num_contained_namespaces = sequencer_block_data.rollup_txs.len(),
+                    "gossiping sequencer block",
+                );
                 if self
                     .gossip_block_tx
                     .send(sequencer_block_data.clone())
@@ -455,6 +461,10 @@ async fn submit_blocks_to_data_availability_layer(
     sequencer_block_data: Vec<SequencerBlockData>,
     validator: Validator,
 ) -> eyre::Result<u64> {
+    info!(
+        num_blocks = sequencer_block_data.len(),
+        "submitting collected sequencer blocks to data availability layer",
+    );
     let rsp = client
         .submit_all_blocks(
             sequencer_block_data,

@@ -28,6 +28,7 @@ use tendermint::block::{
     Header,
 };
 use tracing::{
+    info,
     instrument,
     warn,
 };
@@ -285,6 +286,10 @@ impl CelestiaClient {
             all_blobs.append(&mut blobs);
         }
 
+        info!(
+            num_blobs = all_blobs.len(),
+            "calling rpc with converted sequencer blocks converted to celestia blobs",
+        );
         let rsp = self
             .submit_namespaced_data(all_blobs)
             .await
