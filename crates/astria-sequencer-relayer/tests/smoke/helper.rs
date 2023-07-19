@@ -170,6 +170,21 @@ pub async fn loop_until_sequencer_relayer_is_ready(addr: SocketAddr) {
             break;
         }
     }
+    #[derive(Debug, serde::Deserialize)]
+    struct Status {
+        number_of_subscribed_peers: u64,
+    }
+    loop {
+        let status = reqwest::get(format!("http://{addr}/status"))
+            .await
+            .unwrap()
+            .json::<Status>()
+            .await
+            .unwrap();
+        if status.number_of_subscribed_peers > 0 {
+            break;
+        }
+    }
 }
 
 use astria_celestia_jsonrpc_client::rpc_impl::{

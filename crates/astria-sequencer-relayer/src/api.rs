@@ -84,26 +84,11 @@ async fn get_healthz(State(relayer_status): State<RelayerState>) -> Healthz {
 ///
 /// Returns `Readyz::Ok` if all of the following conditions are met:
 ///
-/// + there is at least one subscriber to which sequencer blocks can be gossiped
 /// + there is a current sequencer height (implying a block from sequencer was received)
 /// + there is a current data availability height (implying a height was received from the DA)
-async fn get_readyz(
-    State(relayer_status): State<RelayerState>,
-    State(gossipnet_query_tx): State<UnboundedSender<network::InfoQuery>>,
-) -> Readyz {
-    let are_peers_subscribed = match get_number_of_subscribers(gossipnet_query_tx).await {
-        Ok(0) => false,
-        Ok(_) => true,
-        Err(e) => {
-            report_err!(
-                e,
-                "failed querying gossipnet task for its number of subscribers"
-            );
-            false
-        }
-    };
+async fn get_readyz(State(relayer_status): State<RelayerState>) -> Readyz {
     let is_relayer_online = relayer_status.borrow().is_ready();
-    if are_peers_subscribed && is_relayer_online {
+    if is_relayer_online {
         Readyz::Ok
     } else {
         Readyz::NotReady
