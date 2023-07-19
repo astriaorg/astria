@@ -17,7 +17,6 @@ use tokio::{
     task,
 };
 use tracing::{
-    debug,
     info,
     instrument,
     warn,
