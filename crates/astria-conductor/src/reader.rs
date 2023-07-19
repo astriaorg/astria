@@ -169,7 +169,11 @@ impl Reader {
         );
         let mut blocks = vec![];
         // check for any new sequencer blocks written from the previous to current block height
-        'check_heights: for height in first_new_height..=self.curr_block_height {
+        'check_heights: for height in first_new_height..=curr_block_height {
+            info!(
+                height,
+                "querying data availability layer for sequencer namespace data"
+            );
             let sequencer_namespaced_datas = match self
                 .celestia_client
                 .get_sequencer_namespace_data(height)
@@ -181,6 +185,10 @@ impl Reader {
                     continue 'check_heights;
                 }
             };
+            // update the stored current block height after every successful call to the data
+            // availability layet FIXME: is that correct? We have to figure out how to
+            // retry heights that fail (and under which conditions)
+            self.curr_block_height = height;
             'get_sequencer_blocks: for data in sequencer_namespaced_datas {
                 if let Err(e) = self
                     .block_verifier
