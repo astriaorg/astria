@@ -52,7 +52,7 @@ pub struct Relayer {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct State {
-    pub(crate) data_availability_connected: bool,
+    pub(crate) data_availability_connected: Option<bool>,
     pub(crate) sequencer_connected: bool,
     pub(crate) current_sequencer_height: Option<u64>,
     pub(crate) current_data_availability_height: Option<u64>,
@@ -60,7 +60,7 @@ pub struct State {
 
 impl State {
     pub fn is_ready(&self) -> bool {
-        self.data_availability_connected && self.sequencer_connected
+        self.data_availability_connected.unwrap_or(true) && self.sequencer_connected
     }
 }
 
@@ -96,7 +96,10 @@ impl Relayer {
             Some(client)
         };
 
-        let (state_tx, _) = watch::channel(State::default());
+        let (state_tx, _) = watch::channel(State {
+            data_availability_connected: data_availability.is_some().then_some(false),
+            ..State::default()
+        });
 
         Ok(Self {
             sequencer,
@@ -289,7 +292,7 @@ impl Relayer {
                  retries",
             )?;
             self.state_tx.send_modify(|state| {
-                state.data_availability_connected = true;
+                state.data_availability_connected.replace(true);
                 state.current_data_availability_height.replace(height);
             });
         } else {
