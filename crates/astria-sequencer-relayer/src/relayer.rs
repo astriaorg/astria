@@ -394,9 +394,6 @@ impl Relayer {
             .wrap_err("failed establishing connection to the sequencer")?;
 
         let mut sequencer_interval = interval(self.sequencer_poll_period);
-        // the first tick resolves immediately, so do it now because we don't
-        // want to poll right after start.
-        sequencer_interval.tick().await;
 
         let stop_msg = loop {
             select!(
