@@ -302,7 +302,6 @@ impl Relayer {
                 .with_min_delay(delay)
                 .with_factor(factor)
                 .with_max_times(n_retries);
-            // Clones are necessary because:
             let height = (|| {
                 let client = client.clone();
                 async move { client.get_latest_height().await }
@@ -354,7 +353,6 @@ impl Relayer {
             .with_min_delay(delay)
             .with_factor(factor)
             .with_max_times(n_retries);
-        // Clones are necessary because:
         (|| {
             let client = self.sequencer.clone();
             async move { client.abci_info().await }
@@ -387,8 +385,6 @@ impl Relayer {
             Ok(((), ())) => {}
             Err(err) => return Err(err).wrap_err("failed to start relayer"),
         }
-        // .await
-        // .wrap_err("failed establishing connection to data availability layer")?;
         self.wait_for_sequencer(5, Duration::from_secs(5), 2.0)
             .await
             .wrap_err("failed establishing connection to the sequencer")?;
