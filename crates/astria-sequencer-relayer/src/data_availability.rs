@@ -262,7 +262,14 @@ impl CelestiaClient {
             .wrap_err("failed submitting pay for data to client")
     }
 
-    /// submit_block submits a block to Celestia.
+    /// Submit all `blocks` to the data availability layer in an atomic operation.
+    ///
+    /// Each block gets converted into a collection of blobs. If this conversion fails
+    /// the block is dropped, emitting a tracing warning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the RPC failed.
     pub async fn submit_all_blocks(
         &self,
         blocks: Vec<SequencerBlockData>,
@@ -271,19 +278,15 @@ impl CelestiaClient {
     ) -> eyre::Result<SubmitBlockResponse> {
         let num_expected_blobs = blocks.iter().map(|block| block.rollup_txs.len() + 1).sum();
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
-        'assemble_blobs: for block in blocks {
-            let mut blobs = match assemble_blobs_from_sequencer_block_data(
-                block,
-                signing_key,
-                verification_key,
-            ) {
-                Ok(blobs) => blobs,
+        for block in blocks {
+            match assemble_blobs_from_sequencer_block_data(block, signing_key, verification_key) {
+                Ok(mut blobs) => {
+                    all_blobs.append(&mut blobs);
+                }
                 Err(e) => {
                     warn!(e.msg = %e, e.cause_chain = ?e, "failed assembling blobs from sequencer block data; skipping");
-                    continue 'assemble_blobs;
                 }
             };
-            all_blobs.append(&mut blobs);
         }
 
         info!(
