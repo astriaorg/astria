@@ -1,34 +1,18 @@
 use std::time::Duration;
 
-use eyre::{
-    bail,
-    Result,
-    WrapErr as _,
-};
+use eyre::{bail, Result, WrapErr as _};
 use humantime::format_duration;
-use tendermint_rpc::{
-    endpoint::block,
-    HttpClient,
-};
+use tendermint_rpc::{endpoint::block, HttpClient};
 use tokio::{
     select,
-    sync::{
-        mpsc::UnboundedSender,
-        watch,
-    },
+    sync::{mpsc::UnboundedSender, watch},
     task,
     time::interval,
 };
-use tracing::{
-    debug,
-    instrument,
-    warn,
-};
+use tracing::{debug, instrument, warn};
 
 use crate::{
-    data_availability::CelestiaClient,
-    macros::report_err,
-    types::SequencerBlockData,
+    data_availability::CelestiaClient, macros::report_err, types::SequencerBlockData,
     validator::Validator,
 };
 
@@ -143,7 +127,7 @@ impl Relayer {
         };
         match request_result {
             Ok(rsp) => {
-                debug!(
+                info!(
                     height = %rsp.block.header.height,
                     tx.count = rsp.block.data.len(),
                     "received block from sequencer"
@@ -260,10 +244,7 @@ impl Relayer {
         delay: Duration,
         factor: f32,
     ) -> eyre::Result<()> {
-        use backon::{
-            ExponentialBuilder,
-            Retryable as _,
-        };
+        use backon::{ExponentialBuilder, Retryable as _};
         if let Some(client) = self.data_availability.clone() {
             debug!("attempting to connect to data availability layer",);
             let backoff = ExponentialBuilder::default()
@@ -311,10 +292,7 @@ impl Relayer {
         delay: Duration,
         factor: f32,
     ) -> eyre::Result<()> {
-        use backon::{
-            ExponentialBuilder,
-            Retryable as _,
-        };
+        use backon::{ExponentialBuilder, Retryable as _};
         use tendermint_rpc::Client as _;
 
         debug!("attempting to connect to data availability layer",);
