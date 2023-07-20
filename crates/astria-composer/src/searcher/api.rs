@@ -1,36 +1,23 @@
-use std::{
-    net::SocketAddr,
-    sync::Arc,
-};
+use std::net::SocketAddr;
 
 use axum::{
-    extract::State,
     response::IntoResponse,
-    routing::get,
+    routing::{
+        get,
+        IntoMakeService,
+    },
     Router,
 };
+use hyper::server::conn::AddrIncoming;
 use serde::Serialize;
-use tokio::sync::broadcast::Receiver;
-use tracing::info;
 
-use super::{
-    Action,
-    Event,
-};
+pub(super) type ApiServer = axum::Server<AddrIncoming, IntoMakeService<Router>>;
 
-pub(super) async fn run(
-    api_url: SocketAddr,
-    _event_rx: Receiver<Event>,
-    _action_rx: Receiver<Action>,
-) -> Result<(), hyper::Error> {
+pub(super) fn start(port: u16) -> ApiServer {
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let api_router = Router::new().route("/healthz", get(healthz));
     // TODO: add routes for events and actions
-
-    info!(?api_url, "starting api server");
-
-    axum::Server::bind(&api_url)
-        .serve(api_router.into_make_service())
-        .await
+    axum::Server::bind(&addr).serve(api_router.into_make_service())
 }
 
 pub(super) enum Healthz {

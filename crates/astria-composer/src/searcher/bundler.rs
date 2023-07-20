@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use astria_sequencer::{
     accounts::types::{
         Address as SequencerAddress,
@@ -11,19 +9,23 @@ use astria_sequencer::{
         Unsigned,
     },
 };
-use astria_sequencer_client::Client as SequencerClient;
+use astria_sequencer_client::Client;
+use color_eyre::eyre::{
+    self,
+    bail,
+    eyre,
+    WrapErr as _,
+};
 use ethers::types::Transaction;
 use tokio::sync::broadcast::{
-    error::{
-        RecvError,
-        SendError,
-    },
+    error::RecvError,
     Receiver,
     Sender,
 };
 use tracing::{
-    error,
+    instrument,
     trace,
+    warn,
 };
 
 use super::{
@@ -31,24 +33,12 @@ use super::{
     Event,
 };
 
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("invalid sequencer address: {0}")]
-    InvalidSequencerAddress(String),
-    #[error("failed to get sequencer nonce")]
-    GetNonceFailed,
-    #[error("receiving event failed")]
-    EventRecv(#[source] RecvError),
-    #[error("sending action failed")]
-    ActionSend(#[source] SendError<Action>),
-}
-
 /// Struct for bundling transactions into sequencer txs.
 // TODO: configure as "train with capacity", i.e. max number of txs to bundle and sequencer block
 // time
 // #[derive(Debug)]
 pub struct Bundler {
-    sequencer_client: Arc<SequencerClient>,
+    sequencer_client: Client,
     sequencer_address: SequencerAddress,
     rollup_chain_id: String,
     current_nonce: Option<Nonce>,
@@ -56,12 +46,13 @@ pub struct Bundler {
 
 impl Bundler {
     pub(super) fn new(
-        sequencer_client: Arc<SequencerClient>,
+        sequencer_client: Client,
         sequencer_addr: String,
         rollup_chain_id: String,
-    ) -> Result<Self, Error> {
+    ) -> eyre::Result<Self> {
         let sequencer_address = SequencerAddress::try_from_str(&sequencer_addr)
-            .map_err(|_| Error::InvalidSequencerAddress(sequencer_addr))?;
+            .map_err(|e| eyre!(Box::new(e)))
+            .wrap_err("failed constructing sequencer address from string")?;
         Ok(Self {
             sequencer_client,
             sequencer_address,
@@ -77,11 +68,12 @@ impl Bundler {
     /// - `Error::EventRecv` if receiving an event from the event channel fails
     /// - `Error::ActionSend` if sending an action to the action channel fails
     /// - `Error::GetNonce` if getting the nonce from the sequencer fails
+    #[instrument(name = "Bundler::run", skip_all)]
     pub(super) async fn run(
         mut self,
         mut event_rx: Receiver<Event>,
         action_tx: Sender<Action>,
-    ) -> Result<(), Error> {
+    ) -> eyre::Result<()> {
         // grab event
         loop {
             match event_rx.recv().await {
@@ -90,17 +82,17 @@ impl Bundler {
                     match action_tx.send(action.clone()) {
                         Ok(_) => trace!(action=?action, "action sent"),
                         Err(e) => {
-                            error!(error=?e, "sending action failed");
-                            // todo!("kill the bundler?");
-                            return Err(Error::ActionSend(e));
+                            warn!(e.msg = %e, "broadcasting action failed");
                         }
                     }
                 }
-                Err(e) => {
-                    error!(error=?e, "receiving event failed");
-                    // todo!("kill the bundler?");
-                    return Err(Error::EventRecv(e));
+                Err(RecvError::Lagged(messages_skipped)) => {
+                    warn!(
+                        messages_skipped,
+                        "event broadcast receiver is lagging behind"
+                    );
                 }
+                Err(RecvError::Closed) => bail!("broadcast channel closed unexpectedly"),
             }
         }
     }
@@ -110,7 +102,7 @@ impl Bundler {
     /// # Errors
     ///
     /// - `Error::GetNonceFailed` if getting the nonce from the sequencer fails
-    async fn process_event(&mut self, event: Event) -> Result<Action, Error> {
+    async fn process_event(&mut self, event: Event) -> eyre::Result<Action> {
         match event {
             Event::NewTx(tx) => self.handle_new_tx(tx).await,
         }
@@ -122,7 +114,7 @@ impl Bundler {
     ///
     /// - `Error::GetNonceFailed` if getting the nonce from the sequencer fails (only when nonce is
     ///   None)
-    async fn handle_new_tx(&mut self, tx: Transaction) -> Result<Action, Error> {
+    async fn handle_new_tx(&mut self, tx: Transaction) -> eyre::Result<Action> {
         // serialize and pack into sequencer tx
         let data = tx.rlp().to_vec();
         let chain_id = self.rollup_chain_id.clone().into_bytes();
@@ -143,7 +135,7 @@ impl Bundler {
     ///
     /// # Errors
     /// Returns `Error::GetNonceFailed` if getting the nonce from the sequencer fails
-    async fn get_nonce(&mut self) -> Result<Nonce, Error> {
+    async fn get_nonce(&mut self) -> eyre::Result<Nonce> {
         // get nonce if None otherwise increment it
         if let Some(nonce) = self.current_nonce {
             self.current_nonce = Some(nonce + Nonce::from(1));
@@ -154,7 +146,8 @@ impl Bundler {
                 .await
                 .ok();
         }
-        self.current_nonce.ok_or(Error::GetNonceFailed)
+        self.current_nonce
+            .ok_or_else(|| eyre!("failed getting current nonce"))
     }
 
     /// Resets the nonce to None. Used from `Searcher::run()` if transaction execution fails

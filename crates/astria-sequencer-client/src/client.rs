@@ -33,6 +33,7 @@ use tendermint_rpc::{
 pub const DEFAULT_TENDERMINT_BASE_URL: &str = "http://localhost:26657";
 
 /// Tendermint HTTP client which is used to interact with the Sequencer node.
+#[derive(Clone)]
 pub struct Client {
     client: HttpClient,
 }

@@ -17,7 +17,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
-tracing = { workspace = true }
+tracing = { workspace = true, features = ["attributes"] }
 tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 reqwest = { workspace = true, features = ["json"] }
 is-terminal = { workspace = true }
@@ -26,7 +26,6 @@ hyper = { workspace = true }
 ethers = { version = "2.0.7", features = ["ws"] }
 tokio-stream = "0.1.14"
 hex = { workspace = true }
-eyre.workspace = true
 
 [dev-dependencies]
 once_cell = { workspace = true }

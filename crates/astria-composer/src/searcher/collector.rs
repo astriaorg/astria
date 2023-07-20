@@ -1,14 +1,15 @@
+use color_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
 use ethers::providers::{
     Middleware,
     Provider,
     ProviderError,
-    StreamExt,
+    StreamExt as _,
     Ws,
 };
-use tokio::sync::broadcast::{
-    error::SendError,
-    Sender,
-};
+use tokio::sync::broadcast::Sender;
 use tracing::{
     error,
     instrument,
@@ -16,16 +17,6 @@ use tracing::{
 };
 
 use super::Event;
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("provider init failed")]
-    ProviderInit(#[source] ProviderError),
-    #[error("provider failed to get transactions subscription")]
-    ProviderSubscriptionError(#[source] ProviderError),
-    #[error("sending event failed")]
-    EventSend(#[source] SendError<Event>),
-}
 
 #[derive(Debug)]
 pub struct TxCollector {
@@ -55,13 +46,13 @@ impl TxCollector {
     /// # Errors
     ///
     /// - `Error::ProviderGetTx` if there is an error getting transactions from the node.
-    pub(super) async fn run(self, event_tx: Sender<Event>) -> Result<(), Error> {
+    pub(super) async fn run(self, event_tx: Sender<Event>) -> eyre::Result<()> {
         // get stream of pending txs from execution node
         let stream = self
             .provider
             .subscribe_pending_txs()
             .await
-            .map_err(Error::ProviderSubscriptionError)?;
+            .wrap_err("failed to subscriber provider to pending transactions")?;
         let stream = stream.transactions_unordered(256);
         // get rid of errors
         let stream = stream.filter_map(|res| async move { res.ok() });
