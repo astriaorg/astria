@@ -94,24 +94,23 @@ fn build() {
     };
 
     let after_build = build_content_map(out_dir.path());
-    ensure_files_are_the_same(before_build, after_build, OUT_DIR);
+    ensure_files_are_the_same(&before_build, after_build, OUT_DIR);
 }
 
 fn ensure_files_are_the_same(
-    before: HashMap<String, String>,
+    before: &HashMap<String, String>,
     after: HashMap<String, String>,
     target_dir: &'static str,
 ) {
-    if before == after {
+    if before == &after {
         return;
     }
 
-    if env::var_os("CI").is_some() {
-        panic!(
-            "files compiled from protobuf have changed, but this is a CI environment. Rerun this \
-             test locally and commit the changes."
-        );
-    }
+    assert!(
+        env::var_os("CI").is_none(),
+        "files compiled from protobuf have changed, but this is a CI environment. Rerun this test \
+         locally and commit the changes."
+    );
 
     for (name, content) in after {
         let dst = Path::new(target_dir).join(name);
