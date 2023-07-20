@@ -1,4 +1,5 @@
 #[allow(warnings)]
+#[allow(unreachable_pub)]
 #[rustfmt::skip]
 mod proto;
 
