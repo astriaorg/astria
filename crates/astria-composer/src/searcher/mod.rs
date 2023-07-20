@@ -1,24 +1,18 @@
-use std::net::SocketAddr;
-
 use astria_sequencer::transaction::Unsigned as SequencerUnsignedTx;
 use astria_sequencer_client::Client as SequencerClient;
 use color_eyre::eyre::{
     self,
+    Report,
     WrapErr as _,
 };
 use ethers::types::Transaction;
-use tokio::{
-    sync::broadcast::{
-        self,
-        Receiver,
-        Sender,
-    },
-    task::JoinError,
+use futures::TryFutureExt as _;
+use tokio::sync::broadcast::{
+    self,
+    Receiver,
+    Sender,
 };
-use tracing::{
-    error,
-    info,
-};
+use tracing::error;
 
 use self::{
     bundler::Bundler,
@@ -26,14 +20,12 @@ use self::{
     executor::SequencerExecutor,
 };
 use crate::Config;
-mod api;
 mod bundler;
 mod collector;
 mod executor;
 
 // #[derive(Debug)]
 pub struct Searcher {
-    api_server: api::ApiServer,
     tx_collector: TxCollector,
     bundler: Bundler,
     executor: SequencerExecutor,
@@ -66,19 +58,11 @@ impl Searcher {
 
         let executor = SequencerExecutor::new(sequencer_client.clone(), &cfg.sequencer_secret);
 
-        // parse api url from config
-        let api_server = api::start(cfg.api_port);
-
         Ok(Self {
-            api_server,
             tx_collector,
             bundler,
             executor,
         })
-    }
-
-    pub fn api_listen_addr(&self) -> SocketAddr {
-        self.api_server.local_addr()
     }
 
     /// Runs the Searcher and blocks until all subtasks have exited:
@@ -91,9 +75,8 @@ impl Searcher {
     ///
     /// - `searcher::Error` if the Searcher fails to start or if any of the subtasks fail
     /// and cannot be recovered.
-    pub async fn run(self) {
+    pub async fn run(self) -> eyre::Result<()> {
         let Self {
-            api_server,
             tx_collector,
             bundler,
             executor,
@@ -104,40 +87,29 @@ impl Searcher {
         // bundler -> executor
         let (action_tx, action_rx): (Sender<Action>, Receiver<Action>) = broadcast::channel(512);
 
-        let api_task =
-            tokio::spawn(async move { api_server.await.wrap_err("api server ended upexpectedly") });
-        let collector_task = tokio::spawn(tx_collector.run(event_tx));
-        let bundler_task = tokio::spawn(bundler.run(event_rx, action_tx));
-        let executor_task = tokio::spawn(executor.run(action_rx));
+        let collector_task =
+            tokio::spawn(tx_collector.run(event_tx)).map_err(|res| ("collector", res));
+        let bundler_task =
+            tokio::spawn(bundler.run(event_rx, action_tx)).map_err(|res| ("bundler", res));
+        let executor_task = tokio::spawn(executor.run(action_rx)).map_err(|res| ("executor", res));
 
-        tokio::select! {
-            o = api_task => report_exit("api server", o),
-            o = collector_task => report_exit("rollup tx collector", o),
-            o = bundler_task => report_exit("bundler", o),
-            o = executor_task => report_exit("sequencer executor", o),
+        // FIXME: rework this to ensure all tasks shut down gracefully
+        match tokio::try_join!(collector_task, bundler_task, executor_task) {
+            Ok((collector_res, bundler_res, executor_res)) => {
+                report_err("collector", collector_res);
+                report_err("bundler", bundler_res);
+                report_err("executor", executor_res);
+                Ok(())
+            }
+            Err((task_name, join_err)) => Err(Report::new(join_err)
+                .wrap_err(format!("task `{task_name}` failed to run to completion"))),
         }
     }
 }
 
-fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
-    match outcome {
-        Ok(Ok(())) => info!(task = task_name, "task exited successfully"),
-        Ok(Err(e)) => {
-            error!(
-                error.cause_chain = ?e,
-                error.message = %e,
-                task = task_name,
-                "task failed",
-            )
-        }
-        Err(e) => {
-            error!(
-                error.cause_chain = ?e,
-                error.message = %e,
-                task = task_name,
-                "task failed to complete",
-            )
-        }
+fn report_err(task_name: &'static str, res: eyre::Result<()>) {
+    if let Err(e) = res {
+        error!(task.name = task_name, error.message = %e, error.cause_chain = ?e, "task returned with an error");
     }
 }
 

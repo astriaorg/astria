@@ -1,7 +1,7 @@
 use astria_composer::{
     config,
-    searcher::Searcher,
     telemetry,
+    Composer,
 };
 use color_eyre::eyre;
 use tracing::info;
@@ -16,7 +16,11 @@ async fn main() -> eyre::Result<()> {
 
     info!(config = cfg_ser, "initializing composer",);
 
-    let _searcher = Searcher::new(&cfg).await?.run().await;
+    let _searcher = Composer::new(&cfg)
+        .await
+        .expect("failed creating composer")
+        .run_until_stopped()
+        .await;
 
     Ok(())
 }
