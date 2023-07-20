@@ -20,5 +20,6 @@ prost-types = { workspace = true }
 tendermint-proto = { workspace = true }
 tonic = { workspace = true }
 
-[build-dependencies]
+[dev-dependencies]
+tempfile = { workspace = true }
 which = { workspace = true }
