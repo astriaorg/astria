@@ -1,6 +1,32 @@
 # Astria Proto
 
-This repo contains all the protobuf packages for Astria. 
+This repo contains all the protobuf packages for Astria. All rust code
+generated from the protobuf files in [`proto/`](`./proto/`) is commited
+to this repository and no extra tools are needed to encode to/decode from
+protobuf.
+
+Only when changing protobuf definitions (which is done by running running
+an integration test) is extra tooling required. See below.
+
+## Modifying existing and adding new protobuf
+
+CI verifies that the generated Rust code is in sync with the source protobuf
+definitions in CI. The test invoked by `cargo test -p astria-proto build` calls
+the `buf` CLI tool and verifies that the Rust code before and after the change is the same.
+If not, the test fails and leaves the repository in a dirty state. Commit
+the generated Rust code and then rerun the test:
+```sh
+$ cargo test -p astria-proto build
+test build ... FAILED
+
+failures:
+
+---- build stdout ----
+thread 'build' panicked at 'the generated files have changed; please commit the changes', crates/astria-proto/tests/proto_build.rs:126:5
+$ git commit -am "<message about protobuf changes>"
+$ cargo test -p astria-proto build
+test build ... ok
+```
 
 ## Protos and Buf Build
 
@@ -10,9 +36,11 @@ This repo contains all the protobuf packages for Astria.
 
 ## Adding a package
 
-* Create a new folder under `proto/astria/{new_package}`
-* write protos in new folder using package name `astria.{new_package}`
-* update `src/lib.rs` to include your new defintions in a module. Module names should reflect proto package names.
+* Create a new folder `proto/astria/<pkg-name>/<version>`;
+* write protos in this folder using the convention name `astria.<pkg-name>.<version>`;
+* update `src/proto/mod.rs` to include your new defintions in a module.
+  Follow the conventions of the other submodules;
+* update `src/lib.rs` to reexport the modules at the crate root.
 
 ## Working with Buf locally
 
@@ -30,4 +58,3 @@ This repo contains all the protobuf packages for Astria.
 ### Generating clients and servers
 
 * `$ buf generate` - generate clients and servers according to the configuration in `buf.gen.yaml`
-
