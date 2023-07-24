@@ -1,34 +1,63 @@
-use astria_sequencer::transaction::Unsigned as SequencerUnsignedTx;
+use std::sync::{
+    atomic::{
+        AtomicU32,
+        Ordering,
+    },
+    Arc,
+};
+
+use astria_sequencer::{
+    accounts::types::Address as SequencerAddress,
+    sequence::Action as SequenceAction,
+    transaction::{
+        action::Action as SequencerAction,
+        Signed,
+        Unsigned,
+    },
+};
 use astria_sequencer_client::Client as SequencerClient;
 use color_eyre::eyre::{
     self,
-    Report,
+    ensure,
+    eyre,
     WrapErr as _,
 };
-use ethers::types::Transaction;
-use futures::TryFutureExt as _;
-use tokio::sync::broadcast::{
-    self,
-    Receiver,
-    Sender,
+use ed25519_consensus::SigningKey;
+use ethers::{
+    providers::{
+        self,
+        Middleware as _,
+        Provider,
+        StreamExt as _,
+    },
+    types::Transaction,
 };
-use tracing::error;
+use tokio::{
+    select,
+    task::JoinSet,
+};
+use tracing::{
+    error,
+    warn,
+};
 
-use self::{
-    bundler::Bundler,
-    collector::TxCollector,
-    executor::SequencerExecutor,
-};
 use crate::Config;
-mod bundler;
-mod collector;
-mod executor;
 
 // #[derive(Debug)]
 pub struct Searcher {
-    tx_collector: TxCollector,
-    bundler: Bundler,
-    executor: SequencerExecutor,
+    // The client for getting new pending transactions from the ethereum JSON RPC.
+    eth_client: Provider<providers::Ws>,
+    // The client for submitting swrapped pending eth transactions to the astria sequencer.
+    sequencer_client: astria_sequencer_client::Client,
+    nonce: Arc<AtomicU32>,
+    rollup_chain_id: String,
+    sequencer_key: Arc<SigningKey>,
+    // Set of currently running jobs converting pending eth transactions to signed sequencer
+    // transactions.
+    conversion_tasks: JoinSet<Signed>,
+    // Set of in-flight RPCs submitting signed transactions to the sequencer.
+    // submission_tasks: JoinSet<eyre::Result<tx_sync::Response>>,
+    submission_tasks: JoinSet<eyre::Result<()>>,
 }
 
 impl Searcher {
@@ -40,29 +69,68 @@ impl Searcher {
     /// - `Error::BundlerError` if there is an error initializing the tx bundler.
     /// - `Error::SequencerClientInit` if there is an error initializing the sequencer client.
     pub async fn new(cfg: &Config) -> eyre::Result<Self> {
-        // configure rollup tx collector
-        let tx_collector = TxCollector::new(&cfg.execution_ws_url)
+        let eth_client = Provider::connect(&cfg.execution_ws_url)
             .await
-            .wrap_err("failed to start tx collector")?;
+            .wrap_err("failed connecting to ethereum json rpc server")?;
 
         // configure rollup tx bundler
         let sequencer_client = SequencerClient::new(&cfg.sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
+        let sequencer_address = SequencerAddress::try_from_str(&cfg.sequencer_address)
+            .map_err(|e| eyre!(Box::new(e)))
+            .wrap_err("failed constructing sequencer address from string")?;
+        let nonce = Arc::new(AtomicU32::new(
+            sequencer_client
+                .get_nonce(&sequencer_address, None)
+                .await
+                .wrap_err("failed getting current nonce from sequencer")?
+                .into(),
+        ));
 
-        let bundler = Bundler::new(
-            sequencer_client.clone(),
-            cfg.sequencer_address.to_string(),
-            cfg.chain_id.clone(),
-        )
-        .wrap_err("failed constructing bundler")?;
+        let rollup_chain_id = cfg.chain_id.clone();
 
-        let executor = SequencerExecutor::new(sequencer_client.clone(), &cfg.sequencer_secret);
+        let secret_bytes =
+            hex::decode(&cfg.sequencer_secret).wrap_err("failed decoding string as hexadecimal")?;
+        let sequencer_key = Arc::new(
+            SigningKey::try_from(&*secret_bytes)
+                .wrap_err("failed to construct signing key from decoded sequencer secret")?,
+        );
 
         Ok(Self {
-            tx_collector,
-            bundler,
-            executor,
+            eth_client,
+            sequencer_client,
+            nonce,
+            rollup_chain_id,
+            sequencer_key,
+            conversion_tasks: JoinSet::new(),
+            submission_tasks: JoinSet::new(),
         })
+    }
+
+    fn handle_pending_tx(&mut self, tx: Transaction) {
+        let nonce = self.nonce.clone();
+        let chain_id = self.rollup_chain_id.clone();
+        let sequencer_key = self.sequencer_key.clone();
+        self.conversion_tasks.spawn_blocking(move || {
+            let data = tx.rlp().to_vec();
+            let chain_id = chain_id.into_bytes();
+            let seq_action = SequencerAction::SequenceAction(SequenceAction::new(chain_id, data));
+            let nonce = nonce.fetch_add(1, Ordering::Relaxed).into();
+            Unsigned::new_with_actions(nonce, vec![seq_action]).into_signed(&*sequencer_key)
+        });
+    }
+
+    fn handle_signed_tx(&mut self, tx: Signed) {
+        let client = self.sequencer_client.clone();
+        self.submission_tasks.spawn(async move {
+            let rsp = client
+                .submit_transaction_sync(tx)
+                .await
+                .wrap_err("failed to submit transaction to sequencer")?;
+            // TODO: provide a jsonrpc error server msg?
+            ensure!(rsp.code.is_ok(), "sequencer responded with non zero code",);
+            Ok(())
+        });
     }
 
     /// Runs the Searcher and blocks until all subtasks have exited:
@@ -75,52 +143,35 @@ impl Searcher {
     ///
     /// - `searcher::Error` if the Searcher fails to start or if any of the subtasks fail
     /// and cannot be recovered.
-    pub async fn run(self) -> eyre::Result<()> {
-        let Self {
-            tx_collector,
-            bundler,
-            executor,
-        } = self;
+    pub async fn run(mut self) -> eyre::Result<()> {
+        let eth_client = self.eth_client.clone();
+        let mut tx_stream = eth_client
+            .subscribe_full_pending_txs()
+            .await
+            .wrap_err("failed to subscriber eth client to full pending transactions")?;
 
-        // collector -> bundler
-        let (event_tx, event_rx): (Sender<Event>, Receiver<Event>) = broadcast::channel(512);
-        // bundler -> executor
-        let (action_tx, action_rx): (Sender<Action>, Receiver<Action>) = broadcast::channel(512);
-
-        let collector_task =
-            tokio::spawn(tx_collector.run(event_tx)).map_err(|res| ("collector", res));
-        let bundler_task =
-            tokio::spawn(bundler.run(event_rx, action_tx)).map_err(|res| ("bundler", res));
-        let executor_task = tokio::spawn(executor.run(action_rx)).map_err(|res| ("executor", res));
-
-        // FIXME: rework this to ensure all tasks shut down gracefully
-        match tokio::try_join!(collector_task, bundler_task, executor_task) {
-            Ok((collector_res, bundler_res, executor_res)) => {
-                report_err("collector", collector_res);
-                report_err("bundler", bundler_res);
-                report_err("executor", executor_res);
-                Ok(())
-            }
-            Err((task_name, join_err)) => Err(Report::new(join_err)
-                .wrap_err(format!("task `{task_name}` failed to run to completion"))),
+        loop {
+            select!(
+                Some(rsp) = tx_stream.next() => self.handle_pending_tx(rsp),
+                Some(signed_tx) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
+                    match signed_tx {
+                        Ok(signed_tx) => self.handle_signed_tx(signed_tx),
+                        Err(e) => warn!(
+                            error.message = %e,
+                            error.cause_chain = ?e,
+                            "conversion task failed while trying to convert pending eth transaction to signed sequencer transaction",
+                        ),
+                    }
+                }
+                // TODO: do smth with the response. log?
+                Some(_submission_rsp) = self.submission_tasks.join_next(), if !self.submission_tasks.is_empty() => {},
+            )
         }
+
+        // FIXME: ensure that we can get here
+        #[allow(unreachable_code)]
+        Ok(())
     }
-}
-
-fn report_err(task_name: &'static str, res: eyre::Result<()>) {
-    if let Err(e) = res {
-        error!(task.name = task_name, error.message = %e, error.cause_chain = ?e, "task returned with an error");
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum Event {
-    NewTx(Transaction),
-}
-
-#[derive(Debug, Clone)]
-pub enum Action {
-    SendSequencerSecondaryTx(SequencerUnsignedTx),
 }
 
 #[cfg(test)]
