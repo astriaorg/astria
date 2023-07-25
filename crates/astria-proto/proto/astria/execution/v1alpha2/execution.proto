@@ -1,0 +1,107 @@
+syntax = 'proto3';
+
+package astria.execution.v1alpha2;
+
+import "google/protobuf/timestamp.proto";
+
+// The set of information which deterministic driver may to know about a given executed Block
+message Block {
+  // The block number
+  uint32 number = 1;
+  // The hash of the block
+  bytes hash = 2;
+  // Timestamp on the block, standardized to google protobuf standard.
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+// These fields should be indexed on most block chains, and can be used to identify a block.
+message BlockIdentifier {
+  oneof identifier {
+    uint32 block_number = 1;
+    bytes block_hash = 2;
+  }
+}
+
+message GetBlockRequest {
+  BlockIdentifier identifier = 1;
+}
+message GetBlockResponse {
+    Block block = 1;
+}
+
+message BatchGetBlocksRequest {
+  repeated BlockIdentifier identifiers = 1;
+}
+message BatchGetBlocksResponse {
+  repeated Block blocks = 1;
+}
+
+
+// CreateBlockRequest contains all the information needed to create a new executed block.
+//
+// This information comes from previous execution blocks, as well as from sequencer blocks.
+message CreateBlockRequest {
+  // The hash of the block which will be executed on top of
+  bytes prev_block_hash = 1;
+  // List of transactions to include in the new block
+  repeated bytes transactions = 2;
+  // The timestamp which should be used for new block
+  google.protobuf.Timestamp timestamp = 3;
+}
+// CreateBlockResponse is returned after calling CreateBlock
+message CreateBlockResponse {
+  // The executed block which was created.
+  Block block = 1;
+}
+
+// The CommitmentState holds the block at each stage of sequencer commitment level
+//
+// A Valid CommitmentState:
+// - Block numbers are such that soft+1 >= head >= soft >= firm.
+// - No blocks ever decrease in block number, only head may stay the same and have other changes
+// - The chain defined by head contains soft and firm blocks.
+message CommitmentState {
+  // The head is the top of the executed chain
+  Block head = 1;
+  // Soft commitment is the executed block matching sequencer block with full consensus.
+  Block soft = 2;
+  // Firm commitment 
+  Block firm = 3;
+}
+
+// There is only one CommitmentState object, so the request is empty.
+message GetCommitmentStateRequest{}
+message GetCommitmentStateResponse {
+  // The current CommitmentState
+  CommitmentState commitment_state = 1;
+}
+
+message UpdateCommitmentStateRequest {
+  // The CommitmentState to set, must include complete state and pass validation checks.
+  CommitmentState commitment_state = 1;
+}
+message UpdateCommitmentStateResponse {
+  // The result of the commitment state update.
+  CommitmentState commitment_state = 1;
+}
+
+// ExecutionService is used to drive deterministic production of blocks.
+// 
+// The service can be implemented by any blockchain which wants to utilize the Astria Shared Sequencer,
+// and will have execution driven via the Astria "Conductor".
+service ExecutionService {
+  // GetBlock will return a block given an identifier.
+  rpc GetBlock(GetBlockRequest) returns (GetBlockResponse);
+
+  // BatchGetBlocks will return an array of Blocks given an array of block identifiers.
+  rpc BatchGetBlocks(BatchGetBlocksRequest) returns (BatchGetBlocksResponse);
+
+  // CreateBlock is used to drive deterministic creation of an executed block from a sequenced block.
+  rpc CreateBlock(CreateBlockRequest) returns (CreateBlockResponse);
+
+  // GetCommitmentState fetches the current CommitmentState of the chain.
+  rpc GetCommitmentState(GetCommitmentStateRequest) returns (GetCommitmentStateResponse);
+
+  // UpdateCommitmentState replaces the whole CommitmentState
+  rpc UpdateCommitmentState(UpdateCommitmentStateRequest) returns (UpdateCommitmentStateResponse);
+}
