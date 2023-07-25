@@ -29,6 +29,7 @@ use tracing::{
 use crate::{
     data_availability::CelestiaClient,
     macros::report_err,
+    serde::NamespaceToTxCount,
     types::SequencerBlockData,
     validator::Validator,
 };
@@ -193,7 +194,7 @@ impl Relayer {
     #[instrument(skip_all)]
     fn handle_conversion_completed(
         &mut self,
-        join_result: Result<eyre::Result<Option<SequencerBlockData>>, task::JoinError>,
+        join_result: Result<Result<Option<SequencerBlockData>>, task::JoinError>,
     ) -> HandleConversionCompletedResult {
         // First check if the join task panicked
         let conversion_result = match join_result {
@@ -212,7 +213,9 @@ impl Relayer {
                 info!(
                     height = %sequencer_block_data.header.height,
                     block_hash = hex::encode(&sequencer_block_data.block_hash),
+                    proposer = %sequencer_block_data.header.proposer_address,
                     num_contained_namespaces = sequencer_block_data.rollup_txs.len(),
+                    namespaces_to_tx_count = %NamespaceToTxCount(&sequencer_block_data.rollup_txs),
                     "gossiping sequencer block",
                 );
                 if self
