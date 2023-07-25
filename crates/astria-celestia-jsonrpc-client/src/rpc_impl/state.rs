@@ -12,10 +12,11 @@
 /// [`cosmrs::Amount`]: https://github.com/cosmos/cosmos-rust/blob/aef5c708e6dddeec4ad1ba2672c7874a40b9bfc1/cosmrs/src/base.rs#L10
 /// [cosmos-rust PR#235]: https://github.com/cosmos/cosmos-rust/pull/235
 use jsonrpsee::proc_macros::rpc;
-use serde::{
-    Serialize,
-    Serializer,
-};
+// This only needs to be explicitly imported when activaing the server feature
+// due to a quirk in the jsonrpsee proc macro.
+#[cfg(feature = "server")]
+use jsonrpsee::types::ErrorObjectOwned;
+use serde::Serialize;
 
 use crate::rpc_impl::blob::Blob;
 
@@ -25,11 +26,29 @@ use crate::rpc_impl::blob::Blob;
 /// a String object and is not able to directly unmarshal a json number to a
 /// `math.Int`.
 #[derive(Debug, Serialize)]
-pub struct Fee(#[serde(serialize_with = "serialize_u128_as_str")] u128);
+#[cfg_attr(feature = "server", derive(serde::Deserialize))]
+pub struct Fee(#[serde(with = "u128_string")] u128);
 
-fn serialize_u128_as_str<S: Serializer>(val: &u128, ser: S) -> Result<S::Ok, S::Error> {
-    let val = val.to_string();
-    val.serialize(ser)
+mod u128_string {
+    use serde::{
+        Serialize,
+        Serializer,
+    };
+
+    #[cfg(feature = "server")]
+    pub(super) fn deserialize<'de, D>(deser: D) -> Result<u128, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::Deserialize as _;
+        let s = String::deserialize(deser)?;
+        s.parse::<u128>().map_err(serde::de::Error::custom)
+    }
+
+    pub(super) fn serialize<S: Serializer>(val: &u128, ser: S) -> Result<S::Ok, S::Error> {
+        let val = val.to_string();
+        val.serialize(ser)
+    }
 }
 
 impl Fee {
@@ -40,13 +59,14 @@ impl Fee {
     }
 }
 
-#[rpc(client)]
+#[cfg_attr(not(feature = "server"), rpc(client))]
+#[cfg_attr(feature = "server", rpc(client, server))]
 pub trait State {
     #[method(name = "state.SubmitPayForBlob")]
     async fn submit_pay_for_blob(
         &self,
         fee: Fee,
         gas_limit: u64,
-        blobs: &[Blob],
-    ) -> Result<Box<serde_json::value::RawValue>, Error>;
+        blobs: Vec<Blob>,
+    ) -> Result<Box<serde_json::value::RawValue>, ErrorObjectOwned>;
 }

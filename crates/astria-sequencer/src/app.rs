@@ -136,7 +136,12 @@ impl App {
         let height = self.state.get_block_height().await.expect(
             "block height must be set, as `begin_block` is always called before `deliver_tx`",
         );
-        info!(?tx, ?height, "executed transaction");
+        info!(
+            ?tx,
+            height,
+            sender = %tx.signer_address(),
+            "executed transaction"
+        );
         Ok(vec![])
     }
 

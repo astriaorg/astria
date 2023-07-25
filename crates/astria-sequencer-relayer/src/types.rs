@@ -5,10 +5,6 @@ use std::{
 };
 
 use astria_celestia_jsonrpc_client::blob::NAMESPACE_ID_AVAILABLE_LEN;
-use astria_sequencer_client::{
-    Action,
-    SignedTransaction,
-};
 use base64::{
     engine::general_purpose,
     Engine as _,
@@ -61,6 +57,10 @@ impl Deref for Namespace {
 }
 
 impl Namespace {
+    pub(crate) fn new(inner: [u8; NAMESPACE_ID_AVAILABLE_LEN]) -> Self {
+        Self(inner)
+    }
+
     pub fn from_string(s: &str) -> eyre::Result<Self> {
         let bytes = hex::decode(s).wrap_err("failed reading string as hex encoded bytes")?;
         ensure!(
@@ -184,6 +184,8 @@ impl SequencerBlockData {
     /// Converts a Tendermint block into a `SequencerBlockData`.
     /// it parses the block for `SequenceAction`s and namespaces them accordingly.
     pub fn from_tendermint_block(b: Block) -> eyre::Result<Self> {
+        use astria_sequencer::transaction::Signed;
+
         if b.header.data_hash.is_none() {
             bail!("block has no data hash");
         }
@@ -199,9 +201,11 @@ impl SequencerBlockData {
                 "parsing data from tendermint block",
             );
 
-            let tx = parse_sequencer_tx(tx).wrap_err("failed to parse sequencer tx")?;
+            let tx = Signed::try_from_slice(tx)
+                .map_err(|e| eyre!(e))
+                .wrap_err("failed reading signed sequencer transaction from bytes")?;
             tx.transaction().actions().iter().for_each(|action| {
-                if let Action::SequenceAction(action) = action {
+                if let Some(action) = action.as_sequence() {
                     let namespace = get_namespace(action.chain_id());
                     let txs = rollup_txs.entry(namespace).or_insert(vec![]);
                     txs.push(IndexedTransaction {
@@ -240,10 +244,6 @@ impl SequencerBlockData {
         );
         Ok(())
     }
-}
-
-fn parse_sequencer_tx(tx: &[u8]) -> eyre::Result<SignedTransaction> {
-    SignedTransaction::try_from_slice(tx).map_err(|e| eyre!(e))
 }
 
 #[cfg(test)]
