@@ -15,6 +15,7 @@ use tendermint::abci::{
     Event,
 };
 use tracing::{
+    debug,
     info,
     instrument,
 };
@@ -31,7 +32,6 @@ use crate::{
 };
 
 /// The application hash, used to verify the application state.
-/// TODO: this may not be the same as the state root hash?
 pub(crate) type AppHash = penumbra_storage::RootHash;
 
 /// The inter-block state being written to by the application.
@@ -133,12 +133,9 @@ impl App {
             .context("failed executing transaction")?;
         state_tx.apply();
 
-        let height = self
-            .state
-            .get_block_height()
-            .await
-            // TODO: explain why this is an invariant of the system
-            .expect("block height should be set");
+        let height = self.state.get_block_height().await.expect(
+            "block height must be set, as `begin_block` is always called before `deliver_tx`",
+        );
         info!(
             ?tx,
             height,
@@ -167,8 +164,22 @@ impl App {
     pub(crate) async fn commit(&mut self, storage: Storage) -> AppHash {
         // We need to extract the State we've built up to commit it.  Fill in a dummy state.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
-        let state = Arc::try_unwrap(std::mem::replace(&mut self.state, Arc::new(dummy_state)))
+
+        let mut state = Arc::try_unwrap(std::mem::replace(&mut self.state, Arc::new(dummy_state)))
             .expect("we have exclusive ownership of the State at commit()");
+
+        // store the storage version indexed by block height
+        let new_version = storage.latest_version().wrapping_add(1);
+        let height = state
+            .get_block_height()
+            .await
+            .expect("block height must be set, as `begin_block` is always called before `commit`");
+        state.put_storage_version_by_height(height, new_version);
+        debug!(
+            height,
+            version = new_version,
+            "stored storage version for height"
+        );
 
         // Commit the pending writes, clearing the state.
         let jmt_root = storage
