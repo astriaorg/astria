@@ -24,3 +24,8 @@ wait-for-celestia-jsonrpc-test-deployment:
 
 delete-cluster:
   kind delete cluster --name astria-celestia-jsonrpc-client-test
+
+default_docker_tag := 'local'
+
+docker-build crate tag=default_docker_tag:
+  docker buildx build --load --build-arg TARGETBINARY={{crate}} -f containerfiles/Dockerfile -t {{crate}}:{{tag}} .
