@@ -5,8 +5,9 @@ generated from the protobuf files in [`proto/`](`./proto/`) is commited
 to this repository and no extra tools are needed to encode to/decode from
 protobuf.
 
-Only when changing protobuf definitions (which is done by running running
-an integration test) is extra tooling required. See below.
+Only when changing protobuf definitions and regenerating the Rust code
+from these (which is done by running an integration test) is extra tooling
+required. See below.
 
 ## Modifying existing and adding new protobuf
 
@@ -36,11 +37,10 @@ test build ... ok
 
 ## Adding a package
 
-* Create a new folder `proto/astria/<pkg-name>/<version>`;
-* write protos in this folder using the convention name `astria.<pkg-name>.<version>`;
-* update `src/proto/mod.rs` to include your new defintions in a module.
-  Follow the conventions of the other submodules;
-* update `src/lib.rs` to reexport the modules at the crate root.
+* Create a new folder `proto/astria/<pkg-name>/<version>`.
+* Write protos in this folder using the convention name `astria.<pkg-name>.<version>`.
+* Update `src/proto/mod.rs` to include your new definitions in a module.
+* Update `src/lib.rs` to reexport the modules at the crate root.
 
 ## Working with Buf locally
 
