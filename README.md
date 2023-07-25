@@ -27,6 +27,24 @@ cd astria
 cargo build --release
 ```
 
+### Docker build
+
+To build a docker image locally you will first need docker installed. With docker installed you can use the following just command:
+
+```sh
+# Full command:
+# just docker-build CRATE TAG
+#
+# Replace CRATE with what the target binary is ie `astria-sequencer`
+# TAG defaults to `local` but can be changed.
+
+# this command will build a local image tagged as 'astria-sequencer:local' 
+just docker-build astria-sequencer
+
+# this command will build a local image tagged as 'astria-sequencer:debug' 
+just docker-build astria-sequencer debug
+```
+
 ## Running locally
 
 The entire stack consists of 6 different binaries. It's recommended to use the setup located in [astriaorg/dev-cluster](https://github.com/astriaorg/dev-cluster), but running everything manually is documented here as well.

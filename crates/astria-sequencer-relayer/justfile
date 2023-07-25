@@ -1,3 +1,5 @@
+set fallback
+
 default:
   @just --list
 
