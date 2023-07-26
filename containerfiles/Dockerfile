@@ -56,7 +56,7 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then export ROCKSDB_LIB_DIR=/usr/l
     else \
       TARGET_TRIPLE=$(uname -m)-unknown-linux-gnu; \
     fi; \
-    cargo chef cook --release --bin crates/$TARGETBINARY --target $TARGET_TRIPLE --recipe-path recipe.json;
+    cargo chef cook --release --bin $TARGETBINARY --target $TARGET_TRIPLE --recipe-path recipe.json;
     
 COPY . .
 
