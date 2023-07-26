@@ -35,5 +35,5 @@ pub struct InitStateResponse {
     #[prost(bytes="vec", tag="1")]
     pub block_hash: ::prost::alloc::vec::Vec<u8>,
 }
-include!("astria.execution.v1.tonic.rs");
+include!("astria.execution.v1alpha1.tonic.rs");
 // @@protoc_insertion_point(module)

@@ -104,12 +104,15 @@ pub mod execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.execution.v1.ExecutionService/InitState",
+                "/astria.execution.v1alpha1.ExecutionService/InitState",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
-                    GrpcMethod::new("astria.execution.v1.ExecutionService", "InitState"),
+                    GrpcMethod::new(
+                        "astria.execution.v1alpha1.ExecutionService",
+                        "InitState",
+                    ),
                 );
             self.inner.unary(req, path, codec).await
         }
@@ -132,12 +135,15 @@ pub mod execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.execution.v1.ExecutionService/DoBlock",
+                "/astria.execution.v1alpha1.ExecutionService/DoBlock",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
-                    GrpcMethod::new("astria.execution.v1.ExecutionService", "DoBlock"),
+                    GrpcMethod::new(
+                        "astria.execution.v1alpha1.ExecutionService",
+                        "DoBlock",
+                    ),
                 );
             self.inner.unary(req, path, codec).await
         }
@@ -160,13 +166,13 @@ pub mod execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.execution.v1.ExecutionService/FinalizeBlock",
+                "/astria.execution.v1alpha1.ExecutionService/FinalizeBlock",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
-                        "astria.execution.v1.ExecutionService",
+                        "astria.execution.v1alpha1.ExecutionService",
                         "FinalizeBlock",
                     ),
                 );
@@ -283,7 +289,7 @@ pub mod execution_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.execution.v1.ExecutionService/InitState" => {
+                "/astria.execution.v1alpha1.ExecutionService/InitState" => {
                     #[allow(non_camel_case_types)]
                     struct InitStateSvc<T: ExecutionService>(pub Arc<T>);
                     impl<
@@ -327,7 +333,7 @@ pub mod execution_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.execution.v1.ExecutionService/DoBlock" => {
+                "/astria.execution.v1alpha1.ExecutionService/DoBlock" => {
                     #[allow(non_camel_case_types)]
                     struct DoBlockSvc<T: ExecutionService>(pub Arc<T>);
                     impl<
@@ -371,7 +377,7 @@ pub mod execution_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.execution.v1.ExecutionService/FinalizeBlock" => {
+                "/astria.execution.v1alpha1.ExecutionService/FinalizeBlock" => {
                     #[allow(non_camel_case_types)]
                     struct FinalizeBlockSvc<T: ExecutionService>(pub Arc<T>);
                     impl<
@@ -455,6 +461,6 @@ pub mod execution_service_server {
         }
     }
     impl<T: ExecutionService> tonic::server::NamedService for ExecutionServiceServer<T> {
-        const NAME: &'static str = "astria.execution.v1.ExecutionService";
+        const NAME: &'static str = "astria.execution.v1alpha1.ExecutionService";
     }
 }
