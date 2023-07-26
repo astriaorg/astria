@@ -74,8 +74,6 @@ fn build() {
     // Run the `buf generate` command to generate the Rust files
     let mut cmd = Command::new(buf.clone());
     cmd.arg("generate")
-        .arg("--output")
-        .arg(out_dir_str)
         .arg("--template")
         .arg("buf.gen.yaml")
         .current_dir(env!("CARGO_MANIFEST_DIR"));
