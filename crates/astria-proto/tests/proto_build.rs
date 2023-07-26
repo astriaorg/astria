@@ -70,10 +70,11 @@ fn build() {
             "temp out dir should always be generated with valid utf8 encoded alphanumeric bytes",
         )
         .to_string();
-
     // Run the `buf generate` command to generate the Rust files
     let mut cmd = Command::new(buf.clone());
     cmd.arg("generate")
+        .arg("--output")
+        .arg(out_dir_str)
         .arg("--template")
         .arg("buf.gen.yaml")
         .current_dir(env!("CARGO_MANIFEST_DIR"));
@@ -91,7 +92,7 @@ fn build() {
         Ok(_) => {}
     };
 
-    let after_build = build_content_map(out_dir.path());
+    let after_build = build_content_map(out_dir.path().join(OUT_DIR));
     ensure_files_are_the_same(&before_build, after_build, OUT_DIR);
 }
 
