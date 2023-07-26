@@ -25,15 +25,7 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
       fi; \
       apt install -y librocksdb-dev:amd64; \
     fi; \
-    apt install -y libclang-dev clang protobuf-compiler;
-
-# install buf cli
-RUN BIN="/usr/local/bin" && \
-    VERSION="1.17.0" && \
-    curl -sSL \
-    "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
-    -o "${BIN}/buf" && \
-    chmod +x "${BIN}/buf"
+    apt install -y libclang-dev clang;
 
 # install targets
 FROM chef AS planner

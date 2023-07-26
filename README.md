@@ -18,7 +18,7 @@ To learn more about Astria, please visit [astria.org](https://astria.org).
 
 ## Build
 
-To build the relevant Astria binaries, you will need [Rust](https://www.rust-lang.org/tools/install) and [Buf](https://buf.build/docs/installation/) installed.
+To build the relevant Astria binaries, you only need [Rust](https://www.rust-lang.org/tools/install) installed.
 
 Then:
 ```sh
@@ -174,6 +174,9 @@ To run unit tests:
 ```sh
 cargo test
 ```
+
+Note that the `astria-proto` generates its code by running tests (and verifying that nothing changed).
+In order for its tests to run you also need [Buf](https://buf.build/docs/installation/) installed.
 
 ## Contributing
 
