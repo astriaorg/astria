@@ -31,7 +31,7 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
 FROM chef AS planner
 ARG TARGETBINARY
 COPY . .
-RUN cargo chef prepare --bin $TARGETBINARY --recipe-path recipe.json
+RUN cargo chef prepare --bin crates/$TARGETBINARY --recipe-path recipe.json
 
 FROM chef as builder
 COPY --from=planner /build/recipe.json recipe.json
@@ -56,7 +56,7 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then export ROCKSDB_LIB_DIR=/usr/l
     else \
       TARGET_TRIPLE=$(uname -m)-unknown-linux-gnu; \
     fi; \
-    cargo chef cook --release --bin $TARGETBINARY --target $TARGET_TRIPLE --recipe-path recipe.json;
+    cargo chef cook --release --bin crates/$TARGETBINARY --target $TARGET_TRIPLE --recipe-path recipe.json;
     
 COPY . .
 
