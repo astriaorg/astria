@@ -1,5 +1,5 @@
 # build stage
-FROM --platform=$BUILDPLATFORM lukemathwalker/cargo-chef:latest-rust-bookworm AS chef
+FROM --platform=$BUILDPLATFORM lukemathwalker/cargo-chef:0.1.61-rust-bookworm AS chef
 
 WORKDIR /build/
 
