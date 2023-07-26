@@ -93,7 +93,7 @@ fn build() {
         Ok(_) => {}
     };
 
-    let after_build = build_content_map(out_dir.path().join(OUT_DIR));
+    let after_build = build_content_map(out_dir.path());
     ensure_files_are_the_same(&before_build, after_build, OUT_DIR);
 }
 
