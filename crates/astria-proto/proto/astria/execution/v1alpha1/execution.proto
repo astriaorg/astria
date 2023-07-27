@@ -11,7 +11,7 @@ message DoBlockRequest {
 }
 
 message DoBlockResponse {
-  bytes block_hash = 1;
+  bytes block_hash2 = 1;
 }
 
 message FinalizeBlockRequest {
