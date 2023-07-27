@@ -1,0 +1,20 @@
+name: PR Labeler
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - labeled
+      - unlabeled
+jobs:
+  labeler:
+    runs-on: ubuntu-latest
+    name: PR size
+    steps:
+    - uses: codelytv/pr-size-labeler@v1
+      with:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        files_to_ignore: |
+          "cargo.lock"
+          "crates/astria-proto/src/proto/generated/**"
