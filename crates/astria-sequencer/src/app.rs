@@ -387,7 +387,7 @@ mod test {
         let bob = address_from_hex_string(BOB_ADDRESS);
         let value = Balance::from(333_333);
         let tx = Unsigned {
-            nonce: Nonce::from(1),
+            nonce: Nonce::from(0),
             actions: vec![Action::TransferAction(Transfer::new(bob.clone(), value))],
         };
         let signed_tx = tx.into_signed(&alice_keypair);
@@ -428,7 +428,7 @@ mod test {
         let alice = Address::from_verification_key(&alice_signing_key.verification_key());
 
         let tx = Unsigned {
-            nonce: Nonce::from(1),
+            nonce: Nonce::from(0),
             actions: vec![Action::SequenceAction(SequenceAction::new(
                 b"testchainid".to_vec(),
                 b"helloworld".to_vec(),
