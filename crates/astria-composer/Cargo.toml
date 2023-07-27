@@ -28,6 +28,7 @@ tokio-stream = "0.1.14"
 hex = { workspace = true }
 futures.workspace = true
 tendermint-rpc = "0.33.0"
+rand = "0.8.5"
 
 [dev-dependencies]
 once_cell = { workspace = true }

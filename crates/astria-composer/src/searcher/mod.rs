@@ -44,16 +44,13 @@ pub struct Searcher {
     eth_client: Provider<providers::Ws>,
     // The client for submitting swrapped pending eth transactions to the astria sequencer.
     sequencer_client: astria_sequencer_client::Client,
-    nonce: Option<Nonce>,
     rollup_chain_id: String,
-    sequencer_address: SequencerAddress,
-    sequencer_key: Arc<SigningKey>,
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
     conversion_tasks: JoinSet<eyre::Result<Signed>>,
     // Set of in-flight RPCs submitting signed transactions to the sequencer.
     // submission_tasks: JoinSet<eyre::Result<tx_sync::Response>>,
-    submission_tasks: JoinSet<Result<(), SubmissionError>>,
+    submission_tasks: JoinSet<eyre::Result<()>>,
 }
 
 impl Searcher {
@@ -68,35 +65,12 @@ impl Searcher {
         let sequencer_client = SequencerClient::new(&cfg.sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
 
-        // construct sequencer address and private key
-        let sequencer_address = SequencerAddress::try_from_str(&cfg.sequencer_address)
-            .map_err(|e| eyre!(Box::new(e)))
-            .wrap_err("failed constructing sequencer address from string")?;
-        let secret_bytes =
-            hex::decode(&cfg.sequencer_secret).wrap_err("failed decoding string as hexadecimal")?;
-        let sequencer_key = Arc::new(
-            SigningKey::try_from(&*secret_bytes)
-                .wrap_err("failed to construct signing key from decoded sequencer secret")?,
-        );
-
-        // get current nonce for sequencer address
-        let nonce = Some(
-            sequencer_client
-                .get_nonce(&sequencer_address, None)
-                .await
-                .wrap_err("failed getting current nonce from sequencer")?
-                .into(),
-        );
-
         let rollup_chain_id = cfg.chain_id.clone();
 
         Ok(Self {
             eth_client,
             sequencer_client,
-            nonce,
             rollup_chain_id,
-            sequencer_address,
-            sequencer_key,
             conversion_tasks: JoinSet::new(),
             submission_tasks: JoinSet::new(),
         })
@@ -105,15 +79,13 @@ impl Searcher {
     /// Serializes and signs a sequencer tx from a rollup tx.
     async fn handle_pending_tx(&mut self, rollup_tx: Transaction) -> eyre::Result<()> {
         let chain_id = self.rollup_chain_id.clone();
-        let sequencer_key = self.sequencer_key.clone();
-
-        // get next nonce for sequencer address
-        let nonce = self
-            .get_next_nonce()
-            .await
-            .ok_or_else(|| eyre!("get nonce failed"))?;
 
         self.conversion_tasks.spawn_blocking(move || {
+            // due to nonces not being implemented in the sequencer yet, each transaction is made
+            // from a new account with nonce 0
+            let sequencer_key = SigningKey::new(rand::thread_rng());
+            let nonce = Nonce::from(0);
+
             // pack into sequencer tx and sign
             let data = rollup_tx.rlp().to_vec();
             let chain_id = chain_id.into_bytes();
@@ -126,60 +98,15 @@ impl Searcher {
         Ok(())
     }
 
-    /// Resubmits a failed sequencer tx with a new nonce.
-    async fn resubmit_tx_with_new_nonce(&mut self, old_tx: Signed) -> eyre::Result<()> {
-        // reset nonce and try again
-        self.reset_nonce();
-        let sequencer_key = self.sequencer_key.clone();
-
-        // get next nonce for sequencer address
-        let nonce = self
-            .get_next_nonce()
-            .await
-            .ok_or_else(|| eyre!("get nonce failed"))?;
-
-        self.conversion_tasks.spawn(async move {
-            // grab actions from the old tx
-            let actions = old_tx.transaction().actions().to_vec();
-
-            Ok(Unsigned::new_with_actions(nonce, actions).into_signed(&sequencer_key))
-        });
-
-        Ok(())
-    }
-
-    /// Fetches the current next nonce from the sequencer node.
-    async fn get_next_nonce(&mut self) -> Option<Nonce> {
-        // get nonce from sequencer ndoe if None otherwise increment it
-        if let Some(nonce) = self.nonce {
-            self.nonce = Some(nonce + Nonce::from(1));
-        } else {
-            self.nonce = self
-                .sequencer_client
-                .get_nonce(&self.sequencer_address, None)
-                .await
-                .ok();
-        }
-        self.nonce
-    }
-
-    /// Resets the stored nonce to None.
-    fn reset_nonce(&mut self) {
-        warn!("resetting sequencer nonce, was {:?}", self.nonce);
-        self.nonce = None;
-    }
-
     fn handle_signed_tx(&mut self, tx: Signed) {
         let client = self.sequencer_client.clone();
         self.submission_tasks.spawn(async move {
             let rsp = client
                 .submit_transaction_sync(tx.clone())
                 .await
-                .map_err(|_e| SubmissionError::CheckTxFailed(tx.clone()))?;
+                .wrap_err("failed to submit transaction to sequencer")?;
             if !rsp.code.is_ok() {
-                error!("failed to submit transaction to sequencer: {:?}", rsp);
-                // TODO: return error with the failed tx
-                Err(SubmissionError::InvalidNonce(tx))
+                Err(eyre!("transaction submission response error: {:?}", rsp))
             } else {
                 Ok(())
             }
@@ -220,10 +147,10 @@ impl Searcher {
                     match join_result {
                         Ok(signing_result) => {
                             match signing_result {
-                                Err(SubmissionError::InvalidNonce(failed_tx)) => {
-                                    self.resubmit_tx_with_new_nonce(failed_tx).await?;
-                                }
-                                Err(SubmissionError::CheckTxFailed(_failed_tx)) => { todo!("handle sequencer failed CheckTx") },
+                                Err(e) => {
+                                    warn!(error.message = %e, error.cause_chain = ?e, "failed to submit signed sequencer transaction to sequencer");
+                                    todo!("handle sequencer failed CheckTx")
+                                },
                                 _ => {}
                             }
                         },
@@ -241,14 +168,6 @@ impl Searcher {
         #[allow(unreachable_code)]
         Ok(())
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-enum SubmissionError {
-    #[error("sequencer transaction failed CheckTx: {0:?}")]
-    CheckTxFailed(Signed),
-    #[error("sequencer transaction submission failed due to invalid nonce: {0:?}")]
-    InvalidNonce(Signed),
 }
 
 #[cfg(test)]
