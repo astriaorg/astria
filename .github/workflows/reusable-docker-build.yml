@@ -58,6 +58,6 @@ jobs:
           push: true
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
-          cache-to: type=inline
-          cache-from: type=registry,ref=${{ format('ghcr.io/astriaorg/{0}:pr-200', inputs.package-name) }}
+          cache-from: type=registry,ref=${{ format('ghcr.io/astriaorg/{0}:buildcache', inputs.package-name) }}
+          cache-to: type=registry,ref=${{ format('ghcr.io/astriaorg/{0}:buildcache', inputs.package-name) }},mode=max
         
