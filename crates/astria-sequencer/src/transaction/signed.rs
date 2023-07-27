@@ -3,7 +3,7 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_proto::sequencer::v1::SignedTransaction as ProtoSignedTransaction;
+use astria_proto::sequencer::v1alpha1::SignedTransaction as ProtoSignedTransaction;
 use penumbra_storage::{
     StateRead,
     StateWrite,

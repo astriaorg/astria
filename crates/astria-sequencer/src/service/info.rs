@@ -36,6 +36,7 @@ use tendermint::{
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::{
+    debug,
     instrument,
     warn,
     Instrument,
@@ -119,13 +120,34 @@ async fn handle_query(
     // note: request::Query also has a `data` field, which we ignore here
     let query = decode_query(&request.path).context("failed to decode query")?;
 
-    // TODO: handle height requests
+    debug!("handling query");
+    let state = match request.height.value() {
+        0 => storage.latest_snapshot(),
+        height => {
+            let version = storage
+                .latest_snapshot()
+                .get_storage_version_by_height(height)
+                .await
+                .context("failed to get storage version from height")?;
+            storage
+                .snapshot(version)
+                .context("failed to get storage at version")?
+        }
+    };
+
+    let height: Height = state
+        .get_block_height()
+        .await
+        .context("failed to get block height")?
+        .try_into()
+        .context("internal u64 block height does not fit into tendermint i64 `Height`")?;
+
     let key = request.path.clone().into_bytes();
     let value = match query {
         Query::AccountsQuery(request) => {
             let handler = QueryHandler::new();
             handler
-                .handle(storage.latest_snapshot(), request)
+                .handle(state, request)
                 .await
                 .context("failed to handle accounts query")?
         }
@@ -133,23 +155,10 @@ async fn handle_query(
     .try_to_vec()
     .context("failed serializing query response")?;
 
-    let height = storage
-        .latest_snapshot()
-        .get_block_height()
-        .await
-        .context("failed to get block from latest snapshot")?;
-
-    let height = match u32::try_from(height) {
-        Ok(height) => height,
-        Err(e) => {
-            warn!(error = ?e, "casting height u32 failed, using u32::MAX");
-            u32::MAX
-        }
-    };
     Ok(response::Query {
         key: key.into(),
         value: value.into(),
-        height: Height::from(height),
+        height,
         ..Default::default()
     })
 }
@@ -174,5 +183,46 @@ fn decode_query(path: &str) -> anyhow::Result<Query> {
             Ok(Query::AccountsQuery(request))
         }
         other => bail!("unknown query path: `{other}`"),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use penumbra_storage::StateDelta;
+    use tendermint::abci::request;
+
+    use super::*;
+    use crate::{
+        accounts::{
+            state_ext::StateWriteExt as _,
+            types::Address,
+        },
+        state_ext::StateWriteExt as _,
+    };
+
+    #[tokio::test]
+    async fn test_handle_query() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+
+        let height = 99;
+        let version = storage.latest_version().wrapping_add(1);
+        let mut state = StateDelta::new(storage.latest_snapshot());
+        state.put_storage_version_by_height(height, version);
+
+        let address = Address::try_from_str("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap();
+        state.put_account_balance(&address, 1000.into()).unwrap();
+        state.put_block_height(height);
+
+        storage.commit(state).await.unwrap();
+
+        let query = request::Query {
+            path: "accounts/balance/a034c743bed8f26cb8ee7b8db2230fd8347ae131".to_string(),
+            data: vec![].into(),
+            height: u32::try_from(height).unwrap().into(),
+            prove: false,
+        };
+        handle_query(storage.clone(), &query).await.unwrap();
     }
 }
