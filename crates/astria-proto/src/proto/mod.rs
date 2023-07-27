@@ -10,8 +10,8 @@
 pub mod tonic {
     #[path = ""]
     pub mod execution {
-        #[path = "astria.execution.v1.rs"]
-        pub mod v1;
+        #[path = "astria.execution.v1alpha1.rs"]
+        pub mod v1alpha1;
     }
 
     #[path = ""]
@@ -22,7 +22,7 @@ pub mod tonic {
 
     #[path = ""]
     pub mod sequencer {
-        #[path = "astria.sequencer.v1.rs"]
-        pub mod v1;
+        #[path = "astria.sequencer.v1alpha1.rs"]
+        pub mod v1alpha1;
     }
 }

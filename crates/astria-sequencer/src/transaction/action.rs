@@ -2,7 +2,7 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_proto::sequencer::v1::{
+use astria_proto::sequencer::v1alpha1::{
     action::Value as ProtoValue,
     Action as ProtoAction,
 };

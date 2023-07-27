@@ -1,9 +1,9 @@
 syntax = "proto3";
 
-package astria.sequencer.v1;
+package astria.sequencer.v1alpha1;
 
 import "tendermint/types/types.proto";
-import "astria/sequencer/v1/data.proto";
+import "astria/sequencer/v1alpha1/data.proto";
 
 // helper type - these should get parsed into a map from namespace to
 // a vector of `IndexedTransactions`
