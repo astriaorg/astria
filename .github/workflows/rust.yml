@@ -51,6 +51,15 @@ jobs:
       - name: Run the jsonrpc client tests
         run: cargo test --release --package astria-celestia-jsonrpc-client -- --ignored
 
+  doctest:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@1.69.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Run doctests
+        run: cargo test --doc --all-features
+
   fmt:
     runs-on: ubuntu-22.04
     steps:
