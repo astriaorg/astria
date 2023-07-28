@@ -1,6 +1,6 @@
 syntax = 'proto3';
 
-package astria.execution.v1;
+package astria.execution.v1alpha1;
 
 import "google/protobuf/timestamp.proto";
 

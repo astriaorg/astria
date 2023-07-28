@@ -1,10 +1,7 @@
 //! The driver is the top-level coordinator that runs and manages all the components
 //! necessary for this reader.
 
-use std::sync::{
-    Arc,
-    Mutex,
-};
+use std::sync::Arc;
 
 use astria_sequencer_relayer::types::SequencerBlockData;
 use color_eyre::eyre::{
@@ -16,10 +13,13 @@ use futures::StreamExt;
 use sync_wrapper::SyncWrapper;
 use tokio::{
     select,
-    sync::mpsc::{
-        self,
-        UnboundedReceiver,
-        UnboundedSender,
+    sync::{
+        mpsc::{
+            self,
+            UnboundedReceiver,
+            UnboundedSender,
+        },
+        Mutex,
     },
 };
 use tracing::{
@@ -144,7 +144,7 @@ impl Driver {
                 },
                 cmd = self.cmd_rx.recv() => {
                     if let Some(cmd) = cmd {
-                        self.handle_driver_command(cmd).wrap_err("failed to handle driver command")?;
+                        self.handle_driver_command(cmd).await.wrap_err("failed to handle driver command")?;
                     } else {
                         info!("Driver command channel closed.");
                         break;
@@ -183,10 +183,10 @@ impl Driver {
         Ok(())
     }
 
-    fn handle_driver_command(&mut self, cmd: DriverCommand) -> Result<()> {
+    async fn handle_driver_command(&mut self, cmd: DriverCommand) -> Result<()> {
         match cmd {
             DriverCommand::Shutdown => {
-                self.shutdown()?;
+                self.shutdown().await?;
             }
 
             DriverCommand::GetNewBlocks => {
@@ -204,8 +204,8 @@ impl Driver {
     }
 
     /// Sends shutdown commands to the other actors.
-    fn shutdown(&mut self) -> Result<()> {
-        let mut is_shutdown = self.is_shutdown.lock().unwrap();
+    async fn shutdown(&mut self) -> Result<()> {
+        let mut is_shutdown = self.is_shutdown.lock().await;
         if *is_shutdown {
             return Ok(());
         }
