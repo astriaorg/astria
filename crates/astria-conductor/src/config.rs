@@ -1,5 +1,6 @@
 use serde::{
     Deserialize,
+    Deserializer,
     Serialize,
 };
 
@@ -9,6 +10,10 @@ pub struct Config {
     /// URL of the Celestia Node
     #[serde(default = "default_celestia_node_url")]
     pub celestia_node_url: String,
+
+    /// The JWT bearer token supplied with each jsonrpc call
+    #[serde(default)]
+    pub celestia_bearer_token: String,
 
     /// URL of the Tendermint node (sequencer/metro)
     #[serde(default = "default_tendermint_url")]
@@ -27,18 +32,45 @@ pub struct Config {
     pub disable_finalization: bool,
 
     /// Bootnodes for the P2P network
-    pub bootnodes: Vec<String>,
+    #[serde(deserialize_with = "bootnodes_deserialize")]
+    #[serde(default)]
+    pub bootnodes: Option<Vec<String>>,
+
+    /// Path to the libp2p private key file
+    #[serde(default)]
+    pub libp2p_private_key: Option<String>,
+
+    /// Port to listen on for libp2p
+    #[serde(default = "default_libp2p_port")]
+    pub libp2p_port: u16,
+}
+
+fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let maybe_bootnodes: Option<String> = Option::deserialize(deserializer)?;
+    if maybe_bootnodes.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(
+        maybe_bootnodes
+            .unwrap()
+            .split(',')
+            .map(|item| item.to_owned())
+            .collect(),
+    ))
 }
 
 // NOTE - using default fns instead of defaults in Cli because defaults
 //   in Cli always override values from a Config file, which we don't want.
 
 fn default_celestia_node_url() -> String {
-    "http://localhost:26659".to_string()
+    "http://localhost:26658".to_string()
 }
 
 fn default_tendermint_url() -> String {
-    "http://localhost:1317".to_string()
+    "http://localhost:26657".to_string()
 }
 
 fn default_chain_id() -> String {
@@ -47,4 +79,8 @@ fn default_chain_id() -> String {
 
 fn default_execution_rpc_url() -> String {
     "http://localhost:50051".to_string()
+}
+
+fn default_libp2p_port() -> u16 {
+    2451
 }

@@ -5,12 +5,14 @@ edition = "2021"
 
 [dependencies]
 libp2p = { version = "0.51", features = ["kad", "gossipsub", "identify", "mdns", "noise", "macros", "ping", "tcp", "tokio", "yamux"] }
-multiaddr = "0.17"
 
 color-eyre = { workspace = true }
 futures = { workspace = true }
+hex = { workspace = true }
+multiaddr = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+tempfile = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "sync"] }

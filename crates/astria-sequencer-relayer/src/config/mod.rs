@@ -8,14 +8,16 @@ use figment::{
 };
 use serde::{
     Deserialize,
+    Deserializer,
     Serialize,
 };
+
 mod cli;
 
-const DEFAULT_BLOCK_TIME: u64 = 3000;
-const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26659";
-const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:1317";
-const DEFAULT_VALIDATOR_KEY_FILE: &str = ".metro/config/priv_validator_key.json";
+const DEFAULT_BLOCK_TIME: u64 = 1000;
+const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26658";
+const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:26657";
+const DEFAULT_VALIDATOR_KEY_FILE: &str = ".cometbft/config/priv_validator_key.json";
 
 const DEFAULT_RPC_LISTEN_PORT: u16 = 2450;
 const DEFAULT_GOSSIP_PORT: u16 = 33900;
@@ -49,12 +51,16 @@ pub fn get() -> Result<Config, figment::Error> {
 pub struct Config {
     pub sequencer_endpoint: String,
     pub celestia_endpoint: String,
+    pub celestia_bearer_token: String,
     pub gas_limit: u64,
     pub disable_writing: bool,
     pub block_time: u64,
     pub validator_key_file: String,
     pub rpc_port: u16,
     pub p2p_port: u16,
+    #[serde(deserialize_with = "bootnodes_deserialize")]
+    pub bootnodes: Option<Vec<String>>,
+    pub libp2p_private_key: Option<String>,
     pub log: String,
 }
 
@@ -80,6 +86,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             celestia_endpoint: DEFAULT_CELESTIA_ENDPOINT.into(),
+            celestia_bearer_token: String::new(),
             sequencer_endpoint: DEFAULT_SEQUENCER_ENDPOINT.into(),
             gas_limit: crate::data_availability::DEFAULT_PFD_GAS_LIMIT,
             disable_writing: false,
@@ -87,9 +94,28 @@ impl Default for Config {
             validator_key_file: DEFAULT_VALIDATOR_KEY_FILE.into(),
             rpc_port: DEFAULT_RPC_LISTEN_PORT,
             p2p_port: DEFAULT_GOSSIP_PORT,
+            bootnodes: None,
+            libp2p_private_key: None,
             log: DEFAULT_LOG_DIRECTIVE.into(),
         }
     }
+}
+
+fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let maybe_bootnodes: Option<String> = Option::deserialize(deserializer)?;
+    if maybe_bootnodes.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(
+        maybe_bootnodes
+            .unwrap()
+            .split(',')
+            .map(|item| item.to_owned())
+            .collect(),
+    ))
 }
 
 #[cfg(test)]
@@ -105,14 +131,17 @@ mod tests {
     const NO_CLI_ARGS: &str = "astria-sequencer-relayer";
     const ALL_CLI_ARGS: &str = r#"
 astria-sequencer-relayer
-    --sequencer-endpoint http://sequencer.cli
     --celestia-endpoint http://celestia.cli
+    --celestia-bearer-token clibearertoken
+    --sequencer-endpoint http://sequencer.cli
     --gas-limit 9999
     --disable-writing
     --block-time 9999
     --validator-key-file /cli/key
     --rpc-port 9999
     --p2p-port 9999
+    --bootnodes /cli/bootnode1,/cli/bootnode2
+    --libp2p-private-key libp2p.key
     --log cli=warn
 "#;
 
@@ -129,12 +158,24 @@ astria-sequencer-relayer
             "ASTRIA_SEQUENCER_RELAYER_CELESTIA_ENDPOINT",
             "http://celestia.env",
         );
+        jail.set_env(
+            "ASTRIA_SEQUENCER_RELAYER_CELESTIA_BEARER_TOKEN",
+            "envbearertoken",
+        );
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_GAS_LIMIT", 5555);
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_DISABLE_WRITING", true);
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_BLOCK_TIME", 5555);
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_VALIDATOR_KEY_FILE", "/env/key");
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_RPC_PORT", 5555);
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_P2P_PORT", 5555);
+        jail.set_env(
+            "ASTRIA_SEQUENCER_RELAYER_BOOTNODES",
+            "/cli/bootnode3,/cli/bootnode4",
+        );
+        jail.set_env(
+            "ASTRIA_SEQUENCER_RELAYER_LIBP2P_PRIVATE_KEY",
+            "envlibp2p.key",
+        );
         jail.set_env("ASTRIA_SEQUENCER_RELAYER_LOG", "env=debug");
     }
 
@@ -148,12 +189,18 @@ astria-sequencer-relayer
             let expected = Config {
                 sequencer_endpoint: "http://sequencer.cli".into(),
                 celestia_endpoint: "http://celestia.cli".into(),
+                celestia_bearer_token: "clibearertoken".into(),
                 gas_limit: 9999,
                 disable_writing: true,
                 block_time: 9999,
                 validator_key_file: "/cli/key".into(),
                 rpc_port: 9999,
                 p2p_port: 9999,
+                bootnodes: Some(vec![
+                    "/cli/bootnode1".to_string(),
+                    "/cli/bootnode2".to_string(),
+                ]),
+                libp2p_private_key: Some("libp2p.key".to_string()),
                 log: "cli=warn".into(),
             };
             assert_eq!(expected, actual);
@@ -170,12 +217,18 @@ astria-sequencer-relayer
             let expected = Config {
                 sequencer_endpoint: "http://sequencer.env".into(),
                 celestia_endpoint: "http://celestia.env".into(),
+                celestia_bearer_token: "envbearertoken".into(),
                 gas_limit: 5555,
                 disable_writing: true,
                 block_time: 5555,
                 validator_key_file: "/env/key".into(),
                 rpc_port: 5555,
                 p2p_port: 5555,
+                bootnodes: Some(vec![
+                    "/cli/bootnode3".to_string(),
+                    "/cli/bootnode4".to_string(),
+                ]),
+                libp2p_private_key: Some("envlibp2p.key".to_string()),
                 log: "env=debug".into(),
             };
             assert_eq!(expected, actual);

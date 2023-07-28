@@ -1,15 +1,9 @@
 use std::collections::HashMap;
 
-use astria_proto::sequencer::v1::SequencerMsg;
-use astria_sequencer_relayer::{
-    base64_string::Base64String,
-    sequencer_block::{
-        cosmos_tx_body_to_sequencer_msgs,
-        get_namespace,
-        parse_cosmos_tx,
-        Namespace,
-        SequencerBlock,
-    },
+use astria_sequencer_relayer::types::{
+    get_namespace,
+    Namespace,
+    SequencerBlockData,
 };
 use color_eyre::eyre::{
     Result,
@@ -30,7 +24,6 @@ use tracing::{
     error,
     info,
     instrument,
-    warn,
 };
 
 use crate::{
@@ -68,15 +61,13 @@ pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinH
     Ok((join_handle, executor_tx))
 }
 
-// Given a string, convert to protobuf timestamp
-fn convert_str_to_prost_timestamp(value: &str) -> Result<ProstTimestamp> {
-    let time =
-        Time::parse_from_rfc3339(value).wrap_err("failed parsing string as rfc3339 datetime")?;
+// Given `Time`, convert to protobuf timestamp
+fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> {
     use tendermint_proto::google::protobuf::Timestamp as TendermintTimestamp;
     let TendermintTimestamp {
         seconds,
         nanos,
-    } = time.into();
+    } = value.into();
     Ok(ProstTimestamp {
         seconds,
         nanos,
@@ -87,11 +78,11 @@ fn convert_str_to_prost_timestamp(value: &str) -> Result<ProstTimestamp> {
 pub enum ExecutorCommand {
     /// used when a block is received from the gossip network
     BlockReceivedFromGossipNetwork {
-        block: Box<SequencerBlock>,
+        block: Box<SequencerBlockData>,
     },
     /// used when a block is received from the reader (Celestia)
     BlockReceivedFromDataAvailability {
-        block: Box<SequencerBlock>,
+        block: Box<SequencerBlockData>,
     },
     Shutdown,
 }
@@ -122,7 +113,7 @@ struct Executor<C> {
     /// we need to track the mapping of sequencer block hash -> execution block hash
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
-    sequencer_hash_to_execution_hash: HashMap<Base64String, Vec<u8>>,
+    sequencer_hash_to_execution_hash: HashMap<Vec<u8>, Vec<u8>>,
 }
 
 impl<C: ExecutionClient> Executor<C> {
@@ -156,7 +147,7 @@ impl<C: ExecutionClient> Executor<C> {
                     block,
                 } => {
                     self.alert_tx.send(Alert::BlockReceivedFromGossipNetwork {
-                        block_height: block.header.height.parse::<u64>()?,
+                        block_height: block.header.height.value(),
                     })?;
                     if let Err(e) = self.execute_block(*block).await {
                         error!("failed to execute block: {e:?}");
@@ -168,7 +159,7 @@ impl<C: ExecutionClient> Executor<C> {
                 } => {
                     self.alert_tx
                         .send(Alert::BlockReceivedFromDataAvailability {
-                            block_height: block.header.height.parse::<u64>()?,
+                            block_height: block.header.height.value(),
                         })?;
 
                     if let Err(e) = self
@@ -196,10 +187,10 @@ impl<C: ExecutionClient> Executor<C> {
     /// if the block has already been executed, it returns the previously-computed
     /// execution block hash.
     /// if there are no relevant transactions in the SequencerBlock, it returns None.
-    async fn execute_block(&mut self, block: SequencerBlock) -> Result<Option<Vec<u8>>> {
+    async fn execute_block(&mut self, mut block: SequencerBlockData) -> Result<Option<Vec<u8>>> {
         if let Some(execution_hash) = self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
             debug!(
-                height = block.header.height,
+                height = block.header.height.value(),
                 execution_hash = hex::encode(execution_hash),
                 "block already executed"
             );
@@ -207,9 +198,9 @@ impl<C: ExecutionClient> Executor<C> {
         }
 
         // get transactions for our namespace
-        let Some(txs) = block.rollup_txs.get(&self.namespace) else {
+        let Some(txs) = block.rollup_txs.remove(&self.namespace) else {
             info!(
-                height = block.header.height,
+                height = block.header.height.value(),
                 "sequencer block did not contains txs for namespace"
             );
             return Ok(None);
@@ -218,34 +209,14 @@ impl<C: ExecutionClient> Executor<C> {
         let prev_block_hash = self.execution_state.clone();
 
         info!(
-            height = block.header.height,
+            height = block.header.height.value(),
             parent_block_hash = hex::encode(&prev_block_hash),
             "executing block with given parent block",
         );
 
-        // parse cosmos sequencer transactions into rollup transactions
-        // by converting them to SequencerMsgs and extracting the `data` field
-        let txs = txs
-            .iter()
-            .filter_map(|tx| {
-                let body = parse_cosmos_tx(&tx.transaction).ok()?;
-                let msgs: Vec<SequencerMsg> = cosmos_tx_body_to_sequencer_msgs(body).ok()?;
-                if msgs.len() > 1 {
-                    // this should not happen and is a bug in the sequencer relayer
-                    warn!(
-                        msgs = ?msgs,
-                        "ignoring cosmos tx with more than one sequencer message",
-                    );
-                    return None;
-                }
-                let Some(msg) = msgs.first() else {
-                    return None;
-                };
-                Some(msg.data.clone())
-            })
-            .collect::<Vec<_>>();
+        let txs = txs.into_iter().map(|tx| tx.transaction).collect::<Vec<_>>();
 
-        let timestamp = convert_str_to_prost_timestamp(&block.header.time)
+        let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
         let response = self
@@ -257,7 +228,7 @@ impl<C: ExecutionClient> Executor<C> {
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
             sequencer_block_hash = ?block.block_hash,
-            sequencer_block_height = block.header.height,
+            sequencer_block_height = block.header.height.value(),
             execution_block_hash = hex::encode(&response.block_hash),
             "executed sequencer block",
         );
@@ -269,7 +240,7 @@ impl<C: ExecutionClient> Executor<C> {
 
     async fn handle_block_received_from_data_availability(
         &mut self,
-        block: SequencerBlock,
+        block: SequencerBlockData,
     ) -> Result<()> {
         let sequencer_block_hash = block.block_hash.clone();
         let maybe_execution_block_hash = self
@@ -318,11 +289,14 @@ impl<C: ExecutionClient> Executor<C> {
     ///
     /// This function returns an error if:
     /// - the call to the execution service's FinalizeBlock function fails
-    #[instrument(ret, err, skip_all, fields(execution_block_hash = hex::encode(&execution_block_hash), %sequencer_block_hash))]
+    #[instrument(ret, err, skip_all, fields(
+        execution_block_hash = hex::encode(&execution_block_hash),
+        sequencer_block_hash = hex::encode(sequencer_block_hash),
+    ))]
     async fn finalize_block(
         &mut self,
         execution_block_hash: Vec<u8>,
-        sequencer_block_hash: &Base64String,
+        sequencer_block_hash: &[u8],
     ) -> Result<()> {
         self.execution_rpc_client
             .call_finalize_block(execution_block_hash)
@@ -341,19 +315,11 @@ mod test {
         sync::Arc,
     };
 
-    use astria_proto::execution::v1::{
+    use astria_proto::execution::v1alpha1::{
         DoBlockResponse,
         InitStateResponse,
     };
-    use astria_sequencer_relayer::{
-        sequencer_block::IndexedTransaction,
-        types::{
-            BlockId,
-            Commit,
-            Header,
-            Parts,
-        },
-    };
+    use astria_sequencer_relayer::types::IndexedTransaction;
     use prost_types::Timestamp;
     use sha2::Digest as _;
     use tokio::sync::{
@@ -413,23 +379,11 @@ mod test {
         hasher.finalize().to_vec()
     }
 
-    fn get_test_block() -> SequencerBlock {
-        SequencerBlock {
-            block_hash: Base64String(hash(b"block1")),
-            header: Header::default(),
-            last_commit: Commit {
-                height: "1".to_string(),
-                round: 0,
-                block_id: BlockId {
-                    hash: Base64String(hash(b"block1")),
-                    part_set_header: Parts {
-                        total: 0,
-                        hash: Base64String(hash(b"part_set_header")),
-                    },
-                },
-                signatures: vec![],
-            },
-            sequencer_txs: vec![],
+    fn get_test_block() -> SequencerBlockData {
+        SequencerBlockData {
+            block_hash: hash(b"block1"),
+            header: astria_sequencer_relayer::utils::default_header(),
+            last_commit: None,
             rollup_txs: HashMap::new(),
         }
     }
@@ -438,10 +392,9 @@ mod test {
     async fn execute_block_with_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = get_namespace(b"test");
-        let (mut executor, _) =
-            Executor::new(MockExecutionClient::new(), namespace.clone(), alert_tx)
-                .await
-                .unwrap();
+        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
+            .await
+            .unwrap();
 
         let expected_exection_hash = hash(&executor.execution_state);
         let mut block = get_test_block();
@@ -449,7 +402,7 @@ mod test {
             namespace,
             vec![IndexedTransaction {
                 block_index: 0,
-                transaction: Base64String(b"test_transaction".to_vec()),
+                transaction: b"test_transaction".to_vec(),
             }],
         );
 
@@ -465,10 +418,9 @@ mod test {
     async fn execute_block_without_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = get_namespace(b"test");
-        let (mut executor, _) =
-            Executor::new(MockExecutionClient::new(), namespace.clone(), alert_tx)
-                .await
-                .unwrap();
+        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
+            .await
+            .unwrap();
 
         let block = get_test_block();
         let execution_block_hash = executor.execute_block(block).await.unwrap();
@@ -483,16 +435,16 @@ mod test {
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace.clone(), alert_tx)
+        let (mut executor, _) = Executor::new(execution_client, namespace, alert_tx)
             .await
             .unwrap();
 
-        let mut block: SequencerBlock = get_test_block();
+        let mut block: SequencerBlockData = get_test_block();
         block.rollup_txs.insert(
             namespace,
             vec![IndexedTransaction {
                 block_index: 0,
-                transaction: Base64String(b"test_transaction".to_vec()),
+                transaction: b"test_transaction".to_vec(),
             }],
         );
 
@@ -525,11 +477,11 @@ mod test {
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace.clone(), alert_tx)
+        let (mut executor, _) = Executor::new(execution_client, namespace, alert_tx)
             .await
             .unwrap();
 
-        let block: SequencerBlock = get_test_block();
+        let block: SequencerBlockData = get_test_block();
         let previous_execution_state = executor.execution_state.clone();
 
         executor

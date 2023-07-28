@@ -1,12 +1,9 @@
 //! The driver is the top-level coordinator that runs and manages all the components
 //! necessary for this reader.
 
-use std::sync::{
-    Arc,
-    Mutex,
-};
+use std::sync::Arc;
 
-use astria_sequencer_relayer::sequencer_block::SequencerBlock;
+use astria_sequencer_relayer::types::SequencerBlockData;
 use color_eyre::eyre::{
     eyre,
     Result,
@@ -16,10 +13,13 @@ use futures::StreamExt;
 use sync_wrapper::SyncWrapper;
 use tokio::{
     select,
-    sync::mpsc::{
-        self,
-        UnboundedReceiver,
-        UnboundedSender,
+    sync::{
+        mpsc::{
+            self,
+            UnboundedReceiver,
+            UnboundedSender,
+        },
+        Mutex,
     },
 };
 use tracing::{
@@ -112,7 +112,7 @@ impl Driver {
                 reader_tx,
                 executor_tx,
                 network: SyncWrapper::new(
-                    GossipNetwork::new(conf.bootnodes)
+                    GossipNetwork::new(conf.bootnodes, conf.libp2p_private_key, conf.libp2p_port)
                         .wrap_err("failed to construct gossip network")?,
                 ),
                 block_verifier,
@@ -144,7 +144,7 @@ impl Driver {
                 },
                 cmd = self.cmd_rx.recv() => {
                     if let Some(cmd) = cmd {
-                        self.handle_driver_command(cmd).wrap_err("failed to handle driver command")?;
+                        self.handle_driver_command(cmd).await.wrap_err("failed to handle driver command")?;
                     } else {
                         info!("Driver command channel closed.");
                         break;
@@ -162,8 +162,8 @@ impl Driver {
             }
             NetworkEvent::GossipsubMessage(msg) => {
                 debug!("received gossip message: {:?}", msg);
-                let block = SequencerBlock::from_bytes(&msg.data)
-                    .wrap_err("failed to deserialize SequencerBlock received from network")?;
+                let block = SequencerBlockData::from_bytes(&msg.data)
+                    .wrap_err("failed to deserialize SequencerBlockData received from network")?;
 
                 // validate block received from gossip network
                 self.block_verifier
@@ -175,7 +175,7 @@ impl Driver {
                     .send(ExecutorCommand::BlockReceivedFromGossipNetwork {
                         block: Box::new(block),
                     })
-                    .wrap_err("failed to send SequencerBlock from network to executor")?;
+                    .wrap_err("failed to send SequencerBlockData from network to executor")?;
             }
             _ => debug!("received network event: {:?}", event),
         }
@@ -183,10 +183,10 @@ impl Driver {
         Ok(())
     }
 
-    fn handle_driver_command(&mut self, cmd: DriverCommand) -> Result<()> {
+    async fn handle_driver_command(&mut self, cmd: DriverCommand) -> Result<()> {
         match cmd {
             DriverCommand::Shutdown => {
-                self.shutdown()?;
+                self.shutdown().await?;
             }
 
             DriverCommand::GetNewBlocks => {
@@ -204,8 +204,8 @@ impl Driver {
     }
 
     /// Sends shutdown commands to the other actors.
-    fn shutdown(&mut self) -> Result<()> {
-        let mut is_shutdown = self.is_shutdown.lock().unwrap();
+    async fn shutdown(&mut self) -> Result<()> {
+        let mut is_shutdown = self.is_shutdown.lock().await;
         if *is_shutdown {
             return Ok(());
         }

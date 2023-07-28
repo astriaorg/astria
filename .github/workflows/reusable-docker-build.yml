@@ -6,7 +6,7 @@ on:
       package-name:
         required: true
         type: string
-      dockerfile:
+      target-binary:
         required: true
         type: string
 env:
@@ -15,7 +15,7 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    if: ${{ contains(github.ref, 'refs/tags/v') && contains(github.ref, format('--{0}', inputs.package-name)) || github.ref == 'refs/heads/main' || github.event_name == 'pull_request' }}
+    if: ${{ contains(github.ref, 'refs/tags/v') && endsWith(github.ref, format('--{0}', inputs.package-name)) || github.ref == 'refs/heads/main' || github.event_name == 'pull_request' }}
     steps:
       # Checking out the repo
       - uses: actions/checkout@v3
@@ -51,9 +51,13 @@ jobs:
           # https://github.com/docker/build-push-action/issues/820#issuecomment-1455687416
           provenance: false
           context: .
-          file: ${{ inputs.dockerfile }}
+          file: containerfiles/Dockerfile
+          build-args: |
+            TARGETBINARY=${{ inputs.target-binary }}
           platforms: 'linux/amd64,linux/arm64'
           push: true
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=registry,ref=${{ format('ghcr.io/astriaorg/{0}:buildcache', inputs.package-name) }}
+          cache-to: type=registry,ref=${{ format('ghcr.io/astriaorg/{0}:buildcache', inputs.package-name) }},mode=max
         

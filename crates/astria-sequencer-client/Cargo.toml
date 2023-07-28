@@ -4,19 +4,22 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-astria-sequencer = { path = "../astria-sequencer" }
+sequencer = { package = "astria-sequencer", path = "../astria-sequencer" }
 
-tendermint-rpc = { version = "0.32", features = ["http-client"]}
-
+async-trait = { workspace = true }
 borsh = { workspace = true }
-ed25519-consensus = { workspace = true }
 eyre = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
 tendermint = { workspace = true }
-tokio = { workspace = true }
+tendermint-rpc = { workspace = true }
+
+[features]
+http = ["tendermint-rpc/http-client"]
+websocket = ["tendermint-rpc/websocket-client"]
 
 [dev-dependencies]
+ed25519-consensus = { workspace = true }
 hex = { workspace = true }
-tracing-subscriber = { workspace = true }
-wiremock = "0.5"
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tokio-test = "0.4.2"
+wiremock = { workspace = true }

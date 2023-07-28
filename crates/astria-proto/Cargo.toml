@@ -18,7 +18,12 @@ keywords = ["astria", "grpc", "rpc", "blockchain", "execution", "protobuf"]
 prost = { workspace = true }
 prost-types = { workspace = true }
 tendermint-proto = { workspace = true }
-tonic = { workspace = true }
+tonic = { workspace = true, optional = true }
 
-[build-dependencies]
+[features]
+client = ["dep:tonic"]
+server = ["dep:tonic"]
+
+[dev-dependencies]
+tempfile = { workspace = true }
 which = { workspace = true }

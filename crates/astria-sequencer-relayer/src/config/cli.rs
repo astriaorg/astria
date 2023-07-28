@@ -16,6 +16,11 @@ pub(crate) struct Args {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub(crate) celestia_endpoint: Option<String>,
 
+    /// The bearer token used to interact with the celestia node RPC.
+    #[arg(long)]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub(crate) celestia_bearer_token: Option<String>,
+
     /// Gas limit for transactions sent to Celestia.
     #[arg(short, long)]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
@@ -46,6 +51,16 @@ pub(crate) struct Args {
     #[arg(short, long)]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub(crate) p2p_port: Option<u16>,
+
+    /// Comma-separated string of libp2p addresses of nodes to connect to.
+    #[arg(long = "bootnodes")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub(crate) bootnodes: Option<String>,
+
+    /// Path to the libp2p private key file.
+    #[arg(long = "libp2p-private-key")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub(crate) libp2p_private_key: Option<String>,
 
     /// Log level. One of debug, info, warn, or error
     #[arg(short, long)]

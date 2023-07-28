@@ -3,7 +3,7 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_proto::sequencer::v1::SignedTransaction as ProtoSignedTransaction;
+use astria_proto::sequencer::v1alpha1::SignedTransaction as ProtoSignedTransaction;
 use penumbra_storage::{
     StateRead,
     StateWrite,
@@ -47,7 +47,12 @@ impl Signed {
 
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.to_proto().encode_length_delimited_to_vec()
+        self.to_proto().encode_to_vec()
+    }
+
+    #[must_use]
+    pub fn transaction(&self) -> &Unsigned {
+        &self.transaction
     }
 
     /// Verifies the transaction signature.
@@ -105,8 +110,8 @@ impl Signed {
     ///
     /// - If the slice cannot be decoded into a protobuf signed transaction
     /// - If the protobuf signed transaction cannot be converted into a `SignedTransaction`
-    pub(crate) fn try_from_slice(slice: &[u8]) -> Result<Self> {
-        let proto = ProtoSignedTransaction::decode_length_delimited(slice)
+    pub fn try_from_slice(slice: &[u8]) -> Result<Self> {
+        let proto = ProtoSignedTransaction::decode(slice)
             .context("failed to decode slice to proto signed transaction")?;
         Self::try_from_proto(proto)
     }

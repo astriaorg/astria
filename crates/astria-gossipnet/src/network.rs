@@ -11,6 +11,7 @@ use std::{
 
 use color_eyre::eyre::{
     bail,
+    ensure,
     eyre,
     Result,
     WrapErr,
@@ -63,6 +64,23 @@ pub(crate) struct GossipnetBehaviour {
     pub(crate) kademlia: Toggle<Kademlia<MemoryStore>>, // TODO: use disk store
 }
 
+impl GossipnetBehaviour {
+    fn num_subscribed(&self, topic: &Sha256Topic) -> usize {
+        let topic = topic.hash();
+        // `all_peers` iterates over the Behaviour.peer_topics.
+        // It would be better to have direct access to Behaviour.topic_peers,
+        // which is used to actually publish messages for a topic. However,
+        // libp2p provides no getters for that.
+        // It seems at least it seems like both of
+        // these maps are kept in sync. So this is hopefully sufficient
+        // to get the number of peers that are actually subscribed to a topic.
+        self.gossipsub
+            .all_peers()
+            .filter(|(_, topic_set)| topic_set.contains(&&topic))
+            .count()
+    }
+}
+
 pub struct NetworkBuilder {
     bootnodes: Option<Vec<String>>,
     port: u16,
@@ -95,10 +113,22 @@ impl NetworkBuilder {
         self
     }
 
+    /// Specify the keypair to use from a file.
+    /// The file should contain a hex-encoded 32-byte ed25519 secret key.
+    pub fn keypair_from_file<P: AsRef<std::path::Path>>(mut self, path: P) -> Result<Self> {
+        let key_string = std::fs::read_to_string(path).wrap_err("failed to read keypair file")?;
+        ensure!(key_string.len() >= 64, "keypair file is too short");
+
+        let bytes =
+            hex::decode(&key_string[0..64]).wrap_err("failed to decode keypair hex string")?;
+        let keypair = Keypair::ed25519_from_bytes(bytes).wrap_err("failed to load keypair")?;
+        self.keypair = Some(keypair);
+        Ok(self)
+    }
+
     /// The keypair to use for the node.
     /// If not provided, a new keypair will be generated.
     pub fn keypair(mut self, keypair: Keypair) -> Self {
-        // TODO: load/store keypair from disk
         self.keypair = Some(keypair);
         self
     }
@@ -314,5 +344,9 @@ impl Network {
     /// Returns the number of peers currently connected.
     pub fn num_peers(&self) -> usize {
         self.swarm.network_info().num_peers()
+    }
+
+    pub fn num_subscribed(&self, topic: &Sha256Topic) -> usize {
+        self.swarm.behaviour().num_subscribed(topic)
     }
 }
