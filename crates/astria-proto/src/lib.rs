@@ -3,7 +3,7 @@
 #[rustfmt::skip]
 mod proto;
 
-pub use proto::tonic::{
+pub use proto::generated::{
     execution,
     primitive,
     sequencer,
