@@ -1,16 +1,11 @@
 name: PR Labeler
 on:
-  pull_request:
-    types:
-      - opened
-      - edited
-      - synchronize
-      - labeled
-      - unlabeled
+  pull_request_target:
+
 jobs:
-  labeler:
+  size:
     runs-on: ubuntu-latest
-    name: PR size
+    name: Labels
     steps:
     - uses: codelytv/pr-size-labeler@v1
       with:
@@ -18,3 +13,10 @@ jobs:
         files_to_ignore: |
           "cargo.lock"
           "crates/astria-proto/src/proto/generated/**"
+  triage:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/labeler@v4
