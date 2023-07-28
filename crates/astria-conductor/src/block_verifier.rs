@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use astria_sequencer_client::Client;
 use astria_sequencer_relayer::{
     data_availability::{
         SequencerNamespaceData,
@@ -33,7 +32,11 @@ use tendermint::{
     Hash,
 };
 use tendermint_proto::types::CommitSig as RawCommitSig;
-use tendermint_rpc::endpoint::validators::Response as ValidatorSet;
+use tendermint_rpc::{
+    endpoint::validators::Response as ValidatorSet,
+    Client,
+    HttpClient,
+};
 use tracing::{
     instrument,
     warn,
@@ -47,13 +50,13 @@ use tracing::{
 /// availability layer. `validate_sequencer_block` is used to validate the blocks received from
 /// either the data availability layer or the gossip network.
 pub struct BlockVerifier {
-    sequencer_client: Client,
+    sequencer_client: HttpClient,
 }
 
 impl BlockVerifier {
     pub fn new(sequencer_url: &str) -> eyre::Result<Self> {
         Ok(Self {
-            sequencer_client: Client::new(sequencer_url)
+            sequencer_client: HttpClient::new(sequencer_url)
                 .wrap_err("failed to construct sequencer client")?,
         })
     }
@@ -75,7 +78,7 @@ impl BlockVerifier {
         );
         let validator_set = self
             .sequencer_client
-            .get_validator_set(height)
+            .validators(height, tendermint_rpc::Paging::Default)
             .await
             .wrap_err("failed to get validator set")?;
 
@@ -108,10 +111,7 @@ impl BlockVerifier {
     /// - the root of the markle tree of all the header fields matches the block's block_hash
     /// - the root of the merkle tree of all transactions in the block matches the block's data_hash
     /// - validate the block was actually finalized; ie >2/3 stake signed off on it
-    pub(crate) async fn validate_sequencer_block(
-        &self,
-        block: &SequencerBlockData,
-    ) -> eyre::Result<()> {
+    pub async fn validate_sequencer_block(&self, block: &SequencerBlockData) -> eyre::Result<()> {
         // sequencer block's height
         let height: u32 = block.header.height.value().try_into().expect(
             "a tendermint height (currently non-negative i32) should always fit into a u32",
@@ -121,7 +121,7 @@ impl BlockVerifier {
         // in the block is for the previous height
         let validator_set = self
             .sequencer_client
-            .get_validator_set(height - 1)
+            .validators(height - 1, tendermint_rpc::Paging::Default)
             .await
             .wrap_err("failed to get validator set")?;
 
