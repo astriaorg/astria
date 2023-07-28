@@ -56,7 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.69.0
-      - uses: Swatinem/rust-cache@v2
+      - uses: astriaorg/buildjet-rust-cache@v2.5.1
       - name: Run doctests
         run: cargo test --doc --all-features
 
