@@ -9,3 +9,6 @@ plugins:
      - type_attribute=.astria.primitive.v1.Uint128=#[derive(Copy)]
   - plugin: buf.build/community/neoeinstein-tonic:v0.3.0
     out: .
+    opt:
+      - server_mod_attribute=.=#[cfg(feature="server")]
+      - client_mod_attribute=.=#[cfg(feature="client")]
