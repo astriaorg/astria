@@ -29,7 +29,7 @@ tonic = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["ansi", "json"] }
 
-astria-proto = { path = "../astria-proto" }
+astria-proto = { path = "../astria-proto", features = ["client"] }
 astria-gossipnet = { path = "../astria-gossipnet" }
 astria-sequencer-client = { path = "../astria-sequencer-client", features = ["http"] }
 astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
