@@ -24,7 +24,6 @@ ed25519-consensus = { workspace = true }
 eyre = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
-is-terminal = { workspace = true }
 prost = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true, features = ["derive"] }

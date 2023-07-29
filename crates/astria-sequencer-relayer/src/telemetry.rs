@@ -1,5 +1,5 @@
 use eyre::WrapErr as _;
-use is_terminal::IsTerminal as _;
+use std::io::IsTerminal as _;
 use tracing_subscriber::{
     filter::{
         EnvFilter,

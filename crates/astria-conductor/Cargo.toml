@@ -14,7 +14,6 @@ ed25519-consensus = { workspace = true }
 figment = { workspace = true, features = ["toml", "env"] }
 futures = { workspace = true }
 hex = { workspace = true }
-is-terminal = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
