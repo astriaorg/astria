@@ -11,7 +11,10 @@ use color_eyre::eyre::{
 };
 use priority_queue::PriorityQueue;
 use prost_types::Timestamp as ProstTimestamp;
-use tendermint::Time;
+use tendermint::{
+    hash::Hash,
+    Time,
+};
 use tokio::{
     sync::mpsc::{
         self,
@@ -116,8 +119,8 @@ struct Executor<C> {
     /// we receive a finalized sequencer block.
     sequencer_hash_to_execution_hash: HashMap<Vec<u8>, Vec<u8>>,
 
-    /// most recently executed sequencer block height
-    most_recently_executed_block_height: u64, // TODO: convert to parent block hash
+    /// most recently executed sequencer block hash
+    most_recently_executed_block_hash: Hash,
 
     /// block queue for blocks that have been recieved but their parent has not been executed yet
     block_queue: PriorityQueue<SequencerBlockData, u64>,
@@ -140,7 +143,7 @@ impl<C: ExecutionClient> Executor<C> {
                 alert_tx,
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
-                most_recently_executed_block_height: 1,
+                most_recently_executed_block_hash: Hash::default(),
                 block_queue: PriorityQueue::new(),
             },
             cmd_tx,
@@ -211,14 +214,16 @@ impl<C: ExecutionClient> Executor<C> {
             return Ok(Some(execution_hash.clone()));
         }
         // if the block that we just recieved is not the next block in the sequence to be executed,
-        if block.header.height.value() > self.most_recently_executed_block_height + 1 {
-            self.block_queue
-                .push(block.clone(), block.header.height.value());
-            debug!(
-                height = block.header.height.value(),
-                "parent block not yet executed, adding to pending queue"
-            );
-            return Ok(None);
+        if let Some(parent_block) = block.header.last_block_id {
+            if parent_block.hash != self.most_recently_executed_block_hash {
+                self.block_queue
+                    .push(block.clone(), block.header.height.value());
+                debug!(
+                    height = block.header.height.value(),
+                    "parent block not yet executed, adding to pending queue"
+                );
+                return Ok(None);
+            }
         }
 
         // get transactions for our namespace
@@ -248,7 +253,12 @@ impl<C: ExecutionClient> Executor<C> {
             .call_do_block(prev_execution_block_hash, txs, Some(timestamp))
             .await?;
         self.execution_state = response.block_hash.clone();
-        self.most_recently_executed_block_height = block.header.height.value();
+        self.most_recently_executed_block_hash =
+            if let Some(parent_block) = block.header.last_block_id {
+                parent_block.hash
+            } else {
+                Hash::default()
+            };
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
@@ -342,7 +352,13 @@ impl<C: ExecutionClient> Executor<C> {
     /// - The call to execute_block fails
     async fn try_execute_queue(&mut self) -> Result<()> {
         while let Some((block, _)) = self.block_queue.clone().into_sorted_iter().last() {
-            if block.header.height.value() == self.most_recently_executed_block_height + 1 {
+            if block
+                .header
+                .last_block_id
+                .expect("Could not unwrap last block")
+                .hash
+                == self.most_recently_executed_block_hash
+            {
                 let (block, _) = self.block_queue.clone().into_sorted_iter().last().unwrap(); // TODO: remove unwrap
                 if let Err(e) = self.execute_block(block).await {
                     error!("failed to execute block: {e:?}");
