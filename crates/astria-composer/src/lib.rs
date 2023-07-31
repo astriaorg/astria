@@ -8,3 +8,6 @@ pub mod telemetry;
 
 pub use composer::Composer;
 pub use config::Config;
+
+#[cfg(test)]
+mod tests;

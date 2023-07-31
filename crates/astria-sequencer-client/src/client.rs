@@ -1,32 +1,20 @@
 use astria_sequencer::{
     accounts::{
         query,
-        types::{
-            Address,
-            Balance,
-            Nonce,
-        },
+        types::{Address, Balance, Nonce},
     },
     transaction::Signed,
 };
 use borsh::BorshDeserialize as _;
-use eyre::{
-    self,
-    bail,
-    WrapErr as _,
-};
+use eyre::{self, bail, WrapErr as _};
 use tendermint::block::Height;
 use tendermint_rpc::{
     endpoint::{
         block::Response as BlockResponse,
-        broadcast::{
-            tx_commit,
-            tx_sync,
-        },
+        broadcast::{tx_commit, tx_sync},
         validators,
     },
-    Client as _,
-    HttpClient,
+    Client as _, HttpClient,
 };
 
 /// Default Tendermint base URL.
@@ -203,63 +191,40 @@ impl Client {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use std::{
-        str::FromStr,
-        vec,
-    };
-
-    use astria_sequencer::{
-        accounts::Transfer,
-        transaction::{
-            Action,
-            Unsigned,
-        },
-    };
+pub mod test_utils {
+    use crate::client::BlockResponse;
+    use astria_sequencer::accounts::query;
     use borsh::BorshSerialize;
-    use ed25519_consensus::SigningKey;
     use serde_json::json;
-    use tendermint::Hash;
     use tendermint_rpc::{
-        endpoint::broadcast::tx_commit::DialectResponse,
-        response::Wrapper,
-        Id,
+        endpoint::broadcast::{tx_commit::DialectResponse, tx_sync},
+        response, Id,
     };
     use wiremock::{
-        matchers::{
-            body_partial_json,
-            body_string_contains,
-        },
-        Mock,
-        MockServer,
-        ResponseTemplate,
+        matchers::{body_partial_json, body_string_contains},
+        Mock, MockServer, ResponseTemplate,
     };
 
-    use super::*;
-
-    // see astria-sequencer/src/crypto.rs for how these keys/addresses were generated
-    const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
-    const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
-
     /// A mock tendermint server for testing.
-    struct MockTendermintServer {
+    pub struct MockTendermintServer {
         mock_server: MockServer,
     }
 
     impl MockTendermintServer {
-        async fn new() -> Self {
+        pub async fn new() -> Self {
             let mock_server = MockServer::start().await;
-            MockTendermintServer {
-                mock_server,
-            }
+            MockTendermintServer { mock_server }
         }
 
-        fn address(&self) -> String {
+        pub fn address(&self) -> String {
             format!("http://{}", self.mock_server.address())
         }
 
-        async fn register_abci_query_response(&self, query_path: &str, response: &query::Response) {
+        pub async fn register_abci_query_response(
+            &self,
+            query_path: &str,
+            response: &query::Response,
+        ) {
             let expected_body = json!({
                 "method": "abci_query"
             });
@@ -269,7 +234,7 @@ mod test {
                     ..Default::default()
                 },
             };
-            let wrapper = Wrapper::new_with_id(Id::Num(1), Some(response), None);
+            let wrapper = response::Wrapper::new_with_id(Id::Num(1), Some(response), None);
             Mock::given(body_partial_json(&expected_body))
                 .and(body_string_contains(query_path))
                 .respond_with(
@@ -281,29 +246,30 @@ mod test {
                 .await;
         }
 
-        async fn register_broadcast_tx_sync_response(&self, response: tx_sync::Response) {
+        pub async fn register_broadcast_tx_sync_response(&self, response: tx_sync::Response, times: Option<u64>) {
             let expected_body = json!({
                 "method": "broadcast_tx_sync"
             });
-            let wrapper = Wrapper::new_with_id(Id::Num(1), Some(response), None);
+            let wrapper = response::Wrapper::new_with_id(Id::Num(1), Some(response), None);
             Mock::given(body_partial_json(&expected_body))
                 .respond_with(
                     ResponseTemplate::new(200)
                         .set_body_json(&wrapper)
                         .append_header("Content-Type", "application/json"),
                 )
+                .expect(times.or(Some(1)).unwrap())
                 .mount(&self.mock_server)
                 .await;
         }
 
-        async fn register_broadcast_tx_commit_response(
+        pub async fn register_broadcast_tx_commit_response(
             &self,
             response: DialectResponse<tendermint_rpc::dialect::v0_37::Event>,
         ) {
             let expected_body = json!({
                 "method": "broadcast_tx_commit"
             });
-            let wrapper = Wrapper::new_with_id(Id::Num(1), Some(response), None);
+            let wrapper = response::Wrapper::new_with_id(Id::Num(1), Some(response), None);
             Mock::given(body_partial_json(&expected_body))
                 .respond_with(
                     ResponseTemplate::new(200)
@@ -314,11 +280,11 @@ mod test {
                 .await;
         }
 
-        async fn register_block_response(&self, response: BlockResponse) {
+        pub async fn register_block_response(&self, response: BlockResponse) {
             let expected_body = json!({
                 "method": "block"
             });
-            let wrapper = Wrapper::new_with_id(Id::Num(1), Some(response), None);
+            let wrapper = response::Wrapper::new_with_id(Id::Num(1), Some(response), None);
             Mock::given(body_partial_json(&expected_body))
                 .respond_with(
                     ResponseTemplate::new(200)
@@ -328,7 +294,43 @@ mod test {
                 .mount(&self.mock_server)
                 .await;
         }
+
+        pub async fn register_dummy_sync_res(&self, times: Option<u64>) -> tx_sync::Response {
+            let server_response = tx_sync::Response {
+                code: 0.into(),
+                data: vec![].into(),
+                log: String::new(),
+                hash: tendermint::Hash::Sha256([0; 32]),
+            };
+
+            self
+                .register_broadcast_tx_sync_response(server_response.clone(), times)
+                .await;
+            
+            server_response
+        }
     }
+}
+
+#[cfg(test)]
+mod test {
+    use std::{str::FromStr, vec};
+
+    use astria_sequencer::{
+        accounts::Transfer,
+        transaction::{Action, Unsigned},
+    };
+    use ed25519_consensus::SigningKey;
+    use tendermint::Hash;
+    use tendermint_rpc::endpoint::broadcast::tx_commit::DialectResponse;
+
+    use super::{test_utils::MockTendermintServer, *};
+
+    // see astria-sequencer/src/crypto.rs for how these keys/addresses were generated
+    const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
+    const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
+
+    impl MockTendermintServer {}
 
     fn create_signed_transaction() -> Signed {
         let alice_secret_bytes: [u8; 32] =
@@ -378,15 +380,9 @@ mod test {
     async fn submit_tx_sync() {
         let server = MockTendermintServer::new().await;
 
-        let server_response = tx_sync::Response {
-            code: 0.into(),
-            data: vec![].into(),
-            log: String::new(),
-            hash: Hash::Sha256([0; 32]),
-        };
-        server
-            .register_broadcast_tx_sync_response(server_response.clone())
-            .await;
+        let server_response = server.register_dummy_sync_res(None).await;
+        
+      
         let signed_tx = create_signed_transaction();
 
         let client = Client::new(&server.address()).unwrap();
@@ -426,18 +422,12 @@ mod test {
         use tendermint::{
             account,
             block::{
-                header::Version,
-                parts::Header as PartSetHeader,
-                Block,
-                Header,
-                Height,
+                header::Version, parts::Header as PartSetHeader, Block, Header, Height,
                 Id as BlockId,
             },
-            chain,
-            evidence,
+            chain, evidence,
             hash::AppHash,
-            Hash,
-            Time,
+            Hash, Time,
         };
 
         let server = MockTendermintServer::new().await;
@@ -449,10 +439,7 @@ mod test {
             },
             block: Block::new(
                 Header {
-                    version: Version {
-                        block: 0,
-                        app: 0,
-                    },
+                    version: Version { block: 0, app: 0 },
                     chain_id: chain::Id::try_from("test").unwrap(),
                     height: Height::from(1u32),
                     time: Time::now(),

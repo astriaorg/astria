@@ -4,6 +4,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use ethers::providers::Ws;
 use tokio::task::JoinError;
 use tracing::{
     error,
@@ -19,10 +20,9 @@ use crate::{
     Config,
 };
 
-// #[derive(Debug)]
 pub struct Composer {
     api_server: ApiServer,
-    searcher: Searcher,
+    searcher: Searcher<Ws>,
 }
 
 impl Composer {
@@ -36,7 +36,7 @@ impl Composer {
     pub async fn new(cfg: &Config) -> eyre::Result<Self> {
         // parse api url from config
         let api_server = api::start(cfg.api_port);
-        let searcher = Searcher::new(&cfg)
+        let searcher = Searcher::<Ws>::new_ws(&cfg)
             .await
             .wrap_err("failed to initialize searcher")?;
 

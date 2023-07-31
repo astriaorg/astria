@@ -128,13 +128,13 @@ mod tests {
 
     fn set_all_env(jail: &mut Jail) {
         jail.set_env("ASTRIA_COMPOSER_LOG", "env=warn");
-        jail.set_env("ASTRIA_COMPOSER_SEARCHER_API_PORT", "5050");
+        jail.set_env("ASTRIA_COMPOSER_API_PORT", "5050");
         jail.set_env("ASTRIA_COMPOSER_SEQUENCER_URL", "127.0.0.1:1210");
         jail.set_env("ASTRIA_COMPOSER_SEQUENCER_SECRET", "envsecret");
         jail.set_env("ASTRIA_COMPOSER_SEQUENCER_ADDRESS", "envaddress");
-        jail.set_env("ASTRIA_COMPOSER_SEARCHER_CHAIN_ID", "envnet");
+        jail.set_env("ASTRIA_COMPOSER_CHAIN_ID", "envnet");
         jail.set_env(
-            "ASTRIA_COMPOSER_SEARCHER_EXECUTION_WS_URL",
+            "ASTRIA_COMPOSER_EXECUTION_WS_URL",
             "127.0.0.1:40041",
         );
     }
