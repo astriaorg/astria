@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     fmt,
+    hash::Hash,
     ops::Deref,
 };
 
@@ -165,6 +166,12 @@ pub struct SequencerBlockData {
     pub last_commit: Option<Commit>,
     /// namespace -> rollup txs
     pub rollup_txs: HashMap<Namespace, Vec<IndexedTransaction>>,
+}
+
+impl Hash for SequencerBlockData {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.block_hash.hash(state);
+    }
 }
 
 impl SequencerBlockData {

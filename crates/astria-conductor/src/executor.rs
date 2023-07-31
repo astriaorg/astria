@@ -9,6 +9,7 @@ use color_eyre::eyre::{
     Result,
     WrapErr as _,
 };
+use priority_queue::PriorityQueue;
 use prost_types::Timestamp as ProstTimestamp;
 use tendermint::Time;
 use tokio::{
@@ -114,6 +115,12 @@ struct Executor<C> {
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
     sequencer_hash_to_execution_hash: HashMap<Vec<u8>, Vec<u8>>,
+
+    /// most recently executed sequencer block height
+    most_recently_executed_block_height: u64, // TODO: convert to parent block hash
+
+    /// block queue for blocks that have been recieved but their parent has not been executed yet
+    block_queue: PriorityQueue<SequencerBlockData, u64>,
 }
 
 impl<C: ExecutionClient> Executor<C> {
@@ -133,6 +140,8 @@ impl<C: ExecutionClient> Executor<C> {
                 alert_tx,
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
+                most_recently_executed_block_height: 1,
+                block_queue: PriorityQueue::new(),
             },
             cmd_tx,
         ))
@@ -151,6 +160,11 @@ impl<C: ExecutionClient> Executor<C> {
                     })?;
                     if let Err(e) = self.execute_block(*block).await {
                         error!("failed to execute block: {e:?}");
+                    }
+                    if !self.block_queue.is_empty() {
+                        if let Err(e) = self.try_execute_queue().await {
+                            error!("failed to execute block queue: {e:?}");
+                        }
                     }
                 }
 
@@ -196,6 +210,16 @@ impl<C: ExecutionClient> Executor<C> {
             );
             return Ok(Some(execution_hash.clone()));
         }
+        // if the block that we just recieved is not the next block in the sequence to be executed,
+        if block.header.height.value() > self.most_recently_executed_block_height + 1 {
+            self.block_queue
+                .push(block.clone(), block.header.height.value());
+            debug!(
+                height = block.header.height.value(),
+                "parent block not yet executed, adding to pending queue"
+            );
+            return Ok(None);
+        }
 
         // get transactions for our namespace
         let Some(txs) = block.rollup_txs.remove(&self.namespace) else {
@@ -206,11 +230,11 @@ impl<C: ExecutionClient> Executor<C> {
             return Ok(None);
         };
 
-        let prev_block_hash = self.execution_state.clone();
+        let prev_execution_block_hash = self.execution_state.clone();
 
         info!(
             height = block.header.height.value(),
-            parent_block_hash = hex::encode(&prev_block_hash),
+            parent_block_hash = hex::encode(&prev_execution_block_hash),
             "executing block with given parent block",
         );
 
@@ -221,9 +245,10 @@ impl<C: ExecutionClient> Executor<C> {
 
         let response = self
             .execution_rpc_client
-            .call_do_block(prev_block_hash, txs, Some(timestamp))
+            .call_do_block(prev_execution_block_hash, txs, Some(timestamp))
             .await?;
         self.execution_state = response.block_hash.clone();
+        self.most_recently_executed_block_height = block.header.height.value();
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
@@ -304,6 +329,28 @@ impl<C: ExecutionClient> Executor<C> {
             .wrap_err("failed to finalize block")?;
         self.sequencer_hash_to_execution_hash
             .remove(sequencer_block_hash);
+        Ok(())
+    }
+
+    /// This function attempts to execute all blocks in the block queue that have been recieved
+    /// without their parent block being executed yet. It always called when a block is recieved
+    /// from the gossip network, after execute_block has been called on the newly received block.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if:
+    /// - The call to execute_block fails
+    async fn try_execute_queue(&mut self) -> Result<()> {
+        while let Some((block, _)) = self.block_queue.clone().into_sorted_iter().last() {
+            if block.header.height.value() == self.most_recently_executed_block_height + 1 {
+                let (block, _) = self.block_queue.clone().into_sorted_iter().last().unwrap(); // TODO: remove unwrap
+                if let Err(e) = self.execute_block(block).await {
+                    error!("failed to execute block: {e:?}");
+                }
+            } else {
+                break;
+            }
+        }
         Ok(())
     }
 }
@@ -387,6 +434,8 @@ mod test {
             rollup_txs: HashMap::new(),
         }
     }
+
+    // TODO: write test for executor queue execution
 
     #[tokio::test]
     async fn execute_block_with_relevant_txs() {
