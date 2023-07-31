@@ -1,0 +1,18 @@
+ci:
+  - '.github/workflows/**'
+conductor:
+  - 'crates/astria-conductor/**'
+composer:
+  - 'crates/astria-composer/**'
+docker:
+  - 'containerfiles/**'
+proto:
+  - 'crates/astria-proto/**'
+  - '.github/workflows/proto.yml'
+sequencer:
+  - 'crates/astria-sequencer/**'
+  - 'crates/astria-sequencer-client/**'
+  - 'crates/astria-sequencer-utils/**'
+sequencer-relayer:
+  - 'crates/astria-sequencer-relayer/**'
+  - 'crates/astria-gossipnet/**'

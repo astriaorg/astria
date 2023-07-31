@@ -113,8 +113,13 @@ impl ActionHandler for Unsigned {
         state: &S,
         from: &Address,
     ) -> Result<()> {
+        // Nonce should be equal to the number of executed transactions before this tx.
+        // First tx has nonce 0.
         let curr_nonce = state.get_account_nonce(from).await?;
-        ensure!(curr_nonce < self.nonce, "invalid nonce");
+        ensure!(
+            curr_nonce == self.nonce,
+            "invalid nonce, tx nonce must match account nonce"
+        );
 
         // do we need to make a StateDelta here so we can check the actions on the successive state?
         for action in &self.actions {

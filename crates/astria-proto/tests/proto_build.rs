@@ -18,7 +18,7 @@ use std::{
 
 use tempfile::tempdir;
 
-const OUT_DIR: &str = "src/proto/tonic";
+const OUT_DIR: &str = "src/proto/generated";
 
 fn buf_from_env() -> PathBuf {
     let os_specific_hint = match OS {
