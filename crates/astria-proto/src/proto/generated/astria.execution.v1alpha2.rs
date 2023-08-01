@@ -13,7 +13,7 @@ pub struct Block {
     #[prost(message, optional, tag="3")]
     pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// These fields should be indexed on most block chains, and can be used to identify a block.
+/// Fields which are indexed for finding blocks on a blockchain
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BlockIdentifier {
@@ -31,24 +31,21 @@ pub mod block_identifier {
         BlockHash(::prost::alloc::vec::Vec<u8>),
     }
 }
+/// Used in GetBlock to find a single block
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetBlockRequest {
     #[prost(message, optional, tag="1")]
     pub identifier: ::core::option::Option<BlockIdentifier>,
 }
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetBlockResponse {
-    #[prost(message, optional, tag="1")]
-    pub block: ::core::option::Option<Block>,
-}
+/// Used in BatchGetBlocks, will find all or none based on the list of identifiers.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BatchGetBlocksRequest {
     #[prost(message, repeated, tag="1")]
     pub identifiers: ::prost::alloc::vec::Vec<BlockIdentifier>,
 }
+/// The list of blocks in response to BatchGetBlocks.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BatchGetBlocksResponse {
@@ -71,14 +68,6 @@ pub struct CreateBlockRequest {
     #[prost(message, optional, tag="3")]
     pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// CreateBlockResponse is returned after calling CreateBlock
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CreateBlockResponse {
-    /// The executed block which was created.
-    #[prost(message, optional, tag="1")]
-    pub block: ::core::option::Option<Block>,
-}
 /// The CommitmentState holds the block at each stage of sequencer commitment level
 ///
 /// A Valid CommitmentState:
@@ -94,7 +83,7 @@ pub struct CommitmentState {
     /// Soft commitment is the executed block matching sequencer block with full consensus.
     #[prost(message, optional, tag="2")]
     pub soft: ::core::option::Option<Block>,
-    /// Firm commitment 
+    /// Firm commitment is achieved when data has been seen in DA.
     #[prost(message, optional, tag="3")]
     pub firm: ::core::option::Option<Block>,
 }
@@ -105,22 +94,8 @@ pub struct GetCommitmentStateRequest {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetCommitmentStateResponse {
-    /// The current CommitmentState
-    #[prost(message, optional, tag="1")]
-    pub commitment_state: ::core::option::Option<CommitmentState>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UpdateCommitmentStateRequest {
     /// The CommitmentState to set, must include complete state and pass validation checks.
-    #[prost(message, optional, tag="1")]
-    pub commitment_state: ::core::option::Option<CommitmentState>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UpdateCommitmentStateResponse {
-    /// The result of the commitment state update.
     #[prost(message, optional, tag="1")]
     pub commitment_state: ::core::option::Option<CommitmentState>,
 }

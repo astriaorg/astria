@@ -95,10 +95,7 @@ pub mod execution_service_client {
         pub async fn get_block(
             &mut self,
             request: impl tonic::IntoRequest<super::GetBlockRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetBlockResponse>,
-            tonic::Status,
-        > {
+        ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -159,10 +156,7 @@ pub mod execution_service_client {
         pub async fn create_block(
             &mut self,
             request: impl tonic::IntoRequest<super::CreateBlockRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::CreateBlockResponse>,
-            tonic::Status,
-        > {
+        ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -192,7 +186,7 @@ pub mod execution_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::GetCommitmentStateRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::GetCommitmentStateResponse>,
+            tonic::Response<super::CommitmentState>,
             tonic::Status,
         > {
             self.inner
@@ -224,7 +218,7 @@ pub mod execution_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::UpdateCommitmentStateRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::UpdateCommitmentStateResponse>,
+            tonic::Response<super::CommitmentState>,
             tonic::Status,
         > {
             self.inner
@@ -265,10 +259,7 @@ pub mod execution_service_server {
         async fn get_block(
             &self,
             request: tonic::Request<super::GetBlockRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetBlockResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status>;
         /** BatchGetBlocks will return an array of Blocks given an array of block identifiers.
 */
         async fn batch_get_blocks(
@@ -283,28 +274,19 @@ pub mod execution_service_server {
         async fn create_block(
             &self,
             request: tonic::Request<super::CreateBlockRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::CreateBlockResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status>;
         /** GetCommitmentState fetches the current CommitmentState of the chain.
 */
         async fn get_commitment_state(
             &self,
             request: tonic::Request<super::GetCommitmentStateRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetCommitmentStateResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::CommitmentState>, tonic::Status>;
         /** UpdateCommitmentState replaces the whole CommitmentState
 */
         async fn update_commitment_state(
             &self,
             request: tonic::Request<super::UpdateCommitmentStateRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::UpdateCommitmentStateResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::CommitmentState>, tonic::Status>;
     }
     /** ExecutionService is used to drive deterministic production of blocks.
 
@@ -397,7 +379,7 @@ pub mod execution_service_server {
                         T: ExecutionService,
                     > tonic::server::UnaryService<super::GetBlockRequest>
                     for GetBlockSvc<T> {
-                        type Response = super::GetBlockResponse;
+                        type Response = super::Block;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
@@ -487,7 +469,7 @@ pub mod execution_service_server {
                         T: ExecutionService,
                     > tonic::server::UnaryService<super::CreateBlockRequest>
                     for CreateBlockSvc<T> {
-                        type Response = super::CreateBlockResponse;
+                        type Response = super::Block;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
@@ -533,7 +515,7 @@ pub mod execution_service_server {
                         T: ExecutionService,
                     > tonic::server::UnaryService<super::GetCommitmentStateRequest>
                     for GetCommitmentStateSvc<T> {
-                        type Response = super::GetCommitmentStateResponse;
+                        type Response = super::CommitmentState;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
@@ -579,7 +561,7 @@ pub mod execution_service_server {
                         T: ExecutionService,
                     > tonic::server::UnaryService<super::UpdateCommitmentStateRequest>
                     for UpdateCommitmentStateSvc<T> {
-                        type Response = super::UpdateCommitmentStateResponse;
+                        type Response = super::CommitmentState;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,

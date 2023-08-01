@@ -14,7 +14,7 @@ message Block {
   google.protobuf.Timestamp timestamp = 3;
 }
 
-// These fields should be indexed on most block chains, and can be used to identify a block.
+// Fields which are indexed for finding blocks on a blockchain
 message BlockIdentifier {
   oneof identifier {
     uint32 block_number = 1;
@@ -22,16 +22,16 @@ message BlockIdentifier {
   }
 }
 
+// Used in GetBlock to find a single block
 message GetBlockRequest {
   BlockIdentifier identifier = 1;
 }
-message GetBlockResponse {
-    Block block = 1;
-}
 
+// Used in BatchGetBlocks, will find all or none based on the list of identifiers.
 message BatchGetBlocksRequest {
   repeated BlockIdentifier identifiers = 1;
 }
+// The list of blocks in response to BatchGetBlocks.
 message BatchGetBlocksResponse {
   repeated Block blocks = 1;
 }
@@ -48,11 +48,6 @@ message CreateBlockRequest {
   // The timestamp which should be used for new block
   google.protobuf.Timestamp timestamp = 3;
 }
-// CreateBlockResponse is returned after calling CreateBlock
-message CreateBlockResponse {
-  // The executed block which was created.
-  Block block = 1;
-}
 
 // The CommitmentState holds the block at each stage of sequencer commitment level
 //
@@ -65,23 +60,15 @@ message CommitmentState {
   Block head = 1;
   // Soft commitment is the executed block matching sequencer block with full consensus.
   Block soft = 2;
-  // Firm commitment 
+  // Firm commitment is achieved when data has been seen in DA.
   Block firm = 3;
 }
 
 // There is only one CommitmentState object, so the request is empty.
 message GetCommitmentStateRequest{}
-message GetCommitmentStateResponse {
-  // The current CommitmentState
-  CommitmentState commitment_state = 1;
-}
 
 message UpdateCommitmentStateRequest {
   // The CommitmentState to set, must include complete state and pass validation checks.
-  CommitmentState commitment_state = 1;
-}
-message UpdateCommitmentStateResponse {
-  // The result of the commitment state update.
   CommitmentState commitment_state = 1;
 }
 
@@ -91,17 +78,17 @@ message UpdateCommitmentStateResponse {
 // and will have execution driven via the Astria "Conductor".
 service ExecutionService {
   // GetBlock will return a block given an identifier.
-  rpc GetBlock(GetBlockRequest) returns (GetBlockResponse);
+  rpc GetBlock(GetBlockRequest) returns (Block);
 
   // BatchGetBlocks will return an array of Blocks given an array of block identifiers.
   rpc BatchGetBlocks(BatchGetBlocksRequest) returns (BatchGetBlocksResponse);
 
   // CreateBlock is used to drive deterministic creation of an executed block from a sequenced block.
-  rpc CreateBlock(CreateBlockRequest) returns (CreateBlockResponse);
+  rpc CreateBlock(CreateBlockRequest) returns (Block);
 
   // GetCommitmentState fetches the current CommitmentState of the chain.
-  rpc GetCommitmentState(GetCommitmentStateRequest) returns (GetCommitmentStateResponse);
+  rpc GetCommitmentState(GetCommitmentStateRequest) returns (CommitmentState);
 
   // UpdateCommitmentState replaces the whole CommitmentState
-  rpc UpdateCommitmentState(UpdateCommitmentStateRequest) returns (UpdateCommitmentStateResponse);
+  rpc UpdateCommitmentState(UpdateCommitmentStateRequest) returns (CommitmentState);
 }
