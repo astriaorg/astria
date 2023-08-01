@@ -25,7 +25,7 @@ From the perspective of the sequencer:
 
 When configuring conductor, you can configure the time at which blocks are executed in your rollup using the `execution_commitment_level` in the config file. If this is configured to a higher level of commitment, no action will be taken upon receiving lower commitments. 
 
-`CreateBlock` is called to create a new execution chain block when the `execution_commitment_level` has been been reached for a given block. Upon receipt of a new block, the conudctor calls `UpdateCommitmentState` to update the commitment at the level of the `execution_commitment_level` and any level above it.
+`CreateBlock` is called to create a new execution chain block when the `execution_commitment_level` has been reached for a given block. Upon receipt of a new block, the conductor calls `UpdateCommitmentState` to update the commitment at the level of the `execution_commitment_level` and any level above it.
 
 `execution_commitment_level` options, and changes to execution:
 - `HEAD` (default)
