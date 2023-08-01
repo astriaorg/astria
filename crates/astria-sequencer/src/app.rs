@@ -238,6 +238,7 @@ mod test {
     use super::*;
     use crate::{
         accounts::{
+            action::TRANSFER_FEE,
             state_ext::StateReadExt as _,
             types::{
                 Address,
@@ -249,7 +250,10 @@ mod test {
         },
         crypto::SigningKey,
         genesis::Account,
-        sequence::Action as SequenceAction,
+        sequence::{
+            action::SEQUENCE_ACTION_FEE_PER_BYTE,
+            Action as SequenceAction,
+        },
         transaction::{
             action::Action,
             Unsigned,
@@ -400,7 +404,7 @@ mod test {
         );
         assert_eq!(
             app.state.get_account_balance(&alice).await.unwrap(),
-            Balance::from(10u128.pow(19)) - value
+            Balance::from(10u128.pow(19)) - (value + TRANSFER_FEE),
         );
         assert_eq!(app.state.get_account_nonce(&bob).await.unwrap(), 0);
         assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);
@@ -427,11 +431,14 @@ mod test {
         let alice_signing_key = SigningKey::from(alice_secret_bytes);
         let alice = Address::from_verification_key(&alice_signing_key.verification_key());
 
+        let data = b"hello world".to_vec();
+        let fee = SEQUENCE_ACTION_FEE_PER_BYTE * data.len() as u128;
+
         let tx = Unsigned {
             nonce: Nonce::from(0),
             actions: vec![Action::SequenceAction(SequenceAction::new(
                 b"testchainid".to_vec(),
-                b"helloworld".to_vec(),
+                data,
             ))],
         };
 
@@ -440,6 +447,11 @@ mod test {
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);
+
+        assert_eq!(
+            app.state.get_account_balance(&alice).await.unwrap(),
+            Balance::from(10u128.pow(19)) - fee,
+        );
     }
 
     #[tokio::test]

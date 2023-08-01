@@ -89,7 +89,7 @@ impl std::fmt::Display for Address {
     Ord,
     Debug,
 )]
-pub struct Balance(u128);
+pub struct Balance(pub(crate) u128);
 
 impl Balance {
     pub(crate) fn into_inner(self) -> u128 {
@@ -140,6 +140,14 @@ impl std::ops::Sub<u128> for Balance {
 
     fn sub(self, rhs: u128) -> Self::Output {
         Self(self.0 - rhs)
+    }
+}
+
+impl std::ops::Mul<u128> for Balance {
+    type Output = Self;
+
+    fn mul(self, rhs: u128) -> Self::Output {
+        Self(self.0 * rhs)
     }
 }
 
