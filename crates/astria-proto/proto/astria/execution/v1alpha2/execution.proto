@@ -4,7 +4,7 @@ package astria.execution.v1alpha2;
 
 import "google/protobuf/timestamp.proto";
 
-// The set of information which deterministic driver may to know about a given executed Block
+// The set of information which deterministic driver of execution must know about a given executed Block
 message Block {
   // The block number
   uint32 number = 1;
@@ -14,7 +14,7 @@ message Block {
   google.protobuf.Timestamp timestamp = 3;
 }
 
-// Fields which are indexed for finding blocks on a blockchain
+// Fields which are indexed for finding blocks on a blockchain.
 message BlockIdentifier {
   oneof identifier {
     uint32 block_number = 1;
@@ -22,7 +22,7 @@ message BlockIdentifier {
   }
 }
 
-// Used in GetBlock to find a single block
+// Used in GetBlock to find a single block.
 message GetBlockRequest {
   BlockIdentifier identifier = 1;
 }
@@ -41,11 +41,11 @@ message BatchGetBlocksResponse {
 //
 // This information comes from previous execution blocks, as well as from sequencer blocks.
 message CreateBlockRequest {
-  // The hash of the block which will be executed on top of
+  // The hash of previous block, which new block will be created on top of.
   bytes prev_block_hash = 1;
-  // List of transactions to include in the new block
+  // List of transactions to include in the new block.
   repeated bytes transactions = 2;
-  // The timestamp which should be used for new block
+  // Timestamp to be used for new block.
   google.protobuf.Timestamp timestamp = 3;
 }
 
@@ -54,7 +54,7 @@ message CreateBlockRequest {
 // A Valid CommitmentState:
 // - Block numbers are such that soft+1 >= head >= soft >= firm.
 // - No blocks ever decrease in block number, only head may stay the same and have other changes
-// - The chain defined by head contains soft and firm blocks.
+// - The chain defined by head is the canonical chain which always contains soft and firm blocks.
 message CommitmentState {
   // The head is the top of the executed chain
   Block head = 1;
@@ -67,8 +67,8 @@ message CommitmentState {
 // There is only one CommitmentState object, so the request is empty.
 message GetCommitmentStateRequest{}
 
+// The CommitmentState to set, must include complete state.
 message UpdateCommitmentStateRequest {
-  // The CommitmentState to set, must include complete state and pass validation checks.
   CommitmentState commitment_state = 1;
 }
 
@@ -89,6 +89,6 @@ service ExecutionService {
   // GetCommitmentState fetches the current CommitmentState of the chain.
   rpc GetCommitmentState(GetCommitmentStateRequest) returns (CommitmentState);
 
-  // UpdateCommitmentState replaces the whole CommitmentState
+  // UpdateCommitmentState replaces the whole CommitmentState with a new CommitmentState.
   rpc UpdateCommitmentState(UpdateCommitmentStateRequest) returns (CommitmentState);
 }
