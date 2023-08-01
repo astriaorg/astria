@@ -66,3 +66,7 @@ Returns the commitment state with execution `Block` information for each level o
 - `SOFT` and `FIRM` block MUST either increase in block number OR match current commitment state block.
 - `SOFT` and `FIRM` blocks MUST be members of the block chain starting from `HEAD`.
 - Block numbers in state MUST be such that `SOFT` + 1 >= `HEAD` >= `SOFT` >= `FIRM`, return a `FAILED_PRECONDITION` error if this is not true
+
+## Sequence Diagram
+
+![image](assets/execution_api_sequence.png)
