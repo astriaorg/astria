@@ -2,9 +2,9 @@
 
 ## Overview
 
-The Execution API is the interface `Conductor` uses to drive deterministic execution of sequenced blocks in dependent chains. Inspired by other APIs, such as the Engine API and ABCI Consensus API, it is a chain agnostic mechanism intended to be very simple to implement. It is a gRPC API which any state machine can implement, and use conductor with to drive their execution and integrate with the Astria Sequencer.
+The Execution API is the interface `Conductor` uses to drive deterministic execution of sequenced blocks in dependent chains. Inspired by other APIs, such as the Engine API and ABCI Consensus API, it is a chain agnostic mechanism intended to be very simple to implement. It is a gRPC API which any state machine can implement and use conductor with to drive their execution to integrate with the Astria Sequencer.
 
-> Note: this documentation is for the v1alpha2 API which is currently being implemented, and some of the documentation is on how it should be implemented not how it is.
+> Note: this documentation is for the v1alpha2 API which is currently being implemented, and some of the documentation is on how it should be implemented, not how it is currently.
 
 ## Basic Design Principles
 
@@ -18,15 +18,35 @@ Upon startup, conductor needs to know the state of commitments in the state mach
 
 ### Execution & Commitments
 
-From the perspective of the sequencer, `HEAD` commitments are made everytime the sequencer creates a new block at height N. The transactions on this block may change up until sequencer block at height N+1 has been created, at this point the block at height N has a `SOFT` commitment. A soft commitment means that sequencer consensus has full agreement on the block. Once a block has been seen on DA it has a `FIRM` commitment, it has been made widely available across the DA network.
+From the perspective of the sequencer:
+- `HEAD` commitments are made every time the sequencer creates a new block at height N. Only the `HEAD` blocks can be reorged and they can be updated until the N+1 block has been created. Once the N+1 block is received, the block at height N is set to `SOFT`
+- `SOFT` commitment means that sequencer consensus has full agreement on the block.
+- `FIRM` commitment indicates that the block has been written, and has been propogated across the DA network.
 
 When configuring conductor, you can configure the time at which blocks are executed in your rollup using the `execution_commitment_level` in the config file. If this is configured to a higher level of commitment, no action will be taken upon receiving lower commitments. 
 
 `CreateBlock` is called to create a new execution chain block when the `execution_commitment_level` has been been reached for a given block. Upon receipt of a new block, the conudctor calls `UpdateCommitmentState` to update the commitment at the level of the `execution_commitment_level` and any level above it.
 
-If `execution_commitment_level` is set to `HEAD`, `UpdateCommitmentState` will be called with an update to the `SOFT` commitment block after receiving a sequencer block with `prev_hash` which has already been executed on the chain.
-
-If `execution_commitment_level` is set to `SOFT` or lower, `UpdateCommitmentState` will be called to update the `FIRM` commitment block when it's corresponding sequencer block has been seen in the DA
+`execution_commitment_level` options, and changes to execution:
+- `HEAD` (default)
+  - upon receiving a new sequencer block N from sequencer:
+    - `UpdateCommitmentState` will be called to update `SAFE` to N-1, then
+    - `CreateBlock` will be called with data from the sequencer block N, then
+    - `UpdateCommitmentState` will be called again to update the `HEAD` to N
+  - upon reading new blocks from DA containing all of blocks K->N-1
+    - `UpdateCommitmentState` will be called to update `FIRM` to N-1
+- `SOFT`
+  - upon receiving a new sequencer block N from sequencer:
+    - `CreateBlock` will be called with data from the sequencer block N-1, then
+    - `UpdateCommitmentState` will be called again to update the `HEAD` and `SAFE` to N
+  - upon reading new blocks from DA containing all of blocks K->N-1
+    - `UpdateCommitmentState` will be called to update `FIRM` to N-1
+- `FIRM`
+  - conductor does not need to listen for new blocks from Sequencer
+  - upon reading new blocks from DA containing all of blocks K->N-1
+    - For each block from K->N-1 (M) :
+      - `CreateBlock` will be called with data from the sequencer block M
+      - `UpdateCommitmentState` will be called to update `FIRM`, `SAFE` and `HEAD` to M
 
 Note: For our EVM rollup, we map the `CommitmentState` to the `ForkchoiceRule`:
 - `HEAD` Commitment -> `HEAD` Forkchoice
@@ -37,10 +57,11 @@ Note: For our EVM rollup, we map the `CommitmentState` to the `ForkchoiceRule`:
 
 ### CreateBlock
 
-`CreateBlock` executes a set of given trasactions on the new chain. The following should be respected:
+`CreateBlock` executes a set of given trasactions on top of the chain indicated by `prev_block_hash`. The following should be respected:
 
 - `prev_block_hash` MUST match hash of the `SOFT` commitment state block, return `FAILED_PRECONDITION` otherwise.
 - If block headers have timestamps, created block MUST have matching timestamp
+- The CommitmentState is NOT modified by the execution of the block.
 
 ### GetBlock
 
@@ -59,7 +80,7 @@ Returns the commitment state with execution `Block` information for each level o
 
 ### UpdateCommitmentState
 
-`UpdateCommitmentState` replaces the 
+`UpdateCommitmentState` replaces the `CommitmentState` in the sequencer
 
 - No commitment can ever decrease in block number on the blockchain, if this is attempted return a `FAILED_PRECONDITION` error.
 - `HEAD` commitments MAY be to blocks which replace the previous `HEAD` with same block number.
