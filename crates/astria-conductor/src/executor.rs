@@ -451,7 +451,72 @@ mod test {
         }
     }
 
-    // TODO: write test for executor queue execution
+    fn get_test_block_vec(num_blocks: u32) -> Vec<SequencerBlockData> {
+        let mut blocks = vec![];
+        let namespace = get_namespace(b"test");
+
+        for i in 2..=num_blocks {
+            let current_hash_string = String::from("block") + &i.to_string();
+            let prev_hash_string = String::from("block") + &(i - 1).to_string();
+            let current_byte_hash: &[u8] = &current_hash_string.into_bytes();
+            let prev_byte_hash: &[u8] = &prev_hash_string.into_bytes();
+            let mut header = astria_sequencer_relayer::utils::default_header();
+            header.last_commit_hash = Some(Hash::try_from(hash(prev_byte_hash)).unwrap());
+
+            let mut block = SequencerBlockData {
+                block_hash: hash(current_byte_hash),
+                header,
+                last_commit: None,
+                rollup_txs: HashMap::new(),
+            };
+            block.rollup_txs.insert(
+                namespace,
+                vec![IndexedTransaction {
+                    block_index: 0,
+                    transaction: b"test_transaction".to_vec(),
+                }],
+            );
+            block.header.height = i.into();
+            blocks.push(block);
+        }
+        blocks
+    }
+
+    #[tokio::test]
+    async fn test_block_queue() {
+        let (alert_tx, _) = mpsc::unbounded_channel();
+        let namespace = get_namespace(b"test");
+        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
+            .await
+            .unwrap();
+
+        let blocks = get_test_block_vec(5);
+
+        // executor.execute_block(blocks[0].clone()).await.unwrap();
+        let execution_block_hash_1 = executor
+            .execute_block(blocks[0].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        // assert_eq!(expected_exection_hash, execution_block_hash);
+        // executor.execute_block(blocks[2].clone()).await.unwrap();
+        let execution_block_hash_2 = executor
+            .execute_block(blocks[2].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        assert_eq!(execution_block_hash_1, execution_block_hash_2);
+        // executor.execute_block(blocks[1].clone()).await.unwrap();
+        // let execution_block_hash_2 = executor
+        //     .execute_block(blocks[1].clone())
+        //     .await
+        //     .unwrap()
+        //     .expect("expected execution block hash");
+        // executor.try_execute_queue().await.unwrap();
+
+        // let finalized_blocks = executor.execution_client.finalized_blocks.lock().await;
+        // assert_eq!(finalized_blocks.len(), 3);
+    }
 
     #[tokio::test]
     async fn execute_block_with_relevant_txs() {
