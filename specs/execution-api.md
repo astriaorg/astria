@@ -69,4 +69,6 @@ Returns the commitment state with execution `Block` information for each level o
 
 ## Sequence Diagram
 
+The sequence diagram below shows the API used within the full context of Astria stack. Demonstrating what happens between a user submitting a transactions, and seeing it executed as well as before soft and firm commitments.
+
 ![image](assets/execution_api_sequence.png)
