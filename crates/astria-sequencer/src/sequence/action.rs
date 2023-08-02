@@ -88,6 +88,12 @@ impl ActionHandler for Action {
         Ok(())
     }
 
+    fn check_stateless(&self) -> Result<()> {
+        // TODO: do we want to place a maximum on the size of the data?
+        ensure!(!self.data.is_empty(), "cannot have empty data");
+        Ok(())
+    }
+
     #[instrument(
         skip_all,
         fields(
