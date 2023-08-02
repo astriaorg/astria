@@ -1,5 +1,5 @@
 // @generated
-/// The set of information which deterministic driver may to know about a given executed Block
+/// The set of information which deterministic driver of execution must know about a given executed Block
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Block {
@@ -13,7 +13,7 @@ pub struct Block {
     #[prost(message, optional, tag="3")]
     pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// Fields which are indexed for finding blocks on a blockchain
+/// Fields which are indexed for finding blocks on a blockchain.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BlockIdentifier {
@@ -31,7 +31,7 @@ pub mod block_identifier {
         BlockHash(::prost::alloc::vec::Vec<u8>),
     }
 }
-/// Used in GetBlock to find a single block
+/// Used in GetBlock to find a single block.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetBlockRequest {
@@ -58,13 +58,13 @@ pub struct BatchGetBlocksResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateBlockRequest {
-    /// The hash of the block which will be executed on top of
+    /// The hash of previous block, which new block will be created on top of.
     #[prost(bytes="vec", tag="1")]
     pub prev_block_hash: ::prost::alloc::vec::Vec<u8>,
-    /// List of transactions to include in the new block
+    /// List of transactions to include in the new block.
     #[prost(bytes="vec", repeated, tag="2")]
     pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
-    /// The timestamp which should be used for new block
+    /// Timestamp to be used for new block.
     #[prost(message, optional, tag="3")]
     pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
 }
@@ -73,7 +73,7 @@ pub struct CreateBlockRequest {
 /// A Valid CommitmentState:
 /// - Block numbers are such that soft+1 >= head >= soft >= firm.
 /// - No blocks ever decrease in block number, only head may stay the same and have other changes
-/// - The chain defined by head contains soft and firm blocks.
+/// - The chain defined by head is the canonical chain which always contains soft and firm blocks.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CommitmentState {
@@ -92,10 +92,10 @@ pub struct CommitmentState {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetCommitmentStateRequest {
 }
+/// The CommitmentState to set, must include complete state.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UpdateCommitmentStateRequest {
-    /// The CommitmentState to set, must include complete state and pass validation checks.
     #[prost(message, optional, tag="1")]
     pub commitment_state: ::core::option::Option<CommitmentState>,
 }

@@ -212,7 +212,7 @@ pub mod execution_service_client {
                 );
             self.inner.unary(req, path, codec).await
         }
-        /** UpdateCommitmentState replaces the whole CommitmentState
+        /** UpdateCommitmentState replaces the whole CommitmentState with a new CommitmentState.
 */
         pub async fn update_commitment_state(
             &mut self,
@@ -281,7 +281,7 @@ pub mod execution_service_server {
             &self,
             request: tonic::Request<super::GetCommitmentStateRequest>,
         ) -> std::result::Result<tonic::Response<super::CommitmentState>, tonic::Status>;
-        /** UpdateCommitmentState replaces the whole CommitmentState
+        /** UpdateCommitmentState replaces the whole CommitmentState with a new CommitmentState.
 */
         async fn update_commitment_state(
             &self,
