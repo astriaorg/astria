@@ -466,7 +466,7 @@ mod test {
 
         let mut blocks = vec![];
 
-        block.header.height = (1 as u32).into();
+        block.header.height = 1_u32.into();
         blocks.push(block);
 
         for i in 2..=num_blocks {
@@ -490,8 +490,10 @@ mod test {
                 }],
             );
             block.header.height = i.into();
-            let mut block_id = BlockId::default();
-            block_id.hash = Hash::try_from(hash(prev_byte_hash)).unwrap();
+            let mut block_id = BlockId {
+                hash: Hash::try_from(hash(prev_byte_hash)).unwrap(),
+                ..Default::default()
+            };
             block.header.last_block_id = Some(block_id);
 
             blocks.push(block);
@@ -538,7 +540,7 @@ mod test {
         assert_eq!(executor.block_queue.len(), 2);
 
         // trying to execute the queue without the missing blocks does nothing
-        let _ = executor.try_execute_queue();
+        let _ = executor.try_execute_queue().await;
         assert_eq!(executor.block_queue.len(), 2);
 
         // adding the actual next block updates the execution state
