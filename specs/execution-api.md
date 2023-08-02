@@ -21,7 +21,7 @@ Upon startup, conductor needs to know the state of commitments in the state mach
 From the perspective of the sequencer:
 - `HEAD` commitments are made every time the sequencer creates a new block at height N. Only the `HEAD` blocks can be reorged and they can be updated until the N+1 block has been created. Once the N+1 block is received, the block at height N is set to `SOFT`
 - `SOFT` commitment means that sequencer consensus has full agreement on the block.
-- `FIRM` commitment indicates that the block has been written, and has been propogated across the DA network.
+- `FIRM` commitment indicates that the block has been written and has been propagated across the DA network.
 
 When configuring conductor, you can configure the time at which blocks are executed in your rollup using the `execution_commitment_level` in the config file. If this is configured to a higher level of commitment, no action will be taken upon receiving lower commitments. 
 
