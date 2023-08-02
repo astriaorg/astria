@@ -60,7 +60,8 @@ fn get_namespace(bytes: &[u8]) -> [u8; 10] {
     result[0..10].to_owned().try_into().unwrap()
 }
 
-/// Sorts the actions within the transactions by their `chain_id`.
+/// Sorts the `sequence::Action`s within the transactions by their `chain_id`.
+/// Other types of actions are ignored.
 /// Within an entry, actions are ordered by their transaction index within a block.
 fn sort_txs_by_chain_id(txs: &[Signed]) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
     let mut rollup_txs = BTreeMap::new();
