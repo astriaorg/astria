@@ -386,6 +386,7 @@ mod test {
     use astria_sequencer_relayer::types::IndexedTransaction;
     use prost_types::Timestamp;
     use sha2::Digest as _;
+    use tendermint::block::Id as BlockId;
     use tokio::sync::{
         mpsc,
         Mutex,
