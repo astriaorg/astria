@@ -12,7 +12,6 @@ use color_eyre::eyre::{
 use priority_queue::PriorityQueue;
 use prost_types::Timestamp as ProstTimestamp;
 use tendermint::{
-    block::Id as BlockId,
     hash::Hash,
     Time,
 };
@@ -214,18 +213,9 @@ impl<C: ExecutionClient> Executor<C> {
             );
             return Ok(Some(execution_hash.clone()));
         }
-        // ============
         // if the block that we just recieved is not the next block in the sequence to be executed,
-        eprintln!("-block height: {:?}", block.header.height.value());
-        eprintln!("-prev block hash: {:?}", self.last_safe_block_hash);
-        eprintln!(
-            "-current block parent: {:?}",
-            block.header.last_block_id.unwrap_or_default().hash
-        );
+        // add it to the block queue
         if let Some(parent_block) = block.header.last_block_id {
-            eprintln!("entered not next sequence block");
-            eprintln!("parent block hash: {:?}", parent_block.hash);
-            eprintln!("last safe block hash: {:?}", self.last_safe_block_hash);
             if parent_block.hash != self.last_safe_block_hash {
                 self.block_queue
                     .push(block.clone(), block.header.height.value());
@@ -236,7 +226,6 @@ impl<C: ExecutionClient> Executor<C> {
                 );
                 return Ok(Some(self.execution_state.clone()));
             }
-            eprintln!("continued");
         }
 
         // get transactions for our namespace
@@ -267,7 +256,6 @@ impl<C: ExecutionClient> Executor<C> {
             .call_do_block(prev_execution_block_hash, txs, Some(timestamp))
             .await?;
         self.execution_state = response.block_hash.clone();
-        // ===========
         self.last_safe_block_hash = Hash::try_from(block.block_hash.clone()).unwrap();
 
         // store block hash returned by execution client, as we need it to finalize the block later
@@ -280,7 +268,6 @@ impl<C: ExecutionClient> Executor<C> {
         self.sequencer_hash_to_execution_hash
             .insert(block.block_hash, response.block_hash.clone());
 
-        // eprintln!("response hash: {:?}", response.block_hash);
         Ok(Some(response.block_hash))
     }
 
@@ -362,18 +349,7 @@ impl<C: ExecutionClient> Executor<C> {
     /// This function returns an error if:
     /// - The call to execute_block fails
     async fn try_execute_queue(&mut self) -> Result<()> {
-        let mut count = 1;
-        eprintln!("^^^ entered try_execute_queue");
         while let Some((block, _)) = self.block_queue.clone().into_sorted_iter().last() {
-            eprintln!(
-                "hash from queue: {:?}",
-                block
-                    .header
-                    .last_block_id
-                    .expect("Could not unwrap last block")
-                    .hash
-            );
-            eprintln!("last safe block hash: {:?}", self.last_safe_block_hash);
             if block
                 .header
                 .last_block_id
@@ -381,15 +357,12 @@ impl<C: ExecutionClient> Executor<C> {
                 .hash
                 == self.last_safe_block_hash
             {
-                eprintln!("trying to execute block from queue");
                 let (block, _) = self.block_queue.clone().into_sorted_iter().last().unwrap(); // TODO: remove unwrap
                 // TODO: this should return a vec of block hashes that were executed
                 if let Err(e) = self.execute_block(block.clone()).await {
                     // TODO: have this return a better error
                     error!("failed to execute block: {e:?}");
                 }
-                eprintln!("removing block {} from queue", count);
-                count += 1;
                 self.block_queue.remove(&block);
             } else {
                 break;
@@ -535,19 +508,6 @@ mod test {
 
         let blocks = get_test_block_vec(5);
 
-        // REMOVE: for testing the block vec building
-        for block in blocks.iter() {
-            eprintln!("+block height: {:?}", block.header.height.value());
-            eprintln!(
-                "+block hash: {:?}",
-                Hash::try_from(block.block_hash.clone()).unwrap()
-            );
-            eprintln!(
-                "+block parent: {:?}",
-                block.header.last_block_id.unwrap_or_default().hash
-            );
-        }
-
         // executing a block like normal
         let mut expected_exection_hash = hash(&executor.execution_state);
         let execution_block_hash_0 = executor
@@ -592,7 +552,6 @@ mod test {
         // trying to execute the queue with the missing blocks executes everything possible in the
         // queue
         assert_eq!(executor.block_queue.len(), 2);
-        eprintln!("^^^ len queue: {:?}", executor.block_queue.len());
         let _ = executor.try_execute_queue().await;
         assert_eq!(executor.block_queue.len(), 0);
 
