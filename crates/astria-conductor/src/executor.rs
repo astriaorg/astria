@@ -380,6 +380,7 @@ mod test {
     };
     use prost_types::Timestamp;
     use sha2::Digest as _;
+    use tendermint::block::Id as BlockId;
     use tokio::sync::{
         mpsc,
         Mutex,
