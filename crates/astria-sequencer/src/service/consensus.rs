@@ -1,5 +1,7 @@
 use anyhow::{
+    anyhow,
     bail,
+    ensure,
     Context,
 };
 use bytes::Bytes;
@@ -87,9 +89,16 @@ impl Consensus {
                         .context("failed to prepare proposal")?,
                 )
             }
-            ConsensusRequest::ProcessProposal(_process_proposal) => {
-                // TODO: handle this
-                ConsensusResponse::ProcessProposal(response::ProcessProposal::Accept)
+            ConsensusRequest::ProcessProposal(process_proposal) => {
+                ConsensusResponse::ProcessProposal(
+                    match self.process_proposal(process_proposal).await {
+                        Ok(()) => response::ProcessProposal::Accept,
+                        Err(e) => {
+                            warn!(error = ?e, "rejecting proposal");
+                            response::ProcessProposal::Reject
+                        }
+                    },
+                )
             }
             ConsensusRequest::BeginBlock(begin_block) => ConsensusResponse::BeginBlock(
                 self.begin_block(begin_block)
@@ -143,6 +152,29 @@ impl Consensus {
         Ok(response::PrepareProposal {
             txs,
         })
+    }
+
+    #[instrument(skip(self))]
+    async fn process_proposal(
+        &mut self,
+        process_proposal: request::ProcessProposal,
+    ) -> anyhow::Result<()> {
+        let received_action_commitment: [u8; 32] = process_proposal
+            .txs
+            .first()
+            .context("no transaction commitment in proposal")?
+            .to_vec()
+            .try_into()
+            .map_err(|_| anyhow!("transaction commitment must be 32 bytes"))?;
+        let expected_action_commitment =
+            generate_transaction_commitment(&process_proposal.txs[1..])
+                .context("failed to generate transaction commitment")?;
+        ensure!(
+            received_action_commitment == expected_action_commitment,
+            "transaction commitment does not match expected",
+        );
+
+        Ok(())
     }
 
     #[instrument(skip(self))]
