@@ -214,8 +214,6 @@ impl<C: ExecutionClient> Executor<C> {
             "executing block with given parent block",
         );
 
-        let txs = txs.into_iter().map(|tx| tx.transaction).collect::<Vec<_>>();
-
         let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
@@ -319,7 +317,6 @@ mod test {
         DoBlockResponse,
         InitStateResponse,
     };
-    use astria_sequencer_relayer::types::IndexedTransaction;
     use prost_types::Timestamp;
     use sha2::Digest as _;
     use tokio::sync::{
@@ -398,13 +395,9 @@ mod test {
 
         let expected_exection_hash = hash(&executor.execution_state);
         let mut block = get_test_block();
-        block.rollup_txs.insert(
-            namespace,
-            vec![IndexedTransaction {
-                block_index: 0,
-                transaction: b"test_transaction".to_vec(),
-            }],
-        );
+        block
+            .rollup_txs
+            .insert(namespace, vec![b"test_transaction".to_vec()]);
 
         let execution_block_hash = executor
             .execute_block(block)
@@ -440,13 +433,9 @@ mod test {
             .unwrap();
 
         let mut block: SequencerBlockData = get_test_block();
-        block.rollup_txs.insert(
-            namespace,
-            vec![IndexedTransaction {
-                block_index: 0,
-                transaction: b"test_transaction".to_vec(),
-            }],
-        );
+        block
+            .rollup_txs
+            .insert(namespace, vec![b"test_transaction".to_vec()]);
 
         let expected_exection_hash = hash(&executor.execution_state);
 

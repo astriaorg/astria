@@ -141,16 +141,6 @@ pub fn get_namespace(bytes: &[u8]) -> Namespace {
     )
 }
 
-/// IndexedTransaction represents a sequencer transaction along with the index
-/// it was originally in in the sequencer block.
-/// This is required so that the block's `data_hash`, which is a merkle root
-/// of the transactions in the block, can be verified.
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
-pub struct IndexedTransaction {
-    pub block_index: usize,
-    pub transaction: Vec<u8>,
-}
-
 /// SequencerBlockData represents a sequencer block's data
 /// to be submitted to the DA layer.
 ///
@@ -164,7 +154,7 @@ pub struct SequencerBlockData {
     /// This field should be set for every block with height > 1.
     pub last_commit: Option<Commit>,
     /// namespace -> rollup txs
-    pub rollup_txs: HashMap<Namespace, Vec<IndexedTransaction>>,
+    pub rollup_txs: HashMap<Namespace, Vec<Vec<u8>>>,
 }
 
 impl SequencerBlockData {
@@ -194,24 +184,20 @@ impl SequencerBlockData {
         // and namespace them correspondingly
         let mut rollup_txs = HashMap::new();
 
-        for (index, tx) in b.data.iter().enumerate() {
+        for tx_bytes in b.data.iter() {
             debug!(
-                index,
-                bytes = general_purpose::STANDARD.encode(tx.as_slice()),
+                bytes = general_purpose::STANDARD.encode(tx_bytes.as_slice()),
                 "parsing data from tendermint block",
             );
 
-            let tx = Signed::try_from_slice(tx)
+            let tx = Signed::try_from_slice(tx_bytes)
                 .map_err(|e| eyre!(e))
                 .wrap_err("failed reading signed sequencer transaction from bytes")?;
             tx.transaction().actions().iter().for_each(|action| {
                 if let Some(action) = action.as_sequence() {
                     let namespace = get_namespace(action.chain_id());
                     let txs = rollup_txs.entry(namespace).or_insert(vec![]);
-                    txs.push(IndexedTransaction {
-                        block_index: index,
-                        transaction: action.data().to_vec(),
-                    });
+                    txs.push(action.data().to_vec());
                 }
             });
         }
@@ -251,7 +237,6 @@ mod test {
     use std::collections::HashMap;
 
     use super::{
-        IndexedTransaction,
         SequencerBlockData,
         DEFAULT_NAMESPACE,
     };
@@ -266,13 +251,9 @@ mod test {
             last_commit: None,
             rollup_txs: HashMap::new(),
         };
-        expected.rollup_txs.insert(
-            DEFAULT_NAMESPACE,
-            vec![IndexedTransaction {
-                block_index: 0,
-                transaction: vec![0x44, 0x55, 0x66],
-            }],
-        );
+        expected
+            .rollup_txs
+            .insert(DEFAULT_NAMESPACE, vec![vec![0x44, 0x55, 0x66]]);
 
         let bytes = expected.to_bytes().unwrap();
         let actual = SequencerBlockData::from_bytes(&bytes).unwrap();

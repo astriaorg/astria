@@ -1,8 +1,8 @@
 use anyhow::{
-    anyhow,
     bail,
     Context,
 };
+use bytes::Bytes;
 use penumbra_storage::Storage;
 use tendermint::abci::{
     request,
@@ -22,6 +22,7 @@ use tracing::{
 use crate::{
     app::App,
     genesis::GenesisState,
+    proposal::commitment::generate_transaction_commitment,
 };
 
 pub(crate) struct Consensus {
@@ -80,44 +81,34 @@ impl Consensus {
                     .context("failed initializing chain")?,
             ),
             ConsensusRequest::PrepareProposal(prepare_proposal) => {
-                ConsensusResponse::PrepareProposal(response::PrepareProposal {
-                    txs: prepare_proposal.txs,
-                })
+                ConsensusResponse::PrepareProposal(
+                    self.prepare_proposal(prepare_proposal)
+                        .await
+                        .context("failed to prepare proposal")?,
+                )
             }
             ConsensusRequest::ProcessProposal(_process_proposal) => {
                 // TODO: handle this
                 ConsensusResponse::ProcessProposal(response::ProcessProposal::Accept)
             }
-            ConsensusRequest::BeginBlock(begin_block) => {
-                ConsensusResponse::BeginBlock(
-                    self.begin_block(begin_block)
-                        .await
-                        // .context() cannot be used here because Box<dyn Error> does not implement
-                        // Error: https://github.com/dtolnay/anyhow/issues/66
-                        .map_err(|e| anyhow!(e))
-                        .context("failed to begin block")?,
-                )
-            }
+            ConsensusRequest::BeginBlock(begin_block) => ConsensusResponse::BeginBlock(
+                self.begin_block(begin_block)
+                    .await
+                    .context("failed to begin block")?,
+            ),
             ConsensusRequest::DeliverTx(deliver_tx) => ConsensusResponse::DeliverTx(
                 self.deliver_tx(deliver_tx)
                     .await
-                    // .context() cannot be used here because Box<dyn Error> does not implement
-                    // Error: https://github.com/dtolnay/anyhow/issues/66
-                    .map_err(|e| anyhow!(e))
                     .context("failed to deliver transaction")?,
             ),
             ConsensusRequest::EndBlock(end_block) => ConsensusResponse::EndBlock(
                 self.end_block(end_block)
                     .await
-                    .map_err(|e| anyhow!(e))
                     .context("failed to end block")?,
             ),
-            ConsensusRequest::Commit => ConsensusResponse::Commit(
-                self.commit()
-                    .await
-                    .map_err(|e| anyhow!(e))
-                    .context("failed to commit")?,
-            ),
+            ConsensusRequest::Commit => {
+                ConsensusResponse::Commit(self.commit().await.context("failed to commit")?)
+            }
         })
     }
 
@@ -141,10 +132,24 @@ impl Consensus {
     }
 
     #[instrument(skip(self))]
+    async fn prepare_proposal(
+        &mut self,
+        mut prepare_proposal: request::PrepareProposal,
+    ) -> anyhow::Result<response::PrepareProposal> {
+        let action_commitment = generate_transaction_commitment(&prepare_proposal.txs)
+            .context("failed to generate transaction commitment")?;
+        let mut txs: Vec<Bytes> = vec![action_commitment.to_vec().into()];
+        txs.append(&mut prepare_proposal.txs);
+        Ok(response::PrepareProposal {
+            txs,
+        })
+    }
+
+    #[instrument(skip(self))]
     async fn begin_block(
         &mut self,
         begin_block: request::BeginBlock,
-    ) -> Result<response::BeginBlock, BoxError> {
+    ) -> anyhow::Result<response::BeginBlock> {
         if self.storage.latest_version() == u64::MAX {
             // TODO: why isn't tendermint calling init_chain before the first block?
             self.app
@@ -163,7 +168,7 @@ impl Consensus {
     async fn deliver_tx(
         &mut self,
         deliver_tx: request::DeliverTx,
-    ) -> Result<response::DeliverTx, BoxError> {
+    ) -> anyhow::Result<response::DeliverTx> {
         self.app
             .deliver_tx(&deliver_tx.tx)
             .await
@@ -180,7 +185,7 @@ impl Consensus {
     async fn end_block(
         &mut self,
         end_block: request::EndBlock,
-    ) -> Result<response::EndBlock, BoxError> {
+    ) -> anyhow::Result<response::EndBlock> {
         let events = self.app.end_block(&end_block).await;
         Ok(response::EndBlock {
             events,
@@ -189,7 +194,7 @@ impl Consensus {
     }
 
     #[instrument(skip(self))]
-    async fn commit(&mut self) -> Result<response::Commit, BoxError> {
+    async fn commit(&mut self) -> anyhow::Result<response::Commit> {
         let app_hash = self.app.commit(self.storage.clone()).await;
         Ok(response::Commit {
             data: app_hash.0.to_vec().into(),
