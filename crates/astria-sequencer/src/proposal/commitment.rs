@@ -52,7 +52,7 @@ pub(crate) fn generate_transaction_commitment(txs_bytes: &[Bytes]) -> Result<[u8
 
 /// returns an 10-byte namespace given a byte slice.
 /// TODO: duplicate in `astria-sequencer-relayer/src/types.rs`
-pub fn get_namespace(bytes: &[u8]) -> [u8; 10] {
+fn get_namespace(bytes: &[u8]) -> [u8; 10] {
     use sha2::Digest as _;
     let mut hasher = sha2::Sha256::new();
     hasher.update(bytes);
