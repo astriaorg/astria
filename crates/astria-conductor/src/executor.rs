@@ -490,7 +490,7 @@ mod test {
                 }],
             );
             block.header.height = i.into();
-            let mut block_id = BlockId {
+            let block_id = BlockId {
                 hash: Hash::try_from(hash(prev_byte_hash)).unwrap(),
                 ..Default::default()
             };
