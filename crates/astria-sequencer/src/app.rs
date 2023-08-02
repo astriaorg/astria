@@ -411,6 +411,42 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_app_deliver_tx_transfer_balance_too_low_for_fee() {
+        use rand::rngs::OsRng;
+
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut app = App::new(snapshot);
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+        };
+        app.init_chain(genesis_state).await.unwrap();
+
+        // create a new key; will have 0 balance
+        let keypair = SigningKey::new(OsRng);
+        let bob = address_from_hex_string(BOB_ADDRESS);
+
+        // 0-value transfer; only fee is deducted from sender
+        let value = Balance::from(0);
+        let tx = Unsigned {
+            nonce: Nonce::from(0),
+            actions: vec![Action::TransferAction(Transfer::new(bob.clone(), value))],
+        };
+        let signed_tx = tx.into_signed(&keypair);
+        let bytes = signed_tx.to_proto().encode_to_vec();
+        let res = app
+            .deliver_tx(&bytes)
+            .await
+            .err()
+            .unwrap()
+            .root_cause()
+            .to_string();
+        assert!(res.contains("insufficient funds"));
+    }
+
+    #[tokio::test]
     async fn test_app_deliver_tx_sequence() {
         let storage = penumbra_storage::TempStorage::new()
             .await

@@ -27,6 +27,8 @@ use crate::{
 /// Fee charged for a sequence `Action` per byte of `data` included.
 pub(crate) const SEQUENCE_ACTION_FEE_PER_BYTE: Balance = Balance(1);
 
+const MAX_CHAIN_ID_LENGTH: usize = 32;
+
 /// Represents an opaque transaction destined for a rollup.
 /// It only contains the chain ID of the destination rollup and data
 /// which are bytes to be interpreted by the rollup.
@@ -89,8 +91,21 @@ impl ActionHandler for Action {
     }
 
     fn check_stateless(&self) -> Result<()> {
+        ensure!(
+            !self.chain_id.is_empty(),
+            "cannot have empty chain ID for sequence action",
+        );
+        ensure!(
+            self.chain_id.len() <= MAX_CHAIN_ID_LENGTH,
+            "chain ID cannot be longer than {} bytes",
+            MAX_CHAIN_ID_LENGTH,
+        );
+
         // TODO: do we want to place a maximum on the size of the data?
-        ensure!(!self.data.is_empty(), "cannot have empty data");
+        ensure!(
+            !self.data.is_empty(),
+            "cannot have empty data for sequence action"
+        );
         Ok(())
     }
 
