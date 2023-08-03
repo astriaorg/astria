@@ -197,13 +197,17 @@ impl<C: ExecutionClient> Executor<C> {
         Ok(())
     }
 
-    /// checks for relevant transactions in the SequencerBlock and attempts
-    /// to execute them via the execution service function DoBlock.
-    /// if there are relevant transactions that successfully execute,
-    /// it returns the resulting execution block hash.
-    /// if the block has already been executed, it returns the previously-computed
-    /// execution block hash.
-    /// if there are no relevant transactions in the SequencerBlock, it returns None.
+    /// This function takes a given sequencer block and sends it to the execution client.
+    /// It checks for relevant transations in the block and attempts to execute them via the
+    /// execution service's DoBlock function. If there are relevant transactions that
+    /// successfully execute, it returns the resulting execution block hash. If the block has
+    /// already been executed, it returns the previously-computed execution block hash. If there
+    /// are no relevant transactions in the SequencerBlock, it returns None.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if:
+    /// - the call to the execution service's DoBlock function fails
     async fn execute_block(&mut self, mut block: SequencerBlockData) -> Result<Option<Vec<u8>>> {
         if let Some(execution_hash) = self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
             debug!(
@@ -237,9 +241,7 @@ impl<C: ExecutionClient> Executor<C> {
             return Ok(None);
         };
 
-        // if we add a block that doesn't have a parent we should never get to here
         let prev_execution_block_hash = self.execution_state.clone();
-
         info!(
             height = block.header.height.value(),
             parent_block_hash = hex::encode(&prev_execution_block_hash),
@@ -247,10 +249,10 @@ impl<C: ExecutionClient> Executor<C> {
         );
 
         let txs = txs.into_iter().map(|tx| tx.transaction).collect::<Vec<_>>();
-
         let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
+        // send the data in the sequencer block to the execution client
         let response = self
             .execution_rpc_client
             .call_do_block(prev_execution_block_hash, txs, Some(timestamp))
@@ -357,13 +359,12 @@ impl<C: ExecutionClient> Executor<C> {
                 .hash
                 == self.last_safe_block_hash
             {
-                let (block, _) = self.block_queue.clone().into_sorted_iter().last().unwrap(); // TODO: remove unwrap
-                // TODO: this should return a vec of block hashes that were executed
-                if let Err(e) = self.execute_block(block.clone()).await {
-                    // TODO: have this return a better error
-                    error!("failed to execute block: {e:?}");
+                if let Some((block, _)) = self.block_queue.clone().into_sorted_iter().last() {
+                    if let Err(e) = self.execute_block(block.clone()).await {
+                        error!("failed to execute block: {e:?}");
+                    }
+                    self.block_queue.remove(&block);
                 }
-                self.block_queue.remove(&block);
             } else {
                 break;
             }
@@ -474,7 +475,6 @@ mod test {
             let prev_hash_string = String::from("block") + &(i - 1).to_string();
             let current_byte_hash: &[u8] = &current_hash_string.into_bytes();
             let prev_byte_hash: &[u8] = &prev_hash_string.into_bytes();
-            // let mut header = astria_sequencer_relayer::utils::default_header();
 
             let mut block = SequencerBlockData {
                 block_hash: hash(current_byte_hash),
@@ -509,7 +509,7 @@ mod test {
             .await
             .unwrap();
 
-        let blocks = get_test_block_vec(5);
+        let blocks = get_test_block_vec(9);
 
         // executing a block like normal
         let mut expected_exection_hash = hash(&executor.execution_state);
@@ -520,7 +520,7 @@ mod test {
             .expect("expected execution block hash");
         assert_eq!(expected_exection_hash, execution_block_hash_0);
 
-        // adding a block without a parent in the execution chaing doesn't change the execution
+        // adding a block without a parent in the execution chain doesn't change the execution
         // state and adds it to the queue
         let execution_block_hash_2 = executor
             .execute_block(blocks[2].clone())
@@ -530,7 +530,8 @@ mod test {
         assert_eq!(expected_exection_hash, execution_block_hash_2);
         assert_eq!(executor.block_queue.len(), 1);
 
-        // adding another block without a parent
+        // adding another block without a parent in the current chain (but does have parent in the
+        // queue). also doesn't change execution state
         let execution_block_hash_3 = executor
             .execute_block(blocks[3].clone())
             .await
@@ -567,8 +568,52 @@ mod test {
             .expect("expected execution block hash");
         assert_eq!(expected_exection_hash, execution_block_hash_4);
 
-        // TODO: add more here so that if the there is a block in the queue that can't be executed
-        // it doesn't get executed
+        // add another block that doesn't have a parent
+        let execution_block_hash_6 = executor
+            .execute_block(blocks[6].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        // exectuion hash not updated
+        assert_eq!(expected_exection_hash, execution_block_hash_6);
+        let _ = executor.try_execute_queue().await;
+        assert_eq!(executor.block_queue.len(), 1);
+
+        // add another block that doesn't have a parent and also a gap between the last block added
+        // that doesn't have a parent
+        let execution_block_hash_8 = executor
+            .execute_block(blocks[8].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        // exectuion hash not updated
+        assert_eq!(expected_exection_hash, execution_block_hash_8);
+        let _ = executor.try_execute_queue().await;
+        assert_eq!(executor.block_queue.len(), 2);
+
+        // add a block that fills the first gap
+        expected_exection_hash = hash(&executor.execution_state);
+        let execution_block_hash_5 = executor
+            .execute_block(blocks[5].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        assert_eq!(expected_exection_hash, execution_block_hash_5);
+        // when trying to execut the queue, up to the first gap block
+        let _ = executor.try_execute_queue().await;
+        assert_eq!(executor.block_queue.len(), 1);
+
+        // add a block that fills the second gap
+        expected_exection_hash = hash(&executor.execution_state);
+        let execution_block_hash_7 = executor
+            .execute_block(blocks[7].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        assert_eq!(expected_exection_hash, execution_block_hash_7);
+        // the rest of the queue is executed because all gaps are filled
+        let _ = executor.try_execute_queue().await;
+        assert_eq!(executor.block_queue.len(), 0);
     }
 
     #[tokio::test]
