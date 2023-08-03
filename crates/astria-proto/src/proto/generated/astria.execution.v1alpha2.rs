@@ -71,7 +71,8 @@ pub struct CreateBlockRequest {
 /// The CommitmentState holds the block at each stage of sequencer commitment level
 ///
 /// A Valid CommitmentState:
-/// - Block numbers are such that soft+1 >= head >= soft >= firm.
+/// - Block numbers are such that head >= soft >= firm.
+/// - Head block may either be the same as soft, or have a height 1 higher than soft.
 /// - No blocks ever decrease in block number, only head may stay the same and have other changes
 /// - The chain defined by head is the canonical chain which always contains soft and firm blocks.
 #[allow(clippy::derive_partial_eq_without_eq)]
