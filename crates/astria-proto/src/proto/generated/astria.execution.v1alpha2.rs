@@ -9,8 +9,11 @@ pub struct Block {
     /// The hash of the block
     #[prost(bytes="vec", tag="2")]
     pub hash: ::prost::alloc::vec::Vec<u8>,
+    /// The hash from the parent block
+    #[prost(bytes="vec", tag="3")]
+    pub parent_block_hash: ::prost::alloc::vec::Vec<u8>,
     /// Timestamp on the block, standardized to google protobuf standard.
-    #[prost(message, optional, tag="3")]
+    #[prost(message, optional, tag="4")]
     pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
 }
 /// Fields which are indexed for finding blocks on a blockchain.

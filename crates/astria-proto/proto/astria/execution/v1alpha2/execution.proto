@@ -10,8 +10,10 @@ message Block {
   uint32 number = 1;
   // The hash of the block
   bytes hash = 2;
+  // The hash from the parent block
+  bytes parent_block_hash = 3;
   // Timestamp on the block, standardized to google protobuf standard.
-  google.protobuf.Timestamp timestamp = 3;
+  google.protobuf.Timestamp timestamp = 4;
 }
 
 // Fields which are indexed for finding blocks on a blockchain.
