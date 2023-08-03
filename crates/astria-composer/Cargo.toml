@@ -1,0 +1,45 @@
+[package]
+name = "astria-composer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+astria-sequencer = { path = "../astria-sequencer" }
+
+ethers = { version = "2.0.7", features = ["ws"] }
+
+async-trait = { workspace = true }
+axum = { workspace = true }
+backon = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+color-eyre = { workspace = true }
+ed25519-consensus = { workspace = true }
+figment = { workspace = true, features = ["toml", "env", "test"] }
+humantime = { workspace = true }
+hyper = { workspace = true }
+hex = { workspace = true }
+is-terminal = { workspace = true }
+futures.workspace = true
+reqwest = { workspace = true, features = ["json"] }
+rand = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tendermint = { workspace = true }
+# FIXME: Don't activate full
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true, features = ["attributes"] }
+tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
+
+[dependencies.sequencer-client]
+package = "astria-sequencer-client"
+path = "../astria-sequencer-client"
+features = ["http"]
+
+[dev-dependencies]
+impl-serde = "0.4.0"
+jsonrpsee = { workspace = true, features = ["macros", "server"] }
+once_cell = { workspace = true }
+tendermint-rpc = { workspace = true }
+wiremock = { workspace = true }
