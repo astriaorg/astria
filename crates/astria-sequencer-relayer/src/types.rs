@@ -10,6 +10,7 @@ use base64::{
     engine::general_purpose,
     Engine as _,
 };
+use bincode;
 use eyre::{
     bail,
     ensure,
@@ -46,7 +47,7 @@ use tracing::debug;
 pub static DEFAULT_NAMESPACE: Namespace = Namespace(*b"astriasequ");
 
 /// Namespace represents a Celestia namespace.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Namespace([u8; NAMESPACE_ID_AVAILABLE_LEN]);
 
 impl Deref for Namespace {
@@ -146,7 +147,7 @@ pub fn get_namespace(bytes: &[u8]) -> Namespace {
 /// it was originally in in the sequencer block.
 /// This is required so that the block's `data_hash`, which is a merkle root
 /// of the transactions in the block, can be verified.
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Hash)]
 pub struct IndexedTransaction {
     pub block_index: usize,
     pub transaction: Vec<u8>,
@@ -171,6 +172,18 @@ pub struct SequencerBlockData {
 impl Hash for SequencerBlockData {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.block_hash.hash(state);
+        self.header.hash().hash(state);
+        if let Some(commit) = self.last_commit.clone() {
+            let encoded: Vec<u8> = bincode::serialize(&commit).unwrap();
+            encoded.hash(state);
+        }
+
+        let mut txs_keys: Vec<&Namespace> = self.rollup_txs.keys().collect();
+        txs_keys.sort();
+        for key in txs_keys {
+            key.hash(state);
+            self.rollup_txs.get(key).hash(state);
+        }
     }
 }
 

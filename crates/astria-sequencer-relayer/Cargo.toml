@@ -16,6 +16,7 @@ hyper = "0.14.27"
 serde_path_to_error = "0.1.13"
 sha2 = "0.10"
 zeroize = { version = "1.6.0", features = ["zeroize_derive"] }
+bincode = "1.3.3"
 
 base64 = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
@@ -34,7 +35,7 @@ tendermint-config = { workspace = true }
 tendermint-rpc = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
-tokio = { workspace = true, features = [ "macros", "rt-multi-thread" ] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client" }
 astria-gossipnet = { path = "../astria-gossipnet" }
@@ -42,8 +43,10 @@ astria-proto = { path = "../astria-proto" }
 astria-sequencer = { path = "../astria-sequencer" }
 
 [dev-dependencies]
-astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client", features = ["server"] }
-rand_core = { version = "0.6", features = [ "getrandom" ] }
+astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client", features = [
+    "server",
+] }
+rand_core = { version = "0.6", features = ["getrandom"] }
 
 figment = { workspace = true, features = ["test"] }
 jsonrpsee = { workspace = true, features = ["server"] }
@@ -52,5 +55,5 @@ once_cell = { workspace = true }
 tempfile = { workspace = true }
 tendermint-rpc = { workspace = true, features = ["http-client"] }
 tokio = { workspace = true, features = ["test-util"] }
-wiremock = {workspace = true }
+wiremock = { workspace = true }
 astria-sequencer = { path = "../astria-sequencer" }
