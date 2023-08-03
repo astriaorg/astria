@@ -2,41 +2,44 @@ use astria_sequencer::{
     accounts::types::Nonce,
     sequence::Action as SequenceAction,
     transaction::{
-        action::Action as SequencerAction, Signed as SignedSequencerTx,
+        action::Action as SequencerAction,
+        Signed as SignedSequencerTx,
         Unsigned as UnsignedSequencerTx,
     },
 };
 use astria_sequencer_client::Client as SequencerClient;
-use color_eyre::eyre::{self, eyre, WrapErr as _};
+use color_eyre::eyre::{
+    self,
+    eyre,
+    WrapErr as _,
+};
 use ed25519_consensus::SigningKey;
 use ethers::{
-    providers::{JsonRpcClient, Middleware, Provider, PubsubClient, StreamExt, Ws},
-    types::Transaction,
+    providers::{
+        JsonRpcClient,
+        Middleware,
+        Provider,
+        PubsubClient,
+        StreamExt,
+        Ws,
+    },
+    types::Transaction as RollupTx,
 };
-use tokio::{select, task::JoinSet};
+use tokio::{
+    select,
+    task::JoinSet,
+};
 use tracing::warn;
 
 use crate::Config;
 
+mod bundler;
+mod collector;
+mod executor;
+mod searcher;
+
 #[cfg(test)]
 mod tests;
-
-pub struct Searcher<T>
-where
-    T: PubsubClient + JsonRpcClient + Clone,
-{
-    // The client for getting new pending transactions from the ethereum JSON RPC.
-    eth_client: Provider<T>,
-    // The client for submitting swrapped pending eth transactions to the astria sequencer.
-    sequencer_client: astria_sequencer_client::Client,
-    rollup_chain_id: String,
-    // Set of currently running jobs converting pending eth transactions to signed sequencer
-    // transactions.
-    conversion_tasks: JoinSet<eyre::Result<SignedSequencerTx>>,
-    // Set of in-flight RPCs submitting signed transactions to the sequencer.
-    // submission_tasks: JoinSet<eyre::Result<tx_sync::Response>>,
-    submission_tasks: JoinSet<eyre::Result<()>>,
-}
 
 impl<T> Searcher<T>
 where
@@ -171,4 +174,14 @@ where
         #[allow(unreachable_code)]
         Ok(())
     }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum Event {
+    NewRollupTx(RollupTx),
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum Action {
+    SendSequencerTx(SignedSequencerTx),
 }

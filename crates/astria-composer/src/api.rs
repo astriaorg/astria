@@ -15,17 +15,17 @@ pub(super) type ApiServer = axum::Server<AddrIncoming, IntoMakeService<Router>>;
 
 pub(super) fn start(port: u16) -> ApiServer {
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    let api_router = Router::new().route("/healthz", get(healthz));
+    let api_router = Router::new().route("/readyz", get(readyz));
     // TODO: add routes for events and actions
     axum::Server::bind(&addr).serve(api_router.into_make_service())
 }
 
-pub(super) enum Healthz {
+pub(super) enum Readyz {
     Ok,
     _Degraded,
 }
 
-impl IntoResponse for Healthz {
+impl IntoResponse for Readyz {
     fn into_response(self) -> axum::response::Response {
         #[derive(Debug, Serialize)]
         struct HealthzBody {
@@ -44,7 +44,7 @@ impl IntoResponse for Healthz {
     }
 }
 
-pub(super) async fn healthz() -> Healthz {
-    // TODO: check against state
-    Healthz::Ok
+pub(super) async fn readyz() -> Readyz {
+    // TODO: ping geth client and sequencer client
+    Readyz::Ok
 }
