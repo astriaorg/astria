@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use astria_sequencer_relayer::{
     data_availability::{
+        RollupNamespaceData,
         SequencerNamespaceData,
         SignedNamespaceData,
     },
@@ -20,7 +21,11 @@ use ed25519_consensus::{
 use prost::Message;
 use tendermint::{
     account::Id as AccountId,
-    block::Id as BlockId,
+    block::{
+        Commit,
+        Header,
+        Id as BlockId,
+    },
     chain::Id as ChainId,
     crypto,
     merkle,
@@ -100,6 +105,19 @@ impl BlockVerifier {
         Ok(())
     }
 
+    pub async fn validate_rollup_data(
+        &self,
+        block_hash: &[u8],
+        header: &Header,
+        last_commit: &Option<Commit>,
+        _rollup_data: &RollupNamespaceData,
+    ) -> eyre::Result<()> {
+        self.validate_sequencer_block_header_and_last_commit(block_hash, header, last_commit)
+            .await?;
+        // TODO: validate rollup data w/ merkle proofs
+        Ok(())
+    }
+
     /// performs various validation checks on the SequencerBlock received from either gossip or
     /// Celestia.
     ///
@@ -111,9 +129,33 @@ impl BlockVerifier {
     /// - the root of the markle tree of all the header fields matches the block's block_hash
     /// - the root of the merkle tree of all transactions in the block matches the block's data_hash
     /// - validate the block was actually finalized; ie >2/3 stake signed off on it
-    pub async fn validate_sequencer_block(&self, block: &SequencerBlockData) -> eyre::Result<()> {
+    pub async fn validate_sequencer_block_data(
+        &self,
+        block: &SequencerBlockData,
+    ) -> eyre::Result<()> {
+        self.validate_sequencer_block_header_and_last_commit(
+            &block.block_hash,
+            &block.header,
+            &block.last_commit,
+        )
+        .await?;
+
+        // finally, validate that the transactions in the block result in the correct data_hash
+        block
+            .verify_data_hash()
+            .wrap_err("failed to verify block data_hash")?;
+
+        Ok(())
+    }
+
+    async fn validate_sequencer_block_header_and_last_commit(
+        &self,
+        block_hash: &[u8],
+        header: &Header,
+        last_commit: &Option<Commit>,
+    ) -> eyre::Result<()> {
         // sequencer block's height
-        let height: u32 = block.header.height.value().try_into().expect(
+        let height: u32 = header.height.value().try_into().expect(
             "a tendermint height (currently non-negative i32) should always fit into a u32",
         );
 
@@ -134,18 +176,18 @@ impl BlockVerifier {
         .wrap_err("failed to convert proposer public key to address")?;
 
         // check if the proposer address matches the sequencer block's proposer
-        let received_proposer_address = block.header.proposer_address;
+        let received_proposer_address = header.proposer_address;
         ensure!(
             received_proposer_address == expected_proposer_address,
             "proposer address mismatch: expected `{expected_proposer_address}`, got \
              `{received_proposer_address}`",
         );
 
-        match &block.last_commit {
+        match &last_commit {
             Some(last_commit) => {
                 // validate that commit signatures hash to header.last_commit_hash
                 let calculated_last_commit_hash = calculate_last_commit_hash(last_commit);
-                let Some(last_commit_hash) = block.header.last_commit_hash.as_ref() else {
+                let Some(last_commit_hash) = header.last_commit_hash.as_ref() else {
                     bail!("last commit hash should not be empty");
                 };
 
@@ -155,7 +197,7 @@ impl BlockVerifier {
 
                 // verify that the validator votes on the previous block have >2/3 voting power
                 let last_commit = last_commit.clone();
-                let chain_id = block.header.chain_id.clone();
+                let chain_id = header.chain_id.clone();
                 tokio::task::spawn_blocking(move || -> eyre::Result<()> {
                     ensure_commit_has_quorum(&last_commit, &validator_set, chain_id.as_ref())
                 })
@@ -166,26 +208,21 @@ impl BlockVerifier {
             }
             None => {
                 // the last commit can only be empty on block 1
+                ensure!(header.height == 1u32.into(), "last commit hash not found");
                 ensure!(
-                    block.header.height == 1u32.into(),
-                    "last commit hash not found"
-                );
-                ensure!(
-                    block.header.last_commit_hash.is_none(),
+                    header.last_commit_hash.is_none(),
                     "last commit hash should be empty"
                 );
             }
         }
 
         // validate the block header matches the block hash
-        block
-            .verify_block_hash()
-            .wrap_err("failed to verify block hash")?;
-
-        // finally, validate that the transactions in the block result in the correct data_hash
-        block
-            .verify_data_hash()
-            .wrap_err("failed to verify block data_hash")?;
+        let block_hash_from_header = header.hash();
+        ensure!(
+            block_hash_from_header.as_bytes() == block_hash,
+            "block hash calculated from tendermint header does not match block hash stored in \
+             sequencer block",
+        );
 
         Ok(())
     }

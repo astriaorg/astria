@@ -145,7 +145,7 @@ impl NamespaceData for SequencerNamespaceData {}
 pub struct RollupNamespaceData {
     #[serde(with = "crate::serde::Base64Standard")]
     pub(crate) block_hash: Vec<u8>,
-    pub(crate) rollup_txs: Vec<IndexedTransaction>,
+    pub rollup_txs: Vec<IndexedTransaction>,
 }
 
 impl NamespaceData for RollupNamespaceData {}

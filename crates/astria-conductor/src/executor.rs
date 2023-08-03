@@ -36,6 +36,7 @@ use crate::{
         ExecutionClient,
         ExecutionRpcClient,
     },
+    types::SequencerBlockSubset,
 };
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
@@ -82,7 +83,7 @@ pub enum ExecutorCommand {
     },
     /// used when a block is received from the reader (Celestia)
     BlockReceivedFromDataAvailability {
-        block: Box<SequencerBlockData>,
+        block: Box<SequencerBlockSubset>,
     },
     Shutdown,
 }
@@ -95,6 +96,7 @@ struct Executor<C> {
     execution_rpc_client: C,
 
     /// Namespace ID
+    /// TODO: remove?
     namespace: Namespace,
 
     /// The channel on which the driver and tasks in the driver can post alerts
@@ -149,7 +151,13 @@ impl<C: ExecutionClient> Executor<C> {
                     self.alert_tx.send(Alert::BlockReceivedFromGossipNetwork {
                         block_height: block.header.height.value(),
                     })?;
-                    if let Err(e) = self.execute_block(*block).await {
+                    if let Err(e) = self
+                        .execute_block(SequencerBlockSubset::from_sequencer_block_data(
+                            *block,
+                            self.namespace,
+                        ))
+                        .await
+                    {
                         error!("failed to execute block: {e:?}");
                     }
                 }
@@ -187,7 +195,15 @@ impl<C: ExecutionClient> Executor<C> {
     /// if the block has already been executed, it returns the previously-computed
     /// execution block hash.
     /// if there are no relevant transactions in the SequencerBlock, it returns None.
-    async fn execute_block(&mut self, mut block: SequencerBlockData) -> Result<Option<Vec<u8>>> {
+    async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Vec<u8>>> {
+        if block.rollup_transactions.is_empty() {
+            debug!(
+                height = block.header.height.value(),
+                "no transactions in block"
+            );
+            return Ok(None);
+        }
+
         if let Some(execution_hash) = self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
             debug!(
                 height = block.header.height.value(),
@@ -198,14 +214,6 @@ impl<C: ExecutionClient> Executor<C> {
         }
 
         // get transactions for our namespace
-        let Some(txs) = block.rollup_txs.remove(&self.namespace) else {
-            info!(
-                height = block.header.height.value(),
-                "sequencer block did not contains txs for namespace"
-            );
-            return Ok(None);
-        };
-
         let prev_block_hash = self.execution_state.clone();
 
         info!(
@@ -214,14 +222,12 @@ impl<C: ExecutionClient> Executor<C> {
             "executing block with given parent block",
         );
 
-        let txs = txs.into_iter().map(|tx| tx.transaction).collect::<Vec<_>>();
-
         let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
         let response = self
             .execution_rpc_client
-            .call_do_block(prev_block_hash, txs, Some(timestamp))
+            .call_do_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
             .await?;
         self.execution_state = response.block_hash.clone();
 
@@ -240,7 +246,7 @@ impl<C: ExecutionClient> Executor<C> {
 
     async fn handle_block_received_from_data_availability(
         &mut self,
-        block: SequencerBlockData,
+        block: SequencerBlockSubset,
     ) -> Result<()> {
         let sequencer_block_hash = block.block_hash.clone();
         let maybe_execution_block_hash = self
@@ -319,7 +325,6 @@ mod test {
         DoBlockResponse,
         InitStateResponse,
     };
-    use astria_sequencer_relayer::types::IndexedTransaction;
     use prost_types::Timestamp;
     use sha2::Digest as _;
     use tokio::sync::{
@@ -379,12 +384,11 @@ mod test {
         hasher.finalize().to_vec()
     }
 
-    fn get_test_block() -> SequencerBlockData {
-        SequencerBlockData {
+    fn get_test_block_subset() -> SequencerBlockSubset {
+        SequencerBlockSubset {
             block_hash: hash(b"block1"),
             header: astria_sequencer_relayer::utils::default_header(),
-            last_commit: None,
-            rollup_txs: HashMap::new(),
+            rollup_transactions: vec![],
         }
     }
 
@@ -397,14 +401,8 @@ mod test {
             .unwrap();
 
         let expected_exection_hash = hash(&executor.execution_state);
-        let mut block = get_test_block();
-        block.rollup_txs.insert(
-            namespace,
-            vec![IndexedTransaction {
-                block_index: 0,
-                transaction: b"test_transaction".to_vec(),
-            }],
-        );
+        let mut block = get_test_block_subset();
+        block.rollup_transactions.push(b"test_transaction".to_vec());
 
         let execution_block_hash = executor
             .execute_block(block)
@@ -422,7 +420,7 @@ mod test {
             .await
             .unwrap();
 
-        let block = get_test_block();
+        let block = get_test_block_subset();
         let execution_block_hash = executor.execute_block(block).await.unwrap();
         assert!(execution_block_hash.is_none());
     }
@@ -439,14 +437,8 @@ mod test {
             .await
             .unwrap();
 
-        let mut block: SequencerBlockData = get_test_block();
-        block.rollup_txs.insert(
-            namespace,
-            vec![IndexedTransaction {
-                block_index: 0,
-                transaction: b"test_transaction".to_vec(),
-            }],
-        );
+        let mut block = get_test_block_subset();
+        block.rollup_transactions.push(b"test_transaction".to_vec());
 
         let expected_exection_hash = hash(&executor.execution_state);
 
@@ -481,7 +473,7 @@ mod test {
             .await
             .unwrap();
 
-        let block: SequencerBlockData = get_test_block();
+        let block: SequencerBlockSubset = get_test_block_subset();
         let previous_execution_state = executor.execution_state.clone();
 
         executor
