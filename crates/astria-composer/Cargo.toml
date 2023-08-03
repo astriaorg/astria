@@ -13,10 +13,9 @@ ethers = { version = "2.0.7", features = ["ws"] }
 async-trait = { workspace = true }
 axum = { workspace = true }
 backon = { workspace = true }
-clap = { workspace = true, features = ["derive"] }
 color-eyre = { workspace = true }
 ed25519-consensus = { workspace = true }
-figment = { workspace = true, features = ["toml", "env", "test"] }
+figment = { workspace = true, features = ["env"] }
 humantime = { workspace = true }
 hyper = { workspace = true }
 hex = { workspace = true }
@@ -38,6 +37,7 @@ path = "../astria-sequencer-client"
 features = ["http"]
 
 [dev-dependencies]
+figment = { workspace = true, features = ["test"] }
 impl-serde = "0.4.0"
 jsonrpsee = { workspace = true, features = ["macros", "server"] }
 once_cell = { workspace = true }
