@@ -12,6 +12,7 @@ use color_eyre::eyre::{
 use priority_queue::PriorityQueue;
 use prost_types::Timestamp as ProstTimestamp;
 use tendermint::{
+    block::Height,
     hash::Hash,
     Time,
 };
@@ -123,7 +124,7 @@ struct Executor<C> {
     last_safe_block_hash: Hash,
 
     /// block queue for blocks that have been recieved but their parent has not been executed yet
-    block_queue: PriorityQueue<SequencerBlockData, u64>,
+    block_queue: PriorityQueue<SequencerBlockData, Height>,
 }
 
 impl<C: ExecutionClient> Executor<C> {
@@ -221,8 +222,7 @@ impl<C: ExecutionClient> Executor<C> {
         // add it to the block queue
         if let Some(parent_block) = block.header.last_block_id {
             if parent_block.hash != self.last_safe_block_hash {
-                self.block_queue
-                    .push(block.clone(), block.header.height.value());
+                self.block_queue.push(block.clone(), block.header.height);
                 debug!(
                     height = block.header.height.value(),
                     "parent block not yet executed, adding to pending queue, execution state not \
