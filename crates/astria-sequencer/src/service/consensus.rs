@@ -84,14 +84,13 @@ impl Consensus {
             ),
             ConsensusRequest::PrepareProposal(prepare_proposal) => {
                 ConsensusResponse::PrepareProposal(
-                    self.prepare_proposal(prepare_proposal)
-                        .await
+                    Self::prepare_proposal(prepare_proposal)
                         .context("failed to prepare proposal")?,
                 )
             }
             ConsensusRequest::ProcessProposal(process_proposal) => {
                 ConsensusResponse::ProcessProposal(
-                    match self.process_proposal(process_proposal).await {
+                    match Self::process_proposal(&process_proposal) {
                         Ok(()) => response::ProcessProposal::Accept,
                         Err(e) => {
                             warn!(error = ?e, "rejecting proposal");
@@ -140,9 +139,7 @@ impl Consensus {
         Ok(response::InitChain::default())
     }
 
-    #[instrument(skip(self))]
-    async fn prepare_proposal(
-        &mut self,
+    fn prepare_proposal(
         mut prepare_proposal: request::PrepareProposal,
     ) -> anyhow::Result<response::PrepareProposal> {
         let action_commitment = generate_transaction_commitment(&prepare_proposal.txs)
@@ -154,11 +151,7 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip(self))]
-    async fn process_proposal(
-        &mut self,
-        process_proposal: request::ProcessProposal,
-    ) -> anyhow::Result<()> {
+    fn process_proposal(process_proposal: &request::ProcessProposal) -> anyhow::Result<()> {
         let received_action_commitment: [u8; 32] = process_proposal
             .txs
             .first()
@@ -232,5 +225,160 @@ impl Consensus {
             data: app_hash.0.to_vec().into(),
             ..Default::default()
         })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::str::FromStr;
+
+    use ed25519_consensus::SigningKey;
+    use prost::Message as _;
+    use rand::rngs::OsRng;
+    use tendermint::{
+        account::Id,
+        Hash,
+        Time,
+    };
+
+    use super::*;
+    use crate::{
+        accounts::types::Nonce,
+        sequence,
+        transaction::{
+            action::Action,
+            Unsigned,
+        },
+    };
+
+    fn new_prepare_proposal_request(txs: Vec<Bytes>) -> request::PrepareProposal {
+        request::PrepareProposal {
+            txs,
+            max_tx_bytes: 1024,
+            local_last_commit: None,
+            misbehavior: vec![],
+            height: 1u32.into(),
+            time: Time::now(),
+            next_validators_hash: Hash::default(),
+            proposer_address: Id::from_str("0CDA3F47EF3C4906693B170EF650EB968C5F4B2C").unwrap(),
+        }
+    }
+
+    fn new_process_proposal_request(txs: Vec<Bytes>) -> request::ProcessProposal {
+        request::ProcessProposal {
+            txs,
+            proposed_last_commit: None,
+            misbehavior: vec![],
+            hash: Hash::default(),
+            height: 1u32.into(),
+            next_validators_hash: Hash::default(),
+            time: Time::now(),
+            proposer_address: Id::from_str("0CDA3F47EF3C4906693B170EF650EB968C5F4B2C").unwrap(),
+        }
+    }
+
+    #[test]
+    fn prepare_proposal() {
+        let signing_key = SigningKey::new(OsRng);
+        let tx = Unsigned {
+            nonce: Nonce::from(0),
+            actions: vec![Action::SequenceAction(sequence::Action::new(
+                b"testchainid".to_vec(),
+                b"helloworld".to_vec(),
+            ))],
+        };
+
+        let signed_tx = tx.into_signed(&signing_key);
+        let tx_bytes = signed_tx.to_proto().encode_to_vec();
+
+        let txs = vec![tx_bytes.clone().into()];
+        let action_commitment = generate_transaction_commitment(&txs).unwrap();
+
+        let prepare_proposal = new_prepare_proposal_request(txs);
+        let prepare_proposal_response = Consensus::prepare_proposal(prepare_proposal).unwrap();
+        assert_eq!(
+            prepare_proposal_response,
+            response::PrepareProposal {
+                txs: vec![action_commitment.to_vec().into(), tx_bytes.into()],
+            }
+        );
+    }
+
+    #[test]
+    fn process_proposal_ok() {
+        let signing_key = SigningKey::new(OsRng);
+        let tx = Unsigned {
+            nonce: Nonce::from(0),
+            actions: vec![Action::SequenceAction(sequence::Action::new(
+                b"testchainid".to_vec(),
+                b"helloworld".to_vec(),
+            ))],
+        };
+
+        let signed_tx = tx.into_signed(&signing_key);
+        let tx_bytes = signed_tx.to_proto().encode_to_vec();
+        let txs = vec![tx_bytes.clone().into()];
+        let action_commitment = generate_transaction_commitment(&txs).unwrap();
+
+        let process_proposal =
+            new_process_proposal_request(vec![action_commitment.to_vec().into(), tx_bytes.into()]);
+        Consensus::process_proposal(&process_proposal).unwrap();
+    }
+
+    #[test]
+    fn process_proposal_fail() {
+        // missing action commitment
+        let process_proposal = new_process_proposal_request(vec![]);
+        assert!(
+            Consensus::process_proposal(&process_proposal)
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("no transaction commitment in proposal")
+        );
+
+        // wrong commitment length
+        let process_proposal = new_process_proposal_request(vec![[0u8; 16].to_vec().into()]);
+        assert!(
+            Consensus::process_proposal(&process_proposal)
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("transaction commitment must be 32 bytes")
+        );
+
+        // wrong commitment value
+        let process_proposal = new_process_proposal_request(vec![[99u8; 32].to_vec().into()]);
+        assert!(
+            Consensus::process_proposal(&process_proposal)
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("transaction commitment does not match expected")
+        );
+    }
+
+    #[test]
+    fn prepare_proposal_empty_block() {
+        let txs = vec![];
+        let action_commitment = generate_transaction_commitment(&txs).unwrap();
+        let prepare_proposal = new_prepare_proposal_request(txs);
+
+        let prepare_proposal_response = Consensus::prepare_proposal(prepare_proposal).unwrap();
+        assert_eq!(
+            prepare_proposal_response,
+            response::PrepareProposal {
+                txs: vec![action_commitment.to_vec().into()],
+            }
+        );
+    }
+
+    #[test]
+    fn process_proposal_ok_empty_block() {
+        let txs = vec![];
+        let action_commitment = generate_transaction_commitment(&txs).unwrap();
+        let process_proposal =
+            new_process_proposal_request(vec![action_commitment.to_vec().into()]);
+        Consensus::process_proposal(&process_proposal).unwrap();
     }
 }
