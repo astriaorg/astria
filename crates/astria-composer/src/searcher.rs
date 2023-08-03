@@ -125,7 +125,7 @@ impl Searcher {
     /// Constructs a new Searcher service from config.
     pub async fn from_config(cfg: &Config) -> eyre::Result<Self> {
         // connect to eth node
-        let eth_client = EthClient::connect(&cfg.execution_ws_url)
+        let eth_client = EthClient::connect(&cfg.execution_url)
             .await
             .wrap_err("failed connecting to geth")?;
 

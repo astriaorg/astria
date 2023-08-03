@@ -33,15 +33,15 @@ pub async fn spawn_composer() -> TestComposer {
     Lazy::force(&TELEMETRY);
 
     let geth = mock_geth::MockGeth::spawn().await;
-    let execution_ws_url = format!("ws://{}", geth.local_addr());
+    let execution_url = format!("ws://{}", geth.local_addr());
     let sequencer = mock_sequencer::start().await;
     let sequencer_url = sequencer.uri();
     let config = Config {
+        log: "".into(),
         api_listen_addr: "127.0.0.1:0".parse().unwrap(),
         chain_id: "testtest".into(),
         sequencer_url,
-        execution_ws_url,
-        ..Config::default()
+        execution_url,
     };
     let (composer_addr, composer) = {
         let composer = Composer::new(&config).await.unwrap();
