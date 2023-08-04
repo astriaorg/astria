@@ -224,7 +224,7 @@ impl Searcher {
         let mut tx_stream = eth_client
             .subscribe_full_pending_txs()
             .await
-            .wrap_err("failed to subscriber eth client to full pending transactions")?;
+            .wrap_err("failed to subscribe eth client to full pending transactions")?;
 
         loop {
             select!(
