@@ -102,6 +102,7 @@ impl ActionHandler for Action {
         );
 
         // TODO: do we want to place a maximum on the size of the data?
+        // https://github.com/astriaorg/astria/issues/222
         ensure!(
             !self.data.is_empty(),
             "cannot have empty data for sequence action"
