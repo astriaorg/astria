@@ -1,4 +1,3 @@
-//! A minimal mocked sequencer that implements the `broadcast_tx_sync` JSONRPC.
 use serde_json::json;
 use tendermint::{
     abci,
