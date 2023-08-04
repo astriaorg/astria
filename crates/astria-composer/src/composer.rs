@@ -58,16 +58,9 @@ impl Composer {
         self.api_server.local_addr()
     }
 
-    /// Runs the Searcher and blocks until all subtasks have exited:
-    /// - api server
-    /// - tx collector
-    /// - bundler
-    /// - executor
+    /// Runs the composer.
     ///
-    /// # Errors
-    ///
-    /// - `searcher::Error` if the Searcher fails to start or if any of the subtasks fail
-    /// and cannot be recovered.
+    /// Currently only exits if the api server or searcher stop unexpectedly.
     pub async fn run_until_stopped(self) {
         let Self {
             api_server,

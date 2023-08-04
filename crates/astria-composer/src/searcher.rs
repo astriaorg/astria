@@ -260,8 +260,8 @@ impl Searcher {
     /// times with exponential backoff.
     ///
     /// # Errors
-    /// An error is returned if calling the data availabilty failed for a total
-    /// of `n_retries + 1` times.
+    ///
+    /// An error is returned if calling geth failed after `n_retries + 1` times.
     #[instrument(skip_all, fields(
         retries.max_number = n_retries,
         retries.initial_delay = %format_duration(delay),
@@ -305,12 +305,12 @@ impl Searcher {
     /// Wait until a connection to the sequencer is established.
     ///
     /// This function tries to establish a connection to the sequencer by
-    /// querying its abci_info RPC. If it fails, it retries for another `n_retries`
+    /// querying its `abci_info` RPC. If it fails, it retries for another `n_retries`
     /// times with exponential backoff.
     ///
     /// # Errors
-    /// An error is returned if calling the data availabilty failed for a total
-    /// of `n_retries + 1` times.
+    ///
+    /// An error is returned if calling the sequencer failed for `n_retries + 1` times.
     #[instrument(skip_all, fields(
         retries.max_number = n_retries,
         retries.initial_delay = %format_duration(delay),
