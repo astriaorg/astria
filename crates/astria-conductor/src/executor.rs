@@ -121,6 +121,7 @@ struct Executor<C> {
     sequencer_hash_to_execution_hash: HashMap<Vec<u8>, Vec<u8>>,
 
     /// most recently executed sequencer block hash
+    // TODO pending (GHI-205): reevaluate this after 205 gets merged
     last_executed_seq_block_hash: Hash,
 
     /// block queue for blocks that have been recieved but their parent has not been executed yet
@@ -257,6 +258,7 @@ impl<C: ExecutionClient> Executor<C> {
             .call_do_block(prev_execution_block_hash, txs, Some(timestamp))
             .await?;
         self.execution_state = response.block_hash.clone();
+        // TODO pending (GHI-205): reevaluate this after 205 gets merged
         self.last_executed_seq_block_hash = Hash::try_from(block.block_hash.clone()).unwrap();
         // ======
 
@@ -299,6 +301,7 @@ impl<C: ExecutionClient> Executor<C> {
                         .call_do_block(prev_execution_block_hash, txs, Some(timestamp))
                         .await?;
                     self.execution_state = response.block_hash.clone();
+                    // TODO pending (GHI-205): reevaluate this after 205 gets merged
                     self.last_executed_seq_block_hash =
                         Hash::try_from(qblock.block_hash.clone()).unwrap();
                     self.block_queue.remove(&qblock);
