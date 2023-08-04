@@ -386,6 +386,7 @@ dependencies = [
  "tendermint",
  "tendermint-rpc",
  "tokio",
+ "tokio-test",
  "tracing",
  "tracing-subscriber",
  "wiremock",

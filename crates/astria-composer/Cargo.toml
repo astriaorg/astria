@@ -43,3 +43,4 @@ jsonrpsee = { workspace = true, features = ["macros", "server"] }
 once_cell = { workspace = true }
 tendermint-rpc = { workspace = true }
 wiremock = { workspace = true }
+tokio-test = "0.4.2"
