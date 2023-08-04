@@ -121,7 +121,7 @@ struct Executor<C> {
     sequencer_hash_to_execution_hash: HashMap<Vec<u8>, Vec<u8>>,
 
     /// most recently executed sequencer block hash
-    last_safe_block_hash: Hash,
+    last_executed_seq_block_hash: Hash,
 
     /// block queue for blocks that have been recieved but their parent has not been executed yet
     block_queue: PriorityQueue<SequencerBlockData, Height>,
@@ -144,7 +144,7 @@ impl<C: ExecutionClient> Executor<C> {
                 alert_tx,
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
-                last_safe_block_hash: Hash::default(),
+                last_executed_seq_block_hash: Hash::default(),
                 block_queue: PriorityQueue::new(),
             },
             cmd_tx,
@@ -164,11 +164,6 @@ impl<C: ExecutionClient> Executor<C> {
                     })?;
                     if let Err(e) = self.execute_block(*block).await {
                         error!("failed to execute block: {e:?}");
-                    }
-                    if !self.block_queue.is_empty() {
-                        if let Err(e) = self.try_execute_queue().await {
-                            error!("failed to execute block queue: {e:?}");
-                        }
                     }
                 }
 
@@ -209,6 +204,7 @@ impl<C: ExecutionClient> Executor<C> {
     ///
     /// This function returns an error if:
     /// - the call to the execution service's DoBlock function fails
+    // TODO (GHI-219): refactor execute_block
     async fn execute_block(&mut self, mut block: SequencerBlockData) -> Result<Option<Vec<u8>>> {
         if let Some(execution_hash) = self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
             debug!(
@@ -221,7 +217,7 @@ impl<C: ExecutionClient> Executor<C> {
         // if the block that we just recieved is not the next block in the sequence to be executed,
         // add it to the block queue
         if let Some(parent_block) = block.header.last_block_id {
-            if parent_block.hash != self.last_safe_block_hash {
+            if parent_block.hash != self.last_executed_seq_block_hash {
                 self.block_queue.push(block.clone(), block.header.height);
                 debug!(
                     height = block.header.height.value(),
@@ -232,6 +228,7 @@ impl<C: ExecutionClient> Executor<C> {
             }
         }
 
+        // TODO (GHI-219): refactor execute_block === move this into function
         // get transactions for our namespace
         let Some(txs) = block.rollup_txs.remove(&self.namespace) else {
             info!(
@@ -242,6 +239,7 @@ impl<C: ExecutionClient> Executor<C> {
         };
 
         let prev_execution_block_hash = self.execution_state.clone();
+
         info!(
             height = block.header.height.value(),
             parent_block_hash = hex::encode(&prev_execution_block_hash),
@@ -249,6 +247,7 @@ impl<C: ExecutionClient> Executor<C> {
         );
 
         let txs = txs.into_iter().map(|tx| tx.transaction).collect::<Vec<_>>();
+
         let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
@@ -258,7 +257,56 @@ impl<C: ExecutionClient> Executor<C> {
             .call_do_block(prev_execution_block_hash, txs, Some(timestamp))
             .await?;
         self.execution_state = response.block_hash.clone();
-        self.last_safe_block_hash = Hash::try_from(block.block_hash.clone()).unwrap();
+        self.last_executed_seq_block_hash = Hash::try_from(block.block_hash.clone()).unwrap();
+        // ======
+
+        // TOTO (GHI-219): queue execution funcitonality should be moved to its own function
+        if !self.block_queue.is_empty() {
+            // try executing all blocks in the block queue that have been recieved
+            while let Some((qblock, _)) = self.block_queue.clone().into_sorted_iter().last() {
+                if qblock
+                    .header
+                    .last_block_id
+                    .expect("Could not unwrap last block")
+                    .hash
+                    == self.last_executed_seq_block_hash
+                {
+                    // get transactions for our namespace
+                    let Some(txs) = qblock.clone().rollup_txs.remove(&self.namespace) else {
+                        info!(
+                            height = qblock.header.height.value(),
+                            "sequencer block did not contains txs for namespace"
+                        );
+                        return Ok(None);
+                    };
+
+                    let prev_execution_block_hash = self.execution_state.clone();
+
+                    info!(
+                        height = qblock.header.height.value(),
+                        parent_block_hash = hex::encode(&prev_execution_block_hash),
+                        "executing block with given parent block",
+                    );
+
+                    let txs = txs.into_iter().map(|tx| tx.transaction).collect::<Vec<_>>();
+
+                    let timestamp = convert_tendermint_to_prost_timestamp(qblock.header.time)
+                        .wrap_err("failed parsing str as protobuf timestamp")?;
+
+                    // send the data in the sequencer block to the execution client
+                    let response = self
+                        .execution_rpc_client
+                        .call_do_block(prev_execution_block_hash, txs, Some(timestamp))
+                        .await?;
+                    self.execution_state = response.block_hash.clone();
+                    self.last_executed_seq_block_hash =
+                        Hash::try_from(qblock.block_hash.clone()).unwrap();
+                    self.block_queue.remove(&qblock);
+                } else {
+                    break;
+                }
+            }
+        }
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
@@ -339,36 +387,6 @@ impl<C: ExecutionClient> Executor<C> {
             .wrap_err("failed to finalize block")?;
         self.sequencer_hash_to_execution_hash
             .remove(sequencer_block_hash);
-        Ok(())
-    }
-
-    /// This function attempts to execute all blocks in the block queue that have been recieved
-    /// without their parent block being executed yet. It always called when a block is recieved
-    /// from the gossip network, after execute_block has been called on the newly received block.
-    ///
-    /// # Errors
-    ///
-    /// This function returns an error if:
-    /// - The call to execute_block fails
-    async fn try_execute_queue(&mut self) -> Result<()> {
-        while let Some((block, _)) = self.block_queue.clone().into_sorted_iter().last() {
-            if block
-                .header
-                .last_block_id
-                .expect("Could not unwrap last block")
-                .hash
-                == self.last_safe_block_hash
-            {
-                if let Some((block, _)) = self.block_queue.clone().into_sorted_iter().last() {
-                    if let Err(e) = self.execute_block(block.clone()).await {
-                        error!("failed to execute block: {e:?}");
-                    }
-                    self.block_queue.remove(&block);
-                }
-            } else {
-                break;
-            }
-        }
         Ok(())
     }
 }
@@ -540,10 +558,6 @@ mod test {
         assert_eq!(expected_exection_hash, execution_block_hash_3);
         assert_eq!(executor.block_queue.len(), 2);
 
-        // trying to execute the queue without the missing blocks does nothing
-        let _ = executor.try_execute_queue().await;
-        assert_eq!(executor.block_queue.len(), 2);
-
         // adding the actual next block updates the execution state
         expected_exection_hash = hash(&executor.execution_state);
         let execution_block_hash_1 = executor
@@ -552,11 +566,7 @@ mod test {
             .unwrap()
             .expect("expected execution block hash");
         assert_eq!(expected_exection_hash, execution_block_hash_1);
-        // the queue is not updated yet
-        // trying to execute the queue with the missing blocks executes everything possible in the
-        // queue
-        assert_eq!(executor.block_queue.len(), 2);
-        let _ = executor.try_execute_queue().await;
+        // and the queue gets executed and cleared
         assert_eq!(executor.block_queue.len(), 0);
 
         // a new block with a parent appears and is executed
@@ -576,11 +586,10 @@ mod test {
             .expect("expected execution block hash");
         // exectuion hash not updated
         assert_eq!(expected_exection_hash, execution_block_hash_6);
-        let _ = executor.try_execute_queue().await;
         assert_eq!(executor.block_queue.len(), 1);
 
         // add another block that doesn't have a parent and also a gap between the last block added
-        // that doesn't have a parent
+        // to the queue that doesn't have a parent
         let execution_block_hash_8 = executor
             .execute_block(blocks[8].clone())
             .await
@@ -588,7 +597,6 @@ mod test {
             .expect("expected execution block hash");
         // exectuion hash not updated
         assert_eq!(expected_exection_hash, execution_block_hash_8);
-        let _ = executor.try_execute_queue().await;
         assert_eq!(executor.block_queue.len(), 2);
 
         // add a block that fills the first gap
@@ -599,8 +607,7 @@ mod test {
             .unwrap()
             .expect("expected execution block hash");
         assert_eq!(expected_exection_hash, execution_block_hash_5);
-        // when trying to execut the queue, up to the first gap block
-        let _ = executor.try_execute_queue().await;
+        // only one block in the queue gets executed because there is still a gap
         assert_eq!(executor.block_queue.len(), 1);
 
         // add a block that fills the second gap
@@ -612,7 +619,6 @@ mod test {
             .expect("expected execution block hash");
         assert_eq!(expected_exection_hash, execution_block_hash_7);
         // the rest of the queue is executed because all gaps are filled
-        let _ = executor.try_execute_queue().await;
         assert_eq!(executor.block_queue.len(), 0);
     }
 
