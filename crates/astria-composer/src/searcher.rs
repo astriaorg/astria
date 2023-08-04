@@ -306,7 +306,7 @@ impl Searcher {
         .notify(|err, dur| warn!(error.msg = %err, retry_in = %format_duration(dur), "failed issuing RPC; retrying"))
         .await
         .wrap_err(
-            "failed to retrieve latest height from data availability layer after several retries",
+            "failed to retrieve net version from geth after seferal retries",
         )?;
         info!(version, rpc = "net_version", "RPC was successful");
         self.status.send_modify(|status| {
@@ -339,7 +339,7 @@ impl Searcher {
             ExponentialBuilder,
             Retryable as _,
         };
-        debug!("attempting to connect to data availability layer",);
+        debug!("attempting to connect to sequencer",);
         let backoff = ExponentialBuilder::default()
             .with_min_delay(delay)
             .with_factor(factor)
@@ -352,7 +352,7 @@ impl Searcher {
         .notify(|err, dur| warn!(error.msg = %err, retry_in = %format_duration(dur), "failed getting abci info; retrying"))
         .await
         .wrap_err(
-            "failed to retrieve latest height from data availability layer after several retries",
+            "failed to retrieve abci info from sequencer after several retries",
         )?;
         self.status.send_modify(|status| {
             status.sequencer_connected = true;
