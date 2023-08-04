@@ -38,12 +38,18 @@ use tracing::{
 
 use crate::Config;
 
+/// `Searcher` receives transactions from an ethereum rollup, wraps them, and submits them to
+/// the astria seqeuencer.
 pub(super) struct Searcher {
-    // The client for getting new pending transactions from the ethereum JSON RPC.
+    // The client for getting new pending transactions from an ethereum rollup.
     eth_client: EthClient,
-    // The client for submitting swrapped pending eth transactions to the astria sequencer.
+    // The client for submitting wrapped and signed pending eth transactions to the astria
+    // sequencer.
     sequencer_client: SequencerClient,
+    // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
+    // action belongs to.
     rollup_chain_id: String,
+    // Channel to report the internal tatus of the searcher to other parts of the system.
     status: watch::Sender<Status>,
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
