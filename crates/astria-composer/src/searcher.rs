@@ -61,13 +61,13 @@ pub(super) struct Searcher {
 
 #[derive(Debug, Default)]
 pub(crate) struct Status {
-    geth_connected: bool,
+    eth_connected: bool,
     sequencer_connected: bool,
 }
 
 impl Status {
     pub(crate) fn is_ready(&self) -> bool {
-        self.geth_connected && self.sequencer_connected
+        self.eth_connected && self.sequencer_connected
     }
 }
 
@@ -139,7 +139,7 @@ impl Searcher {
         // connect to eth node
         let eth_client = EthClient::connect(&cfg.execution_url)
             .await
-            .wrap_err("failed connecting to geth")?;
+            .wrap_err("failed connecting to eth")?;
 
         // connect to sequencer node
         let sequencer_client = SequencerClient::new(&cfg.sequencer_url)
@@ -211,7 +211,7 @@ impl Searcher {
             Middleware as _,
             StreamExt as _,
         };
-        // FIXME: is waiting for geth even necessary if we were able to establish a websocket
+        // FIXME: is waiting for eth even necessary if we were able to establish a websocket
         //        connection? Is there a scenario where we were able to establish a websocket
         //        connection, but where we are not able to make RPCs?
         let wait_for_eth = self.wait_for_eth(5, Duration::from_secs(5), 2.0);
@@ -266,15 +266,15 @@ impl Searcher {
         Ok(())
     }
 
-    /// Wait until a connection to geth is established.
+    /// Wait until a connection to eth is established.
     ///
-    /// This function tries to establish a connection to geth by
+    /// This function tries to establish a connection to eth by
     /// querying its net_version RPC. If it fails, it retries for another `n_retries`
     /// times with exponential backoff.
     ///
     /// # Errors
     ///
-    /// An error is returned if calling geth failed after `n_retries + 1` times.
+    /// An error is returned if calling eth failed after `n_retries + 1` times.
     #[instrument(skip_all, fields(
         retries.max_number = n_retries,
         retries.initial_delay = %format_duration(delay),
@@ -290,7 +290,7 @@ impl Searcher {
             ExponentialBuilder,
             Retryable as _,
         };
-        debug!("attempting to connect to geth");
+        debug!("attempting to connect to eth");
         let backoff = ExponentialBuilder::default()
             .with_min_delay(delay)
             .with_factor(factor)
@@ -306,11 +306,11 @@ impl Searcher {
         .notify(|err, dur| warn!(error.msg = %err, retry_in = %format_duration(dur), "failed issuing RPC; retrying"))
         .await
         .wrap_err(
-            "failed to retrieve net version from geth after seferal retries",
+            "failed to retrieve net version from eth after seferal retries",
         )?;
         info!(version, rpc = "net_version", "RPC was successful");
         self.status.send_modify(|status| {
-            status.geth_connected = true;
+            status.eth_connected = true;
         });
         Ok(())
     }
