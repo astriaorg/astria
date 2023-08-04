@@ -74,8 +74,8 @@ impl Status {
 /// A thin wrapper around [`Provider<Ws>`] to add timeouts.
 ///
 /// Currently only provides a timeout around for `get_net_version`.
-/// TODO: Also add timeouts for `subscribe_full_pendings_txs` (more
-///       complex because it's a stream).
+/// TODO(https://github.com/astriaorg/astria/issues/216): add timeouts for
+/// `subscribe_full_pendings_txs` (more complex because it's a stream).
 #[derive(Clone)]
 struct EthClient {
     inner: Provider<Ws>,
