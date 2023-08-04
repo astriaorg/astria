@@ -123,6 +123,12 @@ impl SequencerClient {
 
 impl Searcher {
     /// Constructs a new Searcher service from config.
+    ///
+    /// # Errors
+    ///
+    /// Errors are returned in the following scenarios:
+    /// + failed to connect to the eth RPC server;
+    /// + failed to construct a sequencer clinet
     pub(super) async fn from_config(cfg: &Config) -> eyre::Result<Self> {
         // connect to eth node
         let eth_client = EthClient::connect(&cfg.execution_url)
