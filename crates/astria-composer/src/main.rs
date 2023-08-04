@@ -17,7 +17,7 @@ async fn main() -> eyre::Result<()> {
 
     info!(config = cfg_ser, "initializing composer",);
 
-    let _searcher = Composer::new(&cfg)
+    let _composer = Composer::from_config(&cfg)
         .await
         .expect("failed creating composer")
         .run_until_stopped()
