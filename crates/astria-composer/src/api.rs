@@ -47,7 +47,7 @@ pub(super) fn start(listen_addr: SocketAddr, searcher_status: SearcherStatus) ->
     axum::Server::bind(&listen_addr).serve(app.into_make_service())
 }
 
-pub enum Readyz {
+enum Readyz {
     Ok,
     NotReady,
 }
@@ -71,10 +71,14 @@ impl IntoResponse for Readyz {
     }
 }
 
-pub(super) async fn readyz(State(searcher_status): State<SearcherStatus>) -> Readyz {
+// axum does not allow non-async handlers. This attribute can be removed
+// once this method contains `await` statements.
+#[allow(clippy::unused_async)]
+async fn readyz(State(searcher_status): State<SearcherStatus>) -> Readyz {
     debug!("received readyz request");
-    match searcher_status.borrow().is_ready() {
-        true => Readyz::Ok,
-        false => Readyz::NotReady,
+    if searcher_status.borrow().is_ready() {
+        Readyz::Ok
+    } else {
+        Readyz::NotReady
     }
 }

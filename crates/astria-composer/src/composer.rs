@@ -36,7 +36,7 @@ impl Composer {
     pub async fn new(cfg: &Config) -> eyre::Result<Self> {
         // parse api url from config
         debug!("creating searcher");
-        let searcher = Searcher::from_config(&cfg)
+        let searcher = Searcher::from_config(cfg)
             .await
             .wrap_err("failed to initialize searcher")?;
 
@@ -95,7 +95,7 @@ fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
                 error.message = %e,
                 task = task_name,
                 "task failed",
-            )
+            );
         }
         Err(e) => {
             error!(
@@ -103,7 +103,7 @@ fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
                 error.message = %e,
                 task = task_name,
                 "task failed to complete",
-            )
+            );
         }
     }
 }

@@ -11,6 +11,7 @@ use astria_sequencer::{
 };
 use color_eyre::eyre::{
     self,
+    bail,
     eyre,
     WrapErr as _,
 };
@@ -38,7 +39,7 @@ use tracing::{
 
 use crate::Config;
 
-pub struct Searcher {
+pub(super) struct Searcher {
     // The client for getting new pending transactions from the ethereum JSON RPC.
     eth_client: EthClient,
     // The client for submitting swrapped pending eth transactions to the astria sequencer.
@@ -123,7 +124,7 @@ impl SequencerClient {
 
 impl Searcher {
     /// Constructs a new Searcher service from config.
-    pub async fn from_config(cfg: &Config) -> eyre::Result<Self> {
+    pub(super) async fn from_config(cfg: &Config) -> eyre::Result<Self> {
         // connect to eth node
         let eth_client = EthClient::connect(&cfg.execution_url)
             .await
@@ -151,7 +152,7 @@ impl Searcher {
     }
 
     /// Serializes and signs a sequencer tx from a rollup tx.
-    async fn handle_pending_tx(&mut self, rollup_tx: Transaction) -> eyre::Result<()> {
+    async fn handle_pending_tx(&mut self, rollup_tx: Transaction) {
         let chain_id = self.rollup_chain_id.clone();
 
         self.conversion_tasks.spawn_blocking(move || {
@@ -169,8 +170,6 @@ impl Searcher {
             // Sign transaction
             Ok(unsigned_tx.into_signed(&sequencer_key))
         });
-
-        Ok(())
     }
 
     fn handle_signed_tx(&mut self, tx: SignedSequencerTx) {
@@ -181,16 +180,21 @@ impl Searcher {
                 .submit_transaction_sync(tx.clone())
                 .await
                 .wrap_err("failed to submit transaction to sequencer")?;
-            if !rsp.code.is_ok() {
-                Err(eyre!("transaction submission response error: {:?}", rsp))
-            } else {
-                Ok(())
+            if rsp.code.is_err() {
+                bail!(
+                    "submitting transaction to sequencer returned with error code; code: \
+                     `{code}`; log: `{log}`; hash: `{hash}`",
+                    code = rsp.code.value(),
+                    log = rsp.log,
+                    hash = rsp.hash,
+                );
             }
+            Ok(())
         });
     }
 
     /// Runs the Searcher
-    pub async fn run(mut self) -> eyre::Result<()> {
+    pub(super) async fn run(mut self) -> eyre::Result<()> {
         use ethers::providers::{
             Middleware as _,
             StreamExt as _,
@@ -214,15 +218,12 @@ impl Searcher {
             select!(
                 // serialize and sign sequencer tx for incoming pending rollup txs
                 Some(rollup_tx) = tx_stream.next() => self.handle_pending_tx(rollup_tx).await?,
+
                 // submit signed sequencer txs to sequencer
                 Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
                     match join_result {
-                        Ok(signing_result) => {
-                            match signing_result {
-                                Ok(signed_tx) => self.handle_signed_tx(signed_tx),
-                                Err(e) => warn!(error.message = %e, error.cause_chain = ?e, "failed to sign sequencer transaction")
-                            }
-                        },
+                        Ok(Ok(signed_tx)) => self.handle_signed_tx(signed_tx),
+                        Ok(Err(e)) => warn!(error.message = %e, error.cause_chain = ?e, "failed to sign sequencer transaction"),
                         Err(e) => warn!(
                             error.message = %e,
                             error.cause_chain = ?e,
@@ -230,25 +231,21 @@ impl Searcher {
                         ),
                     }
                 }
+
                 // handle failed sequencer tx submissions
                 Some(join_result) = self.submission_tasks.join_next(), if !self.submission_tasks.is_empty() => {
                     match join_result {
-                        Ok(signing_result) => {
-                            match signing_result {
-                                Err(e) => {
-                                    warn!(error.message = %e, error.cause_chain = ?e, "failed to submit signed sequencer transaction to sequencer");
-                                    todo!("handle sequencer failed CheckTx")
-                                },
-                                _ => {}
-                            }
-                        },
+                        Ok(Ok(())) => {}
+                        Ok(Err(e)) =>
+                            // TODO: Decide what to do if submitting to sequencer failed. Should it be resubmitted?
+                            warn!(error.message = %e, error.cause_chain = ?e, "failed to submit signed sequencer transaction to sequencer"),
                         Err(e) => warn!(
                             error.message = %e,
                             error.cause_chain = ?e,
                             "submission task failed while trying to submit signed sequencer transaction to sequencer",
                         ),
+                    }
                 }
-            }
             )
         }
 

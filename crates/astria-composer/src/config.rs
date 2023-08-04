@@ -67,7 +67,7 @@ mod tests {
 
     fn populate_environment_from_example(jail: &mut Jail) {
         for line in EXAMPLE_ENV.lines() {
-            if let Some((key, val)) = line.trim().split_once("=") {
+            if let Some((key, val)) = line.trim().split_once('=') {
                 jail.set_env(key, val);
             }
         }
@@ -79,7 +79,7 @@ mod tests {
             populate_environment_from_example(jail);
             Config::from_environment().unwrap();
             Ok(())
-        })
+        });
     }
 
     #[test]
@@ -90,6 +90,6 @@ mod tests {
             jail.set_env("ASTRIA_COMPOSER_FOOBAR", "BAZ");
             Config::from_environment().unwrap();
             Ok(())
-        })
+        });
     }
 }
