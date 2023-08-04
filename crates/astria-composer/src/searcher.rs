@@ -12,7 +12,6 @@ use astria_sequencer::{
 use color_eyre::eyre::{
     self,
     bail,
-    eyre,
     WrapErr as _,
 };
 use ethers::{
@@ -217,7 +216,7 @@ impl Searcher {
         loop {
             select!(
                 // serialize and sign sequencer tx for incoming pending rollup txs
-                Some(rollup_tx) = tx_stream.next() => self.handle_pending_tx(rollup_tx).await?,
+                Some(rollup_tx) = tx_stream.next() => self.handle_pending_tx(rollup_tx).await,
 
                 // submit signed sequencer txs to sequencer
                 Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
