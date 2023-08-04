@@ -372,7 +372,6 @@ dependencies = [
  "ed25519-consensus",
  "ethers",
  "figment",
- "futures",
  "hex",
  "humantime",
  "hyper",

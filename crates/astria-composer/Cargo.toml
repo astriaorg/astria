@@ -20,7 +20,6 @@ humantime = { workspace = true }
 hyper = { workspace = true }
 hex = { workspace = true }
 is-terminal = { workspace = true }
-futures.workspace = true
 reqwest = { workspace = true, features = ["json"] }
 rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -37,8 +36,9 @@ path = "../astria-sequencer-client"
 features = ["http"]
 
 [dev-dependencies]
-figment = { workspace = true, features = ["test"] }
 impl-serde = "0.4.0"
+
+figment = { workspace = true, features = ["test"] }
 jsonrpsee = { workspace = true, features = ["macros", "server"] }
 once_cell = { workspace = true }
 tendermint-rpc = { workspace = true }
