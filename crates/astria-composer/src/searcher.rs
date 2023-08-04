@@ -167,7 +167,8 @@ impl Searcher {
         let chain_id = self.rollup_chain_id.clone();
 
         self.conversion_tasks.spawn_blocking(move || {
-            // FIXME: Needs to be altered when nonces are implemented in the sequencer
+            // FIXME(https://github.com/astriaorg/astria/issues/215): need to set and track
+            // nonces for an actual fixed funded key/account.
             // For now, each transaction is transmitted from a new account with nonce 0
             let sequencer_key = ed25519_consensus::SigningKey::new(rand::thread_rng());
             let nonce = Nonce::from(0);
