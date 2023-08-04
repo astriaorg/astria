@@ -176,7 +176,7 @@ impl Searcher {
         let client = self.sequencer_client.inner.clone();
         self.submission_tasks.spawn(async move {
             let rsp = client
-                .submit_transaction_sync(tx.clone())
+                .submit_transaction_sync(tx)
                 .await
                 .wrap_err("failed to submit transaction to sequencer")?;
             if rsp.code.is_err() {
