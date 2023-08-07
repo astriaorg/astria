@@ -30,7 +30,7 @@ use crate::{
     Balance,
     Height,
     Nonce,
-    SequencerClientExt,
+    SequencerClientExt as _,
 };
 
 // see astria-sequencer/src/crypto.rs for how these keys/addresses were generated
