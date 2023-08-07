@@ -18,23 +18,23 @@ use crate::transaction::Signed;
 /// In the case of `ProcessProposal`, we use this function to generate and verify the
 /// `commitment_tx` expected at the start of the block.
 ///
-/// This function sorts the block's `secondary::Action`s contained within the transactions
+/// This function sorts the block's `sequence::Action`s contained within the transactions
 /// using their `chain_id`. It then returns the merkle root of the tree where each leaf is
-/// a commitment of `secondary::Action`s with the same `chain_id`. The leaves are ordered
+/// a commitment of `sequence::Action`s with the same `chain_id`. The leaves are ordered
 /// by namespace in ascending order, where `namespace(chain_id) = Sha256(chain_id)[0..10]`.
 /// This structure can be referred to as the "action tree".
 ///
 /// The leaf, which contains a commitment to every action with the same `chain_id`, is currently
-/// implemented as ( `namespace(chain_id)` || root of merkle tree of the `secondary::Action`s ).
+/// implemented as ( `namespace(chain_id)` || root of merkle tree of the `sequence::Action`s ).
 /// This is somewhat arbitrary, but could be useful for proof of an action within the action tree.
-pub(crate) fn generate_transaction_commitment(txs_bytes: &[Bytes]) -> Result<[u8; 32]> {
+pub(crate) fn generate_sequence_actions_commitment(txs_bytes: &[Bytes]) -> Result<[u8; 32]> {
     let txs = txs_bytes
         .iter()
         .map(|tx_bytes| Signed::try_from_slice(tx_bytes))
         .collect::<Result<Vec<Signed>, Error>>()
         .context("failed to deserialize transactions")?;
 
-    let chain_id_to_txs = sort_txs_by_chain_id(&txs);
+    let chain_id_to_txs = group_sequence_actions_by_chain_id(&txs);
 
     let mut leaves: Vec<Vec<u8>> = vec![];
     for (chain_id, txs) in chain_id_to_txs {
@@ -57,13 +57,16 @@ fn get_namespace(bytes: &[u8]) -> [u8; 10] {
     let mut hasher = sha2::Sha256::new();
     hasher.update(bytes);
     let result = hasher.finalize();
-    result[0..10].to_owned().try_into().unwrap()
+    result[0..10]
+        .to_owned()
+        .try_into()
+        .expect("cannot fail as hash is always 32 bytes")
 }
 
-/// Sorts the `sequence::Action`s within the transactions by their `chain_id`.
+/// Groups the `sequence::Action`s within the transactions by their `chain_id`.
 /// Other types of actions are ignored.
 /// Within an entry, actions are ordered by their transaction index within a block.
-fn sort_txs_by_chain_id(txs: &[Signed]) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
+fn group_sequence_actions_by_chain_id(txs: &[Signed]) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
     let mut rollup_txs = BTreeMap::new();
 
     for tx in txs.iter() {
@@ -78,4 +81,65 @@ fn sort_txs_by_chain_id(txs: &[Signed]) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
     }
 
     rollup_txs
+}
+
+#[cfg(test)]
+mod test {
+    use ed25519_consensus::SigningKey;
+    use prost::Message as _;
+    use rand::rngs::OsRng;
+
+    use super::*;
+    use crate::{
+        accounts::{
+            self,
+            types::{
+                Address,
+                Balance,
+                Nonce,
+            },
+        },
+        sequence,
+        transaction::{
+            action::Action,
+            Unsigned,
+        },
+    };
+
+    #[test]
+    fn generate_sequence_actions_commitment_should_ignore_transfers() {
+        let sequence_action = Action::SequenceAction(sequence::Action::new(
+            b"testchainid".to_vec(),
+            b"helloworld".to_vec(),
+        ));
+
+        let signing_key = SigningKey::new(OsRng);
+        let tx = Unsigned {
+            nonce: Nonce::from(0),
+            actions: vec![
+                sequence_action.clone(),
+                Action::TransferAction(accounts::Transfer::new(
+                    Address([0u8; 20]),
+                    Balance::from(1),
+                )),
+            ],
+        };
+
+        let signed_tx = tx.into_signed(&signing_key);
+        let tx_bytes = signed_tx.to_proto().encode_to_vec();
+        let txs = vec![tx_bytes.into()];
+        let action_commitment_0 = generate_sequence_actions_commitment(&txs).unwrap();
+
+        let signing_key = SigningKey::new(OsRng);
+        let tx = Unsigned {
+            nonce: Nonce::from(0),
+            actions: vec![sequence_action],
+        };
+
+        let signed_tx = tx.into_signed(&signing_key);
+        let tx_bytes = signed_tx.to_proto().encode_to_vec();
+        let txs = vec![tx_bytes.into()];
+        let action_commitment_1 = generate_sequence_actions_commitment(&txs).unwrap();
+        assert_eq!(action_commitment_0, action_commitment_1);
+    }
 }
