@@ -37,10 +37,10 @@ features = ["http"]
 
 [dev-dependencies]
 impl-serde = "0.4.0"
+tokio-test = "0.4.2"
 
 figment = { workspace = true, features = ["test"] }
 jsonrpsee = { workspace = true, features = ["macros", "server"] }
 once_cell = { workspace = true }
 tendermint-rpc = { workspace = true }
 wiremock = { workspace = true }
-tokio-test = "0.4.2"

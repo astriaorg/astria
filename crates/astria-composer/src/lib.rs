@@ -1,8 +1,8 @@
-//! Astria's composer submits ethereum rollup transactions to astria's sequencer.
+//! Astria's composer submits EVM rollup transactions to astria's sequencer.
 //!
-//! At the moment composer can read from one ethereum rollup only, and submits each ethereum
-//! as one sequencer transaction. At the moment it genrated a random sequencer account for
-//! each submission.
+//! At the moment composer can read from one EVM rollup only, and submits each EVM
+//! transaction as one sequencer transaction. It also does not support using a specific
+//! account/signing key and instead generates a random account for each submission.
 //!
 //! [`Composer`] is configured using a [`Config`] and started with [`Composer::run_until_stopped`].
 //!

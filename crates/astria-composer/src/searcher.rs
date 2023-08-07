@@ -49,13 +49,12 @@ pub(super) struct Searcher {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to.
     rollup_chain_id: String,
-    // Channel to report the internal tatus of the searcher to other parts of the system.
+    // Channel to report the internal status of the searcher to other parts of the system.
     status: watch::Sender<Status>,
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
     conversion_tasks: JoinSet<eyre::Result<SignedSequencerTx>>,
     // Set of in-flight RPCs submitting signed transactions to the sequencer.
-    // submission_tasks: JoinSet<eyre::Result<tx_sync::Response>>,
     submission_tasks: JoinSet<eyre::Result<()>>,
 }
 
@@ -117,7 +116,7 @@ impl SequencerClient {
         })
     }
 
-    /// Wrapper around [`Provider::get_net_version`] with a 1s timeout.
+    /// Wrapper around [`Client::abci_info`] with a 1s timeout.
     async fn abci_info(self) -> eyre::Result<abci::response::Info> {
         use sequencer_client::Client as _;
         tokio::time::timeout(Duration::from_secs(1), self.inner.abci_info())
@@ -211,9 +210,6 @@ impl Searcher {
             Middleware as _,
             StreamExt as _,
         };
-        // FIXME: is waiting for eth even necessary if we were able to establish a websocket
-        //        connection? Is there a scenario where we were able to establish a websocket
-        //        connection, but where we are not able to make RPCs?
         let wait_for_eth = self.wait_for_eth(5, Duration::from_secs(5), 2.0);
         let wait_for_seq = self.wait_for_sequencer(5, Duration::from_secs(5), 2.0);
         match tokio::try_join!(wait_for_eth, wait_for_seq) {
