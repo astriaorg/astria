@@ -25,7 +25,7 @@ use crate::{
 };
 
 /// Fee charged for a sequence `Action` per byte of `data` included.
-pub(crate) const SEQUENCE_ACTION_FEE_PER_BYTE: Balance = Balance(1);
+const SEQUENCE_ACTION_FEE_PER_BYTE: Balance = Balance(1);
 
 const MAX_CHAIN_ID_LENGTH: usize = 32;
 
@@ -83,10 +83,8 @@ impl ActionHandler for Action {
             .get_account_balance(from)
             .await
             .context("failed getting `from` account balance")?;
-        let fee = SEQUENCE_ACTION_FEE_PER_BYTE * self.data.len() as u128;
-
+        let fee = calculate_fee(&self.data).context("failed to calculate fee")?;
         ensure!(curr_balance >= fee, "insufficient funds");
-
         Ok(())
     }
 
@@ -117,7 +115,7 @@ impl ActionHandler for Action {
         )
     )]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: &Address) -> Result<()> {
-        let fee = SEQUENCE_ACTION_FEE_PER_BYTE * self.data.len() as u128;
+        let fee = calculate_fee(&self.data).context("failed to calculate fee")?;
         let from_balance = state
             .get_account_balance(from)
             .await
@@ -127,4 +125,8 @@ impl ActionHandler for Action {
             .context("failed updating `from` account balance")?;
         Ok(())
     }
+}
+
+pub(crate) fn calculate_fee(data: &[u8]) -> Option<Balance> {
+    SEQUENCE_ACTION_FEE_PER_BYTE.checked_mul(data.len() as u128)
 }

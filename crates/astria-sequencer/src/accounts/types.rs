@@ -103,6 +103,11 @@ impl Balance {
     pub(crate) fn from_proto(proto: ProtoBalance) -> Self {
         Self(proto.into())
     }
+
+    pub(crate) fn checked_mul<T: Into<u128>>(self, rhs: T) -> Option<Self> {
+        let new_balance = self.0.checked_mul(rhs.into())?;
+        Some(Self(new_balance))
+    }
 }
 
 impl From<u128> for Balance {
@@ -143,13 +148,12 @@ impl std::ops::Sub<u128> for Balance {
     }
 }
 
-impl std::ops::Mul<u128> for Balance {
-    type Output = Self;
-
-    fn mul(self, rhs: u128) -> Self::Output {
-        Self(self.0 * rhs)
-    }
-}
+// impl std::ops::Mul<u128> for Balance {
+//     type Output = Self;
+//     fn mul(self, rhs: u128) -> Self::Output {
+//         Self(self.0 * rhs)
+//     }
+// }
 
 // Nonce represents an account nonce.
 #[derive(

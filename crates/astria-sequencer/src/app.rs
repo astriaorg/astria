@@ -251,7 +251,7 @@ mod test {
         crypto::SigningKey,
         genesis::Account,
         sequence::{
-            action::SEQUENCE_ACTION_FEE_PER_BYTE,
+            action::calculate_fee,
             Action as SequenceAction,
         },
         transaction::{
@@ -312,7 +312,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_app_genesis_and_init_chain() {
+    async fn app_genesis_and_init_chain() {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -336,7 +336,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_app_begin_block() {
+    async fn app_begin_block() {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -367,7 +367,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_app_deliver_tx_transfer() {
+    async fn app_deliver_tx_transfer() {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -411,7 +411,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_app_deliver_tx_transfer_balance_too_low_for_fee() {
+    async fn app_deliver_tx_transfer_balance_too_low_for_fee() {
         use rand::rngs::OsRng;
 
         let storage = penumbra_storage::TempStorage::new()
@@ -439,15 +439,14 @@ mod test {
         let res = app
             .deliver_tx(&bytes)
             .await
-            .err()
-            .unwrap()
+            .unwrap_err()
             .root_cause()
             .to_string();
         assert!(res.contains("insufficient funds"));
     }
 
     #[tokio::test]
-    async fn test_app_deliver_tx_sequence() {
+    async fn app_deliver_tx_sequence() {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -468,7 +467,7 @@ mod test {
         let alice = Address::from_verification_key(&alice_signing_key.verification_key());
 
         let data = b"hello world".to_vec();
-        let fee = SEQUENCE_ACTION_FEE_PER_BYTE * data.len() as u128;
+        let fee = calculate_fee(&data).unwrap();
 
         let tx = Unsigned {
             nonce: Nonce::from(0),
@@ -491,7 +490,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_app_commit() {
+    async fn app_commit() {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
