@@ -24,7 +24,14 @@ use wiremock::{
     ResponseTemplate,
 };
 
-use super::super::*;
+use crate::{
+    tx_sync,
+    Address,
+    Balance,
+    Height,
+    Nonce,
+    SequencerClientExt as _,
+};
 
 // see astria-sequencer/src/crypto.rs for how these keys/addresses were generated
 const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
