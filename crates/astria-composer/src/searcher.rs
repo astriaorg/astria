@@ -162,7 +162,7 @@ impl Searcher {
     }
 
     /// Serializes and signs a sequencer tx from a rollup tx.
-    async fn handle_pending_tx(&mut self, rollup_tx: Transaction) {
+    fn handle_pending_tx(&mut self, rollup_tx: Transaction) {
         let chain_id = self.rollup_chain_id.clone();
 
         self.conversion_tasks.spawn_blocking(move || {
@@ -225,7 +225,7 @@ impl Searcher {
         loop {
             select!(
                 // serialize and sign sequencer tx for incoming pending rollup txs
-                Some(rollup_tx) = tx_stream.next() => self.handle_pending_tx(rollup_tx).await,
+                Some(rollup_tx) = tx_stream.next() => self.handle_pending_tx(rollup_tx),
 
                 // submit signed sequencer txs to sequencer
                 Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
@@ -254,7 +254,7 @@ impl Searcher {
                         ),
                     }
                 }
-            )
+            );
         }
 
         // FIXME: ensure that we can get here
