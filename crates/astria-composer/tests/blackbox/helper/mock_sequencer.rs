@@ -35,6 +35,6 @@ async fn mount_abci_info_mock(server: &MockServer) {
     Mock::given(body_partial_json(json!({"method": "abci_info"})))
         .respond_with(ResponseTemplate::new(200).set_body_json(abci_response))
         .expect(1..)
-        .mount(&server)
+        .mount(server)
         .await;
 }

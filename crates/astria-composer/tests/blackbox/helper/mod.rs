@@ -29,6 +29,11 @@ pub struct TestComposer {
     pub sequencer: wiremock::MockServer,
 }
 
+/// Spawns composer in a test environment.
+///
+/// # Panics
+/// There is no explicit error handling in favour of panicking loudly
+/// and early.
 pub async fn spawn_composer() -> TestComposer {
     Lazy::force(&TELEMETRY);
 
@@ -37,7 +42,7 @@ pub async fn spawn_composer() -> TestComposer {
     let sequencer = mock_sequencer::start().await;
     let sequencer_url = sequencer.uri();
     let config = Config {
-        log: "".into(),
+        log: String::new(),
         api_listen_addr: "127.0.0.1:0".parse().unwrap(),
         chain_id: "testtest".into(),
         sequencer_url,
@@ -59,6 +64,12 @@ pub async fn spawn_composer() -> TestComposer {
     }
 }
 
+/// Query composer's `/readyz` endpoint until its ready.
+///
+/// # Panics
+///
+/// Panics instead of handling errors if no HTTP request could be sent to
+/// composer or if its response could not be deserialized as JSON.
 pub async fn loop_until_composer_is_ready(addr: SocketAddr) {
     #[derive(Debug, serde::Deserialize)]
     struct Readyz {

@@ -55,6 +55,6 @@ async fn mount_broadcast_tx_sync_mock(server: &MockServer) -> MockGuard {
     Mock::given(matcher)
         .respond_with(ResponseTemplate::new(200).set_body_json(&jsonrpc_rsp))
         .expect(1)
-        .mount_as_scoped(&server)
+        .mount_as_scoped(server)
         .await
 }

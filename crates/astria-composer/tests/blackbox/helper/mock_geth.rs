@@ -87,7 +87,7 @@ impl IdProvider for RandomU256IdProvider {
 
         let mut rng = rand::thread_rng();
         let mut raw_u256 = [0u8; 32];
-        (&mut rng).fill_bytes(&mut raw_u256);
+        rng.fill_bytes(&mut raw_u256);
         // Just in case, convert to u256 and back to big endian because parity's u256
         // implementation does some extra complex transformations.
         let u256 = U256::from(raw_u256);
@@ -121,13 +121,13 @@ impl GethServer for GethImpl {
         subscription_target: String,
         full_txs: Option<bool>,
     ) -> SubscriptionResult {
+        use jsonrpsee::server::SubscriptionMessage;
         assert_eq!(
             ("newPendingTransactions", Some(true)),
             (&*subscription_target, full_txs),
             "the mocked geth server only supports the `eth_subscribe` RPC with
             parameters [\"newPendingTransaction\", true]",
         );
-        use jsonrpsee::server::SubscriptionMessage;
         let sink = pending.accept().await?;
         let mut rx = self.new_tx_sender.subscribe();
         loop {
@@ -137,7 +137,7 @@ impl GethServer for GethImpl {
                 Ok(new_tx) = rx.recv() => sink.send(
                     SubscriptionMessage::from_json(&new_tx)?
                 ).await?,
-            )
+            );
         }
         Ok(())
     }
@@ -174,18 +174,28 @@ impl MockGeth {
             new_tx_sender: new_tx_sender.clone(),
         };
         let handle = server.start(mock_geth_impl.into_rpc());
-        let _server_task_handle = tokio::spawn(handle.stopped());
+        let server_task_handle = tokio::spawn(handle.stopped());
         Self {
             local_addr,
             new_tx_sender,
-            _server_task_handle,
+            _server_task_handle: server_task_handle,
         }
     }
 
+    #[must_use]
     pub fn local_addr(&self) -> SocketAddr {
         self.local_addr
     }
 
+    /// Push a new transaction into the mocket geth server.
+    ///
+    /// If composer is subscribed to the mocked geth server using its
+    /// `eth_subscribe` JSONRPC, the transaction will be immediately
+    /// forwarded to it.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same error as tokio's [`Sender::send`].
     pub fn push_tx(&self, tx: Transaction) -> Result<usize, SendError<Transaction>> {
         self.new_tx_sender.send(tx)
     }
