@@ -32,14 +32,17 @@ pub use sequencer::accounts::types::{
 // Reexports
 pub use sequencer::transaction;
 pub use tendermint::block::Height;
-pub use tendermint_rpc::endpoint::broadcast::{
-    tx_commit,
-    tx_sync,
-};
 #[cfg(feature = "http")]
 pub use tendermint_rpc::HttpClient;
 #[cfg(feature = "websocket")]
 pub use tendermint_rpc::WebSocketClient;
+pub use tendermint_rpc::{
+    client::Client,
+    endpoint::broadcast::{
+        tx_commit,
+        tx_sync,
+    },
+};
 
 #[cfg(feature = "http")]
 impl SequencerClientExt for HttpClient {}
@@ -260,7 +263,7 @@ impl ErrorKind {
 
 /// Tendermint HTTP client which is used to interact with the Sequencer node.
 #[async_trait]
-pub trait SequencerClientExt: tendermint_rpc::client::Client {
+pub trait SequencerClientExt: Client {
     /// Returns the balance of the given account at the given height.
     ///
     /// If `height = None`, the latest height is used.
