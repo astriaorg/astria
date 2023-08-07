@@ -339,8 +339,7 @@ mod test {
     }
 
     #[test]
-    fn process_proposal_fail() {
-        // missing action commitment
+    fn process_proposal_fail_missing_action_commitment() {
         let process_proposal = new_process_proposal_request(vec![]);
         assert!(
             handle_process_proposal(&process_proposal)
@@ -349,8 +348,10 @@ mod test {
                 .to_string()
                 .contains("no transaction commitment in proposal")
         );
+    }
 
-        // wrong commitment length
+    #[test]
+    fn process_proposal_fail_wrong_commitment_length() {
         let process_proposal = new_process_proposal_request(vec![[0u8; 16].to_vec().into()]);
         assert!(
             handle_process_proposal(&process_proposal)
@@ -359,8 +360,10 @@ mod test {
                 .to_string()
                 .contains("transaction commitment must be 32 bytes")
         );
+    }
 
-        // wrong commitment value
+    #[test]
+    fn process_proposal_fail_wrong_commitment_value() {
         let process_proposal = new_process_proposal_request(vec![[99u8; 32].to_vec().into()]);
         assert!(
             handle_process_proposal(&process_proposal)
