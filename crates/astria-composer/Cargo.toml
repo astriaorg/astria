@@ -27,6 +27,7 @@ serde_json = { workspace = true }
 tendermint = { workspace = true }
 # FIXME: Don't activate full
 tokio = { workspace = true, features = ["full"] }
+tokio-stream = { workspace = true, features = ["full"]}
 tracing = { workspace = true, features = ["attributes"] }
 tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 

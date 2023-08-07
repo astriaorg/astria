@@ -35,10 +35,12 @@
 //! ```
 
 pub(crate) mod api;
+pub(crate) mod ds;
 mod composer;
 pub mod config;
 pub(crate) mod searcher;
 pub mod telemetry;
+pub(crate) mod collector;
 
 pub use composer::Composer;
 pub use config::Config;
