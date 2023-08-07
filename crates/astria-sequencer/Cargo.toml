@@ -9,7 +9,6 @@ astria-proto = {path = "../astria-proto"}
 anyhow = "1"
 penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.56.0" }
 penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.56.0" }
-rand = "0.8"
 tower = "0.4"
 tower-abci = "0.8.0"
 tower-actor = "0.1.0"
@@ -23,6 +22,7 @@ futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 is-terminal = { workspace = true }
 prost = { workspace = true }
+rand = { workspace = true }
 serde = { workspace = true, features = ["derive"]  }
 serde_json = { workspace = true }
 sha2 = { workspace = true }

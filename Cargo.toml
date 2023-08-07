@@ -2,6 +2,7 @@
 
 members = [
   "crates/astria-celestia-jsonrpc-client",
+  "crates/astria-composer",
   "crates/astria-conductor",
   "crates/astria-gossipnet",
   "crates/astria-proto",
@@ -14,6 +15,8 @@ members = [
 
 [workspace.dependencies]
 async-trait = "0.1.52"
+axum = "0.6.16"
+backon = "0.4.1"
 base64 = "0.21"
 borsh = "0.10.3"
 bytes = "1.4"
@@ -24,8 +27,10 @@ eyre = "0.6"
 figment = "0.10.8"
 futures = "0.3"
 hex = "0.4"
+humantime = "2.1.0"
+hyper = "0.14"
 is-terminal = "0.4"
-jsonrpsee = { version = "0.18.2" }
+jsonrpsee = { version = "0.19" }
 # marking k8s as using k8s 1.26 here to make it clear that we are targetting 1.26
 # in the tests
 k8s-openapi = { version = "0.18.0", features = ["v1_26"] }
@@ -43,6 +48,7 @@ serde_json = "1"
 serde_yaml = "0.9"
 prost = "0.11"
 prost-types = "0.11"
+rand = "0.8.5"
 # disable default features and explicitly enable rustls-tls to ensure openssl is disabled
 # in the entire workspace
 reqwest = { version = "0.11", default-features = false, features = [
