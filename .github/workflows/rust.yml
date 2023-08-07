@@ -24,6 +24,8 @@ jobs:
       - name: Run tests (excluding RPC client, which needs kubernetes)
         run: |
           cargo test --release --workspace \
+          --all-features \
+          --all-targets \
           --exclude astria-celestia-jsonrpc-client
 
   test_rpc_client:
@@ -49,7 +51,11 @@ jobs:
       - name: wait 5 seconds for ingress to pick up rules, services
         run: sleep 5
       - name: Run the jsonrpc client tests
-        run: cargo test --release --package astria-celestia-jsonrpc-client -- --ignored
+        run: |
+          cargo test --release \
+          --package astria-celestia-jsonrpc-client \
+          --all-features \
+          -- --ignored
 
   doctest:
     runs-on: ubuntu-22.04
@@ -93,6 +99,11 @@ jobs:
           --exclude astria-conductor \
           --exclude astria-sequencer-relayer \
           --exclude astria-gossipnet \
-          -- -W clippy::pedantic -D warnings
+          -- --warn clippy::pedantic \
+             --deny warnings
       - name: run default clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: |
+          cargo clippy --workspace \
+          --all-targets \
+          --all-features \
+          -- --deny warnings
