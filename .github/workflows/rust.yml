@@ -87,12 +87,12 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: run pedantic clippy
         run: |
-          cargo clippy --workspace --all-targets \
+          cargo clippy --workspace \
+          --all-targets \
+          --all-features \
           --exclude astria-conductor \
-          --exclude astria-conductor-test \
           --exclude astria-sequencer-relayer \
-          --exclude astria-sequencer-relayer-test \
           --exclude astria-gossipnet \
           -- -W clippy::pedantic -D warnings
       - name: run default clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
