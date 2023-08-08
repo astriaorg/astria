@@ -9,6 +9,11 @@ on:
       target-binary:
         required: true
         type: string
+    secrets:
+      DOCKER_TOKEN:
+        required: true
+      DOCKER_USER:
+        required: true
 env:
   REGISTRY: ghcr.io
 
