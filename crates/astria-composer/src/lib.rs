@@ -35,6 +35,7 @@
 //! ```
 
 pub(crate) mod api;
+pub(crate) mod builder;
 pub mod ds;
 mod composer;
 pub mod config;
