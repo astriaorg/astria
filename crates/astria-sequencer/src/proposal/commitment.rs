@@ -1,10 +1,5 @@
 use std::collections::BTreeMap;
 
-use anyhow::{
-    Context as _,
-    Error,
-    Result,
-};
 use bytes::Bytes;
 use tendermint::merkle::simple_hash_from_byte_vectors;
 
@@ -27,12 +22,12 @@ use crate::transaction::Signed;
 /// The leaf, which contains a commitment to every action with the same `chain_id`, is currently
 /// implemented as ( `namespace(chain_id)` || root of merkle tree of the `sequence::Action`s ).
 /// This is somewhat arbitrary, but could be useful for proof of an action within the action tree.
-pub(crate) fn generate_sequence_actions_commitment(txs_bytes: &[Bytes]) -> Result<[u8; 32]> {
+pub(crate) fn generate_sequence_actions_commitment(txs_bytes: &[Bytes]) -> [u8; 32] {
+    // ignore any transactions that are not deserializable
     let txs = txs_bytes
         .iter()
-        .map(|tx_bytes| Signed::try_from_slice(tx_bytes))
-        .collect::<Result<Vec<Signed>, Error>>()
-        .context("failed to deserialize transactions")?;
+        .filter_map(|tx_bytes| Signed::try_from_slice(tx_bytes).ok())
+        .collect::<Vec<Signed>>();
 
     let namespace_to_txs = group_sequence_actions_by_chain_id(&txs);
 
@@ -40,10 +35,7 @@ pub(crate) fn generate_sequence_actions_commitment(txs_bytes: &[Bytes]) -> Resul
     // with the same `chain_id`, prepended with the 10-byte `namespace(chain_id)`.
     // the leaves are sorted in ascending order by namespace.
     let leaves = generate_action_tree_leaves(namespace_to_txs);
-
-    Ok(simple_hash_from_byte_vectors::<
-        tendermint::crypto::default::Sha256,
-    >(&leaves))
+    simple_hash_from_byte_vectors::<tendermint::crypto::default::Sha256>(&leaves)
 }
 
 fn generate_action_tree_leaves(namespace_to_txs: BTreeMap<[u8; 10], Vec<Vec<u8>>>) -> Vec<Vec<u8>> {
@@ -136,7 +128,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.to_proto().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let action_commitment_0 = generate_sequence_actions_commitment(&txs).unwrap();
+        let action_commitment_0 = generate_sequence_actions_commitment(&txs);
 
         let signing_key = SigningKey::new(OsRng);
         let tx = Unsigned {
@@ -147,7 +139,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.to_proto().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let action_commitment_1 = generate_sequence_actions_commitment(&txs).unwrap();
+        let action_commitment_1 = generate_sequence_actions_commitment(&txs);
         assert_eq!(action_commitment_0, action_commitment_1);
     }
 

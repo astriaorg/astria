@@ -204,11 +204,11 @@ impl Consensus {
 /// It puts this special "commitment" as the first transaction in a block.
 /// When other validators receive the block, they know the first transaction is
 /// supposed to be the commitment, and verifies that is it correct.
+#[instrument]
 fn handle_prepare_proposal(
     mut prepare_proposal: request::PrepareProposal,
 ) -> anyhow::Result<response::PrepareProposal> {
-    let action_commitment = generate_sequence_actions_commitment(&prepare_proposal.txs)
-        .context("failed to generate transaction commitment")?;
+    let action_commitment = generate_sequence_actions_commitment(&prepare_proposal.txs);
     let mut txs: Vec<Bytes> = vec![action_commitment.to_vec().into()];
     txs.append(&mut prepare_proposal.txs);
     Ok(response::PrepareProposal {
@@ -219,6 +219,7 @@ fn handle_prepare_proposal(
 /// Generates a commitment to the `sequence::Actions` in the block's transactions
 /// and ensures it matches the commitment created by the proposer, which
 /// should be the first transaction in the block.
+#[instrument]
 fn handle_process_proposal(process_proposal: &request::ProcessProposal) -> anyhow::Result<()> {
     let received_action_commitment: [u8; 32] = process_proposal
         .txs
@@ -228,8 +229,7 @@ fn handle_process_proposal(process_proposal: &request::ProcessProposal) -> anyho
         .try_into()
         .map_err(|_| anyhow!("transaction commitment must be 32 bytes"))?;
     let expected_action_commitment =
-        generate_sequence_actions_commitment(&process_proposal.txs[1..])
-            .context("failed to generate transaction commitment")?;
+        generate_sequence_actions_commitment(&process_proposal.txs[1..]);
     ensure!(
         received_action_commitment == expected_action_commitment,
         "transaction commitment does not match expected",
@@ -302,7 +302,7 @@ mod test {
         let tx_bytes = signed_tx.to_proto().encode_to_vec();
 
         let txs = vec![tx_bytes.clone().into()];
-        let action_commitment = generate_sequence_actions_commitment(&txs).unwrap();
+        let action_commitment = generate_sequence_actions_commitment(&txs);
 
         let prepare_proposal = new_prepare_proposal_request(txs);
         let prepare_proposal_response = handle_prepare_proposal(prepare_proposal).unwrap();
@@ -331,7 +331,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.to_proto().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
-        let action_commitment = generate_sequence_actions_commitment(&txs).unwrap();
+        let action_commitment = generate_sequence_actions_commitment(&txs);
 
         let process_proposal =
             new_process_proposal_request(vec![action_commitment.to_vec().into(), tx_bytes.into()]);
@@ -377,7 +377,7 @@ mod test {
     #[test]
     fn prepare_proposal_empty_block() {
         let txs = vec![];
-        let action_commitment = generate_sequence_actions_commitment(&txs).unwrap();
+        let action_commitment = generate_sequence_actions_commitment(&txs);
         let prepare_proposal = new_prepare_proposal_request(txs);
 
         let prepare_proposal_response = handle_prepare_proposal(prepare_proposal).unwrap();
@@ -392,7 +392,7 @@ mod test {
     #[test]
     fn process_proposal_ok_empty_block() {
         let txs = vec![];
-        let action_commitment = generate_sequence_actions_commitment(&txs).unwrap();
+        let action_commitment = generate_sequence_actions_commitment(&txs);
         let process_proposal =
             new_process_proposal_request(vec![action_commitment.to_vec().into()]);
         handle_process_proposal(&process_proposal).unwrap();
