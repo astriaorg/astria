@@ -83,10 +83,7 @@ impl Consensus {
                     .context("failed initializing chain")?,
             ),
             ConsensusRequest::PrepareProposal(prepare_proposal) => {
-                ConsensusResponse::PrepareProposal(
-                    handle_prepare_proposal(prepare_proposal)
-                        .context("failed to prepare proposal")?,
-                )
+                ConsensusResponse::PrepareProposal(handle_prepare_proposal(prepare_proposal))
             }
             ConsensusRequest::ProcessProposal(process_proposal) => {
                 ConsensusResponse::ProcessProposal(
@@ -207,13 +204,13 @@ impl Consensus {
 #[instrument]
 fn handle_prepare_proposal(
     mut prepare_proposal: request::PrepareProposal,
-) -> anyhow::Result<response::PrepareProposal> {
+) -> response::PrepareProposal {
     let action_commitment = generate_sequence_actions_commitment(&prepare_proposal.txs);
     let mut txs: Vec<Bytes> = vec![action_commitment.to_vec().into()];
     txs.append(&mut prepare_proposal.txs);
-    Ok(response::PrepareProposal {
+    response::PrepareProposal {
         txs,
-    })
+    }
 }
 
 /// Generates a commitment to the `sequence::Actions` in the block's transactions
@@ -305,7 +302,7 @@ mod test {
         let action_commitment = generate_sequence_actions_commitment(&txs);
 
         let prepare_proposal = new_prepare_proposal_request(txs);
-        let prepare_proposal_response = handle_prepare_proposal(prepare_proposal).unwrap();
+        let prepare_proposal_response = handle_prepare_proposal(prepare_proposal);
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
@@ -380,7 +377,7 @@ mod test {
         let action_commitment = generate_sequence_actions_commitment(&txs);
         let prepare_proposal = new_prepare_proposal_request(txs);
 
-        let prepare_proposal_response = handle_prepare_proposal(prepare_proposal).unwrap();
+        let prepare_proposal_response = handle_prepare_proposal(prepare_proposal);
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
