@@ -14,7 +14,10 @@ use ed25519_consensus::{
     SigningKey,
     VerificationKey,
 };
-use eyre::WrapErr as _;
+use eyre::{
+    ensure,
+    WrapErr as _,
+};
 use serde::{
     de::DeserializeOwned,
     Deserialize,
@@ -382,12 +385,10 @@ impl CelestiaClient {
 
         // this should *not* happen; the only case where it would happen is if the sequencer-relayer
         // posts multiple blobs with the same rollup ID for the same block (could this happen?)
-        if rollup_datas.len() > 1 {
-            warn!(
-                num_rollup_datas = rollup_datas.len(),
-                "found more than one rollup data for the given block hash; returning the first one"
-            );
-        }
+        ensure!(
+            rollup_datas.len() <= 1,
+            "shpuld not have more than one rollup data for the given block hash",
+        );
 
         // this case can happen if someone posts a blob to the namespace with invalid data
         if rollup_datas.is_empty() {

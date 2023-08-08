@@ -113,8 +113,10 @@ impl BlockVerifier {
         _rollup_data: &RollupNamespaceData,
     ) -> eyre::Result<()> {
         self.validate_sequencer_block_header_and_last_commit(block_hash, header, last_commit)
-            .await?;
+            .await
+            .context("failed to validate sequencer block header and last commit")?;
         // TODO: validate rollup data w/ merkle proofs
+        // https://github.com/astriaorg/astria/issues/153
         Ok(())
     }
 

@@ -96,7 +96,6 @@ struct Executor<C> {
     execution_rpc_client: C,
 
     /// Namespace ID
-    /// TODO: remove?
     namespace: Namespace,
 
     /// The channel on which the driver and tasks in the driver can post alerts
@@ -213,9 +212,7 @@ impl<C: ExecutionClient> Executor<C> {
             return Ok(Some(execution_hash.clone()));
         }
 
-        // get transactions for our namespace
         let prev_block_hash = self.execution_state.clone();
-
         info!(
             height = block.header.height.value(),
             parent_block_hash = hex::encode(&prev_block_hash),
