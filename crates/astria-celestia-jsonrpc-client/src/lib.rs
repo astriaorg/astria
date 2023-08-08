@@ -75,6 +75,7 @@ impl Error {
     /// Convenience method to access the error returned by a JSONRPC.
     ///
     /// Returns `None` if the inner error is not related to the JSONRPC response.
+    #[must_use]
     pub fn jsonrpc_call(&self) -> Option<&ErrorObject<'_>> {
         match &self.inner {
             ErrorKind::Rpc(jsonrpsee::core::Error::Call(err)) => Some(err),
