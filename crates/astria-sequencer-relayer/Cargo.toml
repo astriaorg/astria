@@ -6,17 +6,15 @@ license = "MIT OR Apache-2.0"
 rust-version = "1.65"
 
 [dependencies]
-axum = "0.6.16"
 base64-serde = "0.7.0"
-backon = "0.4.1"
 dirs = "5.0"
 http = "0.2.9"
-humantime = "2.1.0"
-hyper = "0.14.27"
 serde_path_to_error = "0.1.13"
 sha2 = "0.10"
 zeroize = { version = "1.6.0", features = ["zeroize_derive"] }
 
+axum = { workspace = true }
+backon = { workspace = true }
 base64 = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 figment = { workspace = true, features = ["env"] }
@@ -24,6 +22,8 @@ ed25519-consensus = { workspace = true }
 eyre = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
+humantime = { workspace = true }
+hyper = { workspace = true }
 is-terminal = { workspace = true }
 prost = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
