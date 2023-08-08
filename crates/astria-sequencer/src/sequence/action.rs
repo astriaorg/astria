@@ -83,7 +83,7 @@ impl ActionHandler for Action {
             .get_account_balance(from)
             .await
             .context("failed getting `from` account balance")?;
-        let fee = calculate_fee(&self.data).context("failed to calculate fee")?;
+        let fee = calculate_fee(&self.data).context("calculated fee overflows u128")?;
         ensure!(curr_balance >= fee, "insufficient funds");
         Ok(())
     }
@@ -127,6 +127,20 @@ impl ActionHandler for Action {
     }
 }
 
+/// Calculates the fee for a sequence `Action` based on the length of the `data`.
+/// Returns `None` if the fee overflows `u128`.
 pub(crate) fn calculate_fee(data: &[u8]) -> Option<Balance> {
     SEQUENCE_ACTION_FEE_PER_BYTE.checked_mul(data.len() as u128)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn calculate_fee_ok() {
+        assert_eq!(calculate_fee(&[]), Some(Balance(0)));
+        assert_eq!(calculate_fee(&[0]), Some(Balance(1)));
+        assert_eq!(calculate_fee(&[0u8; 10]), Some(Balance(10)));
+    }
 }

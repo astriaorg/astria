@@ -148,13 +148,6 @@ impl std::ops::Sub<u128> for Balance {
     }
 }
 
-// impl std::ops::Mul<u128> for Balance {
-//     type Output = Self;
-//     fn mul(self, rhs: u128) -> Self::Output {
-//         Self(self.0 * rhs)
-//     }
-// }
-
 // Nonce represents an account nonce.
 #[derive(
     Clone,
