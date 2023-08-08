@@ -80,6 +80,12 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> 
     })
 }
 
+enum NextBlockStatus {
+    IsNextBlock,
+    NotNextBlock,
+    NoParentBlock,
+}
+
 #[derive(Debug)]
 pub enum ExecutorCommand {
     /// used when a block is received from the gossip network
@@ -211,14 +217,17 @@ impl<C: ExecutionClient> Executor<C> {
 
     /// This function checks if the given block can be executed because its parent is the last
     /// executed block.
-    fn is_next_block(&mut self, block: SequencerBlockData) -> bool {
+    fn is_next_block(&mut self, block: SequencerBlockData) -> NextBlockStatus {
         // before a block can be added to the queue, it must have a parent block Id
         if let Some(parent_block) = block.header.last_block_id {
             if parent_block.hash != self.last_executed_seq_block_hash {
-                return false;
+                return NextBlockStatus::NotNextBlock;
+            } else {
+                return NextBlockStatus::IsNextBlock;
             }
+        } else {
+            NextBlockStatus::NoParentBlock
         }
-        true
     }
 
     /// This function takes a given sequencer block and returns the relevant transactions for the
@@ -324,14 +333,19 @@ impl<C: ExecutionClient> Executor<C> {
             return Ok(Some(execution_hash));
         }
         // check if the incoming block is the next block. if it's not, add it to the execution queue
-        if !self.is_next_block(block.clone()) {
-            self.block_queue.push(block.clone(), block.header.height);
-            debug!(
-                height = block.header.height.value(),
-                "parent block not yet executed, adding to pending queue, execution state not \
-                 updated"
-            );
-            return Ok(Some(self.execution_state.clone()));
+        match self.is_next_block(block.clone()) {
+            NextBlockStatus::IsNextBlock => {}
+            NextBlockStatus::NotNextBlock => {
+                self.block_queue.push(block.clone(), block.header.height);
+                debug!(
+                    height = block.header.height.value(),
+                    "parent block not yet executed, adding to pending queue, execution state not \
+                     updated"
+                );
+                return Ok(Some(self.execution_state.clone()));
+            }
+            // TODO: not sure what to do with this... but it's needed to pass preexisting tests
+            NextBlockStatus::NoParentBlock => {}
         }
 
         // execute the block that just arrived
