@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use astria_sequencer_types::{
+use astria_proto::execution::v1alpha1::DoBlockResponse;
+use astria_sequencer_relayer::types::{
+    get_namespace,
     Namespace,
     SequencerBlockData,
 };
@@ -117,6 +119,7 @@ struct Executor<C> {
     sequencer_hash_to_execution_hash: HashMap<Vec<u8>, Vec<u8>>,
 
     /// most recently executed sequencer block hash
+    // TODO pending (GHI-205: https://github.com/astriaorg/astria/issues/205): reevaluate this after 205 gets merged
     last_executed_seq_block_hash: Hash,
 
     /// block queue for blocks that have been recieved but their parent has not been executed yet
@@ -195,52 +198,62 @@ impl<C: ExecutionClient> Executor<C> {
         Ok(())
     }
 
-    /// This function takes a given sequencer block and sends it to the execution client.
-    /// It checks for relevant transations in the block and attempts to execute them via the
-    /// execution service's DoBlock function. If there are relevant transactions that
-    /// successfully execute, it returns the resulting execution block hash. If the block has
-    /// already been executed, it returns the previously-computed execution block hash. If there
-    /// are no relevant transactions in the SequencerBlock, it returns None.
-    ///
-    /// # Errors
-    ///
-    /// This function returns an error if:
-    /// - the call to the execution service's DoBlock function fails
-    // TODO (GHI-219): refactor execute_block
-    async fn execute_block(&mut self, mut block: SequencerBlockData) -> Result<Option<Vec<u8>>> {
+    /// This function checks if the given block has already been executed by checking the
+    /// `sequencer_hash_to_execution_hash` map.
+    fn check_if_previously_executed(&mut self, block: SequencerBlockData) -> Option<Vec<u8>> {
         if let Some(execution_hash) = self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
             debug!(
                 height = block.header.height.value(),
                 execution_hash = hex::encode(execution_hash),
                 "block already executed"
             );
-            return Ok(Some(execution_hash.clone()));
+            return Some(execution_hash.clone());
         }
-        // if the block that we just recieved is not the next block in the sequence to be executed,
-        // add it to the block queue
+        None
+    }
+
+    /// This function checks if the given block can be executed because its parent is the last
+    /// executed block.
+    fn is_next_block(&mut self, block: SequencerBlockData) -> bool {
+        // before a block can be added to the queue, it must have a parent block Id
         if let Some(parent_block) = block.header.last_block_id {
             if parent_block.hash != self.last_executed_seq_block_hash {
-                self.block_queue.push(block.clone(), block.header.height);
-                debug!(
-                    height = block.header.height.value(),
-                    "parent block not yet executed, adding to pending queue, execution state not \
-                     updated"
-                );
-                return Ok(Some(self.execution_state.clone()));
+                return false;
             }
         }
+        true
+    }
 
-        // TODO (GHI-219): refactor execute_block === move this into function
-        // get transactions for our namespace
+    /// This function takes a given sequencer block and returns the relevant transactions for the
+    /// executor's namespace.
+    fn get_transacions(&mut self, mut block: SequencerBlockData) -> Option<Vec<Vec<u8>>> {
         let Some(txs) = block.rollup_txs.remove(&self.namespace) else {
             info!(
                 height = block.header.height.value(),
                 "sequencer block did not contains txs for namespace"
             );
+            return None;
+        };
+        Some(txs.into_iter().map(|tx| tx.transaction).collect::<Vec<_>>())
+    }
+
+    /// This function takes a given sequencer block, filters out the relevant transactions, and
+    /// sends it to the execution client.
+    async fn execute_single_block(
+        &mut self,
+        block: SequencerBlockData,
+    ) -> Result<Option<DoBlockResponse>> {
+        // get transactions for the executor's namespace
+        let Some(txs) = self.get_transacions(block.clone()) else {
             return Ok(None);
         };
 
+        // get the previous execution block hash
         let prev_execution_block_hash = self.execution_state.clone();
+
+        // get the block timestamp
+        let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
+            .wrap_err("failed parsing str as protobuf timestamp")?;
 
         info!(
             height = block.header.height.value(),
@@ -248,77 +261,103 @@ impl<C: ExecutionClient> Executor<C> {
             "executing block with given parent block",
         );
 
-        let txs = txs.into_iter().map(|tx| tx.transaction).collect::<Vec<_>>();
-
-        let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
-            .wrap_err("failed parsing str as protobuf timestamp")?;
-
-        // send the data in the sequencer block to the execution client
+        // send transactions to the execution client
         let response = self
             .execution_rpc_client
+            // TODO pending (GHI-205): update for api upgrade
             .call_do_block(prev_execution_block_hash, txs, Some(timestamp))
             .await?;
-        self.execution_state = response.block_hash.clone();
-        self.last_executed_seq_block_hash = Hash::try_from(block.block_hash.clone()).unwrap();
-        // ======
 
-        // TOTO (GHI-219): queue execution funcitonality should be moved to its own function
+        // get the execution state from the response and save it
+        self.execution_state = response.block_hash.clone();
+
+        // set the last executed sequencer block hash
+        // TODO pending (GHI-205): reevaluate this after 205 gets merged
+        if let Ok(last_hash) = Hash::try_from(block.block_hash.clone()) {
+            self.last_executed_seq_block_hash = last_hash;
+        };
+
+        // store block hash returned by execution client, as we need it to finalize the block later
+        self.sequencer_hash_to_execution_hash
+            .insert(block.block_hash, response.block_hash.clone());
+
+        Ok(Some(response))
+    }
+
+    /// This function tries to execute all blocks in the block queue that have been recieved.
+    async fn try_execute_queue(&mut self) -> Result<Option<DoBlockResponse>> {
+        let mut response = DoBlockResponse::default();
         if !self.block_queue.is_empty() {
             // try executing all blocks in the block queue that have been recieved
             while let Some((qblock, _)) = self.block_queue.clone().into_sorted_iter().last() {
-                if qblock
-                    .header
-                    .last_block_id
-                    .expect("Could not unwrap last block")
-                    .hash
-                    == self.last_executed_seq_block_hash
-                {
-                    // get transactions for our namespace
-                    let Some(txs) = qblock.clone().rollup_txs.remove(&self.namespace) else {
-                        info!(
-                            height = qblock.header.height.value(),
-                            "sequencer block did not contains txs for namespace"
-                        );
-                        return Ok(None);
+                if qblock.header.last_block_id.unwrap().hash == self.last_executed_seq_block_hash {
+                    response = match self.execute_single_block(qblock.clone()).await? {
+                        Some(response) => response,
+                        None => return Ok(None),
                     };
 
-                    let prev_execution_block_hash = self.execution_state.clone();
-
-                    info!(
-                        height = qblock.header.height.value(),
-                        parent_block_hash = hex::encode(&prev_execution_block_hash),
-                        "executing block with given parent block",
-                    );
-
-                    let txs = txs.into_iter().map(|tx| tx.transaction).collect::<Vec<_>>();
-
-                    let timestamp = convert_tendermint_to_prost_timestamp(qblock.header.time)
-                        .wrap_err("failed parsing str as protobuf timestamp")?;
-
-                    // send the data in the sequencer block to the execution client
-                    let response = self
-                        .execution_rpc_client
-                        .call_do_block(prev_execution_block_hash, txs, Some(timestamp))
-                        .await?;
-                    self.execution_state = response.block_hash.clone();
-                    self.last_executed_seq_block_hash =
-                        Hash::try_from(qblock.block_hash.clone()).unwrap();
                     self.block_queue.remove(&qblock);
                 } else {
                     break;
                 }
             }
+            Ok(Some(response))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// This function takes a given sequencer block, filters out the relevant transactions, and
+    /// sends it to the execution client.
+    ///
+    /// Relevant transations are pulled from the block and they are sent via the
+    /// execution service's DoBlock function for attempted execution. If the transactions
+    /// successfully execute, it returns the resulting execution block hash. If multiple blocks are
+    /// executed is returns the most recent execution hash. If the block has already been
+    /// executed, it returns the previously-computed execution block hash. If there
+    /// are no relevant transactions in the SequencerBlock, it returns None.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if:
+    /// - the call to the execution service's DoBlock function fails
+    async fn execute_block(&mut self, block: SequencerBlockData) -> Result<Option<Vec<u8>>> {
+        // check if the block has already been executed
+        if let Some(execution_hash) = self.check_if_previously_executed(block.clone()) {
+            return Ok(Some(execution_hash));
+        }
+        // check if the incoming block is the next block. if it's not, add it to the execution queue
+        if !self.is_next_block(block.clone()) {
+            self.block_queue.push(block.clone(), block.header.height);
+            debug!(
+                height = block.header.height.value(),
+                "parent block not yet executed, adding to pending queue, execution state not \
+                 updated"
+            );
+            return Ok(Some(self.execution_state.clone()));
         }
 
-        // store block hash returned by execution client, as we need it to finalize the block later
+        // execute the block that just arrived
+        let mut response = match self.execute_single_block(block.clone()).await? {
+            Some(response) => response,
+            None => return Ok(None),
+        };
+
+        // try executing blocks in the queue now that we have a new block that may have filled gaps
+        // in the blocks received
+        if !self.block_queue.is_empty() {
+            response = match self.try_execute_queue().await? {
+                Some(response) => response,
+                None => return Ok(None),
+            };
+        }
+
         info!(
             sequencer_block_hash = ?block.block_hash,
             sequencer_block_height = block.header.height.value(),
             execution_block_hash = hex::encode(&response.block_hash),
             "executed sequencer block",
         );
-        self.sequencer_hash_to_execution_hash
-            .insert(block.block_hash, response.block_hash.clone());
 
         Ok(Some(response.block_hash))
     }
@@ -527,7 +566,7 @@ mod test {
             .await
             .unwrap();
 
-        let blocks = get_test_block_vec(9);
+        let blocks = get_test_block_vec(10);
 
         // executing a block like normal
         let mut expected_exection_hash = hash(&executor.execution_state);
@@ -559,7 +598,9 @@ mod test {
         assert_eq!(executor.block_queue.len(), 2);
 
         // adding the actual next block updates the execution state
-        expected_exection_hash = hash(&executor.execution_state);
+        // using hash() 3 times here because adding the new block and executing the queue updates
+        // the state 3 times. one for each block.
+        expected_exection_hash = hash(&hash(&hash(&executor.execution_state)));
         let execution_block_hash_1 = executor
             .execute_block(blocks[1].clone())
             .await
@@ -600,7 +641,7 @@ mod test {
         assert_eq!(executor.block_queue.len(), 2);
 
         // add a block that fills the first gap
-        expected_exection_hash = hash(&executor.execution_state);
+        expected_exection_hash = hash(&hash(&executor.execution_state)); // 2 blocks executed
         let execution_block_hash_5 = executor
             .execute_block(blocks[5].clone())
             .await
@@ -611,7 +652,7 @@ mod test {
         assert_eq!(executor.block_queue.len(), 1);
 
         // add a block that fills the second gap
-        expected_exection_hash = hash(&executor.execution_state);
+        expected_exection_hash = hash(&hash(&executor.execution_state));
         let execution_block_hash_7 = executor
             .execute_block(blocks[7].clone())
             .await
@@ -619,6 +660,16 @@ mod test {
             .expect("expected execution block hash");
         assert_eq!(expected_exection_hash, execution_block_hash_7);
         // the rest of the queue is executed because all gaps are filled
+        assert_eq!(executor.block_queue.len(), 0);
+
+        // one final block executed like normal
+        expected_exection_hash = hash(&executor.execution_state);
+        let execution_block_hash_9 = executor
+            .execute_block(blocks[9].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        assert_eq!(expected_exection_hash, execution_block_hash_9);
         assert_eq!(executor.block_queue.len(), 0);
     }
 
