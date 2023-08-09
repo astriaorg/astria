@@ -645,6 +645,19 @@ mod test {
         // exectuion hash not updated
         assert_eq!(expected_exection_hash, execution_block_hash_6);
         assert_eq!(executor.block_queue.len(), 1);
+        // add in the same block again with a newer timestamp
+        let mut newer_6_block = blocks[6].clone();
+        newer_6_block.header.time = Time::now();
+        let execution_block_hash_6 = executor
+            .execute_block(newer_6_block)
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        // exectuion hash not updated
+        assert_eq!(expected_exection_hash, execution_block_hash_6);
+        // the newer block replaces the block of the same height in the queue so the queue doesn't
+        // grow
+        assert_eq!(executor.block_queue.len(), 1);
 
         // add another block that doesn't have a parent and also a gap between the last block added
         // to the queue that doesn't have a parent
@@ -658,6 +671,8 @@ mod test {
         assert_eq!(executor.block_queue.len(), 2);
 
         // add a block that fills the first gap
+        // in this case there are two 6 blocks but one is newer
+        // only the latest block gets executed here and the old 6 block just gets deleted
         expected_exection_hash = hash(&hash(&executor.execution_state)); // 2 blocks executed
         let execution_block_hash_5 = executor
             .execute_block(blocks[5].clone())
