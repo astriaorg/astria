@@ -37,7 +37,8 @@ impl Address {
 
     /// Returns the address of the account associated with the given verification key,
     /// which is calculated as the first 20 bytes of the sha256 hash of the verification key.
-    pub(crate) fn from_verification_key(public_key: &crate::crypto::VerificationKey) -> Self {
+    #[must_use]
+    pub fn from_verification_key(public_key: &crate::crypto::VerificationKey) -> Self {
         let bytes = crate::hash(public_key.as_bytes());
         let arr: [u8; ADDRESS_LEN] = bytes[0..ADDRESS_LEN]
             .try_into()

@@ -40,6 +40,9 @@ pub struct Config {
 
     /// Address of the RPC server for execution
     pub execution_url: String,
+
+    /// Private key for the sequencer account used for signing transactions
+    pub private_key: String,
 }
 
 impl Config {

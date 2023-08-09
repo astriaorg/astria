@@ -47,6 +47,7 @@ pub async fn spawn_composer() -> TestComposer {
         chain_id: "testtest".into(),
         sequencer_url,
         execution_url,
+        private_key: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90".to_string(),
     };
     let (composer_addr, composer) = {
         let composer = Composer::from_config(&config).await.unwrap();
