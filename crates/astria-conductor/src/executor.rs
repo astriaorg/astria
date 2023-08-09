@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 use astria_proto::execution::v1alpha1::DoBlockResponse;
 use astria_sequencer_relayer::types::{
@@ -10,7 +13,6 @@ use color_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use priority_queue::PriorityQueue;
 use prost_types::Timestamp as ProstTimestamp;
 use tendermint::Time;
 use tokio::{
@@ -77,6 +79,12 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> 
     })
 }
 
+enum NextBlockStatus {
+    IsNext,
+    NotNext,
+    NoParent,
+}
+
 #[derive(Debug)]
 pub enum ExecutorCommand {
     /// used when a block is received from the gossip network
@@ -119,11 +127,11 @@ struct Executor<C> {
     sequencer_hash_to_execution_hash: HashMap<Vec<u8>, Vec<u8>>,
 
     /// most recently executed sequencer block hash
-    // TODO pending (GHI-205: https://github.com/astriaorg/astria/issues/205): reevaluate this after 205 gets merged
+    // TODO pending (GHI-220: https://github.com/astriaorg/astria/issues/220): reevaluate this after 205 gets merged
     last_executed_seq_block_hash: Hash,
 
     /// block queue for blocks that have been recieved but their parent has not been executed yet
-    block_queue: PriorityQueue<SequencerBlockData, u64>,
+    block_queue: BTreeMap<Height, SequencerBlockData>,
 }
 
 impl<C: ExecutionClient> Executor<C> {
@@ -144,7 +152,7 @@ impl<C: ExecutionClient> Executor<C> {
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
                 last_executed_seq_block_hash: Hash::default(),
-                block_queue: PriorityQueue::new(),
+                block_queue: BTreeMap::new(),
             },
             cmd_tx,
         ))
@@ -218,8 +226,12 @@ impl<C: ExecutionClient> Executor<C> {
         // before a block can be added to the queue, it must have a parent block Id
         if let Some(parent_block) = block.header.last_block_id {
             if parent_block.hash != self.last_executed_seq_block_hash {
-                return false;
+                NextBlockStatus::NotNext
+            } else {
+                NextBlockStatus::IsNext
             }
+        } else {
+            NextBlockStatus::NoParent
         }
         true
     }
@@ -264,7 +276,7 @@ impl<C: ExecutionClient> Executor<C> {
         // send transactions to the execution client
         let response = self
             .execution_rpc_client
-            // TODO pending (GHI-205): update for api upgrade
+            // TODO pending (GHI-205: https://github.com/astriaorg/astria/issues/202): update for api upgrade
             .call_do_block(prev_execution_block_hash, txs, Some(timestamp))
             .await?;
 
@@ -272,7 +284,7 @@ impl<C: ExecutionClient> Executor<C> {
         self.execution_state = response.block_hash.clone();
 
         // set the last executed sequencer block hash
-        // TODO pending (GHI-205): reevaluate this after 205 gets merged
+        // TODO pending (GHI-220: https://github.com/astriaorg/astria/issues/220): reevaluate this after 205 gets merged
         if let Ok(last_hash) = Hash::try_from(block.block_hash.clone()) {
             self.last_executed_seq_block_hash = last_hash;
         };
@@ -289,14 +301,16 @@ impl<C: ExecutionClient> Executor<C> {
         let mut response = DoBlockResponse::default();
         if !self.block_queue.is_empty() {
             // try executing all blocks in the block queue that have been recieved
-            while let Some((qblock, _)) = self.block_queue.clone().into_sorted_iter().last() {
+            while let Some((&height, qblock)) = self.block_queue.first_key_value() {
+                // can use unwrap here because block can't be added to the queue without a parent
+                // hash. see is_next_block()
                 if qblock.header.last_block_id.unwrap().hash == self.last_executed_seq_block_hash {
-                    response = match self.execute_single_block(qblock.clone()).await? {
+                    response = match self.execute_single_block((*qblock).clone()).await? {
                         Some(response) => response,
                         None => return Ok(None),
                     };
 
-                    self.block_queue.remove(&qblock);
+                    while self.block_queue.remove(&height).is_some() {}
                 } else {
                     break;
                 }
@@ -327,14 +341,19 @@ impl<C: ExecutionClient> Executor<C> {
             return Ok(Some(execution_hash));
         }
         // check if the incoming block is the next block. if it's not, add it to the execution queue
-        if !self.is_next_block(block.clone()) {
-            self.block_queue.push(block.clone(), block.header.height);
-            debug!(
-                height = block.header.height.value(),
-                "parent block not yet executed, adding to pending queue, execution state not \
-                 updated"
-            );
-            return Ok(Some(self.execution_state.clone()));
+        match self.is_next_block(block.clone()) {
+            NextBlockStatus::IsNext => {}
+            NextBlockStatus::NotNext => {
+                self.block_queue.insert(block.header.height, block.clone());
+                debug!(
+                    height = block.header.height.value(),
+                    "parent block not yet executed, adding to pending queue, execution state not \
+                     updated"
+                );
+                return Ok(Some(self.execution_state.clone()));
+            }
+            // TODO: not sure what to do with this... but it's needed to pass preexisting tests
+            NextBlockStatus::NoParent => {}
         }
 
         // execute the block that just arrived

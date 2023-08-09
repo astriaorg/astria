@@ -11,7 +11,6 @@ use base64::{
     engine::general_purpose,
     Engine as _,
 };
-use bincode;
 use eyre::{
     bail,
     ensure,
@@ -201,6 +200,12 @@ impl Hash for SequencerBlockData {
             key.hash(state);
             self.rollup_txs.get(key).hash(state);
         }
+    }
+}
+
+impl PartialOrd for SequencerBlockData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
