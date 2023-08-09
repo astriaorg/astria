@@ -1,5 +1,4 @@
 [workspace]
-
 members = [
   "crates/astria-celestia-jsonrpc-client",
   "crates/astria-composer",
@@ -12,6 +11,7 @@ members = [
   "crates/astria-sequencer-utils",
   "crates/astria-test-utils",
 ]
+resolver = "2"
 
 [workspace.dependencies]
 async-trait = "0.1.52"
