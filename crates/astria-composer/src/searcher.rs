@@ -18,6 +18,7 @@ use astria_sequencer::{
 use color_eyre::eyre::{
     self,
     bail,
+    eyre,
     WrapErr as _,
 };
 use ed25519_consensus::SigningKey;
@@ -162,8 +163,11 @@ impl Searcher {
         let rollup_chain_id = cfg.chain_id.clone();
         let (status, _) = watch::channel(Status::default());
 
-        let private_key_bytes: [u8; 32] =
-            hex::decode(&cfg.private_key).unwrap().try_into().unwrap();
+        // create signing key for sequencer txs and get initial nonce
+        let private_key_bytes: [u8; 32] = hex::decode(&cfg.private_key)
+            .wrap_err("failed to decode private key bytes from hex string")?
+            .try_into()
+            .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
         let sequencer_key =
             SigningKey::try_from(private_key_bytes).wrap_err("failed to parse sequencer key")?;
         let address = Address::from_verification_key(&sequencer_key.verification_key());
