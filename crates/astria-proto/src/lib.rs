@@ -1,3 +1,9 @@
+pub use prost::{
+    DecodeError,
+    EncodeError,
+    Message,
+};
+
 #[allow(warnings)]
 #[allow(unreachable_pub)]
 #[rustfmt::skip]

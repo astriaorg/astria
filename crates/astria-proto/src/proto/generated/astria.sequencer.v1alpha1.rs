@@ -1,4 +1,26 @@
 // @generated
+/// A response containing the balance of an account.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BalanceResponse {
+    #[prost(bytes="vec", tag="1")]
+    pub account: ::prost::alloc::vec::Vec<u8>,
+    #[prost(uint64, tag="2")]
+    pub height: u64,
+    #[prost(message, optional, tag="3")]
+    pub balance: ::core::option::Option<super::super::primitive::v1::Uint128>,
+}
+/// A response containing the current nonce for an account.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct NonceResponse {
+    #[prost(bytes="vec", tag="1")]
+    pub account: ::prost::alloc::vec::Vec<u8>,
+    #[prost(uint64, tag="2")]
+    pub height: u64,
+    #[prost(uint32, tag="3")]
+    pub nonce: u32,
+}
 /// `IndexedTransaction` represents a sequencer transaction along with the index
 /// it was originally in the sequencer block.
 #[allow(clippy::derive_partial_eq_without_eq)]

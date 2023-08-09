@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+proto = { package = "astria-proto", path = "../astria-proto" }
 sequencer = { package = "astria-sequencer", path = "../astria-sequencer" }
 
 async-trait = { workspace = true }
