@@ -466,7 +466,6 @@ dependencies = [
  "backon",
  "base64 0.21.0",
  "base64-serde",
- "bincode",
  "clap",
  "dirs",
  "ed25519-consensus",

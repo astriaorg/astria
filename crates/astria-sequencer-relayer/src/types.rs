@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering,
     collections::HashMap,
     fmt,
     hash::Hash,
@@ -10,7 +11,6 @@ use base64::{
     engine::general_purpose,
     Engine as _,
 };
-use bincode;
 use eyre::{
     bail,
     ensure,
@@ -169,21 +169,18 @@ pub struct SequencerBlockData {
     pub rollup_txs: HashMap<Namespace, Vec<IndexedTransaction>>,
 }
 
-impl Hash for SequencerBlockData {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.block_hash.hash(state);
-        self.header.hash().hash(state);
-        if let Some(commit) = self.last_commit.clone() {
-            let encoded: Vec<u8> = bincode::serialize(&commit).unwrap();
-            encoded.hash(state);
+impl Ord for SequencerBlockData {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.header.height.cmp(&other.header.height) {
+            Ordering::Equal => other.header.time.cmp(&self.header.time),
+            other => other,
         }
+    }
+}
 
-        let mut txs_keys: Vec<&Namespace> = self.rollup_txs.keys().collect();
-        txs_keys.sort();
-        for key in txs_keys {
-            key.hash(state);
-            self.rollup_txs.get(key).hash(state);
-        }
+impl PartialOrd for SequencerBlockData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
