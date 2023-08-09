@@ -13,6 +13,7 @@ ethers = { version = "2.0.7", features = ["ws"] }
 async-trait = { workspace = true }
 axum = { workspace = true }
 backon = { workspace = true }
+borsh = { workspace = true }
 color-eyre = { workspace = true }
 ed25519-consensus = { workspace = true }
 figment = { workspace = true, features = ["env"] }

@@ -368,6 +368,7 @@ dependencies = [
  "async-trait",
  "axum",
  "backon",
+ "borsh",
  "color-eyre",
  "ed25519-consensus",
  "ethers",
