@@ -8,30 +8,24 @@
 //! The example below works with the feature `"http"` set.
 //! ```no_run
 //! # tokio_test::block_on(async {
-//! use astria_sequencer_client::{
-//!     Address,
-//!     Height,
-//!     SequencerClientExt as _,
-//! };
+//! use astria_sequencer_client::SequencerClientExt as _;
 //! use tendermint_rpc::HttpClient;
 //!
 //! let client = HttpClient::new("http://127.0.0.1:26657")?;
-//! let address = Address::try_from_str("DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF")?;
-//! let height = 5u32.into();
-//! let balance = client.get_balance(&address, Some(height)).await?;
+//! let address: [u8; 20] = hex_literal::hex!("DEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF");
+//! let height = 5u32;
+//! let balance = client.get_balance(address, height).await?;
 //! println!("{balance:?}");
 //! # Ok::<_, Box<dyn std::error::Error>>(())
 //! # });
 //! ```
 use async_trait::async_trait;
-pub use sequencer::accounts::types::{
-    Address,
-    Balance,
-    Nonce,
+use proto::sequencer::v1alpha1::{
+    BalanceResponse,
+    NonceResponse,
 };
 // Reexports
 pub use sequencer::transaction;
-pub use tendermint::block::Height;
 #[cfg(feature = "http")]
 pub use tendermint_rpc::HttpClient;
 #[cfg(feature = "websocket")]
@@ -76,7 +70,6 @@ impl std::error::Error for Error {
         match &self.inner {
             ErrorKind::AbciQueryDeserialization(e) => Some(e),
             ErrorKind::TendermintRpc(e) => Some(e),
-            ErrorKind::WrongQueryResponseKind(e) => Some(e),
         }
     }
 }
@@ -92,7 +85,8 @@ impl Error {
     fn abci_query_deserialization(
         target: &'static str,
         response: tendermint_rpc::endpoint::abci_query::AbciQuery,
-        inner: borsh::maybestd::io::Error,
+        // inner: borsh::maybestd::io::Error,
+        inner: proto::DecodeError,
     ) -> Self {
         Self {
             inner: ErrorKind::abci_query_deserialization(target, response, inner),
@@ -105,22 +99,13 @@ impl Error {
             inner: ErrorKind::tendermint_rpc(rpc, inner),
         }
     }
-
-    /// Convenience function to construct `Error` containing a `WrongQueryResponseKind`.
-    fn wrong_query_response_kind(
-        expected: &'static str,
-        received: sequencer::accounts::query::Response,
-    ) -> Self {
-        Self {
-            inner: ErrorKind::wrong_query_response_kind(expected, received),
-        }
-    }
 }
 
 /// Error if deserialization of the bytes in an abci query response failed.
 #[derive(Debug)]
 pub struct AbciQueryDeserializationError {
-    inner: borsh::maybestd::io::Error,
+    // inner: borsh::maybestd::io::Error,
+    inner: proto::DecodeError,
     response: Box<tendermint_rpc::endpoint::abci_query::AbciQuery>,
     target: &'static str,
 }
@@ -184,39 +169,6 @@ impl std::error::Error for TendermintRpcError {
     }
 }
 
-/// Error if the abci query response contained a sequencer response, but not the expected one.
-#[derive(Debug)]
-pub struct WrongQueryResponseKind {
-    expected: &'static str,
-    received: sequencer::accounts::query::Response,
-}
-
-impl WrongQueryResponseKind {
-    /// Returns the name of the expected sequencer query response.
-    #[must_use]
-    pub fn expected(&self) -> &'static str {
-        self.expected
-    }
-
-    /// Returns the actually received deserialized sequencer query response.
-    #[must_use]
-    pub fn received(&self) -> &sequencer::accounts::query::Response {
-        &self.received
-    }
-}
-
-impl std::fmt::Display for WrongQueryResponseKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("did not receive expected sequencer response")
-    }
-}
-
-impl std::error::Error for WrongQueryResponseKind {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
-}
-
 /// The collection of different errors that can occur when using the extension trait.
 ///
 /// Note that none of the errors contained herein are constructable outside this crate.
@@ -224,7 +176,6 @@ impl std::error::Error for WrongQueryResponseKind {
 pub enum ErrorKind {
     AbciQueryDeserialization(AbciQueryDeserializationError),
     TendermintRpc(TendermintRpcError),
-    WrongQueryResponseKind(WrongQueryResponseKind),
 }
 
 impl ErrorKind {
@@ -232,7 +183,8 @@ impl ErrorKind {
     fn abci_query_deserialization(
         target: &'static str,
         response: tendermint_rpc::endpoint::abci_query::AbciQuery,
-        inner: borsh::maybestd::io::Error,
+        // inner: borsh::maybestd::io::Error,
+        inner: proto::DecodeError,
     ) -> Self {
         Self::AbciQueryDeserialization(AbciQueryDeserializationError {
             inner,
@@ -248,17 +200,6 @@ impl ErrorKind {
             rpc,
         })
     }
-
-    /// Convenience method to construct a `WrongQueryResponseKind` variant.
-    fn wrong_query_response_kind(
-        expected: &'static str,
-        received: sequencer::accounts::query::Response,
-    ) -> Self {
-        Self::WrongQueryResponseKind(WrongQueryResponseKind {
-            expected,
-            received,
-        })
-    }
 }
 
 /// Tendermint HTTP client which is used to interact with the Sequencer node.
@@ -266,42 +207,47 @@ impl ErrorKind {
 pub trait SequencerClientExt: Client {
     /// Returns the balance of the given account at the given height.
     ///
-    /// If `height = None`, the latest height is used.
-    ///
     /// # Errors
     ///
     /// - If calling tendermint `abci_query` RPC fails.
-    /// - If the opaque bytes cannot be deserialized as a sequencer query response.
-    /// - If the deserialized sequencer query response is not a balance response.
-    async fn get_balance(
-        &self,
-        address: &Address,
-        height: Option<Height>,
-    ) -> Result<Balance, Error> {
-        use borsh::BorshDeserialize as _;
-        use sequencer::accounts::query::Response;
-        let height = height.map(Into::into);
+    /// - If the bytes contained in the abci query response cannot be read as an
+    ///   `astria.sequencer.v1alpha1.BalanceResponse`.
+    async fn get_balance(&self, address: [u8; 20], height: u32) -> Result<BalanceResponse, Error> {
+        use proto::Message as _;
+
+        let prefix = b"accounts/balance/";
+        let mut path = vec![0u8; prefix.len() + 20 * 2];
+        path.extend_from_slice(prefix);
+        faster_hex::hex_encode(&address, &mut path).expect(
+            "this is a bug: the buffer holding the abci query path should have the correct \
+             precalculated size",
+        );
+        let path = String::from_utf8(path)
+            .expect("this is a bug: all bytes in the path buffer should be ascii");
+
         let response = self
-            .abci_query(
-                Some(format!("accounts/balance/{}", &address.to_string())),
-                vec![],
-                height,
-                false,
-            )
+            .abci_query(Some(path), vec![], Some(height.into()), false)
             .await
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
-        let maybe_balance = Response::try_from_slice(&response.value).map_err(|e| {
-            Error::abci_query_deserialization("sequencer::accounts::query::Response", response, e)
-        })?;
+        BalanceResponse::decode(&*response.value).map_err(|err| {
+            Error::abci_query_deserialization(
+                "astria.sequencer.v1alpha1.BalanceResponse",
+                response,
+                err,
+            )
+        })
+    }
 
-        // Allow this clippy lint because we want to always throw the other response into the error,
-        // no matter if there is only one kind of response now or more in the future.
-        #[allow(clippy::match_wildcard_for_single_variants)]
-        match maybe_balance {
-            Response::BalanceResponse(balance) => Ok(balance),
-            other => Err(Error::wrong_query_response_kind("BalanceResponse", other)),
-        }
+    /// Returns the current balance of the given account at the latest height.
+    ///
+    /// # Errors
+    ///
+    /// This has the same error conditions as [`SequencerClientExt::get_balance`].
+    async fn get_latest_balance(&self, address: [u8; 20]) -> Result<BalanceResponse, Error> {
+        // This makes use of the fact that a height `None` and `Some(0)` are
+        // treated the same.
+        self.get_balance(address, 0).await
     }
 
     /// Returns the nonce of the given account at the given height.
@@ -311,33 +257,44 @@ pub trait SequencerClientExt: Client {
     /// # Errors
     ///
     /// - If calling tendermint `abci_query` RPC fails.
-    /// - If the opaque bytes cannot be deserialized as a sequencer query response.
-    /// - If the deserialized sequencer query response is not a balance response.
-    async fn get_nonce(&self, address: &Address, height: Option<Height>) -> Result<Nonce, Error> {
-        use borsh::BorshDeserialize as _;
-        use sequencer::accounts::query::Response;
+    /// - If the bytes contained in the abci query response cannot be read as an
+    ///   `astria.sequencer.v1alpha1.NonceResponse`.
+    async fn get_nonce(&self, address: [u8; 20], height: u32) -> Result<NonceResponse, Error> {
+        use proto::Message as _;
+
+        let prefix = b"accounts/nonce/";
+        let mut path = vec![0u8; prefix.len() + 20 * 2];
+        path.extend_from_slice(prefix);
+        faster_hex::hex_encode(&address, &mut path).expect(
+            "this is a bug: the buffer holding the abci query path should have the correct \
+             precalculated size",
+        );
+        let path = String::from_utf8(path)
+            .expect("this is a bug: all bytes in the path buffer should be ascii");
 
         let response = self
-            .abci_query(
-                Some(format!("accounts/nonce/{address}")),
-                vec![],
-                height,
-                false,
-            )
+            .abci_query(Some(path), vec![], Some(height.into()), false)
             .await
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
-        let maybe_nonce = Response::try_from_slice(&response.value).map_err(|e| {
-            Error::abci_query_deserialization("sequencer::accounts::query::Response", response, e)
-        })?;
+        NonceResponse::decode(&*response.value).map_err(|e| {
+            Error::abci_query_deserialization(
+                "astria::sequencer::v1alpha1.NonceResponse",
+                response,
+                e,
+            )
+        })
+    }
 
-        // Allow this clippy lint because we want to always throw the other response into the error,
-        // no matter if there is only one kind of response now or more in the future.
-        #[allow(clippy::match_wildcard_for_single_variants)]
-        match maybe_nonce {
-            Response::NonceResponse(nonce) => Ok(nonce),
-            other => Err(Error::wrong_query_response_kind("NonceResponse", other)),
-        }
+    /// Returns the current nonce of the given account at the latest height.
+    ///
+    /// # Errors
+    ///
+    /// This has the same error conditions as [`SequencerClientExt::get_nonce`].
+    async fn get_latest_nonce(&self, address: [u8; 20]) -> Result<NonceResponse, Error> {
+        // This makes use of the fact that a height `None` and `Some(0)` are
+        // treated the same.
+        self.get_nonce(address, 0).await
     }
 
     /// Submits the given transaction to the Sequencer node.
