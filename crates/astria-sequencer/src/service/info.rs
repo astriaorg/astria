@@ -265,9 +265,12 @@ where
 #[cfg(test)]
 mod test {
     use penumbra_storage::StateDelta;
-    use tendermint::abci::request;
+    use tendermint::abci::{
+        request,
+        InfoRequest,
+    };
 
-    use super::*;
+    use super::Info;
     use crate::{
         accounts::{
             state_ext::StateWriteExt as _,
@@ -277,11 +280,10 @@ mod test {
     };
 
     #[tokio::test]
-    async fn test_handle_query() {
+    async fn handle_query() {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
-
         let height = 99;
         let version = storage.latest_version().wrapping_add(1);
         let mut state = StateDelta::new(storage.latest_snapshot());
@@ -293,12 +295,20 @@ mod test {
 
         storage.commit(state).await.unwrap();
 
-        let query = request::Query {
+        let info_request = InfoRequest::Query(request::Query {
             path: "accounts/balance/a034c743bed8f26cb8ee7b8db2230fd8347ae131".to_string(),
             data: vec![].into(),
             height: u32::try_from(height).unwrap().into(),
             prove: false,
-        };
-        handle_query(storage.clone(), &query).await.unwrap();
+        });
+
+        {
+            let storage = (*storage).clone();
+            let info_service = Info::new(storage).unwrap();
+            info_service
+                .handle_info_request(info_request)
+                .await
+                .unwrap();
+        }
     }
 }
