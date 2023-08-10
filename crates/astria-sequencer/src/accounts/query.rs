@@ -46,7 +46,7 @@ pub(crate) async fn balance_request(
         }
     };
     let payload = BalanceResponse {
-        account: address.as_bytes().to_vec().into(),
+        account: address.as_bytes().to_vec(),
         height: height.value(),
         balance: Some(balance.0.into()),
     }
@@ -87,7 +87,7 @@ pub(crate) async fn nonce_request(
         }
     };
     let payload = NonceResponse {
-        account: address.as_bytes().to_vec().into(),
+        account: address.as_bytes().to_vec(),
         height: height.value(),
         nonce: nonce.0,
     }

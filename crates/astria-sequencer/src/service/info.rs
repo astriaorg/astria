@@ -107,7 +107,7 @@ impl Info {
                 Ok(response)
             }
             InfoRequest::Echo(echo) => Ok(InfoResponse::Echo(Echo {
-                message: echo.message.clone(),
+                message: echo.message,
             })),
             InfoRequest::Query(req) => Ok(InfoResponse::Query(self.handle_abci_query(req).await)),
             // this was removed after v0.34
@@ -119,7 +119,7 @@ impl Info {
         }
     }
 
-    /// Handles abci_query RPCs.
+    /// Handles `abci_query` RPCs.
     async fn handle_abci_query(self, request: request::Query) -> response::Query {
         let (handler, params) = match self.query_router.at(&request.path) {
             Err(err) => {
