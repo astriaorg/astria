@@ -26,8 +26,12 @@ rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tendermint = { workspace = true }
-# FIXME: Don't activate full
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = [
+  "macros",
+  "rt-multi-thread",
+  "sync",
+  "time",
+] }
 tracing = { workspace = true, features = ["attributes"] }
 tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 
