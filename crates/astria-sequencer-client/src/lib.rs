@@ -85,7 +85,6 @@ impl Error {
     fn abci_query_deserialization(
         target: &'static str,
         response: tendermint_rpc::endpoint::abci_query::AbciQuery,
-        // inner: borsh::maybestd::io::Error,
         inner: proto::DecodeError,
     ) -> Self {
         Self {
@@ -104,7 +103,6 @@ impl Error {
 /// Error if deserialization of the bytes in an abci query response failed.
 #[derive(Debug)]
 pub struct AbciQueryDeserializationError {
-    // inner: borsh::maybestd::io::Error,
     inner: proto::DecodeError,
     response: Box<tendermint_rpc::endpoint::abci_query::AbciQuery>,
     target: &'static str,
@@ -183,7 +181,6 @@ impl ErrorKind {
     fn abci_query_deserialization(
         target: &'static str,
         response: tendermint_rpc::endpoint::abci_query::AbciQuery,
-        // inner: borsh::maybestd::io::Error,
         inner: proto::DecodeError,
     ) -> Self {
         Self::AbciQueryDeserialization(AbciQueryDeserializationError {
