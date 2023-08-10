@@ -4,37 +4,19 @@ use astria_sequencer::{
     accounts::types::Nonce,
     sequence::Action as SequenceAction,
     transaction::{
-        action::Action as SequencerAction,
-        Signed as SignedSequencerTx,
+        action::Action as SequencerAction, Signed as SignedSequencerTx,
         Unsigned as UnsignedSequencerTx,
     },
 };
-use color_eyre::eyre::{
-    self,
-    bail,
-    WrapErr as _,
-};
+use color_eyre::eyre::{self, bail, WrapErr as _};
 use ethers::{
-    providers::{
-        Provider,
-        ProviderError,
-        Ws,
-    },
+    providers::{Provider, ProviderError, Ws},
     types::Transaction,
 };
 use humantime::format_duration;
 use tendermint::abci;
-use tokio::{
-    select,
-    sync::watch,
-    task::JoinSet,
-};
-use tracing::{
-    debug,
-    info,
-    instrument,
-    warn,
-};
+use tokio::{select, sync::watch, task::JoinSet};
+use tracing::{debug, info, instrument, warn};
 
 use crate::Config;
 
@@ -83,43 +65,13 @@ struct EthClient {
 impl EthClient {
     async fn connect(url: &str) -> Result<Self, ProviderError> {
         let inner = Provider::connect(url).await?;
-        Ok(Self {
-            inner,
-        })
+        Ok(Self { inner })
     }
 
     /// Wrapper around [`Provider::get_net_version`] with a 1s timeout.
     async fn get_net_version(&self) -> eyre::Result<String> {
         use ethers::providers::Middleware as _;
         tokio::time::timeout(Duration::from_secs(1), self.inner.get_net_version())
-            .await
-            .wrap_err("request timed out")?
-            .wrap_err("RPC returned with error")
-    }
-}
-
-/// A thin wrapper around [`sequencer_client::Client`] to add timeouts.
-///
-/// Currently only provides a timeout for `abci_info`.
-#[derive(Clone)]
-struct SequencerClient {
-    inner: sequencer_client::HttpClient,
-}
-
-impl SequencerClient {
-    #[instrument]
-    fn new(url: &str) -> eyre::Result<Self> {
-        let inner = sequencer_client::HttpClient::new(url)
-            .wrap_err("failed to construct sequencer client")?;
-        Ok(Self {
-            inner,
-        })
-    }
-
-    /// Wrapper around [`Client::abci_info`] with a 1s timeout.
-    async fn abci_info(self) -> eyre::Result<abci::response::Info> {
-        use sequencer_client::Client as _;
-        tokio::time::timeout(Duration::from_secs(1), self.inner.abci_info())
             .await
             .wrap_err("request timed out")?
             .wrap_err("RPC returned with error")
@@ -206,10 +158,7 @@ impl Searcher {
 
     /// Runs the Searcher
     pub(super) async fn run(mut self) -> eyre::Result<()> {
-        use ethers::providers::{
-            Middleware as _,
-            StreamExt as _,
-        };
+        use ethers::providers::{Middleware as _, StreamExt as _};
         let wait_for_eth = self.wait_for_eth(5, Duration::from_secs(5), 2.0);
         let wait_for_seq = self.wait_for_sequencer(5, Duration::from_secs(5), 2.0);
         match tokio::try_join!(wait_for_eth, wait_for_seq) {
@@ -282,10 +231,7 @@ impl Searcher {
         delay: Duration,
         factor: f32,
     ) -> eyre::Result<()> {
-        use backon::{
-            ExponentialBuilder,
-            Retryable as _,
-        };
+        use backon::{ExponentialBuilder, Retryable as _};
         debug!("attempting to connect to eth");
         let backoff = ExponentialBuilder::default()
             .with_min_delay(delay)
@@ -331,10 +277,7 @@ impl Searcher {
         delay: Duration,
         factor: f32,
     ) -> eyre::Result<()> {
-        use backon::{
-            ExponentialBuilder,
-            Retryable as _,
-        };
+        use backon::{ExponentialBuilder, Retryable as _};
         debug!("attempting to connect to sequencer",);
         let backoff = ExponentialBuilder::default()
             .with_min_delay(delay)

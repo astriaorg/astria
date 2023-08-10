@@ -35,14 +35,16 @@
 //! ```
 
 pub(crate) mod api;
-pub(crate) mod builder;
+
+pub(crate) mod searcher;
+pub(crate) mod collector; 
+pub(crate) mod bundler;
+pub(crate) mod executor;
+pub(crate) mod strategy;
 pub mod ds;
 mod composer;
 pub mod config;
-pub(crate) mod searcher;
 pub mod telemetry;
-pub(crate) mod collector; 
-mod strategy;
 
 pub use composer::Composer;
 pub use config::Config;
