@@ -363,16 +363,15 @@ impl CelestiaClient {
 
         let rsp = match self.client.blob_get_all(req).await {
             Ok(rsp) => rsp,
-            Err(e) => {
-                if let ErrorKind::Rpc(astria_celestia_jsonrpc_client::JsonRpseeError::Call(inner)) =
-                    e.kind()
-                {
-                    if inner.message().contains("blob: not found") {
-                        info!("could not find blobs under the listed namespaces");
-                        return Ok(None);
-                    }
-                }
-                return Err(e).wrap_err("failed getting namespaced data");
+            Err(err)
+                if err
+                    .jsonrpc_response()
+                    .map_or(false, |err| err.message().contains("blob: not found")) =>
+            {
+                return Ok(None);
+            }
+            Err(err) => {
+                return Err(err).wrap_err("failed getting namespaced data");
             }
         };
 
@@ -387,7 +386,7 @@ impl CelestiaClient {
         // posts multiple blobs with the same rollup ID for the same block (could this happen?)
         ensure!(
             rollup_datas.len() <= 1,
-            "shpuld not have more than one rollup data for the given block hash",
+            "should not have more than one rollup data for the given block hash",
         );
 
         // this case can happen if someone posts a blob to the namespace with invalid data
