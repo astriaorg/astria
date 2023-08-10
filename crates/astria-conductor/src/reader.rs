@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use astria_sequencer_relayer::{
     data_availability::CelestiaClient,
-    types::SequencerBlockData,
+    types::{
+        get_namespace,
+        Namespace,
+    },
 };
 use color_eyre::eyre::{
     self,
@@ -27,6 +30,7 @@ use crate::{
     block_verifier::BlockVerifier,
     config::Config,
     executor,
+    types::SequencerBlockSubset,
 };
 
 pub(crate) type JoinHandle = task::JoinHandle<eyre::Result<()>>;
@@ -49,6 +53,7 @@ pub(crate) async fn spawn(
         &conf.celestia_bearer_token,
         executor_tx,
         block_verifier,
+        get_namespace(conf.chain_id.as_bytes()),
     )
     .await
     .wrap_err("failed to create Reader")?;
@@ -79,6 +84,9 @@ pub struct Reader {
     curr_block_height: u64,
 
     block_verifier: Arc<BlockVerifier>,
+
+    /// Namespace ID
+    namespace: Namespace,
 }
 
 impl Reader {
@@ -88,6 +96,7 @@ impl Reader {
         celestia_bearer_token: &str,
         executor_tx: executor::Sender,
         block_verifier: Arc<BlockVerifier>,
+        namespace: Namespace,
     ) -> eyre::Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let celestia_client = CelestiaClient::builder()
@@ -108,6 +117,7 @@ impl Reader {
                 celestia_client,
                 curr_block_height,
                 block_verifier,
+                namespace,
             },
             cmd_tx,
         ))
@@ -146,7 +156,7 @@ impl Reader {
 
     /// get_new_blocks fetches any new sequencer blocks from Celestia.
     #[instrument(name = "Reader::get_new_blocks", skip_all)]
-    pub async fn get_new_blocks(&mut self) -> eyre::Result<Option<Vec<SequencerBlockData>>> {
+    pub async fn get_new_blocks(&mut self) -> eyre::Result<Option<Vec<SequencerBlockSubset>>> {
         // get the latest celestia block height
         let first_new_height = self.curr_block_height + 1;
         let curr_block_height = self
@@ -186,8 +196,10 @@ impl Reader {
                     continue 'check_heights;
                 }
             };
+
             // update the stored current block height after every successful call to the data
-            // availability layet FIXME: is that correct? We have to figure out how to
+            // availability layer
+            // FIXME: is that correct? We have to figure out how to
             // retry heights that fail (and under which conditions)
             self.curr_block_height = height;
             'get_sequencer_blocks: for data in sequencer_namespaced_datas {
@@ -201,17 +213,17 @@ impl Reader {
                     continue 'get_sequencer_blocks;
                 }
 
-                let block = match self
+                let rollup_data = match self
                     .celestia_client
-                    .get_all_rollup_data_from_sequencer_namespace_data(height, &data)
+                    .get_rollup_data(height, &data, self.namespace)
                     .await
                     .wrap_err("failed to get rollup data")
                 {
-                    Ok(Some(block)) => block,
+                    Ok(Some(rollup_data)) => rollup_data,
                     Ok(None) => {
                         debug!(
                             height,
-                            "celestia was unable to find rollups for the sequencer namespace"
+                            "reader was unable to find rollup data for the given height"
                         );
                         continue;
                     }
@@ -222,13 +234,26 @@ impl Reader {
                         continue 'get_sequencer_blocks;
                     }
                 };
-                if let Err(e) = self.block_verifier.validate_sequencer_block(&block).await {
+                if let Err(e) = self
+                    .block_verifier
+                    .validate_rollup_data(
+                        &data.data.block_hash,
+                        &data.data.header,
+                        &data.data.last_commit,
+                        &rollup_data,
+                    )
+                    .await
+                {
                     // this means someone submitted an invalid block to celestia;
                     // we can ignore it
                     warn!(error.msg = %e, error.cause_chain = ?e, "failed to validate sequencer block");
                     continue 'get_sequencer_blocks;
                 }
-                blocks.push(block);
+                blocks.push(SequencerBlockSubset {
+                    block_hash: data.data.block_hash,
+                    header: data.data.header,
+                    rollup_transactions: rollup_data.rollup_txs,
+                });
             }
         }
 
@@ -240,7 +265,7 @@ impl Reader {
     }
 
     /// Processes an individual block
-    async fn process_block(&self, block: SequencerBlockData) -> eyre::Result<()> {
+    async fn process_block(&self, block: SequencerBlockSubset) -> eyre::Result<()> {
         self.executor_tx.send(
             executor::ExecutorCommand::BlockReceivedFromDataAvailability {
                 block: Box::new(block),
