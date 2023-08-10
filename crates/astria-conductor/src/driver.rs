@@ -167,7 +167,7 @@ impl Driver {
 
                 // validate block received from gossip network
                 self.block_verifier
-                    .validate_sequencer_block(&block)
+                    .validate_sequencer_block_data(&block)
                     .await
                     .wrap_err("invalid block received from gossip network")?;
 
