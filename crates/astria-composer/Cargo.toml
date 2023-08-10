@@ -9,6 +9,7 @@ edition = "2021"
 astria-sequencer = { path = "../astria-sequencer" }
 
 ethers = { version = "2.0.7", features = ["ws"] }
+secrecy = "0.8"
 
 async-trait = { workspace = true }
 axum = { workspace = true }

@@ -4,9 +4,14 @@ use figment::{
     providers::Env,
     Figment,
 };
+use secrecy::{
+    ExposeSecret as _,
+    SecretString,
+};
 use serde::{
     Deserialize,
     Serialize,
+    Serializer,
 };
 
 /// Utility function to read the application's config in one go.
@@ -23,7 +28,7 @@ pub fn get() -> Result<Config, figment::Error> {
 }
 
 /// The high-level config for creating an astria-composer service.
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
     /// Log level. One of debug, info, warn, or error
@@ -42,7 +47,8 @@ pub struct Config {
     pub execution_url: String,
 
     /// Private key for the sequencer account used for signing transactions
-    pub private_key: String,
+    #[serde(serialize_with = "serialize_private_key")]
+    pub private_key: SecretString,
 }
 
 impl Config {
@@ -59,6 +65,16 @@ impl Config {
             .merge(Env::prefixed("ASTRIA_COMPOSER_"))
             .extract()
     }
+}
+
+fn serialize_private_key<S>(key: &SecretString, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut key = key.expose_secret().clone();
+    key.truncate(4);
+    key.push_str("...");
+    s.serialize_str(&key)
 }
 
 #[cfg(test)]

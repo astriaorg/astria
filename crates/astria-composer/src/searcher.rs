@@ -31,6 +31,10 @@ use ethers::{
     types::Transaction,
 };
 use humantime::format_duration;
+use secrecy::{
+    ExposeSecret as _,
+    Zeroize as _,
+};
 use sequencer_client::SequencerClientExt as _;
 use tendermint::abci;
 use tokio::{
@@ -164,12 +168,14 @@ impl Searcher {
         let (status, _) = watch::channel(Status::default());
 
         // create signing key for sequencer txs and get initial nonce
-        let private_key_bytes: [u8; 32] = hex::decode(&cfg.private_key)
+        let mut private_key_bytes: [u8; 32] = hex::decode(cfg.private_key.expose_secret())
             .wrap_err("failed to decode private key bytes from hex string")?
             .try_into()
             .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
         let sequencer_key =
             SigningKey::try_from(private_key_bytes).wrap_err("failed to parse sequencer key")?;
+        private_key_bytes.zeroize();
+
         let address = Address::from_verification_key(&sequencer_key.verification_key());
         let starting_nonce = sequencer_client
             .inner
