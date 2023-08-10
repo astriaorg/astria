@@ -486,6 +486,9 @@ fn filter_and_convert_rollup_data_blobs(
     // retain rollup datas whose block hash matches the block hash of the namespaced data
     rollup_datas.retain(|_, rollup_data| block_hash == rollup_data.data.block_hash);
 
+    // retain rollup datas with public key matching that expected
+    rollup_datas.retain(|_, rollup_data| verification_key.as_ref() == rollup_data.public_key);
+
     // retain rollup datas that can be verified
     rollup_datas.retain(|namespace, rollup_data| {
             if let Err(e) = rollup_data
