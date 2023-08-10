@@ -71,6 +71,7 @@ async fn mount_abci_query_mock(server: &MockServer, query_path: &str, response: 
                 .set_body_json(&wrapper)
                 .append_header("Content-Type", "application/json"),
         )
+        .expect(1)
         .mount(server)
         .await;
 }

@@ -5,6 +5,7 @@ use figment::{
     Figment,
 };
 use secrecy::{
+    zeroize::ZeroizeOnDrop,
     ExposeSecret as _,
     SecretString,
 };
@@ -66,6 +67,8 @@ impl Config {
             .extract()
     }
 }
+
+impl ZeroizeOnDrop for Config {}
 
 fn serialize_private_key<S>(key: &SecretString, s: S) -> Result<S::Ok, S::Error>
 where

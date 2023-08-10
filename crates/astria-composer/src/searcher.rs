@@ -1,5 +1,11 @@
 use std::{
-    sync::Arc,
+    sync::{
+        atomic::{
+            AtomicU32,
+            Ordering,
+        },
+        Arc,
+    },
     time::Duration,
 };
 
@@ -39,10 +45,7 @@ use sequencer_client::SequencerClientExt as _;
 use tendermint::abci;
 use tokio::{
     select,
-    sync::{
-        watch,
-        Mutex,
-    },
+    sync::watch,
     task::JoinSet,
 };
 use tracing::{
@@ -65,7 +68,7 @@ pub(super) struct Searcher {
     // Private key used to sign sequencer transactions
     sequencer_key: SigningKey,
     // Nonce of the sequencer account we sign with
-    sequencer_nonce: Arc<Mutex<Nonce>>,
+    sequencer_nonce: Arc<AtomicU32>,
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to.
     rollup_chain_id: String,
@@ -167,7 +170,7 @@ impl Searcher {
         let rollup_chain_id = cfg.chain_id.clone();
         let (status, _) = watch::channel(Status::default());
 
-        // create signing key for sequencer txs and get initial nonce
+        // create signing key for sequencer txs
         let mut private_key_bytes: [u8; 32] = hex::decode(cfg.private_key.expose_secret())
             .wrap_err("failed to decode private key bytes from hex string")?
             .try_into()
@@ -176,18 +179,11 @@ impl Searcher {
             SigningKey::try_from(private_key_bytes).wrap_err("failed to parse sequencer key")?;
         private_key_bytes.zeroize();
 
-        let address = Address::from_verification_key(&sequencer_key.verification_key());
-        let starting_nonce = sequencer_client
-            .inner
-            .get_nonce(&address, None)
-            .await
-            .wrap_err("failed to get nonce")?;
-
         Ok(Searcher {
             eth_client,
             sequencer_client,
             sequencer_key,
-            sequencer_nonce: Arc::new(Mutex::new(starting_nonce)),
+            sequencer_nonce: Arc::new(AtomicU32::new(0)),
             rollup_chain_id,
             status,
             conversion_tasks: JoinSet::new(),
@@ -203,19 +199,18 @@ impl Searcher {
     fn handle_pending_tx(&mut self, rollup_tx: Transaction) {
         let chain_id = self.rollup_chain_id.clone();
         let sequencer_key = self.sequencer_key.clone();
-        let sequencer_nonce = self.sequencer_nonce.clone();
+        let nonce = self.sequencer_nonce.clone();
 
         self.conversion_tasks.spawn_blocking(move || {
-            let mut nonce = sequencer_nonce.blocking_lock();
-
             // Pack into sequencer tx
             let data = rollup_tx.rlp().to_vec();
             let chain_id = chain_id.into_bytes();
             let seq_action = SequencerAction::SequenceAction(SequenceAction::new(chain_id, data));
-            let unsigned_tx = UnsignedSequencerTx::new_with_actions(*nonce, vec![seq_action]);
 
-            // increment nonce
-            *nonce = *nonce + 1.into();
+            // get current nonce and increment nonce
+            let curr_nonce = nonce.fetch_add(1, Ordering::Relaxed);
+            let unsigned_tx =
+                UnsignedSequencerTx::new_with_actions(Nonce::from(curr_nonce), vec![seq_action]);
 
             // Sign transaction
             Ok(unsigned_tx.into_signed(&sequencer_key))
@@ -255,6 +250,18 @@ impl Searcher {
             Ok(((), ())) => {}
             Err(err) => return Err(err).wrap_err("failed to start searcher"),
         }
+
+        // set initial sequencer nonce
+        let address = Address::from_verification_key(&self.sequencer_key.verification_key());
+        let starting_nonce = self
+            .sequencer_client
+            .inner
+            .get_nonce(&address, None)
+            .await
+            .wrap_err("failed to query sequencer for nonce")?;
+        self.sequencer_nonce
+            .store(starting_nonce.into(), Ordering::Relaxed);
+
         let eth_client = self.eth_client.inner.clone();
         let mut tx_stream = eth_client
             .subscribe_full_pending_txs()
