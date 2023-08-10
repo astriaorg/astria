@@ -79,6 +79,18 @@ jobs:
         # or `cargo +nightly-2023-07-07 fmt` for specifying the exactly release.
         run: cargo fmt --all -- --check
 
+  fmt-toml:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: download taplo
+        run: |
+          curl -fsSL https://github.com/tamasfe/taplo/releases/download/0.8.1/taplo-full-linux-x86_64.gz \
+          | gzip -d - \
+          | install -m 755 /dev/stdin /usr/local/bin/taplo
+      - name: run taplo
+        run: taplo format --check
+
   clippy:
     runs-on: ubuntu-latest
     steps:
