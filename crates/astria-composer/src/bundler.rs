@@ -7,9 +7,12 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use tokio::sync::mpsc as tokio_mpsc;
 
+/// The Bundler module bundles received transactions based on the various
+/// MEV strategies that are implemented.
+/// It then forwards the bundles to the Executor
 pub(crate) struct Bundler {
     collector_receiver: UnboundedReceiver<RollupTxExt>,
-    sequencer_sender: UnboundedSender<Vec<RollupTxExt>>,
+    executor_sender: UnboundedSender<Vec<RollupTxExt>>,
 }
 
 impl Bundler {
@@ -19,7 +22,7 @@ impl Bundler {
         let (stream, sink) = tokio_mpsc::unbounded_channel::<Vec<RollupTxExt>>();
         let new_strategy = Self {
             collector_receiver,
-            sequencer_sender: stream,
+            executor_sender: stream,
         };
         (new_strategy, sink)
     }
@@ -34,14 +37,18 @@ impl Bundler {
 
     pub(crate) async fn start(&mut self) -> Result<(), eyre::Error> {
         while let Some(rollup_tx) = self.collector_receiver.recv().await {
-            let sender = self.sequencer_sender.clone();
-            // Serialization and Signing of one bundle should not block the serialization and signing of other
-            // bundles
-            tokio::task::spawn(async move {
-                let bundle = Self::bundle_transactions(vec![rollup_tx]).await.unwrap();
+            let sender = self.executor_sender.clone();
 
+            // NOTE: This should be replaced with more sophisticated logic on how a list of transactions
+            //       on which MEV strategies are executed is collected
+            let pre_mev_bundle = vec![rollup_tx];
+
+            // MEV on collated gathered bundles should be independent of other bundles and thus can their
+            // own async task
+            tokio::task::spawn(async move {
+                let post_mev_bundle = Self::bundle_transactions(pre_mev_bundle).await.unwrap();
                 sender
-                    .send(bundle)
+                    .send(post_mev_bundle)
                     .wrap_err("Failed to forward signed sequencer tx from strategy to builder")
                     .unwrap();
             });
