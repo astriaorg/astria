@@ -163,7 +163,7 @@ impl std::ops::Sub<u128> for Balance {
     Ord,
     Debug,
 )]
-pub struct Nonce(u32);
+pub struct Nonce(pub(crate) u32);
 
 impl Nonce {
     pub(crate) fn into_inner(self) -> u32 {
