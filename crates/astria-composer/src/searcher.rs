@@ -1,16 +1,17 @@
 use crate::{
     bundler::Bundler,
     collector::Collector,
-    ds::{EthProvider, SequencerClient, StreamingClient},
+    ds::{EthProvider, RollupChainId, SequencerClient, StreamingClient},
     executor::Executor,
     Config,
 };
 use color_eyre::eyre::{self, Context};
 use tokio::sync::watch;
 
+#[derive(Default)]
 pub struct SearcherStatus {
     active_providers: u64,
-    sequencer_connected: bool
+    sequencer_connected: bool,
 }
 
 impl SearcherStatus {
@@ -20,11 +21,7 @@ impl SearcherStatus {
 }
 
 pub struct Searcher {
-    providers: Vec<Box<dyn StreamingClient<Error = eyre::Error>>>,
-    collector: Collector,
-    bundler: Bundler,
-    executor: Executor,
-    status: watch::Sender<SearcherStatus>
+    status: watch::Sender<SearcherStatus>,
 }
 
 impl Searcher {
@@ -32,27 +29,44 @@ impl Searcher {
         self.status.subscribe()
     }
 
-    /// Constructs a new Searcher service from config.
-    pub(super) async fn from_config(cfg: &Config) -> eyre::Result<Self> {
+    // FIXME: How do we start up multiple providers if we are reading from Config?
+    async fn setup_providers_from_config(
+        cfg: &Config,
+    ) -> Result<Vec<(Box<dyn StreamingClient<Error = eyre::Error>>, RollupChainId)>, eyre::Error>
+    {
         let eth_client = EthProvider::connect(&cfg.execution_url)
             .await
             .wrap_err("failed connecting to eth")?;
 
-        // connect to sequencer node
-        let sequencer_client = SequencerClient::new(&cfg.sequencer_url)
-            .wrap_err("failed constructing sequencer client")?;
-
-        let rollup_chain_id = cfg.chain_id.clone();
-        let (status, _) = watch::channel(Status::default());
-
-
+        Ok(vec![(Box::new(eth_client), "1".to_string())])
     }
 
-    pub async fn start() {
-        ds::EthersProvider
+    /// Constructs a new Searcher service from config.
+    pub(super) async fn from_config(cfg: &Config) -> Result<Self, eyre::Error> {
+        let (collector, collector_recv_channel) = Collector::new();
 
-        self.status.send_modify(|status| {
-            status.sequencer_connected = true;
+        let mut status = SearcherStatus::default();
+        for (provider, chain_id) in Self::setup_providers_from_config(cfg).await? {
+            collector.add_provider(provider, chain_id).await?;
+            status.active_providers += 1;
+        }
+
+        let (mut bundler, bundler_recv_channel) = Bundler::new(collector_recv_channel);
+        let mut executor = Executor::new(&cfg.sequencer_url, bundler_recv_channel).await?;
+        // Set status flag to true since sequencer has started successfully if this code is executed
+        status.sequencer_connected = true;
+
+        let (status, _) = watch::channel(status);
+        tokio::task::spawn(async move {
+            bundler.start();
         });
+
+        tokio::task::spawn(async move{
+            executor.start();
+        });
+
+        Ok(Self {
+            status
+        })
     }
 }

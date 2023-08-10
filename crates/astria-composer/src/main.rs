@@ -1,8 +1,4 @@
-use astria_composer::{
-    config,
-    telemetry,
-    Composer,
-};
+use astria_composer::{config, telemetry, Composer};
 use tracing::info;
 
 #[tokio::main]
@@ -22,9 +18,5 @@ async fn main() {
 
     info!(config = cfg_ser, "initializing composer",);
 
-    Composer::from_config(&cfg)
-        .await
-        .expect("failed creating composer")
-        .run_until_stopped()
-        .await;
+    Composer::run_until_stopped(&cfg).await.expect("Composer exited unsuccessfully");
 }

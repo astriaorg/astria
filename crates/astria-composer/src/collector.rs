@@ -18,11 +18,11 @@ impl Collector {
 
     pub(crate) async fn add_provider<P>(
         &self,
-        pr: P,
+        pr: Box<P>,
         chain_id: RollupChainId,
     ) -> Result<(), eyre::Error>
     where
-        P: StreamingClient<Error = eyre::Error>,
+        P: StreamingClient<Error = eyre::Error> + ?Sized,
     {
         let sender_clone = self.digestion_channel.clone();
         let mut receiver = pr.start_stream(chain_id).await?;

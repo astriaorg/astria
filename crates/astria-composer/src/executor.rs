@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use astria_sequencer::{
     sequence::Action as SequenceAction,
     transaction::{
@@ -22,9 +24,13 @@ impl Executor {
         seq_url: &str,
         seq_tx_recv_channel: UnboundedReceiver<Vec<RollupTxExt>>,
     ) -> Result<Self, eyre::Error> {
+        let seq_client = SequencerClient::new(seq_url)
+        .wrap_err("Failed to initialize Sequencer Client")?;
+
+        seq_client.wait_for_sequencer(5, Duration::from_secs(5), 2.0).await?;
+
         Ok(Self {
-            seq_client: SequencerClient::new(seq_url)
-                .wrap_err("Failed to initialize Sequencer Client")?,
+            seq_client: seq_client,
             seq_tx_recv_channel,
         })
     }

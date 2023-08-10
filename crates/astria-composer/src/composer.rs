@@ -1,80 +1,37 @@
 use std::net::SocketAddr;
 
-use color_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
+use color_eyre::eyre::{self};
 use tokio::task::JoinError;
-use tracing::{
-    debug,
-    error,
-    info,
-};
+use tracing::{debug, error, info};
 
 use crate::{
-    api::{
-        self,
-        ApiServer,
-    },
+    api::{self, ApiServer},
     searcher::Searcher,
     Config,
 };
 
 pub struct Composer {
     api_server: ApiServer,
-    searcher: Searcher,
 }
 
 impl Composer {
-    /// Constructs a new Searcher service from config.
-    ///
-    /// # Errors
-    ///
-    /// An error is returned if the searcher fails to be initialized.
-    /// See `[Searcher::from_config]` for its error scenarios.
-    pub async fn from_config(cfg: &Config) -> eyre::Result<Self> {
-        // parse api url from config
-        debug!("creating searcher");
-        let searcher = Searcher::from_config(cfg)
-            .await
-            .wrap_err("failed to initialize searcher")?;
-
-        let searcher_status = searcher.subscribe_to_state();
-
-        debug!("creating API server");
-        let api_server = api::start(cfg.api_listen_addr, searcher_status);
-        debug!(
-            listen_addr = %api_server.local_addr(),
-            "API server listening"
-        );
-
-        Ok(Self {
-            api_server,
-            searcher,
-        })
-    }
-
     pub fn local_addr(&self) -> SocketAddr {
         self.api_server.local_addr()
     }
 
-    /// Runs the composer.
-    ///
-    /// Currently only exits if the api server or searcher stop unexpectedly.
-    pub async fn run_until_stopped(self) {
-        let Self {
-            api_server,
-            searcher,
-        } = self;
+    pub async fn run_until_stopped(cfg: &Config) -> Result<(), eyre::Error> {
+        debug!("creating searcher");
+        let searcher = Searcher::from_config(&cfg).await?;
+        let searcher_status = searcher.subscribe_to_state();
 
-        let api_task =
-            tokio::spawn(async move { api_server.await.wrap_err("api server ended unexpectedly") });
-        let searcher_task = tokio::spawn(searcher.run());
+        debug!("creating API server");
+            let api_server = api::start(cfg.api_listen_addr, searcher_status);
+            debug!(
+                listen_addr = %api_server.local_addr(),
+                "API server listening");
+        api_server.await?;
 
-        tokio::select! {
-            o = api_task => report_exit("api server", o),
-            o = searcher_task => report_exit("searcher", o),
-        }
+        Ok(())
     }
 }
 

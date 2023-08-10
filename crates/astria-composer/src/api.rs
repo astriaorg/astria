@@ -24,7 +24,7 @@ use crate::searcher;
 
 pub(super) type ApiServer = axum::Server<AddrIncoming, IntoMakeService<Router>>;
 
-type SearcherStatus = watch::Receiver<searcher::Status>;
+type SearcherStatus = watch::Receiver<searcher::SearcherStatus>;
 
 /// `AppState` is an axum extractor
 #[derive(Clone)]

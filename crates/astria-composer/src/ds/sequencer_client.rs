@@ -30,7 +30,7 @@ impl SequencerClient {
             .wrap_err("RPC returned with error")
     }
 
-        /// Wait until a connection to the sequencer is established.
+    /// Wait until a connection to the sequencer is established.
     ///
     /// This function tries to establish a connection to the sequencer by
     /// querying its `abci_info` RPC. If it fails, it retries for another `n_retries`
