@@ -268,6 +268,7 @@ mod test {
     use tendermint::abci::{
         request,
         InfoRequest,
+        InfoResponse,
     };
 
     use super::Info;
@@ -302,13 +303,17 @@ mod test {
             prove: false,
         });
 
-        {
+        let query_response = match {
             let storage = (*storage).clone();
             let info_service = Info::new(storage).unwrap();
             info_service
                 .handle_info_request(info_request)
                 .await
-                .unwrap();
-        }
+                .unwrap()
+        } {
+            InfoResponse::Query(query) => query,
+            other => panic!("expected InfoResponse::Query, got {other:?}"),
+        };
+        assert!(query_response.code.is_ok());
     }
 }
