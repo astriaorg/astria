@@ -138,11 +138,11 @@ fn create_signed_transaction() -> transaction::Signed {
 
 #[tokio::test]
 async fn get_latest_nonce() {
+    use proto::sequencer::v1alpha1::NonceResponse;
     let MockSequencer {
         server,
         client,
     } = MockSequencer::start().await;
-    use proto::sequencer::v1alpha1::NonceResponse;
 
     let expected_response = NonceResponse {
         account: ALICE_ADDRESS.to_vec(),
@@ -158,11 +158,11 @@ async fn get_latest_nonce() {
 
 #[tokio::test]
 async fn get_latest_balance() {
+    use proto::sequencer::v1alpha1::BalanceResponse;
     let MockSequencer {
         server,
         client,
     } = MockSequencer::start().await;
-    use proto::sequencer::v1alpha1::BalanceResponse;
 
     let expected_response = BalanceResponse {
         account: ALICE_ADDRESS.to_vec(),
