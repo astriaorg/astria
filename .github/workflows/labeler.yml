@@ -8,16 +8,6 @@ on:
       - reopened
 
 jobs:
-  size:
-    runs-on: ubuntu-latest
-    name: Labels
-    steps:
-    - uses: codelytv/pr-size-labeler@v1
-      with:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        files_to_ignore: |
-          "cargo.lock"
-          "crates/astria-proto/src/proto/generated/**"
   triage:
     permissions:
       contents: read

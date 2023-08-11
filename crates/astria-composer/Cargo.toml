@@ -9,6 +9,7 @@ edition = "2021"
 astria-sequencer = { path = "../astria-sequencer" }
 
 ethers = { version = "2.0.7", features = ["ws"] }
+secrecy = "0.8"
 
 async-trait = { workspace = true }
 axum = { workspace = true }
@@ -25,8 +26,12 @@ rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tendermint = { workspace = true }
-# FIXME: Don't activate full
-tokio = { workspace = true, features = ["full"] }
+tokio = { workspace = true, features = [
+  "macros",
+  "rt-multi-thread",
+  "sync",
+  "time",
+] }
 tracing = { workspace = true, features = ["attributes"] }
 tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 
@@ -39,6 +44,7 @@ features = ["http"]
 impl-serde = "0.4.0"
 tokio-test = "0.4.2"
 
+borsh = { workspace = true }
 figment = { workspace = true, features = ["test"] }
 jsonrpsee = { workspace = true, features = ["macros", "server"] }
 once_cell = { workspace = true }

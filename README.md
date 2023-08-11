@@ -178,6 +178,24 @@ cargo test
 Note that the `astria-proto` generates its code by running tests (and verifying that nothing changed).
 In order for its tests to run you also need [Buf](https://buf.build/docs/installation/) installed.
 
+## Formatting
+
+This project uses rustfmt to format rust sources, and [taplo](https://github.com/tamasfe/taplo)
+to format toml files. To install and run rustfmt:
+```sh
+$ rustup +nightly-2023-07-07 component add rustfmt
+$ cargo +nightly-2023-07-07 fmt --all
+```
+Download taplo from their release page or use your system's package manager:
+```sh
+# macOS
+$ brew install taplo
+# Arch Linux
+$ sudo pacman -S taplo
+# Run
+$ taplo format
+````
+
 ## Contributing
 
 Pull requests should be created against the `main` branch. In general, we follow the "fork-and-pull" Git workflow.

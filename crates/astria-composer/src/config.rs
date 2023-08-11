@@ -4,9 +4,15 @@ use figment::{
     providers::Env,
     Figment,
 };
+use secrecy::{
+    zeroize::ZeroizeOnDrop,
+    ExposeSecret as _,
+    SecretString,
+};
 use serde::{
     Deserialize,
     Serialize,
+    Serializer,
 };
 
 /// Utility function to read the application's config in one go.
@@ -23,7 +29,7 @@ pub fn get() -> Result<Config, figment::Error> {
 }
 
 /// The high-level config for creating an astria-composer service.
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
     /// Log level. One of debug, info, warn, or error
@@ -40,6 +46,10 @@ pub struct Config {
 
     /// Address of the RPC server for execution
     pub execution_url: String,
+
+    /// Private key for the sequencer account used for signing transactions
+    #[serde(serialize_with = "serialize_private_key")]
+    pub private_key: SecretString,
 }
 
 impl Config {
@@ -56,6 +66,22 @@ impl Config {
             .merge(Env::prefixed("ASTRIA_COMPOSER_"))
             .extract()
     }
+}
+
+impl ZeroizeOnDrop for Config {}
+
+fn serialize_private_key<S>(key: &SecretString, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    use serde::ser::Error as _;
+    let mut raw_key = key.expose_secret().clone().into_bytes();
+    if let Some(sub_slice) = raw_key.get_mut(4..) {
+        sub_slice.fill(b'#');
+    }
+    let sanitized_key = std::str::from_utf8(&raw_key)
+        .map_err(|_| S::Error::custom("private key hex contained non-ascii characters"))?;
+    s.serialize_str(sanitized_key)
 }
 
 #[cfg(test)]
