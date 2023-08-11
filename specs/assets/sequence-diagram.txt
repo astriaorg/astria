@@ -1,0 +1,91 @@
+title TX Flow
+
+actor Wallet
+participant Rollup Node
+participant Composer
+participant Sequencer
+participant Relayer
+control Gossip
+participant Conductor
+database DA
+
+
+
+activate DA
+
+Rollup Node<-Composer: WS Subscribe Txs
+Wallet->Rollup Node: Rollup Tx
+Wallet<--Rollup Node: Tx Hash
+Rollup Node-->Composer: Rollup Tx
+Composer->Composer:Wrap Tx
+Composer->Sequencer: Seq Tx
+
+Wallet->Rollup Node: Get Tx
+Wallet<--Rollup Node: Pending Tx
+
+loop Sequencer Block Building
+Sequencer->Sequencer: Build Block/Consensus
+Relayer->Sequencer: Get Latest Block
+Relayer<--Sequencer: Block Height N
+parallel on
+Relayer->Gossip: Block Height N
+Gossip-->Conductor: Block Height N
+parallel off
+end
+
+loop Execution of Sequenced Blcok
+Conductor->Rollup Node: UpdateCommitmentState (Soft N-1)
+Conductor->Rollup Node: CreateBlock(Block N)
+activate Rollup Node
+note left of Rollup Node:Execute Block
+Conductor<--Rollup Node: Executed Block
+deactivate Rollup Node
+Conductor->Rollup Node: UpdateCommitmentState (Head N)
+end
+
+Wallet->Rollup Node: Get Tx
+Wallet<--Rollup Node: Executed Tx
+
+loop Sequencer Block Building
+Sequencer->Sequencer: Build Block/Consensus
+Relayer->Sequencer: Get Latest Block
+Relayer<--Sequencer: Block Height N + 1
+parallel on
+Relayer->Gossip: Block Height N + 1
+Gossip-->Conductor: Block Height N + 1
+parallel off
+end
+
+
+DA-->Relayer: PFB Commitment (0->K)
+deactivate DA
+Relayer -> DA: PFB Block Batch (K->N)
+activate DA
+
+loop Execution of Sequenced Blcok
+Conductor->Rollup Node: UpdateCommitmentState (Soft N)
+Conductor->Rollup Node:CreateBlock(Block N+1)
+activate Rollup Node
+note left of Rollup Node:Execute Block
+Conductor<--Rollup Node: Executed Block
+deactivate Rollup Node
+Conductor->Rollup Node: UpdateCommitmentState (Head N+1)
+end
+
+parallel on
+DA-->Relayer: PFB Commitment (K->N)
+Wallet->Rollup Node: Get Tx
+deactivate DA
+parallel off
+
+parallel on
+Conductor->DA: GetNamespacedData
+Wallet<--Rollup Node: Soft Commit Tx
+parallel off
+Conductor<--DA: Batch Blocks (0 -> N)
+Conductor->Rollup Node: UpdateCommitmentState (Firm N)
+
+
+
+Wallet->Rollup Node: Get Tx
+Wallet<--Rollup Node: Firm Commit Tx
