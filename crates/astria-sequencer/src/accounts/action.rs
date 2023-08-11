@@ -24,6 +24,9 @@ use crate::{
     transaction::action_handler::ActionHandler,
 };
 
+/// Fee charged for a `Transfer` action.
+pub(crate) const TRANSFER_FEE: Balance = Balance(12);
+
 /// Represents a value-transfer action.
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -73,7 +76,10 @@ impl ActionHandler for Transfer {
             .get_account_balance(from)
             .await
             .context("failed getting `from` account balance")?;
-        ensure!(curr_balance >= self.amount, "insufficient funds");
+        ensure!(
+            curr_balance >= self.amount + TRANSFER_FEE,
+            "insufficient funds"
+        );
 
         Ok(())
     }
@@ -95,7 +101,7 @@ impl ActionHandler for Transfer {
             .await
             .context("failed getting `to` account balance")?;
         state
-            .put_account_balance(from, from_balance - self.amount)
+            .put_account_balance(from, from_balance - (self.amount + TRANSFER_FEE))
             .context("failed updating `from` account balance")?;
         state
             .put_account_balance(&self.to, to_balance + self.amount)
