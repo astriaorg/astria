@@ -74,10 +74,14 @@ fn serialize_private_key<S>(key: &SecretString, s: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    let mut key = key.expose_secret().clone();
-    key.truncate(4);
-    key.push_str("...");
-    s.serialize_str(&key)
+    use serde::ser::Error as _;
+    let mut raw_key = key.expose_secret().clone().into_bytes();
+    if let Some(sub_slice) = raw_key.get_mut(4..) {
+        sub_slice.fill(b'#');
+    }
+    let sanitized_key = std::str::from_utf8(&raw_key)
+        .map_err(|_| S::Error::custom("private key hex contained non-ascii characters"))?;
+    s.serialize_str(sanitized_key)
 }
 
 #[cfg(test)]
