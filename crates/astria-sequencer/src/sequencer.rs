@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use anyhow::{
     anyhow,
     Context as _,
@@ -28,9 +29,10 @@ impl Sequencer {
     pub async fn run_until_stopped(config: Config) -> Result<()> {
         let genesis_state =
             GenesisState::from_path(config.genesis_file).context("failed reading genesis state")?;
-        let storage = penumbra_storage::TempStorage::new()
+        let db_filepath = PathBuf::from(config.db_filepath);
+        let storage = penumbra_storage::Storage::load(db_filepath.clone())
             .await
-            .context("failed to create temp storage backing chain state")?;
+            .context("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
         app.init_chain(genesis_state)
