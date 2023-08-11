@@ -462,7 +462,8 @@ impl CelestiaClient {
 }
 
 /// Filters out blobs that cannot be deserialized to `SignedNamespaceData<RollupNamespaceData>`,
-/// whose block hash is not the same as the one provided, and whose signature cannot be verified
+/// whose block hash is not the same as the one provided, whose data was signed with a public key
+/// that does not match the one provided, and whose signature cannot be verified
 /// with the provided verification key.
 fn filter_and_convert_rollup_data_blobs(
     blobs: Vec<blob::Blob>,
