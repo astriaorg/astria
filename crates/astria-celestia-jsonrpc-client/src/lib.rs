@@ -4,6 +4,7 @@ pub mod state;
 
 pub mod rpc_impl;
 
+use jsonrpsee::types::ErrorObject;
 pub use rpc_impl::blob::Blob;
 #[cfg(feature = "server")]
 pub use rpc_impl::state::StateServer;
@@ -69,6 +70,29 @@ impl Error {
     #[must_use]
     pub fn rpc_name(&self) -> &str {
         self.rpc
+    }
+
+    /// Convenience method to access the error returned by a JSONRPC.
+    ///
+    /// Returns `None` if the inner error is not related to the JSONRPC response.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use astria_celestia_jsonrpc_client::Client;
+    /// # async fn example(client: Client) {
+    /// if let Err(err) = client.header_network_head().await {
+    ///    if let Some(jsonrpc) = err.jsonrpc_response() {
+    ///        println!("JSONRPC returned an error: {}", jsonrpc.message());
+    ///    }
+    /// }
+    /// # }
+    #[must_use]
+    pub fn jsonrpc_response(&self) -> Option<&ErrorObject<'_>> {
+        match &self.inner {
+            ErrorKind::Rpc(jsonrpsee::core::Error::Call(err)) => Some(err),
+            _ => None,
+        }
     }
 
     pub(crate) fn deserialization(e: DeserializationError, rpc: &'static str) -> Self {

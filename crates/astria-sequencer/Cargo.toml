@@ -1,10 +1,10 @@
 [package]
 name = "astria-sequencer"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-astria-proto = {path = "../astria-proto"}
+astria-proto = { path = "../astria-proto" }
 
 anyhow = "1"
 digest = "0.10"
@@ -24,11 +24,15 @@ hex = { workspace = true, features = ["serde"] }
 is-terminal = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
-serde = { workspace = true, features = ["derive"]  }
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
-tokio = { workspace = true, features = [ "rt", "tracing" ] }
+tokio = { workspace = true, features = ["rt", "tracing"] }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["ansi", "env-filter", "json"] }
+tracing-subscriber = { workspace = true, features = [
+  "ansi",
+  "env-filter",
+  "json",
+] }

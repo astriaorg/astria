@@ -371,6 +371,7 @@ dependencies = [
  "async-trait",
  "axum",
  "backon",
+ "borsh",
  "color-eyre",
  "ed25519-consensus",
  "ethers",
@@ -384,6 +385,7 @@ dependencies = [
  "once_cell",
  "rand 0.8.5",
  "reqwest",
+ "secrecy",
  "serde",
  "serde_json",
  "tendermint",
@@ -397,7 +399,7 @@ dependencies = [
 
 [[package]]
 name = "astria-conductor"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "astria-gossipnet",
  "astria-proto",
@@ -458,7 +460,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "astria-proto",
@@ -508,7 +510,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer-relayer"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "astria-celestia-jsonrpc-client",
  "astria-gossipnet",

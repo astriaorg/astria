@@ -1,6 +1,6 @@
 [package]
 name = "astria-conductor"
-version = "0.1.0"
+version = "0.4.0"
 edition = "2021"
 
 [dependencies]
@@ -31,7 +31,9 @@ tracing-subscriber = { workspace = true, features = ["ansi", "json"] }
 
 astria-proto = { path = "../astria-proto", features = ["client"] }
 astria-gossipnet = { path = "../astria-gossipnet" }
-astria-sequencer-client = { path = "../astria-sequencer-client", features = ["http"] }
+astria-sequencer-client = { path = "../astria-sequencer-client", features = [
+  "http",
+] }
 astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 
 [dev-dependencies]
