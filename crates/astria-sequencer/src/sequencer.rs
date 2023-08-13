@@ -29,7 +29,7 @@ impl Sequencer {
     pub async fn run_until_stopped(config: Config) -> Result<()> {
         let genesis_state =
             GenesisState::from_path(config.genesis_file).context("failed reading genesis state")?;
-        let db_filepath = PathBuf::from(config.db_filepath);
+        let db_filepath = PathBuf::from(config.db_datadir);
         let storage = penumbra_storage::Storage::load(db_filepath.clone())
             .await
             .context("failed to load storage backing chain state")?;
