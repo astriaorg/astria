@@ -8,11 +8,6 @@ pub use prost::{
 #[allow(unreachable_pub)]
 #[rustfmt::skip]
 mod proto;
+pub mod native;
 
-pub use proto::generated::{
-    execution,
-    primitive,
-    sequencer,
-};
-
-pub mod transform;
+pub use proto::generated;

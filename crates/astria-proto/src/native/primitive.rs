@@ -1,6 +1,6 @@
 //! Transformations of compiled protobuf types to other types.
 
-use crate::primitive::v1::Uint128;
+use crate::generated::primitive::v1::Uint128;
 impl From<u128> for Uint128 {
     fn from(primitive: u128) -> Self {
         let [

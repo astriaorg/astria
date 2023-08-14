@@ -3,7 +3,7 @@ use std::{
     fmt::Display,
 };
 
-use crate::sequencer::v1alpha1;
+use crate::generated::sequencer::v1alpha1;
 
 impl v1alpha1::BalanceResponse {
     /// Converts an astria native [`BalanceResponse`] to a
