@@ -15,4 +15,4 @@ pub use proto::generated::{
     sequencer,
 };
 
-mod transform;
+pub mod transform;
