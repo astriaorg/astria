@@ -1,4 +1,7 @@
-use std::{error::Error, fmt::Display};
+use std::{
+    error::Error,
+    fmt::Display,
+};
 
 use crate::generated::sequencer::v1alpha1;
 
@@ -232,7 +235,12 @@ impl Error for IncorrectAddressLength {}
 
 #[cfg(test)]
 mod tests {
-    use super::{Address, BalanceResponse, IncorrectAddressLength, NonceResponse};
+    use super::{
+        Address,
+        BalanceResponse,
+        IncorrectAddressLength,
+        NonceResponse,
+    };
 
     #[test]
     fn balance_roundtrip_is_correct() {
