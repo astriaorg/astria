@@ -15,8 +15,8 @@ keywords = ["astria", "grpc", "rpc", "blockchain", "execution", "protobuf"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ed25519-consensus = { workspace = true, optional = true}
-hex = { workspace = true, optional = true}
+ed25519-consensus = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
 sha2 = { workspace = true, optional = true }
