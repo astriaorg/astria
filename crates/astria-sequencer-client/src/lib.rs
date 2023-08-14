@@ -19,12 +19,12 @@
 //! # Ok::<_, Box<dyn std::error::Error>>(())
 //! # });
 //! ```
+
 use async_trait::async_trait;
-use proto::sequencer::v1alpha1::{
+pub use proto::transform::sequencer::{
     BalanceResponse,
     NonceResponse,
 };
-// Reexports
 pub use sequencer::transaction;
 #[cfg(feature = "http")]
 pub use tendermint_rpc::HttpClient;
@@ -69,6 +69,7 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.inner {
             ErrorKind::AbciQueryDeserialization(e) => Some(e),
+            ErrorKind::ProtobufConversion(e) => Some(e),
             ErrorKind::TendermintRpc(e) => Some(e),
         }
     }
@@ -89,6 +90,16 @@ impl Error {
     ) -> Self {
         Self {
             inner: ErrorKind::abci_query_deserialization(target, response, inner),
+        }
+    }
+
+    fn protobuf_conversion_error<T, E>(target: &'static str, raw_response: T, inner: E) -> Self
+    where
+        T: std::fmt::Debug + Send + 'static,
+        E: std::error::Error + Send + 'static,
+    {
+        Self {
+            inner: ErrorKind::protobuf_conversion_error(target, raw_response, inner),
         }
     }
 
@@ -134,6 +145,43 @@ impl std::error::Error for AbciQueryDeserializationError {
     }
 }
 
+#[derive(Debug)]
+pub struct ProtobufConversionError {
+    inner: Box<dyn std::error::Error + Send + 'static>,
+    raw_response: Box<dyn std::fmt::Debug + Send + 'static>,
+    target: &'static str,
+}
+
+impl ProtobufConversionError {
+    #[must_use]
+    pub fn inner(&self) -> &(dyn std::error::Error + Send + 'static) {
+        &*self.inner
+    }
+
+    #[must_use]
+    pub fn raw_response(&self) -> &(dyn std::fmt::Debug + Send + 'static) {
+        &*self.raw_response
+    }
+
+    /// Returns the expected target type of the failed conversion.
+    #[must_use]
+    pub fn target(&self) -> &'static str {
+        self.target
+    }
+}
+
+impl std::fmt::Display for ProtobufConversionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("failed converting protobuf type to native astria type")
+    }
+}
+
+impl std::error::Error for ProtobufConversionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.inner.source()
+    }
+}
+
 /// Error if the rpc call using the underlying [`tendermint-rpc::client::Client`] failed.
 #[derive(Debug)]
 pub struct TendermintRpcError {
@@ -173,6 +221,7 @@ impl std::error::Error for TendermintRpcError {
 #[derive(Debug)]
 pub enum ErrorKind {
     AbciQueryDeserialization(AbciQueryDeserializationError),
+    ProtobufConversion(ProtobufConversionError),
     TendermintRpc(TendermintRpcError),
 }
 
@@ -187,6 +236,18 @@ impl ErrorKind {
             inner,
             response: Box::new(response),
             target,
+        })
+    }
+
+    fn protobuf_conversion_error<T, E>(target: &'static str, raw_response: T, inner: E) -> Self
+    where
+        T: std::fmt::Debug + Send + 'static,
+        E: std::error::Error + Send + 'static,
+    {
+        Self::ProtobufConversion(ProtobufConversionError {
+            target,
+            raw_response: Box::new(raw_response),
+            inner: Box::new(inner),
         })
     }
 
@@ -220,13 +281,17 @@ pub trait SequencerClientExt: Client {
             .await
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
-        BalanceResponse::decode(&*response.value).map_err(|err| {
-            Error::abci_query_deserialization(
-                "astria.sequencer.v1alpha1.BalanceResponse",
-                response,
-                err,
-            )
-        })
+        let proto_response = proto::sequencer::v1alpha1::BalanceResponse::decode(&*response.value)
+            .map_err(|err| {
+                Error::abci_query_deserialization(
+                    "astria.sequencer.v1alpha1.BalanceResponse",
+                    response,
+                    err,
+                )
+            })?;
+        proto_response
+            .to_native()
+            .map_err(|e| Error::protobuf_conversion_error("BalanceResponse", proto_response, e))
     }
 
     /// Returns the current balance of the given account at the latest height.
@@ -260,13 +325,17 @@ pub trait SequencerClientExt: Client {
             .await
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
-        NonceResponse::decode(&*response.value).map_err(|e| {
-            Error::abci_query_deserialization(
-                "astria::sequencer::v1alpha1.NonceResponse",
-                response,
-                e,
-            )
-        })
+        let proto_response = proto::sequencer::v1alpha1::NonceResponse::decode(&*response.value)
+            .map_err(|e| {
+                Error::abci_query_deserialization(
+                    "astria::sequencer::v1alpha1.NonceResponse",
+                    response,
+                    e,
+                )
+            })?;
+        proto_response
+            .to_native()
+            .map_err(|e| Error::protobuf_conversion_error("NonceResponse", proto_response, e))
     }
 
     /// Returns the current nonce of the given account at the latest height.

@@ -26,6 +26,10 @@ impl v1alpha1::BalanceResponse {
     pub fn into_native(self) -> Result<BalanceResponse, IncorrectAccountLength> {
         BalanceResponse::from_proto(self)
     }
+
+    pub fn to_native(&self) -> Result<BalanceResponse, IncorrectAccountLength> {
+        self.clone().into_native()
+    }
 }
 
 /// The sequencer response to a balance request for a given account at a given height.
@@ -54,12 +58,12 @@ impl BalanceResponse {
 
     /// Converts an astria native [`BalanceResponse`] to a
     /// protobuf [`v1alpha1::BalanceResponse`].
-    pub fn into_proto(self) -> crate::sequencer::v1alpha1::BalanceResponse {
-        crate::sequencer::v1alpha1::BalanceResponse::from_native(self)
+    pub fn into_proto(self) -> v1alpha1::BalanceResponse {
+        v1alpha1::BalanceResponse::from_native(self)
     }
 }
 
-impl crate::sequencer::v1alpha1::NonceResponse {
+impl v1alpha1::NonceResponse {
     /// Converts a protobuf [`v1alpha1::NonceResponse`] to a native
     /// astria `NonceResponse`.
     pub fn from_native(native: NonceResponse) -> Self {
@@ -79,6 +83,10 @@ impl crate::sequencer::v1alpha1::NonceResponse {
     /// native [`NonceResponse`].
     pub fn into_native(self) -> Result<NonceResponse, IncorrectAccountLength> {
         NonceResponse::from_proto(self)
+    }
+
+    pub fn to_native(&self) -> Result<NonceResponse, IncorrectAccountLength> {
+        self.clone().into_native()
     }
 }
 
@@ -108,8 +116,8 @@ impl NonceResponse {
 
     /// Converts an astria native [`NonceResponse`] to a
     /// protobuf [`v1alpha1::NonceResponse`].
-    pub fn into_proto(self) -> crate::sequencer::v1alpha1::NonceResponse {
-        crate::sequencer::v1alpha1::NonceResponse::from_native(self)
+    pub fn into_proto(self) -> v1alpha1::NonceResponse {
+        v1alpha1::NonceResponse::from_native(self)
     }
 }
 
