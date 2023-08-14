@@ -211,16 +211,9 @@ pub trait SequencerClientExt: Client {
     ///   `astria.sequencer.v1alpha1.BalanceResponse`.
     async fn get_balance(&self, address: [u8; 20], height: u32) -> Result<BalanceResponse, Error> {
         use proto::Message as _;
+        const PREFIX: &[u8] = b"accounts/balance/";
 
-        let prefix = b"accounts/balance/";
-        let mut path = vec![0u8; prefix.len() + 20 * 2];
-        path.extend_from_slice(prefix);
-        faster_hex::hex_encode(&address, &mut path).expect(
-            "this is a bug: the buffer holding the abci query path should have the correct \
-             precalculated size",
-        );
-        let path = String::from_utf8(path)
-            .expect("this is a bug: all bytes in the path buffer should be ascii");
+        let path = make_path_from_prefix_and_address(PREFIX, address);
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)
@@ -258,16 +251,9 @@ pub trait SequencerClientExt: Client {
     ///   `astria.sequencer.v1alpha1.NonceResponse`.
     async fn get_nonce(&self, address: [u8; 20], height: u32) -> Result<NonceResponse, Error> {
         use proto::Message as _;
+        const PREFIX: &[u8] = b"accounts/nonce/";
 
-        let prefix = b"accounts/nonce/";
-        let mut path = vec![0u8; prefix.len() + 20 * 2];
-        path.extend_from_slice(prefix);
-        faster_hex::hex_encode(&address, &mut path).expect(
-            "this is a bug: the buffer holding the abci query path should have the correct \
-             precalculated size",
-        );
-        let path = String::from_utf8(path)
-            .expect("this is a bug: all bytes in the path buffer should be ascii");
+        let path = make_path_from_prefix_and_address(PREFIX, address);
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)
@@ -329,4 +315,14 @@ pub trait SequencerClientExt: Client {
             .await
             .map_err(|e| Error::tendermint_rpc("broadcast_tx_comit", e))
     }
+}
+
+fn make_path_from_prefix_and_address(prefix: &'static [u8], address: [u8; 20]) -> String {
+    let mut path = vec![0u8; prefix.len() + address.len() * 2];
+    path[..prefix.len()].copy_from_slice(prefix);
+    hex::encode_to_slice(address, &mut path[prefix.len()..]).expect(
+        "this is a bug: a buffer of sufficient size must have been allocated to hold 20 hex \
+         encoded bytes",
+    );
+    String::from_utf8(path).expect("this is a bug: all bytes in the path buffer should be ascii")
 }
