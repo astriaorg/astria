@@ -26,7 +26,7 @@ tonic = { workspace = true, optional = true }
 [features]
 default = ["native"]
 client = ["dep:tonic"]
-native = ["dep:ed25519-consensus", "dep: hex", "dep:sha2"]
+native = ["dep:ed25519-consensus", "dep:hex", "dep:sha2"]
 server = ["dep:tonic"]
 
 [dev-dependencies]
