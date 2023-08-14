@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 use serde::{
     Deserialize,
@@ -14,6 +16,9 @@ pub struct Config {
     /// The path to the json encoded genesis file with a list of accounts.
     #[arg(long)]
     pub(crate) genesis_file: String,
+    /// The path to penumbra storage db.
+    #[arg(long)]
+    pub(crate) db_filepath: PathBuf,
 }
 
 impl Config {
