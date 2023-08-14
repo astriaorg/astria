@@ -3,7 +3,7 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_proto::sequencer::v1alpha1::UnsignedTransaction as ProtoUnsignedTransaction;
+use astria_proto::generated::sequencer::v1alpha1::UnsignedTransaction as ProtoUnsignedTransaction;
 use prost::Message as _;
 use serde::{
     Deserialize,

@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use astria_proto::primitive::v1::Uint128 as ProtoBalance;
+use astria_proto::generated::primitive::v1::Uint128 as ProtoBalance;
 use borsh::{
     BorshDeserialize,
     BorshSerialize,

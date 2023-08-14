@@ -26,7 +26,8 @@ pub(crate) async fn balance_request(
     params: Vec<(String, String)>,
 ) -> response::Query {
     use astria_proto::{
-        sequencer::v1alpha1::BalanceResponse,
+        native::sequencer::BalanceResponse,
+        // sequencer::v1alpha1::BalanceResponse,
         Message as _,
     };
     let (address, snapshot, height) = match preprocess_request(&storage, &request, &params).await {
@@ -46,10 +47,11 @@ pub(crate) async fn balance_request(
         }
     };
     let payload = BalanceResponse {
-        account: address.as_bytes().to_vec(),
+        account: address.0,
         height: height.value(),
-        balance: Some(balance.0.into()),
+        balance: balance.0,
     }
+    .into_proto()
     .encode_to_vec()
     .into();
     response::Query {
@@ -67,7 +69,7 @@ pub(crate) async fn nonce_request(
     params: Vec<(String, String)>,
 ) -> response::Query {
     use astria_proto::{
-        sequencer::v1alpha1::NonceResponse,
+        native::sequencer::NonceResponse,
         Message as _,
     };
     let (address, snapshot, height) = match preprocess_request(&storage, &request, &params).await {
@@ -87,10 +89,11 @@ pub(crate) async fn nonce_request(
         }
     };
     let payload = NonceResponse {
-        account: address.as_bytes().to_vec(),
+        account: address.0,
         height: height.value(),
         nonce: nonce.0,
     }
+    .into_proto()
     .encode_to_vec()
     .into();
     response::Query {

@@ -281,14 +281,15 @@ pub trait SequencerClientExt: Client {
             .await
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
-        let proto_response = proto::sequencer::v1alpha1::BalanceResponse::decode(&*response.value)
-            .map_err(|err| {
-                Error::abci_query_deserialization(
-                    "astria.sequencer.v1alpha1.BalanceResponse",
-                    response,
-                    err,
-                )
-            })?;
+        let proto_response =
+            proto::generated::sequencer::v1alpha1::BalanceResponse::decode(&*response.value)
+                .map_err(|e| {
+                    Error::abci_query_deserialization(
+                        "astria.sequencer.v1alpha1.BalanceResponse",
+                        response,
+                        e,
+                    )
+                })?;
         proto_response
             .to_native()
             .map_err(|e| Error::protobuf_conversion_error("BalanceResponse", proto_response, e))
@@ -325,14 +326,15 @@ pub trait SequencerClientExt: Client {
             .await
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
-        let proto_response = proto::sequencer::v1alpha1::NonceResponse::decode(&*response.value)
-            .map_err(|e| {
-                Error::abci_query_deserialization(
-                    "astria::sequencer::v1alpha1.NonceResponse",
-                    response,
-                    e,
-                )
-            })?;
+        let proto_response =
+            proto::generated::sequencer::v1alpha1::NonceResponse::decode(&*response.value)
+                .map_err(|e| {
+                    Error::abci_query_deserialization(
+                        "astria.sequencer.v1alpha1.NonceResponse",
+                        response,
+                        e,
+                    )
+                })?;
         proto_response
             .to_native()
             .map_err(|e| Error::protobuf_conversion_error("NonceResponse", proto_response, e))

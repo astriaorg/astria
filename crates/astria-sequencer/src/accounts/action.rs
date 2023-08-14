@@ -3,7 +3,7 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_proto::sequencer::v1alpha1::TransferAction as ProtoTransferAction;
+use astria_proto::generated::sequencer::v1alpha1::TransferAction as ProtoTransferAction;
 use serde::{
     Deserialize,
     Serialize,
