@@ -256,7 +256,7 @@ impl Searcher {
         let starting_nonce = self
             .sequencer_client
             .inner
-            .get_nonce(&address, None)
+            .get_latest_nonce(address.0)
             .await
             .wrap_err("failed to query sequencer for nonce")?;
         self.sequencer_nonce

@@ -6,10 +6,6 @@ use astria_proto::generated::sequencer::v1alpha1::{
     action::Value as ProtoValue,
     Action as ProtoAction,
 };
-use serde::{
-    Deserialize,
-    Serialize,
-};
 
 use crate::{
     accounts::Transfer,
@@ -20,7 +16,8 @@ use crate::{
 ///
 /// This type wraps all the different module-specific actions.
 /// If a new action type is added, it should be added to this enum.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+// #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Action {
     TransferAction(Transfer),

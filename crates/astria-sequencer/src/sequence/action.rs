@@ -3,7 +3,10 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_proto::generated::sequencer::v1alpha1::SequenceAction as ProtoSequenceAction;
+use astria_proto::{
+    generated::sequencer::v1alpha1::SequenceAction as ProtoSequenceAction,
+    native::sequencer::Address,
+};
 use serde::{
     Deserialize,
     Serialize,
@@ -16,10 +19,7 @@ use crate::{
             StateReadExt,
             StateWriteExt,
         },
-        types::{
-            Address,
-            Balance,
-        },
+        types::Balance,
     },
     transaction::action_handler::ActionHandler,
 };
@@ -77,7 +77,7 @@ impl ActionHandler for Action {
     async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,
-        from: &Address,
+        from: Address,
     ) -> Result<()> {
         let curr_balance = state
             .get_account_balance(from)
@@ -114,7 +114,7 @@ impl ActionHandler for Action {
             from = from.to_string(),
         )
     )]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: &Address) -> Result<()> {
+    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         let fee = calculate_fee(&self.data).context("failed to calculate fee")?;
         let from_balance = state
             .get_account_balance(from)

@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use astria_proto::generated::primitive::v1::Uint128 as ProtoBalance;
 use borsh::{
     BorshDeserialize,
@@ -8,73 +7,6 @@ use serde::{
     Deserialize,
     Serialize,
 };
-
-/// The length of an account address in bytes.
-pub(crate) const ADDRESS_LEN: usize = 20;
-
-/// Represents an account address.
-#[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub struct Address(pub(crate) [u8; ADDRESS_LEN]);
-
-impl Address {
-    pub(crate) fn as_bytes(&self) -> &[u8] {
-        &self.0
-    }
-
-    /// Decodes an address from a hex string.
-    ///
-    /// # Errors
-    ///
-    /// - if the string is not valid hex
-    /// - if the string is not 20 bytes long
-    pub fn try_from_str(s: &str) -> anyhow::Result<Self> {
-        let bytes = hex::decode(s)?;
-        let arr: [u8; ADDRESS_LEN] = bytes
-            .try_into()
-            .map_err(|_| anyhow!("invalid address hex length"))?;
-        Ok(Self(arr))
-    }
-
-    /// Returns the address of the account associated with the given verification key,
-    /// which is calculated as the first 20 bytes of the sha256 hash of the verification key.
-    #[must_use]
-    pub fn from_verification_key(public_key: &crate::crypto::VerificationKey) -> Self {
-        let bytes = crate::hash(public_key.as_bytes());
-        let arr: [u8; ADDRESS_LEN] = bytes[0..ADDRESS_LEN]
-            .try_into()
-            .expect("can convert 32 byte hash to 20 byte array");
-        Address(arr)
-    }
-}
-
-impl hex::FromHex for Address {
-    type Error = anyhow::Error;
-
-    fn from_hex<T: AsRef<[u8]>>(hex: T) -> std::result::Result<Self, Self::Error> {
-        let bytes = hex::decode(hex)?;
-        let arr: [u8; ADDRESS_LEN] = bytes
-            .try_into()
-            .map_err(|_| anyhow!("invalid address hex length"))?;
-        Ok(Self(arr))
-    }
-}
-
-impl TryFrom<&[u8]> for Address {
-    type Error = anyhow::Error;
-
-    fn try_from(bytes: &[u8]) -> std::result::Result<Self, Self::Error> {
-        let arr: [u8; ADDRESS_LEN] = bytes
-            .try_into()
-            .map_err(|_| anyhow!("invalid address length"))?;
-        Ok(Address(arr))
-    }
-}
-
-impl std::fmt::Display for Address {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
-    }
-}
 
 /// Balance represents an account balance.
 #[derive(

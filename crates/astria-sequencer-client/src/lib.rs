@@ -22,6 +22,7 @@
 
 use async_trait::async_trait;
 pub use proto::native::sequencer::{
+    Account,
     BalanceResponse,
     NonceResponse,
 };
@@ -270,11 +271,15 @@ pub trait SequencerClientExt: Client {
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be read as an
     ///   `astria.sequencer.v1alpha1.BalanceResponse`.
-    async fn get_balance(&self, address: [u8; 20], height: u32) -> Result<BalanceResponse, Error> {
+    async fn get_balance<A: Into<Account>>(
+        &self,
+        address: A,
+        height: u32,
+    ) -> Result<BalanceResponse, Error> {
         use proto::Message as _;
         const PREFIX: &[u8] = b"accounts/balance/";
 
-        let path = make_path_from_prefix_and_address(PREFIX, address);
+        let path = make_path_from_prefix_and_address(PREFIX, address.into().0);
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)
@@ -315,11 +320,15 @@ pub trait SequencerClientExt: Client {
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be read as an
     ///   `astria.sequencer.v1alpha1.NonceResponse`.
-    async fn get_nonce(&self, address: [u8; 20], height: u32) -> Result<NonceResponse, Error> {
+    async fn get_nonce<A: Into<Account>>(
+        &self,
+        address: A,
+        height: u32,
+    ) -> Result<NonceResponse, Error> {
         use proto::Message as _;
         const PREFIX: &[u8] = b"accounts/nonce/";
 
-        let path = make_path_from_prefix_and_address(PREFIX, address);
+        let path = make_path_from_prefix_and_address(PREFIX, address.into().0);
 
         let response = self
             .abci_query(Some(path), vec![], Some(height.into()), false)

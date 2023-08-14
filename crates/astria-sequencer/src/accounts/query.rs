@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use astria_proto::native::sequencer::Address;
 use penumbra_storage::{
     Snapshot,
     Storage,
@@ -12,10 +13,7 @@ use tendermint::{
 };
 
 use crate::{
-    accounts::{
-        state_ext::StateReadExt as _,
-        types::Address,
-    },
+    accounts::state_ext::StateReadExt as _,
     service::info::AbciCode,
     state_ext::StateReadExt as _,
 };
@@ -34,7 +32,7 @@ pub(crate) async fn balance_request(
         Ok(tup) => tup,
         Err(err_rsp) => return err_rsp,
     };
-    let balance = match snapshot.get_account_balance(&address).await {
+    let balance = match snapshot.get_account_balance(address).await {
         Ok(balance) => balance,
         Err(err) => {
             return response::Query {
@@ -47,7 +45,7 @@ pub(crate) async fn balance_request(
         }
     };
     let payload = BalanceResponse {
-        account: address.0,
+        account: address,
         height: height.value(),
         balance: balance.0,
     }
@@ -76,7 +74,7 @@ pub(crate) async fn nonce_request(
         Ok(tup) => tup,
         Err(err_rsp) => return err_rsp,
     };
-    let nonce = match snapshot.get_account_nonce(&address).await {
+    let nonce = match snapshot.get_account_nonce(address).await {
         Ok(nonce) => nonce,
         Err(err) => {
             return response::Query {
@@ -89,7 +87,7 @@ pub(crate) async fn nonce_request(
         }
     };
     let payload = NonceResponse {
-        account: address.0,
+        account: address,
         height: height.value(),
         nonce: nonce.0,
     }
@@ -148,19 +146,25 @@ async fn preprocess_request(
             ..response::Query::default()
         });
     };
-    let address = match Address::try_from_str(address) {
-        Ok(address) => address,
-        Err(err) => {
-            return Err(response::Query {
+    let address = hex::decode(address)
+        .map_err(|err| response::Query {
+            code: AbciCode::INVALID_PARAMETER.into(),
+            info: format!("{}", AbciCode::INVALID_PARAMETER),
+            log: format!(
+                "account public key could not be constructed from provided paratemer: {err:?}"
+            ),
+            ..response::Query::default()
+        })
+        .and_then(|addr| {
+            Address::try_from_slice(&addr).map_err(|err| response::Query {
                 code: AbciCode::INVALID_PARAMETER.into(),
                 info: format!("{}", AbciCode::INVALID_PARAMETER),
                 log: format!(
                     "account public key could not be constructed from provided paratemer: {err:?}"
                 ),
                 ..response::Query::default()
-            });
-        }
-    };
+            })
+        })?;
     let (snapshot, height) = match get_snapshot_and_height(storage, request.height).await {
         Ok(tup) => tup,
         Err(err) => {
