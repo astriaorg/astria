@@ -28,14 +28,18 @@ impl Sequencer {
     pub async fn run_until_stopped(config: Config) -> Result<()> {
         let genesis_state =
             GenesisState::from_path(config.genesis_file).context("failed reading genesis state")?;
-        if config.db_filepath.try_exists()? {
+        if config
+            .db_filepath
+            .exists()
+            .context("failed checking for existence of db storage file")?
+        {
             info!(
-                path = config.db_filepath.display().to_string(),
+                path = %config.db_filepath.display(),
                 "opening storage db"
             );
         } else {
             info!(
-                path = config.db_filepath.display().to_string(),
+                path = %config.db_filepath.display(),
                 "creating storage db"
             );
         }
