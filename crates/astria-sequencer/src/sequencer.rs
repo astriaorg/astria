@@ -30,7 +30,7 @@ impl Sequencer {
             GenesisState::from_path(config.genesis_file).context("failed reading genesis state")?;
         if config
             .db_filepath
-            .exists()
+            .try_exists()
             .context("failed checking for existence of db storage file")?
         {
             info!(
