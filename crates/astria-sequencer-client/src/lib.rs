@@ -21,7 +21,11 @@
 //! ```
 
 use async_trait::async_trait;
-pub use proto::native::sequencer::{Address, BalanceResponse, NonceResponse};
+pub use proto::native::sequencer::{
+    Address,
+    BalanceResponse,
+    NonceResponse,
+};
 pub use sequencer::transaction;
 #[cfg(feature = "http")]
 pub use tendermint_rpc::HttpClient;
@@ -29,7 +33,10 @@ pub use tendermint_rpc::HttpClient;
 pub use tendermint_rpc::WebSocketClient;
 pub use tendermint_rpc::{
     client::Client,
-    endpoint::broadcast::{tx_commit, tx_sync},
+    endpoint::broadcast::{
+        tx_commit,
+        tx_sync,
+    },
 };
 
 #[cfg(feature = "http")]
@@ -247,7 +254,10 @@ impl ErrorKind {
 
     /// Convenience method to construct a `TendermintRpc` variant.
     fn tendermint_rpc(rpc: &'static str, inner: tendermint_rpc::error::Error) -> Self {
-        Self::TendermintRpc(TendermintRpcError { inner, rpc })
+        Self::TendermintRpc(TendermintRpcError {
+            inner,
+            rpc,
+        })
     }
 }
 

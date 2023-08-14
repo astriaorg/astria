@@ -363,12 +363,12 @@ dependencies = [
 name = "astria-composer"
 version = "0.1.0"
 dependencies = [
+ "astria-proto",
  "astria-sequencer",
  "astria-sequencer-client",
  "async-trait",
  "axum",
  "backon",
- "borsh",
  "color-eyre",
  "ed25519-consensus",
  "ethers",
