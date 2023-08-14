@@ -21,11 +21,7 @@
 //! ```
 
 use async_trait::async_trait;
-pub use proto::native::sequencer::{
-    Account,
-    BalanceResponse,
-    NonceResponse,
-};
+pub use proto::native::sequencer::{Address, BalanceResponse, NonceResponse};
 pub use sequencer::transaction;
 #[cfg(feature = "http")]
 pub use tendermint_rpc::HttpClient;
@@ -33,10 +29,7 @@ pub use tendermint_rpc::HttpClient;
 pub use tendermint_rpc::WebSocketClient;
 pub use tendermint_rpc::{
     client::Client,
-    endpoint::broadcast::{
-        tx_commit,
-        tx_sync,
-    },
+    endpoint::broadcast::{tx_commit, tx_sync},
 };
 
 #[cfg(feature = "http")]
@@ -254,10 +247,7 @@ impl ErrorKind {
 
     /// Convenience method to construct a `TendermintRpc` variant.
     fn tendermint_rpc(rpc: &'static str, inner: tendermint_rpc::error::Error) -> Self {
-        Self::TendermintRpc(TendermintRpcError {
-            inner,
-            rpc,
-        })
+        Self::TendermintRpc(TendermintRpcError { inner, rpc })
     }
 }
 
@@ -271,7 +261,7 @@ pub trait SequencerClientExt: Client {
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be read as an
     ///   `astria.sequencer.v1alpha1.BalanceResponse`.
-    async fn get_balance<A: Into<Account>>(
+    async fn get_balance<A: Into<Address> + Send>(
         &self,
         address: A,
         height: u32,
@@ -305,7 +295,10 @@ pub trait SequencerClientExt: Client {
     /// # Errors
     ///
     /// This has the same error conditions as [`SequencerClientExt::get_balance`].
-    async fn get_latest_balance(&self, address: [u8; 20]) -> Result<BalanceResponse, Error> {
+    async fn get_latest_balance<A: Into<Address> + Send>(
+        &self,
+        address: A,
+    ) -> Result<BalanceResponse, Error> {
         // This makes use of the fact that a height `None` and `Some(0)` are
         // treated the same.
         self.get_balance(address, 0).await
@@ -320,7 +313,7 @@ pub trait SequencerClientExt: Client {
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be read as an
     ///   `astria.sequencer.v1alpha1.NonceResponse`.
-    async fn get_nonce<A: Into<Account>>(
+    async fn get_nonce<A: Into<Address> + Send>(
         &self,
         address: A,
         height: u32,
@@ -354,7 +347,10 @@ pub trait SequencerClientExt: Client {
     /// # Errors
     ///
     /// This has the same error conditions as [`SequencerClientExt::get_nonce`].
-    async fn get_latest_nonce(&self, address: [u8; 20]) -> Result<NonceResponse, Error> {
+    async fn get_latest_nonce<A: Into<Address> + Send>(
+        &self,
+        address: A,
+    ) -> Result<NonceResponse, Error> {
         // This makes use of the fact that a height `None` and `Some(0)` are
         // treated the same.
         self.get_nonce(address, 0).await

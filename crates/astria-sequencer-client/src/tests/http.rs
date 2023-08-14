@@ -1,42 +1,22 @@
 use ed25519_consensus::SigningKey;
 use hex_literal::hex;
+use proto::native::sequencer::Address;
 use sequencer::{
     accounts::{
-        types::{
-            Address,
-            Balance,
-            Nonce,
-        },
+        types::{Balance, Nonce},
         Transfer,
     },
     transaction,
 };
 use serde_json::json;
-use tendermint::{
-    block::Height,
-    Hash,
-};
-use tendermint_rpc::{
-    endpoint::broadcast::tx_commit::DialectResponse,
-    response::Wrapper,
-    Id,
-};
+use tendermint::{block::Height, Hash};
+use tendermint_rpc::{endpoint::broadcast::tx_commit::DialectResponse, response::Wrapper, Id};
 use wiremock::{
-    matchers::{
-        body_partial_json,
-        body_string_contains,
-    },
-    Mock,
-    MockGuard,
-    MockServer,
-    ResponseTemplate,
+    matchers::{body_partial_json, body_string_contains},
+    Mock, MockGuard, MockServer, ResponseTemplate,
 };
 
-use crate::{
-    tx_sync,
-    HttpClient,
-    SequencerClientExt as _,
-};
+use crate::{tx_sync, HttpClient, SequencerClientExt as _};
 
 // see astria-sequencer/src/crypto.rs for how these keys/addresses were generated
 const ALICE_ADDRESS: [u8; 20] = hex!("1c0c490f1b5528d8173c5de46d131160e4b2c0c3");
@@ -51,10 +31,7 @@ impl MockSequencer {
     async fn start() -> Self {
         let server = MockServer::start().await;
         let client = HttpClient::new(&*format!("http://{}", server.address())).unwrap();
-        Self {
-            server,
-            client,
-        }
+        Self { server, client }
     }
 }
 
@@ -129,7 +106,7 @@ fn create_signed_transaction() -> transaction::Signed {
     let alice_keypair = SigningKey::from(alice_secret_bytes);
 
     let actions = vec![transaction::Action::TransferAction(Transfer::new(
-        Address::try_from(BOB_ADDRESS.as_slice()).unwrap(),
+        Address::try_from_slice(BOB_ADDRESS.as_slice()).unwrap(),
         Balance::from(333_333),
     ))];
     let tx = transaction::Unsigned::new_with_actions(Nonce::from(1), actions);
@@ -138,11 +115,8 @@ fn create_signed_transaction() -> transaction::Signed {
 
 #[tokio::test]
 async fn get_latest_nonce() {
-    use proto::sequencer::v1alpha1::NonceResponse;
-    let MockSequencer {
-        server,
-        client,
-    } = MockSequencer::start().await;
+    use proto::generated::sequencer::v1alpha1::NonceResponse;
+    let MockSequencer { server, client } = MockSequencer::start().await;
 
     let expected_response = NonceResponse {
         account: ALICE_ADDRESS.to_vec(),
@@ -150,19 +124,20 @@ async fn get_latest_nonce() {
         nonce: 1,
     };
     let _guard =
-        register_abci_query_response(&server, "/accounts/nonce/", expected_response.clone()).await;
+        register_abci_query_response(&server, "accounts/nonce/", expected_response.clone()).await;
 
-    let actual_response = client.get_latest_nonce(ALICE_ADDRESS).await.unwrap();
+    let actual_response = client
+        .get_latest_nonce(ALICE_ADDRESS)
+        .await
+        .unwrap()
+        .into_proto();
     assert_eq!(expected_response, actual_response);
 }
 
 #[tokio::test]
 async fn get_latest_balance() {
-    use proto::sequencer::v1alpha1::BalanceResponse;
-    let MockSequencer {
-        server,
-        client,
-    } = MockSequencer::start().await;
+    use proto::generated::sequencer::v1alpha1::BalanceResponse;
+    let MockSequencer { server, client } = MockSequencer::start().await;
 
     let expected_response = BalanceResponse {
         account: ALICE_ADDRESS.to_vec(),
@@ -170,19 +145,19 @@ async fn get_latest_balance() {
         balance: Some(10u128.pow(18).into()),
     };
     let _guard =
-        register_abci_query_response(&server, "/accounts/balance/", expected_response.clone())
-            .await;
+        register_abci_query_response(&server, "accounts/balance/", expected_response.clone()).await;
 
-    let actual_response = client.get_latest_balance(ALICE_ADDRESS).await.unwrap();
+    let actual_response = client
+        .get_latest_balance(ALICE_ADDRESS)
+        .await
+        .unwrap()
+        .into_proto();
     assert_eq!(expected_response, actual_response);
 }
 
 #[tokio::test]
 async fn submit_tx_sync() {
-    let MockSequencer {
-        server,
-        client,
-    } = MockSequencer::start().await;
+    let MockSequencer { server, client } = MockSequencer::start().await;
 
     let server_response = tx_sync::Response {
         code: 0.into(),
@@ -204,10 +179,7 @@ async fn submit_tx_sync() {
 async fn submit_tx_commit() {
     use tendermint_rpc::dialect;
 
-    let MockSequencer {
-        server,
-        client,
-    } = MockSequencer::start().await;
+    let MockSequencer { server, client } = MockSequencer::start().await;
 
     let server_response = DialectResponse::<tendermint_rpc::dialect::v0_37::Event> {
         check_tx: dialect::CheckTx::default(),
