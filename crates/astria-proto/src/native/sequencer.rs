@@ -1,7 +1,4 @@
-use std::{
-    error::Error,
-    fmt::Display,
-};
+use std::{error::Error, fmt::Display};
 
 use crate::generated::sequencer::v1alpha1;
 
@@ -14,16 +11,25 @@ impl Address {
     /// Construct a sequencer address from a [`ed25519_consensus::VerificationKey`].
     ///
     /// The first 20 bytes of the sha256 hash of the verification key is the address.
+    #[must_use]
     pub fn from_verification_key(public_key: ed25519_consensus::VerificationKey) -> Self {
         use sha2::Digest as _;
+        /// this ensures that `ADDRESS_LEN` is never accidentally changed to a value
+        /// that would violate this assumption.
+        #[allow(clippy::assertions_on_constants)]
+        const _: () = assert!(ADDRESS_LEN <= 32);
         let mut hasher = sha2::Sha256::new();
         hasher.update(public_key);
         let bytes: [u8; 32] = hasher.finalize().into();
-        const _: () = assert!(ADDRESS_LEN <= 32);
         Self::try_from_slice(&bytes[..ADDRESS_LEN])
             .expect("can convert 32 byte hash to 20 byte array")
     }
 
+    /// Convert a byte slice to an address.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the account buffer was not 20 bytes long.
     pub fn try_from_slice(bytes: &[u8]) -> Result<Self, IncorrectAddressLength> {
         let inner = <[u8; ADDRESS_LEN]>::try_from(bytes).map_err(|_| IncorrectAddressLength {
             received: bytes.len(),
@@ -31,6 +37,7 @@ impl Address {
         Ok(Self::from_array(inner))
     }
 
+    #[must_use]
     pub fn from_array(array: [u8; ADDRESS_LEN]) -> Self {
         Self(array)
     }
@@ -58,6 +65,7 @@ impl Display for Address {
 impl v1alpha1::BalanceResponse {
     /// Converts an astria native [`BalanceResponse`] to a
     /// protobuf [`v1alpha1::BalanceResponse`].
+    #[must_use]
     pub fn from_native(native: BalanceResponse) -> Self {
         let BalanceResponse {
             account,
@@ -73,12 +81,22 @@ impl v1alpha1::BalanceResponse {
 
     /// Converts a protobuf [`v1alpha1::BalanceResponse`] to an astria
     /// native [`BalanceResponse`].
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the account buffer could not be converted to an [`Address`] because
+    /// it was not 20 bytes long.
     pub fn into_native(self) -> Result<BalanceResponse, IncorrectAddressLength> {
         BalanceResponse::from_proto(self)
     }
 
-    #[must_use]
+    /// Converts a protobuf [`v1alpha1::BalanceResponse`] to an astria
+    /// native [`BalanceResponse`] by allocating a new [`v1alpha::BalanceResponse`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the account buffer could not be converted to an [`Address`] because
+    /// it was not 20 bytes long.
     pub fn to_native(&self) -> Result<BalanceResponse, IncorrectAddressLength> {
         self.clone().into_native()
     }
@@ -95,6 +113,11 @@ pub struct BalanceResponse {
 impl BalanceResponse {
     /// Converts a protobuf [`v1alpha1::BalanceResponse`] to an astria
     /// native [`BalanceResponse`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the account buffer could not be converted to an [`Address`] because
+    /// it was not 20 bytes long.
     pub fn from_proto(proto: v1alpha1::BalanceResponse) -> Result<Self, IncorrectAddressLength> {
         let v1alpha1::BalanceResponse {
             account,
@@ -110,6 +133,7 @@ impl BalanceResponse {
 
     /// Converts an astria native [`BalanceResponse`] to a
     /// protobuf [`v1alpha1::BalanceResponse`].
+    #[must_use]
     pub fn into_proto(self) -> v1alpha1::BalanceResponse {
         v1alpha1::BalanceResponse::from_native(self)
     }
@@ -118,6 +142,7 @@ impl BalanceResponse {
 impl v1alpha1::NonceResponse {
     /// Converts a protobuf [`v1alpha1::NonceResponse`] to a native
     /// astria `NonceResponse`.
+    #[must_use]
     pub fn from_native(native: NonceResponse) -> Self {
         let NonceResponse {
             account,
@@ -133,12 +158,22 @@ impl v1alpha1::NonceResponse {
 
     /// Converts a protobuf [`v1alpha1::NonceResponse`] to an astria
     /// native [`NonceResponse`].
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the account buffer could not be converted to an [`Address`] because
+    /// it was not 20 bytes long.
     pub fn into_native(self) -> Result<NonceResponse, IncorrectAddressLength> {
         NonceResponse::from_proto(self)
     }
 
-    #[must_use]
+    /// Converts a protobuf [`v1alpha1::NonceResponse`] to an astria
+    /// native [`NonceResponse`] by allocating a new [`v1alpha::NonceResponse`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the account buffer could not be converted to an [`Address`] because
+    /// it was not 20 bytes long.
     pub fn to_native(&self) -> Result<NonceResponse, IncorrectAddressLength> {
         self.clone().into_native()
     }
@@ -155,6 +190,11 @@ pub struct NonceResponse {
 impl NonceResponse {
     /// Converts a protobuf [`v1alpha1::NonceResponse`] to an astria
     /// native [`NonceResponse`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the account buffer could not be converted to an [`Address`] because
+    /// it was not 20 bytes long.
     pub fn from_proto(proto: v1alpha1::NonceResponse) -> Result<Self, IncorrectAddressLength> {
         let v1alpha1::NonceResponse {
             account,
@@ -170,6 +210,7 @@ impl NonceResponse {
 
     /// Converts an astria native [`NonceResponse`] to a
     /// protobuf [`v1alpha1::NonceResponse`].
+    #[must_use]
     pub fn into_proto(self) -> v1alpha1::NonceResponse {
         v1alpha1::NonceResponse::from_native(self)
     }
@@ -191,12 +232,7 @@ impl Error for IncorrectAddressLength {}
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        Address,
-        BalanceResponse,
-        IncorrectAddressLength,
-        NonceResponse,
-    };
+    use super::{Address, BalanceResponse, IncorrectAddressLength, NonceResponse};
 
     #[test]
     fn balance_roundtrip_is_correct() {
