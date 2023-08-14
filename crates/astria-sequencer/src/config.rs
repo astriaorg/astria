@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 use serde::{
     Deserialize,
@@ -16,7 +18,7 @@ pub struct Config {
     pub(crate) genesis_file: String,
     /// The path to penumbra storage db.
     #[arg(long)]
-    pub(crate) db_datadir: String,
+    pub(crate) db_filepath: PathBuf,
 }
 
 impl Config {

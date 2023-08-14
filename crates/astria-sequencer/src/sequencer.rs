@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use anyhow::{
     anyhow,
     Context as _,
@@ -30,8 +28,18 @@ impl Sequencer {
     pub async fn run_until_stopped(config: Config) -> Result<()> {
         let genesis_state =
             GenesisState::from_path(config.genesis_file).context("failed reading genesis state")?;
-        let db_path = PathBuf::from(config.db_datadir);
-        let storage = penumbra_storage::Storage::load(db_path.clone())
+        if config.db_filepath.try_exists()? {
+            info!(
+                path = config.db_filepath.display().to_string(),
+                "opening storage db"
+            );
+        } else {
+            info!(
+                path = config.db_filepath.display().to_string(),
+                "creating storage db"
+            );
+        }
+        let storage = penumbra_storage::Storage::load(config.db_filepath.clone())
             .await
             .context("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
