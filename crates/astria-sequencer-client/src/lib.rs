@@ -21,7 +21,7 @@
 //! ```
 
 use async_trait::async_trait;
-pub use proto::transform::sequencer::{
+pub use proto::native::sequencer::{
     BalanceResponse,
     NonceResponse,
 };
@@ -95,8 +95,8 @@ impl Error {
 
     fn protobuf_conversion_error<T, E>(target: &'static str, raw_response: T, inner: E) -> Self
     where
-        T: std::fmt::Debug + Send + 'static,
-        E: std::error::Error + Send + 'static,
+        T: std::fmt::Debug + Send + Sync + 'static,
+        E: std::error::Error + Send + Sync + 'static,
     {
         Self {
             inner: ErrorKind::protobuf_conversion_error(target, raw_response, inner),
@@ -147,19 +147,19 @@ impl std::error::Error for AbciQueryDeserializationError {
 
 #[derive(Debug)]
 pub struct ProtobufConversionError {
-    inner: Box<dyn std::error::Error + Send + 'static>,
-    raw_response: Box<dyn std::fmt::Debug + Send + 'static>,
+    inner: Box<dyn std::error::Error + Send + Sync + 'static>,
+    raw_response: Box<dyn std::fmt::Debug + Send + Sync + 'static>,
     target: &'static str,
 }
 
 impl ProtobufConversionError {
     #[must_use]
-    pub fn inner(&self) -> &(dyn std::error::Error + Send + 'static) {
+    pub fn inner(&self) -> &(dyn std::error::Error + Send + Sync + 'static) {
         &*self.inner
     }
 
     #[must_use]
-    pub fn raw_response(&self) -> &(dyn std::fmt::Debug + Send + 'static) {
+    pub fn raw_response(&self) -> &(dyn std::fmt::Debug + Send + Sync + 'static) {
         &*self.raw_response
     }
 
@@ -241,8 +241,8 @@ impl ErrorKind {
 
     fn protobuf_conversion_error<T, E>(target: &'static str, raw_response: T, inner: E) -> Self
     where
-        T: std::fmt::Debug + Send + 'static,
-        E: std::error::Error + Send + 'static,
+        T: std::fmt::Debug + Send + Sync + 'static,
+        E: std::error::Error + Send + Sync + 'static,
     {
         Self::ProtobufConversion(ProtobufConversionError {
             target,
