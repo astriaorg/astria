@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 use astria_celestia_jsonrpc_client::{
     blob::{
@@ -8,6 +11,13 @@ use astria_celestia_jsonrpc_client::{
     state,
     Client,
     ErrorKind,
+};
+use astria_sequencer::proposal::{
+    commitment::generate_action_tree_leaves,
+    proof::{
+        InclusionProof,
+        MerkleTree,
+    },
 };
 use ed25519_consensus::{
     Signature,
@@ -148,6 +158,7 @@ pub struct RollupNamespaceData {
     #[serde(with = "crate::serde::Base64Standard")]
     pub(crate) block_hash: Vec<u8>,
     pub rollup_txs: Vec<Vec<u8>>,
+    pub(crate) inclusion_proof: InclusionProof,
 }
 
 impl NamespaceData for RollupNamespaceData {}
@@ -514,16 +525,37 @@ fn filter_and_convert_rollup_data_blobs(
     rollup_datas
 }
 
+fn btree_from_hashmap(
+    mut map: HashMap<Namespace, Vec<Vec<u8>>>,
+) -> BTreeMap<[u8; 10], Vec<Vec<u8>>> {
+    let mut btree = BTreeMap::new();
+    for (namespace, txs) in map.drain() {
+        btree.insert(*namespace, txs);
+    }
+    btree
+}
+
 fn assemble_blobs_from_sequencer_block_data(
     block_data: SequencerBlockData,
     signing_key: &SigningKey,
 ) -> eyre::Result<Vec<blob::Blob>> {
     let mut blobs = Vec::with_capacity(block_data.rollup_txs.len() + 1);
     let mut namespaces = Vec::with_capacity(block_data.rollup_txs.len() + 1);
-    for (namespace, txs) in block_data.rollup_txs {
+
+    let rollup_txs = btree_from_hashmap(block_data.rollup_txs);
+    let action_tree_leaves = generate_action_tree_leaves(&rollup_txs);
+    let action_tree = MerkleTree::from_leaves(action_tree_leaves);
+
+    for (i, (namespace_id, txs)) in rollup_txs.into_iter().enumerate() {
+        let inclusion_proof = action_tree
+            .prove_inclusion(i)
+            .map_err(|e| eyre::eyre!(e))
+            .context("failed to generate inclusion proof")?;
+
         let rollup_namespace_data = RollupNamespaceData {
             block_hash: block_data.block_hash.clone(),
             rollup_txs: txs,
+            inclusion_proof,
         };
         let data = rollup_namespace_data
             .to_signed(signing_key)
@@ -531,11 +563,12 @@ fn assemble_blobs_from_sequencer_block_data(
             .to_bytes()
             .wrap_err("failed converting signed rollupdata namespace data to bytes")?;
         blobs.push(blob::Blob {
-            namespace_id: *namespace,
+            namespace_id,
             data,
         });
-        namespaces.push(namespace);
+        namespaces.push(Namespace::new(namespace_id));
     }
+
     let sequencer_namespace_data = SequencerNamespaceData {
         block_hash: block_data.block_hash.clone(),
         header: block_data.header,

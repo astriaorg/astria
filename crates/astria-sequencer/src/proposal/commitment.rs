@@ -43,18 +43,21 @@ pub(crate) fn generate_sequence_actions_commitment(
     // each leaf of the action tree is the root of a merkle tree of the `sequence::Action`s
     // with the same `chain_id`, prepended with the 10-byte `namespace(chain_id)`.
     // the leaves are sorted in ascending order by namespace.
-    let leaves = generate_action_tree_leaves(namespace_to_txs);
+    let leaves = generate_action_tree_leaves(&namespace_to_txs);
     (
         simple_hash_from_byte_vectors::<tendermint::crypto::default::Sha256>(&leaves),
         txs_to_include,
     )
 }
 
-fn generate_action_tree_leaves(namespace_to_txs: BTreeMap<[u8; 10], Vec<Vec<u8>>>) -> Vec<Vec<u8>> {
+#[must_use]
+pub fn generate_action_tree_leaves(
+    namespace_to_txs: &BTreeMap<[u8; 10], Vec<Vec<u8>>>,
+) -> Vec<Vec<u8>> {
     let mut leaves: Vec<Vec<u8>> = vec![];
     for (namespace, txs) in namespace_to_txs {
         let chain_id_root =
-            simple_hash_from_byte_vectors::<tendermint::crypto::default::Sha256>(&txs);
+            simple_hash_from_byte_vectors::<tendermint::crypto::default::Sha256>(txs);
         let mut leaf = namespace.to_vec();
         leaf.append(&mut chain_id_root.to_vec());
         leaves.push(leaf);
@@ -191,7 +194,7 @@ mod test {
 
         let txs = vec![signed_tx_0, signed_tx_1, signed_tx_2];
         let namespace_to_txs = group_sequence_actions_by_chain_id(&txs);
-        let leaves = generate_action_tree_leaves(namespace_to_txs);
+        let leaves = generate_action_tree_leaves(&namespace_to_txs);
         leaves.iter().enumerate().for_each(|(i, leaf)| {
             if i == 0 {
                 return;

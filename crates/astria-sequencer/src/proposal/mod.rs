@@ -1,2 +1,2 @@
-pub(crate) mod commitment;
-pub(crate) mod proof;
+pub mod commitment;
+pub mod proof;

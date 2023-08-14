@@ -5,7 +5,7 @@ pub(crate) mod component;
 pub mod config;
 pub(crate) mod crypto;
 pub(crate) mod genesis;
-pub(crate) mod proposal;
+pub mod proposal;
 pub mod sequence;
 mod sequencer;
 pub(crate) mod service;
