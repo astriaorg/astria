@@ -7,6 +7,7 @@ use astria_proto::{
     generated::sequencer::v1alpha1::UnsignedTransaction as ProtoUnsignedTransaction,
     native::sequencer::Address,
 };
+use ed25519_consensus::SigningKey;
 use prost::Message as _;
 use tracing::instrument;
 
@@ -18,7 +19,6 @@ use crate::{
         },
         types::Nonce,
     },
-    crypto::SigningKey,
     hash,
     transaction::{
         action::Action,
@@ -179,15 +179,17 @@ mod test {
         Context as _,
         Result,
     };
+    use astria_proto::native::sequencer::{
+        Address,
+        ADDRESS_LEN,
+    };
     use rand::rngs::OsRng;
 
     use super::*;
     use crate::accounts::{
         types::{
-            Address,
             Balance,
             Nonce,
-            ADDRESS_LEN,
         },
         Transfer,
     };

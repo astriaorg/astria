@@ -7,6 +7,10 @@ use astria_proto::{
     generated::sequencer::v1alpha1::SignedTransaction as ProtoSignedTransaction,
     native::sequencer::Address,
 };
+use ed25519_consensus::{
+    Signature,
+    VerificationKey,
+};
 use penumbra_storage::{
     StateRead,
     StateWrite,
@@ -14,15 +18,9 @@ use penumbra_storage::{
 use prost::Message as _;
 use tracing::instrument;
 
-use crate::{
-    crypto::{
-        Signature,
-        VerificationKey,
-    },
-    transaction::{
-        ActionHandler,
-        Unsigned,
-    },
+use crate::transaction::{
+    ActionHandler,
+    Unsigned,
 };
 
 /// Represents a transaction signed by a user.

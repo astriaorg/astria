@@ -38,7 +38,6 @@ use crate::{
     SequencerClientExt as _,
 };
 
-// see astria-sequencer/src/crypto.rs for how these keys/addresses were generated
 const ALICE_ADDRESS: [u8; 20] = hex!("1c0c490f1b5528d8173c5de46d131160e4b2c0c3");
 const BOB_ADDRESS: [u8; 20] = hex!("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a");
 
