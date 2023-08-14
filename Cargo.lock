@@ -498,7 +498,6 @@ dependencies = [
  "astria-proto",
  "astria-sequencer",
  "async-trait",
- "borsh",
  "ed25519-consensus",
  "eyre",
  "hex",

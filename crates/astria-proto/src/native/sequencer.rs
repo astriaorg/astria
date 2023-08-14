@@ -73,10 +73,12 @@ impl v1alpha1::BalanceResponse {
 
     /// Converts a protobuf [`v1alpha1::BalanceResponse`] to an astria
     /// native [`BalanceResponse`].
+    #[must_use]
     pub fn into_native(self) -> Result<BalanceResponse, IncorrectAddressLength> {
         BalanceResponse::from_proto(self)
     }
 
+    #[must_use]
     pub fn to_native(&self) -> Result<BalanceResponse, IncorrectAddressLength> {
         self.clone().into_native()
     }
@@ -131,10 +133,12 @@ impl v1alpha1::NonceResponse {
 
     /// Converts a protobuf [`v1alpha1::NonceResponse`] to an astria
     /// native [`NonceResponse`].
+    #[must_use]
     pub fn into_native(self) -> Result<NonceResponse, IncorrectAddressLength> {
         NonceResponse::from_proto(self)
     }
 
+    #[must_use]
     pub fn to_native(&self) -> Result<NonceResponse, IncorrectAddressLength> {
         self.clone().into_native()
     }
@@ -188,8 +192,7 @@ impl Error for IncorrectAddressLength {}
 #[cfg(test)]
 mod tests {
     use super::{
-        convert_bytes_to_account,
-        Account,
+        Address,
         BalanceResponse,
         IncorrectAddressLength,
         NonceResponse,
@@ -198,7 +201,7 @@ mod tests {
     #[test]
     fn balance_roundtrip_is_correct() {
         let expected = BalanceResponse {
-            account: Account([42; 20]),
+            account: Address([42; 20]),
             height: 42,
             balance: 42,
         };
@@ -209,7 +212,7 @@ mod tests {
     #[test]
     fn nonce_roundtrip_is_correct() {
         let expected = NonceResponse {
-            account: Account([42; 20]),
+            account: Address([42; 20]),
             height: 42,
             nonce: 42,
         };
@@ -219,15 +222,15 @@ mod tests {
 
     #[test]
     fn account_of_20_bytes_is_converted_correctly() {
-        let expected = [42; 20];
-        let account = expected.0.to_vec();
-        let actual = convert_bytes_to_account(account).unwrap();
+        let expected = Address([42; 20]);
+        let account_vec = expected.0.to_vec();
+        let actual = Address::try_from_slice(&account_vec).unwrap();
         assert_eq!(expected, actual);
     }
 
     #[track_caller]
     fn account_conversion_check(bad_account: Vec<u8>) {
-        let error = Account::try_from_slice(&*bad_account);
+        let error = Address::try_from_slice(&*bad_account);
         assert!(
             matches!(error, Err(IncorrectAddressLength { .. })),
             "converting form incorrect sized account succeeded where it should have failed"

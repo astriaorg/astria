@@ -42,7 +42,7 @@ impl From<Uint128> for u128 {
 
 #[cfg(test)]
 mod tests {
-    use crate::primitive::v1::Uint128;
+    use crate::generated::primitive::v1::Uint128;
     #[track_caller]
     fn u128_roundtrip_check(expected: u128) {
         let pb: Uint128 = expected.into();
