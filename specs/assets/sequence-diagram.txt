@@ -1,3 +1,5 @@
+// Source for generating `execution_api_sequencer.png` from sequencediagram.org
+
 title TX Flow
 
 actor Wallet
@@ -8,8 +10,6 @@ participant Relayer
 control Gossip
 participant Conductor
 database DA
-
-
 
 activate DA
 
@@ -62,7 +62,7 @@ deactivate DA
 Relayer -> DA: PFB Block Batch (K->N)
 activate DA
 
-loop Execution of Sequenced Blcok
+loop Execution of Sequenced Block
 Conductor->Rollup Node: UpdateCommitmentState (Soft N)
 Conductor->Rollup Node:CreateBlock(Block N+1)
 activate Rollup Node
@@ -84,8 +84,6 @@ Wallet<--Rollup Node: Soft Commit Tx
 parallel off
 Conductor<--DA: Batch Blocks (0 -> N)
 Conductor->Rollup Node: UpdateCommitmentState (Firm N)
-
-
 
 Wallet->Rollup Node: Get Tx
 Wallet<--Rollup Node: Firm Commit Tx
