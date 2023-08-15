@@ -16,11 +16,11 @@ use crate::transaction::Signed;
 /// This function sorts the block's `sequence::Action`s contained within the transactions
 /// using their `chain_id`. It then returns the merkle root of the tree where each leaf is
 /// a commitment of `sequence::Action`s with the same `chain_id`. The leaves are ordered
-/// by namespace in ascending order, where `namespace(chain_id) = Sha256(chain_id)[0..10]`.
+/// by `chain_id` in ascending order.
 /// This structure can be referred to as the "action tree".
 ///
 /// The leaf, which contains a commitment to every action with the same `chain_id`, is currently
-/// implemented as ( `namespace(chain_id)` || root of merkle tree of the `sequence::Action`s ).
+/// implemented as ( `chain_id` || root of merkle tree of the `sequence::Action`s ).
 /// This is somewhat arbitrary, but could be useful for proof of an action within the action tree.
 pub(crate) fn generate_sequence_actions_commitment(
     txs_bytes: Vec<Bytes>,
@@ -38,57 +38,43 @@ pub(crate) fn generate_sequence_actions_commitment(
         .collect::<Vec<(Signed, Bytes)>>();
     let (signed_txs, txs_to_include): (Vec<Signed>, Vec<Bytes>) = txs.into_iter().unzip();
 
-    let namespace_to_txs = group_sequence_actions_by_chain_id(&signed_txs);
+    let chain_id_to_txs = group_sequence_actions_by_chain_id(&signed_txs);
 
     // each leaf of the action tree is the root of a merkle tree of the `sequence::Action`s
-    // with the same `chain_id`, prepended with the 10-byte `namespace(chain_id)`.
-    // the leaves are sorted in ascending order by namespace.
-    let leaves = generate_action_tree_leaves(&namespace_to_txs);
+    // with the same `chain_id`, prepended with `chain_id`.
+    // the leaves are sorted in ascending order by `chain_id`.
+    let leaves = generate_action_tree_leaves(&chain_id_to_txs);
     (
         simple_hash_from_byte_vectors::<tendermint::crypto::default::Sha256>(&leaves),
         txs_to_include,
     )
 }
 
-#[must_use]
 pub fn generate_action_tree_leaves(
-    namespace_to_txs: &BTreeMap<[u8; 10], Vec<Vec<u8>>>,
+    chain_id_to_txs: &BTreeMap<Vec<u8>, Vec<Vec<u8>>>,
 ) -> Vec<Vec<u8>> {
     let mut leaves: Vec<Vec<u8>> = vec![];
-    for (namespace, txs) in namespace_to_txs {
+    for (chain_id, txs) in chain_id_to_txs {
         let chain_id_root =
-            simple_hash_from_byte_vectors::<tendermint::crypto::default::Sha256>(txs);
-        let mut leaf = namespace.to_vec();
+            simple_hash_from_byte_vectors::<tendermint::crypto::default::Sha256>(&txs);
+        let mut leaf = chain_id.clone();
         leaf.append(&mut chain_id_root.to_vec());
         leaves.push(leaf);
     }
     leaves
 }
 
-/// returns an 10-byte namespace given a byte slice.
-/// TODO: duplicate in `astria-sequencer-relayer/src/types.rs`
-fn get_namespace(bytes: &[u8]) -> [u8; 10] {
-    use sha2::Digest as _;
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(bytes);
-    let result = hasher.finalize();
-    result[0..10]
-        .to_owned()
-        .try_into()
-        .expect("cannot fail as hash is always 32 bytes")
-}
-
 /// Groups the `sequence::Action`s within the transactions by their `chain_id`.
 /// Other types of actions are ignored.
 /// Within an entry, actions are ordered by their transaction index within a block.
-fn group_sequence_actions_by_chain_id(txs: &[Signed]) -> BTreeMap<[u8; 10], Vec<Vec<u8>>> {
+fn group_sequence_actions_by_chain_id(txs: &[Signed]) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
     let mut rollup_txs_map = BTreeMap::new();
 
     for tx in txs.iter() {
         tx.transaction().actions().iter().for_each(|action| {
             if let Some(action) = action.as_sequence() {
                 let txs_for_rollup: &mut Vec<Vec<u8>> = rollup_txs_map
-                    .entry(get_namespace(action.chain_id()))
+                    .entry(action.chain_id().to_vec())
                     .or_insert(vec![]);
                 txs_for_rollup.push(action.data().to_vec());
             }
@@ -159,42 +145,42 @@ mod test {
     }
 
     #[test]
-    fn generate_action_tree_leaves_assert_leaves_ordered_by_namespace() {
+    fn generate_action_tree_leaves_assert_leaves_ordered_by_chain_id() {
         let signing_key = SigningKey::new(OsRng);
 
-        let namespace_0 = get_namespace(b"testchainid0");
+        let chain_id_0 = b"testchainid0";
         let tx = Unsigned {
             nonce: Nonce::from(0),
             actions: vec![Action::SequenceAction(sequence::Action::new(
-                namespace_0.to_vec(),
+                chain_id_0.to_vec(),
                 b"helloworld".to_vec(),
             ))],
         };
         let signed_tx_0 = tx.into_signed(&signing_key);
 
-        let namespace_1 = get_namespace(b"testchainid1");
+        let chain_id_1 = b"testchainid1";
         let tx = Unsigned {
             nonce: Nonce::from(0),
             actions: vec![Action::SequenceAction(sequence::Action::new(
-                namespace_1.to_vec(),
+                chain_id_1.to_vec(),
                 b"helloworld".to_vec(),
             ))],
         };
         let signed_tx_1 = tx.into_signed(&signing_key);
 
-        let namespace_2 = get_namespace(b"testchainid2");
+        let chain_id_2 = b"testchainid2";
         let tx = Unsigned {
             nonce: Nonce::from(0),
             actions: vec![Action::SequenceAction(sequence::Action::new(
-                namespace_2.to_vec(),
+                chain_id_2.to_vec(),
                 b"helloworld".to_vec(),
             ))],
         };
         let signed_tx_2 = tx.into_signed(&signing_key);
 
         let txs = vec![signed_tx_0, signed_tx_1, signed_tx_2];
-        let namespace_to_txs = group_sequence_actions_by_chain_id(&txs);
-        let leaves = generate_action_tree_leaves(&namespace_to_txs);
+        let chain_id_to_txs = group_sequence_actions_by_chain_id(&txs);
+        let leaves = generate_action_tree_leaves(&chain_id_to_txs);
         leaves.iter().enumerate().for_each(|(i, leaf)| {
             if i == 0 {
                 return;
