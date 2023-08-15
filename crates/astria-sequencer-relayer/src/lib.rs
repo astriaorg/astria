@@ -3,6 +3,7 @@ pub mod config;
 pub mod data_availability;
 pub(crate) mod macros;
 pub mod network;
+pub(crate) mod queued_blocks;
 pub mod relayer;
 pub mod sequencer_relayer;
 pub mod telemetry;

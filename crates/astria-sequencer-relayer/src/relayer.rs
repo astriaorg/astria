@@ -29,6 +29,7 @@ use tracing::{
 use crate::{
     data_availability::CelestiaClient,
     macros::report_err,
+    queued_blocks::QueuedBlocks,
     serde::NamespaceToTxCount,
     types::SequencerBlockData,
     validator::Validator,
@@ -57,7 +58,7 @@ pub struct Relayer {
 
     // Sequencer blocks that have been received but not yet submitted to the data availability
     // layer (for example, because a submit RPC was currently in flight) .
-    queued_blocks: Vec<SequencerBlockData>,
+    queued_blocks: QueuedBlocks,
 
     // A collection of workers to convert a raw cometbft/tendermint block response to
     // the sequencer block data type.
@@ -131,7 +132,7 @@ impl Relayer {
             validator,
             gossip_block_tx,
             state_tx,
-            queued_blocks: Vec::new(),
+            queued_blocks: QueuedBlocks::default(),
             conversion_workers: task::JoinSet::new(),
             submission_task: None,
             sequencer_task: None,
@@ -235,7 +236,7 @@ impl Relayer {
                     false
                 });
                 // Store the converted data
-                self.queued_blocks.push(sequencer_block_data);
+                self.queued_blocks.enqueue(sequencer_block_data);
             }
             // Ignore sequencer responses that were filtered out
             Ok(None) => (),
@@ -431,19 +432,19 @@ impl Relayer {
             // This will immediately and eagerly try to submit to the data availability
             // layer if no submission is in flight.
             if self.data_availability.is_some()
-                && !self.queued_blocks.is_empty()
+                && !self.queued_blocks.finalized_is_empty()
                 && self.submission_task.is_none()
             {
+                let finalized_blocks = self.queued_blocks.drain_finalized();
                 let client = self.data_availability.clone().expect(
                     "this should not fail because the if condition of this block checked that a \
                      client is present",
                 );
                 self.submission_task = Some(task::spawn(submit_blocks_to_data_availability_layer(
                     client,
-                    self.queued_blocks.clone(),
+                    finalized_blocks,
                     self.validator.clone(),
                 )));
-                self.queued_blocks.clear();
             }
         };
         self.conversion_workers.abort_all();
