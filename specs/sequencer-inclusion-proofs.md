@@ -41,4 +41,4 @@ We are now certain that the txs we fetched for rollup C were endorsed by >2/3 st
 
 Additionally, the commitment to the actions for a chain actually also includes a merkle root.
 The commitment contains of the merkle root of a tree where where the leaves are the transactions for that rollup; ie. all the `sequence::Action`s for that chain.
-"Commitment to actions for chain X" is implemented as `(10-byte namespace || root of tx tree for rollup)`, allowing for easy verification that a specific rollup transaction was included in a sequencer block. This isn't required for any specific conductor logic, but nice for applications building on top of the sequencer network.
+"Commitment to actions for chain X" is implemented as `(chain_id || root of tx tree for rollup)`, allowing for easy verification that a specific rollup transaction was included in a sequencer block. This isn't required for any specific conductor logic, but nice for applications building on top of the sequencer network.
