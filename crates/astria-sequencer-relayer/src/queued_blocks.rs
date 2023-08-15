@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    mem,
+};
 
 use base64::{
     display::Base64Display,
@@ -68,7 +71,7 @@ impl QueuedBlocks {
 
     #[must_use]
     pub(crate) fn drain_finalized(&mut self) -> Vec<SequencerBlockData> {
-        self.finalized.drain(..).collect()
+        mem::take(&mut self.finalized)
     }
 
     pub(crate) fn finalized_is_empty(&self) -> bool {
