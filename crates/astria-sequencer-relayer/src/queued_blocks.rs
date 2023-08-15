@@ -64,8 +64,8 @@ impl QueuedBlocks {
                     true
                 } else {
                     warn!(
-                        "discarding block {} that hasn't finalized in max queue time",
-                        Base64Display::new(block_id, &STANDARD)
+                        block_id = %Base64Display::new(block_id, &STANDARD),
+                        "discarding block that hasn't finalized in max queue time",
                     );
                     false
                 }
