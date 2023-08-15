@@ -413,7 +413,6 @@ dependencies = [
  "hex",
  "is-terminal",
  "once_cell",
- "priority-queue",
  "prost",
  "prost-types",
  "reqwest",
@@ -519,6 +518,7 @@ dependencies = [
  "backon",
  "base64 0.21.2",
  "base64-serde",
+ "bincode",
  "clap",
  "dirs",
  "ed25519-consensus",
@@ -5332,16 +5332,6 @@ dependencies = [
  "impl-serde",
  "scale-info",
  "uint",
-]
-
-[[package]]
-name = "priority-queue"
-version = "1.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fff39edfcaec0d64e8d0da38564fad195d2d51b680940295fcc307366e101e61"
-dependencies = [
- "autocfg",
- "indexmap 1.9.3",
 ]
 
 [[package]]

@@ -12,6 +12,7 @@ http = "0.2.9"
 serde_path_to_error = "0.1.13"
 sha2 = "0.10"
 zeroize = { version = "1.6.0", features = ["zeroize_derive"] }
+bincode = "1.3.3"
 
 axum = { workspace = true }
 backon = { workspace = true }
