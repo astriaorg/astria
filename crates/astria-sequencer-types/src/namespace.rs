@@ -4,15 +4,8 @@ use std::{
 };
 
 use astria_celestia_jsonrpc_client::blob::NAMESPACE_ID_AVAILABLE_LEN;
-use eyre::{
-    ensure,
-    WrapErr as _,
-};
 use serde::{
-    de::{
-        self,
-        Visitor,
-    },
+    de::{self,},
     Deserialize,
     Deserializer,
     Serialize,
@@ -59,23 +52,6 @@ impl Namespace {
                 .expect("cannot fail as hash is always 32 bytes"),
         )
     }
-
-    /// Creates a namespace from a 10-byte hex-encoded string.
-    ///
-    /// # Errors
-    ///
-    /// - if the string cannot be decoded as hex
-    /// - if the string does not contain 10 bytes
-    fn from_string(s: &str) -> eyre::Result<Self> {
-        let bytes = hex::decode(s).wrap_err("failed reading string as hex encoded bytes")?;
-        ensure!(
-            bytes.len() == NAMESPACE_ID_AVAILABLE_LEN,
-            "string encoded wrong number of bytes",
-        );
-        let mut namespace = [0u8; NAMESPACE_ID_AVAILABLE_LEN];
-        namespace.copy_from_slice(&bytes);
-        Ok(Namespace(namespace))
-    }
 }
 
 impl fmt::Display for Namespace {
@@ -87,7 +63,7 @@ impl fmt::Display for Namespace {
 
 impl Serialize for Namespace {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&hex::encode(self.0))
+        hex::serialize(self.0, serializer)
     }
 }
 
@@ -96,39 +72,7 @@ impl<'de> Deserialize<'de> for Namespace {
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_string(NamespaceVisitor)
-    }
-}
-
-struct NamespaceVisitor;
-
-impl NamespaceVisitor {
-    fn decode_string<E>(value: &str) -> Result<Namespace, E>
-    where
-        E: de::Error,
-    {
-        Namespace::from_string(value).map_err(|e| de::Error::custom(format!("{e:?}")))
-    }
-}
-
-impl<'de> Visitor<'de> for NamespaceVisitor {
-    type Value = Namespace;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a string containing 8 hex-encoded bytes")
-    }
-
-    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        Self::decode_string(value)
-    }
-
-    fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        Self::decode_string(&value)
+        let bytes = hex::deserialize(deserializer).map_err(de::Error::custom)?;
+        Ok(Namespace::new(bytes))
     }
 }
