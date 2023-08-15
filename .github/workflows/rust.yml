@@ -11,7 +11,9 @@ on:
 
 jobs:
   test:
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    # temporarily using GH runners
+    # runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.69.0
