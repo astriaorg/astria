@@ -10,12 +10,10 @@ use astria_celestia_jsonrpc_client::{
     ErrorKind,
 };
 use astria_sequencer_types::{
-    types::{
-        Namespace,
-        SequencerBlockData,
-        DEFAULT_NAMESPACE,
-    },
     Base64Standard,
+    Namespace,
+    SequencerBlockData,
+    DEFAULT_NAMESPACE,
 };
 use ed25519_consensus::{
     Signature,

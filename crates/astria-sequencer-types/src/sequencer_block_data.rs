@@ -1,10 +1,5 @@
-use std::{
-    collections::HashMap,
-    fmt,
-    ops::Deref,
-};
+use std::collections::HashMap;
 
-use astria_celestia_jsonrpc_client::blob::NAMESPACE_ID_AVAILABLE_LEN;
 use base64::{
     engine::general_purpose,
     Engine as _,
@@ -15,20 +10,9 @@ use eyre::{
     eyre,
     WrapErr as _,
 };
-use hex;
 use serde::{
-    de::{
-        self,
-        Visitor,
-    },
     Deserialize,
-    Deserializer,
     Serialize,
-};
-use serde_json;
-use sha2::{
-    Digest,
-    Sha256,
 };
 use tendermint::{
     block::{
@@ -39,115 +23,7 @@ use tendermint::{
 };
 use tracing::debug;
 
-/// The default namespace blocks are written to.
-/// A block in this namespace contains "pointers" to the rollup txs contained
-/// in that block; ie. a list of tuples of (DA block height, namespace).
-pub static DEFAULT_NAMESPACE: Namespace = Namespace(*b"astriasequ");
-
-/// Namespace represents a Celestia namespace.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub struct Namespace([u8; NAMESPACE_ID_AVAILABLE_LEN]);
-
-impl Deref for Namespace {
-    type Target = [u8; NAMESPACE_ID_AVAILABLE_LEN];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Namespace {
-    #[must_use]
-    pub fn new(inner: [u8; NAMESPACE_ID_AVAILABLE_LEN]) -> Self {
-        Self(inner)
-    }
-
-    /// Creates a namespace from a 10-byte hex-encoded string.
-    ///
-    /// # Errors
-    ///
-    /// - if the string cannot be deocded as hex
-    /// - if the string does not contain 10 bytes
-    pub fn from_string(s: &str) -> eyre::Result<Self> {
-        let bytes = hex::decode(s).wrap_err("failed reading string as hex encoded bytes")?;
-        ensure!(
-            bytes.len() == NAMESPACE_ID_AVAILABLE_LEN,
-            "string encoded wrong number of bytes",
-        );
-        let mut namespace = [0u8; NAMESPACE_ID_AVAILABLE_LEN];
-        namespace.copy_from_slice(&bytes);
-        Ok(Namespace(namespace))
-    }
-}
-
-impl fmt::Display for Namespace {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // FIXME: `hex::encode` does an extra allocation which could be removed
-        f.write_str(&hex::encode(self.0))
-    }
-}
-
-impl Serialize for Namespace {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&hex::encode(self.0))
-    }
-}
-
-impl<'de> Deserialize<'de> for Namespace {
-    fn deserialize<D>(deserializer: D) -> Result<Namespace, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_string(NamespaceVisitor)
-    }
-}
-
-struct NamespaceVisitor;
-
-impl NamespaceVisitor {
-    fn decode_string<E>(value: &str) -> Result<Namespace, E>
-    where
-        E: de::Error,
-    {
-        Namespace::from_string(value).map_err(|e| de::Error::custom(format!("{e:?}")))
-    }
-}
-
-impl<'de> Visitor<'de> for NamespaceVisitor {
-    type Value = Namespace;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a string containing 8 hex-encoded bytes")
-    }
-
-    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        Self::decode_string(value)
-    }
-
-    fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        Self::decode_string(&value)
-    }
-}
-
-/// returns an 10-byte namespace given a byte slice.
-#[must_use]
-pub fn get_namespace(bytes: &[u8]) -> Namespace {
-    let mut hasher = Sha256::new();
-    hasher.update(bytes);
-    let result = hasher.finalize();
-    Namespace(
-        result[0..NAMESPACE_ID_AVAILABLE_LEN]
-            .to_owned()
-            .try_into()
-            .expect("cannot fail as hash is always 32 bytes"),
-    )
-}
+use crate::namespace::Namespace;
 
 /// `SequencerBlockData` represents a sequencer block's data
 /// to be submitted to the DA layer.
@@ -220,7 +96,7 @@ impl SequencerBlockData {
                 .wrap_err("failed reading signed sequencer transaction from bytes")?;
             tx.transaction().actions().iter().for_each(|action| {
                 if let Some(action) = action.as_sequence() {
-                    let namespace = get_namespace(action.chain_id());
+                    let namespace = Namespace::new_from_bytes(action.chain_id());
                     let txs = rollup_txs.entry(namespace).or_insert(vec![]);
                     txs.push(action.data().to_vec());
                 }
@@ -270,14 +146,12 @@ impl SequencerBlockData {
 mod test {
     use std::collections::HashMap;
 
-    use super::{
-        SequencerBlockData,
-        DEFAULT_NAMESPACE,
-    };
+    use super::SequencerBlockData;
+    use crate::DEFAULT_NAMESPACE;
 
     #[test]
     fn sequencer_block_to_bytes() {
-        let header = crate::utils::default_header();
+        let header = crate::test_utils::default_header();
         let block_hash = header.hash();
         let mut expected = SequencerBlockData {
             block_hash: block_hash.as_bytes().to_vec(),

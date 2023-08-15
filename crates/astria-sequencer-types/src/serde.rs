@@ -7,7 +7,7 @@ use serde::{
     Serialize,
 };
 
-use crate::types::Namespace;
+use crate::Namespace;
 
 base64_serde_type!(pub Base64Standard, base64::engine::general_purpose::STANDARD);
 
