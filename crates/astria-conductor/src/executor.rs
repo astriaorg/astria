@@ -44,6 +44,7 @@ use crate::{
         ExecutionClient,
         ExecutionRpcClient,
     },
+    executor_queue::ExecutorQueue,
 };
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
@@ -52,6 +53,34 @@ pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
 pub(crate) type Sender = UnboundedSender<ExecutorCommand>;
 /// The channel the executor task uses to listen for commands.
 type Receiver = UnboundedReceiver<ExecutorCommand>;
+
+/// The ExecutorCommitLevel specifies the behavior of the Conductor when sending
+/// transaction data and fork choice updates to the execution layer.
+enum ExecutorCommitLevel {
+    /// The default commit level. The Conductor will send all incoming sequencer blocks to the
+    /// execution layer to allow the rollup to view pending state. All incoming
+    /// blocks at height N are marked as `head`. When a block at height N+1 is
+    /// received, that block is marked as the new `head` and the block's parent at
+    /// height N is marked as `soft`/`safe`. Blocks are marked as `firm`/`final`
+    /// when they are seen in the DA layer.
+    Head,
+    /// The most recent block in the chain is both `soft` and `head`. The
+    /// conductor will not send a block (at height N) to the rollup until a new
+    /// block (at height N+1) is received. Effectively all blocks seen by the
+    /// rollup will not be reverted. Blocks are marked as `firm`/`final` when
+    /// they are seen in the DA layer.
+    Soft,
+    /// The Conductor ignores all blocks gossiped from the sequencer and only
+    /// pulls data from the DA. All blocks seen this way are immediately marked
+    /// as `firm`/`final`.
+    Firm,
+}
+
+impl Default for ExecutorCommitLevel {
+    fn default() -> Self {
+        Self::Head
+    }
+}
 
 /// spawns a executor task and returns a tuple with the task's join handle
 /// and the channel for sending commands to this executor
@@ -62,6 +91,8 @@ pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinH
         execution_rpc_client,
         get_namespace(conf.chain_id.as_bytes()),
         alert_tx,
+        // TODO (GHI 250: https://github.com/astriaorg/astria/issues/250): make this configurable using values from the config
+        ExecutorCommitLevel::default(),
     )
     .await?;
     let join_handle = task::spawn(async move { executor.run().await });
@@ -102,6 +133,9 @@ pub enum ExecutorCommand {
 }
 
 struct Executor<C> {
+    /// The commit level of the executor.
+    commit_level: ExecutorCommitLevel,
+
     /// Channel on which executor commands are received.
     cmd_rx: Receiver,
 
@@ -134,7 +168,8 @@ struct Executor<C> {
     last_executed_seq_block_hash: Hash,
 
     /// block queue for blocks that have been recieved but their parent has not been executed yet
-    block_queue: BTreeMap<Height, SequencerBlockData>,
+    // block_queue: BTreeMap<Height, SequencerBlockData>,
+    block_queue: ExecutorQueue,
 }
 
 impl<C: ExecutionClient> Executor<C> {
@@ -142,12 +177,14 @@ impl<C: ExecutionClient> Executor<C> {
         mut execution_rpc_client: C,
         namespace: Namespace,
         alert_tx: AlertSender,
+        commit_level: ExecutorCommitLevel,
     ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let init_state_response = execution_rpc_client.call_init_state().await?;
         let execution_state = init_state_response.block_hash;
         Ok((
             Self {
+                commit_level,
                 cmd_rx,
                 execution_rpc_client,
                 namespace,
@@ -155,7 +192,8 @@ impl<C: ExecutionClient> Executor<C> {
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
                 last_executed_seq_block_hash: Hash::default(),
-                block_queue: BTreeMap::new(),
+                // block_queue: BTreeMap::new(),
+                block_queue: ExecutorQueue::new(),
             },
             cmd_tx,
         ))
@@ -293,29 +331,29 @@ impl<C: ExecutionClient> Executor<C> {
     }
 
     /// This function tries to execute all blocks in the block queue that have been recieved.
-    async fn try_execute_queue(&mut self) -> Result<Option<DoBlockResponse>> {
-        let mut response = DoBlockResponse::default();
-        if !self.block_queue.is_empty() {
-            // try executing all blocks in the block queue that have been recieved
-            while let Some((&height, qblock)) = self.block_queue.first_key_value() {
-                // can use unwrap here because block can't be added to the queue without a parent
-                // hash. see is_next_block()
-                if qblock.header.last_block_id.unwrap().hash == self.last_executed_seq_block_hash {
-                    response = match self.execute_single_block((*qblock).clone()).await? {
-                        Some(response) => response,
-                        None => return Ok(None),
-                    };
+    // async fn try_execute_queue(&mut self) -> Result<Option<DoBlockResponse>> {
+    //     let mut response = DoBlockResponse::default();
+    //     if !self.block_queue.is_empty() {
+    //         // try executing all blocks in the block queue that have been recieved
+    //         while let Some((&height, qblock)) = self.block_queue.first_key_value() {
+    //             // can use unwrap here because block can't be added to the queue without a parent
+    //             // hash. see is_next_block()
+    //             if qblock.header.last_block_id.unwrap().hash == self.last_executed_seq_block_hash
+    // {                 response = match self.execute_single_block((*qblock).clone()).await? {
+    //                     Some(response) => response,
+    //                     None => return Ok(None),
+    //                 };
 
-                    while self.block_queue.remove(&height).is_some() {}
-                } else {
-                    break;
-                }
-            }
-            Ok(Some(response))
-        } else {
-            Ok(None)
-        }
-    }
+    //                 while self.block_queue.remove(&height).is_some() {}
+    //             } else {
+    //                 break;
+    //             }
+    //         }
+    //         Ok(Some(response))
+    //     } else {
+    //         Ok(None)
+    //     }
+    // }
 
     /// This function takes a given sequencer block, filters out the relevant transactions, and
     /// sends it to the execution client.
@@ -336,21 +374,27 @@ impl<C: ExecutionClient> Executor<C> {
         if let Some(execution_hash) = self.check_if_previously_executed(block.clone()) {
             return Ok(Some(execution_hash));
         }
-        // check if the incoming block is the next block. if it's not, add it to the execution queue
-        match self.is_next_block(block.clone()) {
-            NextBlockStatus::IsNext => {}
-            NextBlockStatus::NotNext => {
-                self.block_queue.insert(block.header.height, block.clone());
-                debug!(
-                    height = block.header.height.value(),
-                    "parent block not yet executed, adding to pending queue, execution state not \
-                     updated"
-                );
-                return Ok(Some(self.execution_state.clone()));
-            }
-            // TODO: not sure what to do with this... but it's needed to pass preexisting tests
-            NextBlockStatus::NoParent => {}
-        }
+        // check if the incoming block is the next block. if it's not, add it to
+        // the execution queue
+        // TODO: probably best to just always add stuff to the queue and then
+        // always pull from the queue when trying to execute blocks. that will
+        // probably keep the logic fairly simple but may incur some slight
+        // performance hits?
+        // match self.is_next_block(block.clone()) {
+        //     NextBlockStatus::IsNext => {}
+        //     NextBlockStatus::NotNext => {
+        //         self.block_queue.insert(block.header.height, block.clone());
+        //         debug!(
+        //             height = block.header.height.value(),
+        //             "parent block not yet executed, adding to pending queue, execution state not
+        // \              updated"
+        //         );
+        //         return Ok(Some(self.execution_state.clone()));
+        //     }
+        //     // TODO: not sure what to do with this... but it's needed to pass preexisting tests
+        //     NextBlockStatus::NoParent => {}
+        // }
+        self.block_queue.insert(block.clone());
 
         // execute the block that just arrived
         let mut response = match self.execute_single_block(block.clone()).await? {
@@ -361,10 +405,18 @@ impl<C: ExecutionClient> Executor<C> {
         // try executing blocks in the queue now that we have a new block that may have filled gaps
         // in the blocks received
         if !self.block_queue.is_empty() {
-            response = match self.try_execute_queue().await? {
-                Some(response) => response,
-                None => return Ok(None),
-            };
+            if let Some(blocks_for_execution) = self.block_queue.get_blocks() {
+                for block in blocks_for_execution {
+                    response = match self.execute_single_block(block.clone()).await? {
+                        Some(response) => response,
+                        None => return Ok(None),
+                    };
+                }
+            }
+            // response = match self.try_execute_queue().await? {
+            //     Some(response) => response,
+            //     None => return Ok(None),
+            // };
         }
 
         info!(
@@ -579,9 +631,14 @@ mod test {
     async fn test_block_queue() {
         let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = get_namespace(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
-            .await
-            .unwrap();
+        let (mut executor, _) = Executor::new(
+            MockExecutionClient::new(),
+            namespace,
+            alert_tx,
+            ExecutorCommitLevel::default(),
+        )
+        .await
+        .unwrap();
 
         let blocks = get_test_block_vec(10);
 
@@ -709,9 +766,14 @@ mod test {
     async fn execute_block_with_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = get_namespace(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
-            .await
-            .unwrap();
+        let (mut executor, _) = Executor::new(
+            MockExecutionClient::new(),
+            namespace,
+            alert_tx,
+            ExecutorCommitLevel::default(),
+        )
+        .await
+        .unwrap();
 
         let expected_exection_hash = hash(&executor.execution_state);
         let mut block = get_test_block();
@@ -735,9 +797,14 @@ mod test {
     async fn execute_block_without_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = get_namespace(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
-            .await
-            .unwrap();
+        let (mut executor, _) = Executor::new(
+            MockExecutionClient::new(),
+            namespace,
+            alert_tx,
+            ExecutorCommitLevel::default(),
+        )
+        .await
+        .unwrap();
 
         let block = get_test_block();
         let execution_block_hash = executor.execute_block(block).await.unwrap();
@@ -752,9 +819,14 @@ mod test {
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace, alert_tx)
-            .await
-            .unwrap();
+        let (mut executor, _) = Executor::new(
+            execution_client,
+            namespace,
+            alert_tx,
+            ExecutorCommitLevel::default(),
+        )
+        .await
+        .unwrap();
 
         let mut block: SequencerBlockData = get_test_block();
         block.rollup_txs.insert(
@@ -794,9 +866,14 @@ mod test {
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace, alert_tx)
-            .await
-            .unwrap();
+        let (mut executor, _) = Executor::new(
+            execution_client,
+            namespace,
+            alert_tx,
+            ExecutorCommitLevel::default(),
+        )
+        .await
+        .unwrap();
 
         let block: SequencerBlockData = get_test_block();
         let previous_execution_state = executor.execution_state.clone();
