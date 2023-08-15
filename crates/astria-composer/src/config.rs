@@ -89,7 +89,7 @@ mod tests {
     use figment::Jail;
 
     use super::Config;
-    const EXAMPLE_ENV: &str = include_str!("../env.example");
+    const EXAMPLE_ENV: &str = include_str!("../local.env.example");
 
     fn populate_environment_from_example(jail: &mut Jail) {
         for line in EXAMPLE_ENV.lines() {
