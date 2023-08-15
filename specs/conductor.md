@@ -2,10 +2,10 @@
 
 The Astria conductor connects the shared sequencer and DA layers to the execution layer. When a block is received from the sequencer layer or DA layer, the conductor filters out the transactions that are relevant to the rollup's namespace and pushes it to the execution layer. 
 
-There are two ways for a block to be received:
+Blocks can be received via either:
 
- - via the gossip network from the shared sequencer
- - via the data availability layer, requested on a predefined interval
+ - The gossip network from the shared sequencer
+ - The data availability layer, requested on a predefined interval
 
 In the first case, the block is filtered and pushed to the execution layer, executed, and added to the blockchain. Brand new blocks are marked as head and all previous blocks are marked as a soft commitment. In general, the marking of blocks as safe will happen one block at a time as new blocks arrive. The block is not finalized until it's received from the data availability layer. 
 
@@ -34,7 +34,8 @@ The responsibilities of each module are as follows:
 
 ### Reader
  - Creates a `CelestiaClient` using the Celestia client implementation from `astria-sequencer-relayer` to communicating with the DA layer
- - Creates a `TendermintClient` which is used when validating blocks from the DA layer
+ - Creates a `TendermintClient` which is used when validating blocks from the DA
+   layer against the sequencer data
  - Runs an event loop that handles receiving `ReaderCommand`s that drives data retrieval from the DA layer
  - Passes the blocks it receives to the `Executor`
 
@@ -43,7 +44,7 @@ The responsibilities of each module are as follows:
  - Filters out transactions by their rollup namespace and sends them to the rollup for execution (`soft` commits)
  - Catalogs and matches the block hashes received from the gossip network and the DA by rollup namespace to send `firm` commits to the rollup
  - Blocks are sent to the execution layer using [Astria’s GRPC Execution client interface](https://buf.build/astria/astria/docs/main:astria.execution.v1)
-     - Rollups utilizing Astria must implement this interface
+     - Rollups utilizing the Conductor must implement this interface
 
 ## Execution Data
 ### Transaction Filtering
