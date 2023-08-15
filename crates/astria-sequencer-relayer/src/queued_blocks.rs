@@ -1,14 +1,12 @@
-use std::{
-    collections::HashMap,
-    time::{
-        Duration,
-        Instant,
-    },
-};
+use std::collections::HashMap;
 
 use base64::{
     display::Base64Display,
     engine::general_purpose::STANDARD,
+};
+use tokio::time::{
+    Duration,
+    Instant,
 };
 use tracing::warn;
 
@@ -25,7 +23,7 @@ pub(crate) struct QueuedBlocks {
 
 impl QueuedBlocks {
     pub(crate) fn enqueue(&mut self, new_block: SequencerBlockData) {
-        let now = std::time::Instant::now();
+        let now = Instant::now();
         // checks if new block finalizes some block
         // (i) checks if new block is a child of any block
         if let Some(parent_id) = new_block.header.last_block_id {
