@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use astria_sequencer_types::{
-    NamespaceToTxCount,
+    serde::NamespaceToTxCount,
     SequencerBlockData,
 };
 use eyre::{

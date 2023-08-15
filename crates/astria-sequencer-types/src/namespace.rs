@@ -45,27 +45,10 @@ impl Namespace {
         Self(inner)
     }
 
-    /// Creates a namespace from a 10-byte hex-encoded string.
-    ///
-    /// # Errors
-    ///
-    /// - if the string cannot be deocded as hex
-    /// - if the string does not contain 10 bytes
-    pub fn from_string(s: &str) -> eyre::Result<Self> {
-        let bytes = hex::decode(s).wrap_err("failed reading string as hex encoded bytes")?;
-        ensure!(
-            bytes.len() == NAMESPACE_ID_AVAILABLE_LEN,
-            "string encoded wrong number of bytes",
-        );
-        let mut namespace = [0u8; NAMESPACE_ID_AVAILABLE_LEN];
-        namespace.copy_from_slice(&bytes);
-        Ok(Namespace(namespace))
-    }
-
     /// returns an 10-byte namespace given a byte slice by hashing
     /// the bytes with sha256 and returning the first 10 bytes.
     #[must_use]
-    pub fn new_from_bytes(bytes: &[u8]) -> Namespace {
+    pub fn from_slice(bytes: &[u8]) -> Namespace {
         let mut hasher = Sha256::new();
         hasher.update(bytes);
         let result = hasher.finalize();
@@ -75,6 +58,23 @@ impl Namespace {
                 .try_into()
                 .expect("cannot fail as hash is always 32 bytes"),
         )
+    }
+
+    /// Creates a namespace from a 10-byte hex-encoded string.
+    ///
+    /// # Errors
+    ///
+    /// - if the string cannot be decoded as hex
+    /// - if the string does not contain 10 bytes
+    fn from_string(s: &str) -> eyre::Result<Self> {
+        let bytes = hex::decode(s).wrap_err("failed reading string as hex encoded bytes")?;
+        ensure!(
+            bytes.len() == NAMESPACE_ID_AVAILABLE_LEN,
+            "string encoded wrong number of bytes",
+        );
+        let mut namespace = [0u8; NAMESPACE_ID_AVAILABLE_LEN];
+        namespace.copy_from_slice(&bytes);
+        Ok(Namespace(namespace))
     }
 }
 

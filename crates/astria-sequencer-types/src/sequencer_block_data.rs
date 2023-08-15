@@ -40,19 +40,26 @@ pub struct SequencerBlockData {
 }
 
 impl SequencerBlockData {
-    #[must_use]
+    /// Creates a new `SequencerBlockData` from the given data.
+    ///
+    /// # Errors
+    ///
+    /// - if the block hash does not correspond to the hashed header provided
     pub fn new(
         block_hash: Vec<u8>,
         header: Header,
         last_commit: Option<Commit>,
         rollup_txs: HashMap<Namespace, Vec<Vec<u8>>>,
-    ) -> Self {
-        Self {
+    ) -> eyre::Result<Self> {
+        let data = Self {
             block_hash,
             header,
             last_commit,
             rollup_txs,
-        }
+        };
+        data.verify_block_hash()?;
+        // TODO: also verify last_commit_hash
+        Ok(data)
     }
 
     #[must_use]
@@ -147,7 +154,7 @@ impl SequencerBlockData {
                 .wrap_err("failed reading signed sequencer transaction from bytes")?;
             tx.transaction().actions().iter().for_each(|action| {
                 if let Some(action) = action.as_sequence() {
-                    let namespace = Namespace::new_from_bytes(action.chain_id());
+                    let namespace = Namespace::from_slice(action.chain_id());
                     let txs = rollup_txs.entry(namespace).or_insert(vec![]);
                     txs.push(action.data().to_vec());
                 }
@@ -163,18 +170,6 @@ impl SequencerBlockData {
         Ok(data)
     }
 
-    /// verifies that the merkle root of the tree consisting of all the
-    /// transactions in the block matches the block's data hash.
-    ///
-    /// TODO: this breaks with the update to use Retro; need to update for merkle proofs
-    ///
-    /// # Errors
-    ///
-    /// - unimplemented
-    pub fn verify_data_hash(&self) -> eyre::Result<()> {
-        Ok(())
-    }
-
     /// verifies that the merkle root of the tree consisting of the block header
     /// matches the block's hash.
     ///
@@ -182,7 +177,7 @@ impl SequencerBlockData {
     ///
     /// - if the block hash calculated from the header does not match the block hash stored
     ///  in the sequencer block
-    pub fn verify_block_hash(&self) -> eyre::Result<()> {
+    fn verify_block_hash(&self) -> eyre::Result<()> {
         let block_hash = self.header.hash();
         ensure!(
             block_hash.as_bytes() == self.block_hash,

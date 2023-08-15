@@ -10,7 +10,7 @@ use astria_celestia_jsonrpc_client::{
     ErrorKind,
 };
 use astria_sequencer_types::{
-    Base64Standard,
+    serde::Base64Standard,
     Namespace,
     SequencerBlockData,
     DEFAULT_NAMESPACE,
@@ -454,12 +454,15 @@ impl CelestiaClient {
             .into_iter()
             .map(|(namespace, rollup_datas)| (namespace, rollup_datas.data.rollup_txs))
             .collect();
-        Ok(Some(SequencerBlockData::new(
-            namespace_data.data.block_hash.clone(),
-            namespace_data.data.header.clone(),
-            namespace_data.data.last_commit.clone(),
-            rollup_txs,
-        )))
+        Ok(Some(
+            SequencerBlockData::new(
+                namespace_data.data.block_hash.clone(),
+                namespace_data.data.header.clone(),
+                namespace_data.data.last_commit.clone(),
+                rollup_txs,
+            )
+            .wrap_err("failed to construct SequencerBlockData from namespace data")?,
+        ))
     }
 }
 

@@ -140,11 +140,7 @@ impl BlockVerifier {
         )
         .await?;
 
-        // finally, validate that the transactions in the block result in the correct data_hash
-        block
-            .verify_data_hash()
-            .wrap_err("failed to verify block data_hash")?;
-
+        // TODO: validate that the transactions in the block result in the correct data_hash (#153)
         Ok(())
     }
 
