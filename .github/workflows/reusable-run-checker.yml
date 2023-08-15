@@ -13,11 +13,14 @@ on:
         description: If lint for protos need to run need to be run, will be 'true'
         value: ${{ jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.proto == 'true' }}
       run_lint_rust:
-        description: If lint for rust need to run need to be run, will be 'true'
+        description: If lint for rust needs to run need to be run, will be 'true'
         value: ${{ jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.rust == 'true' || jobs.changes.outputs.rustfmt == 'true' }}
       run_lint_toml:
-        description: If lint for rust need to run need to be run, will be 'true'
+        description: If lint for toml needs to run need to be run, will be 'true'
         value: ${{ jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.toml == 'true' }}
+      run_lint_markdown:
+        description: If lint for markdown needs to run need to be run, will be 'true'
+        value: ${{ jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.markdown == 'true' }}
       run_release_proto:
         description: If release for protos need to run need to be run, will be 'true'
         value: ${{ jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.proto == 'true' }}
@@ -36,6 +39,7 @@ jobs:
       proto: ${{ steps.filters.outputs.proto }}
       rust: ${{ steps.filters.outputs.rust }}
       toml: ${{ steps.filters.outputs.toml }}
+      markdown: ${{ steps.filters.outputs.markdown }}
       rustfmt: ${{ steps.filters.outputs.rustfmt }}
     steps:
       - uses: actions/checkout@v3
@@ -65,5 +69,7 @@ jobs:
               - '**/*.rs'
             toml:
               - '**/*.toml'
+            markdown:
+              - '**/*.md'
             rustfmt:
               - 'rustfmt.toml'
