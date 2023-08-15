@@ -282,7 +282,10 @@ impl CelestiaClient {
         // + the sum of all rollup transactions in all blocks (each converted to a rollup namespaced
         //   data), and
         // + one sequencer namespaced data blob per block.
-        let num_expected_blobs = blocks.iter().map(|block| block.rollup_txs.len() + 1).sum();
+        let num_expected_blobs = blocks
+            .iter()
+            .map(|block| block.rollup_txs().len() + 1)
+            .sum();
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
         for block in blocks {
             match assemble_blobs_from_sequencer_block_data(block, signing_key) {
@@ -451,12 +454,12 @@ impl CelestiaClient {
             .into_iter()
             .map(|(namespace, rollup_datas)| (namespace, rollup_datas.data.rollup_txs))
             .collect();
-        Ok(Some(SequencerBlockData {
-            block_hash: namespace_data.data.block_hash.clone(),
-            header: namespace_data.data.header.clone(),
-            last_commit: namespace_data.data.last_commit.clone(),
+        Ok(Some(SequencerBlockData::new(
+            namespace_data.data.block_hash.clone(),
+            namespace_data.data.header.clone(),
+            namespace_data.data.last_commit.clone(),
             rollup_txs,
-        }))
+        )))
     }
 }
 
@@ -522,11 +525,14 @@ fn assemble_blobs_from_sequencer_block_data(
     block_data: SequencerBlockData,
     signing_key: &SigningKey,
 ) -> eyre::Result<Vec<blob::Blob>> {
-    let mut blobs = Vec::with_capacity(block_data.rollup_txs.len() + 1);
-    let mut namespaces = Vec::with_capacity(block_data.rollup_txs.len() + 1);
-    for (namespace, txs) in block_data.rollup_txs {
+    let mut blobs = Vec::with_capacity(block_data.rollup_txs().len() + 1);
+    let mut namespaces = Vec::with_capacity(block_data.rollup_txs().len() + 1);
+
+    let (block_hash, header, last_commit, rollup_txs) = block_data.take_values();
+
+    for (namespace, txs) in rollup_txs {
         let rollup_namespace_data = RollupNamespaceData {
-            block_hash: block_data.block_hash.clone(),
+            block_hash: block_hash.clone(),
             rollup_txs: txs,
         };
         let data = rollup_namespace_data
@@ -540,17 +546,20 @@ fn assemble_blobs_from_sequencer_block_data(
         });
         namespaces.push(namespace);
     }
+
     let sequencer_namespace_data = SequencerNamespaceData {
-        block_hash: block_data.block_hash.clone(),
-        header: block_data.header,
-        last_commit: block_data.last_commit,
+        block_hash,
+        header,
+        last_commit,
         rollup_namespaces: namespaces,
     };
+
     let data = sequencer_namespace_data
         .to_signed(signing_key)
         .wrap_err("failed signing sequencer namespace data")?
         .to_bytes()
         .wrap_err("failed converting signed namespace data to bytes")?;
+
     blobs.push(blob::Blob {
         namespace_id: *DEFAULT_NAMESPACE,
         data,

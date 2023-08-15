@@ -72,7 +72,7 @@ impl GossipNetwork {
                 block = self.block_rx.recv() => {
                     if let Some(block) = block {
                         match self.publish(&block).await {
-                            Ok(()) => debug!(block_hash = ?block.block_hash, "published block to network"),
+                            Ok(()) => debug!(block_hash = ?block.block_hash(), "published block to network"),
                             Err(e) => {
                                 if e.root_cause().to_string().contains("InsufficientPeers") {
                                     debug!(?e, "failed to publish block to network");

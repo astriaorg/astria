@@ -27,21 +27,72 @@ use crate::namespace::Namespace;
 
 /// `SequencerBlockData` represents a sequencer block's data
 /// to be submitted to the DA layer.
-///
-/// TODO: compression or a better serialization method?
-/// TODO: merkle proofs for each rollup's transactions
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct SequencerBlockData {
+    // TODO: change to tendermint::Hash
     #[serde(with = "crate::serde::Base64Standard")]
-    pub block_hash: Vec<u8>,
-    pub header: Header,
+    pub(crate) block_hash: Vec<u8>,
+    pub(crate) header: Header,
     /// This field should be set for every block with height > 1.
-    pub last_commit: Option<Commit>,
+    pub(crate) last_commit: Option<Commit>,
     /// namespace -> rollup txs
-    pub rollup_txs: HashMap<Namespace, Vec<Vec<u8>>>,
+    pub(crate) rollup_txs: HashMap<Namespace, Vec<Vec<u8>>>,
 }
 
 impl SequencerBlockData {
+    #[must_use]
+    pub fn new(
+        block_hash: Vec<u8>,
+        header: Header,
+        last_commit: Option<Commit>,
+        rollup_txs: HashMap<Namespace, Vec<Vec<u8>>>,
+    ) -> Self {
+        Self {
+            block_hash,
+            header,
+            last_commit,
+            rollup_txs,
+        }
+    }
+
+    #[must_use]
+    pub fn block_hash(&self) -> &[u8] {
+        &self.block_hash
+    }
+
+    #[must_use]
+    pub fn header(&self) -> &Header {
+        &self.header
+    }
+
+    #[must_use]
+    pub fn last_commit(&self) -> &Option<Commit> {
+        &self.last_commit
+    }
+
+    #[must_use]
+    pub fn rollup_txs(&self) -> &HashMap<Namespace, Vec<Vec<u8>>> {
+        &self.rollup_txs
+    }
+
+    #[allow(clippy::type_complexity)]
+    #[must_use]
+    pub fn take_values(
+        self,
+    ) -> (
+        Vec<u8>,
+        Header,
+        Option<Commit>,
+        HashMap<Namespace, Vec<Vec<u8>>>,
+    ) {
+        (
+            self.block_hash,
+            self.header,
+            self.last_commit,
+            self.rollup_txs,
+        )
+    }
+
     /// Converts the `SequencerBlockData` into bytes using json.
     ///
     /// # Errors

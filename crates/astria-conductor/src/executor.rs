@@ -147,7 +147,7 @@ impl<C: ExecutionClient> Executor<C> {
                     block,
                 } => {
                     self.alert_tx.send(Alert::BlockReceivedFromGossipNetwork {
-                        block_height: block.header.height.value(),
+                        block_height: block.header().height.value(),
                     })?;
                     if let Err(e) = self
                         .execute_block(SequencerBlockSubset::from_sequencer_block_data(
