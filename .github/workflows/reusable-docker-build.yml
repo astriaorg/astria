@@ -19,7 +19,9 @@ env:
 
 jobs:
   build-and-push:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    # temporarily using GH runners
+    # runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: ubuntu-2204
     if: ${{ contains(github.ref, 'refs/tags/v') && endsWith(github.ref, format('--{0}', inputs.package-name)) || github.ref == 'refs/heads/main' || github.event_name == 'pull_request' }}
     steps:
       # Checking out the repo
