@@ -531,7 +531,7 @@ fn assemble_blobs_from_sequencer_block_data(
     let mut blobs = Vec::with_capacity(block_data.rollup_txs().len() + 1);
     let mut namespaces = Vec::with_capacity(block_data.rollup_txs().len() + 1);
 
-    let (block_hash, header, last_commit, rollup_txs) = block_data.take_values();
+    let (block_hash, header, last_commit, rollup_txs) = block_data.into_values();
 
     for (namespace, txs) in rollup_txs {
         let rollup_namespace_data = RollupNamespaceData {

@@ -91,7 +91,7 @@ impl SequencerBlockData {
 
     #[allow(clippy::type_complexity)]
     #[must_use]
-    pub fn take_values(
+    pub fn into_values(
         self,
     ) -> (
         Vec<u8>,
