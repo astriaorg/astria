@@ -74,7 +74,7 @@ impl QueuedBlocks {
         mem::take(&mut self.finalized)
     }
 
-    pub(crate) fn finalized_is_empty(&self) -> bool {
-        self.finalized.is_empty()
+    pub(crate) fn has_finalized(&self) -> bool {
+        !self.finalized.is_empty()
     }
 }

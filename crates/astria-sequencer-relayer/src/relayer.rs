@@ -432,7 +432,7 @@ impl Relayer {
             // This will immediately and eagerly try to submit to the data availability
             // layer if no submission is in flight.
             if self.data_availability.is_some()
-                && !self.queued_blocks.finalized_is_empty()
+                && self.queued_blocks.has_finalized()
                 && self.submission_task.is_none()
             {
                 let finalized_blocks = self.queued_blocks.drain_finalized();
