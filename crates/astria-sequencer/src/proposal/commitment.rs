@@ -202,4 +202,32 @@ mod test {
             assert!(leaf[0..10] > leaves[i - 1][0..10]);
         });
     }
+
+    #[test]
+    fn generate_sequence_actions_commitment_snapshot() {
+        let sequence_action = Action::SequenceAction(sequence::Action::new(
+            b"testchainid".to_vec(),
+            b"helloworld".to_vec(),
+        ));
+
+        let signing_key = SigningKey::new(OsRng);
+        let tx = Unsigned {
+            nonce: Nonce::from(0),
+            actions: vec![
+                sequence_action.clone(),
+                Action::TransferAction(accounts::Transfer::new(
+                    Address([0u8; 20]),
+                    Balance::from(1),
+                )),
+            ],
+        };
+
+        let signed_tx = tx.into_signed(&signing_key);
+        let tx_bytes = signed_tx.to_proto().encode_to_vec();
+        let txs = vec![tx_bytes.into()];
+        let (action_commitment, _) = generate_sequence_actions_commitment(txs);
+
+        let expected_commitment: [u8; 32] = [233, 5, 49, 240, 176, 94, 136, 23, 160, 179, 175, 4, 63, 238, 60, 35, 250, 51, 255, 150, 120, 169, 124, 85, 19, 36, 53, 120, 99, 177, 110, 8];
+        assert_eq!(action_commitment, expected_commitment);
+    }
 }
