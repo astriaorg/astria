@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use astria_sequencer_relayer::types::{
+use astria_sequencer_types::types::{
     get_namespace,
     Namespace,
     SequencerBlockData,
@@ -384,7 +384,7 @@ mod test {
     fn get_test_block_subset() -> SequencerBlockSubset {
         SequencerBlockSubset {
             block_hash: hash(b"block1"),
-            header: astria_sequencer_relayer::utils::default_header(),
+            header: astria_sequencer_types::utils::default_header(),
             rollup_transactions: vec![],
         }
     }

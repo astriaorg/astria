@@ -1,13 +1,11 @@
 use std::collections::HashMap;
 
-use astria_sequencer_relayer::{
-    data_availability::{
-        RollupNamespaceData,
-        SequencerNamespaceData,
-        SignedNamespaceData,
-    },
-    types::SequencerBlockData,
+use astria_sequencer_relayer::data_availability::{
+    RollupNamespaceData,
+    SequencerNamespaceData,
+    SignedNamespaceData,
 };
+use astria_sequencer_types::SequencerBlockData;
 use color_eyre::eyre::{
     self,
     bail,

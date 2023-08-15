@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use astria_sequencer_relayer::types::SequencerBlockData;
+use astria_sequencer_types::SequencerBlockData;
 use color_eyre::eyre::{
     eyre,
     Result,

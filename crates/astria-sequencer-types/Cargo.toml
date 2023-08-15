@@ -1,0 +1,19 @@
+[package]
+name = "astria-sequencer-types"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+base64-serde = "0.7.0"
+sha2 = "0.10"
+
+base64 = { workspace = true }
+eyre = { workspace = true }
+hex = { workspace = true, features = ["serde"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tendermint = { workspace = true, features = ["rust-crypto"] }
+tracing = { workspace = true }
+
+astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client" }
+astria-sequencer = { path = "../astria-sequencer" }

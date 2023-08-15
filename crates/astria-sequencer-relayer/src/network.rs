@@ -3,6 +3,7 @@ use astria_gossipnet::network::{
     NetworkBuilder,
     Sha256Topic,
 };
+use astria_sequencer_types::SequencerBlockData;
 use eyre::{
     Result,
     WrapErr as _,
@@ -20,10 +21,7 @@ use tracing::{
     warn,
 };
 
-use crate::{
-    config::Config,
-    types::SequencerBlockData,
-};
+use crate::config::Config;
 
 const BLOCKS_TOPIC: &str = "blocks";
 fn blocks_topic() -> Sha256Topic {

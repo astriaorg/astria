@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
-use astria_sequencer_relayer::{
-    data_availability::CelestiaClient,
-    types::{
-        get_namespace,
-        Namespace,
-    },
+use astria_sequencer_relayer::data_availability::CelestiaClient;
+use astria_sequencer_types::types::{
+    get_namespace,
+    Namespace,
 };
 use color_eyre::eyre::{
     self,
@@ -252,11 +250,7 @@ impl Reader {
                 blocks.push(SequencerBlockSubset {
                     block_hash: data.data.block_hash,
                     header: data.data.header,
-                    rollup_transactions: rollup_data
-                        .rollup_txs
-                        .into_iter()
-                        .map(|tx| tx.transaction)
-                        .collect(),
+                    rollup_transactions: rollup_data.rollup_txs,
                 });
             }
         }

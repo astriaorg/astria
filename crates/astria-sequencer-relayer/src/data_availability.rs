@@ -9,6 +9,14 @@ use astria_celestia_jsonrpc_client::{
     Client,
     ErrorKind,
 };
+use astria_sequencer_types::{
+    types::{
+        Namespace,
+        SequencerBlockData,
+        DEFAULT_NAMESPACE,
+    },
+    Base64Standard,
+};
 use ed25519_consensus::{
     Signature,
     SigningKey,
@@ -37,13 +45,6 @@ use tracing::{
     warn,
 };
 
-use crate::types::{
-    IndexedTransaction,
-    Namespace,
-    SequencerBlockData,
-    DEFAULT_NAMESPACE,
-};
-
 pub const DEFAULT_PFD_GAS_LIMIT: u64 = 1_000_000;
 const DEFAULT_PFD_FEE: u128 = 100_000;
 
@@ -55,9 +56,9 @@ pub struct SubmitBlockResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SignedNamespaceData<D> {
     pub data: D,
-    #[serde(with = "crate::serde::Base64Standard")]
+    #[serde(with = "Base64Standard")]
     pub public_key: Vec<u8>,
-    #[serde(with = "crate::serde::Base64Standard")]
+    #[serde(with = "Base64Standard")]
     pub signature: Vec<u8>,
 }
 
@@ -134,7 +135,7 @@ where
 /// also written to in the same block.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SequencerNamespaceData {
-    #[serde(with = "crate::serde::Base64Standard")]
+    #[serde(with = "Base64Standard")]
     pub block_hash: Vec<u8>,
     pub header: Header,
     pub last_commit: Option<Commit>,
@@ -146,9 +147,9 @@ impl NamespaceData for SequencerNamespaceData {}
 /// RollupNamespaceData represents the data written to a rollup namespace.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RollupNamespaceData {
-    #[serde(with = "crate::serde::Base64Standard")]
+    #[serde(with = "Base64Standard")]
     pub(crate) block_hash: Vec<u8>,
-    pub rollup_txs: Vec<IndexedTransaction>,
+    pub rollup_txs: Vec<Vec<u8>>,
 }
 
 impl NamespaceData for RollupNamespaceData {}

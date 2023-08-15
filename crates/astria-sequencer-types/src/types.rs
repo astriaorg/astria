@@ -57,10 +57,17 @@ impl Deref for Namespace {
 }
 
 impl Namespace {
-    pub(crate) fn new(inner: [u8; NAMESPACE_ID_AVAILABLE_LEN]) -> Self {
+    #[must_use]
+    pub fn new(inner: [u8; NAMESPACE_ID_AVAILABLE_LEN]) -> Self {
         Self(inner)
     }
 
+    /// Creates a namespace from a 10-byte hex-encoded string.
+    ///
+    /// # Errors
+    ///
+    /// - if the string cannot be deocded as hex
+    /// - if the string does not contain 10 bytes
     pub fn from_string(s: &str) -> eyre::Result<Self> {
         let bytes = hex::decode(s).wrap_err("failed reading string as hex encoded bytes")?;
         ensure!(
@@ -98,7 +105,7 @@ impl<'de> Deserialize<'de> for Namespace {
 struct NamespaceVisitor;
 
 impl NamespaceVisitor {
-    fn decode_string<E>(self, value: &str) -> Result<Namespace, E>
+    fn decode_string<E>(value: &str) -> Result<Namespace, E>
     where
         E: de::Error,
     {
@@ -117,18 +124,19 @@ impl<'de> Visitor<'de> for NamespaceVisitor {
     where
         E: de::Error,
     {
-        self.decode_string(value)
+        Self::decode_string(value)
     }
 
     fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
     where
         E: de::Error,
     {
-        self.decode_string(&value)
+        Self::decode_string(&value)
     }
 }
 
-/// get_namespace returns an 10-byte namespace given a byte slice.
+/// returns an 10-byte namespace given a byte slice.
+#[must_use]
 pub fn get_namespace(bytes: &[u8]) -> Namespace {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
@@ -137,21 +145,11 @@ pub fn get_namespace(bytes: &[u8]) -> Namespace {
         result[0..NAMESPACE_ID_AVAILABLE_LEN]
             .to_owned()
             .try_into()
-            .unwrap(),
+            .expect("cannot fail as hash is always 32 bytes"),
     )
 }
 
-/// IndexedTransaction represents a sequencer transaction along with the index
-/// it was originally in in the sequencer block.
-/// This is required so that the block's `data_hash`, which is a merkle root
-/// of the transactions in the block, can be verified.
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
-pub struct IndexedTransaction {
-    pub block_index: usize,
-    pub transaction: Vec<u8>,
-}
-
-/// SequencerBlockData represents a sequencer block's data
+/// `SequencerBlockData` represents a sequencer block's data
 /// to be submitted to the DA layer.
 ///
 /// TODO: compression or a better serialization method?
@@ -164,15 +162,26 @@ pub struct SequencerBlockData {
     /// This field should be set for every block with height > 1.
     pub last_commit: Option<Commit>,
     /// namespace -> rollup txs
-    pub rollup_txs: HashMap<Namespace, Vec<IndexedTransaction>>,
+    pub rollup_txs: HashMap<Namespace, Vec<Vec<u8>>>,
 }
 
 impl SequencerBlockData {
+    /// Converts the `SequencerBlockData` into bytes using json.
+    ///
+    /// # Errors
+    ///
+    /// - if the data cannot be serialized into json
     pub fn to_bytes(&self) -> eyre::Result<Vec<u8>> {
         // TODO: don't use json, use our own serializer (or protobuf for now?)
         serde_json::to_vec(self).wrap_err("failed serializing signed namespace data to json")
     }
 
+    /// Converts json-encoded bytes into a `SequencerBlockData`.
+    ///
+    /// # Errors
+    ///
+    /// - if the data cannot be deserialized from json
+    /// - if the block hash cannot be verified
     pub fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
         let data: Self = serde_json::from_slice(bytes)
             .wrap_err("failed deserializing signed namespace data from bytes")?;
@@ -183,6 +192,11 @@ impl SequencerBlockData {
 
     /// Converts a Tendermint block into a `SequencerBlockData`.
     /// it parses the block for `SequenceAction`s and namespaces them accordingly.
+    ///
+    /// # Errors
+    ///
+    /// - if the block has no data hash
+    /// - if a transaction in the block cannot be parsed
     pub fn from_tendermint_block(b: Block) -> eyre::Result<Self> {
         use astria_sequencer::transaction::Signed;
 
@@ -208,10 +222,7 @@ impl SequencerBlockData {
                 if let Some(action) = action.as_sequence() {
                     let namespace = get_namespace(action.chain_id());
                     let txs = rollup_txs.entry(namespace).or_insert(vec![]);
-                    txs.push(IndexedTransaction {
-                        block_index: index,
-                        transaction: action.data().to_vec(),
-                    });
+                    txs.push(action.data().to_vec());
                 }
             });
         }
@@ -225,16 +236,25 @@ impl SequencerBlockData {
         Ok(data)
     }
 
-    /// verify_data_hash verifies that the merkle root of the tree consisting of all the
+    /// verifies that the merkle root of the tree consisting of all the
     /// transactions in the block matches the block's data hash.
     ///
     /// TODO: this breaks with the update to use Retro; need to update for merkle proofs
+    ///
+    /// # Errors
+    ///
+    /// - unimplemented
     pub fn verify_data_hash(&self) -> eyre::Result<()> {
         Ok(())
     }
 
-    /// verify_block_hash verifies that the merkle root of the tree consisting of the block header
+    /// verifies that the merkle root of the tree consisting of the block header
     /// matches the block's hash.
+    ///
+    /// # Errors
+    ///
+    /// - if the block hash calculated from the header does not match the block hash stored
+    ///  in the sequencer block
     pub fn verify_block_hash(&self) -> eyre::Result<()> {
         let block_hash = self.header.hash();
         ensure!(
@@ -251,7 +271,6 @@ mod test {
     use std::collections::HashMap;
 
     use super::{
-        IndexedTransaction,
         SequencerBlockData,
         DEFAULT_NAMESPACE,
     };
@@ -266,13 +285,9 @@ mod test {
             last_commit: None,
             rollup_txs: HashMap::new(),
         };
-        expected.rollup_txs.insert(
-            DEFAULT_NAMESPACE,
-            vec![IndexedTransaction {
-                block_index: 0,
-                transaction: vec![0x44, 0x55, 0x66],
-            }],
-        );
+        expected
+            .rollup_txs
+            .insert(DEFAULT_NAMESPACE, vec![vec![0x44, 0x55, 0x66]]);
 
         let bytes = expected.to_bytes().unwrap();
         let actual = SequencerBlockData::from_bytes(&bytes).unwrap();
