@@ -36,14 +36,19 @@ impl QueuedBlocks {
         }
         // (ii) checks if new block is parent to any block (finalizes itself)
         let mut new_block_is_finalized = false;
-        for (block, _) in self.pending_finalization.values() {
+        let mut expired = Vec::new();
+        for (block, insert_time) in self.pending_finalization.values() {
             if let Some(parent_id) = block.header.last_block_id {
                 let parent_id: Vec<u8> = parent_id.hash.into();
                 if new_block.block_hash == parent_id {
                     new_block_is_finalized = true;
                 }
             }
+            if now.saturating_duration_since(*insert_time) >= MAX_QUEUE_TIME {
+                expired.push(block.block_hash.clone());
+            }
         }
+
         if new_block_is_finalized {
             // insert new block into finalized queue
             self.finalized.push(new_block);
@@ -53,23 +58,14 @@ impl QueuedBlocks {
                 .insert(new_block.block_hash.clone(), (new_block, now));
         }
 
-        self.discard_timed_out(now);
-    }
-
-    fn discard_timed_out(&mut self, current_time: Instant) {
         // discards blocks that are taking too long to finalize
-        self.pending_finalization
-            .retain(|block_id, (_, insert_time)| {
-                if current_time.saturating_duration_since(*insert_time) < MAX_QUEUE_TIME {
-                    true
-                } else {
-                    warn!(
-                        block_id = %Base64Display::new(block_id, &STANDARD),
-                        "discarding block that hasn't finalized in max queue time",
-                    );
-                    false
-                }
-            });
+        for block_hash in expired {
+            warn!(
+                block_id = %Base64Display::new(&block_hash, &STANDARD),
+                "discarding block that hasn't finalized in max queue time",
+            );
+            self.pending_finalization.remove(&block_hash);
+        }
     }
 
     #[must_use]
