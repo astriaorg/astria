@@ -1,22 +1,20 @@
 [package]
 name = "astria-sequencer-relayer"
-version = "0.1.0"
+version = "0.4.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.65"
 
 [dependencies]
-axum = "0.6.16"
 base64-serde = "0.7.0"
-backon = "0.4.1"
 dirs = "5.0"
 http = "0.2.9"
-humantime = "2.1.0"
-hyper = "0.14.27"
 serde_path_to_error = "0.1.13"
 sha2 = "0.10"
 zeroize = { version = "1.6.0", features = ["zeroize_derive"] }
 
+axum = { workspace = true }
+backon = { workspace = true }
 base64 = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 figment = { workspace = true, features = ["env"] }
@@ -24,6 +22,8 @@ ed25519-consensus = { workspace = true }
 eyre = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
+humantime = { workspace = true }
+hyper = { workspace = true }
 is-terminal = { workspace = true }
 prost = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
@@ -31,10 +31,10 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tendermint = { workspace = true, features = ["rust-crypto"] }
 tendermint-config = { workspace = true }
-tendermint-rpc = { workspace = true }
+tendermint-rpc = { workspace = true, features = ["http-client"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
-tokio = { workspace = true, features = [ "macros", "rt-multi-thread" ] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client" }
 astria-gossipnet = { path = "../astria-gossipnet" }
@@ -42,15 +42,16 @@ astria-proto = { path = "../astria-proto" }
 astria-sequencer = { path = "../astria-sequencer" }
 
 [dev-dependencies]
-astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client", features = ["server"] }
-rand_core = { version = "0.6", features = [ "getrandom" ] }
+astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client", features = [
+  "server",
+] }
+rand_core = { version = "0.6", features = ["getrandom"] }
 
 figment = { workspace = true, features = ["test"] }
 jsonrpsee = { workspace = true, features = ["server"] }
 multiaddr = { workspace = true }
 once_cell = { workspace = true }
 tempfile = { workspace = true }
-tendermint-rpc = { workspace = true, features = ["http-client"] }
 tokio = { workspace = true, features = ["test-util"] }
-wiremock = {workspace = true }
+wiremock = { workspace = true }
 astria-sequencer = { path = "../astria-sequencer" }

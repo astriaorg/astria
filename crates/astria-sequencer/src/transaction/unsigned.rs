@@ -95,6 +95,8 @@ impl Unsigned {
 #[async_trait::async_trait]
 impl ActionHandler for Unsigned {
     fn check_stateless(&self) -> Result<()> {
+        ensure!(!self.actions.is_empty(), "must have at least one action");
+
         for action in &self.actions {
             match action {
                 Action::TransferAction(tx) => tx

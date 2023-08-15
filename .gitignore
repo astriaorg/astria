@@ -1,5 +1,7 @@
 target/
 
+# dotenv
+.env
 
 # jetbrains
 .idea

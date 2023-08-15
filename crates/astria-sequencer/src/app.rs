@@ -238,6 +238,7 @@ mod test {
     use super::*;
     use crate::{
         accounts::{
+            action::TRANSFER_FEE,
             state_ext::StateReadExt as _,
             types::{
                 Address,
@@ -249,7 +250,10 @@ mod test {
         },
         crypto::SigningKey,
         genesis::Account,
-        sequence::Action as SequenceAction,
+        sequence::{
+            action::calculate_fee,
+            Action as SequenceAction,
+        },
         transaction::{
             action::Action,
             Unsigned,
@@ -308,7 +312,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_app_genesis_and_init_chain() {
+    async fn app_genesis_and_init_chain() {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -332,7 +336,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_app_begin_block() {
+    async fn app_begin_block() {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -363,7 +367,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_app_deliver_tx_transfer() {
+    async fn app_deliver_tx_transfer() {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -400,14 +404,49 @@ mod test {
         );
         assert_eq!(
             app.state.get_account_balance(&alice).await.unwrap(),
-            Balance::from(10u128.pow(19)) - value
+            Balance::from(10u128.pow(19)) - (value + TRANSFER_FEE),
         );
         assert_eq!(app.state.get_account_nonce(&bob).await.unwrap(), 0);
         assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);
     }
 
     #[tokio::test]
-    async fn test_app_deliver_tx_sequence() {
+    async fn app_deliver_tx_transfer_balance_too_low_for_fee() {
+        use rand::rngs::OsRng;
+
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut app = App::new(snapshot);
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+        };
+        app.init_chain(genesis_state).await.unwrap();
+
+        // create a new key; will have 0 balance
+        let keypair = SigningKey::new(OsRng);
+        let bob = address_from_hex_string(BOB_ADDRESS);
+
+        // 0-value transfer; only fee is deducted from sender
+        let value = Balance::from(0);
+        let tx = Unsigned {
+            nonce: Nonce::from(0),
+            actions: vec![Action::TransferAction(Transfer::new(bob.clone(), value))],
+        };
+        let signed_tx = tx.into_signed(&keypair);
+        let bytes = signed_tx.to_proto().encode_to_vec();
+        let res = app
+            .deliver_tx(&bytes)
+            .await
+            .unwrap_err()
+            .root_cause()
+            .to_string();
+        assert!(res.contains("insufficient funds"));
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_sequence() {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -427,11 +466,14 @@ mod test {
         let alice_signing_key = SigningKey::from(alice_secret_bytes);
         let alice = Address::from_verification_key(&alice_signing_key.verification_key());
 
+        let data = b"hello world".to_vec();
+        let fee = calculate_fee(&data).unwrap();
+
         let tx = Unsigned {
             nonce: Nonce::from(0),
             actions: vec![Action::SequenceAction(SequenceAction::new(
                 b"testchainid".to_vec(),
-                b"helloworld".to_vec(),
+                data,
             ))],
         };
 
@@ -440,10 +482,15 @@ mod test {
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);
+
+        assert_eq!(
+            app.state.get_account_balance(&alice).await.unwrap(),
+            Balance::from(10u128.pow(19)) - fee,
+        );
     }
 
     #[tokio::test]
-    async fn test_app_commit() {
+    async fn app_commit() {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
