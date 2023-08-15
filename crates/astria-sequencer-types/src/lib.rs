@@ -1,5 +1,5 @@
 pub(crate) mod namespace;
-pub(crate) mod sequencer_block_data;
+pub mod sequencer_block_data;
 pub mod serde;
 pub mod test_utils;
 

@@ -21,9 +21,16 @@ use tendermint::{
     },
     Block,
 };
+use thiserror::Error;
 use tracing::debug;
 
 use crate::namespace::Namespace;
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("block has no data hash")]
+    MissingDataHash,
+}
 
 /// `SequencerBlockData` represents a sequencer block's data
 /// to be submitted to the DA layer.
@@ -135,7 +142,7 @@ impl SequencerBlockData {
         use astria_sequencer::transaction::Signed;
 
         if b.header.data_hash.is_none() {
-            bail!("block has no data hash");
+            bail!(Error::MissingDataHash);
         }
 
         // we unwrap sequencer txs into rollup-specific data here,
