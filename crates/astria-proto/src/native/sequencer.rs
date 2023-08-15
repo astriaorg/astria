@@ -273,8 +273,8 @@ mod tests {
     }
 
     #[track_caller]
-    fn account_conversion_check(bad_account: Vec<u8>) {
-        let error = Address::try_from_slice(&*bad_account);
+    fn account_conversion_check(bad_account: &[u8]) {
+        let error = Address::try_from_slice(bad_account);
         assert!(
             matches!(error, Err(IncorrectAddressLength { .. })),
             "converting form incorrect sized account succeeded where it should have failed"
@@ -283,9 +283,9 @@ mod tests {
 
     #[test]
     fn account_of_incorrect_length_gives_error() {
-        account_conversion_check(vec![42; 0]);
-        account_conversion_check(vec![42; 19]);
-        account_conversion_check(vec![42; 21]);
-        account_conversion_check(vec![42; 100]);
+        account_conversion_check(&[42; 0]);
+        account_conversion_check(&[42; 19]);
+        account_conversion_check(&[42; 21]);
+        account_conversion_check(&[42; 100]);
     }
 }
