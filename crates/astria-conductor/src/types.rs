@@ -1,4 +1,4 @@
-use astria_sequencer_relayer::types::{
+use astria_sequencer_types::{
     Namespace,
     SequencerBlockData,
 };
@@ -16,13 +16,14 @@ pub struct SequencerBlockSubset {
 
 impl SequencerBlockSubset {
     pub(crate) fn from_sequencer_block_data(
-        mut data: SequencerBlockData,
+        data: SequencerBlockData,
         namespace: Namespace,
     ) -> Self {
-        let rollup_transactions = data.rollup_txs.remove(&namespace).unwrap_or_default();
+        let (block_hash, header, _, mut rollup_txs) = data.into_values();
+        let rollup_transactions = rollup_txs.remove(&namespace).unwrap_or_default();
         Self {
-            block_hash: data.block_hash,
-            header: data.header,
+            block_hash,
+            header,
             rollup_transactions,
         }
     }

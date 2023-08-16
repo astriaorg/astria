@@ -7,11 +7,18 @@ use serde::{
     Serialize,
 };
 
-use crate::types::Namespace;
+use crate::Namespace;
 
-base64_serde_type!(pub(crate) Base64Standard, base64::engine::general_purpose::STANDARD);
+base64_serde_type!(pub Base64Standard, base64::engine::general_purpose::STANDARD);
 
-pub(crate) struct NamespaceToTxCount<'a>(pub(crate) &'a HashMap<Namespace, Vec<Vec<u8>>>);
+pub struct NamespaceToTxCount<'a>(pub(crate) &'a HashMap<Namespace, Vec<Vec<u8>>>);
+
+impl<'a> NamespaceToTxCount<'a> {
+    #[must_use]
+    pub fn new(rollup_txs: &HashMap<Namespace, Vec<Vec<u8>>>) -> NamespaceToTxCount {
+        NamespaceToTxCount(rollup_txs)
+    }
+}
 
 impl<'a> Serialize for NamespaceToTxCount<'a> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

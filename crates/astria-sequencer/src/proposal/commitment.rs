@@ -185,7 +185,7 @@ mod test {
             if i == 0 {
                 return;
             }
-            assert!(leaf[0..10] > leaves[i - 1][0..10]);
+            assert!(leaf > &leaves[i - 1]);
         });
     }
 
@@ -214,8 +214,8 @@ mod test {
         let (action_commitment, _) = generate_sequence_actions_commitment(txs);
 
         let expected_commitment: [u8; 32] = [
-            233, 5, 49, 240, 176, 94, 136, 23, 160, 179, 175, 4, 63, 238, 60, 35, 250, 51, 255,
-            150, 120, 169, 124, 85, 19, 36, 53, 120, 99, 177, 110, 8,
+            97, 82, 159, 138, 201, 12, 241, 95, 99, 19, 162, 205, 37, 38, 130, 165, 78, 185, 141,
+            6, 69, 51, 32, 9, 224, 92, 34, 25, 192, 213, 235, 3,
         ];
         assert_eq!(action_commitment, expected_commitment);
     }

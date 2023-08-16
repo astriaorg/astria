@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use astria_sequencer_relayer::types::{
-    get_namespace,
+use astria_sequencer_types::{
     Namespace,
     SequencerBlockData,
 };
@@ -53,7 +52,7 @@ pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinH
     let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url).await?;
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
-        get_namespace(conf.chain_id.as_bytes()),
+        Namespace::from_slice(conf.chain_id.as_bytes()),
         alert_tx,
     )
     .await?;
@@ -148,7 +147,7 @@ impl<C: ExecutionClient> Executor<C> {
                     block,
                 } => {
                     self.alert_tx.send(Alert::BlockReceivedFromGossipNetwork {
-                        block_height: block.header.height.value(),
+                        block_height: block.header().height.value(),
                     })?;
                     if let Err(e) = self
                         .execute_block(SequencerBlockSubset::from_sequencer_block_data(
@@ -384,7 +383,7 @@ mod test {
     fn get_test_block_subset() -> SequencerBlockSubset {
         SequencerBlockSubset {
             block_hash: hash(b"block1"),
-            header: astria_sequencer_relayer::utils::default_header(),
+            header: astria_sequencer_types::test_utils::default_header(),
             rollup_transactions: vec![],
         }
     }
@@ -392,7 +391,7 @@ mod test {
     #[tokio::test]
     async fn execute_block_with_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = get_namespace(b"test");
+        let namespace = Namespace::from_slice(b"test");
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
             .await
             .unwrap();
@@ -412,7 +411,7 @@ mod test {
     #[tokio::test]
     async fn execute_block_without_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = get_namespace(b"test");
+        let namespace = Namespace::from_slice(b"test");
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
             .await
             .unwrap();
@@ -425,7 +424,7 @@ mod test {
     #[tokio::test]
     async fn handle_block_received_from_data_availability_not_yet_executed() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = get_namespace(b"test");
+        let namespace = Namespace::from_slice(b"test");
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
@@ -461,7 +460,7 @@ mod test {
     #[tokio::test]
     async fn handle_block_received_from_data_availability_no_relevant_transactions() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = get_namespace(b"test");
+        let namespace = Namespace::from_slice(b"test");
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
