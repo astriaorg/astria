@@ -44,8 +44,8 @@ use crate::{
         ExecutionClient,
         ExecutionRpcClient,
     },
-    executor_queue::ExecutorQueue,
 };
+mod queue;
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
 
@@ -113,11 +113,11 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> 
     })
 }
 
-enum NextBlockStatus {
-    IsNext,
-    NotNext,
-    NoParent,
-}
+// enum NextBlockStatus {
+//     IsNext,
+//     NotNext,
+//     NoParent,
+// }
 
 #[derive(Debug)]
 pub enum ExecutorCommand {
@@ -257,18 +257,18 @@ impl<C: ExecutionClient> Executor<C> {
 
     /// This function checks if the given block can be executed because its parent is the last
     /// executed block.
-    fn is_next_block(&mut self, block: SequencerBlockData) -> NextBlockStatus {
-        // before a block can be added to the queue, it must have a parent block Id
-        if let Some(parent_block) = block.header.last_block_id {
-            if parent_block.hash != self.last_executed_seq_block_hash {
-                NextBlockStatus::NotNext
-            } else {
-                NextBlockStatus::IsNext
-            }
-        } else {
-            NextBlockStatus::NoParent
-        }
-    }
+    // fn is_next_block(&mut self, block: SequencerBlockData) -> NextBlockStatus {
+    //     // before a block can be added to the queue, it must have a parent block Id
+    //     if let Some(parent_block) = block.header.last_block_id {
+    //         if parent_block.hash != self.last_executed_seq_block_hash {
+    //             NextBlockStatus::NotNext
+    //         } else {
+    //             NextBlockStatus::IsNext
+    //         }
+    //     } else {
+    //         NextBlockStatus::NoParent
+    //     }
+    // }
 
     /// This function takes a given sequencer block and returns the relevant transactions for the
     /// executor's namespace.
@@ -397,10 +397,12 @@ impl<C: ExecutionClient> Executor<C> {
         self.block_queue.insert(block.clone());
 
         // execute the block that just arrived
-        let mut response = match self.execute_single_block(block.clone()).await? {
-            Some(response) => response,
-            None => return Ok(None),
-        };
+        // let mut response = match self.execute_single_block(block.clone()).await? {
+        //     Some(response) => response,
+        //     None => return Ok(None),
+        // };
+        // TODO: this is causing a bug where the thing returns zero
+        let mut response = DoBlockResponse::default();
 
         // try executing blocks in the queue now that we have a new block that may have filled gaps
         // in the blocks received
