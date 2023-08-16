@@ -25,7 +25,6 @@ pub(crate) async fn balance_request(
 ) -> response::Query {
     use astria_proto::{
         native::sequencer::BalanceResponse,
-        // sequencer::v1alpha1::BalanceResponse,
         Message as _,
     };
     let (address, snapshot, height) = match preprocess_request(&storage, &request, &params).await {
@@ -139,36 +138,28 @@ async fn preprocess_request(
     else {
         return Err(response::Query {
             code: AbciCode::INVALID_PARAMETER.into(),
-            info: format!("{}", AbciCode::INVALID_PARAMETER),
+            info: AbciCode::INVALID_PARAMETER.to_string(),
             log: "path did not contain path parameter".into(),
             ..response::Query::default()
         });
     };
     let address = hex::decode(address)
+        .context("failed decoding hex encoded bytes")
+        .and_then(|addr| {
+            Address::try_from_slice(&addr).context("failed constructing address from bytes")
+        })
         .map_err(|err| response::Query {
             code: AbciCode::INVALID_PARAMETER.into(),
-            info: format!("{}", AbciCode::INVALID_PARAMETER),
-            log: format!(
-                "account public key could not be constructed from provided paratemer: {err:?}"
-            ),
+            info: AbciCode::INVALID_PARAMETER.to_string(),
+            log: format!("address could not be constructed from provided parameter: {err:?}"),
             ..response::Query::default()
-        })
-        .and_then(|addr| {
-            Address::try_from_slice(&addr).map_err(|err| response::Query {
-                code: AbciCode::INVALID_PARAMETER.into(),
-                info: format!("{}", AbciCode::INVALID_PARAMETER),
-                log: format!(
-                    "account public key could not be constructed from provided paratemer: {err:?}"
-                ),
-                ..response::Query::default()
-            })
         })?;
     let (snapshot, height) = match get_snapshot_and_height(storage, request.height).await {
         Ok(tup) => tup,
         Err(err) => {
             return Err(response::Query {
                 code: AbciCode::INTERNAL_ERROR.into(),
-                info: format!("{}", AbciCode::INTERNAL_ERROR),
+                info: AbciCode::INTERNAL_ERROR.to_string(),
                 log: format!("failed to query internal storage for snapshot and height: {err:?}"),
                 ..response::Query::default()
             });
