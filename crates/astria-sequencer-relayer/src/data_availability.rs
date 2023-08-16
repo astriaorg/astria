@@ -583,7 +583,7 @@ fn assemble_blobs_from_sequencer_block_data(
             .to_signed(signing_key)
             .wrap_err("failed signing rollup namespace data")?
             .to_bytes()
-            .wrap_err("failed converting signed rollupdata namespace data to bytes")?;
+            .wrap_err("failed converting signed rollup data namespace data to bytes")?;
 
         let namespace = Namespace::from_slice(&chain_id);
         blobs.push(blob::Blob {

@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1"
 ct-merkle = "0.1"
 
 bytes = { workspace = true }
+eyre = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 sha2 = { workspace = true }

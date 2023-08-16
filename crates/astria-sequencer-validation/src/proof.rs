@@ -45,12 +45,12 @@ impl MerkleTree {
     /// # Errors
     ///
     /// - if the index is out of bounds
-    pub fn prove_inclusion(&self, idx: usize) -> anyhow::Result<InclusionProof> {
+    pub fn prove_inclusion(&self, idx: usize) -> eyre::Result<InclusionProof> {
         Ok(InclusionProof {
             value: self
                 .0
                 .get(idx)
-                .ok_or(anyhow::anyhow!("index out of bounds of merkle tree"))?
+                .ok_or(eyre::eyre!("index out of bounds of merkle tree"))?
                 .clone(),
             idx,
             num_leaves: self.0.len(),
@@ -61,7 +61,7 @@ impl MerkleTree {
 
 /// A merkle proof of inclusion.
 #[derive(Debug)]
-#[allow(clippy::module_name_repetitions)] // TODO fix
+#[allow(clippy::module_name_repetitions)]
 pub struct InclusionProof {
     // value to be proven as included
     value: Vec<u8>,
@@ -98,10 +98,10 @@ impl<'de> Deserialize<'de> for InclusionProof {
         }
         let helper = InclusionProofHelper::deserialize(deserializer)?;
         let value = hex::decode(helper.value).map_err(serde::de::Error::custom)?;
-        // TODO: fix CtInclusionProof::from_bytes to not have panics
-        let inclusion_proof = CtInclusionProof::from_bytes(
+        let inclusion_proof = CtInclusionProof::try_from_bytes(
             hex::decode(helper.inclusion_proof).map_err(serde::de::Error::custom)?,
-        );
+        )
+        .map_err(serde::de::Error::custom)?;
         Ok(InclusionProof {
             value,
             idx: helper.idx,
@@ -117,12 +117,12 @@ impl InclusionProof {
     /// # Errors
     ///
     /// - if the proof is invalid
-    pub fn verify(&self, root_hash: Hash) -> anyhow::Result<()> {
+    pub fn verify(&self, root_hash: Hash) -> eyre::Result<()> {
         let digest = *sha2::digest::Output::<Sha256>::from_slice(root_hash.as_bytes());
         let ct_root = RootHash::<Sha256>::new(digest, self.num_leaves);
         ct_root
             .verify_inclusion(&self.value, self.idx, &self.inclusion_proof)
-            .map_err(|e| anyhow::anyhow!("failed to verify inclusion: {}", e))
+            .map_err(|e| eyre::eyre!("failed to verify inclusion: {}", e))
     }
 }
 

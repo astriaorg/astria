@@ -588,9 +588,9 @@ dependencies = [
 name = "astria-sequencer-validation"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "bytes",
  "ct-merkle",
+ "eyre",
  "hex",
  "serde",
  "serde_json",
@@ -1591,8 +1591,7 @@ dependencies = [
 [[package]]
 name = "ct-merkle"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6920781f1a0d2f2f8bfb3a5023b2095430efb29b86074fe7f5ee86912b1f6d6"
+source = "git+https://github.com/astriaorg/ct-merkle.git?rev=1fa258fc7e62dd8a97d2f368977d4123b55a8b2e#1fa258fc7e62dd8a97d2f368977d4123b55a8b2e"
 dependencies = [
  "digest 0.10.7",
  "generic-array",

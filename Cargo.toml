@@ -79,3 +79,5 @@ tendermint = { git = "https://github.com/astriaorg/tendermint-rs.git", rev = "a8
 tendermint-config = { git = "https://github.com/astriaorg/tendermint-rs.git", rev = "a816d6363780c2ed0c3288e6b6e01adee71cf1a5" }
 tendermint-proto = { git = "https://github.com/astriaorg/tendermint-rs.git", rev = "a816d6363780c2ed0c3288e6b6e01adee71cf1a5" }
 tendermint-rpc = { git = "https://github.com/astriaorg/tendermint-rs.git", rev = "a816d6363780c2ed0c3288e6b6e01adee71cf1a5" }
+
+ct-merkle = { git = "https://github.com/astriaorg/ct-merkle.git", rev = "1fa258fc7e62dd8a97d2f368977d4123b55a8b2e" }
