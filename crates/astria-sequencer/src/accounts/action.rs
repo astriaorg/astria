@@ -3,10 +3,9 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_proto::sequencer::v1alpha1::TransferAction as ProtoTransferAction;
-use serde::{
-    Deserialize,
-    Serialize,
+use astria_proto::{
+    generated::sequencer::v1alpha1::TransferAction as ProtoTransferAction,
+    native::sequencer::v1alpha1::Address,
 };
 use tracing::instrument;
 
@@ -16,10 +15,7 @@ use crate::{
             StateReadExt,
             StateWriteExt,
         },
-        types::{
-            Address,
-            Balance,
-        },
+        types::Balance,
     },
     transaction::action_handler::ActionHandler,
 };
@@ -29,7 +25,7 @@ pub(crate) const TRANSFER_FEE: Balance = Balance(12);
 
 /// Represents a value-transfer action.
 #[allow(clippy::module_name_repetitions)]
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transfer {
     to: Address,
     amount: Balance,
@@ -46,15 +42,15 @@ impl Transfer {
 
     pub(crate) fn to_proto(&self) -> ProtoTransferAction {
         ProtoTransferAction {
-            to: self.to.as_bytes().to_vec(),
+            to: self.to.0.to_vec(),
             amount: Some(self.amount.as_proto()),
         }
     }
 
     pub(crate) fn try_from_proto(proto: &ProtoTransferAction) -> Result<Self> {
         Ok(Self {
-            to: Address::try_from(proto.to.as_slice())
-                .context("failed to convert proto address to Address")?,
+            to: Address::try_from_slice(&proto.to)
+                .context("failed to convert proto address to native Address")?,
             amount: Balance::from_proto(
                 *proto
                     .amount
@@ -70,7 +66,7 @@ impl ActionHandler for Transfer {
     async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,
-        from: &Address,
+        from: Address,
     ) -> Result<()> {
         let curr_balance = state
             .get_account_balance(from)
@@ -91,20 +87,20 @@ impl ActionHandler for Transfer {
             amount = self.amount.into_inner(),
         )
     )]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: &Address) -> Result<()> {
+    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         let from_balance = state
             .get_account_balance(from)
             .await
             .context("failed getting `from` account balance")?;
         let to_balance = state
-            .get_account_balance(&self.to)
+            .get_account_balance(self.to)
             .await
             .context("failed getting `to` account balance")?;
         state
             .put_account_balance(from, from_balance - (self.amount + TRANSFER_FEE))
             .context("failed updating `from` account balance")?;
         state
-            .put_account_balance(&self.to, to_balance + self.amount)
+            .put_account_balance(self.to, to_balance + self.amount)
             .context("failed updating `to` account balance")?;
         Ok(())
     }
