@@ -32,8 +32,3 @@ tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = [
-  "ansi",
-  "env-filter",
-  "json",
-] }

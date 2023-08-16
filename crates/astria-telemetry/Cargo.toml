@@ -10,4 +10,4 @@ rust-version = "1.70.0"
 tracing-subscriber = { version = "0.3.17", features = ["fmt", "env-filter", "json"] }
 
 [dev-dependencies]
-tracing.workspace = true
+tracing = { workspace = true }

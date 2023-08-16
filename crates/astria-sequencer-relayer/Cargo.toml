@@ -32,7 +32,6 @@ tendermint = { workspace = true, features = ["rust-crypto"] }
 tendermint-config = { workspace = true }
 tendermint-rpc = { workspace = true, features = ["http-client"] }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client" }
