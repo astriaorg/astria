@@ -18,7 +18,9 @@ jobs:
       - uses: taiki-e/install-action@v2.15.2
         with:
           tool: cargo-hack@0.5.29
-      - uses: astriaorg/buildjet-rust-cache@v2.5.1
+      - uses: Swatinem/rust-cache@v2.6.1
+        with:
+          cache-provider: "buildjet"
       - name: Check that each crate compiles individually (circumventing workspace wide dependency resolution)
         run: cargo hack check --all --all-features
     
@@ -27,7 +29,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.69.0
-      - uses: astriaorg/buildjet-rust-cache@v2.5.1
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
