@@ -1,5 +1,3 @@
-// Requests for account information on and responses from the astria sequencer.
-
 syntax = "proto3";
 
 package astria.sequencer.v1alpha1;
