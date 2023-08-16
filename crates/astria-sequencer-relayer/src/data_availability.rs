@@ -457,12 +457,7 @@ impl CelestiaClient {
             .collect();
         Ok(Some(
             SequencerBlockData::new(
-                namespace_data
-                    .data
-                    .block_hash
-                    .clone()
-                    .try_into()
-                    .wrap_err("failed to convert namespace data block hash to tendermint Hash")?,
+                namespace_data.data.block_hash,
                 namespace_data.data.header.clone(),
                 namespace_data.data.last_commit.clone(),
                 rollup_txs,
@@ -541,7 +536,7 @@ fn assemble_blobs_from_sequencer_block_data(
 
     for (namespace, txs) in rollup_txs {
         let rollup_namespace_data = RollupNamespaceData {
-            block_hash: block_hash.clone().as_bytes().to_vec(),
+            block_hash,
             rollup_txs: txs,
         };
         let data = rollup_namespace_data
@@ -557,7 +552,7 @@ fn assemble_blobs_from_sequencer_block_data(
     }
 
     let sequencer_namespace_data = SequencerNamespaceData {
-        block_hash: block_hash.clone().as_bytes().to_vec(),
+        block_hash,
         header,
         last_commit,
         rollup_namespaces: namespaces,

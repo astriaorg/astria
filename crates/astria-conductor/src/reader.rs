@@ -232,7 +232,7 @@ impl Reader {
                 if let Err(e) = self
                     .block_verifier
                     .validate_rollup_data(
-                        data.data.block_hash,
+                        data.data.block_hash.as_bytes(),
                         &data.data.header,
                         &data.data.last_commit,
                         &rollup_data,
@@ -244,15 +244,8 @@ impl Reader {
                     warn!(error.msg = %e, error.cause_chain = ?e, "failed to validate sequencer block");
                     continue 'get_sequencer_blocks;
                 }
-                let block_hash = match data.data.block_hash.try_into() {
-                    Ok(block_hash) => block_hash,
-                    Err(e) => {
-                        warn!(error.msg = %e, error.cause_chain = ?e, "failed to convert block hash, skipping block");
-                        continue 'get_sequencer_blocks;
-                    }
-                };
                 blocks.push(SequencerBlockSubset {
-                    block_hash,
+                    block_hash: data.data.block_hash,
                     header: data.data.header,
                     rollup_transactions: rollup_data.rollup_txs,
                 });
