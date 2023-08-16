@@ -37,7 +37,8 @@ impl Address {
 
     /// Returns the address of the account associated with the given verification key,
     /// which is calculated as the first 20 bytes of the sha256 hash of the verification key.
-    pub(crate) fn from_verification_key(public_key: &crate::crypto::VerificationKey) -> Self {
+    #[must_use]
+    pub fn from_verification_key(public_key: &crate::crypto::VerificationKey) -> Self {
         let bytes = crate::hash(public_key.as_bytes());
         let arr: [u8; ADDRESS_LEN] = bytes[0..ADDRESS_LEN]
             .try_into()
@@ -89,7 +90,7 @@ impl std::fmt::Display for Address {
     Ord,
     Debug,
 )]
-pub struct Balance(u128);
+pub struct Balance(pub(crate) u128);
 
 impl Balance {
     pub(crate) fn into_inner(self) -> u128 {
@@ -102,6 +103,11 @@ impl Balance {
 
     pub(crate) fn from_proto(proto: ProtoBalance) -> Self {
         Self(proto.into())
+    }
+
+    pub(crate) fn checked_mul<T: Into<u128>>(self, rhs: T) -> Option<Self> {
+        let new_balance = self.0.checked_mul(rhs.into())?;
+        Some(Self(new_balance))
     }
 }
 

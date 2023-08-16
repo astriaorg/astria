@@ -6,10 +6,10 @@ use std::{
 use astria_sequencer_relayer::{
     config::Config,
     telemetry,
-    types::SequencerBlockData,
     validator::Validator,
     SequencerRelayer,
 };
+use astria_sequencer_types::SequencerBlockData;
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
 use serde_json::json;
@@ -223,7 +223,7 @@ impl MockCelestia {
         let header_celestia = HeaderCelestiaImpl {};
         let mut merged_celestia = state_celestia.into_rpc();
         merged_celestia.merge(header_celestia.into_rpc()).unwrap();
-        let _server_handle = server.start(merged_celestia).unwrap();
+        let _server_handle = server.start(merged_celestia);
         Self {
             addr_rx,
             state_rpc_confirmed_rx,

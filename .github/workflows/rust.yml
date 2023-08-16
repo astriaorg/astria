@@ -10,8 +10,22 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  check_individual_compiles: 
     runs-on: buildjet-4vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@1.69.0
+      - uses: taiki-e/install-action@v2.15.2
+        with:
+          tool: cargo-hack@0.5.29
+      - uses: astriaorg/buildjet-rust-cache@v2.5.1
+      - name: Check that each crate compiles individually (circumventing workspace wide dependency resolution)
+        run: cargo hack check --all --all-features
+    
+  test:
+    # temporarily using GH runners
+    # runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.69.0
@@ -24,6 +38,8 @@ jobs:
       - name: Run tests (excluding RPC client, which needs kubernetes)
         run: |
           cargo test --release --workspace \
+          --all-features \
+          --all-targets \
           --exclude astria-celestia-jsonrpc-client
 
   test_rpc_client:
@@ -49,7 +65,11 @@ jobs:
       - name: wait 5 seconds for ingress to pick up rules, services
         run: sleep 5
       - name: Run the jsonrpc client tests
-        run: cargo test --release --package astria-celestia-jsonrpc-client -- --ignored
+        run: |
+          cargo test --release \
+          --package astria-celestia-jsonrpc-client \
+          --all-features \
+          -- --ignored
 
   doctest:
     runs-on: ubuntu-22.04
@@ -73,6 +93,18 @@ jobs:
         # or `cargo +nightly-2023-07-07 fmt` for specifying the exactly release.
         run: cargo fmt --all -- --check
 
+  fmt-toml:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: download taplo
+        run: |
+          curl -fsSL https://github.com/tamasfe/taplo/releases/download/0.8.1/taplo-full-linux-x86_64.gz \
+          | gzip -d - \
+          | install -m 755 /dev/stdin /usr/local/bin/taplo
+      - name: run taplo
+        run: taplo format --check
+
   clippy:
     runs-on: ubuntu-latest
     steps:
@@ -87,12 +119,17 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: run pedantic clippy
         run: |
-          cargo clippy --workspace --all-targets \
+          cargo clippy --workspace \
+          --all-targets \
+          --all-features \
           --exclude astria-conductor \
-          --exclude astria-conductor-test \
           --exclude astria-sequencer-relayer \
-          --exclude astria-sequencer-relayer-test \
           --exclude astria-gossipnet \
-          -- -W clippy::pedantic -D warnings
+          -- --warn clippy::pedantic \
+             --deny warnings
       - name: run default clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: |
+          cargo clippy --workspace \
+          --all-targets \
+          --all-features \
+          -- --deny warnings

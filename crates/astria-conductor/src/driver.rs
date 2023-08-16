@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use astria_sequencer_relayer::types::SequencerBlockData;
+use astria_sequencer_types::SequencerBlockData;
 use color_eyre::eyre::{
     eyre,
     Result,
@@ -167,7 +167,7 @@ impl Driver {
 
                 // validate block received from gossip network
                 self.block_verifier
-                    .validate_sequencer_block(&block)
+                    .validate_sequencer_block_data(&block)
                     .await
                     .wrap_err("invalid block received from gossip network")?;
 
