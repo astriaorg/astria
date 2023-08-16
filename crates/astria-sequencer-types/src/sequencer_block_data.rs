@@ -18,6 +18,7 @@ use tendermint::{
     block::{
         Commit,
         Header,
+        Height,
     },
     Block,
     Hash,
@@ -191,6 +192,43 @@ impl SequencerBlockData {
              sequencer block",
         );
         Ok(())
+    }
+
+    /// Returns the height of the block.
+    pub fn height(&self) -> Height {
+        self.header().height
+    }
+
+    /// Returns the height of the parent block.
+    ///
+    /// # Panics
+    ///
+    /// - if the block height is less than 0
+    /// - if the tendermint height cannot be converted to and from u64
+    pub fn parent_height(&self) -> Height {
+        assert!(
+            self.header().height.value() > 0,
+            "block height must be greater than 0"
+        );
+        Height::try_from(self.header().height.value() - 1)
+            .expect("should have been able to decriment tendermint height")
+    }
+
+    /// Returns the height of the child/next block.
+    pub fn child_block_height(&self) -> Height {
+        self.header().height.increment()
+    }
+
+    /// Returns the hash of the parent block.
+    ///
+    /// Returns the parent has as `Some(Hash)` if the block has a parent.
+    /// Returns `None` if the block has no parent. The block wont have a parent
+    /// only in if it is the genesis block.
+    pub fn parent_block_hash(&self) -> Option<Hash> {
+        if let Some(parent_hash) = self.header().last_block_id {
+            return Some(parent_hash.hash);
+        }
+        None
     }
 }
 

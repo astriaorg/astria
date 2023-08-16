@@ -3,7 +3,7 @@ use std::collections::{
     HashMap,
 };
 
-use astria_sequencer_relayer::types::SequencerBlockData;
+use astria_sequencer_types::SequencerBlockData;
 use tendermint::{
     block::Height,
     hash::Hash,
@@ -11,12 +11,13 @@ use tendermint::{
 use tracing::{
     debug,
     info,
+    warn,
 };
 
 enum ExecutorQueueParentStatus {
     ParentPending(Box<SequencerBlockData>),
     ParentSoft,
-    NoParent,
+    UnknownParent,
 }
 
 // TODO: update this description
@@ -24,7 +25,7 @@ enum ExecutorQueueParentStatus {
 /// yett ready for execution.
 ///
 /// The queue is implemented
-pub struct ExecutorQueue {
+pub struct Queue {
     head_height: Height,
     most_recent_soft_hash: Hash, // ??? not sure if we still need this
 
@@ -36,7 +37,7 @@ pub struct ExecutorQueue {
     soft_blocks: BTreeMap<Height, SequencerBlockData>,
 }
 
-impl ExecutorQueue {
+impl Queue {
     pub(super) fn new() -> Self {
         Self {
             head_height: Height::default(),
@@ -54,45 +55,48 @@ impl ExecutorQueue {
     // TODO: add error handling
     pub(super) fn insert(&mut self, block: SequencerBlockData) {
         // if the block is already in the queue, return its hash
-        if self.is_block_present(block.clone()) {
-            // return Some(get_block_hash(block.clone()));
+        if self.is_block_present(&block) {
+            // TODO: do this for all other tracing prints
             info!(
-                "block with height {} and hash {} is already present in the queue",
-                get_block_height(block.clone()),
-                get_block_hash(block.clone())
+                block.height = %block.header().height,
+                block.hash = %block.header().hash(),
+                "block is already present in the queue"
             );
         }
 
-        if get_block_height(block.clone()) < self.head_height() {
+        if block.header().height < self.head_height() {
             info!(
                 "block with height {} is stale and will not be added to the queue",
-                get_block_height(block)
+                block.header().height
             );
         }
 
         match self.check_if_parent_present(block.clone()) {
-            ExecutorQueueParentStatus::ParentPending(parent_block) => {
+            Some(ExecutorQueueParentStatus::ParentPending(parent_block)) => {
                 self.insert_and_update_pending_blocks(block, *parent_block);
             }
-            ExecutorQueueParentStatus::ParentSoft => {
+            Some(ExecutorQueueParentStatus::ParentSoft) => {
                 self.insert_and_update_soft_queue(block);
             }
             // if the block has no parent, add it to the pending blocks without
             // updating other data
-            ExecutorQueueParentStatus::NoParent => {
+            Some(ExecutorQueueParentStatus::UnknownParent) => {
                 self.insert_to_pending_blocks(block);
+            }
+            None => {
+                warn!("block doesn't have a parent, discarding");
             }
         }
         info!(
-            "block with height {} and hash {} was added to the queue",
-            get_block_height(block.clone()),
-            get_block_hash(block.clone())
+            block.height = %block.header().height,
+            block.hash = %block.header().hash(),
+            "block added to queue"
         );
     }
 
     // check to see if the block is already present in the queue
     fn is_block_present(&mut self, block: &SequencerBlockData) -> bool {
-        let block_hash = get_block_hash(block.clone());
+        let block_hash = block.block_hash();
         let height = get_block_height(block);
 
         // check if the block is already present in the pending blocks
@@ -103,7 +107,7 @@ impl ExecutorQueue {
         }
         // check if the block is already present in the soft blocks
         if let Some(soft_block) = self.soft_blocks.get(&height) {
-            if get_block_hash(soft_block.clone()) == block_hash {
+            if soft_block.block_hash() == block_hash {
                 return true;
             }
         }
@@ -113,34 +117,37 @@ impl ExecutorQueue {
 
     // check if the parent of the incoming block is present in the queue and
     // return that parent block if it is
-    fn check_if_parent_present(&mut self, block: SequencerBlockData) -> ExecutorQueueParentStatus {
-        let parent_height = get_parent_block_height(block.clone());
-        if let Some(parent_hash) = get_parent_block_hash(block) {
-            // check if parent in pending data
-            if let Some(pending_blocks) = self.pending_blocks.get(&parent_height) {
-                if let Some(parent_block) = pending_blocks.get(&parent_hash) {
-                    return ExecutorQueueParentStatus::ParentPending(Box::new(
-                        parent_block.clone(),
-                    ));
-                }
+    fn check_if_parent_present(
+        &mut self,
+        block: SequencerBlockData,
+    ) -> Option<ExecutorQueueParentStatus> {
+        let parent_height = block.parent_height();
+        let parent_hash = block.parent_block_hash()?;
+
+        // check if parent in pending data
+        if let Some(pending_blocks) = self.pending_blocks.get(&parent_height) {
+            if let Some(parent_block) = pending_blocks.get(&parent_hash) {
+                return Some(ExecutorQueueParentStatus::ParentPending(Box::new(
+                    parent_block.clone(),
+                )));
             }
-            // check if parent in soft data
-            if let Some(soft_block) = self.soft_blocks.get(&parent_height) {
-                if get_block_hash(soft_block.clone()) == parent_hash {
-                    return ExecutorQueueParentStatus::ParentSoft;
-                }
+        }
+        // check if parent in soft data
+        if let Some(soft_block) = self.soft_blocks.get(&parent_height) {
+            if soft_block.block_hash() == parent_hash {
+                return Some(ExecutorQueueParentStatus::ParentSoft);
             }
         }
 
-        ExecutorQueueParentStatus::NoParent
+        Some(ExecutorQueueParentStatus::UnknownParent)
     }
 
     fn is_block_a_parent(&mut self, block: SequencerBlockData) -> bool {
-        let block_hash = get_block_hash(block.clone());
-        if let Some(child_blocks) = self.pending_blocks.get(&get_child_block_height(block)) {
+        let block_hash = block.block_hash();
+        if let Some(child_blocks) = self.pending_blocks.get(&block.child_block_height()) {
             let blocks = child_blocks.values();
             for block in blocks {
-                if let Some(hash) = get_parent_block_hash(block.clone()) {
+                if let Some(hash) = block.parent_block_hash() {
                     if hash == block_hash {
                         return true;
                     }
@@ -169,8 +176,8 @@ impl ExecutorQueue {
     // a basic insert into the pending blocks
     // TODO: update for error handling
     fn insert_to_pending_blocks(&mut self, block: SequencerBlockData) {
-        let height = get_block_height(block.clone());
-        let block_hash = get_block_hash(block.clone());
+        let height = block.height();
+        let block_hash = block.block_hash();
 
         if let Some(pending_blocks) = self.pending_blocks.get_mut(&height) {
             let mut new_map = pending_blocks.clone();
@@ -191,10 +198,10 @@ impl ExecutorQueue {
         block: SequencerBlockData,
         parent_block: SequencerBlockData,
     ) -> Hash {
-        let height = get_block_height(block.clone());
-        let block_hash = get_block_hash(block.clone());
-        let parent_height = get_block_height(parent_block.clone());
-        let parent_hash = get_block_hash(parent_block.clone());
+        let height = block.height();
+        let block_hash = block.block_hash();
+        let parent_height = parent_block.height();
+        let parent_hash = parent_block.block_hash();
 
         // remove parent data from pending blocks
         if let Some(pending_blocks) = self.pending_blocks.get_mut(&parent_height) {
@@ -212,7 +219,7 @@ impl ExecutorQueue {
 
         // check if the new block is a parent of any of the pending blocks
         if self.is_block_a_parent(block.clone()) {
-            self.remove_data_blow_height(get_child_block_height(block.clone()));
+            self.remove_data_blow_height(block.child_block_height());
             // TODO: update this to used the update and insert to soft blocks function
             self.soft_blocks.insert(height, block.clone());
             self.update_most_recent_soft_hash(block_hash);
@@ -232,9 +239,9 @@ impl ExecutorQueue {
             let tmp_blocks = head_blocks.clone();
             let blocks = tmp_blocks.values();
             for block in blocks {
-                if let Some(parent_hash) = get_parent_block_hash(block.clone()) {
+                if let Some(parent_hash) = block.parent_block_hash() {
                     if parent_hash != self.most_recent_soft_hash {
-                        head_blocks.remove(&get_block_hash(block.clone()));
+                        head_blocks.remove(&block.block_hash());
                     }
                 }
             }
@@ -260,14 +267,13 @@ impl ExecutorQueue {
 
     // TODO: fix this to actually be correct
     fn insert_and_update_soft_queue(&mut self, block: SequencerBlockData) {
-        self.soft_blocks
-            .insert(get_block_height(block.clone()), block.clone());
+        self.soft_blocks.insert(block.height(), block.clone());
 
         if self.is_block_a_parent(block.clone()) {
-            let block_hash = get_block_hash(block.clone());
-            let block_height = get_block_height(block.clone());
+            let block_hash = block.block_hash();
+            let block_height = block.height();
 
-            self.remove_data_blow_height(get_child_block_height(block.clone()));
+            self.remove_data_blow_height(block.child_block_height());
             // TODO: update this to used the update and insert to soft blocks function
             self.soft_blocks.insert(block_height, block.clone());
             self.update_most_recent_soft_hash(block_hash);
@@ -336,38 +342,6 @@ impl ExecutorQueue {
     pub(super) fn is_empty(&self) -> bool {
         self.len() == 0
     }
-}
-
-// block data helper functions
-// TODO: get rid of this in the code and use the block data directly
-fn get_block_height(block: &SequencerBlockData) -> Height {
-    block.header.height
-}
-
-fn get_block_hash(block: SequencerBlockData) -> Hash {
-    Hash::try_from(block.block_hash).expect("block must have a block hash")
-}
-
-fn get_parent_block_height(block: SequencerBlockData) -> Height {
-    Height::try_from(block.header.height.value() - 1).expect("could not convert u64 to Height")
-}
-
-fn get_child_block_height(block: SequencerBlockData) -> Height {
-    Height::try_from(block.header.height.value() + 1).expect("could not convert u64 to Height")
-}
-
-fn get_parent_block_hash(block: SequencerBlockData) -> Option<Hash> {
-    if let Some(parent_hash) = block.header.last_block_id {
-        return Some(parent_hash.hash);
-    } else {
-        // all incoming blocks should have a parent, it is ignored if it doesn't
-        if let Ok(hash) = std::str::from_utf8(block.block_hash.as_slice()) {
-            debug!(hash = hash.to_string(), "block has no parent");
-        } else {
-            debug!("block hash cannot be parsed");
-        }
-    }
-    None
 }
 
 // TODO: add a test for the tree and the queue

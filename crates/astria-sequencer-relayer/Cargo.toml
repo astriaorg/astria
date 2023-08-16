@@ -36,7 +36,6 @@ tendermint-rpc = { workspace = true, features = ["http-client"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client" }
 astria-gossipnet = { path = "../astria-gossipnet" }
@@ -56,6 +55,5 @@ multiaddr = { workspace = true }
 once_cell = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
-wiremock = { workspace = true }
 wiremock = { workspace = true }
 astria-sequencer = { path = "../astria-sequencer" }
