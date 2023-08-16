@@ -21,7 +21,7 @@ use sha2::{
 pub static DEFAULT_NAMESPACE: Namespace = Namespace(*b"astriasequ");
 
 /// Namespace represents a Celestia namespace.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Namespace([u8; NAMESPACE_ID_AVAILABLE_LEN]);
 
 impl Deref for Namespace {

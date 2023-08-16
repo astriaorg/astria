@@ -41,6 +41,9 @@ use crate::{
     types::SequencerBlockSubset,
 };
 
+mod queue;
+use crate::executor::queue::Queue;
+
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
 
 /// The channel for sending commands to the executor task.
@@ -117,6 +120,9 @@ struct Executor<C> {
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
     sequencer_hash_to_execution_hash: HashMap<Hash, Vec<u8>>,
+
+    /// The block queue for incoming blocks from gossip
+    block_queue: Queue,
 }
 
 impl<C: ExecutionClient> Executor<C> {
@@ -136,6 +142,7 @@ impl<C: ExecutionClient> Executor<C> {
                 alert_tx,
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
+                block_queue: Queue::new(),
             },
             cmd_tx,
         ))
@@ -214,33 +221,53 @@ impl<C: ExecutionClient> Executor<C> {
             return Ok(Some(execution_hash.clone()));
         }
 
-        let prev_block_hash = self.execution_state.clone();
-        info!(
-            height = block.header.height.value(),
-            parent_block_hash = hex::encode(&prev_block_hash),
-            "executing block with given parent block",
-        );
+        // let prev_block_hash = self.execution_state.clone();
+        // info!(
+        //     height = block.header.height.value(),
+        //     parent_block_hash = hex::encode(&prev_block_hash),
+        //     "executing block with given parent block",
+        // );
 
-        let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
-            .wrap_err("failed parsing str as protobuf timestamp")?;
+        // let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
+        //     .wrap_err("failed parsing str as protobuf timestamp")?;
 
-        let response = self
-            .execution_rpc_client
-            .call_do_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
-            .await?;
-        self.execution_state = response.block_hash.clone();
+        self.block_queue.insert(block.clone());
+        let queued_blocks = self.block_queue.get_blocks();
 
-        // store block hash returned by execution client, as we need it to finalize the block later
-        info!(
-            sequencer_block_hash = ?block.block_hash,
-            sequencer_block_height = block.header.height.value(),
-            execution_block_hash = hex::encode(&response.block_hash),
-            "executed sequencer block",
-        );
-        self.sequencer_hash_to_execution_hash
-            .insert(block.block_hash, response.block_hash.clone());
+        let mut final_response = Ok(None);
 
-        Ok(Some(response.block_hash))
+        if let Some(blocks) = queued_blocks {
+            for block in blocks {
+                let prev_block_hash = self.execution_state.clone();
+                info!(
+                    height = block.header.height.value(),
+                    parent_block_hash = hex::encode(&prev_block_hash),
+                    "executing block with given parent block",
+                );
+                let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
+                    .wrap_err("failed parsing str as protobuf timestamp")?;
+                let response = self
+                    .execution_rpc_client
+                    .call_do_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
+                    .await?;
+                self.execution_state = response.block_hash.clone();
+
+                // store block hash returned by execution client, as we need it to finalize the
+                // block later
+                info!(
+                    sequencer_block_hash = ?block.block_hash,
+                    sequencer_block_height = block.header.height.value(),
+                    execution_block_hash = hex::encode(&response.block_hash),
+                    "executed sequencer block",
+                );
+                self.sequencer_hash_to_execution_hash
+                    .insert(block.block_hash, response.block_hash.clone());
+
+                final_response = Ok(Some(response.block_hash));
+            }
+        }
+
+        final_response
     }
 
     async fn handle_block_received_from_data_availability(

@@ -560,6 +560,7 @@ dependencies = [
  "astria-sequencer",
  "base64 0.21.2",
  "base64-serde",
+ "bincode",
  "eyre",
  "hex",
  "serde",
