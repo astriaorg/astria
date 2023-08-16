@@ -82,22 +82,14 @@ impl v1alpha1::BalanceResponse {
 
     /// Converts a protobuf [`v1alpha1::BalanceResponse`] to an astria
     /// native [`BalanceResponse`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the account buffer could not be converted to an [`Address`] because
-    /// it was not 20 bytes long.
+    #[must_use]
     pub fn into_native(self) -> BalanceResponse {
-        BalanceResponse::from_proto(self)
+        BalanceResponse::from_proto(&self)
     }
 
     /// Converts a protobuf [`v1alpha1::BalanceResponse`] to an astria
     /// native [`BalanceResponse`] by allocating a new [`v1alpha::BalanceResponse`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the account buffer could not be converted to an [`Address`] because
-    /// it was not 20 bytes long.
+    #[must_use]
     pub fn to_native(&self) -> BalanceResponse {
         self.clone().into_native()
     }
@@ -113,16 +105,11 @@ pub struct BalanceResponse {
 impl BalanceResponse {
     /// Converts a protobuf [`v1alpha1::BalanceResponse`] to an astria
     /// native [`BalanceResponse`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the account buffer could not be converted to an [`Address`] because
-    /// it was not 20 bytes long.
-    pub fn from_proto(proto: v1alpha1::BalanceResponse) -> Self {
+    pub fn from_proto(proto: &v1alpha1::BalanceResponse) -> Self {
         let v1alpha1::BalanceResponse {
             height,
             balance,
-        } = proto;
+        } = *proto;
         Self {
             height,
             balance: balance.map_or(0, Into::into),
@@ -154,12 +141,14 @@ impl v1alpha1::NonceResponse {
 
     /// Converts a protobuf [`v1alpha1::NonceResponse`] to an astria
     /// native [`NonceResponse`].
+    #[must_use]
     pub fn into_native(self) -> NonceResponse {
-        NonceResponse::from_proto(self)
+        NonceResponse::from_proto(&self)
     }
 
     /// Converts a protobuf [`v1alpha1::NonceResponse`] to an astria
     /// native [`NonceResponse`] by allocating a new [`v1alpha::NonceResponse`].
+    #[must_use]
     pub fn to_native(&self) -> NonceResponse {
         self.clone().into_native()
     }
@@ -175,11 +164,12 @@ pub struct NonceResponse {
 impl NonceResponse {
     /// Converts a protobuf [`v1alpha1::NonceResponse`] to an astria
     /// native [`NonceResponse`].
-    pub fn from_proto(proto: v1alpha1::NonceResponse) -> Self {
+    #[must_use]
+    pub fn from_proto(proto: &v1alpha1::NonceResponse) -> Self {
         let v1alpha1::NonceResponse {
             height,
             nonce,
-        } = proto;
+        } = *proto;
         Self {
             height,
             nonce,
