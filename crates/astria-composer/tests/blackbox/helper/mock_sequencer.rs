@@ -27,7 +27,6 @@ pub async fn start() -> MockServer {
         &server,
         "accounts/nonce",
         NonceResponse {
-            account: vec![42; 20],
             height: 42,
             nonce: 42,
         },

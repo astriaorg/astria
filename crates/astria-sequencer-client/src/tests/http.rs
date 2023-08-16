@@ -144,7 +144,6 @@ async fn get_latest_nonce() {
     } = MockSequencer::start().await;
 
     let expected_response = NonceResponse {
-        account: ALICE_ADDRESS.to_vec(),
         height: 10,
         nonce: 1,
     };
@@ -168,7 +167,6 @@ async fn get_latest_balance() {
     } = MockSequencer::start().await;
 
     let expected_response = BalanceResponse {
-        account: ALICE_ADDRESS.to_vec(),
         height: 10,
         balance: Some(10u128.pow(18).into()),
     };
