@@ -1,33 +1,25 @@
 use std::time::Duration;
 
-use async_trait::async_trait;
+use async_recursion::async_recursion;
+use color_eyre::eyre::{self, Context};
+use ethers::providers::{Provider, Ws};
 use humantime::format_duration;
 use tracing::{debug, info, instrument, warn};
-use color_eyre::eyre::{self, Context};
-use tokio::sync::mpsc as tokio_mpsc;
 
-use ethers::providers::{
-    Middleware, Provider as EthersProvider, ProviderError as EthersProviderError, StreamExt, Ws,
-};
+pub struct EthClient(Provider<Ws>);
 
-use super::{streaming_client::StreamingClient, RollupChainId, RollupTxExt};
-
-/// A thin wrapper around [`Provider<Ws>`] to add timeouts.
-pub(crate) struct EthProvider {
-    inner: EthersProvider<Ws>,
-}
-
-// TODO(https://github.com/astriaorg/astria/issues/216): add timeouts for
-// `subscribe_full_pendings_txs` (more complex because it's a stream).
-impl EthProvider {
-    pub(crate) async fn connect(url: &str) -> Result<Self, EthersProviderError> {
-        let inner = EthersProvider::connect(url).await?;
-        Ok(Self { inner })
+impl EthClient {
+    pub(crate) async fn connect(url: &str) -> Result<Self, eyre::Error> {
+        let inner = Provider::connect(url)
+            .await
+            .wrap_err("Ethers failed to connect")?;
+        Ok(EthClient(inner))
     }
 
     /// Wrapper around [`Provider::get_net_version`] with a 1s timeout.
+    #[async_recursion]
     async fn get_net_version(&self) -> Result<String, eyre::Error> {
-        tokio::time::timeout(Duration::from_secs(1), self.inner.get_net_version())
+        tokio::time::timeout(Duration::from_secs(1), self.get_net_version())
             .await
             .wrap_err("request timed out")?
             .wrap_err("RPC returned with error")
@@ -62,7 +54,7 @@ impl EthProvider {
             .with_max_times(n_retries);
 
         let version = (|| {
-            let client = self.inner.clone();
+            let client = self.clone();
                 // NOTE: This is using `get_net_version` because that's what ethers' Middleware is
                 // implementing. Maybe the `net_listening` RPC would be better, but ethers
                 // does not have that.
@@ -76,17 +68,5 @@ impl EthProvider {
             )?;
         info!(version, rpc = "net_version", "RPC was successful");
         Ok(())
-    }
-}
-
-#[async_trait]
-impl StreamingClient for EthProvider {
-    type Error = eyre::Error;
-
-    async fn start_stream(
-        &self,
-        chain_id: RollupChainId,
-    ) -> Result<tokio_mpsc::UnboundedReceiver<RollupTxExt>, Self::Error> {
-        self.inner.start_stream(chain_id).await
     }
 }

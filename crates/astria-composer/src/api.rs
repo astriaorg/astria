@@ -1,18 +1,9 @@
 use std::net::SocketAddr;
 
 use axum::{
-    extract::{
-        FromRef,
-        State,
-    },
-    response::{
-        IntoResponse,
-        Response,
-    },
-    routing::{
-        get,
-        IntoMakeService,
-    },
+    extract::{FromRef, State},
+    response::{IntoResponse, Response},
+    routing::{get, IntoMakeService},
     Router,
 };
 use hyper::server::conn::AddrIncoming;
@@ -24,7 +15,7 @@ use crate::searcher;
 
 pub(super) type ApiServer = axum::Server<AddrIncoming, IntoMakeService<Router>>;
 
-type SearcherStatus = watch::Receiver<searcher::SearcherStatus>;
+type SearcherStatus = watch::Receiver<searcher::Status>;
 
 /// `AppState` is an axum extractor
 #[derive(Clone)]
@@ -41,9 +32,7 @@ impl FromRef<AppState> for SearcherStatus {
 pub(super) fn start(listen_addr: SocketAddr, searcher_status: SearcherStatus) -> ApiServer {
     let app = Router::new()
         .route("/readyz", get(readyz))
-        .with_state(AppState {
-            searcher_status,
-        });
+        .with_state(AppState { searcher_status });
     axum::Server::bind(&listen_addr).serve(app.into_make_service())
 }
 
@@ -62,10 +51,7 @@ impl IntoResponse for Readyz {
             Self::Ok => (axum::http::StatusCode::OK, "ok"),
             Self::NotReady => (axum::http::StatusCode::SERVICE_UNAVAILABLE, "not ready"),
         };
-        let mut response = axum::Json(ReadyBody {
-            status: msg,
-        })
-        .into_response();
+        let mut response = axum::Json(ReadyBody { status: msg }).into_response();
         *response.status_mut() = status;
         response
     }

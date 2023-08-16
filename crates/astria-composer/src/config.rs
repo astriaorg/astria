@@ -1,13 +1,7 @@
 use std::net::SocketAddr;
 
-use figment::{
-    providers::Env,
-    Figment,
-};
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use figment::{providers::Env, Figment};
+use serde::{Deserialize, Serialize};
 
 /// Utility function to read the application's config in one go.
 ///

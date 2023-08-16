@@ -15,6 +15,7 @@ members = [
 
 [workspace.dependencies]
 async-trait = "0.1.52"
+async-recursion = "1.0.4"
 axum = "0.6.16"
 backon = "0.4.1"
 base64 = "0.21"

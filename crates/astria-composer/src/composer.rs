@@ -21,12 +21,14 @@ impl Composer {
 
     pub async fn run_until_stopped(cfg: &Config) -> Result<(), eyre::Error> {
         debug!("creating searcher");
-        let searcher = Searcher::from_config(&cfg).await?;
-        let searcher_status = searcher.subscribe_to_state();
+        let mut searcher = Searcher::setup_searcher(&cfg)?;
+        let rollup_clients = Searcher::setup_rollup_clients(&cfg).await?;
+        searcher.run(rollup_clients).await?;
+        let searcher_status = searcher.subscribe();
 
         debug!("creating API server");
-            let api_server = api::start(cfg.api_listen_addr, searcher_status);
-            debug!(
+        let api_server = api::start(cfg.api_listen_addr, searcher_status);
+        debug!(
                 listen_addr = %api_server.local_addr(),
                 "API server listening");
         api_server.await?;

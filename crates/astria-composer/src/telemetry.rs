@@ -1,17 +1,8 @@
-use color_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
+use color_eyre::eyre::{self, WrapErr as _};
 use is_terminal::IsTerminal as _;
 use tracing_subscriber::{
-    filter::{
-        EnvFilter,
-        LevelFilter,
-    },
-    fmt::{
-        self,
-        MakeWriter,
-    },
+    filter::{EnvFilter, LevelFilter},
+    fmt::{self, MakeWriter},
     layer::SubscriberExt as _,
     registry,
     util::SubscriberInitExt as _,

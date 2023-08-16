@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use color_eyre::eyre::{self, Context};
 use humantime::format_duration;
-use tracing::{instrument, debug, warn};
 use tendermint::abci;
+use tracing::{debug, instrument, warn};
 
 /// A thin wrapper around [`sequencer_client::Client`] to add timeouts.
 ///

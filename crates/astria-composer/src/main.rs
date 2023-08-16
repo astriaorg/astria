@@ -18,5 +18,7 @@ async fn main() {
 
     info!(config = cfg_ser, "initializing composer",);
 
-    Composer::run_until_stopped(&cfg).await.expect("Composer exited unsuccessfully");
+    Composer::run_until_stopped(&cfg)
+        .await
+        .expect("Composer exited unsuccessfully");
 }

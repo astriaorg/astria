@@ -10,27 +10,28 @@ use color_eyre::eyre::Context;
 use sequencer_client::{Nonce as SequencerNonce, SequencerClientExt};
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::ds::{RollupTx, RollupTxExt, SequencerClient, WireFormat};
 use color_eyre::eyre;
 
+use super::data_structures::{
+    rollup_tx::{RollupTx, WireFormat},
+    RollupTxExt,
+};
+
+use crate::searcher::clients::sequencer_client::SequencerClient;
+
 /// The Executor module executes the strategies that are forwarded to it by the bundler
-pub(crate) struct Executor {
+pub(super) struct Executor {
     seq_client: SequencerClient,
-    seq_tx_recv_channel: UnboundedReceiver<Vec<RollupTxExt>>,
+    seq_tx_recv_channel: UnboundedReceiver<RollupTxExt>,
 }
 
 impl Executor {
-    pub(crate) async fn new(
-        seq_url: &str,
-        seq_tx_recv_channel: UnboundedReceiver<Vec<RollupTxExt>>,
+    pub(super) fn new(
+        seq_client: SequencerClient,
+        seq_tx_recv_channel: UnboundedReceiver<RollupTxExt>,
     ) -> Result<Self, eyre::Error> {
-        let seq_client = SequencerClient::new(seq_url)
-        .wrap_err("Failed to initialize Sequencer Client")?;
-
-        seq_client.wait_for_sequencer(5, Duration::from_secs(5), 2.0).await?;
-
         Ok(Self {
-            seq_client: seq_client,
+            seq_client,
             seq_tx_recv_channel,
         })
     }
@@ -81,7 +82,7 @@ impl Executor {
         while let Some(bundle) = self.seq_tx_recv_channel.recv().await {
             // NOTE: because nonces are serialized, each submission is blocked by the success
             //       of the previous submission
-            self.sign_and_submit_bundle(bundle).await?;
+            self.sign_and_submit_bundle(vec![bundle]).await?;
         }
 
         Ok(())
