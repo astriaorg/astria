@@ -2,9 +2,11 @@
 name = "astria-sequencer"
 version = "0.2.0"
 edition = "2021"
+rust-version = "1.70.0"
 
 [dependencies]
 astria-proto = { path = "../astria-proto" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 anyhow = "1"
 matchit = "0.7.2"
@@ -21,7 +23,6 @@ clap = { workspace = true, features = ["derive"] }
 ed25519-consensus = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
-is-terminal = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
