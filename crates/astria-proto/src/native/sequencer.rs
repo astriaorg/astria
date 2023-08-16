@@ -71,12 +71,10 @@ impl v1alpha1::BalanceResponse {
     #[must_use]
     pub fn from_native(native: BalanceResponse) -> Self {
         let BalanceResponse {
-            account,
             height,
             balance,
         } = native;
         Self {
-            account: account.0.to_vec(),
             height,
             balance: Some(balance.into()),
         }
@@ -89,7 +87,7 @@ impl v1alpha1::BalanceResponse {
     ///
     /// Returns an error if the account buffer could not be converted to an [`Address`] because
     /// it was not 20 bytes long.
-    pub fn into_native(self) -> Result<BalanceResponse, IncorrectAddressLength> {
+    pub fn into_native(self) -> BalanceResponse {
         BalanceResponse::from_proto(self)
     }
 
@@ -100,7 +98,7 @@ impl v1alpha1::BalanceResponse {
     ///
     /// Returns an error if the account buffer could not be converted to an [`Address`] because
     /// it was not 20 bytes long.
-    pub fn to_native(&self) -> Result<BalanceResponse, IncorrectAddressLength> {
+    pub fn to_native(&self) -> BalanceResponse {
         self.clone().into_native()
     }
 }
@@ -108,7 +106,6 @@ impl v1alpha1::BalanceResponse {
 /// The sequencer response to a balance request for a given account at a given height.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BalanceResponse {
-    pub account: Address,
     pub height: u64,
     pub balance: u128,
 }
@@ -121,17 +118,15 @@ impl BalanceResponse {
     ///
     /// Returns an error if the account buffer could not be converted to an [`Address`] because
     /// it was not 20 bytes long.
-    pub fn from_proto(proto: v1alpha1::BalanceResponse) -> Result<Self, IncorrectAddressLength> {
+    pub fn from_proto(proto: v1alpha1::BalanceResponse) -> Self {
         let v1alpha1::BalanceResponse {
-            account,
             height,
             balance,
         } = proto;
-        Ok(Self {
-            account: Address::try_from_slice(&account)?,
+        Self {
             height,
             balance: balance.map_or(0, Into::into),
-        })
+        }
     }
 
     /// Converts an astria native [`BalanceResponse`] to a
@@ -148,12 +143,10 @@ impl v1alpha1::NonceResponse {
     #[must_use]
     pub fn from_native(native: NonceResponse) -> Self {
         let NonceResponse {
-            account,
             height,
             nonce,
         } = native;
         Self {
-            account: account.0.to_vec(),
             height,
             nonce,
         }
@@ -161,23 +154,13 @@ impl v1alpha1::NonceResponse {
 
     /// Converts a protobuf [`v1alpha1::NonceResponse`] to an astria
     /// native [`NonceResponse`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the account buffer could not be converted to an [`Address`] because
-    /// it was not 20 bytes long.
-    pub fn into_native(self) -> Result<NonceResponse, IncorrectAddressLength> {
+    pub fn into_native(self) -> NonceResponse {
         NonceResponse::from_proto(self)
     }
 
     /// Converts a protobuf [`v1alpha1::NonceResponse`] to an astria
     /// native [`NonceResponse`] by allocating a new [`v1alpha::NonceResponse`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the account buffer could not be converted to an [`Address`] because
-    /// it was not 20 bytes long.
-    pub fn to_native(&self) -> Result<NonceResponse, IncorrectAddressLength> {
+    pub fn to_native(&self) -> NonceResponse {
         self.clone().into_native()
     }
 }
@@ -185,7 +168,6 @@ impl v1alpha1::NonceResponse {
 /// The sequencer response to a nonce request for a given account at a given height.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NonceResponse {
-    pub account: Address,
     pub height: u64,
     pub nonce: u32,
 }
@@ -193,22 +175,15 @@ pub struct NonceResponse {
 impl NonceResponse {
     /// Converts a protobuf [`v1alpha1::NonceResponse`] to an astria
     /// native [`NonceResponse`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the account buffer could not be converted to an [`Address`] because
-    /// it was not 20 bytes long.
-    pub fn from_proto(proto: v1alpha1::NonceResponse) -> Result<Self, IncorrectAddressLength> {
+    pub fn from_proto(proto: v1alpha1::NonceResponse) -> Self {
         let v1alpha1::NonceResponse {
-            account,
             height,
             nonce,
         } = proto;
-        Ok(Self {
-            account: Address::try_from_slice(&account)?,
+        Self {
             height,
             nonce,
-        })
+        }
     }
 
     /// Converts an astria native [`NonceResponse`] to a
@@ -245,22 +220,20 @@ mod tests {
     #[test]
     fn balance_roundtrip_is_correct() {
         let expected = BalanceResponse {
-            account: Address([42; 20]),
             height: 42,
             balance: 42,
         };
-        let actual = expected.into_proto().into_native().unwrap();
+        let actual = expected.into_proto().into_native();
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn nonce_roundtrip_is_correct() {
         let expected = NonceResponse {
-            account: Address([42; 20]),
             height: 42,
             nonce: 42,
         };
-        let actual = expected.into_proto().into_native().unwrap();
+        let actual = expected.into_proto().into_native();
         assert_eq!(expected, actual);
     }
 

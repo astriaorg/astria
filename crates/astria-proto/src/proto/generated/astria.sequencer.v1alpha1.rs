@@ -3,8 +3,6 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BalanceResponse {
-    #[prost(bytes="vec", tag="1")]
-    pub account: ::prost::alloc::vec::Vec<u8>,
     #[prost(uint64, tag="2")]
     pub height: u64,
     #[prost(message, optional, tag="3")]
@@ -14,8 +12,6 @@ pub struct BalanceResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct NonceResponse {
-    #[prost(bytes="vec", tag="1")]
-    pub account: ::prost::alloc::vec::Vec<u8>,
     #[prost(uint64, tag="2")]
     pub height: u64,
     #[prost(uint32, tag="3")]
