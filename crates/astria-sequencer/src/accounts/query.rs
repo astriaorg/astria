@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use astria_proto::native::sequencer::Address;
+use astria_proto::native::sequencer::v1alpha1::Address;
 use penumbra_storage::{
     Snapshot,
     Storage,
@@ -24,7 +24,7 @@ pub(crate) async fn balance_request(
     params: Vec<(String, String)>,
 ) -> response::Query {
     use astria_proto::{
-        native::sequencer::BalanceResponse,
+        native::sequencer::v1alpha1::BalanceResponse,
         Message as _,
     };
     let (address, snapshot, height) = match preprocess_request(&storage, &request, &params).await {
@@ -65,7 +65,7 @@ pub(crate) async fn nonce_request(
     params: Vec<(String, String)>,
 ) -> response::Query {
     use astria_proto::{
-        native::sequencer::NonceResponse,
+        native::sequencer::v1alpha1::NonceResponse,
         Message as _,
     };
     let (address, snapshot, height) = match preprocess_request(&storage, &request, &params).await {

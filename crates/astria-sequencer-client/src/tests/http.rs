@@ -1,6 +1,6 @@
 use ed25519_consensus::SigningKey;
 use hex_literal::hex;
-use proto::native::sequencer::Address;
+use proto::native::sequencer::v1alpha1::Address;
 use sequencer::{
     accounts::{
         types::{

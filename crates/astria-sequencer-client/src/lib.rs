@@ -21,7 +21,7 @@
 //! ```
 
 use async_trait::async_trait;
-pub use proto::native::sequencer::{
+pub use proto::native::sequencer::v1alpha1::{
     Address,
     BalanceResponse,
     NonceResponse,

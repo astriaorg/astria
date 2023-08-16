@@ -1,5 +1,5 @@
 use anyhow::Result;
-use astria_proto::native::sequencer::Address;
+use astria_proto::native::sequencer::v1alpha1::Address;
 use async_trait::async_trait;
 use penumbra_storage::{
     StateRead,

@@ -220,7 +220,7 @@ impl App {
 
 #[cfg(test)]
 mod test {
-    use astria_proto::native::sequencer::{
+    use astria_proto::native::sequencer::v1alpha1::{
         Address,
         ADDRESS_LEN,
     };

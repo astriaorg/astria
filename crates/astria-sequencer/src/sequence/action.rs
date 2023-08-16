@@ -5,7 +5,7 @@ use anyhow::{
 };
 use astria_proto::{
     generated::sequencer::v1alpha1::SequenceAction as ProtoSequenceAction,
-    native::sequencer::Address,
+    native::sequencer::v1alpha1::Address,
 };
 use serde::{
     Deserialize,

@@ -264,7 +264,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use astria_proto::native::sequencer::Address;
+    use astria_proto::native::sequencer::v1alpha1::Address;
     use penumbra_storage::StateDelta;
     use tendermint::abci::{
         request,

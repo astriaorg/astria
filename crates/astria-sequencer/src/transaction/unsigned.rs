@@ -5,7 +5,7 @@ use anyhow::{
 };
 use astria_proto::{
     generated::sequencer::v1alpha1::UnsignedTransaction as ProtoUnsignedTransaction,
-    native::sequencer::Address,
+    native::sequencer::v1alpha1::Address,
 };
 use ed25519_consensus::SigningKey;
 use prost::Message as _;
@@ -179,7 +179,7 @@ mod test {
         Context as _,
         Result,
     };
-    use astria_proto::native::sequencer::{
+    use astria_proto::native::sequencer::v1alpha1::{
         Address,
         ADDRESS_LEN,
     };

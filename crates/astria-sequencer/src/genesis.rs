@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::Context;
-use astria_proto::native::sequencer::Address;
+use astria_proto::native::sequencer::v1alpha1::Address;
 use serde::{
     Deserialize,
     Deserializer,

@@ -5,7 +5,7 @@ use anyhow::{
 };
 use astria_proto::{
     generated::sequencer::v1alpha1::TransferAction as ProtoTransferAction,
-    native::sequencer::Address,
+    native::sequencer::v1alpha1::Address,
 };
 use tracing::instrument;
 
