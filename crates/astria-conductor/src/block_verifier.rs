@@ -1,13 +1,11 @@
 use std::collections::HashMap;
 
-use astria_sequencer_relayer::{
-    data_availability::{
-        RollupNamespaceData,
-        SequencerNamespaceData,
-        SignedNamespaceData,
-    },
-    types::SequencerBlockData,
+use astria_sequencer_relayer::data_availability::{
+    RollupNamespaceData,
+    SequencerNamespaceData,
+    SignedNamespaceData,
 };
+use astria_sequencer_types::SequencerBlockData;
 use color_eyre::eyre::{
     self,
     bail,
@@ -136,17 +134,13 @@ impl BlockVerifier {
         block: &SequencerBlockData,
     ) -> eyre::Result<()> {
         self.validate_sequencer_block_header_and_last_commit(
-            &block.block_hash,
-            &block.header,
-            &block.last_commit,
+            block.block_hash(),
+            block.header(),
+            block.last_commit(),
         )
         .await?;
 
-        // finally, validate that the transactions in the block result in the correct data_hash
-        block
-            .verify_data_hash()
-            .wrap_err("failed to verify block data_hash")?;
-
+        // TODO: validate that the transactions in the block result in the correct data_hash (#153)
         Ok(())
     }
 

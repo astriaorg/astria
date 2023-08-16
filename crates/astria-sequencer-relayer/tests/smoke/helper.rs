@@ -6,10 +6,10 @@ use std::{
 use astria_sequencer_relayer::{
     config::Config,
     telemetry,
-    types::SequencerBlockData,
     validator::Validator,
     SequencerRelayer,
 };
+use astria_sequencer_types::SequencerBlockData;
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
 use serde_json::json;
