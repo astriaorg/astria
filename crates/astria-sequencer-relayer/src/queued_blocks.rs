@@ -78,3 +78,113 @@ impl QueuedBlocks {
         !self.finalized.is_empty()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use tendermint::{
+        block::{
+            parts::Header as IdHeader,
+            Id,
+        },
+        Hash,
+    };
+
+    use super::QueuedBlocks;
+    use crate::types::SequencerBlockData;
+
+    fn make_parent_and_child_blocks(
+        parent_block_hash: [u8; 32],
+        child_block_hash: [u8; 32],
+    ) -> [SequencerBlockData; 2] {
+        let mut parent_block = SequencerBlockData::default();
+        parent_block.block_hash = parent_block_hash.to_vec();
+
+        let mut child_block = SequencerBlockData::default();
+        child_block.block_hash = child_block_hash.to_vec();
+        let parent_id = Id {
+            hash: Hash::try_from(parent_block.block_hash.clone()).unwrap(),
+            part_set_header: IdHeader::default(),
+        };
+        child_block.header.last_block_id = Some(parent_id);
+
+        [parent_block, child_block]
+    }
+
+    #[test]
+    fn test_finalization_parent_block_is_genesis_and_queued_before_child() {
+        let [parent_block, child_block] = make_parent_and_child_blocks([0u8; 32], [1u8; 32]);
+
+        let mut queue = QueuedBlocks::default();
+
+        queue.enqueue(parent_block.clone());
+        assert!(!queue.has_finalized());
+
+        queue.enqueue(child_block);
+        assert!(queue.has_finalized());
+
+        let finalized_blocks = queue.drain_finalized();
+        assert_eq!(finalized_blocks, vec!(parent_block))
+    }
+
+    #[test]
+    fn test_finalization_parent_block_is_genesis_and_queued_after_child() {
+        let [parent_block, child_block] = make_parent_and_child_blocks([0u8; 32], [1u8; 32]);
+
+        let mut queue = QueuedBlocks::default();
+
+        queue.enqueue(child_block);
+        assert!(!queue.has_finalized());
+
+        queue.enqueue(parent_block.clone());
+        assert!(queue.has_finalized());
+
+        let finalized_blocks = queue.drain_finalized();
+        assert_eq!(finalized_blocks, vec!(parent_block))
+    }
+
+    #[test]
+    fn test_finalization_grand_parent_block_queued_before_parent() {
+        let [grandparent_block, parent_block] = make_parent_and_child_blocks([0u8; 32], [1u8; 32]);
+
+        let [_, child_block] = make_parent_and_child_blocks([1u8; 32], [2u8; 32]);
+
+        let mut queue = QueuedBlocks::default();
+
+        queue.enqueue(grandparent_block.clone());
+        assert!(!queue.has_finalized());
+
+        queue.enqueue(parent_block.clone());
+        assert!(queue.has_finalized());
+
+        queue.enqueue(child_block);
+        assert!(queue.has_finalized());
+
+        let finalized_blocks = queue.drain_finalized();
+        assert_eq!(finalized_blocks.len(), 2);
+        assert!(finalized_blocks.contains(&grandparent_block));
+        assert!(finalized_blocks.contains(&parent_block));
+    }
+
+    #[test]
+    fn test_finalization_grand_parent_block_queued_after_child() {
+        let [grandparent_block, parent_block] = make_parent_and_child_blocks([0u8; 32], [1u8; 32]);
+
+        let [_, child_block] = make_parent_and_child_blocks([1u8; 32], [2u8; 32]);
+
+        let mut queue = QueuedBlocks::default();
+
+        queue.enqueue(child_block);
+        assert!(!queue.has_finalized());
+
+        queue.enqueue(grandparent_block.clone());
+        assert!(!queue.has_finalized());
+
+        queue.enqueue(parent_block.clone());
+        assert!(queue.has_finalized());
+
+        let finalized_blocks = queue.drain_finalized();
+        assert_eq!(finalized_blocks.len(), 2);
+        assert!(finalized_blocks.contains(&grandparent_block));
+        assert!(finalized_blocks.contains(&parent_block));
+    }
+}
