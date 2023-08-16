@@ -13,7 +13,7 @@
 //! from the requirement to make registering function handlers ergonomic:
 //!
 //! 1. Ideally, a new path can be registered with `router.insert("/some/path", some_handler)`.
-//! 2. Because the handlers are async functions, their types are anonymous as async fn -> T`
+//! 2. Because the handlers are async functions, their types are anonymous as `async fn -> T`
 //!    desugars to something like `fn -> impl Future<Output T>`.
 //! 3. This means that either the function signature of all handlers have to be changed from `async
 //!    fn -> T` to `fn -> Box<dyn Future<Output T>>`, or the functions themselves have to be boxed.
@@ -75,10 +75,8 @@ impl Router {
         route: impl Into<String>,
         handler: impl AbciQueryHandler,
     ) -> Result<(), InsertError> {
-        self.query_router.insert(
-            route,
-            BoxedAbciQueryHandler::from_handler(crate::accounts::query::balance_request),
-        )
+        self.query_router
+            .insert(route, BoxedAbciQueryHandler::from_handler(handler))
     }
 }
 
