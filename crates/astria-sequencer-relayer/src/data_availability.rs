@@ -12,19 +12,17 @@ use astria_celestia_jsonrpc_client::{
     Client,
     ErrorKind,
 };
-use astria_sequencer::proposal::{
-    commitment::generate_action_tree_leaves,
-    proof::{
-        InclusionProof,
-        MerkleTree,
-    },
-};
 use astria_sequencer_types::{
     serde::Base64Standard,
     Namespace,
     RollupData,
     SequencerBlockData,
     DEFAULT_NAMESPACE,
+};
+use astria_sequencer_validation::{
+    generate_action_tree_leaves,
+    InclusionProof,
+    MerkleTree,
 };
 use ed25519_consensus::{
     Signature,

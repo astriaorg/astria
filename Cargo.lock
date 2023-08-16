@@ -465,11 +465,11 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "astria-proto",
+ "astria-sequencer-validation",
  "async-trait",
  "borsh",
  "bytes",
  "clap",
- "ct-merkle",
  "digest 0.10.7",
  "ed25519-consensus",
  "futures",
@@ -519,6 +519,7 @@ dependencies = [
  "astria-proto",
  "astria-sequencer",
  "astria-sequencer-types",
+ "astria-sequencer-validation",
  "axum",
  "backon",
  "base64 0.21.0",
@@ -581,6 +582,20 @@ dependencies = [
  "eyre",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "astria-sequencer-validation"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ct-merkle",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.6",
+ "tendermint",
 ]
 
 [[package]]

@@ -5,9 +5,9 @@ edition = "2021"
 
 [dependencies]
 astria-proto = { path = "../astria-proto" }
+astria-sequencer-validation = { path = "../astria-sequencer-validation" }
 
 anyhow = "1"
-ct-merkle = "0.1"
 digest = "0.10"
 penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.56.0" }
 penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.56.0" }
