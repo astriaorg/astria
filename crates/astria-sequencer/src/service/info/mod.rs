@@ -36,6 +36,8 @@ use tracing::{
     Instrument,
 };
 
+mod abci_query_router;
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct AbciCode(u32);
 impl AbciCode {
@@ -69,22 +71,22 @@ impl From<AbciCode> for Code {
 #[derive(Clone)]
 pub(crate) struct Info {
     storage: Storage,
-    query_router: matchit::Router<BoxedAbciQueryHandler>,
+    query_router: abci_query_router::Router,
 }
 
 impl Info {
     pub(crate) fn new(storage: Storage) -> anyhow::Result<Self> {
-        let mut query_router = matchit::Router::new();
+        let mut query_router = abci_query_router::Router::new();
         query_router
             .insert(
                 "accounts/balance/:account",
-                BoxedAbciQueryHandler::from_handler(crate::accounts::query::balance_request),
+                crate::accounts::query::balance_request,
             )
             .context("invalid path: `accounts/balance/:account`")?;
         query_router
             .insert(
                 "accounts/nonce/:account",
-                BoxedAbciQueryHandler::from_handler(crate::accounts::query::nonce_request),
+                crate::accounts::query::nonce_request,
             )
             .context("invalid path: `accounts/nonce/:account`")?;
         Ok(Self {
@@ -163,102 +165,6 @@ impl Service<InfoRequest> for Info {
             .handle_info_request(req)
             .instrument(span)
             .boxed()
-    }
-}
-
-struct BoxedAbciQueryHandler(Box<dyn ErasedAbciQueryHandler>);
-
-impl BoxedAbciQueryHandler {
-    fn from_handler<H>(handler: H) -> Self
-    where
-        H: AbciQueryHandler,
-    {
-        Self(Box::new(MakeErasedAbciQueryHandler {
-            handler,
-        }))
-    }
-
-    async fn call(
-        self,
-        storage: Storage,
-        request: request::Query,
-        params: Vec<(String, String)>,
-    ) -> response::Query {
-        self.0.call(storage, request, params).await
-    }
-}
-
-impl Clone for BoxedAbciQueryHandler {
-    fn clone(&self) -> Self {
-        Self(self.0.clone_box())
-    }
-}
-
-trait ErasedAbciQueryHandler: Send {
-    fn clone_box(&self) -> Box<dyn ErasedAbciQueryHandler>;
-
-    fn call(
-        self: Box<Self>,
-        storage: Storage,
-        request: request::Query,
-        params: Vec<(String, String)>,
-    ) -> Pin<Box<dyn Future<Output = response::Query> + Send>>;
-}
-
-struct MakeErasedAbciQueryHandler<H> {
-    handler: H,
-}
-
-impl<H> Clone for MakeErasedAbciQueryHandler<H>
-where
-    H: Clone,
-{
-    fn clone(&self) -> Self {
-        Self {
-            handler: self.handler.clone(),
-        }
-    }
-}
-
-impl<H> ErasedAbciQueryHandler for MakeErasedAbciQueryHandler<H>
-where
-    H: AbciQueryHandler + Clone + Send + 'static,
-{
-    fn clone_box(&self) -> Box<dyn ErasedAbciQueryHandler> {
-        Box::new(self.clone())
-    }
-
-    fn call(
-        self: Box<Self>,
-        storage: Storage,
-        request: request::Query,
-        params: Vec<(String, String)>,
-    ) -> Pin<Box<dyn Future<Output = response::Query> + Send>> {
-        self.handler.call(storage, request, params)
-    }
-}
-
-trait AbciQueryHandler: Clone + Send + Sized + 'static {
-    fn call(
-        self,
-        storage: Storage,
-        request: request::Query,
-        params: Vec<(String, String)>,
-    ) -> Pin<Box<dyn Future<Output = response::Query> + Send>>;
-}
-
-impl<F, Fut> AbciQueryHandler for F
-where
-    F: FnOnce(Storage, request::Query, Vec<(String, String)>) -> Fut + Clone + Send + 'static,
-    Fut: Future<Output = response::Query> + Send,
-{
-    fn call(
-        self,
-        storage: Storage,
-        request: request::Query,
-        params: Vec<(String, String)>,
-    ) -> Pin<Box<dyn Future<Output = response::Query> + Send>> {
-        Box::pin(async move { self(storage, request, params).await })
     }
 }
 
