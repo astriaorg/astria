@@ -11,6 +11,8 @@ use serde::{
 use sha2::Sha256;
 use tendermint::Hash;
 
+/// A wrapper around [`ct_merkle::CtMerkleTree`], which uses sha256 as the hashing algorithm
+/// and Vec<u8> as the leaf type.
 #[derive(Debug, Default)]
 pub struct MerkleTree(CtMerkleTree<Sha256, Vec<u8>>);
 
