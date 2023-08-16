@@ -134,7 +134,7 @@ impl BlockVerifier {
         block: &SequencerBlockData,
     ) -> eyre::Result<()> {
         self.validate_sequencer_block_header_and_last_commit(
-            block.block_hash(),
+            block.block_hash().as_bytes(),
             block.header(),
             block.last_commit(),
         )

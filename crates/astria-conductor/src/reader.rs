@@ -244,8 +244,15 @@ impl Reader {
                     warn!(error.msg = %e, error.cause_chain = ?e, "failed to validate sequencer block");
                     continue 'get_sequencer_blocks;
                 }
+                let block_hash = match data.data.block_hash.try_into() {
+                    Ok(block_hash) => block_hash,
+                    Err(e) => {
+                        warn!(error.msg = %e, error.cause_chain = ?e, "failed to convert block hash, skipping block");
+                        continue 'get_sequencer_blocks;
+                    }
+                };
                 blocks.push(SequencerBlockSubset {
-                    block_hash: data.data.block_hash,
+                    block_hash,
                     header: data.data.header,
                     rollup_transactions: rollup_data.rollup_txs,
                 });
