@@ -48,7 +48,7 @@ docker installed you can use the following just command:
 
 ```sh
 # Full command:
-# just docker-build CRATE TAG
+just docker-build <CRATE> <TAG=local>
 #
 # Replace CRATE with what the target binary is ie `astria-sequencer`
 # TAG defaults to `local` but can be changed.
@@ -65,6 +65,7 @@ just docker-build astria-sequencer debug
 The entire stack consists of many different binaries. It's recommended to use the
 setup located in
 [astriaorg/dev-cluster](https://github.com/astriaorg/dev-cluster).
+
 ## Testing
 
 To run unit tests:
@@ -79,25 +80,46 @@ that nothing changed). In order for its tests to run you also need
 
 ## Formatting
 
-This project uses rustfmt to format rust sources, and
-[taplo](https://github.com/tamasfe/taplo) to format toml files. To install and
-run rustfmt:
+This project uses [rustfmt](https://github.com/rust-lang/rustfmt) to format rust
+sources, [taplo](https://github.com/tamasfe/taplo) to format toml files, and
+[markdownlint-cli2](https://github.com/DavidAnson/markdownlint-cli2) for
+markdown.
+
+### Rust
 
 ```sh
+# Install rustfmt
 rustup +nightly-2023-07-07 component add rustfmt
+# Run rustfmt
 cargo +nightly-2023-07-07 fmt --all
 ```
 
-Download taplo from their release page or use your system's package manager:
+### Toml
 
 ```sh
-# macOS
+# Install for macOS
 $ brew install taplo
-# Arch Linux
+# Install for Arch Linux
 $ sudo pacman -S taplo
+
 # Run
 $ taplo format
-````
+```
+
+### Markdown
+
+```sh
+# Install for macOS w/ homebrew
+brew install markdownlint-cli2
+# Install globally as node package
+npm install markdownlint-cli2 --global
+
+# Run
+markdownlint-cli2 **/*.md
+
+# Run with docker
+docker run -v $PWD:/workdir davidanson/markdownlint-cli2:v0.8.1 "**/*.md"
+```
 
 ## Contributing
 
