@@ -22,6 +22,7 @@ use astria_sequencer::proposal::{
 use astria_sequencer_types::{
     serde::Base64Standard,
     Namespace,
+    RollupData,
     SequencerBlockData,
     DEFAULT_NAMESPACE,
 };
@@ -157,6 +158,7 @@ impl NamespaceData for SequencerNamespaceData {}
 pub struct RollupNamespaceData {
     #[serde(with = "Base64Standard")]
     pub(crate) block_hash: Vec<u8>,
+    pub(crate) chain_id: Vec<u8>,
     pub rollup_txs: Vec<Vec<u8>>,
     pub(crate) inclusion_proof: InclusionProof,
 }
@@ -295,7 +297,7 @@ impl CelestiaClient {
         // + one sequencer namespaced data blob per block.
         let num_expected_blobs = blocks
             .iter()
-            .map(|block| block.rollup_txs().len() + 1)
+            .map(|block| block.rollup_data().len() + 1)
             .sum();
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
         for block in blocks {
@@ -463,7 +465,15 @@ impl CelestiaClient {
         // finally, extract the rollup txs from the rollup datas
         let rollup_txs = rollup_datas
             .into_iter()
-            .map(|(namespace, rollup_datas)| (namespace, rollup_datas.data.rollup_txs))
+            .map(|(namespace, rollup_datas)| {
+                (
+                    namespace,
+                    RollupData {
+                        chain_id: rollup_datas.data.chain_id,
+                        transactions: rollup_datas.data.rollup_txs,
+                    },
+                )
+            })
             .collect();
         Ok(Some(
             SequencerBlockData::new(
@@ -535,12 +545,12 @@ fn filter_and_convert_rollup_data_blobs(
     rollup_datas
 }
 
-fn btree_from_hashmap(
-    mut map: HashMap<Namespace, Vec<Vec<u8>>>,
-) -> BTreeMap<[u8; 10], Vec<Vec<u8>>> {
+fn btree_from_rollup_data(
+    rollup_data: HashMap<Namespace, RollupData>,
+) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
     let mut btree = BTreeMap::new();
-    for (namespace, txs) in map.drain() {
-        btree.insert(*namespace, txs);
+    for (_, data) in rollup_data {
+        btree.insert(data.chain_id, data.transactions);
     }
     btree
 }
@@ -549,16 +559,16 @@ fn assemble_blobs_from_sequencer_block_data(
     block_data: SequencerBlockData,
     signing_key: &SigningKey,
 ) -> eyre::Result<Vec<blob::Blob>> {
-    let mut blobs = Vec::with_capacity(block_data.rollup_txs().len() + 1);
-    let mut namespaces = Vec::with_capacity(block_data.rollup_txs().len() + 1);
+    let mut blobs = Vec::with_capacity(block_data.rollup_data().len() + 1);
+    let mut namespaces = Vec::with_capacity(block_data.rollup_data().len() + 1);
 
-    let (block_hash, header, last_commit, rollup_txs) = block_data.into_values();
+    let (block_hash, header, last_commit, rollup_data) = block_data.into_values();
 
-    let rollup_txs = btree_from_hashmap(rollup_txs);
-    let action_tree_leaves = generate_action_tree_leaves(&rollup_txs);
+    let chain_id_to_txs = btree_from_rollup_data(rollup_data);
+    let action_tree_leaves = generate_action_tree_leaves(&chain_id_to_txs);
     let action_tree = MerkleTree::from_leaves(action_tree_leaves);
 
-    for (i, (namespace_id, txs)) in rollup_txs.into_iter().enumerate() {
+    for (i, (chain_id, transactions)) in chain_id_to_txs.into_iter().enumerate() {
         let inclusion_proof = action_tree
             .prove_inclusion(i)
             .map_err(|e| eyre::eyre!(e))
@@ -566,19 +576,23 @@ fn assemble_blobs_from_sequencer_block_data(
 
         let rollup_namespace_data = RollupNamespaceData {
             block_hash: block_hash.clone(),
-            rollup_txs: txs,
+            chain_id: chain_id.clone(),
+            rollup_txs: transactions,
             inclusion_proof,
         };
-        let data = rollup_namespace_data
+
+        let blob_data = rollup_namespace_data
             .to_signed(signing_key)
             .wrap_err("failed signing rollup namespace data")?
             .to_bytes()
             .wrap_err("failed converting signed rollupdata namespace data to bytes")?;
+
+        let namespace = Namespace::from_slice(&chain_id);
         blobs.push(blob::Blob {
-            namespace_id,
-            data,
+            namespace_id: *namespace,
+            data: blob_data,
         });
-        namespaces.push(Namespace::new(namespace_id));
+        namespaces.push(namespace);
     }
 
     let sequencer_namespace_data = SequencerNamespaceData {

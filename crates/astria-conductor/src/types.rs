@@ -20,11 +20,11 @@ impl SequencerBlockSubset {
         namespace: Namespace,
     ) -> Self {
         let (block_hash, header, _, mut rollup_txs) = data.into_values();
-        let rollup_transactions = rollup_txs.remove(&namespace).unwrap_or_default();
+        let rollup_data = rollup_txs.remove(&namespace).unwrap_or_default();
         Self {
             block_hash,
             header,
-            rollup_transactions,
+            rollup_transactions: rollup_data.transactions,
         }
     }
 }
