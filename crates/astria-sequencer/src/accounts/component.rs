@@ -27,7 +27,7 @@ impl Component for AccountsComponent {
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         for account in &app_state.accounts {
             state
-                .put_account_balance(&account.address, account.balance)
+                .put_account_balance(account.address, account.balance)
                 .context("failed writing account balance to state")?;
         }
         Ok(())

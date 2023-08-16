@@ -2,11 +2,13 @@ use anyhow::{
     Context,
     Result,
 };
+use astria_proto::native::sequencer::v1alpha1::Address;
 use async_trait::async_trait;
 use borsh::{
     BorshDeserialize as _,
     BorshSerialize as _,
 };
+use hex::ToHex as _;
 use penumbra_storage::{
     StateRead,
     StateWrite,
@@ -17,7 +19,6 @@ use tracing::{
 };
 
 use crate::accounts::types::{
-    Address,
     Balance,
     Nonce,
 };
@@ -28,18 +29,18 @@ fn storage_key(address: &str) -> String {
     format!("{ACCOUNTS_PREFIX}/{address}")
 }
 
-pub(crate) fn balance_storage_key(address: &Address) -> String {
-    format!("{}/balance", storage_key(&address.to_string()))
+pub(crate) fn balance_storage_key(address: Address) -> String {
+    format!("{}/balance", storage_key(&address.encode_hex::<String>()))
 }
 
-pub(crate) fn nonce_storage_key(address: &Address) -> String {
-    format!("{}/nonce", storage_key(&address.to_string()))
+pub(crate) fn nonce_storage_key(address: Address) -> String {
+    format!("{}/nonce", storage_key(&address.encode_hex::<String>()))
 }
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
-    async fn get_account_balance(&self, address: &Address) -> Result<Balance> {
+    async fn get_account_balance(&self, address: Address) -> Result<Balance> {
         let Some(bytes) = self
             .get_raw(&balance_storage_key(address))
             .await
@@ -53,7 +54,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip(self))]
-    async fn get_account_nonce(&self, address: &Address) -> Result<Nonce> {
+    async fn get_account_nonce(&self, address: Address) -> Result<Nonce> {
         let bytes = self
             .get_raw(&nonce_storage_key(address))
             .await
@@ -73,7 +74,7 @@ impl<T: StateRead> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
-    fn put_account_balance(&mut self, address: &Address, balance: Balance) -> Result<()> {
+    fn put_account_balance(&mut self, address: Address, balance: Balance) -> Result<()> {
         let bytes = balance
             .try_to_vec()
             .context("failed to serialize balance")?;
@@ -82,7 +83,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip(self))]
-    fn put_account_nonce(&mut self, address: &Address, nonce: Nonce) -> Result<()> {
+    fn put_account_nonce(&mut self, address: Address, nonce: Nonce) -> Result<()> {
         let bytes = nonce.try_to_vec().context("failed to serialize nonce")?;
         self.put_raw(nonce_storage_key(address), bytes);
         Ok(())

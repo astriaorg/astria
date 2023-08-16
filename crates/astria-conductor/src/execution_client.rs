@@ -1,4 +1,4 @@
-use astria_proto::execution::v1alpha1::{
+use astria_proto::generated::execution::v1alpha1::{
     execution_service_client::ExecutionServiceClient,
     DoBlockRequest,
     DoBlockResponse,

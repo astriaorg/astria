@@ -41,10 +41,11 @@ path = "../astria-sequencer-client"
 features = ["http"]
 
 [dev-dependencies]
+proto = { package = "astria-proto", path = "../astria-proto" }
+
 impl-serde = "0.4.0"
 tokio-test = "0.4.2"
 
-borsh = { workspace = true }
 figment = { workspace = true, features = ["test"] }
 jsonrpsee = { workspace = true, features = ["macros", "server"] }
 once_cell = { workspace = true }
