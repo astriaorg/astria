@@ -17,8 +17,9 @@ pub(crate) mod execution_client;
 pub(crate) mod executor;
 pub mod network;
 pub mod reader;
-pub mod telemetry;
 pub(crate) mod types;
+
+pub use telemetry;
 
 mod private {
     #[allow(unreachable_pub)]
