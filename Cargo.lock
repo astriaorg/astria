@@ -402,6 +402,7 @@ dependencies = [
  "astria-proto",
  "astria-sequencer-client",
  "astria-sequencer-relayer",
+ "astria-sequencer-types",
  "async-trait",
  "base64 0.21.2",
  "clap",
@@ -512,6 +513,7 @@ dependencies = [
  "astria-gossipnet",
  "astria-proto",
  "astria-sequencer",
+ "astria-sequencer-types",
  "axum",
  "backon",
  "base64 0.21.2",
@@ -546,6 +548,24 @@ dependencies = [
  "tracing-subscriber",
  "wiremock",
  "zeroize",
+]
+
+[[package]]
+name = "astria-sequencer-types"
+version = "0.1.0"
+dependencies = [
+ "astria-celestia-jsonrpc-client",
+ "astria-sequencer",
+ "base64 0.21.2",
+ "base64-serde",
+ "eyre",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.7",
+ "tendermint",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]

@@ -1,12 +1,7 @@
 use std::sync::Arc;
 
-use astria_sequencer_relayer::{
-    data_availability::CelestiaClient,
-    types::{
-        get_namespace,
-        Namespace,
-    },
-};
+use astria_sequencer_relayer::data_availability::CelestiaClient;
+use astria_sequencer_types::Namespace;
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -53,7 +48,7 @@ pub(crate) async fn spawn(
         &conf.celestia_bearer_token,
         executor_tx,
         block_verifier,
-        get_namespace(conf.chain_id.as_bytes()),
+        Namespace::from_slice(conf.chain_id.as_bytes()),
     )
     .await
     .wrap_err("failed to create Reader")?;
@@ -252,11 +247,7 @@ impl Reader {
                 blocks.push(SequencerBlockSubset {
                     block_hash: data.data.block_hash,
                     header: data.data.header,
-                    rollup_transactions: rollup_data
-                        .rollup_txs
-                        .into_iter()
-                        .map(|tx| tx.transaction)
-                        .collect(),
+                    rollup_transactions: rollup_data.rollup_txs,
                 });
             }
         }
