@@ -1,15 +1,26 @@
-<!--- Provide a general summary of your changes in the Title above -->
+<!--- Provide a descriptive title above -->
+## Summary
+<!--- Provide a brief summary of the changes made, ie "What?" -->
 
-## Changelist
-<!-- Bulleted list of changes made -->
+
+## Background
+<!-- Brief background on why these changes were made, ie "Why?" -->
+
+
+## Changes
+<!-- List of high level changes made, ie "How?"  -->
 - 
+
+## Testing
+<!-- How has this change been tested -->
+
 
 ## Breaking Changelist
 <!-- Delete section if none, bulleted list of breaking changes -->
 - 
 
-## Issue number/link
-<!-- Link to related issues -->
+## Related Issues
+<!-- Related issues w/context on how related -->
 
-## Test plan
-<!-- How will this be tested -->
+<!-- Links to any issue that is closed by this  pr  of form closes #X, closes #Y, closes org/repo#Z-->
+closes
