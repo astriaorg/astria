@@ -36,7 +36,11 @@ impl From<ParseError> for Error {
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("failed to initialize telemetry")
+        let msg = match self {
+            Error::FilterDirectives(_) => "could not parse provided filter directives",
+            Error::SubscriberInit(_) => "could not install global tracing subscriber",
+        };
+        f.write_str(msg)
     }
 }
 
