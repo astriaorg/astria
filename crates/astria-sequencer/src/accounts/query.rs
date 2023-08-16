@@ -45,7 +45,6 @@ pub(crate) async fn balance_request(
         }
     };
     let payload = BalanceResponse {
-        account: address,
         height: height.value(),
         balance: balance.0,
     }
@@ -87,7 +86,6 @@ pub(crate) async fn nonce_request(
         }
     };
     let payload = NonceResponse {
-        account: address,
         height: height.value(),
         nonce: nonce.0,
     }

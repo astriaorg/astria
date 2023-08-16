@@ -70,7 +70,6 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.inner {
             ErrorKind::AbciQueryDeserialization(e) => Some(e),
-            ErrorKind::ProtobufConversion(e) => Some(e),
             ErrorKind::TendermintRpc(e) => Some(e),
         }
     }
@@ -91,16 +90,6 @@ impl Error {
     ) -> Self {
         Self {
             inner: ErrorKind::abci_query_deserialization(target, response, inner),
-        }
-    }
-
-    fn protobuf_conversion_error<T, E>(target: &'static str, raw_response: T, inner: E) -> Self
-    where
-        T: std::fmt::Debug + Send + Sync + 'static,
-        E: std::error::Error + Send + Sync + 'static,
-    {
-        Self {
-            inner: ErrorKind::protobuf_conversion_error(target, raw_response, inner),
         }
     }
 
@@ -146,43 +135,6 @@ impl std::error::Error for AbciQueryDeserializationError {
     }
 }
 
-#[derive(Debug)]
-pub struct ProtobufConversionError {
-    inner: Box<dyn std::error::Error + Send + Sync + 'static>,
-    raw_response: Box<dyn std::fmt::Debug + Send + Sync + 'static>,
-    target: &'static str,
-}
-
-impl ProtobufConversionError {
-    #[must_use]
-    pub fn inner(&self) -> &(dyn std::error::Error + Send + Sync + 'static) {
-        &*self.inner
-    }
-
-    #[must_use]
-    pub fn raw_response(&self) -> &(dyn std::fmt::Debug + Send + Sync + 'static) {
-        &*self.raw_response
-    }
-
-    /// Returns the expected target type of the failed conversion.
-    #[must_use]
-    pub fn target(&self) -> &'static str {
-        self.target
-    }
-}
-
-impl std::fmt::Display for ProtobufConversionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("failed converting protobuf type to native astria type")
-    }
-}
-
-impl std::error::Error for ProtobufConversionError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.inner.source()
-    }
-}
-
 /// Error if the rpc call using the underlying [`tendermint-rpc::client::Client`] failed.
 #[derive(Debug)]
 pub struct TendermintRpcError {
@@ -222,7 +174,6 @@ impl std::error::Error for TendermintRpcError {
 #[derive(Debug)]
 pub enum ErrorKind {
     AbciQueryDeserialization(AbciQueryDeserializationError),
-    ProtobufConversion(ProtobufConversionError),
     TendermintRpc(TendermintRpcError),
 }
 
@@ -237,18 +188,6 @@ impl ErrorKind {
             inner,
             response: Box::new(response),
             target,
-        })
-    }
-
-    fn protobuf_conversion_error<T, E>(target: &'static str, raw_response: T, inner: E) -> Self
-    where
-        T: std::fmt::Debug + Send + Sync + 'static,
-        E: std::error::Error + Send + Sync + 'static,
-    {
-        Self::ProtobufConversion(ProtobufConversionError {
-            target,
-            raw_response: Box::new(raw_response),
-            inner: Box::new(inner),
         })
     }
 
@@ -295,9 +234,7 @@ pub trait SequencerClientExt: Client {
                         e,
                     )
                 })?;
-        proto_response
-            .to_native()
-            .map_err(|e| Error::protobuf_conversion_error("BalanceResponse", proto_response, e))
+        Ok(proto_response.to_native())
     }
 
     /// Returns the current balance of the given account at the latest height.
@@ -347,9 +284,7 @@ pub trait SequencerClientExt: Client {
                         e,
                     )
                 })?;
-        proto_response
-            .to_native()
-            .map_err(|e| Error::protobuf_conversion_error("NonceResponse", proto_response, e))
+        Ok(proto_response.to_native())
     }
 
     /// Returns the current nonce of the given account at the latest height.
