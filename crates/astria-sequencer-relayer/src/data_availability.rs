@@ -33,9 +33,12 @@ use sha2::{
     Digest,
     Sha256,
 };
-use tendermint::block::{
-    Commit,
-    Header,
+use tendermint::{
+    block::{
+        Commit,
+        Header,
+    },
+    Hash,
 };
 use tracing::{
     info,
@@ -133,8 +136,7 @@ where
 /// also written to in the same block.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SequencerNamespaceData {
-    #[serde(with = "Base64Standard")]
-    pub block_hash: Vec<u8>,
+    pub block_hash: Hash,
     pub header: Header,
     pub last_commit: Option<Commit>,
     pub rollup_namespaces: Vec<Namespace>,
@@ -145,8 +147,7 @@ impl NamespaceData for SequencerNamespaceData {}
 /// RollupNamespaceData represents the data written to a rollup namespace.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RollupNamespaceData {
-    #[serde(with = "Base64Standard")]
-    pub(crate) block_hash: Vec<u8>,
+    pub(crate) block_hash: Hash,
     pub rollup_txs: Vec<Vec<u8>>,
 }
 
@@ -380,7 +381,7 @@ impl CelestiaClient {
         // filter out blobs; we should only be left with either zero or one rollup datas
         let rollup_datas = filter_and_convert_rollup_data_blobs(
             rsp.blobs,
-            &namespace_data.data.block_hash,
+            namespace_data.data.block_hash,
             &verification_key,
         );
 
@@ -445,7 +446,7 @@ impl CelestiaClient {
 
         let rollup_datas = filter_and_convert_rollup_data_blobs(
             rsp.blobs,
-            &namespace_data.data.block_hash,
+            namespace_data.data.block_hash,
             &verification_key,
         );
 
@@ -456,12 +457,7 @@ impl CelestiaClient {
             .collect();
         Ok(Some(
             SequencerBlockData::new(
-                namespace_data
-                    .data
-                    .block_hash
-                    .clone()
-                    .try_into()
-                    .wrap_err("failed to convert namespace data block hash to tendermint Hash")?,
+                namespace_data.data.block_hash,
                 namespace_data.data.header.clone(),
                 namespace_data.data.last_commit.clone(),
                 rollup_txs,
@@ -477,7 +473,7 @@ impl CelestiaClient {
 /// with the provided verification key.
 fn filter_and_convert_rollup_data_blobs(
     blobs: Vec<blob::Blob>,
-    block_hash: &[u8],
+    block_hash: Hash,
     verification_key: &VerificationKey,
 ) -> HashMap<Namespace, SignedNamespaceData<RollupNamespaceData>> {
     // get only rollup datas that can be deserialized
@@ -540,7 +536,7 @@ fn assemble_blobs_from_sequencer_block_data(
 
     for (namespace, txs) in rollup_txs {
         let rollup_namespace_data = RollupNamespaceData {
-            block_hash: block_hash.clone().as_bytes().to_vec(),
+            block_hash,
             rollup_txs: txs,
         };
         let data = rollup_namespace_data
@@ -556,7 +552,7 @@ fn assemble_blobs_from_sequencer_block_data(
     }
 
     let sequencer_namespace_data = SequencerNamespaceData {
-        block_hash: block_hash.clone().as_bytes().to_vec(),
+        block_hash,
         header,
         last_commit,
         rollup_namespaces: namespaces,
