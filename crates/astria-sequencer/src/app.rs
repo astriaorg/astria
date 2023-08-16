@@ -394,7 +394,7 @@ mod test {
         let value = Balance::from(333_333);
         let tx = Unsigned {
             nonce: Nonce::from(0),
-            actions: vec![Action::TransferAction(Transfer::new(bob.clone(), value))],
+            actions: vec![Action::TransferAction(Transfer::new(bob, value))],
         };
         let signed_tx = tx.into_signed(&alice_keypair);
         let bytes = signed_tx.to_proto().encode_to_vec();
@@ -434,7 +434,7 @@ mod test {
         let value = Balance::from(0);
         let tx = Unsigned {
             nonce: Nonce::from(0),
-            actions: vec![Action::TransferAction(Transfer::new(bob.clone(), value))],
+            actions: vec![Action::TransferAction(Transfer::new(bob, value))],
         };
         let signed_tx = tx.into_signed(&keypair);
         let bytes = signed_tx.to_proto().encode_to_vec();

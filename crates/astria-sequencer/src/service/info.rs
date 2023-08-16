@@ -289,7 +289,7 @@ mod test {
         state.put_storage_version_by_height(height, version);
 
         let address = Address::try_from_slice(
-            &*hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap(),
+            &hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap(),
         )
         .unwrap();
         state.put_account_balance(address, 1000.into()).unwrap();
