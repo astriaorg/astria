@@ -46,7 +46,6 @@ use crate::{
     },
 };
 mod queue;
-use queue::Queue;
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
 
