@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     net::SocketAddr,
     time::Duration,
 };
@@ -25,7 +26,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 
 pub struct TestComposer {
     pub composer: JoinHandle<()>,
-    pub geth: mock_geth::MockGeth,
+    pub geths: HashMap<String, mock_geth::MockGeth>,
     pub sequencer: wiremock::MockServer,
 }
 
@@ -34,17 +35,28 @@ pub struct TestComposer {
 /// # Panics
 /// There is no explicit error handling in favour of panicking loudly
 /// and early.
-pub async fn spawn_composer() -> TestComposer {
+pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
     Lazy::force(&TELEMETRY);
 
-    let geth = mock_geth::MockGeth::spawn().await;
-    let execution_url = format!("ws://{}", geth.local_addr());
+    assert!(
+        rollup_ids.len() > 0,
+        "must provide at least one rollup ID for tests"
+    );
+
+    let mut geths = HashMap::new();
+    let mut rollups = String::new();
+    for id in rollup_ids {
+        let geth = mock_geth::MockGeth::spawn().await;
+        let execution_url = format!("ws://{}", geth.local_addr());
+        geths.insert(id.to_string(), geth);
+        rollups.push_str(&format!("{id}::{execution_url},"));
+    }
     let sequencer = mock_sequencer::start().await;
     let sequencer_url = sequencer.uri();
     let config = Config {
         log: String::new(),
         api_listen_addr: "127.0.0.1:0".parse().unwrap(),
-        rollups: format!("testtest::{execution_url}"),
+        rollups,
         sequencer_url,
         private_key: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
             .to_string()
@@ -61,7 +73,7 @@ pub async fn spawn_composer() -> TestComposer {
     loop_until_composer_is_ready(composer_addr).await;
     TestComposer {
         composer,
-        geth,
+        geths,
         sequencer,
     }
 }

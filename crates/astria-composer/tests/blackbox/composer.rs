@@ -21,9 +21,11 @@ use crate::helper::spawn_composer;
 
 #[tokio::test]
 async fn pending_eth_tx_is_submitted_to_sequencer() {
-    let test_composer = spawn_composer().await;
+    let test_composer = spawn_composer(&["testtest"]).await;
     let mock_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer).await;
-    test_composer.geth.push_tx(Transaction::default()).unwrap();
+    test_composer.geths["testtest"]
+        .push_tx(Transaction::default())
+        .unwrap();
     tokio::time::timeout(
         Duration::from_millis(100),
         mock_guard.wait_until_satisfied(),
