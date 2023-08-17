@@ -14,19 +14,10 @@ use astria_sequencer::transaction;
 use color_eyre::eyre::{
     self,
     bail,
-    ensure,
     eyre,
     WrapErr as _,
 };
 use ed25519_consensus::SigningKey;
-use ethers::{
-    providers::{
-        Provider,
-        ProviderError,
-        Ws,
-    },
-    types::Transaction,
-};
 use humantime::format_duration;
 use secrecy::{
     ExposeSecret as _,
@@ -39,25 +30,28 @@ use sequencer_client::{
 use tendermint::abci;
 use tokio::{
     select,
-    sync::watch,
+    sync::{
+        mpsc::{
+            self,
+            Receiver,
+        },
+        watch,
+    },
     task::JoinSet,
 };
 use tracing::{
     debug,
-    info,
     instrument,
     warn,
 };
 
 use crate::Config;
 
+mod executor;
 mod rollup;
 
-/// `Searcher` receives transactions from an ethereum rollup, wraps them, and submits them to
 /// the astria seqeuencer.
 pub(super) struct Searcher {
-    // The client for getting new pending transactions from an ethereum rollup.
-    eth_client: EthClient,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
     sequencer_client: SequencerClient,
@@ -65,11 +59,13 @@ pub(super) struct Searcher {
     sequencer_key: SigningKey,
     // Nonce of the sequencer account we sign with
     sequencer_nonce: Arc<AtomicU32>,
-    // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
-    // action belongs to.
-    rollup_chain_id: String,
     // Channel to report the internal status of the searcher to other parts of the system.
     status: watch::Sender<Status>,
+    executors: HashMap<String, executor::Executor>,
+    executor_statuses: HashMap<String, watch::Receiver<executor::Status>>,
+    // A channel on which the searcher receives transactions from its executors.
+    new_transactions: Receiver<executor::Transaction>,
+    executor_tasks: tokio_util::task::JoinMap<String, eyre::Result<()>>,
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
     conversion_tasks: JoinSet<eyre::Result<transaction::Signed>>,
@@ -79,41 +75,13 @@ pub(super) struct Searcher {
 
 #[derive(Debug, Default)]
 pub(crate) struct Status {
-    eth_connected: bool,
+    all_executors_connected: bool,
     sequencer_connected: bool,
 }
 
 impl Status {
     pub(crate) fn is_ready(&self) -> bool {
-        self.eth_connected && self.sequencer_connected
-    }
-}
-
-/// A thin wrapper around [`Provider<Ws>`] to add timeouts.
-///
-/// Currently only provides a timeout around for `get_net_version`.
-/// TODO(https://github.com/astriaorg/astria/issues/216): add timeouts for
-/// `subscribe_full_pendings_txs` (more complex because it's a stream).
-#[derive(Clone)]
-struct EthClient {
-    inner: Provider<Ws>,
-}
-
-impl EthClient {
-    async fn connect(url: &str) -> Result<Self, ProviderError> {
-        let inner = Provider::connect(url).await?;
-        Ok(Self {
-            inner,
-        })
-    }
-
-    /// Wrapper around [`Provider::get_net_version`] with a 1s timeout.
-    async fn get_net_version(&self) -> eyre::Result<String> {
-        use ethers::providers::Middleware as _;
-        tokio::time::timeout(Duration::from_secs(1), self.inner.get_net_version())
-            .await
-            .wrap_err("request timed out")?
-            .wrap_err("RPC returned with error")
+        self.all_executors_connected && self.sequencer_connected
     }
 }
 
@@ -154,24 +122,53 @@ impl Searcher {
     /// + failed to connect to the eth RPC server;
     /// + failed to construct a sequencer clinet
     pub(super) async fn from_config(cfg: &Config) -> eyre::Result<Self> {
+        use executor::Executor;
+        use futures::{
+            future::FutureExt as _,
+            stream::StreamExt as _,
+        };
         use rollup::Rollup;
-        let mut rollups = cfg
+        let rollups = cfg
             .rollups
             .split(',')
             .filter(|s| !s.is_empty())
             .map(|s| Rollup::parse(s).map(Rollup::into_parts))
             .collect::<Result<HashMap<_, _>, _>>()
             .wrap_err("failed parsing provided <chain_id>::<url> pairs as rollups")?;
-        ensure!(
-            rollups.len() == 1,
-            "currently only 1 rollup is supported; got {}",
-            rollups.len(),
-        );
-        // connect to eth node
-        let (rollup_chain_id, execution_url) = rollups.drain().next().unwrap();
-        let eth_client = EthClient::connect(&execution_url)
-            .await
-            .wrap_err("failed connecting to eth")?;
+
+        let (tx_sender, new_transactions) = mpsc::channel(256);
+
+        let mut create_executors = rollups
+            .into_iter()
+            .map(|(chain_id, url)| {
+                let task_name = chain_id.clone();
+                tokio::spawn(Executor::new(chain_id, url, tx_sender.clone()))
+                    .map(move |result| (task_name, result))
+            })
+            .collect::<futures::stream::FuturesUnordered<_>>();
+        // TODO(superfluffy): allow aborting this using `futures::stream::AbortHandle`
+        let mut executors = HashMap::new();
+        while let Some((chain_id, join_result)) = create_executors.next().await {
+            match join_result {
+                Err(err) => {
+                    return Err(err).wrap_err_with(|| {
+                        format!("task starting executor for {chain_id} panicked")
+                    });
+                }
+                Ok(Err(err)) => {
+                    return Err(err)
+                        .wrap_err_with(|| format!("failed starting executor for {chain_id}"));
+                }
+                Ok(Ok(executor)) => {
+                    executors.insert(chain_id, executor);
+                }
+            }
+        }
+
+        let executor_statuses = executors
+            .iter()
+            .map(|(chain_id, executor)| (chain_id.clone(), executor.subscribe()))
+            .collect();
 
         // connect to sequencer node
         let sequencer_client = SequencerClient::new(&cfg.sequencer_url)
@@ -189,12 +186,14 @@ impl Searcher {
         private_key_bytes.zeroize();
 
         Ok(Searcher {
-            eth_client,
             sequencer_client,
             sequencer_key,
             sequencer_nonce: Arc::new(AtomicU32::new(0)),
-            rollup_chain_id,
             status,
+            executors,
+            executor_statuses,
+            new_transactions,
+            executor_tasks: tokio_util::task::JoinMap::new(),
             conversion_tasks: JoinSet::new(),
             submission_tasks: JoinSet::new(),
         })
@@ -205,14 +204,18 @@ impl Searcher {
     }
 
     /// Serializes and signs a sequencer tx from a rollup tx.
-    fn handle_pending_tx(&mut self, rollup_tx: Transaction) {
+    fn handle_pending_tx(&mut self, tx: executor::Transaction) {
         use astria_sequencer::{
             accounts::types::Nonce,
             sequence,
             transaction::action,
         };
 
-        let chain_id = self.rollup_chain_id.clone();
+        let executor::Transaction {
+            chain_id,
+            inner: rollup_tx,
+        } = tx;
+
         let sequencer_key = self.sequencer_key.clone();
         let nonce = self.sequencer_nonce.clone();
 
@@ -255,17 +258,13 @@ impl Searcher {
 
     /// Runs the Searcher
     pub(super) async fn run(mut self) -> eyre::Result<()> {
-        use ethers::providers::{
-            Middleware as _,
-            StreamExt as _,
-        };
-        let wait_for_eth = self.wait_for_eth(5, Duration::from_secs(5), 2.0);
+        self.spawn_executors();
+        let wait_for_executors = self.wait_for_executors();
         let wait_for_seq = self.wait_for_sequencer(5, Duration::from_secs(5), 2.0);
-        match tokio::try_join!(wait_for_eth, wait_for_seq) {
+        match tokio::try_join!(wait_for_executors, wait_for_seq) {
             Ok(((), ())) => {}
             Err(err) => return Err(err).wrap_err("failed to start searcher"),
         }
-
         // set initial sequencer nonce
         let address = Address::from_verification_key(self.sequencer_key.verification_key());
         let nonce_response = self
@@ -277,16 +276,10 @@ impl Searcher {
         self.sequencer_nonce
             .store(nonce_response.nonce, Ordering::Relaxed);
 
-        let eth_client = self.eth_client.inner.clone();
-        let mut tx_stream = eth_client
-            .subscribe_full_pending_txs()
-            .await
-            .wrap_err("failed to subscribe eth client to full pending transactions")?;
-
         loop {
             select!(
                 // serialize and sign sequencer tx for incoming pending rollup txs
-                Some(rollup_tx) = tx_stream.next() => self.handle_pending_tx(rollup_tx),
+                Some(rollup_tx) = self.new_transactions.recv() => self.handle_pending_tx(rollup_tx),
 
                 // submit signed sequencer txs to sequencer
                 Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
@@ -323,51 +316,54 @@ impl Searcher {
         Ok(())
     }
 
-    /// Wait until a connection to eth is established.
-    ///
-    /// This function tries to establish a connection to eth by
-    /// querying its net_version RPC. If it fails, it retries for another `n_retries`
-    /// times with exponential backoff.
-    ///
-    /// # Errors
-    ///
-    /// An error is returned if calling eth failed after `n_retries + 1` times.
-    #[instrument(skip_all, fields(
-        retries.max_number = n_retries,
-        retries.initial_delay = %format_duration(delay),
-        retries.exponential_factor = factor,
-    ))]
-    async fn wait_for_eth(
-        &self,
-        n_retries: usize,
-        delay: Duration,
-        factor: f32,
-    ) -> eyre::Result<()> {
-        use backon::{
-            ExponentialBuilder,
-            Retryable as _,
+    /// Spawns all executors on the executor task set.
+    fn spawn_executors(&mut self) {
+        for (chain_id, executor) in self.executors.drain() {
+            self.executor_tasks
+                .spawn(chain_id, executor.run_until_stopped());
+        }
+    }
+
+    /// Waits for all executors to come online.
+    async fn wait_for_executors(&self) -> eyre::Result<()> {
+        use futures::{
+            future::FutureExt as _,
+            stream::{
+                FuturesUnordered,
+                StreamExt as _,
+            },
         };
-        debug!("attempting to connect to eth");
-        let backoff = ExponentialBuilder::default()
-            .with_min_delay(delay)
-            .with_factor(factor)
-            .with_max_times(n_retries);
-        let version = (|| {
-            let client = self.eth_client.clone();
-            // This is using `get_net_version` because that's what ethers' Middleware is
-            // implementing. Maybe the `net_listening` RPC would be better, but ethers
-            // does not have that.
-            async move { client.get_net_version().await }
-        })
-        .retry(&backoff)
-        .notify(|err, dur| warn!(error.msg = %err, retry_in = %format_duration(dur), "failed issuing RPC; retrying"))
-        .await
-        .wrap_err(
-            "failed to retrieve net version from eth after seferal retries",
-        )?;
-        info!(version, rpc = "net_version", "RPC was successful");
+        let mut statuses = self
+            .executor_statuses
+            .iter()
+            .map(|(chain_id, status)| {
+                let mut status = status.clone();
+                async move {
+                    match status.wait_for(executor::Status::is_connected).await {
+                        // `wait_for` returns a reference to status; throw it
+                        // away because this future cannot return a reference to
+                        // a stack local object.
+                        Ok(_) => Ok(()),
+                        // if an executor fails while waiting for its status, this
+                        // will return an error
+                        Err(e) => Err(e),
+                    }
+                }
+                .map(|fut| (chain_id.clone(), fut))
+            })
+            .collect::<FuturesUnordered<_>>();
+        while let Some((chain_id, maybe_err)) = statuses.next().await {
+            if let Err(e) = maybe_err {
+                return Err(e).wrap_err_with(|| {
+                    format!(
+                        "executor for chain ID {chain_id} failed while waiting for it to become \
+                         ready"
+                    )
+                });
+            }
+        }
         self.status.send_modify(|status| {
-            status.eth_connected = true;
+            status.all_executors_connected = true;
         });
         Ok(())
     }

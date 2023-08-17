@@ -36,6 +36,8 @@ tokio = { workspace = true, features = [
 ] }
 tracing = { workspace = true, features = ["attributes"] }
 tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
+futures.workspace = true
+tokio-util = { version = "0.7.8", features = ["rt"] }
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"
