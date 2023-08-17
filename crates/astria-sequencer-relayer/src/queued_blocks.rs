@@ -13,10 +13,12 @@ use tokio::time::{
 };
 use tracing::warn;
 
-use crate::types::SequencerBlockData;
+use crate::{
+    config::MAX_RELAYER_QUEUE_TIME_MS,
+    types::SequencerBlockData,
+};
 
-// the max time to wait for a block to finalize
-const MAX_QUEUE_TIME: Duration = Duration::from_secs(10);
+const MAX_QUEUE_TIME: Duration = Duration::from_millis(MAX_RELAYER_QUEUE_TIME_MS);
 
 #[derive(Default)]
 pub(crate) struct QueuedBlocks {
@@ -39,12 +41,16 @@ impl QueuedBlocks {
         let mut new_block_is_finalized = false;
         let mut expired = Vec::new();
         for (block, insert_time) in self.pending_finalization.values() {
-            if let Some(parent_id) = block.header.last_block_id {
-                let parent_id: Vec<u8> = parent_id.hash.into();
-                if new_block.block_hash == parent_id {
-                    new_block_is_finalized = true;
+            if !new_block_is_finalized {
+                if let Some(parent_id) = block.header.last_block_id {
+                    let parent_id: Vec<u8> = parent_id.hash.into();
+                    if new_block.block_hash == parent_id {
+                        new_block_is_finalized = true;
+                        continue;
+                    }
                 }
             }
+            // optimistic algorithm, time out check is done after checking finalization
             if now.saturating_duration_since(*insert_time) >= MAX_QUEUE_TIME {
                 expired.push(block.block_hash.clone());
             }

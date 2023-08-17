@@ -4,7 +4,10 @@ use std::{
 };
 
 use astria_sequencer_relayer::{
-    config::Config,
+    config::{
+        Config,
+        MAX_RELAYER_QUEUE_TIME_MS,
+    },
     telemetry,
     types::SequencerBlockData,
     validator::Validator,
@@ -15,7 +18,7 @@ use once_cell::sync::Lazy;
 use serde_json::json;
 use tempfile::NamedTempFile;
 use tendermint_rpc::{
-    endpoint,
+    endpoint::block::Response,
     response::Wrapper,
     Id,
 };
@@ -25,7 +28,10 @@ use tokio::{
         oneshot,
     },
     task::JoinHandle,
-    time,
+    time::{
+        self,
+        Instant,
+    },
 };
 use tracing::{
     debug,
@@ -76,7 +82,7 @@ pub struct TestSequencerRelayer {
     /// The mocked astria conductor gossip node receiving gossiped messages
     pub conductor: MockConductor,
 
-    /// The mocked sequencer service (also serving as tendermint jsonrpc?)
+    /// The mocked sequencer service (also serving as tendermint jsonrpc?), comet bft
     pub sequencer: MockServer,
 
     pub sequencer_relayer: JoinHandle<()>,
@@ -90,13 +96,20 @@ pub struct TestSequencerRelayer {
 
 impl TestSequencerRelayer {
     pub async fn advance_by_block_time(&self) {
-        time::advance(Duration::from_millis(self.config.block_time + 10)).await;
+        time::advance(Duration::from_millis(self.config.block_time_ms + 10)).await;
+    }
+
+    pub async fn advance_by_block_time_n_blocks(&self, n: u64) {
+        time::advance(Duration::from_millis(n * (self.config.block_time_ms + 10))).await;
     }
 }
 
 pub enum CelestiaMode {
     Immediate,
-    Delayed(u64),
+    // block times to be delayed, u64 * sequencer_block_time_ms set for StateCelestiaImpl
+    DelayedSinceResponse(u64),
+    // control when celestia blobs processed relative to program start Instant
+    _DelayedSinceTestStart(Instant, u64),
 }
 
 pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequencerRelayer {
@@ -106,7 +119,9 @@ pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequenc
     let mut conductor = MockConductor::start();
     let conductor_bootnode = (&mut conductor.bootnode_rx).await.unwrap();
 
-    let mut celestia = MockCelestia::start(config.block_time, celestia_mode).await;
+    // mock celestia use the sequencer block time to calculate artificial delay. real celestia has
+    // longer block times than the sequencer block time.
+    let mut celestia = MockCelestia::start(config.block_time_ms, celestia_mode).await;
     let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
 
     let (keyfile, validator) = tokio::task::spawn_blocking(|| {
@@ -215,6 +230,7 @@ impl MockCelestia {
         let addr = server.local_addr().unwrap();
         addr_tx.send(addr).unwrap();
         let (state_rpc_confirmed_tx, state_rpc_confirmed_rx) = mpsc::unbounded_channel();
+
         let state_celestia = StateCelestiaImpl {
             sequencer_block_time_ms,
             mode,
@@ -281,6 +297,16 @@ impl StateServer for StateCelestiaImpl {
             value::RawValue,
             Value,
         };
+        if let CelestiaMode::DelayedSinceResponse(n) = self.mode {
+            tokio::time::sleep(Duration::from_millis(n * self.sequencer_block_time_ms)).await;
+        } else if let CelestiaMode::_DelayedSinceTestStart(test_start_time, n) = self.mode {
+            let elapsed = test_start_time.elapsed();
+            let time_to_sleep = Duration::from_millis(n * self.sequencer_block_time_ms);
+            if elapsed < time_to_sleep {
+                let time_to_sleep = time_to_sleep - elapsed;
+                tokio::time::sleep(time_to_sleep).await;
+            }
+        }
 
         self.rpc_confirmed_tx.send(blobs).unwrap();
 
@@ -292,9 +318,6 @@ impl StateServer for StateCelestiaImpl {
             .unwrap(),
         )
         .unwrap();
-        if let CelestiaMode::Delayed(n) = self.mode {
-            tokio::time::sleep(Duration::from_millis(n * self.sequencer_block_time_ms)).await;
-        }
 
         Ok(rsp)
     }
@@ -399,7 +422,11 @@ fn create_non_default_last_commit() -> tendermint::block::Commit {
     }
 }
 
-fn create_block_response(validator: &Validator, height: u32) -> endpoint::block::Response {
+pub(crate) fn create_block_response(
+    validator: &Validator,
+    height: u32,
+    parent: Option<&Response>,
+) -> Response {
     use astria_sequencer::{
         accounts::types::Nonce,
         transaction::{
@@ -417,6 +444,27 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
         Hash,
         Time,
     };
+
+    // for a tendermint block response to convert to a sequencer block data, fields that need to
+    // be set are:
+    // - last commit
+    // - proposer address
+    // - height
+    // - data hash
+    //
+    // for submission to celestia (data availability), field that needs to be set:
+    // - last block id
+
+    // The first height must not, every height after must contain a commit. constraint set by
+    // tendermint for block construction.
+    let last_commit = (height != 1).then_some(create_non_default_last_commit());
+    // required to convert to sequencer block data (function
+    // convert_block_response_to_sequencer_block_data in src/relayer.rs)
+    let proposer_address = *validator.address();
+    // height at most current height required to convert to sequencer block data (function
+    // convert_block_response_to_sequencer_block_data in src/relayer.rs)
+    let height = block::Height::from(height);
+
     let signing_key = validator.signing_key();
 
     let suffix = height.to_string().into_bytes();
@@ -429,11 +477,23 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
     )
     .into_signed(signing_key);
     let data = vec![signed_tx.to_bytes()];
+    // data_hash must be some to convert to sequencer block data (function from_tendermint_block
+    // in src/types.rs)
     let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
         &data,
     )));
 
-    endpoint::block::Response {
+    let last_block_id = parent.map(|parent| {
+        let parent = parent.block.header.hash().as_bytes().to_vec();
+        block::Id {
+            // block_hash in sequencer data block is set to tendermint block header hash (function
+            // from_tendermint_block in src/types.rs)
+            hash: Hash::try_from(parent).unwrap(),
+            part_set_header: block::parts::Header::default(),
+        }
+    });
+
+    Response {
         block_id: block::Id {
             hash: Hash::Sha256([0; 32]),
             part_set_header: block::parts::Header::new(0, Hash::None).unwrap(),
@@ -445,9 +505,9 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
                     app: 0,
                 },
                 chain_id: chain::Id::try_from("test").unwrap(),
-                height: block::Height::from(height),
+                height,
                 time: Time::now(),
-                last_block_id: None,
+                last_block_id,
                 last_commit_hash: None,
                 data_hash,
                 validators_hash: Hash::Sha256([0; 32]),
@@ -456,12 +516,11 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
                 app_hash: AppHash::try_from([0; 32].to_vec()).unwrap(),
                 last_results_hash: None,
                 evidence_hash: None,
-                proposer_address: *validator.address(),
+                proposer_address,
             },
             data,
             evidence::List::default(),
-            // The first height must not, every height after must contain a commit
-            (height != 1).then_some(create_non_default_last_commit()),
+            last_commit,
         )
         .unwrap(),
     }
@@ -492,10 +551,8 @@ async fn start_mocked_sequencer() -> MockServer {
     server
 }
 
-pub async fn mount_constant_block_response(
-    sequencer_relayer: &TestSequencerRelayer,
-) -> endpoint::block::Response {
-    let block_response = create_block_response(&sequencer_relayer.validator, 1);
+pub async fn mount_constant_block_response(sequencer_relayer: &TestSequencerRelayer) -> Response {
+    let block_response = create_block_response(&sequencer_relayer.validator, 1, None);
     let wrapped = Wrapper::new_with_id(Id::Num(1), Some(block_response.clone()), None);
     Mock::given(body_partial_json(json!({"method": "block"})))
         .respond_with(ResponseTemplate::new(200).set_body_json(wrapped))
@@ -504,44 +561,45 @@ pub async fn mount_constant_block_response(
     block_response
 }
 
+pub(crate) async fn create_and_mount_block(
+    delay: Duration,
+    server: &MockServer,
+    validator: &Validator,
+    height: u32,
+    parent: Option<&Response>,
+) -> Response {
+    let rsp = create_block_response(validator, height, parent);
+    let wrapped = Wrapper::new_with_id(Id::Num(1), Some(rsp.clone()), None);
+    Mock::given(body_partial_json(json!({"method": "block"})))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(wrapped)
+                .set_delay(delay),
+        )
+        .up_to_n_times(1)
+        .mount(server)
+        .await;
+    rsp
+}
+
 /// Mounts 4 changing mock responses with the last one repeating
 pub async fn mount_4_changing_block_responses(
     sequencer_relayer: &TestSequencerRelayer,
-) -> Vec<endpoint::block::Response> {
-    async fn create_and_mount_block(
-        delay: Duration,
-        server: &MockServer,
-        validator: &Validator,
-        height: u32,
-    ) -> endpoint::block::Response {
-        let rsp = create_block_response(validator, height);
-        let wrapped = Wrapper::new_with_id(Id::Num(1), Some(rsp.clone()), None);
-        Mock::given(body_partial_json(json!({"method": "block"})))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(wrapped)
-                    .set_delay(delay),
-            )
-            .up_to_n_times(1)
-            .mount(server)
-            .await;
-        rsp
-    }
-
-    let response_delay = Duration::from_millis(sequencer_relayer.config.block_time);
+) -> Vec<Response> {
+    let response_delay = Duration::from_millis(sequencer_relayer.config.block_time_ms);
     let validator = &sequencer_relayer.validator;
     let server = &sequencer_relayer.sequencer;
 
     let mut rsps = Vec::new();
     // The first one resolves immediately
-    rsps.push(create_and_mount_block(Duration::ZERO, server, validator, 1).await);
+    rsps.push(create_and_mount_block(Duration::ZERO, server, validator, 1, None).await);
 
     for i in 2..=3 {
-        rsps.push(create_and_mount_block(response_delay, server, validator, i).await);
+        rsps.push(create_and_mount_block(response_delay, server, validator, i, None).await);
     }
 
     // The last one will repeat
-    rsps.push(create_block_response(validator, 4));
+    rsps.push(create_block_response(validator, 4, None));
     let wrapped = Wrapper::new_with_id(Id::Num(1), Some(rsps[3].clone()), None);
     Mock::given(body_partial_json(json!({"method": "block"})))
         .respond_with(
@@ -552,4 +610,39 @@ pub async fn mount_4_changing_block_responses(
         .mount(&sequencer_relayer.sequencer)
         .await;
     rsps
+}
+
+pub async fn mount_2_parent_child_pair_block_responses(
+    sequencer_relayer: &TestSequencerRelayer,
+) -> (Response, Response, Response, Response) {
+    let validator = &sequencer_relayer.validator;
+    let server = &sequencer_relayer.sequencer;
+
+    // The first three resolve immediately
+    // first parent
+    let parent_one = create_and_mount_block(Duration::ZERO, server, validator, 1, None).await;
+    // second parent
+    let parent_two = create_and_mount_block(Duration::ZERO, server, validator, 2, None).await;
+
+    // the optimistic nature of queued blocks in terms of time out, means the block enqueued
+    // before second child, which is the first child, needs to time out parent two. if second
+    // child comes delayed but not first child, then finality will be checked before time out is
+    // checked for parent two.
+    let delay_children = Duration::from_millis(MAX_RELAYER_QUEUE_TIME_MS);
+    // first child
+    let child_one =
+        create_and_mount_block(delay_children, server, validator, 3, Some(&parent_one)).await;
+    // child two needs to arrive after child one to make sure parent two doesn't finalize first
+    // (and so the height in the caller function test_finalization in tests/smoke/main.rs is not
+    // less than the height of the block when it arrives in this case as the first child is at
+    // height 3 and second child is at height 4)
+    // second child
+    let child_two =
+        create_and_mount_block(delay_children, server, validator, 4, Some(&parent_two)).await;
+
+    (parent_one, parent_two, child_one, child_two)
+}
+
+pub(crate) fn get_block_hash(block_resp: &Response) -> Vec<u8> {
+    block_resp.block.header.hash().as_bytes().to_vec().clone()
 }

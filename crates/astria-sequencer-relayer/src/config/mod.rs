@@ -14,7 +14,11 @@ use serde::{
 
 mod cli;
 
-const DEFAULT_BLOCK_TIME: u64 = 1000;
+/// Max time in ms to wait for a block to finalize after it is received from the sequencer.
+pub const MAX_RELAYER_QUEUE_TIME_MS: u64 = 2 * DEFAULT_BLOCK_TIME_MS;
+/// Default block time in ms for a sequencer block.
+pub const DEFAULT_BLOCK_TIME_MS: u64 = 1000;
+
 const DEFAULT_CELESTIA_ENDPOINT: &str = "http://localhost:26658";
 const DEFAULT_SEQUENCER_ENDPOINT: &str = "http://localhost:26657";
 const DEFAULT_VALIDATOR_KEY_FILE: &str = ".cometbft/config/priv_validator_key.json";
@@ -54,7 +58,7 @@ pub struct Config {
     pub celestia_bearer_token: String,
     pub gas_limit: u64,
     pub disable_writing: bool,
-    pub block_time: u64,
+    pub block_time_ms: u64,
     pub validator_key_file: String,
     pub rpc_port: u16,
     pub p2p_port: u16,
@@ -90,7 +94,7 @@ impl Default for Config {
             sequencer_endpoint: DEFAULT_SEQUENCER_ENDPOINT.into(),
             gas_limit: crate::data_availability::DEFAULT_PFD_GAS_LIMIT,
             disable_writing: false,
-            block_time: DEFAULT_BLOCK_TIME,
+            block_time_ms: DEFAULT_BLOCK_TIME_MS,
             validator_key_file: DEFAULT_VALIDATOR_KEY_FILE.into(),
             rpc_port: DEFAULT_RPC_LISTEN_PORT,
             p2p_port: DEFAULT_GOSSIP_PORT,
@@ -192,7 +196,7 @@ astria-sequencer-relayer
                 celestia_bearer_token: "clibearertoken".into(),
                 gas_limit: 9999,
                 disable_writing: true,
-                block_time: 9999,
+                block_time_ms: 9999,
                 validator_key_file: "/cli/key".into(),
                 rpc_port: 9999,
                 p2p_port: 9999,
@@ -220,7 +224,7 @@ astria-sequencer-relayer
                 celestia_bearer_token: "envbearertoken".into(),
                 gas_limit: 5555,
                 disable_writing: true,
-                block_time: 5555,
+                block_time_ms: 5555,
                 validator_key_file: "/env/key".into(),
                 rpc_port: 5555,
                 p2p_port: 5555,

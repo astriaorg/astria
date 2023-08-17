@@ -127,7 +127,7 @@ impl Relayer {
 
         Ok(Self {
             sequencer,
-            sequencer_poll_period: Duration::from_millis(cfg.block_time),
+            sequencer_poll_period: Duration::from_millis(cfg.block_time_ms),
             data_availability,
             validator,
             gossip_block_tx,
@@ -228,7 +228,7 @@ impl Relayer {
                 }
                 // Update the internal state if the block was admitted
                 let height = sequencer_block_data.header.height.value();
-                self.state_tx.send_if_modified(|state| {
+                _ = self.state_tx.send_if_modified(|state| {
                     if Some(height) > state.current_sequencer_height {
                         state.current_sequencer_height = Some(height);
                         return true;
