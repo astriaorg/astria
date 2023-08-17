@@ -317,7 +317,7 @@ mod test {
         sync::Arc,
     };
 
-    use astria_proto::execution::v1alpha1::{
+    use astria_proto::generated::execution::v1alpha1::{
         DoBlockResponse,
         InitStateResponse,
     };

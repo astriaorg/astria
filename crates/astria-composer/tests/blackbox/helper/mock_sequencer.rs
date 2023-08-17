@@ -1,7 +1,4 @@
-use astria_sequencer::accounts::{
-    query,
-    types::Nonce,
-};
+use proto::Message;
 use serde_json::json;
 use tendermint::{
     abci,
@@ -23,12 +20,16 @@ use wiremock::{
 };
 
 pub async fn start() -> MockServer {
+    use proto::generated::sequencer::v1alpha1::NonceResponse;
     let server = MockServer::start().await;
     mount_abci_info_mock(&server).await;
     mount_abci_query_mock(
         &server,
         "accounts/nonce",
-        &query::Response::NonceResponse(Nonce::from(0)),
+        NonceResponse {
+            height: 42,
+            nonce: 42,
+        },
     )
     .await;
     server
@@ -52,14 +53,13 @@ async fn mount_abci_info_mock(server: &MockServer) {
         .await;
 }
 
-async fn mount_abci_query_mock(server: &MockServer, query_path: &str, response: &query::Response) {
-    use borsh::BorshSerialize as _;
+async fn mount_abci_query_mock(server: &MockServer, query_path: &str, response: impl Message) {
     let expected_body = json!({
         "method": "abci_query"
     });
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
-            value: response.try_to_vec().unwrap(),
+            value: response.encode_to_vec(),
             ..Default::default()
         },
     };
