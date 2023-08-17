@@ -8,7 +8,6 @@ docker:
   - 'containerfiles/**'
 proto:
   - 'crates/astria-proto/**'
-  - '.github/workflows/proto.yml'
 sequencer:
   - 'crates/astria-sequencer/**'
   - 'crates/astria-sequencer-client/**'
