@@ -85,6 +85,7 @@ fn group_sequence_actions_by_chain_id(txs: &[Signed]) -> BTreeMap<Vec<u8>, Vec<V
 
 #[cfg(test)]
 mod test {
+    use astria_proto::native::sequencer::v1alpha1::Address;
     use ed25519_consensus::SigningKey;
     use prost::Message as _;
     use rand::rngs::OsRng;
@@ -94,7 +95,6 @@ mod test {
         accounts::{
             self,
             types::{
-                Address,
                 Balance,
                 Nonce,
             },
