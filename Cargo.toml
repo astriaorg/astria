@@ -49,6 +49,7 @@ serde_yaml = "0.9"
 prost = "0.11"
 prost-types = "0.11"
 rand = "0.8.5"
+regex = "1.9"
 # disable default features and explicitly enable rustls-tls to ensure openssl is disabled
 # in the entire workspace
 reqwest = { version = "0.11", default-features = false, features = [
