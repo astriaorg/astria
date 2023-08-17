@@ -1,26 +1,25 @@
-<!--- Provide a descriptive title above -->
 ## Summary
-<!--- Provide a brief summary of the changes made, ie "What?" -->
 
+Brief summary of the changes made, ie "what?"
 
 ## Background
-<!-- Brief background on why these changes were made, ie "Why?" -->
 
+Brief background on why these changes were made, ie "why?"
 
 ## Changes
-<!-- List of high level changes made, ie "How?"  -->
-- 
+
+- List changes which were made. 
 
 ## Testing
-<!-- How has this change been tested -->
 
+How are these changes tested?
 
 ## Breaking Changelist
-<!-- Delete section if none, bulleted list of breaking changes -->
-- 
+
+- Bulleted list of breaking changes, any notes on migration. Delete section if none.
 
 ## Related Issues
-<!-- Related issues w/context on how related -->
 
-<!-- Links to any issue that is closed by this  pr  of form closes #X, closes #Y, closes org/repo#Z-->
-closes
+Link any issues that are related, prefer full github links.
+
+closes <!-- list any issues closed here -->
