@@ -220,6 +220,11 @@ impl App {
 
 #[cfg(test)]
 mod test {
+    use astria_proto::native::sequencer::v1alpha1::{
+        Address,
+        ADDRESS_LEN,
+    };
+    use ed25519_consensus::SigningKey;
     use prost::Message as _;
     use tendermint::{
         abci::types::CommitInfo,
@@ -241,14 +246,11 @@ mod test {
             action::TRANSFER_FEE,
             state_ext::StateReadExt as _,
             types::{
-                Address,
                 Balance,
                 Nonce,
-                ADDRESS_LEN,
             },
             Transfer,
         },
-        crypto::SigningKey,
         genesis::Account,
         sequence::{
             action::calculate_fee,
@@ -264,7 +266,7 @@ mod test {
     fn address_from_hex_string(s: &str) -> Address {
         let bytes = hex::decode(s).unwrap();
         let arr: [u8; ADDRESS_LEN] = bytes.try_into().unwrap();
-        Address(arr)
+        Address::from_array(arr)
     }
 
     // generated with test `generate_default_keys()`
@@ -330,7 +332,7 @@ mod test {
         {
             assert_eq!(
                 balance,
-                app.state.get_account_balance(&address).await.unwrap(),
+                app.state.get_account_balance(address).await.unwrap(),
             );
         }
     }
@@ -392,22 +394,22 @@ mod test {
         let value = Balance::from(333_333);
         let tx = Unsigned {
             nonce: Nonce::from(0),
-            actions: vec![Action::TransferAction(Transfer::new(bob.clone(), value))],
+            actions: vec![Action::TransferAction(Transfer::new(bob, value))],
         };
         let signed_tx = tx.into_signed(&alice_keypair);
         let bytes = signed_tx.to_proto().encode_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(
-            app.state.get_account_balance(&bob).await.unwrap(),
+            app.state.get_account_balance(bob).await.unwrap(),
             value + 10u128.pow(19)
         );
         assert_eq!(
-            app.state.get_account_balance(&alice).await.unwrap(),
+            app.state.get_account_balance(alice).await.unwrap(),
             Balance::from(10u128.pow(19)) - (value + TRANSFER_FEE),
         );
-        assert_eq!(app.state.get_account_nonce(&bob).await.unwrap(), 0);
-        assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);
+        assert_eq!(app.state.get_account_nonce(bob).await.unwrap(), 0);
+        assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 1);
     }
 
     #[tokio::test]
@@ -432,7 +434,7 @@ mod test {
         let value = Balance::from(0);
         let tx = Unsigned {
             nonce: Nonce::from(0),
-            actions: vec![Action::TransferAction(Transfer::new(bob.clone(), value))],
+            actions: vec![Action::TransferAction(Transfer::new(bob, value))],
         };
         let signed_tx = tx.into_signed(&keypair);
         let bytes = signed_tx.to_proto().encode_to_vec();
@@ -464,7 +466,7 @@ mod test {
                 .try_into()
                 .unwrap();
         let alice_signing_key = SigningKey::from(alice_secret_bytes);
-        let alice = Address::from_verification_key(&alice_signing_key.verification_key());
+        let alice = Address::from_verification_key(alice_signing_key.verification_key());
 
         let data = b"hello world".to_vec();
         let fee = calculate_fee(&data).unwrap();
@@ -481,10 +483,10 @@ mod test {
         let bytes = signed_tx.to_proto().encode_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
-        assert_eq!(app.state.get_account_nonce(&alice).await.unwrap(), 1);
+        assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 1);
 
         assert_eq!(
-            app.state.get_account_balance(&alice).await.unwrap(),
+            app.state.get_account_balance(alice).await.unwrap(),
             Balance::from(10u128.pow(19)) - fee,
         );
     }
@@ -509,7 +511,7 @@ mod test {
         {
             assert_eq!(
                 balance,
-                app.state.get_account_balance(&address).await.unwrap()
+                app.state.get_account_balance(address).await.unwrap()
             );
         }
 
@@ -523,7 +525,7 @@ mod test {
         } in default_genesis_accounts()
         {
             assert_eq!(
-                snapshot.get_account_balance(&address).await.unwrap(),
+                snapshot.get_account_balance(address).await.unwrap(),
                 balance
             );
         }
