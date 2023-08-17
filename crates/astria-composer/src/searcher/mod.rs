@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     sync::{
         atomic::{
             AtomicU32,
@@ -13,6 +14,7 @@ use astria_sequencer::transaction;
 use color_eyre::eyre::{
     self,
     bail,
+    ensure,
     eyre,
     WrapErr as _,
 };
@@ -48,6 +50,8 @@ use tracing::{
 };
 
 use crate::Config;
+
+mod rollup;
 
 /// `Searcher` receives transactions from an ethereum rollup, wraps them, and submits them to
 /// the astria seqeuencer.
@@ -150,8 +154,22 @@ impl Searcher {
     /// + failed to connect to the eth RPC server;
     /// + failed to construct a sequencer clinet
     pub(super) async fn from_config(cfg: &Config) -> eyre::Result<Self> {
+        use rollup::Rollup;
+        let mut rollups = cfg
+            .rollups
+            .split(',')
+            .filter(|s| !s.is_empty())
+            .map(|s| Rollup::parse(s).map(Rollup::into_parts))
+            .collect::<Result<HashMap<_, _>, _>>()
+            .wrap_err("failed parsing provided <chain_id>::<url> pairs as rollups")?;
+        ensure!(
+            rollups.len() == 1,
+            "currently only 1 rollup is supported; got {}",
+            rollups.len(),
+        );
         // connect to eth node
-        let eth_client = EthClient::connect(&cfg.execution_url)
+        let (rollup_chain_id, execution_url) = rollups.drain().next().unwrap();
+        let eth_client = EthClient::connect(&execution_url)
             .await
             .wrap_err("failed connecting to eth")?;
 
@@ -159,7 +177,6 @@ impl Searcher {
         let sequencer_client = SequencerClient::new(&cfg.sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
 
-        let rollup_chain_id = cfg.chain_id.clone();
         let (status, _) = watch::channel(Status::default());
 
         // create signing key for sequencer txs
