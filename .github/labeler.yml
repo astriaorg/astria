@@ -1,5 +1,5 @@
 ci:
-  - '.github/workflows/**'
+  - '.github/**'
 conductor:
   - 'crates/astria-conductor/**'
 composer:
@@ -16,3 +16,5 @@ sequencer:
 sequencer-relayer:
   - 'crates/astria-sequencer-relayer/**'
   - 'crates/astria-gossipnet/**'
+documentation:
+  - 'specs/**'
