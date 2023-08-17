@@ -25,7 +25,7 @@ async fn one_block_is_relayed_to_celestia_and_conductor() {
     };
     assert_eq!(
         expected_block_response.block.header.data_hash,
-        block_seen_by_conductor.header.data_hash,
+        block_seen_by_conductor.header().data_hash,
     );
 
     let Some(blobs_seen_by_celestia) = sequencer_relayer
@@ -66,7 +66,7 @@ async fn same_block_is_dropped() {
     };
     assert_eq!(
         expected_block_response.block.header.data_hash,
-        block_seen_by_conductor.header.data_hash,
+        block_seen_by_conductor.header().data_hash,
     );
 
     let Some(blobs_seen_by_celestia) = sequencer_relayer
@@ -115,7 +115,7 @@ async fn slow_celestia_leads_to_bundled_blobs() {
         let block_seen_by_conductor = sequencer_relayer.conductor.block_rx.recv().await.unwrap();
         assert_eq!(
             mounted_block.block.header.data_hash,
-            block_seen_by_conductor.header.data_hash,
+            block_seen_by_conductor.header().data_hash,
         );
     }
     // Advancing the time one more will not be observed because the block response

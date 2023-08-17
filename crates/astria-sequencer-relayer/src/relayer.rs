@@ -1,5 +1,9 @@
 use std::time::Duration;
 
+use astria_sequencer_types::{
+    serde::NamespaceToTxCount,
+    SequencerBlockData,
+};
 use eyre::{
     bail,
     Result,
@@ -29,11 +33,8 @@ use tracing::{
 use crate::{
     data_availability::CelestiaClient,
     macros::report_err,
-    serde::NamespaceToTxCount,
-    types::SequencerBlockData,
     validator::Validator,
 };
-
 pub struct Relayer {
     /// The actual client used to poll the sequencer.
     sequencer: HttpClient,
@@ -211,11 +212,11 @@ impl Relayer {
             // Gossip and collect successfully converted sequencer responses
             Ok(Some(sequencer_block_data)) => {
                 info!(
-                    height = %sequencer_block_data.header.height,
-                    block_hash = hex::encode(&sequencer_block_data.block_hash),
-                    proposer = %sequencer_block_data.header.proposer_address,
-                    num_contained_namespaces = sequencer_block_data.rollup_txs.len(),
-                    namespaces_to_tx_count = %NamespaceToTxCount(&sequencer_block_data.rollup_txs),
+                    height = %sequencer_block_data.header().height,
+                    block_hash = hex::encode(sequencer_block_data.block_hash()),
+                    proposer = %sequencer_block_data.header().proposer_address,
+                    num_contained_namespaces = sequencer_block_data.rollup_txs().len(),
+                    namespaces_to_tx_count = %NamespaceToTxCount::new(sequencer_block_data.rollup_txs()),
                     "gossiping sequencer block",
                 );
                 if self
@@ -226,7 +227,7 @@ impl Relayer {
                     return HandleConversionCompletedResult::GossipChannelClosed;
                 }
                 // Update the internal state if the block was admitted
-                let height = sequencer_block_data.header.height.value();
+                let height = sequencer_block_data.header().height.value();
                 self.state_tx.send_if_modified(|state| {
                     if Some(height) > state.current_sequencer_height {
                         state.current_sequencer_height = Some(height);

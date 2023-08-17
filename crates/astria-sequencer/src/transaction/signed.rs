@@ -3,7 +3,14 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_proto::sequencer::v1alpha1::SignedTransaction as ProtoSignedTransaction;
+use astria_proto::{
+    generated::sequencer::v1alpha1::SignedTransaction as ProtoSignedTransaction,
+    native::sequencer::v1alpha1::Address,
+};
+use ed25519_consensus::{
+    Signature,
+    VerificationKey,
+};
 use penumbra_storage::{
     StateRead,
     StateWrite,
@@ -11,16 +18,9 @@ use penumbra_storage::{
 use prost::Message as _;
 use tracing::instrument;
 
-use crate::{
-    accounts::types::Address,
-    crypto::{
-        Signature,
-        VerificationKey,
-    },
-    transaction::{
-        ActionHandler,
-        Unsigned,
-    },
+use crate::transaction::{
+    ActionHandler,
+    Unsigned,
 };
 
 /// Represents a transaction signed by a user.
@@ -73,7 +73,7 @@ impl Signed {
     ///
     /// - If the public key cannot be converted into an address
     pub(crate) fn signer_address(&self) -> Address {
-        Address::from_verification_key(&self.public_key)
+        Address::from_verification_key(self.public_key)
     }
 
     /// Converts the protobuf signed transaction into a `SignedTransaction`.
@@ -130,14 +130,12 @@ impl Signed {
     #[instrument(skip(state))]
     pub(crate) async fn check_stateful<S: StateRead + 'static>(&self, state: &S) -> Result<()> {
         self.transaction
-            .check_stateful(state, &self.signer_address())
+            .check_stateful(state, self.signer_address())
             .await
     }
 
     #[instrument(skip(state))]
     pub(crate) async fn execute<S: StateWrite>(&self, state: &mut S) -> Result<()> {
-        self.transaction
-            .execute(state, &self.signer_address())
-            .await
+        self.transaction.execute(state, self.signer_address()).await
     }
 }

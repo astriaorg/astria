@@ -4,12 +4,13 @@ use std::{
 };
 
 use anyhow::Context;
-use serde::Deserialize;
-
-use crate::accounts::types::{
-    Address,
-    Balance,
+use astria_proto::native::sequencer::v1alpha1::Address;
+use serde::{
+    Deserialize,
+    Deserializer,
 };
+
+use crate::accounts::types::Balance;
 
 /// The genesis state for the application.
 #[derive(Debug, Deserialize, Default)]
@@ -26,7 +27,17 @@ impl GenesisState {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Account {
-    #[serde(with = "hex::serde")]
+    #[serde(deserialize_with = "deserialize_address")]
     pub(crate) address: Address,
     pub(crate) balance: Balance,
+}
+
+fn deserialize_address<'de, D>(deserializer: D) -> Result<Address, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error as _;
+    let bytes: Vec<u8> = hex::serde::deserialize(deserializer)?;
+    Address::try_from_slice(&bytes)
+        .map_err(|e| D::Error::custom(format!("failed constructing address from bytes: {e}")))
 }
