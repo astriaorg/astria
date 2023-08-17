@@ -24,7 +24,6 @@ use crate::{
 pub(crate) const TRANSFER_FEE: Balance = Balance(12);
 
 /// Represents a value-transfer action.
-#[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transfer {
     to: Address,
