@@ -561,8 +561,10 @@ version = "0.1.0"
 dependencies = [
  "astria-celestia-jsonrpc-client",
  "astria-sequencer",
+ "astria-sequencer-validation",
  "base64 0.21.2",
  "base64-serde",
+ "ct-merkle",
  "eyre",
  "hex",
  "serde",
@@ -1603,10 +1605,11 @@ dependencies = [
 [[package]]
 name = "ct-merkle"
 version = "0.1.0"
-source = "git+https://github.com/astriaorg/ct-merkle.git?rev=1fa258fc7e62dd8a97d2f368977d4123b55a8b2e#1fa258fc7e62dd8a97d2f368977d4123b55a8b2e"
+source = "git+https://github.com/astriaorg/ct-merkle.git?rev=58f692640be65ef42bc14f69e52a9e836f407a33#58f692640be65ef42bc14f69e52a9e836f407a33"
 dependencies = [
  "digest 0.10.7",
  "generic-array",
+ "serde",
  "subtle",
 ]
 
@@ -2767,6 +2770,7 @@ version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
 dependencies = [
+ "serde",
  "typenum",
  "version_check",
  "zeroize",

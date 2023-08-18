@@ -149,6 +149,8 @@ pub struct SequencerNamespaceData {
     pub header: Header,
     pub last_commit: Option<Commit>,
     pub rollup_namespaces: Vec<Namespace>,
+    pub action_tree_root: Hash,
+    pub action_tree_root_inclusion_proof: InclusionProof,
 }
 
 impl NamespaceData for SequencerNamespaceData {}
@@ -480,6 +482,8 @@ impl CelestiaClient {
                 namespace_data.data.header.clone(),
                 namespace_data.data.last_commit.clone(),
                 rollup_txs,
+                namespace_data.data.action_tree_root,
+                namespace_data.data.action_tree_root_inclusion_proof.clone(),
             )
             .wrap_err("failed to construct SequencerBlockData from namespace data")?,
         ))
@@ -561,7 +565,14 @@ fn assemble_blobs_from_sequencer_block_data(
     let mut blobs = Vec::with_capacity(block_data.rollup_data().len() + 1);
     let mut namespaces = Vec::with_capacity(block_data.rollup_data().len() + 1);
 
-    let (block_hash, header, last_commit, rollup_data) = block_data.into_values();
+    let (
+        block_hash,
+        header,
+        last_commit,
+        rollup_data,
+        action_tree_root,
+        action_tree_root_inclusion_proof,
+    ) = block_data.into_values();
 
     let chain_id_to_txs = btree_from_rollup_data(rollup_data);
     let action_tree_leaves = generate_action_tree_leaves(&chain_id_to_txs);
@@ -599,6 +610,8 @@ fn assemble_blobs_from_sequencer_block_data(
         header,
         last_commit,
         rollup_namespaces: namespaces,
+        action_tree_root,
+        action_tree_root_inclusion_proof,
     };
 
     let data = sequencer_namespace_data

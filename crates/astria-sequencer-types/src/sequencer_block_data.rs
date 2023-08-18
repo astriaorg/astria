@@ -1,5 +1,9 @@
 use std::collections::HashMap;
 
+use astria_sequencer_validation::{
+    InclusionProof,
+    MerkleTree,
+};
 use base64::{
     engine::general_purpose,
     Engine as _,
@@ -42,7 +46,7 @@ pub struct RollupData {
 
 /// `SequencerBlockData` represents a sequencer block's data
 /// to be submitted to the DA layer.
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct SequencerBlockData {
     pub(crate) block_hash: Hash,
     pub(crate) header: Header,
@@ -50,6 +54,11 @@ pub struct SequencerBlockData {
     pub(crate) last_commit: Option<Commit>,
     /// namespace -> rollup data (chain ID and transactions)
     pub(crate) rollup_data: HashMap<Namespace, RollupData>,
+    /// The root of the action tree for this block.
+    pub(crate) action_tree_root: Hash,
+    /// The inclusion proof that the action tree root in included
+    /// in `Header::data_hash`.
+    pub(crate) action_tree_root_inclusion_proof: InclusionProof,
 }
 
 impl SequencerBlockData {
@@ -63,15 +72,31 @@ impl SequencerBlockData {
         header: Header,
         last_commit: Option<Commit>,
         rollup_data: HashMap<Namespace, RollupData>,
+        action_tree_root: Hash,
+        action_tree_root_inclusion_proof: InclusionProof,
     ) -> eyre::Result<Self> {
+        // perform data validations to ensure only valid [`SequencerBlockData`]
+        // can be constructed
+        let Some(data_hash) = header.data_hash else {
+            bail!(Error::MissingDataHash);
+        };
+        action_tree_root_inclusion_proof
+            .verify(data_hash)
+            .wrap_err("failed to verify action tree root inclusion proof")?;
+        // TODO: also verify last_commit_hash (#270)
+
         let data = Self {
             block_hash,
             header,
             last_commit,
             rollup_data,
+            action_tree_root,
+            action_tree_root_inclusion_proof,
         };
-        data.verify_block_hash()?;
-        // TODO: also verify last_commit_hash
+
+        data.verify_block_hash()
+            .wrap_err("block header fields do not merkleize to block hash")?;
+
         Ok(data)
     }
 
@@ -97,12 +122,23 @@ impl SequencerBlockData {
 
     #[allow(clippy::type_complexity)]
     #[must_use]
-    pub fn into_values(self) -> (Hash, Header, Option<Commit>, HashMap<Namespace, RollupData>) {
+    pub fn into_values(
+        self,
+    ) -> (
+        Hash,
+        Header,
+        Option<Commit>,
+        HashMap<Namespace, RollupData>,
+        Hash,
+        InclusionProof,
+    ) {
         (
             self.block_hash,
             self.header,
             self.last_commit,
             self.rollup_data,
+            self.action_tree_root,
+            self.action_tree_root_inclusion_proof,
         )
     }
 
@@ -140,9 +176,16 @@ impl SequencerBlockData {
     pub fn from_tendermint_block(b: Block) -> eyre::Result<Self> {
         use astria_sequencer::transaction::Signed;
 
-        if b.header.data_hash.is_none() {
+        let Some(data_hash) = b.header.data_hash else {
             bail!(Error::MissingDataHash);
+        };
+
+        if b.data.is_empty() {
+            bail!("block has no transactions; ie action tree root is missing");
         }
+
+        let action_tree_root =
+            Hash::try_from(b.data[0].clone()).wrap_err("failed to parse action tree root")?;
 
         // we unwrap sequencer txs into rollup-specific data here,
         // and namespace them correspondingly
@@ -170,11 +213,25 @@ impl SequencerBlockData {
             });
         }
 
+        // generate the action tree root inclusion proof
+        let tx_tree = MerkleTree::from_leaves(b.data);
+        let calculated_data_hash = tx_tree.root();
+        ensure!(
+            // this should never happen for a correctly-constructed block
+            calculated_data_hash == data_hash,
+            "action tree root does not match the first transaction in the block",
+        );
+        let action_tree_root_inclusion_proof = tx_tree
+            .prove_inclusion(0) // action tree root is always the first tx in a block
+            .expect("failed to generate inclusion proof for action tree root");
+
         let data = Self {
             block_hash: b.header.hash(),
             header: b.header,
             last_commit: b.last_commit,
             rollup_data,
+            action_tree_root,
+            action_tree_root_inclusion_proof,
         };
         Ok(data)
     }
@@ -201,21 +258,40 @@ impl SequencerBlockData {
 mod test {
     use std::collections::HashMap;
 
+    use astria_sequencer_validation::{
+        InclusionProof,
+        MerkleTree,
+    };
+    use tendermint::Hash;
+
     use super::SequencerBlockData;
     use crate::{
         sequencer_block_data::RollupData,
         DEFAULT_NAMESPACE,
     };
 
+    fn test_root_and_inclusion_proof() -> (Hash, InclusionProof) {
+        let leaves = vec![
+            vec![0x11, 0x22, 0x33],
+            vec![0x44, 0x55, 0x66],
+            vec![0x77, 0x88, 0x99],
+        ];
+        let tree = MerkleTree::from_leaves(leaves);
+        (tree.root(), tree.prove_inclusion(1).unwrap())
+    }
+
     #[test]
     fn sequencer_block_to_bytes() {
         let header = crate::test_utils::default_header();
         let block_hash = header.hash();
+        let (action_tree_root, action_tree_root_inclusion_proof) = test_root_and_inclusion_proof();
         let mut expected = SequencerBlockData {
             block_hash,
             header,
             last_commit: None,
             rollup_data: HashMap::new(),
+            action_tree_root,
+            action_tree_root_inclusion_proof,
         };
         expected.rollup_data.insert(
             DEFAULT_NAMESPACE,
