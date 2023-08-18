@@ -208,7 +208,6 @@ impl Searcher {
     fn handle_pending_tx(&mut self, tx: collector::Transaction) {
         use astria_sequencer::{
             accounts::types::Nonce,
-            sequence,
             transaction::action,
         };
 
@@ -224,7 +223,7 @@ impl Searcher {
             // Pack into sequencer tx
             let data = rollup_tx.rlp().to_vec();
             let chain_id = chain_id.into_bytes();
-            let seq_action = action::Action::SequenceAction(sequence::Action::new(chain_id, data));
+            let seq_action = action::Action::new_sequence_action(chain_id, data);
 
             // get current nonce and increment nonce
             let curr_nonce = nonce.fetch_add(1, Ordering::Relaxed);
