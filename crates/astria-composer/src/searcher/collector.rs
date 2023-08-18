@@ -177,7 +177,7 @@ impl Collector {
         .retry(&backoff)
         .notify(|err, dur| {
             warn!(error.msg = %err, retry_in = %format_duration(dur), "failed issuing
-  RPC; retrying")
+  RPC; retrying");
         })
         .await
         .wrap_err(
