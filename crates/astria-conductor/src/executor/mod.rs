@@ -232,9 +232,9 @@ impl<C: ExecutionClient> Executor<C> {
         //     .wrap_err("failed parsing str as protobuf timestamp")?;
 
         self.block_queue.insert(block.clone());
-        let queued_blocks = self.block_queue.get_blocks();
+        let queued_blocks = self.block_queue.pop_blocks();
 
-        let mut final_response = Ok(None);
+        let mut final_response = Ok(Some(self.execution_state.clone()));
 
         if let Some(blocks) = queued_blocks {
             for block in blocks {

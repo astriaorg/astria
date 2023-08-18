@@ -83,8 +83,8 @@ impl SequencerBlockSubset {
     /// Get the height of the block's parent.
     pub fn parent_height(&self) -> Height {
         assert!(
-            self.height().value() > 0,
-            "block height must be greater than 0"
+            self.height().value() > 1,
+            "block height must be greater than 1"
         );
         Height::try_from(self.header().height.value() - 1)
             .expect("should have been able to decriment tendermint height")

@@ -3,35 +3,31 @@ use std::collections::{
     HashMap,
 };
 
-// use astria_sequencer_types::SequencerBlockData;
 use tendermint::{
     block::Height,
     hash::Hash,
 };
-use tracing::{
-    info,
-    warn,
-};
+use tracing::info;
 
 use crate::types::SequencerBlockSubset;
 
-enum ExecutorQueueParentStatus {
-    ParentPending(Box<SequencerBlockSubset>),
-    ParentSoft,
-    UnknownParent,
-}
-
-/// A queue for the SequencerBlockData type that holds blocks that are
+/// A queue for the SequencerBlockSubset type that holds blocks that are
 /// pending or not yet ready for execution.
+///
+/// This Queue handles all the fork choice logic for incoming Sequencer blocks
+/// from gossip. It is responsible for determining which blocks are safe to
+/// pass on to execution, and holds on to the other data until it is safe to
+/// execute, or deletes it if it is no longer needed or becomes stale or invalid.
+#[derive(Debug, Clone)]
 pub(super) struct Queue {
     head_height: Height,
-    most_recent_soft_hash: Hash, // ??? not sure if we still need this
+    most_recent_soft_hash: Hash,
 
-    // the collection of all pending blocks. the lowest height in this map is
-    // used the head blocks
+    // The collection of all pending blocks. the blocks in this map at Height ==
+    // Queue.head_height are the head blocks
     pending_blocks: HashMap<Height, HashMap<Hash, SequencerBlockSubset>>,
-    // all blocks in order by height that can be considered safe because they
-    // have a parent
+    // All blocks in order by height that can be considered safe because they
+    // have a child block
     soft_blocks: BTreeMap<Height, SequencerBlockSubset>,
 }
 
@@ -47,14 +43,13 @@ impl Queue {
 
     /// Inserts a new block into the ExecutorQueue.
     ///
-    /// Returns None if the block was added to the queue.
-    /// Returns Some(Hash) if the block was already present in the queue. The
-    /// Hash will be the hash of the block that was already present in the queue.
-    // TODO: add error handling
+    /// This is the only way to add data to the queue. When inserting blocks,
+    /// the internal state of the queue will also be updated to properly order
+    /// and arrange all blocks in the queue, base on the tendermin/CometBFT fork
+    /// choice rules.
     pub(super) fn insert(&mut self, block: SequencerBlockSubset) {
         // if the block is already in the queue, return its hash
         if self.is_block_present(&block) {
-            // TODO: do this for all other tracing prints
             info!(
                 block.height = %block.height(),
                 block.hash = %block.block_hash(),
@@ -62,34 +57,85 @@ impl Queue {
             );
         }
 
-        if block.header().height < self.head_height() {
+        // if the block is stale, ignore it
+        if block.header().height < self.head_height {
             info!(
                 block.height = %block.height(),
                 "block is stale and will not be added to the queue"
             );
         }
 
-        match self.check_if_parent_present(block.clone()) {
-            Some(ExecutorQueueParentStatus::ParentPending(parent_block)) => {
-                self.insert_and_update_pending_blocks(block.clone(), *parent_block);
-            }
-            Some(ExecutorQueueParentStatus::ParentSoft) => {
-                self.insert_and_update_soft_queue(block.clone());
-            }
-            // if the block has no parent, add it to the pending blocks without
-            // updating other data
-            Some(ExecutorQueueParentStatus::UnknownParent) => {
-                self.insert_to_pending_blocks(block.clone());
-            }
-            None => {
-                warn!("block doesn't have a parent, discarding");
-            }
-        }
+        // if the block is at the head height OR in the future, just add it to
+        // the pending blocks
+        self.insert_to_pending_blocks(block.clone());
+
+        self.update_internal_state();
+
         info!(
             block.height = %block.height(),
             block.hash = %block.block_hash(),
             "block added to queue"
         );
+    }
+
+    /// Removes and returns all "soft" and "Head" blocks in the queue, inorder
+    /// from oldest to newest.
+    ///
+    /// This function returns an `Option<Vec<SequencerBlockData>>`. A `Some`
+    /// value contains a vector of `SequencerBlockData` that are ready to be
+    /// passed on to execution.
+    /// A `None` value indicates that there are no blocks in the queue that are
+    /// ready to be passed on. A `None` value does not mean there are no blocks
+    /// in the queue.
+    pub(super) fn pop_blocks(&mut self) -> Option<Vec<SequencerBlockSubset>> {
+        let mut output_blocks: Vec<SequencerBlockSubset> = vec![];
+
+        let soft_blocks = self.pop_soft_blocks();
+        if let Some(mut soft_blocks) = soft_blocks {
+            output_blocks.append(soft_blocks.as_mut());
+        }
+        if let Some(mut head_blocks) = self.pop_head_blocks() {
+            output_blocks.append(head_blocks.as_mut());
+        }
+
+        if !output_blocks.is_empty() {
+            Some(output_blocks)
+        } else {
+            None
+        }
+    }
+
+    // TODO: this will return all the blocks in the soft queue that are already "safe"
+    pub(super) fn pop_soft_blocks(&mut self) -> Option<Vec<SequencerBlockSubset>> {
+        let mut soft_blocks: Vec<SequencerBlockSubset> =
+            self.soft_blocks.values().cloned().collect();
+        if !soft_blocks.is_empty() {
+            soft_blocks.sort();
+            self.soft_blocks.clear();
+            let highest_soft_block = soft_blocks[soft_blocks.len() - 1].clone();
+            self.head_height = highest_soft_block.height().increment();
+            self.remove_data_blow_height(self.head_height);
+            Some(soft_blocks)
+        } else {
+            None
+        }
+    }
+
+    fn pop_head_blocks(&mut self) -> Option<Vec<SequencerBlockSubset>> {
+        if let Some(head_blocks) = self.pending_blocks.get_mut(&self.head_height) {
+            let mut output_blocks: Vec<SequencerBlockSubset> = vec![];
+            let tmp_blocks = head_blocks.clone();
+            let mut blocks: Vec<&SequencerBlockSubset> = tmp_blocks.values().collect();
+            blocks.sort();
+            for block in blocks {
+                output_blocks.push(block.clone());
+            }
+            let most_recent_height = output_blocks[output_blocks.len() - 1].height();
+            self.head_height = most_recent_height.increment();
+            self.remove_data_blow_height(self.head_height);
+            return Some(output_blocks);
+        }
+        None
     }
 
     // check to see if the block is already present in the queue
@@ -113,33 +159,6 @@ impl Queue {
         false
     }
 
-    // check if the parent of the incoming block is present in the queue and
-    // return that parent block if it is
-    fn check_if_parent_present(
-        &mut self,
-        block: SequencerBlockSubset,
-    ) -> Option<ExecutorQueueParentStatus> {
-        let parent_height = block.parent_height();
-        let parent_hash = block.parent_hash()?;
-
-        // check if parent in pending data
-        if let Some(pending_blocks) = self.pending_blocks.get(&parent_height) {
-            if let Some(parent_block) = pending_blocks.get(&parent_hash) {
-                return Some(ExecutorQueueParentStatus::ParentPending(Box::new(
-                    parent_block.clone(),
-                )));
-            }
-        }
-        // check if parent in soft data
-        if let Some(soft_block) = self.soft_blocks.get(&parent_height) {
-            if soft_block.block_hash() == parent_hash {
-                return Some(ExecutorQueueParentStatus::ParentSoft);
-            }
-        }
-
-        Some(ExecutorQueueParentStatus::UnknownParent)
-    }
-
     fn is_block_a_parent(&mut self, block: SequencerBlockSubset) -> bool {
         let block_hash = block.block_hash();
         if let Some(child_blocks) = self.pending_blocks.get(&block.child_height()) {
@@ -155,24 +174,6 @@ impl Queue {
         false
     }
 
-    fn update_head_height(&mut self, height: Height) {
-        self.head_height = height;
-    }
-
-    fn update_most_recent_soft_hash(&mut self, hash: Hash) {
-        self.most_recent_soft_hash = hash;
-    }
-
-    fn head_height(&mut self) -> Height {
-        self.head_height
-    }
-
-    // fn head_height_plus_one(&mut self) -> Height {
-    //     Height::try_from(self.head_height.value() + 1).expect("could not convert u64 to Height")
-    // }
-
-    // a basic insert into the pending blocks
-    // TODO: update for error handling
     fn insert_to_pending_blocks(&mut self, block: SequencerBlockSubset) {
         let height = block.height();
         let block_hash = block.block_hash();
@@ -185,64 +186,6 @@ impl Queue {
             let mut new_map = HashMap::new();
             new_map.insert(block_hash, block);
             self.pending_blocks.insert(height, new_map);
-        }
-
-        // TODO: add a call to update the queue
-    }
-
-    // TODO: update description
-    fn insert_and_update_pending_blocks(
-        &mut self,
-        block: SequencerBlockSubset,
-        parent_block: SequencerBlockSubset,
-    ) -> Hash {
-        let height = block.height();
-        let block_hash = block.block_hash();
-        let parent_height = parent_block.height();
-        let parent_hash = parent_block.block_hash();
-
-        // remove parent data from pending blocks
-        if let Some(pending_blocks) = self.pending_blocks.get_mut(&parent_height) {
-            pending_blocks.remove(&parent_hash);
-        }
-        // add parent block to the soft queue
-        self.soft_blocks.insert(parent_height, parent_block);
-        self.update_most_recent_soft_hash(parent_hash);
-
-        // remove all other data below the new incoming block
-        self.remove_data_blow_height(height);
-        // remove all blocks in the head queue that don't have the most recent soft block as their
-        // parent
-        self.clean_head_blocks();
-
-        // check if the new block is a parent of any of the pending blocks
-        if self.is_block_a_parent(block.clone()) {
-            self.remove_data_blow_height(block.child_height());
-            // TODO: update this to used the update and insert to soft blocks function
-            self.soft_blocks.insert(height, block.clone());
-            self.update_most_recent_soft_hash(block_hash);
-            self.clean_head_blocks();
-        } else {
-            // add the new block to the pending blocks
-            self.insert_to_pending_blocks(block);
-        }
-
-        block_hash
-    }
-
-    // remove all blocks in the head queue that don't have the most recent soft
-    // block as their parent
-    fn clean_head_blocks(&mut self) {
-        if let Some(head_blocks) = self.pending_blocks.get_mut(&self.head_height) {
-            let tmp_blocks = head_blocks.clone();
-            let blocks = tmp_blocks.values();
-            for block in blocks {
-                if let Some(parent_hash) = block.parent_hash() {
-                    if parent_hash != self.most_recent_soft_hash {
-                        head_blocks.remove(&block.block_hash());
-                    }
-                }
-            }
         }
     }
 
@@ -259,88 +202,303 @@ impl Queue {
                 self.pending_blocks.remove(key);
             }
         }
-
-        self.update_head_height(height);
     }
 
-    // TODO: fix this to actually be correct
-    fn insert_and_update_soft_queue(&mut self, block: SequencerBlockSubset) {
-        self.soft_blocks.insert(block.height(), block.clone());
-
-        if self.is_block_a_parent(block.clone()) {
-            let block_hash = block.block_hash();
-            let block_height = block.height();
-
-            self.remove_data_blow_height(block.child_height());
-            // TODO: update this to used the update and insert to soft blocks function
-            self.soft_blocks.insert(block_height, block.clone());
-            self.update_most_recent_soft_hash(block_hash);
-            self.clean_head_blocks();
-        } else {
-            // add the new block to the pending blocks
-            self.insert_to_pending_blocks(block);
-        }
-    }
-
-    /// Return all valid blocks ("soft blocks") and "Head" blocks that are ready
-    /// to be executed.
+    /// This function organizes the internal state of the queue based on the
+    /// tendermint/CometBTF fork choice rules.
     ///
-    /// WARNING: This function removes the blocks that it returns from the
-    /// queue.
-    /// This function returns an `Option<Vec<SequencerBlockData>>`. A `Some`
-    /// value contains a vector of `SequencerBlockData` that are ready to be
-    /// executed. A `None` value indicates that there are no blocks in the queue.
-    pub(super) fn get_blocks(&mut self) -> Option<Vec<SequencerBlockSubset>> {
-        // return everything before the head height AND all data at H+1
-        let mut output_blocks: Vec<SequencerBlockSubset> = vec![];
-        if let Some(head_blocks) = self.pending_blocks.get(&self.head_height) {
-            let tmp_blocks = head_blocks.clone();
-            let mut blocks: Vec<SequencerBlockSubset> = tmp_blocks.values().cloned().collect();
-            output_blocks.append(blocks.as_mut());
-            self.pending_blocks.remove(&self.head_height);
-            // don't need to update any data about the head yet because none of
-            // those blocks are technically "safe" yet.
-            // TODO: this will send a lot of the same blocks multiple times if
-            // there are a lot of blocks in the head queue. Need a way to track
-            // which head blocks have already been sent.
+    /// Once a block is added to the pending_blocks in the queue, this function
+    /// is called. It walks the panding blocks from lowest to highest height,
+    /// checking to see if there is a continues chain of blocks. For every block
+    /// that is a decendant of the most recent "soft" block, and has a direct
+    /// decendant, that block gets added to the `soft_blocks` BTreeMap and the
+    /// head height is updated.
+    /// after, and including, the most recent "soft" block that has a direct child
+    fn update_internal_state(&mut self) {
+        // check if the block added connects blocks in the pending queue
+        let mut heights: Vec<Height> = self.pending_blocks.keys().cloned().collect();
+        heights.sort();
+        for height in heights {
+            // if the very first height in the pending blocks is the head
+            if height == self.head_height {
+                if let Some(pending_blocks) = self.pending_blocks.clone().get(&height) {
+                    for block in pending_blocks.values() {
+                        if self.is_block_a_parent(block.clone()) {
+                            self.soft_blocks.insert(height, block.clone());
+                            self.most_recent_soft_hash = block.block_hash();
+                            self.head_height = height.increment();
+                            self.remove_data_blow_height(self.head_height);
+                            break;
+                        }
+                    }
+                }
+            } else {
+                break;
+            }
         }
-        if let Some(mut soft_blocks) = self.get_soft_blocks() {
-            output_blocks.append(soft_blocks.as_mut());
-            self.soft_blocks.clear();
-        }
-        output_blocks.sort();
-        if !output_blocks.is_empty() {
-            Some(output_blocks)
-        } else {
-            None
-        }
-    }
-
-    // TODO: this will return all the blocks in the soft queue that are already "safe"
-    pub(super) fn get_soft_blocks(&mut self) -> Option<Vec<SequencerBlockSubset>> {
-        let mut soft_blocks: Vec<SequencerBlockSubset> =
-            self.soft_blocks.values().cloned().collect();
-        soft_blocks.sort();
-        if !soft_blocks.is_empty() {
-            Some(soft_blocks)
-        } else {
-            None
-        }
-    }
-
-    // TODO: it is worth add a "peek" that returns blocks but doesn't delete them?
-
-    /// Return the number of blocks in the queue
-    pub(super) fn len(&self) -> usize {
-        let mut len = 0;
-        len += self.pending_blocks.len();
-        len += self.soft_blocks.len();
-        len
-    }
-
-    pub(super) fn is_empty(&self) -> bool {
-        self.len() == 0
     }
 }
 
-// TODO: add a test for the tree and the queue
+#[cfg(test)]
+mod test {
+    use std::{
+        collections::HashSet,
+        sync::Arc,
+    };
+
+    use astria_proto::execution::v1alpha1::{
+        DoBlockResponse,
+        InitStateResponse,
+    };
+    use astria_sequencer_types::Namespace;
+    use color_eyre::eyre::Result;
+    use prost_types::Timestamp;
+    use sha2::Digest as _;
+    use tendermint::{
+        block::Id as BlockId,
+        Time,
+    };
+    use tokio::sync::{
+        mpsc,
+        Mutex,
+    };
+
+    use super::*;
+    use crate::executor::{
+        ExecutionClient,
+        Executor,
+    };
+
+    // a mock ExecutionClient used for testing the Executor
+    struct MockExecutionClient {
+        finalized_blocks: Arc<Mutex<HashSet<Vec<u8>>>>,
+    }
+
+    impl MockExecutionClient {
+        fn new() -> Self {
+            Self {
+                finalized_blocks: Arc::new(Mutex::new(HashSet::new())),
+            }
+        }
+    }
+
+    impl crate::private::Sealed for MockExecutionClient {}
+
+    #[async_trait::async_trait]
+    impl ExecutionClient for MockExecutionClient {
+        // returns the sha256 hash of the prev_block_hash
+        // the Executor passes self.execution_state as prev_block_hash
+        async fn call_do_block(
+            &mut self,
+            prev_block_hash: Vec<u8>,
+            _transactions: Vec<Vec<u8>>,
+            _timestamp: Option<Timestamp>,
+        ) -> Result<DoBlockResponse> {
+            let res = hash(&prev_block_hash);
+            Ok(DoBlockResponse {
+                block_hash: res.to_vec(),
+            })
+        }
+
+        async fn call_finalize_block(&mut self, block_hash: Vec<u8>) -> Result<()> {
+            self.finalized_blocks.lock().await.insert(block_hash);
+            Ok(())
+        }
+
+        async fn call_init_state(&mut self) -> Result<InitStateResponse> {
+            let hasher = sha2::Sha256::new();
+            Ok(InitStateResponse {
+                block_hash: hasher.finalize().to_vec(),
+            })
+        }
+    }
+
+    /// Return the number of blocks in the queue
+    fn queue_len(queue: Queue) -> usize {
+        let pending_blocks = queue.pending_blocks.clone();
+        let soft_blocks = queue.soft_blocks.clone();
+        let mut len = 0;
+        for height in pending_blocks.values() {
+            len += height.keys().len();
+        }
+        len += soft_blocks.len();
+        len
+    }
+
+    fn hash(s: &[u8]) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(s);
+        hasher.finalize().to_vec()
+    }
+
+    fn get_test_block_subset() -> SequencerBlockSubset {
+        SequencerBlockSubset {
+            block_hash: hash(b"block1").try_into().unwrap(),
+            header: astria_sequencer_types::test_utils::default_header(),
+            rollup_transactions: vec![],
+        }
+    }
+
+    fn get_test_block_vec(num_blocks: u32) -> Vec<SequencerBlockSubset> {
+        // let namespace = Namespace::from_slice(b"test");
+
+        let mut block = get_test_block_subset();
+        block.rollup_transactions.push(b"test_transaction".to_vec());
+
+        let mut blocks = vec![];
+
+        block.header.height = 1_u32.into();
+        blocks.push(block);
+
+        for i in 2..=num_blocks {
+            let current_hash_string = String::from("block") + &i.to_string();
+            let prev_hash_string = String::from("block") + &(i - 1).to_string();
+            let current_byte_hash: &[u8] = &current_hash_string.into_bytes();
+            let prev_byte_hash: &[u8] = &prev_hash_string.into_bytes();
+
+            let mut block = get_test_block_subset();
+            block.block_hash = Hash::try_from(hash(current_byte_hash)).unwrap();
+            block.rollup_transactions.push(b"test_transaction".to_vec());
+
+            block.header.height = i.into();
+            let block_id = BlockId {
+                hash: Hash::try_from(hash(prev_byte_hash)).unwrap(),
+                ..Default::default()
+            };
+            block.header.last_block_id = Some(block_id);
+
+            blocks.push(block);
+        }
+        blocks
+    }
+
+    #[tokio::test]
+    async fn test_block_queue() {
+        let (alert_tx, _) = mpsc::unbounded_channel();
+        let namespace = Namespace::from_slice(b"test");
+        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
+            .await
+            .unwrap();
+
+        let blocks = get_test_block_vec(10);
+
+        // executing a block like normal
+        let mut expected_exection_hash = hash(&executor.execution_state);
+        let execution_block_hash_0 = executor
+            .execute_block(blocks[0].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        assert_eq!(expected_exection_hash, execution_block_hash_0);
+
+        // adding a block without a parent in the execution chain doesn't change the execution
+        // state and adds it to the queue
+        let execution_block_hash_2 = executor
+            .execute_block(blocks[2].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        assert_eq!(expected_exection_hash, execution_block_hash_2);
+        assert_eq!(queue_len(executor.block_queue.clone()), 1);
+
+        // adding another block without a parent in the current chain (but does have parent in the
+        // queue). also doesn't change execution state
+        let execution_block_hash_3 = executor
+            .execute_block(blocks[3].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        assert_eq!(expected_exection_hash, execution_block_hash_3);
+        assert_eq!(queue_len(executor.block_queue.clone()), 2);
+
+        // adding the actual next block updates the execution state
+        // using hash() 3 times here because adding the new block and executing the queue updates
+        // the state 3 times. one for each block.
+        expected_exection_hash = hash(&hash(&hash(&executor.execution_state)));
+        let execution_block_hash_1 = executor
+            .execute_block(blocks[1].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        assert_eq!(expected_exection_hash, execution_block_hash_1);
+        // and the queue gets executed and cleared
+        assert_eq!(queue_len(executor.block_queue.clone()), 0);
+
+        // a new block with a parent appears and is executed
+        expected_exection_hash = hash(&executor.execution_state);
+        let execution_block_hash_4 = executor
+            .execute_block(blocks[4].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        assert_eq!(expected_exection_hash, execution_block_hash_4);
+
+        // add another block that doesn't have a parent
+        let execution_block_hash_6 = executor
+            .execute_block(blocks[6].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        // exectuion hash not updated
+        assert_eq!(expected_exection_hash, execution_block_hash_6);
+        assert_eq!(queue_len(executor.block_queue.clone()), 1);
+        // add in the same block again with a newer timestamp
+        let mut newer_6_block = blocks[6].clone();
+        newer_6_block.header.time = Time::now();
+        let execution_block_hash_6 = executor
+            .execute_block(newer_6_block)
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        // exectuion hash not updated
+        assert_eq!(expected_exection_hash, execution_block_hash_6);
+        // the newer block replaces the block of the same height in the queue so the queue doesn't
+        // grow
+        assert_eq!(queue_len(executor.block_queue.clone()), 1);
+
+        // add another block that doesn't have a parent and also a gap between the last block added
+        // to the queue that doesn't have a parent
+        let execution_block_hash_8 = executor
+            .execute_block(blocks[8].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        // exectuion hash not updated
+        assert_eq!(expected_exection_hash, execution_block_hash_8);
+        assert_eq!(queue_len(executor.block_queue.clone()), 2);
+
+        // add a block that fills the first gap
+        // in this case there are two 6 blocks but one is newer
+        // only the latest block gets executed here and the old 6 block just gets deleted
+        expected_exection_hash = hash(&hash(&executor.execution_state)); // 2 blocks executed
+        let execution_block_hash_5 = executor
+            .execute_block(blocks[5].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        assert_eq!(expected_exection_hash, execution_block_hash_5);
+        // only one block in the queue gets executed because there is still a gap
+        assert_eq!(queue_len(executor.block_queue.clone()), 1);
+
+        // add a block that fills the second gap
+        expected_exection_hash = hash(&hash(&executor.execution_state));
+        let execution_block_hash_7 = executor
+            .execute_block(blocks[7].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        assert_eq!(expected_exection_hash, execution_block_hash_7);
+        // the rest of the queue is executed because all gaps are filled
+        assert_eq!(queue_len(executor.block_queue.clone()), 0);
+
+        // one final block executed like normal
+        expected_exection_hash = hash(&executor.execution_state);
+        let execution_block_hash_9 = executor
+            .execute_block(blocks[9].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        assert_eq!(expected_exection_hash, execution_block_hash_9);
+        assert_eq!(queue_len(executor.block_queue.clone()), 0);
+    }
+}
