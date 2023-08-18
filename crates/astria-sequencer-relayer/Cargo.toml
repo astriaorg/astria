@@ -3,7 +3,7 @@ name = "astria-sequencer-relayer"
 version = "0.4.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-rust-version = "1.65"
+rust-version = "1.70"
 
 [dependencies]
 base64-serde = "0.7.0"
@@ -24,7 +24,6 @@ futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 humantime = { workspace = true }
 hyper = { workspace = true }
-is-terminal = { workspace = true }
 prost = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true, features = ["derive"] }
@@ -33,7 +32,6 @@ tendermint = { workspace = true, features = ["rust-crypto"] }
 tendermint-config = { workspace = true }
 tendermint-rpc = { workspace = true, features = ["http-client"] }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client" }
@@ -41,6 +39,7 @@ astria-gossipnet = { path = "../astria-gossipnet" }
 astria-proto = { path = "../astria-proto" }
 astria-sequencer = { path = "../astria-sequencer" }
 astria-sequencer-types = { path = "../astria-sequencer-types" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
 astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client", features = [

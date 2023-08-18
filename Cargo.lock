@@ -366,6 +366,7 @@ dependencies = [
  "astria-proto",
  "astria-sequencer",
  "astria-sequencer-client",
+ "astria-telemetry",
  "async-trait",
  "axum",
  "backon",
@@ -377,7 +378,6 @@ dependencies = [
  "humantime",
  "hyper",
  "impl-serde",
- "is-terminal",
  "jsonrpsee",
  "once_cell",
  "rand 0.8.5",
@@ -390,7 +390,6 @@ dependencies = [
  "tokio",
  "tokio-test",
  "tracing",
- "tracing-subscriber",
  "wiremock",
 ]
 
@@ -403,6 +402,7 @@ dependencies = [
  "astria-sequencer-client",
  "astria-sequencer-relayer",
  "astria-sequencer-types",
+ "astria-telemetry",
  "async-trait",
  "base64 0.21.2",
  "clap",
@@ -411,7 +411,6 @@ dependencies = [
  "figment",
  "futures",
  "hex",
- "is-terminal",
  "once_cell",
  "prost",
  "prost-types",
@@ -426,7 +425,6 @@ dependencies = [
  "tokio",
  "tonic 0.9.2",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -441,7 +439,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -465,6 +462,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "astria-proto",
+ "astria-telemetry",
  "async-trait",
  "borsh",
  "bytes",
@@ -472,7 +470,6 @@ dependencies = [
  "ed25519-consensus",
  "futures",
  "hex",
- "is-terminal",
  "matchit",
  "penumbra-storage",
  "penumbra-tower-trace",
@@ -488,7 +485,6 @@ dependencies = [
  "tower-abci",
  "tower-actor",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -521,6 +517,7 @@ dependencies = [
  "astria-proto",
  "astria-sequencer",
  "astria-sequencer-types",
+ "astria-telemetry",
  "axum",
  "backon",
  "base64 0.21.2",
@@ -535,7 +532,6 @@ dependencies = [
  "http",
  "humantime",
  "hyper",
- "is-terminal",
  "jsonrpsee",
  "multiaddr",
  "once_cell",
@@ -552,7 +548,6 @@ dependencies = [
  "tendermint-rpc",
  "tokio",
  "tracing",
- "tracing-subscriber",
  "wiremock",
  "zeroize",
 ]
@@ -583,6 +578,14 @@ dependencies = [
  "eyre",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "astria-telemetry"
+version = "0.1.0"
+dependencies = [
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
