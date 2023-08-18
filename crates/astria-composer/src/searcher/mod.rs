@@ -47,8 +47,10 @@ use tracing::{
 
 use crate::Config;
 
-mod executor;
+mod collector;
 mod rollup;
+
+use collector::Executor;
 
 /// the astria seqeuencer.
 pub(super) struct Searcher {
@@ -61,11 +63,11 @@ pub(super) struct Searcher {
     sequencer_nonce: Arc<AtomicU32>,
     // Channel to report the internal status of the searcher to other parts of the system.
     status: watch::Sender<Status>,
-    executors: HashMap<String, executor::Executor>,
-    executor_statuses: HashMap<String, watch::Receiver<executor::Status>>,
+    collectors: HashMap<String, Executor>,
+    collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
     // A channel on which the searcher receives transactions from its executors.
-    new_transactions: Receiver<executor::Transaction>,
-    executor_tasks: tokio_util::task::JoinMap<String, eyre::Result<()>>,
+    new_transactions: Receiver<collector::Transaction>,
+    collector_tasks: tokio_util::task::JoinMap<String, eyre::Result<()>>,
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
     conversion_tasks: JoinSet<eyre::Result<transaction::Signed>>,
@@ -75,13 +77,13 @@ pub(super) struct Searcher {
 
 #[derive(Debug, Default)]
 pub(crate) struct Status {
-    all_executors_connected: bool,
+    all_collectors_connected: bool,
     sequencer_connected: bool,
 }
 
 impl Status {
     pub(crate) fn is_ready(&self) -> bool {
-        self.all_executors_connected && self.sequencer_connected
+        self.all_collectors_connected && self.sequencer_connected
     }
 }
 
@@ -122,10 +124,9 @@ impl Searcher {
     /// + failed to connect to the eth RPC server;
     /// + failed to construct a sequencer clinet
     pub(super) async fn from_config(cfg: &Config) -> eyre::Result<Self> {
-        use executor::Executor;
         use futures::{
-            future::FutureExt as _,
-            stream::StreamExt as _,
+            FutureExt as _,
+            StreamExt as _,
         };
         use rollup::Rollup;
         let rollups = cfg
@@ -138,7 +139,7 @@ impl Searcher {
 
         let (tx_sender, new_transactions) = mpsc::channel(256);
 
-        let mut create_executors = rollups
+        let mut create_collectors = rollups
             .into_iter()
             .map(|(chain_id, url)| {
                 let task_name = chain_id.clone();
@@ -147,27 +148,27 @@ impl Searcher {
             })
             .collect::<futures::stream::FuturesUnordered<_>>();
         // TODO(superfluffy): allow aborting this using `futures::stream::AbortHandle`
-        let mut executors = HashMap::new();
-        while let Some((chain_id, join_result)) = create_executors.next().await {
+        let mut collectors = HashMap::new();
+        while let Some((chain_id, join_result)) = create_collectors.next().await {
             match join_result {
                 Err(err) => {
                     return Err(err).wrap_err_with(|| {
-                        format!("task starting executor for {chain_id} panicked")
+                        format!("task starting collector for {chain_id} panicked")
                     });
                 }
                 Ok(Err(err)) => {
                     return Err(err)
-                        .wrap_err_with(|| format!("failed starting executor for {chain_id}"));
+                        .wrap_err_with(|| format!("failed starting collector for {chain_id}"));
                 }
-                Ok(Ok(executor)) => {
-                    executors.insert(chain_id, executor);
+                Ok(Ok(collector)) => {
+                    collectors.insert(chain_id, collector);
                 }
             }
         }
 
-        let executor_statuses = executors
+        let collector_statuses = collectors
             .iter()
-            .map(|(chain_id, executor)| (chain_id.clone(), executor.subscribe()))
+            .map(|(chain_id, collector)| (chain_id.clone(), collector.subscribe()))
             .collect();
 
         // connect to sequencer node
@@ -190,10 +191,10 @@ impl Searcher {
             sequencer_key,
             sequencer_nonce: Arc::new(AtomicU32::new(0)),
             status,
-            executors,
-            executor_statuses,
+            collectors,
+            collector_statuses,
             new_transactions,
-            executor_tasks: tokio_util::task::JoinMap::new(),
+            collector_tasks: tokio_util::task::JoinMap::new(),
             conversion_tasks: JoinSet::new(),
             submission_tasks: JoinSet::new(),
         })
@@ -204,14 +205,14 @@ impl Searcher {
     }
 
     /// Serializes and signs a sequencer tx from a rollup tx.
-    fn handle_pending_tx(&mut self, tx: executor::Transaction) {
+    fn handle_pending_tx(&mut self, tx: collector::Transaction) {
         use astria_sequencer::{
             accounts::types::Nonce,
             sequence,
             transaction::action,
         };
 
-        let executor::Transaction {
+        let collector::Transaction {
             chain_id,
             inner: rollup_tx,
         } = tx;
@@ -259,9 +260,9 @@ impl Searcher {
     /// Runs the Searcher
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         self.spawn_executors();
-        let wait_for_executors = self.wait_for_executors();
+        let wait_for_collectors = self.wait_for_collectors();
         let wait_for_seq = self.wait_for_sequencer(5, Duration::from_secs(5), 2.0);
-        match tokio::try_join!(wait_for_executors, wait_for_seq) {
+        match tokio::try_join!(wait_for_collectors, wait_for_seq) {
             Ok(((), ())) => {}
             Err(err) => return Err(err).wrap_err("failed to start searcher"),
         }
@@ -318,14 +319,14 @@ impl Searcher {
 
     /// Spawns all executors on the executor task set.
     fn spawn_executors(&mut self) {
-        for (chain_id, executor) in self.executors.drain() {
-            self.executor_tasks
+        for (chain_id, executor) in self.collectors.drain() {
+            self.collector_tasks
                 .spawn(chain_id, executor.run_until_stopped());
         }
     }
 
     /// Waits for all executors to come online.
-    async fn wait_for_executors(&self) -> eyre::Result<()> {
+    async fn wait_for_collectors(&self) -> eyre::Result<()> {
         use futures::{
             future::FutureExt as _,
             stream::{
@@ -334,12 +335,12 @@ impl Searcher {
             },
         };
         let mut statuses = self
-            .executor_statuses
+            .collector_statuses
             .iter()
             .map(|(chain_id, status)| {
                 let mut status = status.clone();
                 async move {
-                    match status.wait_for(executor::Status::is_connected).await {
+                    match status.wait_for(collector::Status::is_connected).await {
                         // `wait_for` returns a reference to status; throw it
                         // away because this future cannot return a reference to
                         // a stack local object.
@@ -363,7 +364,7 @@ impl Searcher {
             }
         }
         self.status.send_modify(|status| {
-            status.all_executors_connected = true;
+            status.all_collectors_connected = true;
         });
         Ok(())
     }
