@@ -121,7 +121,7 @@ struct Executor<C> {
     /// we receive a finalized sequencer block.
     sequencer_hash_to_execution_hash: HashMap<Hash, Vec<u8>>,
 
-    /// The block queue for incoming blocks from gossip
+    /// The block queue for handling incoming blocks from gossip
     block_queue: Queue,
 }
 
@@ -196,14 +196,21 @@ impl<C: ExecutionClient> Executor<C> {
         Ok(())
     }
 
-    /// checks for relevant transactions in the SequencerBlock and attempts
-    /// to execute them via the execution service function DoBlock.
-    /// if there are relevant transactions that successfully execute,
-    /// it returns the resulting execution block hash.
-    /// if the block has already been executed, it returns the previously-computed
-    /// execution block hash.
-    /// if there are no relevant transactions in the SequencerBlock, it returns None.
+    /// Send a block to the execution layer for execution.
+    ///
+    /// This function checks for relevant transactions in the SequencerBlock and attempts
+    /// to execute them via the execution service function DoBlock. If there are relevant
+    /// transactions that successfully execute,it returns the resulting execution block hash. If
+    /// the block has already been executed, the previously-computed execution block
+    /// hash is returned. If there are no relevant transactions in the SequencerBlock, it returns
+    /// None. If multiple blocks end up being executed (because several blocks were in
+    /// the queue waiting for a missing block to arrive), only the execution
+    /// hash of the last block is returned. The execution hash of all executed
+    /// blocks are stored in the `sequencer_hash_to_execution_hash` map.
     async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Vec<u8>>> {
+        // TODO: (GHI 285 - https://github.com/astriaorg/astria/issues/285): decide how empty blocks should be handled. either do nothing,
+        // or execute an empty block.
+        // if there are no transactions in the block, return None
         if block.rollup_transactions.is_empty() {
             debug!(
                 height = block.header.height.value(),
@@ -212,6 +219,7 @@ impl<C: ExecutionClient> Executor<C> {
             return Ok(None);
         }
 
+        // if the block has already been executed, return the execution block hash
         if let Some(execution_hash) = self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
             debug!(
                 height = block.header.height.value(),
@@ -221,53 +229,65 @@ impl<C: ExecutionClient> Executor<C> {
             return Ok(Some(execution_hash.clone()));
         }
 
-        // let prev_block_hash = self.execution_state.clone();
-        // info!(
-        //     height = block.header.height.value(),
-        //     parent_block_hash = hex::encode(&prev_block_hash),
-        //     "executing block with given parent block",
-        // );
-
-        // let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
-        //     .wrap_err("failed parsing str as protobuf timestamp")?;
-
         self.block_queue.insert(block.clone());
+        // TODO: (GHI 250 - https://github.com/astriaorg/astria/issues/250):
+        // add a match statmenet here to either `pop_blocks` (returns soft and
+        // head) or `pop_soft_blocks` (just soft) based on the `execution_commit_level` setting
         let queued_blocks = self.block_queue.pop_blocks();
 
         let mut final_response = Ok(Some(self.execution_state.clone()));
-
         if let Some(blocks) = queued_blocks {
+            // execute all the blocks returned from the queue
             for block in blocks {
-                let prev_block_hash = self.execution_state.clone();
-                info!(
-                    height = block.header.height.value(),
-                    parent_block_hash = hex::encode(&prev_block_hash),
-                    "executing block with given parent block",
-                );
-                let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
-                    .wrap_err("failed parsing str as protobuf timestamp")?;
-                let response = self
-                    .execution_rpc_client
-                    .call_do_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
-                    .await?;
-                self.execution_state = response.block_hash.clone();
-
-                // store block hash returned by execution client, as we need it to finalize the
-                // block later
-                info!(
-                    sequencer_block_hash = ?block.block_hash,
-                    sequencer_block_height = block.header.height.value(),
-                    execution_block_hash = hex::encode(&response.block_hash),
-                    "executed sequencer block",
-                );
-                self.sequencer_hash_to_execution_hash
-                    .insert(block.block_hash, response.block_hash.clone());
-
-                final_response = Ok(Some(response.block_hash));
+                final_response = self.execute_single_block(block).await;
             }
         }
 
         final_response
+    }
+
+    /// Send a block to the execution layer for execution.
+    ///
+    /// This funciton takes a SequencerBlockSubset and its associtated data to
+    /// build the inputs for a call to `DoBlock` on the execution layer.
+    async fn execute_single_block(
+        &mut self,
+        block: SequencerBlockSubset,
+    ) -> Result<Option<Vec<u8>>> {
+        // get the prvious execution state to pass to do block
+        let prev_block_hash = self.execution_state.clone();
+        info!(
+            height = block.header.height.value(),
+            parent_block_hash = hex::encode(&prev_block_hash),
+            "executing block with given parent block",
+        );
+
+        let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
+            .wrap_err("failed parsing str as protobuf timestamp")?;
+
+        // pass previous execution state, block transactions, and timestamp to
+        // execution client
+        // TODO (GHI #207: https://github.com/astriaorg/astria/issues/207)
+        // update this once the new api has been implemented
+        let response = self
+            .execution_rpc_client
+            .call_do_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
+            .await?;
+
+        self.execution_state = response.block_hash.clone();
+
+        info!(
+            sequencer_block_hash = ?block.block_hash,
+            sequencer_block_height = block.header.height.value(),
+            execution_block_hash = hex::encode(&response.block_hash),
+            "executed sequencer block",
+        );
+        // store block hash returned by execution client, as we need it to finalize the
+        // block later
+        self.sequencer_hash_to_execution_hash
+            .insert(block.block_hash, response.block_hash.clone());
+
+        Ok(Some(response.block_hash))
     }
 
     async fn handle_block_received_from_data_availability(
