@@ -18,11 +18,6 @@ pub struct MerkleTree(CtMerkleTree<Sha256, Vec<u8>>);
 
 impl MerkleTree {
     #[must_use]
-    pub fn new() -> Self {
-        MerkleTree(CtMerkleTree::new())
-    }
-
-    #[must_use]
     pub fn from_leaves(leaves: Vec<Vec<u8>>) -> Self {
         let tree = leaves
             .into_iter()
@@ -140,6 +135,7 @@ mod test {
 
     #[test]
     fn ct_merkle_vs_tendermint() {
+        // assert that the ct-merkle library is compatible with tendermint
         let data: Vec<Vec<u8>> = vec![
             vec![1, 2, 3],
             vec![4, 5, 6],
@@ -152,13 +148,9 @@ mod test {
         ];
 
         let tm_root = simple_hash_from_byte_vectors::<tendermint::crypto::default::Sha256>(&data);
-
-        let mut ct_tree: CtMerkleTree<sha2::Sha256, Vec<u8>> = ct_merkle::CtMerkleTree::new();
-        for d in data {
-            ct_tree.push(d);
-        }
+        let ct_tree = MerkleTree::from_leaves(data);
         let ct_root = ct_tree.root();
-        assert_eq!(ct_root.as_bytes().as_slice(), tm_root.as_slice());
+        assert_eq!(ct_root.as_bytes(), tm_root.as_slice());
     }
 
     #[test]
