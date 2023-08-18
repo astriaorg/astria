@@ -3,6 +3,7 @@ pub(crate) mod app;
 pub(crate) mod app_hash;
 pub(crate) mod component;
 pub mod config;
+#[cfg(feature = "faucet")]
 pub mod faucet;
 pub(crate) mod genesis;
 pub(crate) mod proposal;
