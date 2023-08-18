@@ -81,7 +81,7 @@ impl SequencerBlockData {
             bail!(Error::MissingDataHash);
         };
         action_tree_root_inclusion_proof
-            .verify(data_hash)
+            .verify(action_tree_root.as_bytes(), data_hash)
             .wrap_err("failed to verify action tree root inclusion proof")?;
         // TODO: also verify last_commit_hash (#270)
 
