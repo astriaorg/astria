@@ -49,14 +49,16 @@ async fn main() -> Result<()> {
 
 async fn run() -> Result<()> {
     let args = Cli::parse();
-    telemetry::init(std::io::stdout).expect("failed to initialize telemetry");
-
     // hierarchical config. cli args override Envars which override toml config values
     let conf: Config = Figment::new()
         .merge(Toml::file("ConductorConfig.toml"))
+        .merge(Env::prefixed("RUST_").split("_").only(&["log"]))
         .merge(Env::prefixed("ASTRIA_"))
         .merge(Serialized::defaults(args))
         .extract()?;
+
+    telemetry::init(std::io::stdout, conf.log.as_deref().unwrap_or("info"))
+        .expect("failed to initialize telemetry");
 
     info!("Using chain ID {}", conf.chain_id);
     info!("Using Celestia node at {}", conf.celestia_node_url);

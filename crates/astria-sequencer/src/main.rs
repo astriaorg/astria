@@ -1,5 +1,4 @@
 use astria_sequencer::{
-    telemetry,
     Config,
     Sequencer,
 };
@@ -8,7 +7,8 @@ use tracing::info;
 #[tokio::main]
 async fn main() {
     let config = Config::get();
-    telemetry::init(std::io::stdout).expect("failed to initialize telemetry");
+    telemetry::init(std::io::stdout, config.log.as_deref().unwrap_or("info"))
+        .expect("failed to initialize telemetry");
     info!(
         config = serde_json::to_string(&config).unwrap(),
         "starting sequencer"
