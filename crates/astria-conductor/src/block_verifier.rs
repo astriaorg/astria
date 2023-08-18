@@ -105,7 +105,7 @@ impl BlockVerifier {
 
     pub async fn validate_rollup_data(
         &self,
-        block_hash: &[u8],
+        block_hash: Hash,
         header: &Header,
         last_commit: &Option<Commit>,
         _rollup_data: &RollupNamespaceData,
@@ -146,7 +146,7 @@ impl BlockVerifier {
 
     async fn validate_sequencer_block_header_and_last_commit(
         &self,
-        block_hash: &[u8],
+        block_hash: Hash,
         header: &Header,
         last_commit: &Option<Commit>,
     ) -> eyre::Result<()> {
@@ -215,7 +215,7 @@ impl BlockVerifier {
         // validate the block header matches the block hash
         let block_hash_from_header = header.hash();
         ensure!(
-            block_hash_from_header.as_bytes() == block_hash,
+            block_hash_from_header == block_hash,
             "block hash calculated from tendermint header does not match block hash stored in \
              sequencer block",
         );
