@@ -11,9 +11,7 @@ on:
 
 jobs:
   check_individual_compiles: 
-    # temporarily using GH runners
-    # runs-on: buildjet-4vcpu-ubuntu-2204
-    runs-on: ubuntu-22.04
+    runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.70.0
@@ -30,7 +28,7 @@ jobs:
     runs-on: buildjet-8vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.69.0
+      - uses: dtolnay/rust-toolchain@1.70.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
@@ -57,7 +55,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.69.0
+      - uses: dtolnay/rust-toolchain@1.70.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "github"
@@ -88,7 +86,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.69.0
+      - uses: dtolnay/rust-toolchain@1.70.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "github"
@@ -124,7 +122,7 @@ jobs:
     runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.69.0
+      - uses: dtolnay/rust-toolchain@1.70.0
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2.6.1
