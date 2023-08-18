@@ -277,7 +277,42 @@ mod test {
             vec![0x77, 0x88, 0x99],
         ];
         let tree = MerkleTree::from_leaves(leaves);
-        (tree.root(), tree.prove_inclusion(1).unwrap())
+        (
+            Hash::try_from([0u8; 32].to_vec()).unwrap(),
+            tree.prove_inclusion(0).unwrap(),
+        )
+    }
+
+    #[test]
+    fn new_sequencer_block() {
+        let mut header = crate::test_utils::default_header();
+        let (action_tree_root, action_tree_root_inclusion_proof, data_hash) = {
+            let action_tree_root = [9u8; 32];
+            let transactions = vec![
+                action_tree_root.to_vec(),
+                vec![0x11, 0x22, 0x33],
+                vec![0x44, 0x55, 0x66],
+                vec![0x77, 0x88, 0x99],
+            ];
+            let tree = MerkleTree::from_leaves(transactions);
+            (
+                Hash::try_from(action_tree_root.to_vec()).unwrap(),
+                tree.prove_inclusion(0).unwrap(),
+                tree.root(),
+            )
+        };
+
+        header.data_hash = Some(data_hash);
+        let block_hash = header.hash();
+        SequencerBlockData::new(
+            block_hash,
+            header,
+            None,
+            HashMap::new(),
+            action_tree_root,
+            action_tree_root_inclusion_proof,
+        )
+        .unwrap();
     }
 
     #[test]
