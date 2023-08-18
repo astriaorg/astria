@@ -3,6 +3,7 @@ pub(crate) mod app;
 pub(crate) mod app_hash;
 pub(crate) mod component;
 pub mod config;
+pub mod faucet;
 pub(crate) mod genesis;
 pub mod sequence;
 mod sequencer;
