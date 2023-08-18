@@ -3,12 +3,12 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_proto::sequencer::v1alpha1::UnsignedTransaction as ProtoUnsignedTransaction;
-use prost::Message as _;
-use serde::{
-    Deserialize,
-    Serialize,
+use astria_proto::{
+    generated::sequencer::v1alpha1::UnsignedTransaction as ProtoUnsignedTransaction,
+    native::sequencer::v1alpha1::Address,
 };
+use ed25519_consensus::SigningKey;
+use prost::Message as _;
 use tracing::instrument;
 
 use crate::{
@@ -17,12 +17,8 @@ use crate::{
             StateReadExt,
             StateWriteExt,
         },
-        types::{
-            Address,
-            Nonce,
-        },
+        types::Nonce,
     },
-    crypto::SigningKey,
     hash,
     transaction::{
         action::Action,
@@ -32,7 +28,7 @@ use crate::{
 };
 
 /// Represents an unsigned sequencer chain transaction.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Unsigned {
     pub(crate) nonce: Nonce,
     pub(crate) actions: Vec<Action>,
@@ -113,7 +109,7 @@ impl ActionHandler for Unsigned {
     async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,
-        from: &Address,
+        from: Address,
     ) -> Result<()> {
         // Nonce should be equal to the number of executed transactions before this tx.
         // First tx has nonce 0.
@@ -147,7 +143,7 @@ impl ActionHandler for Unsigned {
             from = from.to_string(),
         )
     )]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: &Address) -> Result<()> {
+    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         // TODO: make a new StateDelta so this is atomic / can be rolled back in case of error
 
         let from_nonce = state
@@ -183,15 +179,17 @@ mod test {
         Context as _,
         Result,
     };
+    use astria_proto::native::sequencer::v1alpha1::{
+        Address,
+        ADDRESS_LEN,
+    };
     use rand::rngs::OsRng;
 
     use super::*;
     use crate::accounts::{
         types::{
-            Address,
             Balance,
             Nonce,
-            ADDRESS_LEN,
         },
         Transfer,
     };

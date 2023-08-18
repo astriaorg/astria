@@ -10,20 +10,41 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
-    # temporarily using GH runners
-    # runs-on: buildjet-8vcpu-ubuntu-2204
-    runs-on: ubuntu-22.04
+  check_individual_compiles: 
+    runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.69.0
-      - uses: astriaorg/buildjet-rust-cache@v2.5.1
+      - uses: taiki-e/install-action@v2.15.2
+        with:
+          tool: cargo-hack@0.5.29
+      - uses: Swatinem/rust-cache@v2.6.1
+        with:
+          cache-provider: "buildjet"
+      - name: Check that each crate compiles individually (circumventing workspace wide dependency resolution)
+        run: cargo hack check --all --all-features
+    
+  test:
+    runs-on: buildjet-8vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@1.69.0
+      - uses: Swatinem/rust-cache@v2.6.1
+        with:
+          cache-provider: "buildjet"
       - name: Install buf cli
         uses: bufbuild/buf-setup-action@v1
         with:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build tests (excluding RPC client, which needs kubernetes)
+        run: |
+          cargo test --no-run --release --workspace \
+          --all-features \
+          --all-targets \
+          --exclude astria-celestia-jsonrpc-client
       - name: Run tests (excluding RPC client, which needs kubernetes)
+        timeout-minutes: 20
         run: |
           cargo test --release --workspace \
           --all-features \
@@ -35,7 +56,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.69.0
-      - uses: astriaorg/buildjet-rust-cache@v2.5.1
+      - uses: Swatinem/rust-cache@v2.6.1
+        with:
+          cache-provider: "github"
       - name: Build the jsonrpc client tests
         run: cargo test --release --no-run --package astria-celestia-jsonrpc-client
       - name: create kubernetes in docker cluster
@@ -64,7 +87,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.69.0
-      - uses: astriaorg/buildjet-rust-cache@v2.5.1
+      - uses: Swatinem/rust-cache@v2.6.1
+        with:
+          cache-provider: "github"
       - name: Run doctests
         run: cargo test --doc --all-features
 
@@ -94,13 +119,15 @@ jobs:
         run: taplo format --check
 
   clippy:
-    runs-on: ubuntu-latest
+    runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.69.0
         with:
           components: clippy
-      - uses: astriaorg/buildjet-rust-cache@v2.5.1
+      - uses: Swatinem/rust-cache@v2.6.1
+        with:
+          cache-provider: "buildjet"
       - uses: bufbuild/buf-setup-action@v1
         with:
           version: "1.17.0"

@@ -9,18 +9,7 @@ use std::{
     time::Duration,
 };
 
-use astria_sequencer::{
-    accounts::types::{
-        Address,
-        Nonce,
-    },
-    sequence::Action as SequenceAction,
-    transaction::{
-        action::Action as SequencerAction,
-        Signed as SignedSequencerTx,
-        Unsigned as UnsignedSequencerTx,
-    },
-};
+use astria_sequencer::transaction;
 use color_eyre::eyre::{
     self,
     bail,
@@ -41,7 +30,10 @@ use secrecy::{
     ExposeSecret as _,
     Zeroize as _,
 };
-use sequencer_client::SequencerClientExt as _;
+use sequencer_client::{
+    Address,
+    SequencerClientExt as _,
+};
 use tendermint::abci;
 use tokio::{
     select,
@@ -76,7 +68,7 @@ pub(super) struct Searcher {
     status: watch::Sender<Status>,
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
-    conversion_tasks: JoinSet<eyre::Result<SignedSequencerTx>>,
+    conversion_tasks: JoinSet<eyre::Result<transaction::Signed>>,
     // Set of in-flight RPCs submitting signed transactions to the sequencer.
     submission_tasks: JoinSet<eyre::Result<()>>,
 }
@@ -197,6 +189,12 @@ impl Searcher {
 
     /// Serializes and signs a sequencer tx from a rollup tx.
     fn handle_pending_tx(&mut self, rollup_tx: Transaction) {
+        use astria_sequencer::{
+            accounts::types::Nonce,
+            sequence,
+            transaction::action,
+        };
+
         let chain_id = self.rollup_chain_id.clone();
         let sequencer_key = self.sequencer_key.clone();
         let nonce = self.sequencer_nonce.clone();
@@ -205,19 +203,19 @@ impl Searcher {
             // Pack into sequencer tx
             let data = rollup_tx.rlp().to_vec();
             let chain_id = chain_id.into_bytes();
-            let seq_action = SequencerAction::SequenceAction(SequenceAction::new(chain_id, data));
+            let seq_action = action::Action::SequenceAction(sequence::Action::new(chain_id, data));
 
             // get current nonce and increment nonce
             let curr_nonce = nonce.fetch_add(1, Ordering::Relaxed);
             let unsigned_tx =
-                UnsignedSequencerTx::new_with_actions(Nonce::from(curr_nonce), vec![seq_action]);
+                transaction::Unsigned::new_with_actions(Nonce::from(curr_nonce), vec![seq_action]);
 
             // Sign transaction
             Ok(unsigned_tx.into_signed(&sequencer_key))
         });
     }
 
-    fn handle_signed_tx(&mut self, tx: SignedSequencerTx) {
+    fn handle_signed_tx(&mut self, tx: transaction::Signed) {
         use sequencer_client::SequencerClientExt as _;
         let client = self.sequencer_client.inner.clone();
         self.submission_tasks.spawn(async move {
@@ -252,15 +250,15 @@ impl Searcher {
         }
 
         // set initial sequencer nonce
-        let address = Address::from_verification_key(&self.sequencer_key.verification_key());
-        let starting_nonce = self
+        let address = Address::from_verification_key(self.sequencer_key.verification_key());
+        let nonce_response = self
             .sequencer_client
             .inner
-            .get_nonce(&address, None)
+            .get_latest_nonce(address.0)
             .await
             .wrap_err("failed to query sequencer for nonce")?;
         self.sequencer_nonce
-            .store(starting_nonce.into(), Ordering::Relaxed);
+            .store(nonce_response.nonce, Ordering::Relaxed);
 
         let eth_client = self.eth_client.inner.clone();
         let mut tx_stream = eth_client

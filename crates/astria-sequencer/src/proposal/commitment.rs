@@ -32,7 +32,7 @@ pub(crate) fn generate_sequence_actions_commitment(
         .filter_map(|tx_bytes| match Signed::try_from_slice(&tx_bytes) {
             Ok(tx) => Some((tx, tx_bytes)),
             Err(err) => {
-                tracing::debug!("failed to deserialize tx bytes {:?}: {}", tx_bytes, err);
+                tracing::debug!(tx_bytes = hex::encode(tx_bytes), error = ?err, "failed to deserialize tx bytes");
                 None
             }
         })
@@ -53,6 +53,7 @@ pub(crate) fn generate_sequence_actions_commitment(
 
 /// Groups the `sequence::Action`s within the transactions by their `chain_id`.
 /// Other types of actions are ignored.
+///
 /// Within an entry, actions are ordered by their transaction index within a block.
 fn group_sequence_actions_by_chain_id(txs: &[Signed]) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
     let mut rollup_txs_map = BTreeMap::new();
@@ -73,6 +74,7 @@ fn group_sequence_actions_by_chain_id(txs: &[Signed]) -> BTreeMap<Vec<u8>, Vec<V
 
 #[cfg(test)]
 mod test {
+    use astria_proto::native::sequencer::v1alpha1::Address;
     use ed25519_consensus::SigningKey;
     use prost::Message as _;
     use rand::rngs::OsRng;
@@ -82,7 +84,6 @@ mod test {
         accounts::{
             self,
             types::{
-                Address,
                 Balance,
                 Nonce,
             },
@@ -178,6 +179,10 @@ mod test {
 
     #[test]
     fn generate_sequence_actions_commitment_snapshot() {
+        // this tests that the commitment generated is what is expected via a test vector.
+        // this test will only break in the case of a breaking change to the commitment scheme,
+        // thus if this test needs to be updated, we should cut a new release.
+
         let sequence_action = Action::SequenceAction(sequence::Action::new(
             b"testchainid".to_vec(),
             b"helloworld".to_vec(),

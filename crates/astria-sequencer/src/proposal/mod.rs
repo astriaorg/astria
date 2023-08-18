@@ -1,1 +1,1 @@
-pub mod commitment;
+pub(crate) mod commitment;
