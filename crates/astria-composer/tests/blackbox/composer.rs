@@ -20,10 +20,10 @@ use wiremock::{
 use crate::helper::spawn_composer;
 
 #[tokio::test]
-async fn pending_eth_tx_is_submitted_to_sequencer() {
-    let test_composer = spawn_composer(&["testtest"]).await;
-    let mock_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer).await;
-    test_composer.geths["testtest"]
+async fn tx_from_one_rollup_is_received_by_sequencer() {
+    let test_composer = spawn_composer(&["test1"]).await;
+    let mock_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1").await;
+    test_composer.geths["test1"]
         .push_tx(Transaction::default())
         .unwrap();
     tokio::time::timeout(
@@ -34,7 +34,35 @@ async fn pending_eth_tx_is_submitted_to_sequencer() {
     .expect("mocked sequencer should have received a broadcast message from composer");
 }
 
-async fn mount_broadcast_tx_sync_mock(server: &MockServer) -> MockGuard {
+#[tokio::test]
+async fn tx_from_two_rollups_are_received_by_sequencer() {
+    use futures::future::join;
+
+    let test_composer = spawn_composer(&["test1", "test2"]).await;
+    let test1_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1").await;
+    let test2_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test2").await;
+    test_composer.geths["test1"]
+        .push_tx(Transaction::default())
+        .unwrap();
+    test_composer.geths["test2"]
+        .push_tx(Transaction::default())
+        .unwrap();
+    let all_guards = join(
+        test1_guard.wait_until_satisfied(),
+        test2_guard.wait_until_satisfied(),
+    );
+    tokio::time::timeout(Duration::from_millis(100), all_guards)
+        .await
+        .expect("mocked sequencer should have received a broadcast message from composer");
+}
+
+/// Deserizalizes the bytes contained in a `tx_sync::Request` to a
+/// signed sequencer transaction and verifies that the contained
+/// sequence action is for the given `expected_chain_id`.
+async fn mount_broadcast_tx_sync_mock(
+    server: &MockServer,
+    expected_chain_id: &'static str,
+) -> MockGuard {
     let matcher = |request: &Request| {
         let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
             serde_json::from_slice(&request.body)
@@ -42,7 +70,13 @@ async fn mount_broadcast_tx_sync_mock(server: &MockServer) -> MockGuard {
         let signed_tx = transaction::Signed::try_from_slice(&wrapped_tx_sync_req.params().tx)
             .expect("can't deserialize signed sequencer tx from broadcast jsonrpc request");
         debug!(?signed_tx, "sequencer mock received signed transaction");
-        true
+        let Some(sent_action) = signed_tx.transaction().actions().get(0) else {
+            panic!("received transaction contained to actions");
+        };
+        let Some(sequence_action) = sent_action.as_sequence() else {
+            panic!("mocked sequencer expected a sequence action");
+        };
+        sequence_action.chain_id() == expected_chain_id.as_bytes()
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
