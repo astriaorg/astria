@@ -81,9 +81,10 @@ impl ActionHandler for Request {
             .await
             .context("failed getting `to` account info")?;
 
-        if SystemTime::now() > u64_to_system_time(info.reset_time) {
+        let now = SystemTime::now();
+        if now > u64_to_system_time(info.reset_time) {
             // we're past the reset time, so reset the amount remaining
-            let reset_time = calculate_reset_time()?;
+            let reset_time = calculate_reset_time(now)?;
             state
                 .put_account_info(
                     self.to,
@@ -115,12 +116,154 @@ fn u64_to_system_time(seconds: u64) -> SystemTime {
     SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(seconds)
 }
 
-// calculates the unix timestamp of the next midnight
-fn calculate_reset_time() -> Result<u64> {
-    let now_in_seconds = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)?
-        .as_secs();
-    let seconds_since_last_midnight = now_in_seconds % (24 * 60 * 60);
-    let seconds_until_next_midnight = (24 * 60 * 60) - seconds_since_last_midnight;
+// calculates the unix timestamp of the next midnight (UTC time) after the given time
+fn calculate_reset_time(time: SystemTime) -> Result<u64> {
+    const SECONDS_PER_DAY: u64 = 24 * 60 * 60;
+
+    let now_in_seconds = time.duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
+    let seconds_since_last_midnight = now_in_seconds % SECONDS_PER_DAY;
+    let seconds_until_next_midnight = SECONDS_PER_DAY - seconds_since_last_midnight;
     Ok(now_in_seconds + seconds_until_next_midnight)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::faucet::state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    };
+
+    const TEST_ADDRESS: Address = Address([99u8; 20]);
+
+    #[test]
+    fn calculate_reset_time_ensure_midnight_in_future() {
+        let now = SystemTime::now();
+        let now_in_seconds = now
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let time = calculate_reset_time(now).unwrap();
+        assert!(time > now_in_seconds);
+        assert!(now_in_seconds + (24 * 60 * 60) > time);
+    }
+
+    #[tokio::test]
+    async fn request_check_stateful_ok() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let request = Request {
+            to: TEST_ADDRESS,
+            amount: Balance(1),
+        };
+
+        request
+            .check_stateful(&snapshot, TEST_ADDRESS)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn request_execute_ok() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state_delta = penumbra_storage::StateDelta::new(snapshot);
+
+        let request = Request {
+            to: TEST_ADDRESS,
+            amount: Balance(1),
+        };
+
+        let expected_reset_time = calculate_reset_time(SystemTime::now()).unwrap();
+        request
+            .execute(&mut state_delta, TEST_ADDRESS)
+            .await
+            .unwrap();
+        storage.commit(state_delta).await.unwrap();
+        let snapshot = storage.latest_snapshot();
+
+        let info = snapshot.get_account_info(TEST_ADDRESS).await.unwrap();
+        assert_eq!(info.amount_remaining, FAUCET_LIMIT_PER_DAY - Balance(1));
+        assert_eq!(info.reset_time, expected_reset_time);
+    }
+
+    #[tokio::test]
+    async fn request_check_stateful_err() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let request = Request {
+            to: TEST_ADDRESS,
+            amount: super::FAUCET_LIMIT_PER_DAY + Balance(1),
+        };
+        let err = request
+            .check_stateful(&snapshot, TEST_ADDRESS)
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("request exceeds permitted amount"));
+    }
+
+    #[tokio::test]
+    async fn request_check_stateful_reset_time_past_ok() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state_delta = penumbra_storage::StateDelta::new(snapshot);
+
+        // store an account info with a reset time in the past
+        let info = AccountInfo {
+            amount_remaining: Balance(0),
+            reset_time: 100,
+        };
+        state_delta.put_account_info(TEST_ADDRESS, info).unwrap();
+        storage.commit(state_delta).await.unwrap();
+
+        // make a request, which should succeed
+        let snapshot = storage.latest_snapshot();
+        let request = Request {
+            to: TEST_ADDRESS,
+            amount: super::FAUCET_LIMIT_PER_DAY,
+        };
+
+        request
+            .check_stateful(&snapshot, TEST_ADDRESS)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn request_check_stateful_reset_time_past_err() {
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut state_delta = penumbra_storage::StateDelta::new(snapshot);
+
+        // store an account info with a reset time in the past
+        let info = AccountInfo {
+            amount_remaining: Balance(0),
+            reset_time: 100,
+        };
+        state_delta.put_account_info(TEST_ADDRESS, info).unwrap();
+        storage.commit(state_delta).await.unwrap();
+
+        // make a request, which should fail because the requested amount is too high
+        let snapshot = storage.latest_snapshot();
+        let request = Request {
+            to: TEST_ADDRESS,
+            amount: super::FAUCET_LIMIT_PER_DAY + 1,
+        };
+
+        let err = request
+            .check_stateful(&snapshot, TEST_ADDRESS)
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("request exceeds permitted amount"));
+    }
 }
