@@ -101,6 +101,10 @@ impl ActionHandler for Unsigned {
                 Action::SequenceAction(tx) => tx
                     .check_stateless()
                     .context("stateless check failed for SequenceAction")?,
+                #[cfg(feature = "faucet")]
+                Action::FaucetAction(tx) => tx
+                    .check_stateless()
+                    .context("stateless check failed for FaucetAction")?,
             }
         }
         Ok(())
@@ -130,6 +134,11 @@ impl ActionHandler for Unsigned {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for SequenceAction")?,
+                #[cfg(feature = "faucet")]
+                Action::FaucetAction(tx) => tx
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for FaucetAction")?,
             }
         }
 
@@ -165,6 +174,12 @@ impl ActionHandler for Unsigned {
                     tx.execute(state, from)
                         .await
                         .context("execution failed for SequenceAction")?;
+                }
+                #[cfg(feature = "faucet")]
+                Action::FaucetAction(tx) => {
+                    tx.execute(state, from)
+                        .await
+                        .context("execution failed for FaucetAction")?;
                 }
             }
         }

@@ -9,6 +9,7 @@ use astria_proto::generated::sequencer::v1alpha1::{
 
 use crate::{
     accounts::Transfer,
+    faucet,
     sequence,
 };
 
@@ -21,6 +22,8 @@ use crate::{
 pub enum Action {
     TransferAction(Transfer),
     SequenceAction(sequence::Action),
+    #[cfg(feature = "faucet")]
+    FaucetAction(faucet::Request),
 }
 
 impl Action {
@@ -45,6 +48,10 @@ impl Action {
             Action::SequenceAction(tx) => ProtoAction {
                 value: Some(ProtoValue::SequenceAction(tx.to_proto())),
             },
+            #[cfg(feature = "faucet")]
+            Action::FaucetAction(tx) => ProtoAction {
+                value: Some(ProtoValue::FaucetAction(tx.to_proto())),
+            },
         }
     }
 
@@ -62,6 +69,11 @@ impl Action {
                 ProtoValue::SequenceAction(tx) => {
                     Action::SequenceAction(sequence::Action::from_proto(tx))
                 }
+                #[cfg(feature = "faucet")]
+                ProtoValue::FaucetAction(tx) => Action::FaucetAction(
+                    faucet::Request::try_from_proto(tx)
+                        .context("failed to convert proto to FaucetAction")?,
+                ),
             },
         )
     }

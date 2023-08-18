@@ -5,7 +5,10 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_proto::native::sequencer::v1alpha1::Address;
+use astria_proto::{
+    generated::sequencer::v1alpha1::FaucetAction as ProtoFaucetAction,
+    native::sequencer::v1alpha1::Address,
+};
 use tracing::instrument;
 
 use super::state_ext::AccountInfo;
@@ -23,6 +26,28 @@ pub(crate) const FAUCET_LIMIT_PER_DAY: Balance = Balance(1_000);
 pub struct Request {
     to: Address,
     amount: Balance,
+}
+
+impl Request {
+    pub(crate) fn to_proto(&self) -> ProtoFaucetAction {
+        ProtoFaucetAction {
+            to: self.to.0.to_vec(),
+            amount: Some(self.amount.as_proto()),
+        }
+    }
+
+    pub(crate) fn try_from_proto(proto: &ProtoFaucetAction) -> Result<Self> {
+        Ok(Self {
+            to: Address::try_from_slice(&proto.to)
+                .context("failed to convert proto address to native Address")?,
+            amount: Balance::from_proto(
+                *proto
+                    .amount
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("missing amount"))?,
+            ),
+        })
+    }
 }
 
 #[async_trait::async_trait]

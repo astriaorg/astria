@@ -122,7 +122,7 @@ pub struct UnsignedTransaction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Action {
-    #[prost(oneof="action::Value", tags="1, 2")]
+    #[prost(oneof="action::Value", tags="1, 2, 3")]
     pub value: ::core::option::Option<action::Value>,
 }
 /// Nested message and enum types in `Action`.
@@ -134,6 +134,8 @@ pub mod action {
         TransferAction(super::TransferAction),
         #[prost(message, tag="2")]
         SequenceAction(super::SequenceAction),
+        #[prost(message, tag="3")]
+        FaucetAction(super::FaucetAction),
     }
 }
 /// `TransferAction` represents a value transfer transaction.
@@ -160,5 +162,17 @@ pub struct SequenceAction {
     pub chain_id: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes="vec", tag="2")]
     pub data: ::prost::alloc::vec::Vec<u8>,
+}
+/// `FaucetAction` represents a request from the faucet.
+///
+/// Note: all values must be set (ie. not `None`), otherwise it will
+/// be considered invalid by the sequencer.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FaucetAction {
+    #[prost(bytes="vec", tag="1")]
+    pub to: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag="2")]
+    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
 }
 // @@protoc_insertion_point(module)
