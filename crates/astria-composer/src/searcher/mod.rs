@@ -50,7 +50,7 @@ use crate::Config;
 mod collector;
 mod rollup;
 
-use collector::Executor;
+use collector::Collector;
 
 /// the astria seqeuencer.
 pub(super) struct Searcher {
@@ -63,9 +63,9 @@ pub(super) struct Searcher {
     sequencer_nonce: Arc<AtomicU32>,
     // Channel to report the internal status of the searcher to other parts of the system.
     status: watch::Sender<Status>,
-    collectors: HashMap<String, Executor>,
+    collectors: HashMap<String, Collector>,
     collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
-    // A channel on which the searcher receives transactions from its executors.
+    // A channel on which the searcher receives transactions from its collectors.
     new_transactions: Receiver<collector::Transaction>,
     collector_tasks: tokio_util::task::JoinMap<String, eyre::Result<()>>,
     // Set of currently running jobs converting pending eth transactions to signed sequencer
@@ -143,7 +143,7 @@ impl Searcher {
             .into_iter()
             .map(|(chain_id, url)| {
                 let task_name = chain_id.clone();
-                tokio::spawn(Executor::new(chain_id, url, tx_sender.clone()))
+                tokio::spawn(Collector::new(chain_id, url, tx_sender.clone()))
                     .map(move |result| (task_name, result))
             })
             .collect::<futures::stream::FuturesUnordered<_>>();
@@ -259,7 +259,7 @@ impl Searcher {
 
     /// Runs the Searcher
     pub(super) async fn run(mut self) -> eyre::Result<()> {
-        self.spawn_executors();
+        self.spawn_collectors();
         let wait_for_collectors = self.wait_for_collectors();
         let wait_for_seq = self.wait_for_sequencer(5, Duration::from_secs(5), 2.0);
         match tokio::try_join!(wait_for_collectors, wait_for_seq) {
@@ -317,15 +317,15 @@ impl Searcher {
         Ok(())
     }
 
-    /// Spawns all executors on the executor task set.
-    fn spawn_executors(&mut self) {
-        for (chain_id, executor) in self.collectors.drain() {
+    /// Spawns all collector on the collector task set.
+    fn spawn_collectors(&mut self) {
+        for (chain_id, collector) in self.collectors.drain() {
             self.collector_tasks
-                .spawn(chain_id, executor.run_until_stopped());
+                .spawn(chain_id, collector.run_until_stopped());
         }
     }
 
-    /// Waits for all executors to come online.
+    /// Waits for all collectors to come online.
     async fn wait_for_collectors(&self) -> eyre::Result<()> {
         use futures::{
             future::FutureExt as _,
@@ -345,7 +345,7 @@ impl Searcher {
                         // away because this future cannot return a reference to
                         // a stack local object.
                         Ok(_) => Ok(()),
-                        // if an executor fails while waiting for its status, this
+                        // if an collector fails while waiting for its status, this
                         // will return an error
                         Err(e) => Err(e),
                     }
@@ -357,7 +357,7 @@ impl Searcher {
             if let Err(e) = maybe_err {
                 return Err(e).wrap_err_with(|| {
                     format!(
-                        "executor for chain ID {chain_id} failed while waiting for it to become \
+                        "collector for chain ID {chain_id} failed while waiting for it to become \
                          ready"
                     )
                 });

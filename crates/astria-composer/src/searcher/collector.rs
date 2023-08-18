@@ -33,15 +33,15 @@ pub(super) struct Transaction {
 }
 
 #[derive(Debug)]
-pub(super) struct Executor {
+pub(super) struct Collector {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to.
     chain_id: String,
     // The client for getting new pending transactions from an ethereum rollup.
     client: EthClient,
-    // The channel on which the executor sends new txs to the searcher.
+    // The channel on which the collector sends new txs to the searcher.
     searcher_channel: Sender<Transaction>,
-    // The status of this executor.
+    // The status of this collector.
     status: watch::Sender<Status>,
 }
 
@@ -62,7 +62,7 @@ impl Status {
     }
 }
 
-impl Executor {
+impl Collector {
     pub(super) async fn new(
         chain_id: String,
         url: String,
@@ -80,7 +80,7 @@ impl Executor {
         })
     }
 
-    /// Subscribe to the ,executor's status.
+    /// Subscribe to the collector's status.
     pub(super) fn subscribe(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
     }
