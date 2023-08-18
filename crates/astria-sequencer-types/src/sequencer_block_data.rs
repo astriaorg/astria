@@ -20,6 +20,7 @@ use tendermint::{
         Header,
     },
     Block,
+    Hash,
 };
 use thiserror::Error;
 use tracing::debug;
@@ -43,9 +44,7 @@ pub struct RollupData {
 /// to be submitted to the DA layer.
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct SequencerBlockData {
-    // TODO: change to tendermint::Hash
-    #[serde(with = "crate::serde::Base64Standard")]
-    pub(crate) block_hash: Vec<u8>,
+    pub(crate) block_hash: Hash,
     pub(crate) header: Header,
     /// This field should be set for every block with height > 1.
     pub(crate) last_commit: Option<Commit>,
@@ -60,7 +59,7 @@ impl SequencerBlockData {
     ///
     /// - if the block hash does not correspond to the hashed header provided
     pub fn new(
-        block_hash: Vec<u8>,
+        block_hash: Hash,
         header: Header,
         last_commit: Option<Commit>,
         rollup_data: HashMap<Namespace, RollupData>,
@@ -77,8 +76,8 @@ impl SequencerBlockData {
     }
 
     #[must_use]
-    pub fn block_hash(&self) -> &[u8] {
-        &self.block_hash
+    pub fn block_hash(&self) -> Hash {
+        self.block_hash
     }
 
     #[must_use]
@@ -98,14 +97,7 @@ impl SequencerBlockData {
 
     #[allow(clippy::type_complexity)]
     #[must_use]
-    pub fn into_values(
-        self,
-    ) -> (
-        Vec<u8>,
-        Header,
-        Option<Commit>,
-        HashMap<Namespace, RollupData>,
-    ) {
+    pub fn into_values(self) -> (Hash, Header, Option<Commit>, HashMap<Namespace, RollupData>) {
         (
             self.block_hash,
             self.header,
@@ -179,7 +171,7 @@ impl SequencerBlockData {
         }
 
         let data = Self {
-            block_hash: b.header.hash().as_bytes().to_vec(),
+            block_hash: b.header.hash(),
             header: b.header,
             last_commit: b.last_commit,
             rollup_data,
@@ -197,7 +189,7 @@ impl SequencerBlockData {
     fn verify_block_hash(&self) -> eyre::Result<()> {
         let block_hash = self.header.hash();
         ensure!(
-            block_hash.as_bytes() == self.block_hash,
+            block_hash == self.block_hash,
             "block hash calculated from tendermint header does not match block hash stored in \
              sequencer block",
         );
@@ -220,7 +212,7 @@ mod test {
         let header = crate::test_utils::default_header();
         let block_hash = header.hash();
         let mut expected = SequencerBlockData {
-            block_hash: block_hash.as_bytes().to_vec(),
+            block_hash,
             header,
             last_commit: None,
             rollup_data: HashMap::new(),
