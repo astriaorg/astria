@@ -315,8 +315,8 @@ mod test {
 
     /// Return the number of blocks in the queue
     fn queue_len(queue: Queue) -> usize {
-        let pending_blocks = queue.pending_blocks.clone();
-        let soft_blocks = queue.soft_blocks.clone();
+        let pending_blocks = queue.pending_blocks;
+        let soft_blocks = queue.soft_blocks;
         let mut len = 0;
         for height in pending_blocks.values() {
             len += height.keys().len();
