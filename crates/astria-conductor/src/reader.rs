@@ -232,7 +232,7 @@ impl Reader {
                 if let Err(e) = self
                     .block_verifier
                     .validate_rollup_data(
-                        &data.data.block_hash,
+                        data.data.block_hash,
                         &data.data.header,
                         &data.data.last_commit,
                         &rollup_data,
