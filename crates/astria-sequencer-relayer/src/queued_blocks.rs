@@ -98,18 +98,24 @@ mod test {
     use super::QueuedBlocks;
     use crate::types::SequencerBlockData;
 
-    fn make_parent_and_child_blocks(
-        parent_block_hash: [u8; 32],
-        child_block_hash: [u8; 32],
-    ) -> [SequencerBlockData; 2] {
-        let mut parent_block = SequencerBlockData::default();
-        parent_block.block_hash = parent_block_hash.to_vec();
+    type BlockHash = [u8; 32];
 
-        let mut child_block = SequencerBlockData::default();
-        child_block.block_hash = child_block_hash.to_vec();
+    fn make_parent_and_child_blocks(
+        parent_block_hash: BlockHash,
+        child_block_hash: BlockHash,
+    ) -> [SequencerBlockData; 2] {
+        let parent_block = SequencerBlockData {
+            block_hash: parent_block_hash.to_vec(),
+            ..Default::default()
+        };
+
         let parent_id = Id {
             hash: Hash::try_from(parent_block.block_hash.clone()).unwrap(),
             part_set_header: IdHeader::default(),
+        };
+        let mut child_block = SequencerBlockData {
+            block_hash: child_block_hash.to_vec(),
+            ..Default::default()
         };
         child_block.header.last_block_id = Some(parent_id);
 

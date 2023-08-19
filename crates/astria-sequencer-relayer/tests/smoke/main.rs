@@ -168,7 +168,7 @@ async fn test_finalization() {
     let mut sequencer_relayer = spawn_sequencer_relayer(CelestiaMode::Immediate).await;
 
     // children are delayed max queue time
-    let (parent_one, parent_two, child_one, child_two) =
+    let [parent_one, parent_two, child_one, child_two] =
         helper::mount_2_parent_child_pair_block_responses(&sequencer_relayer).await;
 
     let parent_one_block_hash = helper::get_block_hash(&parent_one);

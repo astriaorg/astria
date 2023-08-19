@@ -614,7 +614,7 @@ pub async fn mount_4_changing_block_responses(
 
 pub async fn mount_2_parent_child_pair_block_responses(
     sequencer_relayer: &TestSequencerRelayer,
-) -> (Response, Response, Response, Response) {
+) -> [Response; 4] {
     let validator = &sequencer_relayer.validator;
     let server = &sequencer_relayer.sequencer;
 
@@ -640,7 +640,7 @@ pub async fn mount_2_parent_child_pair_block_responses(
     let child_two =
         create_and_mount_block(delay_children, server, validator, 4, Some(&parent_two)).await;
 
-    (parent_one, parent_two, child_one, child_two)
+    [parent_one, parent_two, child_one, child_two]
 }
 
 pub(crate) fn get_block_hash(block_resp: &Response) -> Vec<u8> {
