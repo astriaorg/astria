@@ -191,7 +191,7 @@ impl SequencerBlockData {
         // and namespace them correspondingly
         let mut rollup_data = HashMap::new();
 
-        for (index, tx) in b.data.iter().enumerate() {
+        for (index, tx) in b.data[1..].iter().enumerate() {
             debug!(
                 index,
                 bytes = general_purpose::STANDARD.encode(tx.as_slice()),
@@ -213,7 +213,7 @@ impl SequencerBlockData {
             });
         }
 
-        // generate the action tree root inclusion proof
+        // generate the action tree root proof of inclusion in `Header::data_hash`
         let tx_tree = MerkleTree::from_leaves(b.data);
         let calculated_data_hash = tx_tree.root();
         ensure!(

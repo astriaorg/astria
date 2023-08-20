@@ -428,7 +428,9 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
         )],
     )
     .into_signed(signing_key);
-    let data = vec![signed_tx.to_bytes()];
+    let action_tree =
+        astria_sequencer_validation::MerkleTree::from_leaves(vec![signed_tx.to_bytes().clone()]);
+    let data = vec![action_tree.root().as_bytes().to_vec(), signed_tx.to_bytes()];
     let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
         &data,
     )));
