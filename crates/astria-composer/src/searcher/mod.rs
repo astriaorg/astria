@@ -147,7 +147,8 @@ impl Searcher {
                     .map(move |result| (task_name, result))
             })
             .collect::<futures::stream::FuturesUnordered<_>>();
-        // TODO(superfluffy): allow aborting this using `futures::stream::AbortHandle`
+        // TODO(https://github.com/astriaorg/astria/issues/287): add timeouts or abort handles
+        // so this doesn't stall the entire server from coming up.
         let mut collectors = HashMap::new();
         while let Some((chain_id, join_result)) = create_collectors.next().await {
             match join_result {
