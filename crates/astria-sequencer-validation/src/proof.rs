@@ -98,6 +98,30 @@ mod test {
     use super::*;
 
     #[test]
+    fn merkle_tree_snapshot() {
+        // this is a "snapshot" test of the merkle tree.
+        // if this test fails, it means the merkle tree is no longer backwards-compatible.
+        let data: Vec<Vec<u8>> = vec![
+            vec![1, 2, 3],
+            vec![4, 5, 6],
+            vec![7, 8, 9],
+            vec![10, 11, 12],
+            vec![13, 14, 15],
+            vec![16, 17, 18],
+            vec![19, 20, 21],
+            vec![22, 23, 24],
+        ];
+
+        let ct_tree = MerkleTree::from_leaves(data);
+        let ct_root = ct_tree.root();
+        let expected: [u8; 32] = [
+            162, 149, 155, 23, 199, 181, 156, 228, 214, 166, 82, 156, 247, 210, 68, 204, 205, 97,
+            8, 44, 132, 29, 172, 126, 208, 219, 21, 169, 19, 135, 55, 46,
+        ];
+        assert_eq!(ct_root.as_bytes(), expected);
+    }
+
+    #[test]
     fn ct_merkle_vs_tendermint() {
         // assert that the ct-merkle library is compatible with tendermint
         let data: Vec<Vec<u8>> = vec![
