@@ -169,9 +169,10 @@ impl Collector {
             .with_factor(factor)
             .with_max_times(n_retries);
         let version = (|| {
-            let client = self.client.clone(); // This is using `get_net_version` because that's what ethers'
-            // Middleware is // implementing. Maybe the `net_listening` RPC would be better, but
-            // ethers // does not have that.
+            let client = self.client.clone();
+            // This is using `get_net_version` because that's what ethers' `Middleware` is
+            // implementing. Maybe the `net_listening` RPC would be better, but ethers
+            // does not have that.
             async move { client.get_net_version().await }
         })
         .retry(&backoff)
