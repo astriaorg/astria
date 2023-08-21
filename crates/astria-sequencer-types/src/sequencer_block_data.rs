@@ -138,6 +138,7 @@ impl SequencerBlockData {
     /// - if the block has no data hash
     /// - if a transaction in the block cannot be parsed
     pub fn from_tendermint_block(b: Block) -> eyre::Result<Self> {
+        // TODO: this crate should not import astria_sequencer
         use astria_sequencer::transaction::Signed;
 
         if b.header.data_hash.is_none() {

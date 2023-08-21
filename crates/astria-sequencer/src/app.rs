@@ -49,7 +49,7 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 #[derive(Clone, Debug)]
 pub(crate) struct App {
     state: InterBlockState,
-    
+
     /// set to `true` when `begin_block` is called, and set to `false` when
     /// `deliver_tx` is called for the first time.
     /// this is a hack to allow the `action_tree_root` to pass `deliver_tx`,
