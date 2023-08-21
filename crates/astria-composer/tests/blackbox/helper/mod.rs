@@ -39,7 +39,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
     Lazy::force(&TELEMETRY);
 
     assert!(
-        rollup_ids.len() > 0,
+        !rollup_ids.is_empty(),
         "must provide at least one rollup ID for tests"
     );
 
@@ -48,7 +48,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
     for id in rollup_ids {
         let geth = mock_geth::MockGeth::spawn().await;
         let execution_url = format!("ws://{}", geth.local_addr());
-        rollup_nodes.insert(id.to_string(), geth);
+        rollup_nodes.insert((*id).to_string(), geth);
         rollups.push_str(&format!("{id}::{execution_url},"));
     }
     let sequencer = mock_sequencer::start().await;
