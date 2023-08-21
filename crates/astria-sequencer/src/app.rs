@@ -49,11 +49,12 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 #[derive(Clone, Debug)]
 pub(crate) struct App {
     state: InterBlockState,
+    
     /// set to `true` when `begin_block` is called, and set to `false` when
     /// `deliver_tx` is called for the first time.
     /// this is a hack to allow the `action_tree_root` to pass `deliver_tx`,
     /// as it's the first "tx" delivered.
-    /// when the app is fully updated the ABCI++, `begin_block`, `deliver_tx`,
+    /// when the app is fully updated to ABCI++, `begin_block`, `deliver_tx`,
     /// and `end_block` will all become one function `finalize_block`, so
     /// this will not be needed.
     has_block_just_begun: bool,
