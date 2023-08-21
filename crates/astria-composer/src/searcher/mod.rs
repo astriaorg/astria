@@ -300,7 +300,8 @@ impl Searcher {
                     match join_result {
                         Ok(Ok(())) => {}
                         Ok(Err(e)) =>
-                            // TODO: Decide what to do if submitting to sequencer failed. Should it be resubmitted?
+                            // TODO(https://github.com/astriaorg/astria/issues/246): What to do if
+                            // submitting fails. Resubmit?
                             warn!(error.message = %e, error.cause_chain = ?e, "failed to submit signed sequencer transaction to sequencer"),
                         Err(e) => warn!(
                             error.message = %e,
