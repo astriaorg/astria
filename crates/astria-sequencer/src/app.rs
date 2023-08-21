@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{
+    ensure,
     Context,
     Result,
 };
@@ -48,6 +49,14 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 #[derive(Clone, Debug)]
 pub(crate) struct App {
     state: InterBlockState,
+    /// set to `true` when `begin_block` is called, and set to `false` when
+    /// `deliver_tx` is called for the first time.
+    /// this is a hack to allow the `action_tree_root` to pass `deliver_tx`,
+    /// as it's the first "tx" delivered.
+    /// when the app is fully updated the ABCI++, `begin_block`, `deliver_tx`,
+    /// and `end_block` will all become one function `finalize_block`, so
+    /// this will not be needed.
+    has_block_just_begun: bool,
 }
 
 impl App {
@@ -60,6 +69,7 @@ impl App {
 
         Self {
             state,
+            has_block_just_begun: false,
         }
     }
 
@@ -99,11 +109,18 @@ impl App {
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
 
+        self.has_block_just_begun = true;
         self.apply(state_tx)
     }
 
     #[instrument(name = "App:deliver_tx", skip(self))]
     pub(crate) async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
+        if self.has_block_just_begun {
+            ensure!(tx.len() == 32);
+            self.has_block_just_begun = false;
+            return Ok(vec![]);
+        }
+
         let tx =
             Signed::try_from_slice(tx).context("failed deserializing transaction from bytes")?;
 
