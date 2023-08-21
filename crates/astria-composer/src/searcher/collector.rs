@@ -119,13 +119,15 @@ impl Collector {
                 .await
             {
                 Ok(()) => {}
-                Err(SendTimeoutError::Timeout(_tx)) => {
-                    // TODO(superfluffy): what parts of tx should we log? just its hash?
-                    warn!("timed out sending new transaction to searcher after 500ms; dropping tx");
-                }
-                Err(SendTimeoutError::Closed(_tx)) => {
-                    // TODO(superfluffy): what parts of tx should we log? just its hash?
+                Err(SendTimeoutError::Timeout(tx)) => {
                     warn!(
+                        transaction.hash = %tx.inner.hash,
+                        "timed out sending new transaction to searcher after 500ms; dropping tx"
+                    );
+                }
+                Err(SendTimeoutError::Closed(tx)) => {
+                    warn!(
+                        transaction.hash = %tx.inner.hash,
                         "searcher channel closed while sending transaction; dropping transaction \
                          and exiting event loop"
                     );
