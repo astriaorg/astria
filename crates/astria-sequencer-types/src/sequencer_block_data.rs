@@ -191,6 +191,8 @@ impl SequencerBlockData {
         // and namespace them correspondingly
         let mut rollup_data = HashMap::new();
 
+        // the first transaction is skipped as it's the action tree root,
+        // not a user-submitted transaction.
         for (index, tx) in b.data[1..].iter().enumerate() {
             debug!(
                 index,

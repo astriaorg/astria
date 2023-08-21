@@ -73,7 +73,7 @@ impl PartialEq for InclusionProof {
 impl Eq for InclusionProof {}
 
 impl InclusionProof {
-    /// Verify that the proof is valid for the given root hash.
+    /// Verify that the merkle proof is valid for the given root hash and leaf value.
     ///
     /// # Errors
     ///
