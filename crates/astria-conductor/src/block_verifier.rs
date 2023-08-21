@@ -5,7 +5,11 @@ use astria_sequencer_relayer::data_availability::{
     SequencerNamespaceData,
     SignedNamespaceData,
 };
-use astria_sequencer_types::SequencerBlockData;
+use astria_sequencer_types::{
+    Namespace,
+    SequencerBlockData,
+};
+use astria_sequencer_validation::MerkleTree;
 use color_eyre::eyre::{
     self,
     bail,
@@ -19,11 +23,7 @@ use ed25519_consensus::{
 use prost::Message;
 use tendermint::{
     account::Id as AccountId,
-    block::{
-        Commit,
-        Header,
-        Id as BlockId,
-    },
+    block::Id as BlockId,
     chain::Id as ChainId,
     crypto,
     merkle,
@@ -103,18 +103,64 @@ impl BlockVerifier {
         Ok(())
     }
 
+    /// validates `RollupNamespaceData` received from Celestia.
+    /// uses the given `SequencerNamespaceData` to validate the rollup data inclusion proof;
+    /// ie. that the rollup data received was actually what was included in a sequencer block,
+    /// (no transactions were added or omitted incorrectly, and the ordering is correct).
     pub async fn validate_rollup_data(
         &self,
-        block_hash: Hash,
-        header: &Header,
-        last_commit: &Option<Commit>,
-        _rollup_data: &RollupNamespaceData,
+        sequencer_namespace_data: &SequencerNamespaceData,
+        rollup_data: &RollupNamespaceData,
     ) -> eyre::Result<()> {
-        self.validate_sequencer_block_header_and_last_commit(block_hash, header, last_commit)
+        self.validate_sequencer_namespace_data(sequencer_namespace_data)
             .await
             .context("failed to validate sequencer block header and last commit")?;
-        // TODO: validate rollup data w/ merkle proofs
-        // https://github.com/astriaorg/astria/issues/153
+
+        // validate that rollup data was included in the sequencer block
+        let rollup_data_tree = MerkleTree::from_leaves(rollup_data.rollup_txs.clone());
+        let rollup_data_root = rollup_data_tree.root();
+        let mut leaf = rollup_data.chain_id.clone();
+        leaf.append(&mut rollup_data_root.as_bytes().to_vec());
+
+        rollup_data
+            .inclusion_proof
+            .verify(&leaf, sequencer_namespace_data.action_tree_root)
+            .wrap_err("failed to verify rollup data inclusion proof")?;
+        Ok(())
+    }
+
+    /// validates [`SequencerBlockData`] received from the gossip network.
+    pub async fn validate_sequencer_block_data(
+        &self,
+        block: &SequencerBlockData,
+    ) -> eyre::Result<()> {
+        // TODO: remove this clone by not gossiping the entire [`SequencerBlockData`]
+        let (
+            block_hash,
+            header,
+            last_commit,
+            rollup_data,
+            action_tree_root,
+            action_tree_root_inclusion_proof,
+        ) = block.clone().into_values();
+        let rollup_namespaces = rollup_data.into_keys().collect::<Vec<Namespace>>();
+        let data = SequencerNamespaceData {
+            block_hash,
+            header,
+            last_commit,
+            rollup_namespaces,
+            action_tree_root,
+            action_tree_root_inclusion_proof,
+        };
+
+        self.validate_sequencer_namespace_data(&data).await?;
+
+        // TODO: validate that the transactions in the block result in the correct data_hash (#153)
+        // however this requires updating [`SequencerBlockData`] to contain inclusion proofs for
+        // each of its rollup datas; we can instead update the gossip network to *not*
+        // gossip entire [`SequencerBlockData`] but instead gossip headers, while each
+        // conductor subscribes only to rollup data for its own namespace. then, we can
+        // simply use [`validate_rollup_data`] the same way we use it for data pulled from DA.
         Ok(())
     }
 
@@ -128,28 +174,21 @@ impl BlockVerifier {
     /// - the signature is valid
     /// - the root of the markle tree of all the header fields matches the block's block_hash
     /// - the root of the merkle tree of all transactions in the block matches the block's data_hash
+    /// - the inclusion proof of the action tree root inside `data_hash` is valid
     /// - validate the block was actually finalized; ie >2/3 stake signed off on it
-    pub async fn validate_sequencer_block_data(
+    async fn validate_sequencer_namespace_data(
         &self,
-        block: &SequencerBlockData,
+        data: &SequencerNamespaceData,
     ) -> eyre::Result<()> {
-        self.validate_sequencer_block_header_and_last_commit(
-            block.block_hash(),
-            block.header(),
-            block.last_commit(),
-        )
-        .await?;
+        let SequencerNamespaceData {
+            block_hash,
+            header,
+            last_commit,
+            rollup_namespaces: _,
+            action_tree_root,
+            action_tree_root_inclusion_proof,
+        } = data;
 
-        // TODO: validate that the transactions in the block result in the correct data_hash (#153)
-        Ok(())
-    }
-
-    async fn validate_sequencer_block_header_and_last_commit(
-        &self,
-        block_hash: Hash,
-        header: &Header,
-        last_commit: &Option<Commit>,
-    ) -> eyre::Result<()> {
         // sequencer block's height
         let height: u32 = header.height.value().try_into().expect(
             "a tendermint height (currently non-negative i32) should always fit into a u32",
@@ -215,10 +254,18 @@ impl BlockVerifier {
         // validate the block header matches the block hash
         let block_hash_from_header = header.hash();
         ensure!(
-            block_hash_from_header == block_hash,
+            block_hash_from_header == *block_hash,
             "block hash calculated from tendermint header does not match block hash stored in \
              sequencer block",
         );
+
+        // validate the action tree root was included inside `data_hash`
+        let Some(data_hash) = header.data_hash else {
+            bail!("data hash should not be empty");
+        };
+        action_tree_root_inclusion_proof
+            .verify(action_tree_root.as_bytes(), data_hash)
+            .wrap_err("failed to verify action tree root inclusion proof")?;
 
         Ok(())
     }

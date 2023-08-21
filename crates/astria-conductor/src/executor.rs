@@ -149,16 +149,19 @@ impl<C: ExecutionClient> Executor<C> {
                 ExecutorCommand::BlockReceivedFromGossipNetwork {
                     block,
                 } => {
+                    let height = block.header().height.value();
                     self.alert_tx.send(Alert::BlockReceivedFromGossipNetwork {
-                        block_height: block.header().height.value(),
+                        block_height: height,
                     })?;
-                    if let Err(e) = self
-                        .execute_block(SequencerBlockSubset::from_sequencer_block_data(
-                            *block,
-                            self.namespace,
-                        ))
-                        .await
-                    {
+
+                    let Some(subset) =
+                        SequencerBlockSubset::from_sequencer_block_data(*block, self.namespace)
+                    else {
+                        debug!(height, "no transactions for our namespace in block");
+                        continue;
+                    };
+
+                    if let Err(e) = self.execute_block(subset).await {
                         error!("failed to execute block: {e:?}");
                     }
                 }

@@ -42,6 +42,9 @@ pub enum Error {
 pub struct RollupData {
     pub chain_id: Vec<u8>,
     pub transactions: Vec<Vec<u8>>,
+    // The inclusion proof that the rollup data was included
+    // in the block's action tree root.
+    // pub inclusion_proof: InclusionProof,
 }
 
 /// `SequencerBlockData` represents a sequencer block's data

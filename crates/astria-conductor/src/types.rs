@@ -21,18 +21,21 @@ impl SequencerBlockSubset {
     pub(crate) fn from_sequencer_block_data(
         data: SequencerBlockData,
         namespace: Namespace,
-    ) -> Self {
+    ) -> Option<Self> {
         // we don't need to verify the action tree root here,
         // as [`SequencerBlockData`] would not be constructable
         // if it was invalid
 
         let (block_hash, header, _, mut rollup_txs, ..) = data.into_values();
 
-        let rollup_data = rollup_txs.remove(&namespace).unwrap_or_default();
-        Self {
+        let Some(rollup_data) = rollup_txs.remove(&namespace) else {
+            return None;
+        };
+
+        Some(Self {
             block_hash,
             header,
             rollup_transactions: rollup_data.transactions,
-        }
+        })
     }
 }

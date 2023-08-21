@@ -405,6 +405,7 @@ dependencies = [
  "astria-sequencer-client",
  "astria-sequencer-relayer",
  "astria-sequencer-types",
+ "astria-sequencer-validation",
  "astria-telemetry",
  "async-trait",
  "base64 0.21.2",
