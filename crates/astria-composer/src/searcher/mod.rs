@@ -10,7 +10,13 @@ use std::{
     time::Duration,
 };
 
-use astria_sequencer::transaction;
+use astria_sequencer::{
+    sequence,
+    transaction::{
+        self,
+        Action,
+    },
+};
 use color_eyre::eyre::{
     self,
     bail,
@@ -19,15 +25,6 @@ use color_eyre::eyre::{
 };
 use ed25519_consensus::SigningKey;
 use humantime::format_duration;
-use secrecy::{
-    ExposeSecret as _,
-    Zeroize as _,
-};
-use sequencer_client::{
-    Address,
-    SequencerClientExt as _,
-};
-use tendermint::abci;
 use tokio::{
     select,
     sync::{
@@ -45,22 +42,17 @@ use tracing::{
     warn,
 };
 
+use self::executor::Executor;
 use crate::Config;
 
 mod collector;
+mod executor;
 mod rollup;
 
 use collector::Collector;
 
 /// the astria seqeuencer.
 pub(super) struct Searcher {
-    // The client for submitting wrapped and signed pending eth transactions to the astria
-    // sequencer.
-    sequencer_client: SequencerClient,
-    // Private key used to sign sequencer transactions
-    sequencer_key: SigningKey,
-    // Nonce of the sequencer account we sign with
-    sequencer_nonce: Arc<AtomicU32>,
     // Channel to report the internal status of the searcher to other parts of the system.
     status: watch::Sender<Status>,
     collectors: HashMap<String, Collector>,
@@ -70,7 +62,12 @@ pub(super) struct Searcher {
     collector_tasks: tokio_util::task::JoinMap<String, eyre::Result<()>>,
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
-    conversion_tasks: JoinSet<eyre::Result<transaction::Signed>>,
+    conversion_tasks: JoinSet<Vec<Action>>,
+    // A channel on which to send the `Executor` bundles for attaching a nonce to, sign and submit
+    bundles_tx: mpsc::Sender<Vec<Action>>,
+    // Executor responsible for submitting transaction to the sequencer node.
+    executor: Executor,
+    executor_status: watch::Receiver<executor::Status>,
     // Set of in-flight RPCs submitting signed transactions to the sequencer.
     submission_tasks: JoinSet<eyre::Result<()>>,
 }
@@ -84,34 +81,6 @@ pub(crate) struct Status {
 impl Status {
     pub(crate) fn is_ready(&self) -> bool {
         self.all_collectors_connected && self.sequencer_connected
-    }
-}
-
-/// A thin wrapper around [`sequencer_client::Client`] to add timeouts.
-///
-/// Currently only provides a timeout for `abci_info`.
-#[derive(Clone)]
-struct SequencerClient {
-    inner: sequencer_client::HttpClient,
-}
-
-impl SequencerClient {
-    #[instrument]
-    fn new(url: &str) -> eyre::Result<Self> {
-        let inner = sequencer_client::HttpClient::new(url)
-            .wrap_err("failed to construct sequencer client")?;
-        Ok(Self {
-            inner,
-        })
-    }
-
-    /// Wrapper around [`Client::abci_info`] with a 1s timeout.
-    async fn abci_info(self) -> eyre::Result<abci::response::Info> {
-        use sequencer_client::Client as _;
-        tokio::time::timeout(Duration::from_secs(1), self.inner.abci_info())
-            .await
-            .wrap_err("request timed out")?
-            .wrap_err("RPC returned with error")
     }
 }
 
@@ -172,31 +141,23 @@ impl Searcher {
             .map(|(chain_id, collector)| (chain_id.clone(), collector.subscribe()))
             .collect();
 
-        // connect to sequencer node
-        let sequencer_client = SequencerClient::new(&cfg.sequencer_url)
-            .wrap_err("failed constructing sequencer client")?;
-
         let (status, _) = watch::channel(Status::default());
 
-        // create signing key for sequencer txs
-        let mut private_key_bytes: [u8; 32] = hex::decode(cfg.private_key.expose_secret())
-            .wrap_err("failed to decode private key bytes from hex string")?
-            .try_into()
-            .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
-        let sequencer_key =
-            SigningKey::try_from(private_key_bytes).wrap_err("failed to parse sequencer key")?;
-        private_key_bytes.zeroize();
+        let (bundles_tx, bundles_rx) = mpsc::channel(256);
+
+        let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, bundles_rx).await?;
+        let executor_status = executor.subscribe();
 
         Ok(Searcher {
-            sequencer_client,
-            sequencer_key,
-            sequencer_nonce: Arc::new(AtomicU32::new(0)),
             status,
             collectors,
             collector_statuses,
             new_transactions,
             collector_tasks: tokio_util::task::JoinMap::new(),
             conversion_tasks: JoinSet::new(),
+            executor,
+            executor_status,
+            bundles_tx,
             submission_tasks: JoinSet::new(),
         })
     }
@@ -206,87 +167,44 @@ impl Searcher {
     }
 
     /// Serializes and signs a sequencer tx from a rollup tx.
-    fn handle_pending_tx(&mut self, tx: collector::Transaction) {
-        use astria_sequencer::{
-            accounts::types::Nonce,
-            transaction::action,
-        };
-
+    fn bundle_pending_tx(&mut self, tx: collector::Transaction) {
         let collector::Transaction {
             chain_id,
             inner: rollup_tx,
         } = tx;
 
-        let sequencer_key = self.sequencer_key.clone();
-        let nonce = self.sequencer_nonce.clone();
-
+        // rollup transaction data serialization is a heavy compute task, so it is spawned
+        // on tokio's blocking threadpool
         self.conversion_tasks.spawn_blocking(move || {
-            // Pack into sequencer tx
+            // Pack into a vector of sequencer actions
             let data = rollup_tx.rlp().to_vec();
             let chain_id = chain_id.into_bytes();
-            let seq_action = action::Action::new_sequence_action(chain_id, data);
+            let seq_action = Action::SequenceAction(sequence::Action::new(chain_id, data));
 
-            // get current nonce and increment nonce
-            let curr_nonce = nonce.fetch_add(1, Ordering::Relaxed);
-            let unsigned_tx =
-                transaction::Unsigned::new_with_actions(Nonce::from(curr_nonce), vec![seq_action]);
-
-            // Sign transaction
-            Ok(unsigned_tx.into_signed(&sequencer_key))
-        });
-    }
-
-    fn handle_signed_tx(&mut self, tx: transaction::Signed) {
-        use sequencer_client::SequencerClientExt as _;
-        let client = self.sequencer_client.inner.clone();
-        self.submission_tasks.spawn(async move {
-            let rsp = client
-                .submit_transaction_sync(tx)
-                .await
-                .wrap_err("failed to submit transaction to sequencer")?;
-            if rsp.code.is_err() {
-                bail!(
-                    "submitting transaction to sequencer returned with error code; code: \
-                     `{code}`; log: `{log}`; hash: `{hash}`",
-                    code = rsp.code.value(),
-                    log = rsp.log,
-                    hash = rsp.hash,
-                );
-            }
-            Ok(())
+            vec![seq_action]
         });
     }
 
     /// Runs the Searcher
-    pub(super) async fn run(mut self) -> eyre::Result<()> {
+    pub(super) async fn run(self) -> eyre::Result<()> {
         self.spawn_collectors();
+        let _executor_task = tokio::spawn(self.executor.run_until_stopped());
         let wait_for_collectors = self.wait_for_collectors();
-        let wait_for_seq = self.wait_for_sequencer(5, Duration::from_secs(5), 2.0);
-        match tokio::try_join!(wait_for_collectors, wait_for_seq) {
+        let wait_for_executor = self.wait_for_executor();
+        match tokio::try_join!(wait_for_collectors, wait_for_executor) {
             Ok(((), ())) => {}
             Err(err) => return Err(err).wrap_err("failed to start searcher"),
         }
-        // set initial sequencer nonce
-        let address = Address::from_verification_key(self.sequencer_key.verification_key());
-        let nonce_response = self
-            .sequencer_client
-            .inner
-            .get_latest_nonce(address.0)
-            .await
-            .wrap_err("failed to query sequencer for nonce")?;
-        self.sequencer_nonce
-            .store(nonce_response.nonce, Ordering::Relaxed);
 
         loop {
             select!(
                 // serialize and sign sequencer tx for incoming pending rollup txs
-                Some(rollup_tx) = self.new_transactions.recv() => self.handle_pending_tx(rollup_tx),
+                Some(rollup_tx) = self.new_transactions.recv() => self.bundle_pending_tx(rollup_tx),
 
                 // submit signed sequencer txs to sequencer
                 Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
                     match join_result {
-                        Ok(Ok(signed_tx)) => self.handle_signed_tx(signed_tx),
-                        Ok(Err(e)) => warn!(error.message = %e, error.cause_chain = ?e, "failed to sign sequencer transaction"),
+                        Ok(actions) => self.bundles_tx.send(actions).await?,
                         Err(e) => warn!(
                             error.message = %e,
                             error.cause_chain = ?e,
@@ -370,48 +288,17 @@ impl Searcher {
         Ok(())
     }
 
-    /// Wait until a connection to the sequencer is established.
-    ///
-    /// This function tries to establish a connection to the sequencer by
-    /// querying its `abci_info` RPC. If it fails, it retries for another `n_retries`
-    /// times with exponential backoff.
-    ///
-    /// # Errors
-    ///
-    /// An error is returned if calling the sequencer failed for `n_retries + 1` times.
-    #[instrument(skip_all, fields(
-        retries.max_number = n_retries,
-        retries.initial_delay = %format_duration(delay),
-        retries.exponential_factor = factor,
-    ))]
-    async fn wait_for_sequencer(
-        &self,
-        n_retries: usize,
-        delay: Duration,
-        factor: f32,
-    ) -> eyre::Result<()> {
-        use backon::{
-            ExponentialBuilder,
-            Retryable as _,
-        };
-        debug!("attempting to connect to sequencer",);
-        let backoff = ExponentialBuilder::default()
-            .with_min_delay(delay)
-            .with_factor(factor)
-            .with_max_times(n_retries);
-        (|| {
-            let client = self.sequencer_client.clone();
-            async move { client.abci_info().await }
-        })
-        .retry(&backoff)
-        .notify(|err, dur| warn!(error.msg = %err, retry_in = %format_duration(dur), "failed getting abci info; retrying"))
-        .await
-        .wrap_err(
-            "failed to retrieve abci info from sequencer after several retries",
-        )?;
-        self.status.send_modify(|status| {
-            status.sequencer_connected = true;
-        });
-        Ok(())
+    async fn wait_for_executor(&self) -> eyre::Result<()> {
+        let mut status = self.executor_status.clone();
+        match status.wait_for(executor::Status::is_connected).await {
+            // `wait_for` returns a reference to status; throw it
+            // away because this future cannot return a reference to
+            // a stack local object.
+            Ok(_) => Ok(()),
+            // if an collector fails while waiting for its status, this
+            // will return an error
+            Err(e) => Err(e),
+        }
+        .wrap_err("failed waiting for executor to become ready")
     }
 }
