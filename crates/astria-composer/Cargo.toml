@@ -19,11 +19,14 @@ backon = { workspace = true }
 color-eyre = { workspace = true }
 ed25519-consensus = { workspace = true }
 figment = { workspace = true, features = ["env"] }
+futures = { workspace = true }
 humantime = { workspace = true }
 hyper = { workspace = true }
 hex = { workspace = true }
+once_cell = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 rand = { workspace = true }
+regex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tendermint = { workspace = true }
@@ -33,6 +36,7 @@ tokio = { workspace = true, features = [
   "sync",
   "time",
 ] }
+tokio-util = { version = "0.7.8", features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
 
 [dependencies.sequencer-client]
@@ -48,6 +52,5 @@ tokio-test = "0.4.2"
 
 figment = { workspace = true, features = ["test"] }
 jsonrpsee = { workspace = true, features = ["macros", "server"] }
-once_cell = { workspace = true }
 tendermint-rpc = { workspace = true }
 wiremock = { workspace = true }
