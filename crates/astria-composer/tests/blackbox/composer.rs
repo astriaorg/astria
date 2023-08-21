@@ -23,7 +23,7 @@ use crate::helper::spawn_composer;
 async fn tx_from_one_rollup_is_received_by_sequencer() {
     let test_composer = spawn_composer(&["test1"]).await;
     let mock_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1").await;
-    test_composer.geths["test1"]
+    test_composer.rollup_nodes["test1"]
         .push_tx(Transaction::default())
         .unwrap();
     tokio::time::timeout(
@@ -41,10 +41,10 @@ async fn tx_from_two_rollups_are_received_by_sequencer() {
     let test_composer = spawn_composer(&["test1", "test2"]).await;
     let test1_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1").await;
     let test2_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test2").await;
-    test_composer.geths["test1"]
+    test_composer.rollup_nodes["test1"]
         .push_tx(Transaction::default())
         .unwrap();
-    test_composer.geths["test2"]
+    test_composer.rollup_nodes["test2"]
         .push_tx(Transaction::default())
         .unwrap();
     let all_guards = join(

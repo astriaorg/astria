@@ -26,7 +26,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 
 pub struct TestComposer {
     pub composer: JoinHandle<()>,
-    pub geths: HashMap<String, mock_geth::MockGeth>,
+    pub rollup_nodes: HashMap<String, mock_geth::MockGeth>,
     pub sequencer: wiremock::MockServer,
 }
 
@@ -43,12 +43,12 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         "must provide at least one rollup ID for tests"
     );
 
-    let mut geths = HashMap::new();
+    let mut rollup_nodes = HashMap::new();
     let mut rollups = String::new();
     for id in rollup_ids {
         let geth = mock_geth::MockGeth::spawn().await;
         let execution_url = format!("ws://{}", geth.local_addr());
-        geths.insert(id.to_string(), geth);
+        rollup_nodes.insert(id.to_string(), geth);
         rollups.push_str(&format!("{id}::{execution_url},"));
     }
     let sequencer = mock_sequencer::start().await;
@@ -73,7 +73,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
     loop_until_composer_is_ready(composer_addr).await;
     TestComposer {
         composer,
-        geths,
+        rollup_nodes,
         sequencer,
     }
 }
