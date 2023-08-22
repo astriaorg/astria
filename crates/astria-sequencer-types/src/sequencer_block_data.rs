@@ -172,7 +172,15 @@ impl SequencerBlockData {
     /// # Errors
     ///
     /// - if the block has no data hash
+    /// - if the block has no transactions
+    /// - if the block's first transaction is not the 32-byte action tree root
     /// - if a transaction in the block cannot be parsed
+    /// - if the block's `data_hash` does not match the one calculated from the transactions
+    /// - if the inclusion proof of the action tree root in the block's `data_hash` cannot be
+    ///   generated
+    ///
+    /// See `specs/sequencer-inclusion-proofs.md` for most details on the action tree root
+    /// and inclusion proof purpose.
     pub fn from_tendermint_block(b: Block) -> eyre::Result<Self> {
         use astria_sequencer::transaction::Signed;
 
