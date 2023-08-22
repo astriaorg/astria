@@ -20,14 +20,16 @@ use crate::{
     Config,
 };
 
-/// Composer is the component in the Astria ecosystem that is responsible for
-/// submitting transactions to the Shared Sequencer. It usually does this by
-/// running a searcher module that establishes connections to individual
-/// rollup nodes and then bundling one or more of these rollup transactions into
-/// a sequencer transaction before submitting these to the sequencer.
+/// Composer is a service in the Astria ecosystem responsible for submitting
+/// transactions to the Astria Shared Sequencer.
 pub struct Composer {
+    /// ApiServer is used for monitoring status of the Composer service.
     api_server: ApiServer,
+    /// Searcher establishes connections to individual rollup nodes, receiving
+    /// pending transactions from them and wraps them as sequencer transactions
+    /// for submission.
     searcher: Searcher,
+}
 }
 
 impl Composer {
