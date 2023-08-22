@@ -32,10 +32,12 @@ pub(super) struct Transaction {
     pub(super) inner: ethers::types::Transaction,
 }
 
-/// A Collector is a sub-actor in the Searcher module that interfaces with individual rollups.
-/// It is responsible for fetching pending transactions submitted to the rollup nodes and then
-/// passing them downstream for the searcher to process. Thus, a searcher can have multiple
-/// collectors running at the same time funneling data from multiple rollup nodes.
+/// Collector is a sub-actor in the Searcher module that interfaces with
+/// individual rollups. It collects transactions submitted to a rollup node and
+/// passes them downstream for the searcher to process.
+/// 
+/// A searcher may have multiple collectors running at the same time funneling
+/// data from multiple rollup nodes.
 #[derive(Debug)]
 pub(super) struct Collector {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
