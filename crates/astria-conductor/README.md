@@ -17,7 +17,7 @@ execution_rpc_url = "http://localhost:50051"
 
 * alternatively, you can do `cargo build && ./target/debug/conductor`.
 
-* to connect directly to a node via p2p, you can use the `--bootnodes` flag, eg. `--bootnodes=/ip4/127.0.0.1/tcp/33900` or `--bootnodes=/ip4/127.0.0.1/tcp/34471/p2p/12D3KooWDCHwgGetpJuHknJqv2dNbYpe3LqgH8BKrsYHV9ALpAj8`.
+* to connect directly to a node via p2p, you can use the `--bootnodes` flag, e.g. `--bootnodes=/ip4/127.0.0.1/tcp/33900` or `--bootnodes=/ip4/127.0.0.1/tcp/34471/p2p/12D3KooWDCHwgGetpJuHknJqv2dNbYpe3LqgH8BKrsYHV9ALpAj8`.
 
 ### Tests
 
