@@ -25,7 +25,7 @@ The architecture of the conductor is inspired by the [Actor Model](https://en.wi
 
 The responsibilities of each module are as follows:
 ### Driver
- - Top level coordinator that runs and manages all the sub-components necessary for the Conductor
+ - Top level coordinator that runs and manages all the subcomponents necessary for the Conductor
  - Creates the `Reader` and `Executor` actors on startup
  - Creates a gossip network for receiving data from the sequencer network
      - The gossip network uses the [astria-gossipnet](https://github.com/astriaorg/astria/tree/main/crates/astria-gossipnet)

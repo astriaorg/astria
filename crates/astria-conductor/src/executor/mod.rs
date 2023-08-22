@@ -231,7 +231,7 @@ impl<C: ExecutionClient> Executor<C> {
 
         self.block_queue.insert(block.clone());
         // TODO: (GHI 250 - https://github.com/astriaorg/astria/issues/250):
-        // add a match statmenet here to either `pop_blocks` (returns soft and
+        // add a match statement here to either `pop_blocks` (returns soft and
         // head) or `pop_soft_blocks` (just soft) based on the `execution_commit_level` setting
         let queued_blocks = self.block_queue.pop_blocks();
 
@@ -248,13 +248,13 @@ impl<C: ExecutionClient> Executor<C> {
 
     /// Send a block to the execution layer for execution.
     ///
-    /// This funciton takes a SequencerBlockSubset and its associtated data to
+    /// This function takes a SequencerBlockSubset and its associated data to
     /// build the inputs for a call to `DoBlock` on the execution layer.
     async fn execute_single_block(
         &mut self,
         block: SequencerBlockSubset,
     ) -> Result<Option<Vec<u8>>> {
-        // get the prvious execution state to pass to do block
+        // get the previous execution state to pass to do block
         let prev_block_hash = self.execution_state.clone();
         info!(
             height = block.header.height.value(),
@@ -446,7 +446,7 @@ mod test {
             .await
             .unwrap();
 
-        let expected_exection_hash = hash(&executor.execution_state);
+        let expected_execution_hash = hash(&executor.execution_state);
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
 
@@ -455,7 +455,7 @@ mod test {
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash, execution_block_hash);
+        assert_eq!(expected_execution_hash, execution_block_hash);
     }
 
     #[tokio::test]
@@ -486,7 +486,7 @@ mod test {
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
 
-        let expected_exection_hash = hash(&executor.execution_state);
+        let expected_execution_hash = hash(&executor.execution_state);
 
         executor
             .handle_block_received_from_data_availability(block)
@@ -494,7 +494,7 @@ mod test {
             .unwrap();
 
         // should have executed and finalized the block
-        assert!(finalized_blocks.lock().await.len() == 1);
+        assert_eq!(finalized_blocks.lock().await.len(), 1);
         assert!(
             finalized_blocks
                 .lock()
@@ -502,7 +502,7 @@ mod test {
                 .get(&executor.execution_state)
                 .is_some()
         );
-        assert_eq!(expected_exection_hash, executor.execution_state);
+        assert_eq!(expected_execution_hash, executor.execution_state);
         // should be empty because 1 block was executed and finalized, which deletes it from the map
         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
     }

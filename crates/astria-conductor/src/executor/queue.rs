@@ -45,7 +45,7 @@ impl Queue {
     ///
     /// This is the only way to add data to the queue. When inserting blocks,
     /// the internal state of the queue will also be updated to properly order
-    /// and arrange all blocks in the queue, base on the tendermin/CometBFT fork
+    /// and arrange all blocks in the queue, based on the Tendermint/CometBFT fork
     /// choice rules.
     pub(super) fn insert(&mut self, block: SequencerBlockSubset) {
         // if the block is already in the queue, return its hash
@@ -208,10 +208,10 @@ impl Queue {
     /// tendermint/CometBTF fork choice rules.
     ///
     /// Once a block is added to the pending_blocks in the queue, this function
-    /// is called. It walks the panding blocks from lowest to highest height,
+    /// is called. It walks the pending blocks from lowest to highest height,
     /// checking to see if there is a continues chain of blocks. For every block
-    /// that is a decendant of the most recent "soft" block, and has a direct
-    /// decendant, that block gets added to the `soft_blocks` BTreeMap and the
+    /// that is a descendant of the most recent "soft" block, and has a direct
+    /// descendant, that block gets added to the `soft_blocks` BTreeMap and the
     /// head height is updated.
     /// after, and including, the most recent "soft" block that has a direct child
     fn update_internal_state(&mut self) {
@@ -383,25 +383,25 @@ mod test {
         let blocks = get_test_block_vec(2);
 
         // because the block is executed the execution state is updated
-        let mut expected_exection_hash = hash(&executor.execution_state);
+        let mut expected_execution_hash = hash(&executor.execution_state);
         let execution_block_hash = executor
             // insert the first block
             .execute_block(blocks[0].clone())
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash, execution_block_hash);
+        assert_eq!(expected_execution_hash, execution_block_hash);
         // because the block can be executed it does not stay in the queue
         assert_eq!(queue_len(executor.block_queue.clone()), 0);
 
-        expected_exection_hash = hash(&executor.execution_state);
+        expected_execution_hash = hash(&executor.execution_state);
         let execution_block_hash_1 = executor
             // insert the first block
             .execute_block(blocks[1].clone())
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash, execution_block_hash_1);
+        assert_eq!(expected_execution_hash, execution_block_hash_1);
         // because the block can be executed it does not stay in the queue
         assert_eq!(queue_len(executor.block_queue.clone()), 0);
     }
@@ -418,14 +418,14 @@ mod test {
 
         // because the block is out of order it is added to the queue and the
         // execution state doesn't change
-        let expected_exection_hash = executor.execution_state.clone();
+        let expected_execution_hash = executor.execution_state.clone();
         let execution_block_hash = executor
             // inserting block 2 when we haven't seen block 1
             .execute_block(blocks[1].clone())
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash, execution_block_hash);
+        assert_eq!(expected_execution_hash, execution_block_hash);
         // because the block is out of order it is added to the queue
         assert_eq!(queue_len(executor.block_queue.clone()), 1);
     }
@@ -441,24 +441,24 @@ mod test {
         let blocks = get_test_block_vec(2);
 
         // add an out of order block to the queue
-        let expected_exection_hash = executor.execution_state.clone();
+        let expected_execution_hash = executor.execution_state.clone();
         let execution_block_hash_1 = executor
             .execute_block(blocks[1].clone())
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash, execution_block_hash_1);
+        assert_eq!(expected_execution_hash, execution_block_hash_1);
         assert_eq!(queue_len(executor.block_queue.clone()), 1);
 
         // executing a block like normal
-        let expected_exection_hash = hash(&hash(&executor.execution_state));
-        let expected_exection_hash_of_missing_block = hash(&executor.execution_state);
+        let expected_execution_hash = hash(&hash(&executor.execution_state));
+        let expected_execution_hash_of_missing_block = hash(&executor.execution_state);
         let execution_block_hash_0 = executor
             .execute_block(blocks[0].clone())
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash, execution_block_hash_0);
+        assert_eq!(expected_execution_hash, execution_block_hash_0);
         let sequencer_block_hash = blocks[0].block_hash();
         let missing_block_execution_hash = executor
             .sequencer_hash_to_execution_hash
@@ -467,7 +467,7 @@ mod test {
             .clone();
         assert_eq!(
             missing_block_execution_hash,
-            expected_exection_hash_of_missing_block
+            expected_execution_hash_of_missing_block
         );
     }
 
@@ -482,34 +482,34 @@ mod test {
         let blocks = get_test_block_vec(5);
 
         // add an out of order block to the queue
-        let expected_exection_hash = executor.execution_state.clone();
+        let expected_execution_hash = executor.execution_state.clone();
         let execution_block_hash_1 = executor
             .execute_block(blocks[1].clone())
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash, execution_block_hash_1);
+        assert_eq!(expected_execution_hash, execution_block_hash_1);
         assert_eq!(queue_len(executor.block_queue.clone()), 1);
 
         // add another out of order block to the queue with another gap
-        let expected_exection_hash = executor.execution_state.clone();
+        let expected_execution_hash = executor.execution_state.clone();
         let execution_block_hash_3 = executor
             .execute_block(blocks[3].clone())
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash, execution_block_hash_3);
+        assert_eq!(expected_execution_hash, execution_block_hash_3);
         assert_eq!(queue_len(executor.block_queue.clone()), 2);
 
         // executing a block like normal
-        let expected_exection_hash = hash(&hash(&executor.execution_state));
-        let expected_exection_hash_of_missing_block = hash(&executor.execution_state);
+        let expected_execution_hash = hash(&hash(&executor.execution_state));
+        let expected_execution_hash_of_missing_block = hash(&executor.execution_state);
         let execution_block_hash_0 = executor
             .execute_block(blocks[0].clone())
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash, execution_block_hash_0);
+        assert_eq!(expected_execution_hash, execution_block_hash_0);
         let sequencer_block_hash = blocks[0].block_hash();
         let missing_block_execution_hash = executor
             .sequencer_hash_to_execution_hash
@@ -518,18 +518,18 @@ mod test {
             .clone();
         assert_eq!(
             missing_block_execution_hash,
-            expected_exection_hash_of_missing_block
+            expected_execution_hash_of_missing_block
         );
 
         // executing a block like normal
-        let expected_exection_hash = hash(&hash(&executor.execution_state));
-        let expected_exection_hash_of_missing_block = hash(&executor.execution_state);
+        let expected_execution_hash = hash(&hash(&executor.execution_state));
+        let expected_execution_hash_of_missing_block = hash(&executor.execution_state);
         let execution_block_hash_2 = executor
             .execute_block(blocks[2].clone())
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash, execution_block_hash_2);
+        assert_eq!(expected_execution_hash, execution_block_hash_2);
         let sequencer_block_hash = blocks[2].block_hash();
         let missing_block_execution_hash = executor
             .sequencer_hash_to_execution_hash
@@ -538,12 +538,12 @@ mod test {
             .clone();
         assert_eq!(
             missing_block_execution_hash,
-            expected_exection_hash_of_missing_block
+            expected_execution_hash_of_missing_block
         );
     }
 
     #[tokio::test]
-    async fn fork_chioce_head_setting() {
+    async fn fork_choice_head_setting() {
         let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = Namespace::from_slice(b"test");
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
@@ -553,14 +553,14 @@ mod test {
         let blocks = get_test_block_vec(4);
 
         // because the block is executed the execution state is updated
-        let mut expected_exection_hash = hash(&executor.execution_state);
+        let mut expected_execution_hash = hash(&executor.execution_state);
         let execution_block_hash = executor
             // insert the first block
             .execute_block(blocks[0].clone())
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash, execution_block_hash);
+        assert_eq!(expected_execution_hash, execution_block_hash);
         // because the block can be executed it does not stay in the queue
         assert_eq!(queue_len(executor.block_queue.clone()), 0);
 
@@ -570,8 +570,8 @@ mod test {
             .await
             .unwrap()
             .expect("expected execution block hash");
-        // exectuion hash not updated
-        assert_eq!(expected_exection_hash, execution_block_hash_2a);
+        // execution hash not updated
+        assert_eq!(expected_execution_hash, execution_block_hash_2a);
         assert_eq!(queue_len(executor.block_queue.clone()), 1);
 
         // add in the same block again with a newer timestamp
@@ -584,32 +584,32 @@ mod test {
             .await
             .unwrap()
             .expect("expected execution block hash");
-        // exectuion hash not updated
-        assert_eq!(expected_exection_hash, execution_block_hash_2b);
+        // execution hash not updated
+        assert_eq!(expected_execution_hash, execution_block_hash_2b);
         assert_eq!(queue_len(executor.block_queue.clone()), 2);
 
         // now when the missing block arrives, all the blocks get executed
         // because everything at the head height is sent to execution
-        expected_exection_hash = hash(&hash(&hash(&executor.execution_state)));
+        expected_execution_hash = hash(&hash(&hash(&executor.execution_state)));
         let execution_block_hash_1 = executor
             .execute_block(blocks[1].clone())
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash, execution_block_hash_1);
+        assert_eq!(expected_execution_hash, execution_block_hash_1);
         // and the queue gets executed and cleared. the second block at height 2
         // is cleared
         assert_eq!(queue_len(executor.block_queue.clone()), 0);
 
         // execute another block after the head with multiple blocks
-        expected_exection_hash = hash(&executor.execution_state);
+        expected_execution_hash = hash(&executor.execution_state);
         let execution_block_hash = executor
             // insert the first block
             .execute_block(blocks[3].clone())
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash, execution_block_hash);
+        assert_eq!(expected_execution_hash, execution_block_hash);
         // because the block can be executed it does not stay in the queue
         assert_eq!(queue_len(executor.block_queue.clone()), 0);
     }
@@ -630,13 +630,13 @@ mod test {
     // let blocks = get_test_block_vec(10);
 
     // // executing a block like normal
-    // let mut expected_exection_hash = hash(&executor.execution_state);
+    // let mut expected_execution_hash = hash(&executor.execution_state);
     // let execution_block_hash_0 = executor
     //     .execute_block(blocks[0].clone())
     //     .await
     //     .unwrap()
     //     .expect("expected execution block hash");
-    // assert_eq!(expected_exection_hash, execution_block_hash_0);
+    // assert_eq!(expected_execution_hash, execution_block_hash_0);
 
     // // adding a block without a parent in the execution chain doesn't change the execution
     // // state and adds it to the queue
@@ -645,7 +645,7 @@ mod test {
     //     .await
     //     .unwrap()
     //     .expect("expected execution block hash");
-    // assert_eq!(expected_exection_hash, execution_block_hash_2);
+    // assert_eq!(expected_execution_hash, execution_block_hash_2);
     // assert_eq!(queue_len(executor.block_queue.clone()), 1);
 
     // // adding another block without a parent in the current chain (but does have parent in
@@ -655,30 +655,30 @@ mod test {
     //     .await
     //     .unwrap()
     //     .expect("expected execution block hash");
-    // assert_eq!(expected_exection_hash, execution_block_hash_3);
+    // assert_eq!(expected_execution_hash, execution_block_hash_3);
     // assert_eq!(queue_len(executor.block_queue.clone()), 2);
 
     // // adding the actual next block updates the execution state
     // // using hash() 3 times here because adding the new block and executing the queue updates
     // // the state 3 times. one for each block.
-    // expected_exection_hash = hash(&hash(&hash(&executor.execution_state)));
+    // expected_execution_hash = hash(&hash(&hash(&executor.execution_state)));
     // let execution_block_hash_1 = executor
     //     .execute_block(blocks[1].clone())
     //     .await
     //     .unwrap()
     //     .expect("expected execution block hash");
-    // assert_eq!(expected_exection_hash, execution_block_hash_1);
+    // assert_eq!(expected_execution_hash, execution_block_hash_1);
     // // and the queue gets executed and cleared
     // assert_eq!(queue_len(executor.block_queue.clone()), 0);
 
     //     // a new block with a parent appears and is executed
-    //     expected_exection_hash = hash(&executor.execution_state);
+    //     expected_execution_hash = hash(&executor.execution_state);
     //     let execution_block_hash_4 = executor
     //         .execute_block(blocks[4].clone())
     //         .await
     //         .unwrap()
     //         .expect("expected execution block hash");
-    //     assert_eq!(expected_exection_hash, execution_block_hash_4);
+    //     assert_eq!(expected_execution_hash, execution_block_hash_4);
 
     //     // add another block that doesn't have a parent
     //     let execution_block_hash_6 = executor
@@ -686,8 +686,8 @@ mod test {
     //         .await
     //         .unwrap()
     //         .expect("expected execution block hash");
-    //     // exectuion hash not updated
-    //     assert_eq!(expected_exection_hash, execution_block_hash_6);
+    //     // execution hash not updated
+    //     assert_eq!(expected_execution_hash, execution_block_hash_6);
     //     assert_eq!(queue_len(executor.block_queue.clone()), 1);
 
     //     // add in the same block again with a newer timestamp
@@ -699,8 +699,8 @@ mod test {
     //         .await
     //         .unwrap()
     //         .expect("expected execution block hash");
-    //     // exectuion hash not updated
-    //     assert_eq!(expected_exection_hash, execution_block_hash_6);
+    //     // execution hash not updated
+    //     assert_eq!(expected_execution_hash, execution_block_hash_6);
     //     // the newer block replaces the block of the same height in the queue so the queue
     // doesn't     // grow
     //     assert_eq!(queue_len(executor.block_queue.clone()), 1);
@@ -712,42 +712,42 @@ mod test {
     //         .await
     //         .unwrap()
     //         .expect("expected execution block hash");
-    //     // exectuion hash not updated
-    //     assert_eq!(expected_exection_hash, execution_block_hash_8);
+    //     // execution hash not updated
+    //     assert_eq!(expected_execution_hash, execution_block_hash_8);
     //     assert_eq!(queue_len(executor.block_queue.clone()), 2);
 
     //     // add a block that fills the first gap
     //     // in this case there are two 6 blocks but one is newer
     //     // only the latest block gets executed here and the old 6 block just gets deleted
-    //     expected_exection_hash = hash(&hash(&executor.execution_state)); // 2 blocks executed
+    //     expected_execution_hash = hash(&hash(&executor.execution_state)); // 2 blocks executed
     //     let execution_block_hash_5 = executor
     //         .execute_block(blocks[5].clone())
     //         .await
     //         .unwrap()
     //         .expect("expected execution block hash");
-    //     assert_eq!(expected_exection_hash, execution_block_hash_5);
+    //     assert_eq!(expected_execution_hash, execution_block_hash_5);
     //     // only one block in the queue gets executed because there is still a gap
     //     assert_eq!(queue_len(executor.block_queue.clone()), 1);
 
     //     // add a block that fills the second gap
-    //     expected_exection_hash = hash(&hash(&executor.execution_state));
+    //     expected_execution_hash = hash(&hash(&executor.execution_state));
     //     let execution_block_hash_7 = executor
     //         .execute_block(blocks[7].clone())
     //         .await
     //         .unwrap()
     //         .expect("expected execution block hash");
-    //     assert_eq!(expected_exection_hash, execution_block_hash_7);
+    //     assert_eq!(expected_execution_hash, execution_block_hash_7);
     //     // the rest of the queue is executed because all gaps are filled
     //     assert_eq!(queue_len(executor.block_queue.clone()), 0);
 
     //     // one final block executed like normal
-    //     expected_exection_hash = hash(&executor.execution_state);
+    //     expected_execution_hash = hash(&executor.execution_state);
     //     let execution_block_hash_9 = executor
     //         .execute_block(blocks[9].clone())
     //         .await
     //         .unwrap()
     //         .expect("expected execution block hash");
-    //     assert_eq!(expected_exection_hash, execution_block_hash_9);
+    //     assert_eq!(expected_execution_hash, execution_block_hash_9);
     //     assert_eq!(queue_len(executor.block_queue.clone()), 0);
     // }
 }
