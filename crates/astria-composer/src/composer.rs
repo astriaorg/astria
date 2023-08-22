@@ -61,7 +61,7 @@ impl Composer {
         })
     }
 
-    /// Returns the socket address the the api server is served over
+    /// Returns the socket address the api server is served over
     pub fn local_addr(&self) -> SocketAddr {
         self.api_server.local_addr()
     }
