@@ -53,10 +53,10 @@ mod rollup;
 use collector::Collector;
 
 /// A Searcher collates transactions from multiple rollups and bundles them into
-/// Astria sequencer transactions using arbitrary strategies and then passed on to the 
-/// shared sequencer. These sequencer transactions have the highly desirable quality of
-/// atomic inclusion, i.e. if they are submitted to the sequencer, all of them are going
-/// to be executed in the same Astria block.
+/// Astria sequencer transactions that are then passed on to the 
+/// Shared Sequencer. The rollup transactions that make up these sequencer transactions
+/// have have the property of atomic inclusion, i.e. if they are submitted to the
+/// sequencer, all of them are going to be executed in the same Astria block.
 pub(super) struct Searcher {
     // The client for submitting signed astria transactions to the sequencer.
     sequencer_client: SequencerClient,
