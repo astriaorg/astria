@@ -52,10 +52,13 @@ mod rollup;
 
 use collector::Collector;
 
-/// the astria seqeuencer.
+/// A Searcher collates transactions from multiple rollups and bundles them into
+/// Astria sequencer transactions using arbitrary strategies and then passed on to the 
+/// shared sequencer. These sequencer transactions have the highly desirable quality of
+/// atomic inclusion, i.e. if they are submitted to the sequencer, all of them are going
+/// to be executed in the same Astria block.
 pub(super) struct Searcher {
-    // The client for submitting wrapped and signed pending eth transactions to the astria
-    // sequencer.
+    // The client for submitting signed astria transactions to the sequencer.
     sequencer_client: SequencerClient,
     // Private key used to sign sequencer transactions
     sequencer_key: SigningKey,
@@ -75,6 +78,7 @@ pub(super) struct Searcher {
     submission_tasks: JoinSet<eyre::Result<()>>,
 }
 
+/// Announces the current status of the Searcher for other modules in the crate to use
 #[derive(Debug, Default)]
 pub(crate) struct Status {
     all_collectors_connected: bool,
@@ -201,6 +205,7 @@ impl Searcher {
         })
     }
 
+    /// Other modules can use this to get notified of changes to the Searcher state
     pub(crate) fn subscribe_to_state(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
     }
@@ -257,7 +262,7 @@ impl Searcher {
         });
     }
 
-    /// Runs the Searcher
+    /// Starts the searcher and runs it until failure
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         self.spawn_collectors();
         let wait_for_collectors = self.wait_for_collectors();

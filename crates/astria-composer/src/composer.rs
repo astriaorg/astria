@@ -20,6 +20,11 @@ use crate::{
     Config,
 };
 
+/// Composer is the component in the Astria ecosystem that is responsible for
+/// submitting transactions to the Shared Sequencer. It usually does this by
+/// running a searcher module that establishes connections to individual
+/// rollup nodes and then bundling one or more of these rollup transactions into
+/// a sequencer transaction before submitting these to the sequencer.
 pub struct Composer {
     api_server: ApiServer,
     searcher: Searcher,
@@ -54,6 +59,7 @@ impl Composer {
         })
     }
 
+    /// Returns the socket address the the api server is served over
     pub fn local_addr(&self) -> SocketAddr {
         self.api_server.local_addr()
     }
