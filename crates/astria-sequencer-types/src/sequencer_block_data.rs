@@ -56,7 +56,7 @@ pub struct SequencerBlockData {
     pub(crate) rollup_data: HashMap<Namespace, RollupData>,
     /// The root of the action tree for this block.
     pub(crate) action_tree_root: Hash,
-    /// The inclusion proof that the action tree root in included
+    /// The inclusion proof that the action tree root is included
     /// in `Header::data_hash`.
     pub(crate) action_tree_root_inclusion_proof: InclusionProof,
 }
@@ -83,7 +83,7 @@ impl SequencerBlockData {
         action_tree_root_inclusion_proof
             .verify(action_tree_root.as_bytes(), data_hash)
             .wrap_err("failed to verify action tree root inclusion proof")?;
-        // TODO: also verify last_commit_hash (#270)
+        // TODO(https://github.com/astriaorg/astria/issues/270): also verify last_commit_hash
 
         let data = Self {
             block_hash,
@@ -120,26 +120,16 @@ impl SequencerBlockData {
         &self.rollup_data
     }
 
-    #[allow(clippy::type_complexity)]
     #[must_use]
-    pub fn into_values(
-        self,
-    ) -> (
-        Hash,
-        Header,
-        Option<Commit>,
-        HashMap<Namespace, RollupData>,
-        Hash,
-        InclusionProof,
-    ) {
-        (
-            self.block_hash,
-            self.header,
-            self.last_commit,
-            self.rollup_data,
-            self.action_tree_root,
-            self.action_tree_root_inclusion_proof,
-        )
+    pub fn into_raw(self) -> RawSequencerBlockData {
+        RawSequencerBlockData {
+            block_hash: self.block_hash,
+            header: self.header,
+            last_commit: self.last_commit,
+            rollup_data: self.rollup_data,
+            action_tree_root: self.action_tree_root,
+            action_tree_root_inclusion_proof: self.action_tree_root_inclusion_proof,
+        }
     }
 
     /// Converts the `SequencerBlockData` into bytes using json.
@@ -262,6 +252,24 @@ impl SequencerBlockData {
         );
         Ok(())
     }
+}
+
+/// An unverified version of [`SequencerBlockData`], primarily used for
+/// serialization/deserialization.
+#[allow(clippy::module_name_repetitions)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct RawSequencerBlockData {
+    pub block_hash: Hash,
+    pub header: Header,
+    /// This field should be set for every block with height > 1.
+    pub last_commit: Option<Commit>,
+    /// namespace -> rollup data (chain ID and transactions)
+    pub rollup_data: HashMap<Namespace, RollupData>,
+    /// The root of the action tree for this block.
+    pub action_tree_root: Hash,
+    /// The inclusion proof that the action tree root is included
+    /// in `Header::data_hash`.
+    pub action_tree_root_inclusion_proof: InclusionProof,
 }
 
 #[cfg(test)]

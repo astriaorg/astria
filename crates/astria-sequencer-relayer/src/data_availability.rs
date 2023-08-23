@@ -15,6 +15,7 @@ use astria_celestia_jsonrpc_client::{
 use astria_sequencer_types::{
     serde::Base64Standard,
     Namespace,
+    RawSequencerBlockData,
     RollupData,
     SequencerBlockData,
     DEFAULT_NAMESPACE,
@@ -565,14 +566,14 @@ fn assemble_blobs_from_sequencer_block_data(
     let mut blobs = Vec::with_capacity(block_data.rollup_data().len() + 1);
     let mut namespaces = Vec::with_capacity(block_data.rollup_data().len() + 1);
 
-    let (
+    let RawSequencerBlockData {
         block_hash,
         header,
         last_commit,
         rollup_data,
         action_tree_root,
         action_tree_root_inclusion_proof,
-    ) = block_data.into_values();
+    } = block_data.into_raw();
 
     let chain_id_to_txs = btree_from_rollup_data(rollup_data);
     let action_tree_leaves = generate_action_tree_leaves(chain_id_to_txs.clone());
