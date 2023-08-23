@@ -26,12 +26,6 @@ jobs:
           input: "crates/astria-proto/proto"
           buf_token: ${{ secrets.BUF_TOKEN }}
 
-  success:
-    runs-on: ubuntu-latest
+  release:
     needs: [proto]
-    if: ${{ always() && !cancelled() }}
-    steps:
-      - if: ${{ contains(needs.*.result, 'failure') }}
-        run: exit 1
-      - if: ${{ !contains(needs.*.result, 'failure') }}
-        run: exit 0
+    uses: ./.github/workflows/reusable-success.yml
