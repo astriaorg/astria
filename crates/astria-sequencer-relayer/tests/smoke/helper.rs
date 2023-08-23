@@ -95,15 +95,20 @@ pub struct TestSequencerRelayer {
 }
 
 impl TestSequencerRelayer {
-    pub async fn advance_by_block_time(&self) {
-        time::advance(Duration::from_millis(
-            self.config.sequencer_block_time_ms + 10,
-        ))
-        .await;
+    /// Polling another future than the tick interval in relayer `stop_msg` loop is controlled by
+    /// advancing time mod block time is not 0.
+    pub async fn advance_to_time_mod_block_time_not_zero(&self, ms: u64) {
+        let millis = Duration::from_millis(ms);
+        if (Instant::now().elapsed() + millis).as_millis() as u64
+            % self.config.sequencer_block_time_ms
+            == 0
+        {
+            panic!("time mod block time is zero, exactly on tick interval")
+        }
+        time::advance(millis).await;
     }
 
-    /// Sequencer is polled for new blocks every sequencer poll period, which is set to the
-    /// sequencer block time in constructor of [`astria_sequencer_relayer::Relayer`].
+    /// Sequencer is polled for new blocks every sequencer block time.
     pub async fn advance_time_by_n_sequencer_ticks(&self, n: u64) {
         time::advance(Duration::from_millis(
             n * self.config.sequencer_block_time_ms,
@@ -112,24 +117,28 @@ impl TestSequencerRelayer {
     }
 }
 
+/// Latency in celestia network.
 pub enum CelestiaMode {
+    /// Celestia network with no delay.
     Immediate,
-    // block times to be delayed, u64 * sequencer_block_time_ms set for StateCelestiaImpl
-    DelayedSinceResponse(u64),
-    // control when celestia blobs processed relative to program start Instant
-    _DelayedSinceTestStart(Instant, u64),
+    /// A delayed celestia network. Takes the time to delay in ms after finalization (when
+    /// submission to da occurs) before celestia client sees blobs on celestia network.
+    DelayedSinceFinalization(u64),
 }
 
-pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequencerRelayer {
+/// Spawn a [`TestSequencerRelayer`].
+pub async fn spawn_sequencer_relayer(
+    mut config: Config,
+    celestia_mode: CelestiaMode,
+) -> TestSequencerRelayer {
     Lazy::force(&TELEMETRY);
-    let mut config = Config::default();
 
     let mut conductor = MockConductor::start();
     let conductor_bootnode = (&mut conductor.bootnode_rx).await.unwrap();
 
     // mock celestia use the sequencer block time to calculate artificial delay. real celestia has
     // longer block times than the sequencer block time.
-    let mut celestia = MockCelestia::start(config.sequencer_block_time_ms, celestia_mode).await;
+    let mut celestia = MockCelestia::start(celestia_mode).await;
     let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
 
     let (keyfile, validator) = tokio::task::spawn_blocking(|| {
@@ -231,7 +240,7 @@ pub struct MockCelestia {
 }
 
 impl MockCelestia {
-    async fn start(sequencer_block_time_ms: u64, mode: CelestiaMode) -> Self {
+    async fn start(mode: CelestiaMode) -> Self {
         use jsonrpsee::server::ServerBuilder;
         let (addr_tx, addr_rx) = oneshot::channel();
         let server = ServerBuilder::default().build("127.0.0.1:0").await.unwrap();
@@ -240,7 +249,6 @@ impl MockCelestia {
         let (state_rpc_confirmed_tx, state_rpc_confirmed_rx) = mpsc::unbounded_channel();
 
         let state_celestia = StateCelestiaImpl {
-            sequencer_block_time_ms,
             mode,
             rpc_confirmed_tx: state_rpc_confirmed_tx,
         };
@@ -286,7 +294,6 @@ impl HeaderServer for HeaderCelestiaImpl {
 }
 
 struct StateCelestiaImpl {
-    sequencer_block_time_ms: u64,
     mode: CelestiaMode,
     rpc_confirmed_tx: mpsc::UnboundedSender<Vec<Blob>>,
 }
@@ -305,14 +312,10 @@ impl StateServer for StateCelestiaImpl {
             value::RawValue,
             Value,
         };
-        if let CelestiaMode::DelayedSinceResponse(n) = self.mode {
-            tokio::time::sleep(Duration::from_millis(n * self.sequencer_block_time_ms)).await;
-        } else if let CelestiaMode::_DelayedSinceTestStart(test_start_time, n) = self.mode {
-            let elapsed = test_start_time.elapsed();
-            let time_to_sleep = Duration::from_millis(n * self.sequencer_block_time_ms);
-            if elapsed < time_to_sleep {
-                let time_to_sleep = time_to_sleep - elapsed;
-                tokio::time::sleep(time_to_sleep).await;
+        match &self.mode {
+            CelestiaMode::Immediate => {}
+            CelestiaMode::DelayedSinceFinalization(delay) => {
+                tokio::time::sleep(Duration::from_millis(*delay)).await;
             }
         }
 
@@ -559,14 +562,46 @@ async fn start_mocked_sequencer() -> MockServer {
     server
 }
 
-pub async fn mount_constant_block_response(sequencer_relayer: &TestSequencerRelayer) -> Response {
-    let block_response = create_block_response(&sequencer_relayer.validator, 1, None);
-    let wrapped = Wrapper::new_with_id(Id::Num(1), Some(block_response.clone()), None);
+pub(crate) struct BlockResponseTwoLinkChain {
+    pub(crate) parent: Response,
+    pub(crate) child: Response,
+}
+
+pub(crate) struct BlockResponseFourLinkChain {
+    pub(crate) grandparent: Response,
+    pub(crate) child: Response,
+    pub(crate) parent: Response,
+    pub(crate) grandchild: Response,
+}
+
+pub(crate) async fn mount_constant_block_response_child_parent_pair(
+    sequencer_relayer: &TestSequencerRelayer,
+) -> BlockResponseTwoLinkChain {
+    let server = &sequencer_relayer.sequencer;
+    let validator = &sequencer_relayer.validator;
+
+    // parent response at height 1
+    let parent = create_and_mount_block(Duration::ZERO, server, validator, 1, None).await;
+    // child response follows at height 2
+    let child = create_and_mount_block(Duration::ZERO, server, validator, 2, Some(&parent)).await;
+
+    BlockResponseTwoLinkChain {
+        parent,
+        child,
+    }
+}
+
+pub(crate) async fn mount_block(delay: Duration, server: &MockServer, block: Response) {
+    let wrapped = Wrapper::new_with_id(Id::Num(1), Some(block), None);
     Mock::given(body_partial_json(json!({"method": "block"})))
-        .respond_with(ResponseTemplate::new(200).set_body_json(wrapped))
-        .mount(&sequencer_relayer.sequencer)
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(wrapped)
+                .set_delay(delay),
+        )
+        .up_to_n_times(1) // only listen for one response
+        .mount(server)
         .await;
-    block_response
 }
 
 pub(crate) async fn create_and_mount_block(
@@ -577,52 +612,51 @@ pub(crate) async fn create_and_mount_block(
     parent: Option<&Response>,
 ) -> Response {
     let rsp = create_block_response(validator, height, parent);
-    let wrapped = Wrapper::new_with_id(Id::Num(1), Some(rsp.clone()), None);
-    Mock::given(body_partial_json(json!({"method": "block"})))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(wrapped)
-                .set_delay(delay),
-        )
-        .up_to_n_times(1)
-        .mount(server)
-        .await;
+    mount_block(delay, server, rsp.clone()).await;
     rsp
 }
 
 /// Mounts 4 changing mock responses with the last one repeating
-pub async fn mount_4_changing_block_responses(
+pub(crate) async fn mount_4_changing_block_responses(
     sequencer_relayer: &TestSequencerRelayer,
-) -> Vec<Response> {
-    let response_delay = Duration::from_millis(sequencer_relayer.config.sequencer_block_time_ms);
+) -> BlockResponseFourLinkChain {
     let validator = &sequencer_relayer.validator;
     let server = &sequencer_relayer.sequencer;
 
-    let mut rsps = Vec::new();
-    // The first one resolves immediately
-    rsps.push(create_and_mount_block(Duration::ZERO, server, validator, 1, None).await);
+    let _response_delay = Duration::from_millis(sequencer_relayer.config.sequencer_block_time_ms);
 
-    for i in 2..=3 {
-        rsps.push(create_and_mount_block(response_delay, server, validator, i, None).await);
+    // - grandparent is received at 1 tick
+    // - parent is received at 4 ticks (delayed 2 ticks)
+    // - child is received at 2 ticks (delayed 1 tick)
+    // - grandchild is received at 3 ticks
+
+    // each block must be of higher height than current height to convert to sequencer data
+    // block. hence height is set equivalent to the tick at which block arrives. todo(emhane):
+    // loosen restriction.
+
+    let grandparent = create_block_response(validator, 1, None);
+    let parent = create_block_response(validator, 4, Some(&grandparent));
+    let child = create_block_response(validator, 2, Some(&parent));
+    let grandchild = create_block_response(validator, 3, Some(&child));
+
+    // MockServer requires blocks to be mounted in order they should be received
+    mount_block(Duration::ZERO, server, grandparent.clone()).await;
+    mount_block(Duration::ZERO, server, child.clone()).await;
+    mount_block(Duration::ZERO, server, grandchild.clone()).await;
+    mount_block(Duration::ZERO, server, parent.clone()).await;
+
+    // grandchild can't finalize
+    BlockResponseFourLinkChain {
+        grandparent,
+        parent,
+        child,
+        grandchild,
     }
-
-    // The last one will repeat
-    rsps.push(create_block_response(validator, 4, None));
-    let wrapped = Wrapper::new_with_id(Id::Num(1), Some(rsps[3].clone()), None);
-    Mock::given(body_partial_json(json!({"method": "block"})))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(wrapped)
-                .set_delay(response_delay),
-        )
-        .mount(&sequencer_relayer.sequencer)
-        .await;
-    rsps
 }
 
-pub async fn mount_two_parent_child_block_response_pairs(
+pub(crate) async fn mount_two_response_pairs_delayed_children(
     sequencer_relayer: &TestSequencerRelayer,
-) -> [Response; 4] {
+) -> [BlockResponseTwoLinkChain; 2] {
     let validator = &sequencer_relayer.validator;
     let server = &sequencer_relayer.sequencer;
 
@@ -631,6 +665,7 @@ pub async fn mount_two_parent_child_block_response_pairs(
     // second parent, increase current height to 2 upon arrival
     let parent_two = create_and_mount_block(Duration::ZERO, server, validator, 2, None).await;
 
+    // delay starts counting from when response is mounted (i.e. from start of test)
     let delay_children = Duration::from_millis(MAX_RELAYER_QUEUE_TIME_MS);
     // the optimistic nature of queued blocks in terms of time out, means the block enqueued
     // before second child, which is the first child, needs to time out parent two. if second
@@ -649,7 +684,17 @@ pub async fn mount_two_parent_child_block_response_pairs(
     let child_two =
         create_and_mount_block(delay_children, server, validator, 4, Some(&parent_two)).await;
 
-    [parent_one, parent_two, child_one, child_two]
+    // children can't finalize
+    [
+        BlockResponseTwoLinkChain {
+            parent: parent_one,
+            child: child_one,
+        },
+        BlockResponseTwoLinkChain {
+            parent: parent_two,
+            child: child_two,
+        },
+    ]
 }
 
 pub(crate) fn get_block_hash(block_resp: &Response) -> Vec<u8> {

@@ -251,6 +251,11 @@ impl SequencerBlockData {
         );
         Ok(())
     }
+
+    /// Returns the hash in the last block id.
+    pub fn parent_block_hash(&self) -> Option<Vec<u8>> {
+        self.header.last_block_id.map(|id| id.hash.into())
+    }
 }
 
 impl Default for SequencerBlockData {

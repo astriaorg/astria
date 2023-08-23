@@ -15,7 +15,7 @@ use serde::{
 mod cli;
 
 /// Max time in ms to wait for a block to finalize after it is received from the sequencer.
-pub const MAX_RELAYER_QUEUE_TIME_MS: u64 = 2 * DEFAULT_BLOCK_TIME_MS;
+pub const MAX_RELAYER_QUEUE_TIME_MS: u64 = 3 * DEFAULT_BLOCK_TIME_MS;
 /// Default block time in ms for a sequencer block.
 pub const DEFAULT_BLOCK_TIME_MS: u64 = 1000;
 
@@ -58,7 +58,7 @@ pub struct Config {
     pub celestia_bearer_token: String,
     pub gas_limit: u64,
     pub disable_writing: bool,
-    /// The relayer's `sequencer_poll_period` is set to the sequencer block time.
+    /// Relayer polls sequencer for blocks at its block interval.
     pub sequencer_block_time_ms: u64,
     pub validator_key_file: String,
     pub rpc_port: u16,

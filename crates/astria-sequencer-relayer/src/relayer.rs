@@ -40,7 +40,7 @@ pub struct Relayer {
     sequencer: HttpClient,
 
     /// The poll period defines the fixed interval at which the sequencer is polled.
-    sequencer_poll_period: Duration,
+    sequencer_block_time_ms: Duration,
 
     // The client for submitting sequencer blocks to the data availability layer.
     data_availability: Option<CelestiaClient>,
@@ -127,7 +127,7 @@ impl Relayer {
 
         Ok(Self {
             sequencer,
-            sequencer_poll_period: Duration::from_millis(cfg.sequencer_block_time_ms),
+            sequencer_block_time_ms: Duration::from_millis(cfg.sequencer_block_time_ms),
             data_availability,
             validator,
             gossip_block_tx,
@@ -393,7 +393,7 @@ impl Relayer {
             .await
             .wrap_err("failed establishing connection to the sequencer")?;
 
-        let mut sequencer_interval = interval(self.sequencer_poll_period);
+        let mut sequencer_interval = interval(self.sequencer_block_time_ms);
 
         let stop_msg = loop {
             select!(
