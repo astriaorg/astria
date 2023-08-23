@@ -20,8 +20,8 @@ use crate::{
     Config,
 };
 
-/// Composer is a service in the Astria ecosystem responsible for submitting
-/// transactions to the Astria Shared Sequencer.
+/// Composer is a service responsible for submitting transactions to the Astria
+/// Shared Sequencer.
 pub struct Composer {
     /// ApiServer is used for monitoring status of the Composer service.
     api_server: ApiServer,

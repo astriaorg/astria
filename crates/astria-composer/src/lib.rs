@@ -4,7 +4,7 @@
 //! transaction (regardless of where it's collected from) as one sequencer transaction.
 //! The submission nonces are based on a custom generated private key specific to the composer.
 //! Each sequencer transaction is submitted with a new nonce which is one more than the nonce
-//! used in the last submission.
+//! used in the previous submission.
 //!
 //! [`Composer`] is configured using a [`Config`] and started with [`Composer::run_until_stopped`].
 //!
