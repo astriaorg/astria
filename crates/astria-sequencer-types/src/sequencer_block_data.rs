@@ -75,8 +75,6 @@ impl SequencerBlockData {
         action_tree_root: Hash,
         action_tree_root_inclusion_proof: InclusionProof,
     ) -> eyre::Result<Self> {
-        // perform data validations to ensure only valid [`SequencerBlockData`]
-        // can be constructed
         let Some(data_hash) = header.data_hash else {
             bail!(Error::MissingDataHash);
         };
