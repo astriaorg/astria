@@ -1,10 +1,10 @@
 # Sequencer application
 
-A sequencer blockchain node consists of two components: [cometbft](https://github.com/cometbft/cometbft) (formerly known as tendermint) and the [sequencer application](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer). This splits the node logic into two separate components that communicate over [ABCI](https://docs.cometbft.com/v0.37/spec/abci/). Cometbft contains the logic for consensus, including the required p2p networking, while the sequencer application contains the state-transition (application) logic of the blockchain. Cometbft drives the formation of new blocks and finality of blocks, calling into the application when necessary to execute the application logic.
+A sequencer blockchain node consists of two components: [cometbft](https://github.com/cometbft/cometbft) (formerly known as tendermint) and the [sequencer application](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer). This splits the node logic into two separate components that communicate over [ABCI](https://docs.cometbft.com/v0.37/spec/abci/). Cometbft contains the logic for consensus, including the required p2p networking, while the sequencer application contains the state transition (application) logic of the blockchain. Cometbft drives the formation of new blocks and finalization of blocks, calling into the application when necessary to execute the state transition logic.
 
 This document aims to specify the application logic of the sequencer chain.
 
-## Background
+## Background and transaction types
 
 The sequencer chain's primary purpose is to sequence (order) data. This data is not executed on the sequencer chain, as it's destined for other chains (ie. rollups). 
 
@@ -78,3 +78,13 @@ As of cometbft v0.37, The ABCI methods called during a one-round period are as f
 3. [DeliverTx](https://docs.cometbft.com/v0.37/spec/abci/abci++_methods#delivertx) (called once for every transaction in the block)
 4. [EndBlock](https://docs.cometbft.com/v0.37/spec/abci/abci++_methods#endblock)
 5. [Commit](https://docs.cometbft.com/v0.37/spec/abci/abci++_methods#commit)
+
+### PrepareProposal
+
+If the node is a validator, and the proposer for this round, `PrepareProposal` is called. `PrepareProposal` allows the list of transactions suggested by cometbft to be modified. Currently, the only modification we make is adding a commitment to the rollup data for each block. See the [related spec](./sequencer-inclusion-proofs.md) for more details.
+
+### TODO
+
+## Transaction lifecycle
+
+## ABCI queries
