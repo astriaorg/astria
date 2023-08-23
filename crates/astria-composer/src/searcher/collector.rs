@@ -209,6 +209,7 @@ impl Collector {
 /// A thin wrapper around [`Provider<Ws>`] to add timeouts.
 ///
 /// Currently only provides a timeout around for `get_net_version`.
+/// Also currently only with Geth nodes
 /// TODO(https://github.com/astriaorg/astria/issues/216): add timeouts for
 /// `subscribe_full_pendings_txs` (more complex because it's a stream).
 #[derive(Clone, Debug)]
