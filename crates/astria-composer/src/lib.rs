@@ -1,7 +1,7 @@
 //! Astria's composer submits EVM rollup transactions to astria's sequencer.
 //!
 //! At the moment composer can read from EVM rollups only, and submits each EVM
-//! transaction (regardless of where it's collected from) as one sequencer transaction. 
+//! transaction (regardless of where it's collected from) as one sequencer transaction.
 //! The submission nonces are based on a custom generated private key specific to the composer.
 //! Each sequencer transaction is submitted with a new nonce which is one more than the nonce
 //! used in the last submission.

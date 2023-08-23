@@ -35,7 +35,7 @@ pub(super) struct Transaction {
 /// Collector is a sub-actor in the Searcher module that interfaces with
 /// individual rollups. It collects transactions submitted to a rollup node and
 /// passes them downstream for the searcher to process.
-/// 
+///
 /// A searcher may have multiple collectors running at the same time funneling
 /// data from multiple rollup nodes.
 #[derive(Debug)]
