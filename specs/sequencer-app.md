@@ -83,7 +83,9 @@ As of cometbft v0.37, The ABCI methods called during a one-round period are as f
 
 If the node is a validator, and the proposer for this round, `PrepareProposal` is called. `PrepareProposal` allows the list of transactions suggested by cometbft to be modified. Currently, the only modification we make is adding a commitment to the rollup data for each block. See the [related spec](./sequencer-inclusion-proofs.md) for more details.
 
-### TODO
+### ProcessProposal
+
+If the node is a validator, but not the proposer for this round, `ProcessProposal` is called.
 
 ## Transaction lifecycle
 
