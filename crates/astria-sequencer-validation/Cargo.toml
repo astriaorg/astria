@@ -1,0 +1,17 @@
+[package]
+name = "astria-sequencer-validation"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ct-merkle = { version = "0.1", features = ["serde"] }
+
+bytes = { workspace = true }
+eyre = { workspace = true }
+hex = { workspace = true, features = ["serde"] }
+serde = { workspace = true, features = ["derive"] }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tendermint = { workspace = true }
