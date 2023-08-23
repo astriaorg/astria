@@ -228,7 +228,7 @@ impl SequencerBlockData {
         let calculated_data_hash = tx_tree.root();
         ensure!(
             // this should never happen for a correctly-constructed block
-            calculated_data_hash == data_hash,
+            calculated_data_hash == data_hash.as_bytes(),
             "action tree root does not match the first transaction in the block",
         );
         let action_tree_root_inclusion_proof = tx_tree
@@ -312,7 +312,7 @@ mod test {
             )
         };
 
-        header.data_hash = Some(data_hash);
+        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
         let block_hash = header.hash();
         SequencerBlockData::new(
             block_hash,

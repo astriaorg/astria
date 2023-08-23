@@ -11,7 +11,7 @@ eyre = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 sha2 = { workspace = true }
-tendermint = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
+tendermint = { workspace = true }

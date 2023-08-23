@@ -44,7 +44,7 @@ pub(crate) fn generate_sequence_actions_commitment(
     // each leaf of the action tree is the root of a merkle tree of the `sequence::Action`s
     // with the same `chain_id`, prepended with `chain_id`.
     // the leaves are sorted in ascending order by `chain_id`.
-    let leaves = generate_action_tree_leaves(&chain_id_to_txs);
+    let leaves = generate_action_tree_leaves(chain_id_to_txs);
     (
         simple_hash_from_byte_vectors::<tendermint::crypto::default::Sha256>(&leaves),
         txs_to_include,
@@ -168,7 +168,7 @@ mod test {
 
         let txs = vec![signed_tx_0, signed_tx_1, signed_tx_2];
         let chain_id_to_txs = group_sequence_actions_by_chain_id(&txs);
-        let leaves = generate_action_tree_leaves(&chain_id_to_txs);
+        let leaves = generate_action_tree_leaves(chain_id_to_txs);
         leaves.iter().enumerate().for_each(|(i, leaf)| {
             if i == 0 {
                 return;
