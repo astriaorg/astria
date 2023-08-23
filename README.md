@@ -111,14 +111,14 @@ $ taplo format
 ```sh
 # Install for macOS w/ homebrew
 brew install markdownlint-cli2
-# Install globally as node package
-npm install markdownlint-cli2 --global
+# Install for Arch Linux
+sudo pacman -S markdownlint-cli2
 
 # Run
-markdownlint-cli2 **/*.md
+markdownlint-cli2 "**/*.md" "#target" "#.github"
 
 # Run with docker
-docker run -v $PWD:/workdir davidanson/markdownlint-cli2:v0.8.1 "**/*.md"
+docker run -v $PWD:/workdir davidanson/markdownlint-cli2:v0.8.1 "**/*.md" "#.github"
 ```
 
 ## Contributing
