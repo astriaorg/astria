@@ -223,7 +223,7 @@ impl SequencerBlockData {
         );
         let action_tree_root_inclusion_proof = tx_tree
             .prove_inclusion(0) // action tree root is always the first tx in a block
-            .expect("failed to generate inclusion proof for action tree root");
+            .wrap_err("failed to generate inclusion proof for action tree root")?;
 
         let data = Self {
             block_hash: b.header.hash(),
