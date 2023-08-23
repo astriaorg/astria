@@ -29,27 +29,80 @@ The architecture of the Conductor is inspired by the [Actor Model](https://en.wi
 
 ### Driver
 
-- Top level coordinator that runs and manages all the subcomponents necessary for the Conductor
+- Top level coordinator that runs and manages all the sub-components necessary for the Conductor
 - Creates the `Reader` and `Executor` actors on startup
 - Creates a gossip network for receiving data from the Sequencer network
     - The gossip network uses the [astria-gossipnet](https://github.com/astriaorg/astria/tree/main/crates/astria-gossipnet)
 - Runs an event loop that handles receiving `DriverCommand`s and messages from the gossip network
-- Passes Sequencer blocks received from the gossip network to the `Executor`
+- Validates and passes Sequencer blocks received from the gossip network to the `Executor`
+
+The Driver receives either `Events` ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-gossipnet/src/network_stream.rs#L39)) from the network, or `DriverCommand`s ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-conductor/src/driver.rs#L54)) from
+the Conductor's internal event loop on a timer. The variants for `Event` and
+`DriverCommand` that are relevant to the processing of blocks within the
+Conductor are:
+- `Event::GossipsubMessage(Message)` ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-gossipnet/src/network_stream.rs#L50))
+  - The `Message` value within the `GossipsubMessage` contains the sequencer
+    block data from the Astria Sequencer value for an `Event` is received the
+    `Message` is then parsed to a `SequencerBlockData`
+    ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-sequencer-types/src/sequencer_block_data.rs#L39)).
+    Once transformed, the block data is validated to make sure that the
+    validator set correctly agreed on the block, the proposer for the Sequencer
+    and the block match, and that the previous commit hash in the block header
+    is correct.
+    The block is then passed to the Executor actor as a
+    `ExecutorCommand::BlockReceivedFromGossipNetwork` message which will
+    ultimately process and filter the block.
+- `DriverCommand::GetNewBlocks`([link](https://github.com/astriaorg/astria/blob/3c4e47dbe1818e4228691d6bfd2b2143a06f1a6e/crates/astria-conductor/src/driver.rs#L54))
+  - This message triggers the sending of a `ReaderCommand::GetNewBlocks` to the
+    Reader actor to initiate the pulling of data from the DA layer.
+
 
 ### Reader
 
 - Creates a `CelestiaClient` using the Celestia client implementation from `astria-sequencer-relayer` to communicate with the DA layer
-- Creates a `TendermintClient` which is used when validating blocks from the DA layer against the sequencer data
+- Creates a `TendermintClient` which is used when validating blocks from the DA
+  layer against the sequencer data
 - Runs an event loop that handles receiving `ReaderCommand`s that drive data retrieval from the DA layer
 - Passes the blocks it receives to the `Executor`
 
+The Reader receives a `ReaderCommand::GetNewBlocks`
+([link](https://github.com/astriaorg/astria/blob/3c4e47dbe1818e4228691d6bfd2b2143a06f1a6e/crates/astria-conductor/src/driver.rs#L54))
+message from the driver. The `CelestiaClient`
+([link](https://github.com/astriaorg/astria/blob/3c4e47dbe1818e4228691d6bfd2b2143a06f1a6e/crates/astria-sequencer-relayer/src/data_availability.rs#L244))
+is then called from the Reader to get data from the Celestia DA. This data is
+then parsed from a Celestia blob into individual blocks, each block is then validated to check that the validator set is correct and the
+proposer for the block matches the proposer of the sequencer, and that the previous commit of the current block is correct.
+Each block is then transformed into a `SequencerBlockSubset`s and and handed off to the Executor as a
+`ExecutorCommand::BlockReceivedFromDataAvailability` for transaction filtering, and passing off to the rollup for execution.
+
 ### Executor
 
-- Runs an event loop that handles receiving `ExecutorCommand`s from both the Driver and Reader
+- Runs an event loop that handles receiving `ExecutorCommand`s from both the
+  Driver and Reader
 - Filters transactions by their rollup namespace and sends them to the rollup for execution
 - Catalogs and matches the block hashes received from the gossip network and the DA layer by rollup namespace so that it can send `firm` commits to the rollup
-- Blocks are sent to the execution layer using [Astria’s GRPC Execution client interface](https://buf.build/astria/astria/docs/main:astria.execution.v1)
+- Blocks are sent to the execution layer using [Astria’s GRPC Execution client interface](https://buf.build/astria/astria/docs/main:astria.execution.v1alpha1)
     - Rollups utilizing the Conductor must implement this interface
+- If a block comes from the DA layer, a "finalize block" message is sent to the rollup
+
+The `ExecutorCommand` ([link](https://github.com/astriaorg/astria/blob/eeffd2dc24ec14cbc7a3b3197ec2a3c099a78605/crates/astria-conductor/src/executor.rs#L81)) variants that the Executor receives are as follows:
+- `ExecutorCommand::BlockReceivedFromGossipNetwork` commands are received when data comes from the sequencer.
+- `ExecutorCommand::BlockReceivedFromDataAvailability` commands are received
+  when data comes from the DA layer.
+
+When blocks are received from the gossip network, their transactions are
+filtered based on the rollup's namespace, then are sent to the rollup for
+execution. The execution hash that is returned from the rollup is then stored in
+a hash map for sequencer block hash -> execution hash.
+
+When blocks are received from the DA layer, the hash map of sequencer block hash
+-> execution hash is checked to see if the block has already passed through the
+Conductor from the Sequencer. If the block isn't seen, it is filtered and sent
+to the rollup for execution exactly the same way the transactions are sent when
+received from the sequencer, then message to finalize the block is sent.
+If the block is already present in the hash map, just the finalize block message
+is sent. After being finalized, the sequencer block hash -> execution hash entry
+in the hash map is deleted.
 
 ## Execution Data
 
