@@ -7,6 +7,7 @@ use astria_sequencer_relayer::data_availability::{
 };
 use astria_sequencer_types::{
     Namespace,
+    RawSequencerBlockData,
     SequencerBlockData,
 };
 use astria_sequencer_validation::MerkleTree;
@@ -120,7 +121,7 @@ impl BlockVerifier {
         let rollup_data_tree = MerkleTree::from_leaves(rollup_data.rollup_txs.clone());
         let rollup_data_root = rollup_data_tree.root();
         let mut leaf = rollup_data.chain_id.clone();
-        leaf.append(&mut rollup_data_root.as_bytes().to_vec());
+        leaf.append(&mut rollup_data_root.to_vec());
 
         rollup_data
             .inclusion_proof
@@ -135,14 +136,14 @@ impl BlockVerifier {
         block: &SequencerBlockData,
     ) -> eyre::Result<()> {
         // TODO: remove this clone by not gossiping the entire [`SequencerBlockData`]
-        let (
+        let RawSequencerBlockData {
             block_hash,
             header,
             last_commit,
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
-        ) = block.clone().into_values();
+        } = block.clone().into_raw();
         let rollup_namespaces = rollup_data.into_keys().collect::<Vec<Namespace>>();
         let data = SequencerNamespaceData {
             block_hash,

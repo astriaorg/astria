@@ -56,7 +56,7 @@ pub struct SequencerBlockData {
     pub(crate) rollup_data: HashMap<Namespace, RollupData>,
     /// The root of the action tree for this block.
     pub(crate) action_tree_root: Hash,
-    /// The inclusion proof that the action tree root in included
+    /// The inclusion proof that the action tree root is included
     /// in `Header::data_hash`.
     pub(crate) action_tree_root_inclusion_proof: InclusionProof,
 }
@@ -75,15 +75,13 @@ impl SequencerBlockData {
         action_tree_root: Hash,
         action_tree_root_inclusion_proof: InclusionProof,
     ) -> eyre::Result<Self> {
-        // perform data validations to ensure only valid [`SequencerBlockData`]
-        // can be constructed
         let Some(data_hash) = header.data_hash else {
             bail!(Error::MissingDataHash);
         };
         action_tree_root_inclusion_proof
             .verify(action_tree_root.as_bytes(), data_hash)
             .wrap_err("failed to verify action tree root inclusion proof")?;
-        // TODO: also verify last_commit_hash (#270)
+        // TODO(https://github.com/astriaorg/astria/issues/270): also verify last_commit_hash
 
         let data = Self {
             block_hash,
@@ -120,26 +118,16 @@ impl SequencerBlockData {
         &self.rollup_data
     }
 
-    #[allow(clippy::type_complexity)]
     #[must_use]
-    pub fn into_values(
-        self,
-    ) -> (
-        Hash,
-        Header,
-        Option<Commit>,
-        HashMap<Namespace, RollupData>,
-        Hash,
-        InclusionProof,
-    ) {
-        (
-            self.block_hash,
-            self.header,
-            self.last_commit,
-            self.rollup_data,
-            self.action_tree_root,
-            self.action_tree_root_inclusion_proof,
-        )
+    pub fn into_raw(self) -> RawSequencerBlockData {
+        RawSequencerBlockData {
+            block_hash: self.block_hash,
+            header: self.header,
+            last_commit: self.last_commit,
+            rollup_data: self.rollup_data,
+            action_tree_root: self.action_tree_root,
+            action_tree_root_inclusion_proof: self.action_tree_root_inclusion_proof,
+        }
     }
 
     /// Converts the `SequencerBlockData` into bytes using json.
@@ -172,7 +160,15 @@ impl SequencerBlockData {
     /// # Errors
     ///
     /// - if the block has no data hash
+    /// - if the block has no transactions
+    /// - if the block's first transaction is not the 32-byte action tree root
     /// - if a transaction in the block cannot be parsed
+    /// - if the block's `data_hash` does not match the one calculated from the transactions
+    /// - if the inclusion proof of the action tree root in the block's `data_hash` cannot be
+    ///   generated
+    ///
+    /// See `specs/sequencer-inclusion-proofs.md` for most details on the action tree root
+    /// and inclusion proof purpose.
     pub fn from_tendermint_block(b: Block) -> eyre::Result<Self> {
         use astria_sequencer::transaction::Signed;
 
@@ -191,6 +187,8 @@ impl SequencerBlockData {
         // and namespace them correspondingly
         let mut rollup_data = HashMap::new();
 
+        // the first transaction is skipped as it's the action tree root,
+        // not a user-submitted transaction.
         for (index, tx) in b.data[1..].iter().enumerate() {
             debug!(
                 index,
@@ -218,12 +216,12 @@ impl SequencerBlockData {
         let calculated_data_hash = tx_tree.root();
         ensure!(
             // this should never happen for a correctly-constructed block
-            calculated_data_hash == data_hash,
+            calculated_data_hash == data_hash.as_bytes(),
             "action tree root does not match the first transaction in the block",
         );
         let action_tree_root_inclusion_proof = tx_tree
             .prove_inclusion(0) // action tree root is always the first tx in a block
-            .expect("failed to generate inclusion proof for action tree root");
+            .wrap_err("failed to generate inclusion proof for action tree root")?;
 
         let data = Self {
             block_hash: b.header.hash(),
@@ -252,6 +250,24 @@ impl SequencerBlockData {
         );
         Ok(())
     }
+}
+
+/// An unverified version of [`SequencerBlockData`], primarily used for
+/// serialization/deserialization.
+#[allow(clippy::module_name_repetitions)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct RawSequencerBlockData {
+    pub block_hash: Hash,
+    pub header: Header,
+    /// This field should be set for every block with height > 1.
+    pub last_commit: Option<Commit>,
+    /// namespace -> rollup data (chain ID and transactions)
+    pub rollup_data: HashMap<Namespace, RollupData>,
+    /// The root of the action tree for this block.
+    pub action_tree_root: Hash,
+    /// The inclusion proof that the action tree root is included
+    /// in `Header::data_hash`.
+    pub action_tree_root_inclusion_proof: InclusionProof,
 }
 
 #[cfg(test)]
@@ -302,7 +318,7 @@ mod test {
             )
         };
 
-        header.data_hash = Some(data_hash);
+        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
         let block_hash = header.hash();
         SequencerBlockData::new(
             block_hash,
