@@ -6,8 +6,7 @@ use astria_sequencer_relayer::data_availability::{
     SignedNamespaceData,
 };
 use astria_sequencer_types::SequencerBlockData;
-use color_eyre::eyre::{
-    self,
+use color_eyre::eyre::{self,
     bail,
     ensure,
     WrapErr as _,
