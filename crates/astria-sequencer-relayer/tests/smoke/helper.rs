@@ -96,11 +96,19 @@ pub struct TestSequencerRelayer {
 
 impl TestSequencerRelayer {
     pub async fn advance_by_block_time(&self) {
-        time::advance(Duration::from_millis(self.config.block_time_ms + 10)).await;
+        time::advance(Duration::from_millis(
+            self.config.sequencer_block_time_ms + 10,
+        ))
+        .await;
     }
 
-    pub async fn advance_by_block_time_n_blocks(&self, n: u64) {
-        time::advance(Duration::from_millis(n * (self.config.block_time_ms + 10))).await;
+    /// Sequencer is polled for new blocks every sequencer poll period, which is set to the
+    /// sequencer block time in constructor of [`astria_sequencer_relayer::Relayer`].
+    pub async fn advance_time_by_n_sequencer_ticks(&self, n: u64) {
+        time::advance(Duration::from_millis(
+            n * self.config.sequencer_block_time_ms,
+        ))
+        .await;
     }
 }
 
@@ -121,7 +129,7 @@ pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequenc
 
     // mock celestia use the sequencer block time to calculate artificial delay. real celestia has
     // longer block times than the sequencer block time.
-    let mut celestia = MockCelestia::start(config.block_time_ms, celestia_mode).await;
+    let mut celestia = MockCelestia::start(config.sequencer_block_time_ms, celestia_mode).await;
     let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
 
     let (keyfile, validator) = tokio::task::spawn_blocking(|| {
@@ -458,11 +466,11 @@ pub(crate) fn create_block_response(
     // The first height must not, every height after must contain a commit. constraint set by
     // tendermint for block construction.
     let last_commit = (height != 1).then_some(create_non_default_last_commit());
-    // required to convert to sequencer block data (function
-    // convert_block_response_to_sequencer_block_data in src/relayer.rs)
+    // required to convert to sequencer block data (fn
+    // convert_block_response_to_sequencer_block_data in ../src/relayer.rs)
     let proposer_address = *validator.address();
-    // height at most current height required to convert to sequencer block data (function
-    // convert_block_response_to_sequencer_block_data in src/relayer.rs)
+    // height greater than current height required to convert to sequencer block data (fn
+    // convert_block_response_to_sequencer_block_data in ../src/relayer.rs)
     let height = block::Height::from(height);
 
     let signing_key = validator.signing_key();
@@ -477,8 +485,8 @@ pub(crate) fn create_block_response(
     )
     .into_signed(signing_key);
     let data = vec![signed_tx.to_bytes()];
-    // data_hash must be some to convert to sequencer block data (function from_tendermint_block
-    // in src/types.rs)
+    // data_hash must be some to convert to sequencer block data (fn from_tendermint_block in
+    // ../src/types.rs)
     let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
         &data,
     )));
@@ -486,8 +494,8 @@ pub(crate) fn create_block_response(
     let last_block_id = parent.map(|parent| {
         let parent = parent.block.header.hash().as_bytes().to_vec();
         block::Id {
-            // block_hash in sequencer data block is set to tendermint block header hash (function
-            // from_tendermint_block in src/types.rs)
+            // block_hash in sequencer block data is set to tendermint block header hash (fn
+            // from_tendermint_block in ../src/types.rs)
             hash: Hash::try_from(parent).unwrap(),
             part_set_header: block::parts::Header::default(),
         }
@@ -586,7 +594,7 @@ pub(crate) async fn create_and_mount_block(
 pub async fn mount_4_changing_block_responses(
     sequencer_relayer: &TestSequencerRelayer,
 ) -> Vec<Response> {
-    let response_delay = Duration::from_millis(sequencer_relayer.config.block_time_ms);
+    let response_delay = Duration::from_millis(sequencer_relayer.config.sequencer_block_time_ms);
     let validator = &sequencer_relayer.validator;
     let server = &sequencer_relayer.sequencer;
 
@@ -612,31 +620,32 @@ pub async fn mount_4_changing_block_responses(
     rsps
 }
 
-pub async fn mount_2_parent_child_pair_block_responses(
+pub async fn mount_two_parent_child_block_response_pairs(
     sequencer_relayer: &TestSequencerRelayer,
 ) -> [Response; 4] {
     let validator = &sequencer_relayer.validator;
     let server = &sequencer_relayer.sequencer;
 
-    // The first three resolve immediately
-    // first parent
+    // first parent, increase current height to 1 upon arrival
     let parent_one = create_and_mount_block(Duration::ZERO, server, validator, 1, None).await;
-    // second parent
+    // second parent, increase current height to 2 upon arrival
     let parent_two = create_and_mount_block(Duration::ZERO, server, validator, 2, None).await;
 
+    let delay_children = Duration::from_millis(MAX_RELAYER_QUEUE_TIME_MS);
     // the optimistic nature of queued blocks in terms of time out, means the block enqueued
     // before second child, which is the first child, needs to time out parent two. if second
     // child comes delayed but not first child, then finality will be checked before time out is
     // checked for parent two.
-    let delay_children = Duration::from_millis(MAX_RELAYER_QUEUE_TIME_MS);
-    // first child
+    //
+    // first child, increase current height to 3 upon arrival
     let child_one =
         create_and_mount_block(delay_children, server, validator, 3, Some(&parent_one)).await;
+
     // child two needs to arrive after child one to make sure parent two doesn't finalize first
-    // (and so the height in the caller function test_finalization in tests/smoke/main.rs is not
-    // less than the height of the block when it arrives in this case as the first child is at
-    // height 3 and second child is at height 4)
-    // second child
+    // (and so the height isn't increased to 4 by child two which would make child one at height 3
+    // fail conversion (fn convert_block_response_to_sequencer_block_data in ../src/relayer.rs)
+    //
+    // second child, increase current height to 4 upon arrival
     let child_two =
         create_and_mount_block(delay_children, server, validator, 4, Some(&parent_two)).await;
 

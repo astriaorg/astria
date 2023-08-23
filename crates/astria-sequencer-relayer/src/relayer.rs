@@ -127,7 +127,7 @@ impl Relayer {
 
         Ok(Self {
             sequencer,
-            sequencer_poll_period: Duration::from_millis(cfg.block_time_ms),
+            sequencer_poll_period: Duration::from_millis(cfg.sequencer_block_time_ms),
             data_availability,
             validator,
             gossip_block_tx,

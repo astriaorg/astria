@@ -169,52 +169,60 @@ async fn test_finalization() {
 
     // children are delayed max queue time
     let [parent_one, parent_two, child_one, child_two] =
-        helper::mount_2_parent_child_pair_block_responses(&sequencer_relayer).await;
+        helper::mount_two_parent_child_block_response_pairs(&sequencer_relayer).await;
 
     let parent_one_block_hash = helper::get_block_hash(&parent_one);
     let parent_two_block_hash = helper::get_block_hash(&parent_two);
     let child_one_block_hash = helper::get_block_hash(&child_one);
 
+    // sequencer is polled for one block response every sequencer poll period, set to the
+    // sequencer block time in the relayer constructor.
+    let tick_time_ms = sequencer_relayer.config.sequencer_block_time_ms;
+
+    // - parent one is received at 1 tick
+    // - parent two is received at 2 ticks
+    // - child one is received at 4 ticks (delayed max queue time) -> finalizes parent one, times
+    // out parent two
+    // - child two is received at 5 ticks (delayed max queue time)
+
     for mounted_block in [parent_one, parent_two, child_one, child_two] {
         let mounted_block_hash = mounted_block.block.header.hash().as_bytes().to_vec();
         // advance time to poll sequencer for next block and submit it to gossip-net
-        if mounted_block_hash == parent_one_block_hash
-            || mounted_block_hash == parent_two_block_hash
-        {
-            // advance time once to receive parents from conductor
-            sequencer_relayer.advance_by_block_time().await;
+        if mounted_block_hash == child_one_block_hash {
+            // advance time max relayer queue time for children. this is the time mock sequencer
+            // is set to delay them (helper::mount_two_parent_child_block_response_pairs)
+            let ticks = MAX_RELAYER_QUEUE_TIME_MS / tick_time_ms;
+            // todo(emhane): set constant queue time and default block time for test specifically,
+            // shorten total test time
+            assert_eq!(ticks, 2);
+
+            sequencer_relayer
+                .advance_time_by_n_sequencer_ticks(ticks)
+                .await;
+            // receiving first child from sequencer, after max relayer queue time,
+            // finalizes parent one and times out parent two.
+            //
+            // child one is received at 4 ticks
+            assert_eq!(
+                test_start.elapsed(),
+                Duration::from_millis(4 * tick_time_ms)
+            );
+        } else {
+            // advance time once to receive parents from sequencer
+            sequencer_relayer.advance_time_by_n_sequencer_ticks(1).await;
             assert_eq!(
                 test_start.elapsed(),
                 if mounted_block_hash == parent_one_block_hash {
-                    // parent one is received at 1 sequencer block time + epsilon
-                    Duration::from_millis(1010)
+                    // parent one is received at 1 tick
+                    Duration::from_millis(1 * tick_time_ms)
+                } else if mounted_block_hash == parent_two_block_hash {
+                    // parent two is received at 2 ticks
+                    Duration::from_millis(2 * tick_time_ms)
                 } else {
-                    // parent two is received at 2 sequencer block times + epsilon
-                    Duration::from_millis(2020)
-                }
-            );
-        } else {
-            // advance time max relayer queue time for children, the time mock sequencer is set to
-            // delay them (helper::mount_2_parent_children_pair_block_responses)
-            let blocks = MAX_RELAYER_QUEUE_TIME_MS / sequencer_relayer.config.block_time_ms;
-            // todo(emhane): set constant queue time and default block time for test specifically,
-            // shorten total test time
-            assert_eq!(blocks, 2);
-
-            sequencer_relayer
-                .advance_by_block_time_n_blocks(blocks)
-                .await;
-            assert_eq!(
-                test_start.elapsed(),
-                if mounted_block_hash == child_one_block_hash {
-                    // receiving first child from sequencer, after max relayer queue time,
-                    // finalizes parent one and times out parent two.
-                    //
-                    // child one is received at 4 sequencer block times + epsilon
-                    Duration::from_millis(4040)
-                } else {
-                    // child two is received at 6 sequencer block times + epsilon
-                    Duration::from_millis(6060)
+                    // child two is ready to receive at 4 ticks, directly after child one, but
+                    // sequencer is not polled for another block till the next tick. hence the
+                    // relayer receives child two at 5 ticks.
+                    Duration::from_millis(5 * tick_time_ms)
                 }
             );
         }
@@ -224,10 +232,6 @@ async fn test_finalization() {
 
         assert_eq!(mounted_block_hash, block_seen_by_conductor.block_hash);
     }
-
-    // Advance once more to trigger the celestia response to 7 + epsilon block time
-    sequencer_relayer.advance_by_block_time().await;
-    assert_eq!(test_start.elapsed(), Duration::from_millis(7070));
 
     // only parent one finalizes. celestia sees a pair of blobs (1 block + sequencer namespace
     // data).
@@ -243,6 +247,7 @@ async fn test_finalization() {
     let blobs_seen_by_celestia = sequencer_relayer.celestia.state_rpc_confirmed_rx.try_recv();
 
     assert!(blobs_seen_by_celestia.is_err());
+
     // TODO: we should shut down and join all outstanding tasks here.
 
     // gracefully exit the inhibited task
