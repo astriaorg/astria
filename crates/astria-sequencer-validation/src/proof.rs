@@ -15,6 +15,7 @@ use sha2::Sha256;
 pub struct MerkleTree(CtMerkleTree<Sha256, Vec<u8>>);
 
 impl MerkleTree {
+    /// Creates a new merkle tree from the given leaves.
     #[must_use]
     pub fn from_leaves(leaves: Vec<Vec<u8>>) -> Self {
         let tree = leaves
@@ -26,6 +27,7 @@ impl MerkleTree {
         MerkleTree(tree)
     }
 
+    /// Returns the root hash of the merkle tree.
     #[must_use]
     pub fn root(&self) -> [u8; 32] {
         sha2::digest::Output::<Sha256>::from_slice(self.0.root().as_bytes())
