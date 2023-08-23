@@ -30,7 +30,6 @@ pub struct Composer {
     /// for submission.
     searcher: Searcher,
 }
-}
 
 impl Composer {
     /// Constructs a new Searcher service from config.
