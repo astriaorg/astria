@@ -33,6 +33,13 @@ pub enum Error {
     MissingDataHash,
 }
 
+/// Rollup data that relayer/conductor need to know.
+#[derive(Default, Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+pub struct RollupData {
+    pub chain_id: Vec<u8>,
+    pub transactions: Vec<Vec<u8>>,
+}
+
 /// `SequencerBlockData` represents a sequencer block's data
 /// to be submitted to the DA layer.
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
@@ -41,8 +48,8 @@ pub struct SequencerBlockData {
     pub(crate) header: Header,
     /// This field should be set for every block with height > 1.
     pub(crate) last_commit: Option<Commit>,
-    /// namespace -> rollup txs
-    pub(crate) rollup_txs: HashMap<Namespace, Vec<Vec<u8>>>,
+    /// namespace -> rollup data (chain ID and transactions)
+    pub(crate) rollup_data: HashMap<Namespace, RollupData>,
 }
 
 impl SequencerBlockData {
@@ -55,13 +62,13 @@ impl SequencerBlockData {
         block_hash: Hash,
         header: Header,
         last_commit: Option<Commit>,
-        rollup_txs: HashMap<Namespace, Vec<Vec<u8>>>,
+        rollup_data: HashMap<Namespace, RollupData>,
     ) -> eyre::Result<Self> {
         let data = Self {
             block_hash,
             header,
             last_commit,
-            rollup_txs,
+            rollup_data,
         };
         data.verify_block_hash()?;
         // TODO: also verify last_commit_hash
@@ -84,25 +91,18 @@ impl SequencerBlockData {
     }
 
     #[must_use]
-    pub fn rollup_txs(&self) -> &HashMap<Namespace, Vec<Vec<u8>>> {
-        &self.rollup_txs
+    pub fn rollup_data(&self) -> &HashMap<Namespace, RollupData> {
+        &self.rollup_data
     }
 
     #[allow(clippy::type_complexity)]
     #[must_use]
-    pub fn into_values(
-        self,
-    ) -> (
-        Hash,
-        Header,
-        Option<Commit>,
-        HashMap<Namespace, Vec<Vec<u8>>>,
-    ) {
+    pub fn into_values(self) -> (Hash, Header, Option<Commit>, HashMap<Namespace, RollupData>) {
         (
             self.block_hash,
             self.header,
             self.last_commit,
-            self.rollup_txs,
+            self.rollup_data,
         )
     }
 
@@ -146,7 +146,7 @@ impl SequencerBlockData {
 
         // we unwrap sequencer txs into rollup-specific data here,
         // and namespace them correspondingly
-        let mut rollup_txs = HashMap::new();
+        let mut rollup_data = HashMap::new();
 
         for (index, tx) in b.data.iter().enumerate() {
             debug!(
@@ -161,8 +161,11 @@ impl SequencerBlockData {
             tx.transaction().actions().iter().for_each(|action| {
                 if let Some(action) = action.as_sequence() {
                     let namespace = Namespace::from_slice(action.chain_id());
-                    let txs = rollup_txs.entry(namespace).or_insert(vec![]);
-                    txs.push(action.data().to_vec());
+                    let rollup_data = rollup_data.entry(namespace).or_insert(RollupData {
+                        chain_id: action.chain_id().to_vec(),
+                        transactions: vec![],
+                    });
+                    rollup_data.transactions.push(action.data().to_vec());
                 }
             });
         }
@@ -171,7 +174,7 @@ impl SequencerBlockData {
             block_hash: b.header.hash(),
             header: b.header,
             last_commit: b.last_commit,
-            rollup_txs,
+            rollup_data,
         };
         Ok(data)
     }
@@ -199,7 +202,10 @@ mod test {
     use std::collections::HashMap;
 
     use super::SequencerBlockData;
-    use crate::DEFAULT_NAMESPACE;
+    use crate::{
+        sequencer_block_data::RollupData,
+        DEFAULT_NAMESPACE,
+    };
 
     #[test]
     fn sequencer_block_to_bytes() {
@@ -209,11 +215,15 @@ mod test {
             block_hash,
             header,
             last_commit: None,
-            rollup_txs: HashMap::new(),
+            rollup_data: HashMap::new(),
         };
-        expected
-            .rollup_txs
-            .insert(DEFAULT_NAMESPACE, vec![vec![0x44, 0x55, 0x66]]);
+        expected.rollup_data.insert(
+            DEFAULT_NAMESPACE,
+            RollupData {
+                chain_id: vec![1, 2, 3], // arbitrary
+                transactions: vec![vec![0x44, 0x55, 0x66]],
+            },
+        );
 
         let bytes = expected.to_bytes().unwrap();
         let actual = SequencerBlockData::from_bytes(&bytes).unwrap();
