@@ -564,7 +564,7 @@ fn assemble_blobs_from_sequencer_block_data(
     let (block_hash, header, last_commit, rollup_data) = block_data.into_values();
 
     let chain_id_to_txs = btree_from_rollup_data(rollup_data);
-    let action_tree_leaves = generate_action_tree_leaves(&chain_id_to_txs);
+    let action_tree_leaves = generate_action_tree_leaves(chain_id_to_txs.clone());
     let action_tree = MerkleTree::from_leaves(action_tree_leaves);
 
     for (i, (chain_id, transactions)) in chain_id_to_txs.into_iter().enumerate() {

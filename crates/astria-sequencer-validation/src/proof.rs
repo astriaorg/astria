@@ -8,7 +8,6 @@ use serde::{
     Serialize,
 };
 use sha2::Sha256;
-use tendermint::Hash;
 
 /// A wrapper around [`ct_merkle::CtMerkleTree`], which uses sha256 as the hashing algorithm
 /// and Vec<u8> as the leaf type.
@@ -28,12 +27,11 @@ impl MerkleTree {
     }
 
     #[must_use]
-    pub fn root(&self) -> Hash {
-        let digest = sha2::digest::Output::<Sha256>::from_slice(self.0.root().as_bytes())
+    pub fn root(&self) -> [u8; 32] {
+        sha2::digest::Output::<Sha256>::from_slice(self.0.root().as_bytes())
             .as_slice()
-            .to_vec();
-        Hash::from_bytes(tendermint::hash::Algorithm::Sha256, &digest)
-            .expect("cannot fail since both hashes are 32 bytes")
+            .try_into()
+            .expect("sha256 output is always 32 bytes")
     }
 
     /// Returns the inclusion proof for the leaf at the given index.
@@ -68,8 +66,8 @@ impl InclusionProof {
     /// # Errors
     ///
     /// - if the proof is invalid
-    pub fn verify(&self, value: &[u8], root_hash: Hash) -> eyre::Result<()> {
-        let digest = *sha2::digest::Output::<Sha256>::from_slice(root_hash.as_bytes());
+    pub fn verify<T: AsRef<[u8]>>(&self, value: &[u8], root_hash: T) -> eyre::Result<()> {
+        let digest = *sha2::digest::Output::<Sha256>::from_slice(root_hash.as_ref());
         let ct_root = RootHash::<Sha256>::new(digest, self.num_leaves);
         ct_root
             .verify_inclusion(&value, self.idx, &self.inclusion_proof)
@@ -108,7 +106,7 @@ mod test {
             162, 149, 155, 23, 199, 181, 156, 228, 214, 166, 82, 156, 247, 210, 68, 204, 205, 97,
             8, 44, 132, 29, 172, 126, 208, 219, 21, 169, 19, 135, 55, 46,
         ];
-        assert_eq!(ct_root.as_bytes(), expected);
+        assert_eq!(ct_root, expected);
     }
 
     #[test]
@@ -128,7 +126,7 @@ mod test {
         let tm_root = simple_hash_from_byte_vectors::<tendermint::crypto::default::Sha256>(&data);
         let ct_tree = MerkleTree::from_leaves(data);
         let ct_root = ct_tree.root();
-        assert_eq!(ct_root.as_bytes(), tm_root.as_slice());
+        assert_eq!(ct_root, tm_root.as_slice());
     }
 
     #[test]
