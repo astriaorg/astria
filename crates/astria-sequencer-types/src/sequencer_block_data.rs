@@ -46,19 +46,21 @@ pub struct RollupData {
 
 /// `SequencerBlockData` represents a sequencer block's data
 /// to be submitted to the DA layer.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(try_from = "RawSequencerBlockData")]
+#[serde(into = "RawSequencerBlockData")]
 pub struct SequencerBlockData {
-    pub(crate) block_hash: Hash,
-    pub(crate) header: Header,
+    block_hash: Hash,
+    header: Header,
     /// This field should be set for every block with height > 1.
-    pub(crate) last_commit: Option<Commit>,
+    last_commit: Option<Commit>,
     /// namespace -> rollup data (chain ID and transactions)
-    pub(crate) rollup_data: HashMap<Namespace, RollupData>,
+    rollup_data: HashMap<Namespace, RollupData>,
     /// The root of the action tree for this block.
-    pub(crate) action_tree_root: Hash,
+    action_tree_root: Hash,
     /// The inclusion proof that the action tree root is included
     /// in `Header::data_hash`.
-    pub(crate) action_tree_root_inclusion_proof: InclusionProof,
+    action_tree_root_inclusion_proof: InclusionProof,
 }
 
 impl SequencerBlockData {
@@ -67,14 +69,16 @@ impl SequencerBlockData {
     /// # Errors
     ///
     /// - if the block hash does not correspond to the hashed header provided
-    pub fn new(
-        block_hash: Hash,
-        header: Header,
-        last_commit: Option<Commit>,
-        rollup_data: HashMap<Namespace, RollupData>,
-        action_tree_root: Hash,
-        action_tree_root_inclusion_proof: InclusionProof,
-    ) -> eyre::Result<Self> {
+    pub fn try_from_raw(raw: RawSequencerBlockData) -> eyre::Result<Self> {
+        let RawSequencerBlockData {
+            block_hash,
+            header,
+            last_commit,
+            rollup_data,
+            action_tree_root,
+            action_tree_root_inclusion_proof,
+        } = raw;
+
         let Some(data_hash) = header.data_hash else {
             bail!(Error::MissingDataHash);
         };
@@ -118,15 +122,25 @@ impl SequencerBlockData {
         &self.rollup_data
     }
 
+    /// Returns the [`SequencerBlockData`] as a [`RawSequencerBlockData`].
     #[must_use]
     pub fn into_raw(self) -> RawSequencerBlockData {
+        let Self {
+            block_hash,
+            header,
+            last_commit,
+            rollup_data,
+            action_tree_root,
+            action_tree_root_inclusion_proof,
+        } = self;
+
         RawSequencerBlockData {
-            block_hash: self.block_hash,
-            header: self.header,
-            last_commit: self.last_commit,
-            rollup_data: self.rollup_data,
-            action_tree_root: self.action_tree_root,
-            action_tree_root_inclusion_proof: self.action_tree_root_inclusion_proof,
+            block_hash,
+            header,
+            last_commit,
+            rollup_data,
+            action_tree_root,
+            action_tree_root_inclusion_proof,
         }
     }
 
@@ -270,6 +284,20 @@ pub struct RawSequencerBlockData {
     pub action_tree_root_inclusion_proof: InclusionProof,
 }
 
+impl TryFrom<RawSequencerBlockData> for SequencerBlockData {
+    type Error = eyre::Error;
+
+    fn try_from(raw: RawSequencerBlockData) -> eyre::Result<Self> {
+        Self::try_from_raw(raw)
+    }
+}
+
+impl From<SequencerBlockData> for RawSequencerBlockData {
+    fn from(data: SequencerBlockData) -> Self {
+        data.into_raw()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
@@ -283,6 +311,7 @@ mod test {
     use super::SequencerBlockData;
     use crate::{
         sequencer_block_data::RollupData,
+        RawSequencerBlockData,
         DEFAULT_NAMESPACE,
     };
 
@@ -320,14 +349,14 @@ mod test {
 
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
         let block_hash = header.hash();
-        SequencerBlockData::new(
+        SequencerBlockData::try_from_raw(RawSequencerBlockData {
             block_hash,
             header,
-            None,
-            HashMap::new(),
+            last_commit: None,
+            rollup_data: HashMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
-        )
+        })
         .unwrap();
     }
 
