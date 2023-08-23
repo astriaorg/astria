@@ -4,7 +4,6 @@ use ct_merkle::{
     RootHash,
 };
 use serde::{
-    ser::SerializeStruct,
     Deserialize,
     Serialize,
 };
@@ -57,7 +56,7 @@ impl MerkleTree {
 }
 
 /// A merkle proof of inclusion.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 #[allow(clippy::module_name_repetitions)]
 pub struct InclusionProof {
     // value to be proven as included
@@ -68,44 +67,6 @@ pub struct InclusionProof {
     num_leaves: usize,
     // the merkle proof itself
     inclusion_proof: CtInclusionProof<Sha256>,
-}
-
-impl Serialize for InclusionProof {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut s = serializer.serialize_struct("InclusionProof", 4)?;
-        s.serialize_field("value", &hex::encode(&self.value))?;
-        s.serialize_field("idx", &self.idx)?;
-        s.serialize_field("num_leaves", &self.num_leaves)?;
-        s.serialize_field(
-            "inclusion_proof",
-            &hex::encode(self.inclusion_proof.as_bytes()),
-        )?;
-        s.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for InclusionProof {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        #[derive(Deserialize)]
-        struct InclusionProofHelper {
-            value: String,
-            idx: usize,
-            num_leaves: usize,
-            inclusion_proof: String,
-        }
-        let helper = InclusionProofHelper::deserialize(deserializer)?;
-        let value = hex::decode(helper.value).map_err(serde::de::Error::custom)?;
-        let inclusion_proof = CtInclusionProof::try_from_bytes(
-            hex::decode(helper.inclusion_proof).map_err(serde::de::Error::custom)?,
-        )
-        .map_err(serde::de::Error::custom)?;
-        Ok(InclusionProof {
-            value,
-            idx: helper.idx,
-            num_leaves: helper.num_leaves,
-            inclusion_proof,
-        })
-    }
 }
 
 impl InclusionProof {

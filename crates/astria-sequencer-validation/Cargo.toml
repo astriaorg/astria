@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ct-merkle = "0.1"
+ct-merkle = { version = "0.1", features = ["serde"] }
 
 bytes = { workspace = true }
 eyre = { workspace = true }
