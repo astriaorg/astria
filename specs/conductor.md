@@ -41,10 +41,45 @@ The responsibilities of each module are as follows:
 
 ### Executor
  - Runs an event loop that handles receiving `ExecutorCommand`s from both the Driver and Reader
+ - Queues the incoming blocks to handle potential ordering issues and the basic fork choice rules 
+   different commit settings 
  - Filters out transactions by their rollup namespace and sends them to the rollup for execution (`soft` commits)
  - Catalogs and matches the block hashes received from the gossip network and the DA by rollup namespace to send `firm` commits to the rollup
  - Blocks are sent to the execution layer using [Astria’s GRPC Execution client interface](https://buf.build/astria/astria/docs/main:astria.execution.v1)
      - Rollups utilizing the Conductor must implement this interface
+
+#### The Execution Queue
+The Queue within the Executor is responsible for verifying the ordering of
+blocks received from the Sequencer. The basic flow for the blocks through the
+Executor and into and out of the Queue, is as follows:
+**From the Sequencer:**
+1. Blocks are received from the Sequencer and are validated.
+2. Validated blocks are then sent to the `execute_block` function for the
+   Executor
+3. Once inside `execute_block` that block is added to the Queue.
+4. The Queue verifies the order of the blocks to make sure that they are
+   following the correct fork choice rules based on the CometBFT fork choice rules.
+5. The list of all blocks that can be executed are then popped from the queue
+   and are individually passed to the rollup for execution.
+
+The different fork choice rules are set using the `execution_commit_level`. There are three options:
+1. `HEAD`: The HEAD setting means that every time the sequencer creates a new
+   block at head height N, that block will get sent to the execution layer. The
+   HEAD blocks at height N can be reorged or updated until
+   a block at height N+1 has been received, so multiple blocks at the head
+   height can be sent to execution. Once the N+1 block is received, its
+   parent block at height N is set to `SOFT` and N+1 becomes the new HEAD
+   height. When blocks are seen in DA, they are then set to FIRM.
+2. `SOFT`: The SOFT setting means that only blocks that have full sequencer
+   consensus agreement will be sent to the execution layer and will not be
+   reorged. Internally this means that the queue will hold all blocks at the
+   head height, but only return blocks that have a child. Thus all blocks sent
+   to the execution layer are always soft. Blocks are marked as FIRM when they are seen in DA. 
+3. `FIRM`: The FIRM setting indicates that only blocks that have been written
+   and propagated across the DA network will be sent to the execution layer. All
+   blocks sent will always be FIRM.
+
+
 
 ## Execution Data
 ### Transaction Filtering
