@@ -302,31 +302,11 @@ impl From<SequencerBlockData> for RawSequencerBlockData {
 mod test {
     use std::collections::HashMap;
 
-    use astria_sequencer_validation::{
-        InclusionProof,
-        MerkleTree,
-    };
+    use astria_sequencer_validation::MerkleTree;
     use tendermint::Hash;
 
     use super::SequencerBlockData;
-    use crate::{
-        sequencer_block_data::RollupData,
-        RawSequencerBlockData,
-        DEFAULT_NAMESPACE,
-    };
-
-    fn test_root_and_inclusion_proof() -> (Hash, InclusionProof) {
-        let leaves = vec![
-            vec![0x11, 0x22, 0x33],
-            vec![0x44, 0x55, 0x66],
-            vec![0x77, 0x88, 0x99],
-        ];
-        let tree = MerkleTree::from_leaves(leaves);
-        (
-            Hash::try_from([0u8; 32].to_vec()).unwrap(),
-            tree.prove_inclusion(0).unwrap(),
-        )
-    }
+    use crate::RawSequencerBlockData;
 
     #[test]
     fn new_sequencer_block() {
@@ -362,27 +342,37 @@ mod test {
 
     #[test]
     fn sequencer_block_to_bytes() {
-        let header = crate::test_utils::default_header();
+        let mut header = crate::test_utils::default_header();
+        let (action_tree_root, action_tree_root_inclusion_proof, data_hash) = {
+            let action_tree_root = [9u8; 32];
+            let transactions = vec![
+                action_tree_root.to_vec(),
+                vec![0x11, 0x22, 0x33],
+                vec![0x44, 0x55, 0x66],
+                vec![0x77, 0x88, 0x99],
+            ];
+            let tree = MerkleTree::from_leaves(transactions);
+            (
+                Hash::try_from(action_tree_root.to_vec()).unwrap(),
+                tree.prove_inclusion(0).unwrap(),
+                tree.root(),
+            )
+        };
+
+        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
         let block_hash = header.hash();
-        let (action_tree_root, action_tree_root_inclusion_proof) = test_root_and_inclusion_proof();
-        let mut expected = SequencerBlockData {
+        let data = SequencerBlockData::try_from_raw(RawSequencerBlockData {
             block_hash,
             header,
             last_commit: None,
             rollup_data: HashMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
-        };
-        expected.rollup_data.insert(
-            DEFAULT_NAMESPACE,
-            RollupData {
-                chain_id: vec![1, 2, 3], // arbitrary
-                transactions: vec![vec![0x44, 0x55, 0x66]],
-            },
-        );
+        })
+        .unwrap();
 
-        let bytes = expected.to_bytes().unwrap();
+        let bytes = data.to_bytes().unwrap();
         let actual = SequencerBlockData::from_bytes(&bytes).unwrap();
-        assert_eq!(expected, actual);
+        assert_eq!(data, actual);
     }
 }
