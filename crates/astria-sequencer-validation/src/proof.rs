@@ -43,11 +43,6 @@ impl MerkleTree {
     /// - if the index is out of bounds
     pub fn prove_inclusion(&self, idx: usize) -> eyre::Result<InclusionProof> {
         Ok(InclusionProof {
-            value: self
-                .0
-                .get(idx)
-                .ok_or(eyre::eyre!("index out of bounds of merkle tree"))?
-                .clone(),
             idx,
             num_leaves: self.0.len(),
             inclusion_proof: self.0.prove_inclusion(idx),
@@ -59,8 +54,6 @@ impl MerkleTree {
 #[derive(Debug, Serialize, Deserialize)]
 #[allow(clippy::module_name_repetitions)]
 pub struct InclusionProof {
-    // value to be proven as included
-    value: Vec<u8>,
     // leaf index of value to be proven
     idx: usize,
     // total number of leaves in the tree
@@ -75,11 +68,11 @@ impl InclusionProof {
     /// # Errors
     ///
     /// - if the proof is invalid
-    pub fn verify(&self, root_hash: Hash) -> eyre::Result<()> {
+    pub fn verify(&self, value: &[u8], root_hash: Hash) -> eyre::Result<()> {
         let digest = *sha2::digest::Output::<Sha256>::from_slice(root_hash.as_bytes());
         let ct_root = RootHash::<Sha256>::new(digest, self.num_leaves);
         ct_root
-            .verify_inclusion(&self.value, self.idx, &self.inclusion_proof)
+            .verify_inclusion(&value, self.idx, &self.inclusion_proof)
             .map_err(|e| eyre::eyre!("failed to verify inclusion: {}", e))
     }
 }
@@ -158,8 +151,8 @@ mod test {
         let ct_root = ct_tree.root();
 
         let idx = 0;
+        let value = data[idx].clone();
         let proof = InclusionProof {
-            value: data[idx].clone(),
             idx,
             num_leaves: data.len(),
             inclusion_proof: ct_tree.prove_inclusion(idx),
@@ -170,6 +163,6 @@ mod test {
         let tm_hash =
             tendermint::Hash::from_bytes(tendermint::hash::Algorithm::Sha256, ct_root.as_bytes())
                 .unwrap();
-        proof.verify(tm_hash).unwrap();
+        proof.verify(&value, tm_hash).unwrap();
     }
 }
