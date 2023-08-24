@@ -121,6 +121,7 @@ impl Queue {
         }
     }
 
+    /// Return all the blocks at the head height
     fn pop_head_blocks(&mut self) -> Option<Vec<SequencerBlockSubset>> {
         if let Some(head_blocks) = self.pending_blocks.get_mut(&self.head_height) {
             let mut output_blocks: Vec<SequencerBlockSubset> = vec![];
@@ -138,7 +139,7 @@ impl Queue {
         None
     }
 
-    // check to see if the block is already present in the queue
+    /// Check to see if the block is already present in the queue
     fn is_block_present(&mut self, block: &SequencerBlockSubset) -> bool {
         let block_hash = block.block_hash();
         let height = block.height();
@@ -159,6 +160,8 @@ impl Queue {
         false
     }
 
+    /// Check if there is another block in the pending blocks at a lower height
+    /// that points to this block as its parent.
     fn is_block_a_parent(&mut self, block: SequencerBlockSubset) -> bool {
         let block_hash = block.block_hash();
         if let Some(child_blocks) = self.pending_blocks.get(&block.child_height()) {
@@ -174,6 +177,8 @@ impl Queue {
         false
     }
 
+    /// Safely insert a block into the pending blocks. This function will insert
+    /// the block into existing maps or create a new one if needed.
     fn insert_to_pending_blocks(&mut self, block: SequencerBlockSubset) {
         let height = block.height();
         let block_hash = block.block_hash();
@@ -222,6 +227,7 @@ impl Queue {
             // if the very first height in the pending blocks is the head
             if height == self.head_height {
                 if let Some(pending_blocks) = self.pending_blocks.clone().get(&height) {
+                    // walk the pending blocks and check if any of them are a parent
                     for block in pending_blocks.values() {
                         if self.is_block_a_parent(block.clone()) {
                             self.soft_blocks.insert(height, block.clone());
@@ -232,6 +238,7 @@ impl Queue {
                         }
                     }
                 }
+            // if the first height in the queue is not the head just stop reorg
             } else {
                 break;
             }
@@ -339,6 +346,7 @@ mod test {
         }
     }
 
+    // build a vec of sequential blocks for testing
     fn get_test_block_vec(num_blocks: u32) -> Vec<SequencerBlockSubset> {
         // let namespace = Namespace::from_slice(b"test");
 
@@ -618,136 +626,4 @@ mod test {
     // add a new test to check that the `execution_commit_level` setting
     // actually changes the execution behavior
     // -> fn fork_choice_soft_setting() {blah}
-
-    // #[tokio::test]
-    // async fn test_block_queue() {
-    // let (alert_tx, _) = mpsc::unbounded_channel();
-    // let namespace = Namespace::from_slice(b"test");
-    // let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
-    //     .await
-    //     .unwrap();
-
-    // let blocks = get_test_block_vec(10);
-
-    // // executing a block like normal
-    // let mut expected_execution_hash = hash(&executor.execution_state);
-    // let execution_block_hash_0 = executor
-    //     .execute_block(blocks[0].clone())
-    //     .await
-    //     .unwrap()
-    //     .expect("expected execution block hash");
-    // assert_eq!(expected_execution_hash, execution_block_hash_0);
-
-    // // adding a block without a parent in the execution chain doesn't change the execution
-    // // state and adds it to the queue
-    // let execution_block_hash_2 = executor
-    //     .execute_block(blocks[2].clone())
-    //     .await
-    //     .unwrap()
-    //     .expect("expected execution block hash");
-    // assert_eq!(expected_execution_hash, execution_block_hash_2);
-    // assert_eq!(queue_len(executor.block_queue.clone()), 1);
-
-    // // adding another block without a parent in the current chain (but does have parent in
-    // the // queue). also doesn't change execution state
-    // let execution_block_hash_3 = executor
-    //     .execute_block(blocks[3].clone())
-    //     .await
-    //     .unwrap()
-    //     .expect("expected execution block hash");
-    // assert_eq!(expected_execution_hash, execution_block_hash_3);
-    // assert_eq!(queue_len(executor.block_queue.clone()), 2);
-
-    // // adding the actual next block updates the execution state
-    // // using hash() 3 times here because adding the new block and executing the queue updates
-    // // the state 3 times. one for each block.
-    // expected_execution_hash = hash(&hash(&hash(&executor.execution_state)));
-    // let execution_block_hash_1 = executor
-    //     .execute_block(blocks[1].clone())
-    //     .await
-    //     .unwrap()
-    //     .expect("expected execution block hash");
-    // assert_eq!(expected_execution_hash, execution_block_hash_1);
-    // // and the queue gets executed and cleared
-    // assert_eq!(queue_len(executor.block_queue.clone()), 0);
-
-    //     // a new block with a parent appears and is executed
-    //     expected_execution_hash = hash(&executor.execution_state);
-    //     let execution_block_hash_4 = executor
-    //         .execute_block(blocks[4].clone())
-    //         .await
-    //         .unwrap()
-    //         .expect("expected execution block hash");
-    //     assert_eq!(expected_execution_hash, execution_block_hash_4);
-
-    //     // add another block that doesn't have a parent
-    //     let execution_block_hash_6 = executor
-    //         .execute_block(blocks[6].clone())
-    //         .await
-    //         .unwrap()
-    //         .expect("expected execution block hash");
-    //     // execution hash not updated
-    //     assert_eq!(expected_execution_hash, execution_block_hash_6);
-    //     assert_eq!(queue_len(executor.block_queue.clone()), 1);
-
-    //     // add in the same block again with a newer timestamp
-    //     // this simulates a different block at the same height
-    //     let mut newer_6_block = blocks[6].clone();
-    //     newer_6_block.header.time = Time::now();
-    //     let execution_block_hash_6 = executor
-    //         .execute_block(newer_6_block)
-    //         .await
-    //         .unwrap()
-    //         .expect("expected execution block hash");
-    //     // execution hash not updated
-    //     assert_eq!(expected_execution_hash, execution_block_hash_6);
-    //     // the newer block replaces the block of the same height in the queue so the queue
-    // doesn't     // grow
-    //     assert_eq!(queue_len(executor.block_queue.clone()), 1);
-
-    //     // add another block that doesn't have a parent and also a gap between the last block
-    // added     // to the queue that doesn't have a parent
-    //     let execution_block_hash_8 = executor
-    //         .execute_block(blocks[8].clone())
-    //         .await
-    //         .unwrap()
-    //         .expect("expected execution block hash");
-    //     // execution hash not updated
-    //     assert_eq!(expected_execution_hash, execution_block_hash_8);
-    //     assert_eq!(queue_len(executor.block_queue.clone()), 2);
-
-    //     // add a block that fills the first gap
-    //     // in this case there are two 6 blocks but one is newer
-    //     // only the latest block gets executed here and the old 6 block just gets deleted
-    //     expected_execution_hash = hash(&hash(&executor.execution_state)); // 2 blocks executed
-    //     let execution_block_hash_5 = executor
-    //         .execute_block(blocks[5].clone())
-    //         .await
-    //         .unwrap()
-    //         .expect("expected execution block hash");
-    //     assert_eq!(expected_execution_hash, execution_block_hash_5);
-    //     // only one block in the queue gets executed because there is still a gap
-    //     assert_eq!(queue_len(executor.block_queue.clone()), 1);
-
-    //     // add a block that fills the second gap
-    //     expected_execution_hash = hash(&hash(&executor.execution_state));
-    //     let execution_block_hash_7 = executor
-    //         .execute_block(blocks[7].clone())
-    //         .await
-    //         .unwrap()
-    //         .expect("expected execution block hash");
-    //     assert_eq!(expected_execution_hash, execution_block_hash_7);
-    //     // the rest of the queue is executed because all gaps are filled
-    //     assert_eq!(queue_len(executor.block_queue.clone()), 0);
-
-    //     // one final block executed like normal
-    //     expected_execution_hash = hash(&executor.execution_state);
-    //     let execution_block_hash_9 = executor
-    //         .execute_block(blocks[9].clone())
-    //         .await
-    //         .unwrap()
-    //         .expect("expected execution block hash");
-    //     assert_eq!(expected_execution_hash, execution_block_hash_9);
-    //     assert_eq!(queue_len(executor.block_queue.clone()), 0);
-    // }
 }
