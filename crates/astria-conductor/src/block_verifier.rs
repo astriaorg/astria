@@ -181,7 +181,8 @@ impl<C: SequencerClient> BlockVerifier<C> {
 
         self.validate_sequencer_namespace_data(&data).await?;
 
-        // TODO: validate that the transactions in the block result in the correct data_hash (#153)
+        // TODO(https://github.com/astriaorg/astria/issues/309): validate that the transactions in
+        // the block result in the correct data_hash
         // however this requires updating [`SequencerBlockData`] to contain inclusion proofs for
         // each of its rollup datas; we can instead update the gossip network to *not*
         // gossip entire [`SequencerBlockData`] but instead gossip headers, while each
@@ -494,9 +495,15 @@ fn get_proposer(validator_set: &ValidatorSet) -> eyre::Result<Validator> {
 
 #[cfg(test)]
 mod test {
-    use std::str::FromStr;
+    use std::{
+        collections::BTreeMap,
+        str::FromStr,
+    };
 
-    use astria_sequencer_validation::MerkleTree;
+    use astria_sequencer_validation::{
+        generate_action_tree_leaves,
+        MerkleTree,
+    };
     use base64::engine::{
         general_purpose::STANDARD,
         Engine as _,
@@ -568,6 +575,52 @@ mod test {
         let block_verifier = BlockVerifier::new(MockSequencerClient);
         block_verifier
             .validate_sequencer_namespace_data(&sequencer_namespace_data)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn validate_rollup_data_ok() {
+        let test_tx = b"test-tx".to_vec();
+        let test_chain_id = b"test-chain";
+        let mut btree = BTreeMap::new();
+        btree.insert(test_chain_id.to_vec(), vec![test_tx.clone()]);
+        let leaves = generate_action_tree_leaves(btree);
+
+        let action_tree = MerkleTree::from_leaves(leaves);
+        let action_tree_root = action_tree.root();
+
+        let tx_tree = MerkleTree::from_leaves(vec![action_tree_root.to_vec()]);
+        let action_tree_root_inclusion_proof = tx_tree.prove_inclusion(0).unwrap();
+        let data_hash = tx_tree.root();
+
+        let proposer_address =
+            tendermint::account::Id::from_str("E3849B2AE431ABB2865923B57454514CC7DB350B").unwrap();
+
+        let mut header = astria_sequencer_types::test_utils::default_header();
+        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+        header.proposer_address = proposer_address;
+        let block_hash = header.hash();
+
+        let sequencer_namespace_data = SequencerNamespaceData {
+            block_hash,
+            header,
+            last_commit: None,
+            rollup_namespaces: vec![],
+            action_tree_root,
+            action_tree_root_inclusion_proof,
+        };
+
+        let rollup_namespace_data = RollupNamespaceData::new(
+            block_hash,
+            test_chain_id.to_vec(),
+            vec![test_tx],
+            action_tree.prove_inclusion(0).unwrap(),
+        );
+
+        let block_verifier = BlockVerifier::new(MockSequencerClient);
+        block_verifier
+            .validate_rollup_data(&sequencer_namespace_data, &rollup_namespace_data)
             .await
             .unwrap();
     }
