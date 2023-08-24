@@ -10,7 +10,6 @@ use astria_sequencer_types::{
     RawSequencerBlockData,
     SequencerBlockData,
 };
-use astria_sequencer_validation::MerkleTree;
 use color_eyre::eyre::{
     self,
     bail,
@@ -150,14 +149,8 @@ impl<C: SequencerClient> BlockVerifier<C> {
             .context("failed to validate sequencer block header and last commit")?;
 
         // validate that rollup data was included in the sequencer block
-        let rollup_data_tree = MerkleTree::from_leaves(rollup_data.rollup_txs.clone());
-        let rollup_data_root = rollup_data_tree.root();
-        let mut leaf = rollup_data.chain_id.clone();
-        leaf.append(&mut rollup_data_root.to_vec());
-
         rollup_data
-            .inclusion_proof
-            .verify(&leaf, sequencer_namespace_data.action_tree_root)
+            .verify_inclusion_proof(sequencer_namespace_data.action_tree_root)
             .wrap_err("failed to verify rollup data inclusion proof")?;
         Ok(())
     }
@@ -304,7 +297,7 @@ impl<C: SequencerClient> BlockVerifier<C> {
             bail!("data hash should not be empty");
         };
         action_tree_root_inclusion_proof
-            .verify(action_tree_root.as_bytes(), data_hash)
+            .verify(action_tree_root, data_hash)
             .wrap_err("failed to verify action tree root inclusion proof")?;
 
         Ok(())
@@ -511,6 +504,7 @@ mod test {
         block::Commit,
         validator,
     };
+    use astria_sequencer_validation::MerkleTree;
 
     use super::*;
 
@@ -567,7 +561,7 @@ mod test {
             header,
             last_commit: None,
             rollup_namespaces: vec![],
-            action_tree_root: Hash::try_from(action_tree_root.to_vec()).unwrap(),
+            action_tree_root,
             action_tree_root_inclusion_proof,
         };
 

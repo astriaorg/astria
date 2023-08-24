@@ -34,7 +34,11 @@ impl SequencerBlockSubset {
             ..
         } = data.into_raw();
 
-        let our_rollup_data = rollup_data.remove(&namespace).unwrap_or_default();
+        let our_rollup_data = rollup_data.remove(&namespace);
+        let Some(our_rollup_data) = our_rollup_data else {
+            return None;
+        };
+
         Some(Self {
             block_hash,
             header,

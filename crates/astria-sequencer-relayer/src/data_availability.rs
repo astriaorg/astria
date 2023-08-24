@@ -150,7 +150,7 @@ pub struct SequencerNamespaceData {
     pub header: Header,
     pub last_commit: Option<Commit>,
     pub rollup_namespaces: Vec<Namespace>,
-    pub action_tree_root: Hash,
+    pub action_tree_root: [u8; 32],
     pub action_tree_root_inclusion_proof: InclusionProof,
 }
 
@@ -166,6 +166,19 @@ pub struct RollupNamespaceData {
 }
 
 impl NamespaceData for RollupNamespaceData {}
+
+impl RollupNamespaceData {
+    pub fn verify_inclusion_proof(&self, root_hash: [u8; 32]) -> eyre::Result<()> {
+        let rollup_data_tree = MerkleTree::from_leaves(self.rollup_txs.clone());
+        let rollup_data_root = rollup_data_tree.root();
+        let mut leaf = self.chain_id.clone();
+        leaf.append(&mut rollup_data_root.to_vec());
+
+        self.inclusion_proof
+            .verify(&leaf, root_hash)
+            .wrap_err("failed to verify rollup data inclusion proof")
+    }
+}
 
 #[derive(Debug)]
 pub struct CelestiaClientBuilder {
