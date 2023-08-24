@@ -12,7 +12,7 @@ base64 = { workspace = true }
 eyre = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
+serde_json = { workspace = true, features = ["raw_value"] }
 tendermint = { workspace = true, features = ["rust-crypto"] }
 tracing = { workspace = true }
 

@@ -57,12 +57,6 @@ jobs:
       - name: run taplo
         run: taplo format --check
 
-  success:
-    runs-on: ubuntu-latest
+  lint:
     needs: [proto, rust, toml]
-    if: ${{ always() && !cancelled() }}
-    steps:
-      - if: ${{ contains(needs.*.result, 'failure') }}
-        run: exit 1
-      - if: ${{ !contains(needs.*.result, 'failure') }}
-        run: exit 0
+    uses: ./.github/workflows/reusable-success.yml

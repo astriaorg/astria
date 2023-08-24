@@ -465,7 +465,7 @@ impl CelestiaClient {
         );
 
         // finally, extract the rollup txs from the rollup datas
-        let rollup_txs = rollup_datas
+        let rollup_data = rollup_datas
             .into_iter()
             .map(|(namespace, rollup_datas)| {
                 (
@@ -478,14 +478,17 @@ impl CelestiaClient {
             })
             .collect();
         Ok(Some(
-            SequencerBlockData::new(
-                namespace_data.data.block_hash,
-                namespace_data.data.header.clone(),
-                namespace_data.data.last_commit.clone(),
-                rollup_txs,
-                namespace_data.data.action_tree_root,
-                namespace_data.data.action_tree_root_inclusion_proof.clone(),
-            )
+            SequencerBlockData::try_from_raw(RawSequencerBlockData {
+                block_hash: namespace_data.data.block_hash,
+                header: namespace_data.data.header.clone(),
+                last_commit: namespace_data.data.last_commit.clone(),
+                rollup_data,
+                action_tree_root: namespace_data.data.action_tree_root,
+                action_tree_root_inclusion_proof: namespace_data
+                    .data
+                    .action_tree_root_inclusion_proof
+                    .clone(),
+            })
             .wrap_err("failed to construct SequencerBlockData from namespace data")?,
         ))
     }
