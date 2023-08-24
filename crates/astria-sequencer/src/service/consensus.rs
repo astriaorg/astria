@@ -408,4 +408,109 @@ mod test {
             new_process_proposal_request(vec![action_commitment.to_vec().into()]);
         handle_process_proposal(process_proposal).unwrap();
     }
+
+    /// Returns a default tendermint block header for test purposes.
+    fn default_header() -> tendermint::block::Header {
+        use tendermint::{
+            account,
+            block::{
+                header::Version,
+                Height,
+            },
+            chain,
+            hash::AppHash,
+        };
+
+        tendermint::block::Header {
+            version: Version {
+                block: 0,
+                app: 0,
+            },
+            chain_id: chain::Id::try_from("test").unwrap(),
+            height: Height::from(1u32),
+            time: Time::now(),
+            last_block_id: None,
+            last_commit_hash: None,
+            data_hash: None,
+            validators_hash: Hash::Sha256([0; 32]),
+            next_validators_hash: Hash::Sha256([0; 32]),
+            consensus_hash: Hash::Sha256([0; 32]),
+            app_hash: AppHash::try_from([0; 32].to_vec()).unwrap(),
+            last_results_hash: None,
+            evidence_hash: None,
+            proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
+        }
+    }
+
+    async fn new_consensus_service() -> Consensus {
+        let storage = penumbra_storage::TempStorage::new().await.unwrap();
+        let snapshot = storage.latest_snapshot();
+        let app = App::new(snapshot);
+
+        let (_tx, rx) = mpsc::channel(1);
+        Consensus::new(storage.clone(), app, rx)
+    }
+
+    #[tokio::test]
+    async fn block_lifecycle() {
+        let mut consensus_service = new_consensus_service().await;
+
+        let signing_key = SigningKey::new(OsRng);
+        let tx = Unsigned {
+            nonce: Nonce::from(0),
+            actions: vec![Action::SequenceAction(sequence::Action::new(
+                b"testchainid".to_vec(),
+                b"helloworld".to_vec(),
+            ))],
+        };
+
+        let signed_tx = tx.into_signed(&signing_key);
+        let tx_bytes = signed_tx.to_proto().encode_to_vec();
+        let txs = vec![tx_bytes.clone().into()];
+        let (action_commitment, txs_included) = generate_sequence_actions_commitment(txs.clone());
+        assert_eq!(txs, txs_included);
+
+        let txs = vec![action_commitment.to_vec().into(), tx_bytes.into()];
+        let process_proposal = new_process_proposal_request(txs.clone());
+        consensus_service
+            .handle_request(ConsensusRequest::ProcessProposal(process_proposal))
+            .await
+            .unwrap();
+
+        let begin_block = request::BeginBlock {
+            hash: Hash::default(),
+            header: default_header(),
+            last_commit_info: tendermint::abci::types::CommitInfo {
+                round: 0u16.into(),
+                votes: vec![],
+            },
+            byzantine_validators: vec![],
+        };
+        consensus_service
+            .handle_request(ConsensusRequest::BeginBlock(begin_block))
+            .await
+            .unwrap();
+
+        for tx in txs {
+            let deliver_tx = request::DeliverTx {
+                tx,
+            };
+            consensus_service
+                .handle_request(ConsensusRequest::DeliverTx(deliver_tx))
+                .await
+                .unwrap();
+        }
+
+        let end_block = request::EndBlock {
+            height: 1u32.into(),
+        };
+        consensus_service
+            .handle_request(ConsensusRequest::EndBlock(end_block))
+            .await
+            .unwrap();
+        consensus_service
+            .handle_request(ConsensusRequest::Commit)
+            .await
+            .unwrap();
+    }
 }
