@@ -48,3 +48,8 @@ Alternatively, you can disable writing to Celestia and only publish blocks via g
 ```
 
 The relayer automatically listens on `/ip4/127.0.0.1/tcp/33900` and is also able to discover local peers via mDNS.
+
+## Specification
+
+Description of interfaces and information about async loops can be found in
+the `specs` directory: [Sequencer Relayer Spec](../../specs/sequencer-relayer.md)
