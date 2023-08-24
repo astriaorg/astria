@@ -184,6 +184,7 @@ impl SequencerBlockData {
     /// See `specs/sequencer-inclusion-proofs.md` for most details on the action tree root
     /// and inclusion proof purpose.
     pub fn from_tendermint_block(b: Block) -> eyre::Result<Self> {
+        // TODO(https://github.com/astriaorg/astria/issues/305): this crate should not import astria_sequencer
         use astria_sequencer::transaction::Signed;
 
         let Some(data_hash) = b.header.data_hash else {
