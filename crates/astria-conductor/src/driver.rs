@@ -30,7 +30,10 @@ use tracing::{
 
 use crate::{
     alert::AlertSender,
-    block_verifier::BlockVerifier,
+    block_verifier::{
+        BlockVerifier,
+        TendermintHttpClient,
+    },
     config::Config,
     executor,
     executor::ExecutorCommand,
@@ -75,7 +78,7 @@ pub struct Driver {
     /// See https://github.com/astriaorg/astria/issues/111 for more details.
     network: SyncWrapper<GossipNetwork>,
 
-    block_verifier: Arc<BlockVerifier>,
+    block_verifier: Arc<BlockVerifier<TendermintHttpClient>>,
 
     is_shutdown: Mutex<bool>,
 }
@@ -90,10 +93,9 @@ impl Driver {
             .await
             .wrap_err("failed to construct Executor")?;
 
-        let block_verifier = Arc::new(
-            BlockVerifier::new(&conf.tendermint_url)
-                .wrap_err("failed to construct BlockVerifier")?,
-        );
+        let tendermint_client = TendermintHttpClient::new(&conf.tendermint_url)
+            .wrap_err("failed to construct tendermint HTTP client")?;
+        let block_verifier = Arc::new(BlockVerifier::new(tendermint_client));
 
         let (reader_join_handle, reader_tx) = if conf.disable_finalization {
             (None, None)

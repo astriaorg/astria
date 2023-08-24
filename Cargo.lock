@@ -472,7 +472,6 @@ dependencies = [
  "borsh",
  "bytes",
  "clap",
- "digest 0.10.7",
  "ed25519-consensus",
  "futures",
  "hex",

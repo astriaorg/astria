@@ -78,7 +78,7 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> 
 }
 
 #[derive(Debug)]
-pub enum ExecutorCommand {
+pub(crate) enum ExecutorCommand {
     /// used when a block is received from the gossip network
     BlockReceivedFromGossipNetwork {
         block: Box<SequencerBlockData>,

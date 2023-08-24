@@ -46,6 +46,39 @@ use tracing::{
     warn,
 };
 
+#[async_trait::async_trait]
+pub(crate) trait SequencerClient {
+    async fn validators(
+        &self,
+        height: u32,
+        paging: tendermint_rpc::Paging,
+    ) -> eyre::Result<ValidatorSet>;
+}
+
+pub(crate) struct TendermintHttpClient(HttpClient);
+
+impl TendermintHttpClient {
+    pub(crate) fn new(sequencer_url: &str) -> eyre::Result<Self> {
+        Ok(Self(
+            HttpClient::new(sequencer_url).wrap_err("failed to construct sequencer client")?,
+        ))
+    }
+}
+
+#[async_trait::async_trait]
+impl SequencerClient for TendermintHttpClient {
+    async fn validators(
+        &self,
+        height: u32,
+        paging: tendermint_rpc::Paging,
+    ) -> eyre::Result<ValidatorSet> {
+        self.0
+            .validators(height, paging)
+            .await
+            .map_err(|e| eyre::eyre!("failed to get validator set: {}", e))
+    }
+}
+
 /// `BlockVerifier` is responsible for verifying the correctness of a block
 /// before executing it.
 /// It has two public functions: `validate_signed_namespace_data` and `validate_sequencer_block`.
@@ -53,16 +86,15 @@ use tracing::{
 /// `validate_signed_namespace_data` is used to validate the data received from the data
 /// availability layer. `validate_sequencer_block` is used to validate the blocks received from
 /// either the data availability layer or the gossip network.
-pub struct BlockVerifier {
-    sequencer_client: HttpClient,
+pub(crate) struct BlockVerifier<C: SequencerClient> {
+    sequencer_client: C,
 }
 
-impl BlockVerifier {
-    pub fn new(sequencer_url: &str) -> eyre::Result<Self> {
-        Ok(Self {
-            sequencer_client: HttpClient::new(sequencer_url)
-                .wrap_err("failed to construct sequencer client")?,
-        })
+impl<C: SequencerClient> BlockVerifier<C> {
+    pub(crate) fn new(client: C) -> Self {
+        Self {
+            sequencer_client: client,
+        }
     }
 
     /// validates `SignedNamespaceData` received from Celestia.
@@ -108,7 +140,7 @@ impl BlockVerifier {
     /// uses the given `SequencerNamespaceData` to validate the rollup data inclusion proof;
     /// ie. that the rollup data received was actually what was included in a sequencer block,
     /// (no transactions were added or omitted incorrectly, and the ordering is correct).
-    pub async fn validate_rollup_data(
+    pub(crate) async fn validate_rollup_data(
         &self,
         sequencer_namespace_data: &SequencerNamespaceData,
         rollup_data: &RollupNamespaceData,
@@ -131,11 +163,11 @@ impl BlockVerifier {
     }
 
     /// validates [`SequencerBlockData`] received from the gossip network.
-    pub async fn validate_sequencer_block_data(
+    pub(crate) async fn validate_sequencer_block_data(
         &self,
         block: &SequencerBlockData,
     ) -> eyre::Result<()> {
-        // TODO: remove this clone by not gossiping the entire [`SequencerBlockData`]
+        // TODO(https://github.com/astriaorg/astria/issues/309): remove this clone by not gossiping the entire [`SequencerBlockData`]
         let RawSequencerBlockData {
             block_hash,
             header,
@@ -195,11 +227,10 @@ impl BlockVerifier {
             "a tendermint height (currently non-negative i32) should always fit into a u32",
         );
 
-        // get validator set for the previous height, as the commit contained
-        // in the block is for the previous height
+        // get the validator set for this height
         let validator_set = self
             .sequencer_client
-            .validators(height - 1, tendermint_rpc::Paging::Default)
+            .validators(height, tendermint_rpc::Paging::Default)
             .await
             .wrap_err("failed to get validator set")?;
 
@@ -230,6 +261,14 @@ impl BlockVerifier {
                 if &calculated_last_commit_hash != last_commit_hash {
                     bail!("last commit hash in header does not match calculated last commit hash");
                 }
+
+                // get validator set for the previous height, as the commit contained
+                // in the block is for the previous height
+                let validator_set = self
+                    .sequencer_client
+                    .validators(height, tendermint_rpc::Paging::Default)
+                    .await
+                    .wrap_err("failed to get validator set")?;
 
                 // verify that the validator votes on the previous block have >2/3 voting power
                 let last_commit = last_commit.clone();
@@ -464,9 +503,80 @@ fn get_proposer(validator_set: &ValidatorSet) -> eyre::Result<Validator> {
 mod test {
     use std::str::FromStr;
 
-    use tendermint::block::Commit;
+    use base64::engine::{
+        general_purpose::STANDARD,
+        Engine as _,
+    };
+    use tendermint::{
+        block::Commit,
+        validator,
+    };
 
     use super::*;
+
+    struct MockSequencerClient;
+
+    #[async_trait::async_trait]
+    impl SequencerClient for MockSequencerClient {
+        async fn validators(
+            &self,
+            height: u32,
+            _: tendermint_rpc::Paging,
+        ) -> eyre::Result<ValidatorSet> {
+            use ed25519_consensus::SigningKey;
+
+            let key_bytes = STANDARD.decode("XXhEZctO2gj3JhjHV7214N53zEl3s05eD9cWIJJHAVrPP2L5ARCQ0PSkNA85f3avKwpBsaDD6Q6VJlhN6ZHKjQ==").unwrap();
+            let signing_key = SigningKey::try_from(key_bytes[0..32].to_vec().as_slice()).unwrap();
+            let pub_key = tendermint::public_key::PublicKey::Ed25519(
+                signing_key.verification_key().as_ref().try_into().unwrap(),
+            );
+
+            // public key: zz9i+QEQkND0pDQPOX92rysKQbGgw+kOlSZYTemRyo0=
+            // address: E3849B2AE431ABB2865923B57454514CC7DB350B
+
+            let validator = validator::Info {
+                address: tendermint::account::Id::from(pub_key),
+                pub_key,
+                power: 10u32.into(),
+                proposer_priority: 0.into(),
+                name: None,
+            };
+            Ok(ValidatorSet::new(height.into(), vec![validator], 1))
+        }
+    }
+
+    #[tokio::test]
+    async fn validate_sequencer_namespace_data_last_commit_none_ok() {
+        let action_tree = MerkleTree::from_leaves(vec![vec![1, 2, 3], vec![4, 5, 6]]);
+        let action_tree_root = action_tree.root();
+
+        let tx_tree = MerkleTree::from_leaves(vec![action_tree_root.to_vec()]);
+        let action_tree_root_inclusion_proof = tx_tree.prove_inclusion(0).unwrap();
+        let data_hash = tx_tree.root();
+
+        let proposer_address =
+            tendermint::account::Id::from_str("E3849B2AE431ABB2865923B57454514CC7DB350B").unwrap();
+
+        let mut header = astria_sequencer_types::test_utils::default_header();
+        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+        header.proposer_address = proposer_address;
+        let block_hash = header.hash();
+
+        let sequencer_namespace_data = SequencerNamespaceData {
+            block_hash,
+            header,
+            last_commit: None,
+            rollup_namespaces: vec![],
+            action_tree_root: Hash::try_from(action_tree_root.to_vec()).unwrap(),
+            action_tree_root_inclusion_proof,
+        };
+
+        let block_verifier = BlockVerifier::new(MockSequencerClient);
+        block_verifier
+            .validate_sequencer_namespace_data(&sequencer_namespace_data)
+            .await
+            .unwrap();
+    }
 
     #[test]
     fn test_does_commit_voting_power_have_quorum() {
