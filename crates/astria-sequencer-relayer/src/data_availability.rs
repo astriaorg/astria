@@ -160,9 +160,9 @@ impl NamespaceData for SequencerNamespaceData {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RollupNamespaceData {
     pub(crate) block_hash: Hash,
-    pub chain_id: Vec<u8>,
+    pub(crate) chain_id: Vec<u8>,
     pub rollup_txs: Vec<Vec<u8>>,
-    pub inclusion_proof: InclusionProof,
+    pub(crate) inclusion_proof: InclusionProof,
 }
 
 impl NamespaceData for RollupNamespaceData {}

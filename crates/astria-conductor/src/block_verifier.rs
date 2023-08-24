@@ -496,6 +496,7 @@ fn get_proposer(validator_set: &ValidatorSet) -> eyre::Result<Validator> {
 mod test {
     use std::str::FromStr;
 
+    use astria_sequencer_validation::MerkleTree;
     use base64::engine::{
         general_purpose::STANDARD,
         Engine as _,
@@ -504,7 +505,6 @@ mod test {
         block::Commit,
         validator,
     };
-    use astria_sequencer_validation::MerkleTree;
 
     use super::*;
 
