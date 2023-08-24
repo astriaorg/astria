@@ -1,11 +1,11 @@
 # Astria Sequencer Relayer
 
 The Astria Sequencer Relayer (Relayer), is a stateless service which reads new
-blocks from the sequencer, pushes them to the gossipnet for rollup execution,
-and writes batches sets of blocks to DA.
+blocks from the sequencer, publishes them to the gossipnet for rollup execution,
+and writes batches of sequencer blocks to DA.
 
-It is run as a sidecar to a sequencer proposer, and each instance only
-relays/writes data from it's proposer.
+It is run as a sidecar to a sequencer validator node, and each instance only
+relays/writes data from blocks it proposes.
 
 ## Interfaces
 
@@ -56,7 +56,7 @@ proposed block, which is not fully finalized by the sequencer network yet.
 > rollups which they are not all interested in.
 
 After receiving a block from the sequencer, if it is signed by the relayers
-proposer, it is converted into the `SequencerBlockData` shape
+validator key, it is converted into the `SequencerBlockData` shape
 ([link](https://github.com/astriaorg/astria/blob/7ebb743ed6f1d9eef69372f2cbb4ab9cbe2668b3/crates/astria-sequencer-types/src/sequencer_block_data.rs#L39-L46)).
 This object is then pushed to the libp2p "gossipnet" network, for execution by
 rollups. This contains information for execution by all rollups.
@@ -135,7 +135,7 @@ pub struct Blob {
 The sequencer block information is written to the [Astria
 Namespace](https://github.com/astriaorg/astria/blob/7ebb743ed6f1d9eef69372f2cbb4ab9cbe2668b3/crates/astria-sequencer-types/src/namespace.rs#L21),
 and rollup transaction data is written to a namespace which is deterministically
-derived from the `chainId` for the rollup tx
+derived from the `chain_id` for the rollup tx
 ([link](https://github.com/astriaorg/astria/blob/7ebb743ed6f1d9eef69372f2cbb4ab9cbe2668b3/crates/astria-sequencer-types/src/namespace.rs#L44)).
 
 These blobs are submitted to Celestia via the `State.SubmitPayForBlob` JSON RPC
