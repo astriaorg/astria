@@ -192,7 +192,7 @@ impl Queue {
     // remove all data in the queue below a given height. this does not remove
     // data from the soft queue, only the pending queue, and updates the head height.
     // TODO: add error handling
-    fn remove_data_blow_height(&mut self, height: Height) {
+    fn remove_data_below_height(&mut self, height: Height) {
         // remove all data below the new incoming block from the pending data
         let tmp_pending = self.pending_blocks.clone();
         let mut pending_keys: Vec<&Height> = tmp_pending.keys().collect();
