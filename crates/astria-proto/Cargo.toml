@@ -22,11 +22,12 @@ prost-types = { workspace = true }
 sha2 = { workspace = true, optional = true }
 tendermint-proto = { workspace = true }
 tonic = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
 
 [features]
 default = ["native"]
 client = ["dep:tonic"]
-native = ["dep:ed25519-consensus", "dep:hex", "dep:sha2"]
+native = ["dep:ed25519-consensus", "dep:hex", "dep:sha2", "dep:tracing"]
 server = ["dep:tonic"]
 
 [dev-dependencies]
