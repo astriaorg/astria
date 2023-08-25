@@ -456,6 +456,7 @@ dependencies = [
  "tempfile",
  "tendermint-proto",
  "tonic 0.9.2",
+ "tracing",
  "which",
 ]
 
@@ -496,7 +497,6 @@ name = "astria-sequencer-client"
 version = "0.1.0"
 dependencies = [
  "astria-proto",
- "astria-sequencer",
  "async-trait",
  "ed25519-consensus",
  "eyre",

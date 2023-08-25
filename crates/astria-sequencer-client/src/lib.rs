@@ -25,8 +25,8 @@ pub use proto::native::sequencer::v1alpha1::{
     Address,
     BalanceResponse,
     NonceResponse,
+    SignedTransaction,
 };
-pub use sequencer::transaction;
 #[cfg(feature = "http")]
 pub use tendermint_rpc::HttpClient;
 #[cfg(feature = "websocket")]
@@ -311,9 +311,10 @@ pub trait SequencerClientExt: Client {
     /// - If calling the tendermint RPC endpoint fails.
     async fn submit_transaction_sync(
         &self,
-        tx: transaction::Signed,
+        tx: SignedTransaction,
     ) -> Result<tx_sync::Response, Error> {
-        let tx_bytes = tx.to_bytes();
+        use proto::Message as _;
+        let tx_bytes = tx.into_proto().encode_to_vec();
         self.broadcast_tx_sync(tx_bytes)
             .await
             .map_err(|e| Error::tendermint_rpc("broadcast_tx_sync", e))
@@ -329,9 +330,10 @@ pub trait SequencerClientExt: Client {
     /// - If calling the tendermint RPC endpoint fails.
     async fn submit_transaction_commit(
         &self,
-        tx: transaction::Signed,
+        tx: SignedTransaction,
     ) -> Result<tx_commit::Response, Error> {
-        let tx_bytes = tx.to_bytes();
+        use proto::Message as _;
+        let tx_bytes = tx.into_proto().encode_to_vec();
         self.broadcast_tx_commit(tx_bytes)
             .await
             .map_err(|e| Error::tendermint_rpc("broadcast_tx_comit", e))

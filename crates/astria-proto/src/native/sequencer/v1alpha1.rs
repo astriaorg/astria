@@ -110,6 +110,19 @@ pub struct SignedTransaction {
 }
 
 impl SignedTransaction {
+    pub fn into_proto(self) -> raw::SignedTransaction {
+        let Self {
+            signature,
+            verification_key,
+            transaction,
+        } = self;
+        raw::SignedTransaction {
+            signature: signature.to_bytes().to_vec(),
+            public_key: verification_key.to_bytes().to_vec(),
+            transaction: Some(transaction.into_proto()),
+        }
+    }
+
     pub fn try_from_proto(proto: raw::SignedTransaction) -> Result<Self, SignedTransactionError> {
         use crate::Message as _;
         let raw::SignedTransaction {
@@ -202,6 +215,18 @@ enum UnsignedTransactionErrorKind {
 }
 
 impl UnsignedTransaction {
+    pub fn into_proto(self) -> raw::UnsignedTransaction {
+        let Self {
+            nonce,
+            actions,
+        } = self;
+        let actions = actions.into_iter().map(Action::into_proto).collect();
+        raw::UnsignedTransaction {
+            nonce,
+            actions,
+        }
+    }
+
     pub fn try_from_proto(
         proto: raw::UnsignedTransaction,
     ) -> Result<Self, UnsignedTransactionError> {
@@ -302,6 +327,17 @@ enum ActionErrorKind {
 }
 
 impl Action {
+    pub fn into_proto(self) -> raw::Action {
+        use raw::action::Value;
+        let kind = match self {
+            Action::Sequence(act) => Value::SequenceAction(act.into_proto()),
+            Action::Transfer(act) => Value::TransferAction(act.into_proto()),
+        };
+        raw::Action {
+            value: Some(kind),
+        }
+    }
+
     pub fn try_from_proto(proto: raw::Action) -> Result<Self, ActionError> {
         use raw::action::Value;
         let raw::Action {
@@ -377,6 +413,17 @@ enum SequenceActionErrorKind {
 }
 
 impl SequenceAction {
+    pub fn into_proto(self) -> raw::SequenceAction {
+        let Self {
+            chain_id,
+            data,
+        } = self;
+        raw::SequenceAction {
+            chain_id: chain_id.to_vec(),
+            data,
+        }
+    }
+
     pub fn try_from_proto(proto: raw::SequenceAction) -> Result<Self, SequenceActionError> {
         let raw::SequenceAction {
             chain_id,
@@ -435,6 +482,17 @@ enum TransferActionErrorKind {
 }
 
 impl TransferAction {
+    pub fn into_proto(self) -> raw::TransferAction {
+        let Self {
+            to,
+            amount,
+        } = self;
+        raw::TransferAction {
+            to: to.to_vec(),
+            amount: Some(amount.into()),
+        }
+    }
+
     pub fn try_from_proto(proto: raw::TransferAction) -> Result<Self, TransferActionError> {
         let raw::TransferAction {
             to,
@@ -453,6 +511,10 @@ impl TransferAction {
 pub struct Address(pub [u8; ADDRESS_LEN]);
 
 impl Address {
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.0.to_vec()
+    }
+
     /// Construct a sequencer address from a [`ed25519_consensus::VerificationKey`].
     ///
     /// The first 20 bytes of the sha256 hash of the verification key is the address.
