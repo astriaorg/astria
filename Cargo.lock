@@ -364,7 +364,6 @@ name = "astria-composer"
 version = "0.1.0"
 dependencies = [
  "astria-proto",
- "astria-sequencer",
  "astria-sequencer-client",
  "astria-telemetry",
  "async-trait",

@@ -20,8 +20,6 @@ use crate::{
 /// Fee charged for a sequence `Action` per byte of `data` included.
 const SEQUENCE_ACTION_FEE_PER_BYTE: u128 = 1;
 
-const MAX_CHAIN_ID_LENGTH: usize = 32;
-
 #[async_trait::async_trait]
 impl ActionHandler for SequenceAction {
     async fn check_stateful<S: StateReadExt + 'static>(
@@ -39,16 +37,6 @@ impl ActionHandler for SequenceAction {
     }
 
     fn check_stateless(&self) -> Result<()> {
-        ensure!(
-            !self.chain_id.is_empty(),
-            "cannot have empty chain ID for sequence action",
-        );
-        ensure!(
-            self.chain_id.len() <= MAX_CHAIN_ID_LENGTH,
-            "chain ID cannot be longer than {} bytes",
-            MAX_CHAIN_ID_LENGTH,
-        );
-
         // TODO: do we want to place a maximum on the size of the data?
         // https://github.com/astriaorg/astria/issues/222
         ensure!(
