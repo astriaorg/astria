@@ -5,7 +5,7 @@ edition = "2021"
 rust-version = "1.70.0"
 
 [dependencies]
-astria-proto = { path = "../astria-proto" }
+proto = { package = "astria-proto", path = "../astria-proto" }
 astria-sequencer-validation = { path = "../astria-sequencer-validation" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 

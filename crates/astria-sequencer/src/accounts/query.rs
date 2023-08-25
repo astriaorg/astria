@@ -1,9 +1,9 @@
 use anyhow::Context as _;
-use astria_proto::native::sequencer::v1alpha1::Address;
 use penumbra_storage::{
     Snapshot,
     Storage,
 };
+use proto::native::sequencer::v1alpha1::Address;
 use tendermint::{
     abci::{
         request,
@@ -14,7 +14,7 @@ use tendermint::{
 
 use crate::{
     accounts::state_ext::StateReadExt as _,
-    service::info::AbciCode,
+    service::AbciCode,
     state_ext::StateReadExt as _,
 };
 
@@ -23,7 +23,7 @@ pub(crate) async fn balance_request(
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
-    use astria_proto::{
+    use proto::{
         native::sequencer::v1alpha1::BalanceResponse,
         Message as _,
     };
@@ -45,7 +45,7 @@ pub(crate) async fn balance_request(
     };
     let payload = BalanceResponse {
         height: height.value(),
-        balance: balance.0,
+        balance,
     }
     .into_proto()
     .encode_to_vec()
@@ -64,7 +64,7 @@ pub(crate) async fn nonce_request(
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
-    use astria_proto::{
+    use proto::{
         native::sequencer::v1alpha1::NonceResponse,
         Message as _,
     };
@@ -86,7 +86,7 @@ pub(crate) async fn nonce_request(
     };
     let payload = NonceResponse {
         height: height.value(),
-        nonce: nonce.0,
+        nonce,
     }
     .into_proto()
     .encode_to_vec()

@@ -3,77 +3,27 @@ use anyhow::{
     Context,
     Result,
 };
-use astria_proto::{
-    generated::sequencer::v1alpha1::SequenceAction as ProtoSequenceAction,
-    native::sequencer::v1alpha1::Address,
-};
-use serde::{
-    Deserialize,
-    Serialize,
+use proto::native::sequencer::v1alpha1::{
+    Address,
+    SequenceAction,
 };
 use tracing::instrument;
 
 use crate::{
-    accounts::{
-        state_ext::{
-            StateReadExt,
-            StateWriteExt,
-        },
-        types::Balance,
+    accounts::state_ext::{
+        StateReadExt,
+        StateWriteExt,
     },
     transaction::action_handler::ActionHandler,
 };
 
 /// Fee charged for a sequence `Action` per byte of `data` included.
-const SEQUENCE_ACTION_FEE_PER_BYTE: Balance = Balance(1);
+const SEQUENCE_ACTION_FEE_PER_BYTE: u128 = 1;
 
 const MAX_CHAIN_ID_LENGTH: usize = 32;
 
-/// Represents an opaque transaction destined for a rollup.
-/// It only contains the chain ID of the destination rollup and data
-/// which are bytes to be interpreted by the rollup.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub struct Action {
-    pub(crate) chain_id: Vec<u8>,
-    pub(crate) data: Vec<u8>,
-}
-
-impl Action {
-    #[must_use]
-    pub fn new(chain_id: Vec<u8>, data: Vec<u8>) -> Self {
-        Self {
-            chain_id,
-            data,
-        }
-    }
-
-    #[must_use]
-    pub fn chain_id(&self) -> &[u8] {
-        &self.chain_id
-    }
-
-    #[must_use]
-    pub fn data(&self) -> &[u8] {
-        &self.data
-    }
-
-    pub(crate) fn to_proto(&self) -> ProtoSequenceAction {
-        ProtoSequenceAction {
-            chain_id: self.chain_id.clone(),
-            data: self.data.clone(),
-        }
-    }
-
-    pub(crate) fn from_proto(proto: &ProtoSequenceAction) -> Self {
-        Self {
-            chain_id: proto.chain_id.clone(),
-            data: proto.data.clone(),
-        }
-    }
-}
-
 #[async_trait::async_trait]
-impl ActionHandler for Action {
+impl ActionHandler for SequenceAction {
     async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,
@@ -129,8 +79,12 @@ impl ActionHandler for Action {
 
 /// Calculates the fee for a sequence `Action` based on the length of the `data`.
 /// Returns `None` if the fee overflows `u128`.
-pub(crate) fn calculate_fee(data: &[u8]) -> Option<Balance> {
-    SEQUENCE_ACTION_FEE_PER_BYTE.checked_mul(data.len() as u128)
+pub(crate) fn calculate_fee(data: &[u8]) -> Option<u128> {
+    SEQUENCE_ACTION_FEE_PER_BYTE.checked_mul(
+        data.len()
+            .try_into()
+            .expect("a usize should always convert to a u128"),
+    )
 }
 
 #[cfg(test)]
@@ -139,8 +93,8 @@ mod test {
 
     #[test]
     fn calculate_fee_ok() {
-        assert_eq!(calculate_fee(&[]), Some(Balance(0)));
-        assert_eq!(calculate_fee(&[0]), Some(Balance(1)));
-        assert_eq!(calculate_fee(&[0u8; 10]), Some(Balance(10)));
+        assert_eq!(calculate_fee(&[]), Some(0));
+        assert_eq!(calculate_fee(&[0]), Some(1));
+        assert_eq!(calculate_fee(&[0u8; 10]), Some(10));
     }
 }

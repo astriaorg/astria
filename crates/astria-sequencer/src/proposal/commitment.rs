@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 
 use astria_sequencer_validation::generate_action_tree_leaves;
 use bytes::Bytes;
+use proto::native::sequencer::v1alpha1::SignedTransaction;
 use tendermint::merkle::simple_hash_from_byte_vectors;
-
-use crate::transaction::Signed;
+use tracing::info;
 
 /// Called when we receive a `PrepareProposal` or `ProcessProposal` consensus message.
 ///
@@ -26,18 +26,32 @@ use crate::transaction::Signed;
 pub(crate) fn generate_sequence_actions_commitment(
     txs_bytes: Vec<Bytes>,
 ) -> ([u8; 32], Vec<Bytes>) {
-    // ignore any transactions that are not deserializable
+    use proto::{
+        generated::sequencer::v1alpha1 as raw,
+        Message as _,
+    };
     let txs = txs_bytes
         .into_iter()
-        .filter_map(|tx_bytes| match Signed::try_from_slice(&tx_bytes) {
-            Ok(tx) => Some((tx, tx_bytes)),
-            Err(err) => {
-                tracing::debug!(tx_bytes = hex::encode(tx_bytes), error = ?err, "failed to deserialize tx bytes");
-                None
-            }
+        .filter_map(|bytes| {
+            raw::SignedTransaction::decode(&*bytes)
+            .map_err(|err| {
+                info!(error = ?err, "failed to deserialize bytes as a signed transaction");
+                err
+            })
+            .ok()
+            .and_then(|raw_tx| SignedTransaction::try_from_proto(raw_tx)
+                .map_err(|err| {
+                    info!(error = ?err, "could not convert raw signed transaction to native signed transaction");
+                    err
+                })
+                .ok()
+            )
+            .map(move |signed_tx| (signed_tx, bytes))
         })
-        .collect::<Vec<(Signed, Bytes)>>();
-    let (signed_txs, txs_to_include): (Vec<Signed>, Vec<Bytes>) = txs.into_iter().unzip();
+
+        .collect::<Vec<(SignedTransaction, Bytes)>>();
+    let (signed_txs, txs_to_include): (Vec<SignedTransaction>, Vec<Bytes>) =
+        txs.into_iter().unzip();
 
     let chain_id_to_txs = group_sequence_actions_by_chain_id(&signed_txs);
 
@@ -55,16 +69,18 @@ pub(crate) fn generate_sequence_actions_commitment(
 /// Other types of actions are ignored.
 ///
 /// Within an entry, actions are ordered by their transaction index within a block.
-fn group_sequence_actions_by_chain_id(txs: &[Signed]) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
+fn group_sequence_actions_by_chain_id(
+    txs: &[SignedTransaction],
+) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
     let mut rollup_txs_map = BTreeMap::new();
 
     for tx in txs.iter() {
-        tx.transaction().actions().iter().for_each(|action| {
+        tx.actions().iter().for_each(|action| {
             if let Some(action) = action.as_sequence() {
                 let txs_for_rollup: &mut Vec<Vec<u8>> = rollup_txs_map
-                    .entry(action.chain_id().to_vec())
+                    .entry(action.chain_id.to_vec())
                     .or_insert(vec![]);
-                txs_for_rollup.push(action.data().to_vec());
+                txs_for_rollup.push(action.data.to_vec());
             }
         });
     }
@@ -74,9 +90,9 @@ fn group_sequence_actions_by_chain_id(txs: &[Signed]) -> BTreeMap<Vec<u8>, Vec<V
 
 #[cfg(test)]
 mod test {
-    use astria_proto::native::sequencer::v1alpha1::Address;
     use ed25519_consensus::SigningKey;
     use prost::Message as _;
+    use proto::native::sequencer::v1alpha1::Address;
     use rand::rngs::OsRng;
 
     use super::*;

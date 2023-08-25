@@ -11,6 +11,7 @@ use penumbra_storage::{
     StateDelta,
     Storage,
 };
+use proto::native::sequencer::v1alpha1::Address;
 use tendermint::abci::{
     self,
     Event,
@@ -29,7 +30,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::Signed,
+    transaction,
 };
 
 /// The application hash, used to verify the application state.
@@ -116,20 +117,28 @@ impl App {
 
     #[instrument(name = "App:deliver_tx", skip(self))]
     pub(crate) async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
+        use proto::{
+            generated::sequencer::v1alpha1 as raw,
+            native::sequencer::v1alpha1::SignedTransaction,
+            Message as _,
+        };
         if self.has_block_just_begun {
             ensure!(tx.len() == 32);
             self.has_block_just_begun = false;
             return Ok(vec![]);
         }
 
-        let tx =
-            Signed::try_from_slice(tx).context("failed deserializing transaction from bytes")?;
+        let raw_signed_tx = raw::SignedTransaction::decode(tx)
+            .context("failed deserializing raw signed protobuf transaction from bytes")?;
+        let signed_tx = SignedTransaction::try_from_proto(raw_signed_tx)
+            .context("failed creating a verified signed transaction from the raw proto type")?;
 
-        let tx2 = tx.clone();
-        let stateless = tokio::spawn(async move { tx2.check_stateless() });
-        let tx2 = tx.clone();
+        let signed_tx_2 = signed_tx.clone();
+        let stateless = tokio::spawn(async move { transaction::check_stateless(&signed_tx_2) });
+        let signed_tx_2 = signed_tx.clone();
         let state2 = self.state.clone();
-        let stateful = tokio::spawn(async move { tx2.check_stateful(&state2).await });
+        let stateful =
+            tokio::spawn(async move { transaction::check_stateful(&signed_tx_2, &state2).await });
 
         stateless
             .await
@@ -146,7 +155,7 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should be present and unique");
 
-        tx.execute(&mut state_tx)
+        transaction::execute(&signed_tx, &mut state_tx)
             .await
             .context("failed executing transaction")?;
         state_tx.apply();
@@ -157,7 +166,7 @@ impl App {
         info!(
             ?tx,
             height,
-            sender = %tx.signer_address(),
+            sender = %Address::from_verification_key(signed_tx.verification_key()),
             "executed transaction"
         );
         Ok(vec![])
@@ -238,12 +247,12 @@ impl App {
 
 #[cfg(test)]
 mod test {
-    use astria_proto::native::sequencer::v1alpha1::{
+    use ed25519_consensus::SigningKey;
+    use prost::Message as _;
+    use proto::native::sequencer::v1alpha1::{
         Address,
         ADDRESS_LEN,
     };
-    use ed25519_consensus::SigningKey;
-    use prost::Message as _;
     use tendermint::{
         abci::types::CommitInfo,
         account,
