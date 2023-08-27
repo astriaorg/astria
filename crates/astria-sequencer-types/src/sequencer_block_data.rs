@@ -66,6 +66,19 @@ pub struct SequencerBlockData {
     action_tree_root_inclusion_proof: InclusionProof,
 }
 
+impl Default for SequencerBlockData {
+    fn default() -> Self {
+        Self {
+            block_hash: Hash::default(),
+            header: default_header(),
+            last_commit: None,
+            rollup_data: HashMap::default(),
+            action_tree_root: Hash::default(),
+            action_tree_root_inclusion_proof: InclusionProof::default(),
+        }
+    }
+}
+
 impl SequencerBlockData {
     /// Creates a new `SequencerBlockData` from the given data.
     ///
@@ -129,7 +142,7 @@ impl SequencerBlockData {
 
     /// Returns the hash in the last block id, unless this block is genesis.
     pub fn parent_block_hash(&self) -> Option<Hash> {
-        self.header.last_block_id.map(|id| id.hash.into())
+        self.header.last_block_id.map(|id| id.hash)
     }
 
     /// Returns the [`SequencerBlockData`] as a [`RawSequencerBlockData`].

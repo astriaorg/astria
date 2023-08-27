@@ -99,7 +99,7 @@ impl TestSequencerRelayer {
     /// advancing time mod block time is not 0.
     pub async fn advance_to_time_mod_block_time_not_zero(&self, ms: u64) {
         let millis = Duration::from_millis(ms);
-        if (Instant::now().elapsed() + millis).as_millis() as u64 % self.config.block_time_ms == 0 {
+        if (Instant::now().elapsed() + millis).as_millis() as u64 % self.config.block_time == 0 {
             panic!("time mod block time is zero, exactly on tick interval")
         }
         time::advance(millis).await;
@@ -107,7 +107,7 @@ impl TestSequencerRelayer {
 
     /// Sequencer is polled for new blocks every sequencer block time.
     pub async fn advance_time_by_n_sequencer_ticks(&self, n: u64) {
-        time::advance(Duration::from_millis(n * self.config.block_time_ms)).await;
+        time::advance(Duration::from_millis(n * self.config.block_time)).await;
     }
 }
 
@@ -618,7 +618,7 @@ pub(crate) async fn mount_4_changing_block_responses(
     let validator = &sequencer_relayer.validator;
     let server = &sequencer_relayer.sequencer;
 
-    let _response_delay = Duration::from_millis(sequencer_relayer.config.block_time_ms);
+    let _response_delay = Duration::from_millis(sequencer_relayer.config.block_time);
 
     // - grandparent is received at 1 tick
     // - parent is received at 4 ticks (delayed 2 ticks)
@@ -626,8 +626,7 @@ pub(crate) async fn mount_4_changing_block_responses(
     // - grandchild is received at 3 ticks
 
     // each block must be of higher height than current height to convert to sequencer data
-    // block. hence height is set equivalent to the tick at which block arrives. todo(emhane):
-    // loosen restriction.
+    // block. hence height is set to increment with order of arrival.
 
     let grandparent = create_block_response(validator, 1, None);
     let parent = create_block_response(validator, 4, Some(&grandparent));

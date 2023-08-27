@@ -35,7 +35,7 @@ pub(crate) struct Args {
     /// ie. how often we should poll the sequencer.
     #[arg(short, long)]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
-    pub(crate) block_time_ms: Option<u64>,
+    pub(crate) block_time: Option<u64>,
 
     /// Path to validator private key file.
     #[arg(short, long)]

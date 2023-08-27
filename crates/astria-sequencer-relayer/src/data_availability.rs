@@ -274,7 +274,6 @@ impl CelestiaClient {
             gas_limit: self.gas_limit,
             blobs,
         };
-        // entrypoint to data availability layer (celestia)
         self.client
             .state_submit_pay_for_blob(req)
             .await

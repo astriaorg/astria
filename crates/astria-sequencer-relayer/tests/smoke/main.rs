@@ -138,7 +138,7 @@ async fn celestia_bundles_blobs() {
         grandchild,
     } = helper::mount_4_changing_block_responses(&sequencer_relayer).await;
 
-    let tick = Duration::from_millis(sequencer_relayer.config.block_time_ms);
+    let tick = Duration::from_millis(sequencer_relayer.config.block_time);
     let test_start = tokio::time::Instant::now();
 
     // - grandparent is received at 1 tick
@@ -202,7 +202,7 @@ async fn slow_celestia_leads_to_bundled_blobs() {
     const CELESTIA_DELAY_TICKS: u64 = 5;
     let config = Config::default();
     // sequencer interval tick
-    let tick = Duration::from_millis(config.block_time_ms);
+    let tick = Duration::from_millis(config.block_time);
     // the ticks at which celestia network will see blobs. this is when finalization happens, i.e.
     // when blocks will be submitted to da, + delay. finalization happens at tick 3 and tick 4.
     let first_blobs_tick: u64 = 3 + CELESTIA_DELAY_TICKS;
@@ -293,7 +293,7 @@ async fn slow_celestia_leads_to_bundled_blobs() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn test_finalization() {
+async fn test_timed_out_finalization() {
     use astria_sequencer_relayer::config::MAX_RELAYER_QUEUE_TIME_MS;
 
     // TODO: Hack to inhibit tokio auto-advance in tests;
@@ -303,8 +303,8 @@ async fn test_finalization() {
 
     let config = Config::default();
     // sequencer is polled for one block response every sequencer block time
-    let tick_time_ms = config.block_time_ms;
-    let tick = Duration::from_millis(config.block_time_ms);
+    let tick_time_ms = config.block_time;
+    let tick = Duration::from_millis(config.block_time);
     // 0 ticks
     let test_start = tokio::time::Instant::now();
 

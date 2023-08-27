@@ -32,8 +32,11 @@ use tracing::{
 
 use crate::{
     data_availability::CelestiaClient,
+    finalization_pipeline::{
+        FinalizationPipeline,
+        HeadCandidate,
+    },
     macros::report_err,
-    queued_blocks::QueuedBlocks,
     validator::Validator,
 };
 pub struct Relayer {
@@ -57,13 +60,13 @@ pub struct Relayer {
     // A watch channel to track the state of the relayer. Used by the API service.
     state_tx: watch::Sender<State>,
 
-    // Sequencer blocks that have been received but not yet submitted to the data availability
-    // layer (for example, because a submit RPC was currently in flight) .
-    queued_blocks: QueuedBlocks,
+    // Sequencer blocks that have been received but not yet finalized. Only finalized blocks are
+    // submitted to the data availability layer.
+    finalization_pipeline: FinalizationPipeline,
 
     // A collection of workers to convert a raw cometbft/tendermint block response to
     // the sequencer block data type.
-    conversion_workers: task::JoinSet<eyre::Result<Option<SequencerBlockData>>>,
+    conversion_workers: task::JoinSet<Result<SequencerBlockData, ConversionError>>,
 
     // Task to submit blocks to the data availability layer. If this is set it means that
     // an RPC is currently in flight and new blocks are queued up. They will be submitted
@@ -128,12 +131,12 @@ impl Relayer {
 
         Ok(Self {
             sequencer,
-            sequencer_block_time_ms: Duration::from_millis(cfg.block_time_ms),
+            sequencer_block_time_ms: Duration::from_millis(cfg.block_time),
             data_availability,
             validator,
             gossip_block_tx,
             state_tx,
-            queued_blocks: QueuedBlocks::default(),
+            finalization_pipeline: FinalizationPipeline::default(),
             conversion_workers: task::JoinSet::new(),
             submission_task: None,
             sequencer_task: None,
@@ -196,7 +199,7 @@ impl Relayer {
     #[instrument(skip_all)]
     fn handle_conversion_completed(
         &mut self,
-        join_result: Result<Result<Option<SequencerBlockData>>, task::JoinError>,
+        join_result: Result<Result<SequencerBlockData, ConversionError>, task::JoinError>,
     ) -> HandleConversionCompletedResult {
         // First check if the join task panicked
         let conversion_result = match join_result {
@@ -211,7 +214,7 @@ impl Relayer {
         // Then handle the actual result of the computation
         match conversion_result {
             // Gossip and collect successfully converted sequencer responses
-            Ok(Some(sequencer_block_data)) => {
+            Ok(sequencer_block_data) => {
                 info!(
                     height = %sequencer_block_data.header().height,
                     block_hash = hex::encode(sequencer_block_data.block_hash()),
@@ -237,13 +240,21 @@ impl Relayer {
                     false
                 });
                 // Store the converted data
-                self.queued_blocks.enqueue(sequencer_block_data);
+                self.finalization_pipeline
+                    .submit(HeadCandidate::new_from_validator(
+                        sequencer_block_data.into(),
+                    ));
             }
             // Ignore sequencer responses that were filtered out
-            Ok(None) => (),
+            Err(ConversionError::NotProposedByValidator(block)) => {
+                // pass to finalization pipeline to track canonical head
+                self.finalization_pipeline
+                    .submit(HeadCandidate::new_from_cometbft(block));
+            }
+            Err(ConversionError::HeightAlreadyCanonical) => (),
             // Report if the conversion failed
             // TODO: inject the correct tracing span
-            Err(e) => report_err!(
+            Err(ConversionError::ConversionFromTendermint(e)) => report_err!(
                 e,
                 "failed converting sequencer block response to block data"
             ),
@@ -413,10 +424,10 @@ impl Relayer {
                 // Distribute and store converted/admitted blocks
                 Some(res) = self.conversion_workers.join_next() => {
                     if self.handle_conversion_completed(res)
-                           .is_gossip_channel_closed()
-                    {
-                        break "gossip block channel closed unexpectedly";
-                    }
+                            .is_gossip_channel_closed()
+                     {
+                         break "gossip block channel closed unexpectedly";
+                     }
                 }
 
                 // Record the current height of the data availability layer if a submission
@@ -433,10 +444,10 @@ impl Relayer {
             // This will immediately and eagerly try to submit to the data availability
             // layer if no submission is in flight.
             if self.data_availability.is_some()
-                && self.queued_blocks.has_finalized()
+                && self.finalization_pipeline.has_finalized()
                 && self.submission_task.is_none()
             {
-                let finalized_blocks = self.queued_blocks.drain_finalized();
+                let finalized_blocks = self.finalization_pipeline.drain_finalized();
                 let client = self.data_availability.clone().expect(
                     "this should not fail because the if condition of this block checked that a \
                      client is present",
@@ -456,26 +467,34 @@ impl Relayer {
     }
 }
 
+enum ConversionError {
+    HeightAlreadyCanonical,
+    NotProposedByValidator(block::Response),
+    ConversionFromTendermint(eyre::Report),
+}
+
 #[instrument(skip_all)]
 fn convert_block_response_to_sequencer_block_data(
     res: block::Response,
     current_height: Option<u64>,
     validator: Validator,
-) -> eyre::Result<Option<SequencerBlockData>> {
-    if Some(res.block.header.height.value()) <= current_height {
+) -> Result<SequencerBlockData, ConversionError> {
+    if Some(res.block.header.height.value()) < current_height {
         debug!(
             "sequencer block response contained height at or below the current height tracked in \
              relayer"
         );
-        return Ok(None);
+        return Err(ConversionError::HeightAlreadyCanonical);
     }
     if res.block.header.proposer_address != validator.address {
         debug!("proposer recorded in sequencer block response does not match internal validator");
-        return Ok(None);
+
+        return Err(ConversionError::NotProposedByValidator(res));
     }
     let sequencer_block_data = SequencerBlockData::from_tendermint_block(res.block)
-        .wrap_err("failed converting sequencer block response to sequencer block data")?;
-    Ok(Some(sequencer_block_data))
+        .wrap_err("failed converting sequencer block response to sequencer block data")
+        .map_err(|e| ConversionError::ConversionFromTendermint(e))?;
+    Ok(sequencer_block_data)
 }
 
 #[instrument(skip_all)]
