@@ -3,20 +3,15 @@ use std::{
     mem,
 };
 
-use base64::{
-    display::Base64Display,
-    engine::general_purpose::STANDARD,
-};
+use astria_sequencer_types::SequencerBlockData;
+use tendermint::Hash;
 use tokio::time::{
     Duration,
     Instant,
 };
 use tracing::warn;
 
-use crate::{
-    config::MAX_RELAYER_QUEUE_TIME_MS,
-    types::SequencerBlockData,
-};
+use crate::config::MAX_RELAYER_QUEUE_TIME_MS;
 
 const MAX_QUEUE_TIME: Duration = Duration::from_millis(MAX_RELAYER_QUEUE_TIME_MS);
 
@@ -30,7 +25,7 @@ const MAX_QUEUE_TIME: Duration = Duration::from_millis(MAX_RELAYER_QUEUE_TIME_MS
 // tendermint blocks based on height.
 #[derive(Default)]
 pub(crate) struct QueuedBlocks {
-    pending: HashMap<Vec<u8>, QueueItem>,
+    pending: HashMap<Hash, QueueItem>,
     finalized: Vec<SequencerBlockData>,
 }
 
@@ -48,7 +43,7 @@ enum QueueItem {
         canonical: PendingCanonicalState,
     },
     Finalized {
-        parent_block_hash: Vec<u8>,
+        parent_block_hash: Hash,
         insert_time: Instant,
     }, // has been finalized by a child
     FinalizedCanonical, // safe to remove
@@ -77,7 +72,7 @@ impl QueueItem {
                     NotCanonical => {
                         if let Some(parent_block_hash) = block.parent_block_hash() {
                             Finalized {
-                                parent_block_hash: parent_block_hash.clone(),
+                                parent_block_hash,
                                 insert_time: *insert_time,
                             }
                         } else {
@@ -124,12 +119,12 @@ impl QueueItem {
         }
     }
 
-    fn parent_block_hash(&self) -> Option<Vec<u8>> {
+    fn parent_block_hash(&self) -> Option<Hash> {
         use QueueItem::*;
         match self {
             Finalized {
                 parent_block_hash, ..
-            } => Some(parent_block_hash.clone()),
+            } => Some(*parent_block_hash),
             PendingFinalization {
                 block, ..
             } => block.parent_block_hash(),
@@ -191,7 +186,7 @@ impl QueuedBlocks {
         for (child_block_hash, child) in self.pending.iter_mut() {
             // disregard uncle blocks, shouldn't exist
             if !new_block_is_finalized && !child.is_canonical() {
-                if Some(&new_block.block_hash) == child.parent_block_hash().as_ref() {
+                if Some(new_block.block_hash()) == child.parent_block_hash() {
                     child.canonize(); // update state of queue item
                     new_block_is_finalized = true;
                     continue;
@@ -215,7 +210,7 @@ impl QueuedBlocks {
                 // is genesis
                 if let Some(parent_block_hash) = new_block.parent_block_hash() {
                     self.pending.insert(
-                        new_block.block_hash.clone(),
+                        new_block.block_hash(),
                         Finalized {
                             parent_block_hash: parent_block_hash.clone(),
                             insert_time: now,
@@ -229,7 +224,7 @@ impl QueuedBlocks {
             use PendingCanonicalState::*;
             // insert new block into pending queue
             self.pending.insert(
-                new_block.block_hash.clone(),
+                new_block.block_hash(),
                 PendingFinalization {
                     block: new_block,
                     insert_time: now,
@@ -245,7 +240,7 @@ impl QueuedBlocks {
         // discards blocks that are taking too long to finalize
         for block_hash in expired {
             warn!(
-                block_id = %Base64Display::new(&block_hash, &STANDARD),
+                block_id = %block_hash,
                 "discarding block not finalized or part of canonical chain in max queue time",
             );
             self.pending.remove(&block_hash);
@@ -264,6 +259,10 @@ impl QueuedBlocks {
 
 #[cfg(test)]
 mod test {
+    use astria_sequencer_types::{
+        RawSequencerBlockData,
+        SequencerBlockData,
+    };
     use tendermint::{
         block::{
             parts::Header as IdHeader,
@@ -273,35 +272,34 @@ mod test {
     };
 
     use super::QueuedBlocks;
-    use crate::types::SequencerBlockData;
-
-    type BlockHash = [u8; 32];
 
     fn make_parent_and_child_blocks(
-        parent_block_hash: BlockHash,
-        child_block_hash: BlockHash,
+        parent_block_hash: u8,
+        child_block_hash: u8,
     ) -> [SequencerBlockData; 2] {
-        let parent_block = SequencerBlockData {
-            block_hash: parent_block_hash.to_vec(),
+        let parent_block = RawSequencerBlockData {
+            block_hash: Hash::Sha256([parent_block_hash; 32]),
             ..Default::default()
         };
+        let parent_block = SequencerBlockData::from_raw_unverified(parent_block);
 
+        let mut child_block = RawSequencerBlockData {
+            block_hash: Hash::Sha256([child_block_hash; 32]),
+            ..Default::default()
+        };
         let parent_id = Id {
-            hash: Hash::try_from(parent_block.block_hash.clone()).unwrap(),
+            hash: parent_block.block_hash(),
             part_set_header: IdHeader::default(),
         };
-        let mut child_block = SequencerBlockData {
-            block_hash: child_block_hash.to_vec(),
-            ..Default::default()
-        };
-        child_block.header.last_block_id = Some(parent_id);
+        child_block.header.last_block_id = Some(parent_id.into());
+        let child_block = SequencerBlockData::from_raw_unverified(child_block);
 
         [parent_block, child_block]
     }
 
     #[test]
     fn test_finalization_parent_is_genesis_and_queued_before_child() {
-        let [parent_block, child_block] = make_parent_and_child_blocks([0u8; 32], [1u8; 32]);
+        let [parent_block, child_block] = make_parent_and_child_blocks(0, 1);
 
         let mut queue = QueuedBlocks::default();
 
@@ -312,12 +310,13 @@ mod test {
         assert!(queue.has_finalized());
 
         let finalized_blocks = queue.drain_finalized();
+
         assert_eq!(finalized_blocks, vec!(parent_block))
     }
 
     #[test]
     fn test_finalization_parent_is_genesis_and_queued_after_child() {
-        let [parent_block, child_block] = make_parent_and_child_blocks([0u8; 32], [1u8; 32]);
+        let [parent_block, child_block] = make_parent_and_child_blocks(0, 1);
 
         let mut queue = QueuedBlocks::default();
 
@@ -334,9 +333,9 @@ mod test {
 
     #[test]
     fn test_finalization_grandparent_queued_before_parent() {
-        let [grandparent_block, parent_block] = make_parent_and_child_blocks([0u8; 32], [1u8; 32]);
+        let [grandparent_block, parent_block] = make_parent_and_child_blocks(0, 1);
 
-        let [_, child_block] = make_parent_and_child_blocks([1u8; 32], [2u8; 32]);
+        let [_, child_block] = make_parent_and_child_blocks(1, 2);
 
         let mut queue = QueuedBlocks::default();
 
@@ -358,9 +357,9 @@ mod test {
 
     #[test]
     fn test_finalization_grandparent_block_queued_after_child() {
-        let [grandparent_block, parent_block] = make_parent_and_child_blocks([0u8; 32], [1u8; 32]);
+        let [grandparent_block, parent_block] = make_parent_and_child_blocks(0, 1);
 
-        let [_, child_block] = make_parent_and_child_blocks([1u8; 32], [2u8; 32]);
+        let [_, child_block] = make_parent_and_child_blocks(1, 2);
 
         let mut queue = QueuedBlocks::default();
 
@@ -382,11 +381,11 @@ mod test {
 
     #[test]
     fn test_finalization_four_links_child_queued_after_grandchild() {
-        let [grandparent_block, parent_block] = make_parent_and_child_blocks([0u8; 32], [1u8; 32]);
+        let [grandparent_block, parent_block] = make_parent_and_child_blocks(0, 1);
 
-        let [_, child_block] = make_parent_and_child_blocks([1u8; 32], [2u8; 32]);
+        let [_, child_block] = make_parent_and_child_blocks(1, 2);
 
-        let [_, grandchild_block] = make_parent_and_child_blocks([2u8; 32], [3u8; 32]);
+        let [_, grandchild_block] = make_parent_and_child_blocks(2, 3);
 
         let mut queue = QueuedBlocks::default();
 
@@ -412,11 +411,11 @@ mod test {
 
     #[test]
     fn test_finalization_four_links_child_queued_before_grandchild() {
-        let [grandparent_block, parent_block] = make_parent_and_child_blocks([0u8; 32], [1u8; 32]);
+        let [grandparent_block, parent_block] = make_parent_and_child_blocks(0, 1);
 
-        let [_, child_block] = make_parent_and_child_blocks([1u8; 32], [2u8; 32]);
+        let [_, child_block] = make_parent_and_child_blocks(1, 2);
 
-        let [_, grandchild_block] = make_parent_and_child_blocks([2u8; 32], [3u8; 32]);
+        let [_, grandchild_block] = make_parent_and_child_blocks(2, 3);
 
         let mut queue = QueuedBlocks::default();
 

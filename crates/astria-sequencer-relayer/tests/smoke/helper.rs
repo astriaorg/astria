@@ -9,10 +9,10 @@ use astria_sequencer_relayer::{
         MAX_RELAYER_QUEUE_TIME_MS,
     },
     telemetry,
-    types::SequencerBlockData,
     validator::Validator,
     SequencerRelayer,
 };
+use astria_sequencer_types::SequencerBlockData;
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
 use serde_json::json;
@@ -99,10 +99,7 @@ impl TestSequencerRelayer {
     /// advancing time mod block time is not 0.
     pub async fn advance_to_time_mod_block_time_not_zero(&self, ms: u64) {
         let millis = Duration::from_millis(ms);
-        if (Instant::now().elapsed() + millis).as_millis() as u64
-            % self.config.sequencer_block_time_ms
-            == 0
-        {
+        if (Instant::now().elapsed() + millis).as_millis() as u64 % self.config.block_time_ms == 0 {
             panic!("time mod block time is zero, exactly on tick interval")
         }
         time::advance(millis).await;
@@ -110,10 +107,7 @@ impl TestSequencerRelayer {
 
     /// Sequencer is polled for new blocks every sequencer block time.
     pub async fn advance_time_by_n_sequencer_ticks(&self, n: u64) {
-        time::advance(Duration::from_millis(
-            n * self.config.sequencer_block_time_ms,
-        ))
-        .await;
+        time::advance(Duration::from_millis(n * self.config.block_time_ms)).await;
     }
 }
 
@@ -487,7 +481,8 @@ pub(crate) fn create_block_response(
         )],
     )
     .into_signed(signing_key);
-    let data = vec![signed_tx.to_bytes()];
+    let action_tree_root = [1; 32]; // always goes at index 0 of data
+    let data = vec![action_tree_root.to_vec(), signed_tx.to_bytes()];
     // data_hash must be some to convert to sequencer block data (fn from_tendermint_block in
     // ../src/types.rs)
     let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
@@ -623,7 +618,7 @@ pub(crate) async fn mount_4_changing_block_responses(
     let validator = &sequencer_relayer.validator;
     let server = &sequencer_relayer.sequencer;
 
-    let _response_delay = Duration::from_millis(sequencer_relayer.config.sequencer_block_time_ms);
+    let _response_delay = Duration::from_millis(sequencer_relayer.config.block_time_ms);
 
     // - grandparent is received at 1 tick
     // - parent is received at 4 ticks (delayed 2 ticks)
@@ -695,8 +690,4 @@ pub(crate) async fn mount_two_response_pairs_delayed_children(
             child: child_two,
         },
     ]
-}
-
-pub(crate) fn get_block_hash(block_resp: &Response) -> Vec<u8> {
-    block_resp.block.header.hash().as_bytes().to_vec().clone()
 }

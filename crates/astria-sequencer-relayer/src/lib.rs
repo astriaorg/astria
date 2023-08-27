@@ -6,12 +6,8 @@ pub mod network;
 pub(crate) mod queued_blocks;
 pub mod relayer;
 pub mod sequencer_relayer;
-pub mod telemetry;
 pub mod transaction;
-pub mod types;
-pub mod utils;
 pub mod validator;
 
-pub(crate) mod serde;
-
 pub use sequencer_relayer::SequencerRelayer;
+pub use telemetry;

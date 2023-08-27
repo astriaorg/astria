@@ -43,6 +43,9 @@ pub struct Config {
     /// Port to listen on for libp2p
     #[serde(default = "default_libp2p_port")]
     pub libp2p_port: u16,
+
+    /// log directive to use for telemetry.
+    pub log: Option<String>,
 }
 
 fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>

@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 use astria_celestia_jsonrpc_client::{
     blob::{
@@ -8,6 +11,19 @@ use astria_celestia_jsonrpc_client::{
     state,
     Client,
     ErrorKind,
+};
+use astria_sequencer_types::{
+    serde::Base64Standard,
+    Namespace,
+    RawSequencerBlockData,
+    RollupData,
+    SequencerBlockData,
+    DEFAULT_NAMESPACE,
+};
+use astria_sequencer_validation::{
+    generate_action_tree_leaves,
+    InclusionProof,
+    MerkleTree,
 };
 use ed25519_consensus::{
     Signature,
@@ -27,21 +43,17 @@ use sha2::{
     Digest,
     Sha256,
 };
-use tendermint::block::{
-    Commit,
-    Header,
+use tendermint::{
+    block::{
+        Commit,
+        Header,
+    },
+    Hash,
 };
 use tracing::{
     info,
     instrument,
     warn,
-};
-
-use crate::types::{
-    IndexedTransaction,
-    Namespace,
-    SequencerBlockData,
-    DEFAULT_NAMESPACE,
 };
 
 pub const DEFAULT_PFD_GAS_LIMIT: u64 = 1_000_000;
@@ -55,9 +67,9 @@ pub struct SubmitBlockResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SignedNamespaceData<D> {
     pub data: D,
-    #[serde(with = "crate::serde::Base64Standard")]
+    #[serde(with = "Base64Standard")]
     pub public_key: Vec<u8>,
-    #[serde(with = "crate::serde::Base64Standard")]
+    #[serde(with = "Base64Standard")]
     pub signature: Vec<u8>,
 }
 
@@ -134,11 +146,12 @@ where
 /// also written to in the same block.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SequencerNamespaceData {
-    #[serde(with = "crate::serde::Base64Standard")]
-    pub block_hash: Vec<u8>,
+    pub block_hash: Hash,
     pub header: Header,
     pub last_commit: Option<Commit>,
     pub rollup_namespaces: Vec<Namespace>,
+    pub action_tree_root: Hash,
+    pub action_tree_root_inclusion_proof: InclusionProof,
 }
 
 impl NamespaceData for SequencerNamespaceData {}
@@ -146,9 +159,10 @@ impl NamespaceData for SequencerNamespaceData {}
 /// RollupNamespaceData represents the data written to a rollup namespace.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RollupNamespaceData {
-    #[serde(with = "crate::serde::Base64Standard")]
-    pub(crate) block_hash: Vec<u8>,
-    pub rollup_txs: Vec<IndexedTransaction>,
+    pub(crate) block_hash: Hash,
+    pub(crate) chain_id: Vec<u8>,
+    pub rollup_txs: Vec<Vec<u8>>,
+    pub(crate) inclusion_proof: InclusionProof,
 }
 
 impl NamespaceData for RollupNamespaceData {}
@@ -284,7 +298,10 @@ impl CelestiaClient {
         // + the sum of all rollup transactions in all blocks (each converted to a rollup namespaced
         //   data), and
         // + one sequencer namespaced data blob per block.
-        let num_expected_blobs = blocks.iter().map(|block| block.rollup_txs.len() + 1).sum();
+        let num_expected_blobs = blocks
+            .iter()
+            .map(|block| block.rollup_data().len() + 1)
+            .sum();
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
         for block in blocks {
             match assemble_blobs_from_sequencer_block_data(block, signing_key) {
@@ -379,7 +396,7 @@ impl CelestiaClient {
         // filter out blobs; we should only be left with either zero or one rollup datas
         let rollup_datas = filter_and_convert_rollup_data_blobs(
             rsp.blobs,
-            &namespace_data.data.block_hash,
+            namespace_data.data.block_hash,
             &verification_key,
         );
 
@@ -444,21 +461,37 @@ impl CelestiaClient {
 
         let rollup_datas = filter_and_convert_rollup_data_blobs(
             rsp.blobs,
-            &namespace_data.data.block_hash,
+            namespace_data.data.block_hash,
             &verification_key,
         );
 
         // finally, extract the rollup txs from the rollup datas
-        let rollup_txs = rollup_datas
+        let rollup_data = rollup_datas
             .into_iter()
-            .map(|(namespace, rollup_datas)| (namespace, rollup_datas.data.rollup_txs))
+            .map(|(namespace, rollup_datas)| {
+                (
+                    namespace,
+                    RollupData {
+                        chain_id: rollup_datas.data.chain_id,
+                        transactions: rollup_datas.data.rollup_txs,
+                    },
+                )
+            })
             .collect();
-        Ok(Some(SequencerBlockData {
-            block_hash: namespace_data.data.block_hash.clone(),
-            header: namespace_data.data.header.clone(),
-            last_commit: namespace_data.data.last_commit.clone(),
-            rollup_txs,
-        }))
+        Ok(Some(
+            SequencerBlockData::try_from_raw(RawSequencerBlockData {
+                block_hash: namespace_data.data.block_hash,
+                header: namespace_data.data.header.clone(),
+                last_commit: namespace_data.data.last_commit.clone(),
+                rollup_data,
+                action_tree_root: namespace_data.data.action_tree_root,
+                action_tree_root_inclusion_proof: namespace_data
+                    .data
+                    .action_tree_root_inclusion_proof
+                    .clone(),
+            })
+            .wrap_err("failed to construct SequencerBlockData from namespace data")?,
+        ))
     }
 }
 
@@ -468,7 +501,7 @@ impl CelestiaClient {
 /// with the provided verification key.
 fn filter_and_convert_rollup_data_blobs(
     blobs: Vec<blob::Blob>,
-    block_hash: &[u8],
+    block_hash: Hash,
     verification_key: &VerificationKey,
 ) -> HashMap<Namespace, SignedNamespaceData<RollupNamespaceData>> {
     // get only rollup datas that can be deserialized
@@ -520,39 +553,78 @@ fn filter_and_convert_rollup_data_blobs(
     rollup_datas
 }
 
+fn btree_from_rollup_data(
+    rollup_data: HashMap<Namespace, RollupData>,
+) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
+    let mut btree = BTreeMap::new();
+    for (_, data) in rollup_data {
+        btree.insert(data.chain_id, data.transactions);
+    }
+    btree
+}
+
 fn assemble_blobs_from_sequencer_block_data(
     block_data: SequencerBlockData,
     signing_key: &SigningKey,
 ) -> eyre::Result<Vec<blob::Blob>> {
-    let mut blobs = Vec::with_capacity(block_data.rollup_txs.len() + 1);
-    let mut namespaces = Vec::with_capacity(block_data.rollup_txs.len() + 1);
-    for (namespace, txs) in block_data.rollup_txs {
+    let mut blobs = Vec::with_capacity(block_data.rollup_data().len() + 1);
+    let mut namespaces = Vec::with_capacity(block_data.rollup_data().len() + 1);
+
+    let RawSequencerBlockData {
+        block_hash,
+        header,
+        last_commit,
+        rollup_data,
+        action_tree_root,
+        action_tree_root_inclusion_proof,
+    } = block_data.into_raw();
+
+    let chain_id_to_txs = btree_from_rollup_data(rollup_data);
+    let action_tree_leaves = generate_action_tree_leaves(chain_id_to_txs.clone());
+    let action_tree = MerkleTree::from_leaves(action_tree_leaves);
+
+    for (i, (chain_id, transactions)) in chain_id_to_txs.into_iter().enumerate() {
+        let inclusion_proof = action_tree
+            .prove_inclusion(i)
+            .map_err(|e| eyre::eyre!(e))
+            .context("failed to generate inclusion proof")?;
+
         let rollup_namespace_data = RollupNamespaceData {
-            block_hash: block_data.block_hash.clone(),
-            rollup_txs: txs,
+            block_hash,
+            chain_id: chain_id.clone(),
+            rollup_txs: transactions,
+            inclusion_proof,
         };
-        let data = rollup_namespace_data
+
+        let blob_data = rollup_namespace_data
             .to_signed(signing_key)
             .wrap_err("failed signing rollup namespace data")?
             .to_bytes()
-            .wrap_err("failed converting signed rollupdata namespace data to bytes")?;
+            .wrap_err("failed converting signed rollup data namespace data to bytes")?;
+
+        let namespace = Namespace::from_slice(&chain_id);
         blobs.push(blob::Blob {
             namespace_id: *namespace,
-            data,
+            data: blob_data,
         });
         namespaces.push(namespace);
     }
+
     let sequencer_namespace_data = SequencerNamespaceData {
-        block_hash: block_data.block_hash.clone(),
-        header: block_data.header,
-        last_commit: block_data.last_commit,
+        block_hash,
+        header,
+        last_commit,
         rollup_namespaces: namespaces,
+        action_tree_root,
+        action_tree_root_inclusion_proof,
     };
+
     let data = sequencer_namespace_data
         .to_signed(signing_key)
         .wrap_err("failed signing sequencer namespace data")?
         .to_bytes()
         .wrap_err("failed converting signed namespace data to bytes")?;
+
     blobs.push(blob::Blob {
         namespace_id: *DEFAULT_NAMESPACE,
         data,

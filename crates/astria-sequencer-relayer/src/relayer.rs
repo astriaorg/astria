@@ -1,5 +1,9 @@
 use std::time::Duration;
 
+use astria_sequencer_types::{
+    serde::NamespaceToTxCount,
+    SequencerBlockData,
+};
 use eyre::{
     bail,
     Result,
@@ -30,11 +34,8 @@ use crate::{
     data_availability::CelestiaClient,
     macros::report_err,
     queued_blocks::QueuedBlocks,
-    serde::NamespaceToTxCount,
-    types::SequencerBlockData,
     validator::Validator,
 };
-
 pub struct Relayer {
     /// The actual client used to poll the sequencer.
     sequencer: HttpClient,
@@ -127,7 +128,7 @@ impl Relayer {
 
         Ok(Self {
             sequencer,
-            sequencer_block_time_ms: Duration::from_millis(cfg.sequencer_block_time_ms),
+            sequencer_block_time_ms: Duration::from_millis(cfg.block_time_ms),
             data_availability,
             validator,
             gossip_block_tx,
@@ -212,11 +213,11 @@ impl Relayer {
             // Gossip and collect successfully converted sequencer responses
             Ok(Some(sequencer_block_data)) => {
                 info!(
-                    height = %sequencer_block_data.header.height,
-                    block_hash = hex::encode(&sequencer_block_data.block_hash),
-                    proposer = %sequencer_block_data.header.proposer_address,
-                    num_contained_namespaces = sequencer_block_data.rollup_txs.len(),
-                    namespaces_to_tx_count = %NamespaceToTxCount(&sequencer_block_data.rollup_txs),
+                    height = %sequencer_block_data.header().height,
+                    block_hash = hex::encode(sequencer_block_data.block_hash()),
+                    proposer = %sequencer_block_data.header().proposer_address,
+                    num_contained_namespaces = sequencer_block_data.rollup_data().len(),
+                    namespaces_to_tx_count = %NamespaceToTxCount::new(sequencer_block_data.rollup_data()),
                     "gossiping sequencer block",
                 );
                 if self
@@ -227,7 +228,7 @@ impl Relayer {
                     return HandleConversionCompletedResult::GossipChannelClosed;
                 }
                 // Update the internal state if the block was admitted
-                let height = sequencer_block_data.header.height.value();
+                let height = sequencer_block_data.header().height.value();
                 _ = self.state_tx.send_if_modified(|state| {
                     if Some(height) > state.current_sequencer_height {
                         state.current_sequencer_height = Some(height);

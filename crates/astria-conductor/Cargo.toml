@@ -2,6 +2,7 @@
 name = "astria-conductor"
 version = "0.4.0"
 edition = "2021"
+rust-version = "1.70.0"
 
 [dependencies]
 sync_wrapper = "0.1.2"
@@ -14,7 +15,6 @@ ed25519-consensus = { workspace = true }
 figment = { workspace = true, features = ["toml", "env"] }
 futures = { workspace = true }
 hex = { workspace = true }
-is-terminal = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
@@ -27,7 +27,6 @@ tendermint-rpc = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["ansi", "json"] }
 
 astria-proto = { path = "../astria-proto", features = ["client"] }
 astria-gossipnet = { path = "../astria-gossipnet" }
@@ -35,6 +34,8 @@ astria-sequencer-client = { path = "../astria-sequencer-client", features = [
   "http",
 ] }
 astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
+astria-sequencer-types = { path = "../astria-sequencer-types" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
 base64 = { workspace = true }

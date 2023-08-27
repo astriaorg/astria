@@ -2,14 +2,16 @@
 name = "astria-composer"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.70.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 astria-sequencer = { path = "../astria-sequencer" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 ethers = { version = "2.0.7", features = ["ws"] }
-secrecy = "0.8"
+secrecy = { version = "0.8", features = ["serde"] }
 
 async-trait = { workspace = true }
 axum = { workspace = true }
@@ -17,12 +19,14 @@ backon = { workspace = true }
 color-eyre = { workspace = true }
 ed25519-consensus = { workspace = true }
 figment = { workspace = true, features = ["env"] }
+futures = { workspace = true }
 humantime = { workspace = true }
 hyper = { workspace = true }
 hex = { workspace = true }
-is-terminal = { workspace = true }
+once_cell = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 rand = { workspace = true }
+regex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tendermint = { workspace = true }
@@ -32,8 +36,8 @@ tokio = { workspace = true, features = [
   "sync",
   "time",
 ] }
+tokio-util = { version = "0.7.8", features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
-tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"
@@ -41,12 +45,12 @@ path = "../astria-sequencer-client"
 features = ["http"]
 
 [dev-dependencies]
+proto = { package = "astria-proto", path = "../astria-proto" }
+
 impl-serde = "0.4.0"
 tokio-test = "0.4.2"
 
-borsh = { workspace = true }
 figment = { workspace = true, features = ["test"] }
 jsonrpsee = { workspace = true, features = ["macros", "server"] }
-once_cell = { workspace = true }
 tendermint-rpc = { workspace = true }
 wiremock = { workspace = true }

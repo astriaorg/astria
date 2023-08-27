@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use astria_sequencer_relayer::types::{
-    get_namespace,
+use astria_sequencer_types::{
     Namespace,
     SequencerBlockData,
 };
@@ -10,7 +9,10 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use prost_types::Timestamp as ProstTimestamp;
-use tendermint::Time;
+use tendermint::{
+    Hash,
+    Time,
+};
 use tokio::{
     sync::mpsc::{
         self,
@@ -53,7 +55,7 @@ pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinH
     let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url).await?;
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
-        get_namespace(conf.chain_id.as_bytes()),
+        Namespace::from_slice(conf.chain_id.as_bytes()),
         alert_tx,
     )
     .await?;
@@ -114,7 +116,7 @@ struct Executor<C> {
     /// we need to track the mapping of sequencer block hash -> execution block hash
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
-    sequencer_hash_to_execution_hash: HashMap<Vec<u8>, Vec<u8>>,
+    sequencer_hash_to_execution_hash: HashMap<Hash, Vec<u8>>,
 }
 
 impl<C: ExecutionClient> Executor<C> {
@@ -148,7 +150,7 @@ impl<C: ExecutionClient> Executor<C> {
                     block,
                 } => {
                     self.alert_tx.send(Alert::BlockReceivedFromGossipNetwork {
-                        block_height: block.header.height.value(),
+                        block_height: block.header().height.value(),
                     })?;
                     if let Err(e) = self
                         .execute_block(SequencerBlockSubset::from_sequencer_block_data(
@@ -245,14 +247,14 @@ impl<C: ExecutionClient> Executor<C> {
         &mut self,
         block: SequencerBlockSubset,
     ) -> Result<()> {
-        let sequencer_block_hash = block.block_hash.clone();
+        let sequencer_block_hash = block.block_hash;
         let maybe_execution_block_hash = self
             .sequencer_hash_to_execution_hash
             .get(&sequencer_block_hash)
             .cloned();
         match maybe_execution_block_hash {
             Some(execution_block_hash) => {
-                self.finalize_block(execution_block_hash, &sequencer_block_hash)
+                self.finalize_block(execution_block_hash, sequencer_block_hash)
                     .await?;
             }
             None => {
@@ -276,7 +278,7 @@ impl<C: ExecutionClient> Executor<C> {
                 };
 
                 // finalize the block after it's been executed
-                self.finalize_block(execution_block_hash, &sequencer_block_hash)
+                self.finalize_block(execution_block_hash, sequencer_block_hash)
                     .await?;
             }
         };
@@ -299,14 +301,14 @@ impl<C: ExecutionClient> Executor<C> {
     async fn finalize_block(
         &mut self,
         execution_block_hash: Vec<u8>,
-        sequencer_block_hash: &[u8],
+        sequencer_block_hash: Hash,
     ) -> Result<()> {
         self.execution_rpc_client
             .call_finalize_block(execution_block_hash)
             .await
             .wrap_err("failed to finalize block")?;
         self.sequencer_hash_to_execution_hash
-            .remove(sequencer_block_hash);
+            .remove(&sequencer_block_hash);
         Ok(())
     }
 }
@@ -318,7 +320,7 @@ mod test {
         sync::Arc,
     };
 
-    use astria_proto::execution::v1alpha1::{
+    use astria_proto::generated::execution::v1alpha1::{
         DoBlockResponse,
         InitStateResponse,
     };
@@ -383,8 +385,8 @@ mod test {
 
     fn get_test_block_subset() -> SequencerBlockSubset {
         SequencerBlockSubset {
-            block_hash: hash(b"block1"),
-            header: astria_sequencer_relayer::utils::default_header(),
+            block_hash: hash(b"block1").try_into().unwrap(),
+            header: astria_sequencer_types::test_utils::default_header(),
             rollup_transactions: vec![],
         }
     }
@@ -392,7 +394,7 @@ mod test {
     #[tokio::test]
     async fn execute_block_with_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = get_namespace(b"test");
+        let namespace = Namespace::from_slice(b"test");
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
             .await
             .unwrap();
@@ -412,7 +414,7 @@ mod test {
     #[tokio::test]
     async fn execute_block_without_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = get_namespace(b"test");
+        let namespace = Namespace::from_slice(b"test");
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
             .await
             .unwrap();
@@ -425,7 +427,7 @@ mod test {
     #[tokio::test]
     async fn handle_block_received_from_data_availability_not_yet_executed() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = get_namespace(b"test");
+        let namespace = Namespace::from_slice(b"test");
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
@@ -461,7 +463,7 @@ mod test {
     #[tokio::test]
     async fn handle_block_received_from_data_availability_no_relevant_transactions() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = get_namespace(b"test");
+        let namespace = Namespace::from_slice(b"test");
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),

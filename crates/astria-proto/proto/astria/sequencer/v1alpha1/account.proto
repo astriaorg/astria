@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package astria.sequencer.v1alpha1;
+
+import "astria/primitive/v1/types.proto";
+
+// A response containing the balance of an account.
+message BalanceResponse {
+  uint64 height = 2;
+  astria.primitive.v1.Uint128 balance = 3;
+}
+
+// A response containing the current nonce for an account.
+message NonceResponse {
+  uint64 height = 2;
+  uint32 nonce = 3;
+}

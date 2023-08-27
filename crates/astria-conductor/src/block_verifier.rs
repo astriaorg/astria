@@ -1,13 +1,11 @@
 use std::collections::HashMap;
 
-use astria_sequencer_relayer::{
-    data_availability::{
-        RollupNamespaceData,
-        SequencerNamespaceData,
-        SignedNamespaceData,
-    },
-    types::SequencerBlockData,
+use astria_sequencer_relayer::data_availability::{
+    RollupNamespaceData,
+    SequencerNamespaceData,
+    SignedNamespaceData,
 };
+use astria_sequencer_types::SequencerBlockData;
 use color_eyre::eyre::{
     self,
     bail,
@@ -107,7 +105,7 @@ impl BlockVerifier {
 
     pub async fn validate_rollup_data(
         &self,
-        block_hash: &[u8],
+        block_hash: Hash,
         header: &Header,
         last_commit: &Option<Commit>,
         _rollup_data: &RollupNamespaceData,
@@ -136,23 +134,19 @@ impl BlockVerifier {
         block: &SequencerBlockData,
     ) -> eyre::Result<()> {
         self.validate_sequencer_block_header_and_last_commit(
-            &block.block_hash,
-            &block.header,
-            &block.last_commit,
+            block.block_hash(),
+            block.header(),
+            block.last_commit(),
         )
         .await?;
 
-        // finally, validate that the transactions in the block result in the correct data_hash
-        block
-            .verify_data_hash()
-            .wrap_err("failed to verify block data_hash")?;
-
+        // TODO: validate that the transactions in the block result in the correct data_hash (#153)
         Ok(())
     }
 
     async fn validate_sequencer_block_header_and_last_commit(
         &self,
-        block_hash: &[u8],
+        block_hash: Hash,
         header: &Header,
         last_commit: &Option<Commit>,
     ) -> eyre::Result<()> {
@@ -221,7 +215,7 @@ impl BlockVerifier {
         // validate the block header matches the block hash
         let block_hash_from_header = header.hash();
         ensure!(
-            block_hash_from_header.as_bytes() == block_hash,
+            block_hash_from_header == block_hash,
             "block hash calculated from tendermint header does not match block hash stored in \
              sequencer block",
         );

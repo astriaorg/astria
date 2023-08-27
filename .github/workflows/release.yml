@@ -1,0 +1,31 @@
+name: Release
+on:
+  pull_request:
+  push:
+    branches:
+        - main
+
+jobs:
+  run_checker:
+    uses: ./.github/workflows/reusable-run-checker.yml
+
+  proto:
+    runs-on: ubuntu-latest
+    environment: BUF
+    needs: run_checker
+    if: ${{ needs.run_checker.outputs.run_release_proto }} && github.repository_owner == 'astriaorg'
+    steps:
+      - uses: actions/checkout@v3
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.15.1"
+          github_token: ${{ github.token }}
+      - uses: bufbuild/buf-push-action@v1
+        with:
+          draft:  ${{ github.ref_name != 'main'}}
+          input: "crates/astria-proto/proto"
+          buf_token: ${{ secrets.BUF_TOKEN }}
+
+  release:
+    needs: [proto]
+    uses: ./.github/workflows/reusable-success.yml

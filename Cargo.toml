@@ -8,7 +8,10 @@ members = [
   "crates/astria-sequencer",
   "crates/astria-sequencer-client",
   "crates/astria-sequencer-relayer",
+  "crates/astria-sequencer-types",
   "crates/astria-sequencer-utils",
+  "crates/astria-sequencer-validation",
+  "crates/astria-telemetry",
   "crates/astria-test-utils",
 ]
 resolver = "2"
@@ -29,7 +32,6 @@ futures = "0.3"
 hex = "0.4"
 humantime = "2.1.0"
 hyper = "0.14"
-is-terminal = "0.4"
 jsonrpsee = { version = "0.19" }
 # marking k8s as using k8s 1.26 here to make it clear that we are targetting 1.26
 # in the tests
@@ -49,6 +51,7 @@ serde_yaml = "0.9"
 prost = "0.11"
 prost-types = "0.11"
 rand = "0.8.5"
+regex = "1.9"
 # disable default features and explicitly enable rustls-tls to ensure openssl is disabled
 # in the entire workspace
 reqwest = { version = "0.11", default-features = false, features = [
@@ -77,3 +80,5 @@ tendermint = { git = "https://github.com/astriaorg/tendermint-rs.git", rev = "a8
 tendermint-config = { git = "https://github.com/astriaorg/tendermint-rs.git", rev = "a816d6363780c2ed0c3288e6b6e01adee71cf1a5" }
 tendermint-proto = { git = "https://github.com/astriaorg/tendermint-rs.git", rev = "a816d6363780c2ed0c3288e6b6e01adee71cf1a5" }
 tendermint-rpc = { git = "https://github.com/astriaorg/tendermint-rs.git", rev = "a816d6363780c2ed0c3288e6b6e01adee71cf1a5" }
+
+ct-merkle = { git = "https://github.com/astriaorg/ct-merkle.git", rev = "58f692640be65ef42bc14f69e52a9e836f407a33" }

@@ -3,6 +3,7 @@ use astria_gossipnet::network::{
     NetworkBuilder,
     Sha256Topic,
 };
+use astria_sequencer_types::SequencerBlockData;
 use eyre::{
     Result,
     WrapErr as _,
@@ -20,10 +21,7 @@ use tracing::{
     warn,
 };
 
-use crate::{
-    config::Config,
-    types::SequencerBlockData,
-};
+use crate::config::Config;
 
 const BLOCKS_TOPIC: &str = "blocks";
 fn blocks_topic() -> Sha256Topic {
@@ -74,7 +72,7 @@ impl GossipNetwork {
                 block = self.block_rx.recv() => {
                     if let Some(block) = block {
                         match self.publish(&block).await {
-                            Ok(()) => debug!(block_hash = ?block.block_hash, "published block to network"),
+                            Ok(()) => debug!(block_hash = ?block.block_hash(), "published block to network"),
                             Err(e) => {
                                 if e.root_cause().to_string().contains("InsufficientPeers") {
                                     debug!(?e, "failed to publish block to network");

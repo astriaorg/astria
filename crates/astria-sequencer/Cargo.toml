@@ -2,11 +2,15 @@
 name = "astria-sequencer"
 version = "0.2.0"
 edition = "2021"
+rust-version = "1.70.0"
 
 [dependencies]
 astria-proto = { path = "../astria-proto" }
+astria-sequencer-validation = { path = "../astria-sequencer-validation" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 anyhow = "1"
+matchit = "0.7.2"
 penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.56.0" }
 penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.56.0" }
 tower = "0.4"
@@ -20,7 +24,6 @@ clap = { workspace = true, features = ["derive"] }
 ed25519-consensus = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
-is-terminal = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -30,8 +33,3 @@ tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = [
-  "ansi",
-  "env-filter",
-  "json",
-] }

@@ -1,8 +1,10 @@
 //! Astria's composer submits EVM rollup transactions to astria's sequencer.
 //!
-//! At the moment composer can read from one EVM rollup only, and submits each EVM
-//! transaction as one sequencer transaction. It also does not support using a specific
-//! account/signing key and instead generates a random account for each submission.
+//! At the moment composer can read from Geth based EVM rollups only, and submits each EVM
+//! transaction (regardless of where it's collected from) as one sequencer transaction.
+//! The submission nonces are based on a custom generated private key specific to the composer.
+//! Each sequencer transaction is submitted with a new nonce which is one more than the nonce
+//! used in the previous submission.
 //!
 //! [`Composer`] is configured using a [`Config`] and started with [`Composer::run_until_stopped`].
 //!
@@ -38,7 +40,7 @@ pub(crate) mod api;
 mod composer;
 pub mod config;
 pub(crate) mod searcher;
-pub mod telemetry;
 
 pub use composer::Composer;
 pub use config::Config;
+pub use telemetry;
