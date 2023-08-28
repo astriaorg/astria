@@ -11,6 +11,20 @@ use sha2::Sha256;
 
 /// A wrapper around [`ct_merkle::CtMerkleTree`], which uses sha256 as the hashing algorithm
 /// and Vec<u8> as the leaf type.
+///
+/// # Examples
+///
+/// ```
+/// use astria_sequencer_validation::MerkleTree;
+///
+/// let data: Vec<Vec<u8>> = vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]];
+///
+/// let tree = MerkleTree::from_leaves(data);
+/// let root = tree.root();
+/// let inclusion_proof = tree.prove_inclusion(0).unwrap();
+/// let value = vec![1, 2, 3];
+/// inclusion_proof.verify(&value, root).unwrap();
+/// ```
 #[derive(Debug, Default)]
 pub struct MerkleTree(CtMerkleTree<Sha256, Vec<u8>>);
 
@@ -51,7 +65,9 @@ impl MerkleTree {
 }
 
 /// A merkle proof of inclusion.
-#[derive(Debug, Serialize, Deserialize)]
+///
+/// See [`astria_sequencer_validation::MerkleTree`] for a usage example.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(clippy::module_name_repetitions)]
 pub struct InclusionProof {
     // leaf index of value to be proven
@@ -62,8 +78,18 @@ pub struct InclusionProof {
     inclusion_proof: CtInclusionProof<Sha256>,
 }
 
+impl PartialEq for InclusionProof {
+    fn eq(&self, other: &Self) -> bool {
+        self.idx == other.idx
+            && self.num_leaves == other.num_leaves
+            && self.inclusion_proof.as_bytes() == other.inclusion_proof.as_bytes()
+    }
+}
+
+impl Eq for InclusionProof {}
+
 impl InclusionProof {
-    /// Verify that the proof is valid for the given root hash.
+    /// Verify that the merkle proof is valid for the given root hash and leaf value.
     ///
     /// # Errors
     ///
