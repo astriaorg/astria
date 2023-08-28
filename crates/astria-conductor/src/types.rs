@@ -188,11 +188,8 @@ mod test {
     #[tokio::test]
     async fn sequencer_block_data_ordering() {
         let blocks = get_test_block_vec(3);
-        let mut blocks_sorted = vec![];
-        // push in reverse order
-        blocks_sorted.push(blocks[2].clone());
-        blocks_sorted.push(blocks[1].clone());
-        blocks_sorted.push(blocks[0].clone());
+        // build the vec in reverse order
+        let mut blocks_sorted = vec![blocks[2].clone(), blocks[1].clone(), blocks[0].clone()];
         blocks_sorted.sort();
         assert_eq!(blocks_sorted, blocks);
     }
