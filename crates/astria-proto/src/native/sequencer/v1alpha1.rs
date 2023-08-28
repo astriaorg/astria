@@ -183,38 +183,6 @@ pub struct UnsignedTransaction {
     pub actions: Vec<Action>,
 }
 
-#[derive(Debug)]
-pub struct UnsignedTransactionError {
-    kind: UnsignedTransactionErrorKind,
-}
-
-impl UnsignedTransactionError {
-    fn action(inner: ActionError) -> Self {
-        Self {
-            kind: UnsignedTransactionErrorKind::Action(inner),
-        }
-    }
-}
-
-impl Display for UnsignedTransactionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.pad("constructing unsigned tx failed")
-    }
-}
-
-impl Error for UnsignedTransactionError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match &self.kind {
-            UnsignedTransactionErrorKind::Action(e) => Some(e),
-        }
-    }
-}
-
-#[derive(Debug)]
-enum UnsignedTransactionErrorKind {
-    Action(ActionError),
-}
-
 impl UnsignedTransaction {
     pub fn into_signed(self, signing_key: &SigningKey) -> SignedTransaction {
         use crate::Message as _;
@@ -288,10 +256,99 @@ impl UnsignedTransaction {
     }
 }
 
+#[derive(Debug)]
+pub struct UnsignedTransactionError {
+    kind: UnsignedTransactionErrorKind,
+}
+
+impl UnsignedTransactionError {
+    fn action(inner: ActionError) -> Self {
+        Self {
+            kind: UnsignedTransactionErrorKind::Action(inner),
+        }
+    }
+}
+
+impl Display for UnsignedTransactionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.pad("constructing unsigned tx failed")
+    }
+}
+
+impl Error for UnsignedTransactionError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match &self.kind {
+            UnsignedTransactionErrorKind::Action(e) => Some(e),
+        }
+    }
+}
+
+#[derive(Debug)]
+enum UnsignedTransactionErrorKind {
+    Action(ActionError),
+}
+
 #[derive(Clone, Debug)]
 pub enum Action {
     Sequence(SequenceAction),
     Transfer(TransferAction),
+}
+
+impl Action {
+    pub fn into_proto(self) -> raw::Action {
+        use raw::action::Value;
+        let kind = match self {
+            Action::Sequence(act) => Value::SequenceAction(act.into_proto()),
+            Action::Transfer(act) => Value::TransferAction(act.into_proto()),
+        };
+        raw::Action {
+            value: Some(kind),
+        }
+    }
+
+    pub fn to_proto(&self) -> raw::Action {
+        use raw::action::Value;
+        let kind = match self {
+            Action::Sequence(act) => Value::SequenceAction(act.to_proto()),
+            Action::Transfer(act) => Value::TransferAction(act.to_proto()),
+        };
+        raw::Action {
+            value: Some(kind),
+        }
+    }
+
+    pub fn try_from_proto(proto: raw::Action) -> Result<Self, ActionError> {
+        use raw::action::Value;
+        let raw::Action {
+            value,
+        } = proto;
+        let Some(action) = value else {
+            return Err(ActionError::unset());
+        };
+        let action = match action {
+            Value::SequenceAction(act) => {
+                Self::Sequence(SequenceAction::try_from_proto(act).map_err(ActionError::sequence)?)
+            }
+            Value::TransferAction(act) => {
+                Self::Transfer(TransferAction::try_from_proto(act).map_err(ActionError::transfer)?)
+            }
+        };
+        Ok(action)
+    }
+
+    pub fn as_sequence(&self) -> Option<&SequenceAction> {
+        let Self::Sequence(sequence_action) = self else {
+            return None;
+        };
+        Some(sequence_action)
+    }
+
+    pub fn as_transfer(&self) -> Option<&TransferAction> {
+        let Self::Transfer(transfer_action) = self else {
+            return None;
+        };
+        Some(transfer_action)
+    }
 }
 
 #[derive(Debug)]
@@ -351,100 +408,10 @@ enum ActionErrorKind {
     Sequence(SequenceActionError),
 }
 
-impl Action {
-    pub fn into_proto(self) -> raw::Action {
-        use raw::action::Value;
-        let kind = match self {
-            Action::Sequence(act) => Value::SequenceAction(act.into_proto()),
-            Action::Transfer(act) => Value::TransferAction(act.into_proto()),
-        };
-        raw::Action {
-            value: Some(kind),
-        }
-    }
-
-    pub fn to_proto(&self) -> raw::Action {
-        use raw::action::Value;
-        let kind = match self {
-            Action::Sequence(act) => Value::SequenceAction(act.to_proto()),
-            Action::Transfer(act) => Value::TransferAction(act.to_proto()),
-        };
-        raw::Action {
-            value: Some(kind),
-        }
-    }
-
-    pub fn try_from_proto(proto: raw::Action) -> Result<Self, ActionError> {
-        use raw::action::Value;
-        let raw::Action {
-            value,
-        } = proto;
-        let Some(action) = value else {
-            return Err(ActionError::unset());
-        };
-        let action = match action {
-            Value::SequenceAction(act) => {
-                Self::Sequence(SequenceAction::try_from_proto(act).map_err(ActionError::sequence)?)
-            }
-            Value::TransferAction(act) => {
-                Self::Transfer(TransferAction::try_from_proto(act).map_err(ActionError::transfer)?)
-            }
-        };
-        Ok(action)
-    }
-
-    pub fn as_sequence(&self) -> Option<&SequenceAction> {
-        let Self::Sequence(sequence_action) = self else { return None };
-        Some(sequence_action)
-    }
-
-    pub fn as_transfer(&self) -> Option<&TransferAction> {
-        let Self::Transfer(transfer_action) = self else { return None };
-        Some(transfer_action)
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct SequenceAction {
     pub chain_id: ChainId,
     pub data: Vec<u8>,
-}
-
-#[derive(Debug)]
-pub struct SequenceActionError {
-    kind: SequenceActionErrorKind,
-}
-
-impl Display for SequenceActionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let msg = match &self.kind {
-            SequenceActionErrorKind::ChainId(_) => {
-                "`chain_id` field did not contain a valid chain ID"
-            }
-        };
-        f.pad(msg)
-    }
-}
-
-impl Error for SequenceActionError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match &self.kind {
-            SequenceActionErrorKind::ChainId(e) => Some(e),
-        }
-    }
-}
-
-impl SequenceActionError {
-    fn chain_id_len(inner: IncorrectChainIdLength) -> Self {
-        Self {
-            kind: SequenceActionErrorKind::ChainId(inner),
-        }
-    }
-}
-
-#[derive(Debug)]
-enum SequenceActionErrorKind {
-    ChainId(IncorrectChainIdLength),
 }
 
 impl SequenceAction {
@@ -484,46 +451,47 @@ impl SequenceAction {
     }
 }
 
+#[derive(Debug)]
+pub struct SequenceActionError {
+    kind: SequenceActionErrorKind,
+}
+
+impl Display for SequenceActionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let msg = match &self.kind {
+            SequenceActionErrorKind::ChainId(_) => {
+                "`chain_id` field did not contain a valid chain ID"
+            }
+        };
+        f.pad(msg)
+    }
+}
+
+impl Error for SequenceActionError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match &self.kind {
+            SequenceActionErrorKind::ChainId(e) => Some(e),
+        }
+    }
+}
+
+impl SequenceActionError {
+    fn chain_id_len(inner: IncorrectChainIdLength) -> Self {
+        Self {
+            kind: SequenceActionErrorKind::ChainId(inner),
+        }
+    }
+}
+
+#[derive(Debug)]
+enum SequenceActionErrorKind {
+    ChainId(IncorrectChainIdLength),
+}
+
 #[derive(Clone, Debug)]
 pub struct TransferAction {
     pub to: Address,
     pub amount: u128,
-}
-
-#[derive(Debug)]
-pub struct TransferActionError {
-    kind: TransferActionErrorKind,
-}
-
-impl TransferActionError {
-    fn address(inner: IncorrectAddressLength) -> Self {
-        Self {
-            kind: TransferActionErrorKind::Address(inner),
-        }
-    }
-}
-
-impl Display for TransferActionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.kind {
-            TransferActionErrorKind::Address(_) => {
-                f.pad("`to` field did not contain a valid address")
-            }
-        }
-    }
-}
-
-impl Error for TransferActionError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match &self.kind {
-            TransferActionErrorKind::Address(e) => Some(e),
-        }
-    }
-}
-
-#[derive(Debug)]
-enum TransferActionErrorKind {
-    Address(IncorrectAddressLength),
 }
 
 impl TransferAction {
@@ -561,6 +529,42 @@ impl TransferAction {
             amount,
         })
     }
+}
+
+#[derive(Debug)]
+pub struct TransferActionError {
+    kind: TransferActionErrorKind,
+}
+
+impl TransferActionError {
+    fn address(inner: IncorrectAddressLength) -> Self {
+        Self {
+            kind: TransferActionErrorKind::Address(inner),
+        }
+    }
+}
+
+impl Display for TransferActionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.kind {
+            TransferActionErrorKind::Address(_) => {
+                f.pad("`to` field did not contain a valid address")
+            }
+        }
+    }
+}
+
+impl Error for TransferActionError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match &self.kind {
+            TransferActionErrorKind::Address(e) => Some(e),
+        }
+    }
+}
+
+#[derive(Debug)]
+enum TransferActionErrorKind {
+    Address(IncorrectAddressLength),
 }
 
 /// Indicates that the protobuf response contained an array field that was not 20 bytes long.
