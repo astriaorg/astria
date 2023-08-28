@@ -40,22 +40,22 @@ The Driver receives either `Events` ([link](https://github.com/astriaorg/astria/
 the Conductor's internal event loop on a timer. The variants for `Event` and
 `DriverCommand` that are relevant to the processing of blocks within the
 Conductor are:
-- `Event::GossipsubMessage(Message)` ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-gossipnet/src/network_stream.rs#L50))
-  - The `Message` value within the `GossipsubMessage` contains the Sequencer
-    block data from the Astria Sequencer value for an `Event` is received the
-    `Message` is then parsed to a `SequencerBlockData`
-    ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-sequencer-types/src/sequencer_block_data.rs#L39)).
-    Once transformed, the block data is validated to make sure that the
-    validator set correctly agreed on the block, the proposer for the Sequencer
-    and the block match, and that the previous commit hash in the block header
-    is correct.
-    The block is then passed to the Executor actor as a
-    `ExecutorCommand::BlockReceivedFromGossipNetwork` message which will
-    ultimately process and filter the block.
-- `DriverCommand::GetNewBlocks`([link](https://github.com/astriaorg/astria/blob/3c4e47dbe1818e4228691d6bfd2b2143a06f1a6e/crates/astria-conductor/src/driver.rs#L54))
-  - This message triggers the sending of a `ReaderCommand::GetNewBlocks` to the
-    Reader actor to initiate the pulling of data from the DA layer.
 
+- `Event::GossipsubMessage(Message)` ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-gossipnet/src/network_stream.rs#L50))
+    - The `Message` value within the `GossipsubMessage` contains the Sequencer
+      block data from the Astria Sequencer value for an `Event` is received the
+      `Message` is then parsed to a `SequencerBlockData`
+      ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-sequencer-types/src/sequencer_block_data.rs#L39)).
+      Once transformed, the block data is validated to make sure that the
+      validator set correctly agreed on the block, the proposer for the Sequencer
+      and the block match, and that the previous commit hash in the block header
+      is correct.
+      The block is then passed to the Executor actor as a
+      `ExecutorCommand::BlockReceivedFromGossipNetwork` message which will
+      ultimately process and filter the block.
+- `DriverCommand::GetNewBlocks`([link](https://github.com/astriaorg/astria/blob/3c4e47dbe1818e4228691d6bfd2b2143a06f1a6e/crates/astria-conductor/src/driver.rs#L54))
+    - This message triggers the sending of a `ReaderCommand::GetNewBlocks` to the
+      Reader actor to initiate the pulling of data from the DA layer.
 
 ### Reader
 
@@ -86,6 +86,7 @@ Each block is then transformed into a `SequencerBlockSubset`s and handed off to 
 - If a block comes from the DA layer, a "finalize block" message is sent to the rollup
 
 The `ExecutorCommand` ([link](https://github.com/astriaorg/astria/blob/eeffd2dc24ec14cbc7a3b3197ec2a3c099a78605/crates/astria-conductor/src/executor.rs#L81)) variants that the Executor receives are as follows:
+
 - `ExecutorCommand::BlockReceivedFromGossipNetwork` commands are received when data comes from the Sequencer.
 - `ExecutorCommand::BlockReceivedFromDataAvailability` commands are received
   when data comes from the DA layer.
@@ -114,11 +115,18 @@ The `chain_id` that Conductor uses as the rollup namespace is pulled from the ro
 
 When a Sequencer block is received from the gossip network the Conductor filters the transactions for its namespace and passes only those transaction, and the previous execution hash from the rollup to the execution layer. See the [astria execution api](https://github.com/astriaorg/astria/blob/main/specs/execution-api.md) for more details.
 
+### Data Validation
+
+Data is validated before being sent to the rollup for execution. Validation occurs in two places:
+
+- When blocks are received from the gossip network, the data is validated in Driver's `handle_network_event` using `BlockVerifier::validate_sequencer_block_data`
+- When blocks are fetched from the DA layer, the data is validated in Reader's `get_new_blocks` using `BlockVerifier::validate_signed_namespace_data` and `BlockVerifier::validate_rollup_data`
+
 ### Soft Commitments
 
 When a Sequencer block is received by the Conductor from the gossip network, it is assumed to be the `head` of the chain, thus its parent block is designated as a `soft` commitment. Data received in this manner has been validated by the Sequencer network, and rollups can trust that the data will not be reverted. This is also the primary moment in the data life cycle for Astria that transactions are sent to the rollup for execution.
 
-As mentioned in the [Transaction Filtering](#transaction-filtering) section above, the only information sent to the rollup is the list of ordered transactions and the previous execution hash from the rollup. It is the rollup node's responsibility to build their own specific block from the data provided and return the execution hash that resulted from adding the new block. 
+As mentioned in the [Transaction Filtering](#transaction-filtering) section above, the only information sent to the rollup is the list of ordered transactions and the previous execution hash from the rollup. It is the rollup node's responsibility to build their own specific block from the data provided and return the execution hash that resulted from adding the new block.
 
 The Conductor keeps a map of Sequencer block hashes to rollup execution hashes for later matching when blocks are seen in the DA layer.
 
