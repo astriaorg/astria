@@ -11,7 +11,6 @@ use base64::{
 use eyre::{
     bail,
     ensure,
-    eyre,
     WrapErr as _,
 };
 use proto::native::sequencer::v1alpha1::ChainId;
