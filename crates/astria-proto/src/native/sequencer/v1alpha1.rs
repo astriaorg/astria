@@ -351,6 +351,18 @@ impl Action {
     }
 }
 
+impl From<SequenceAction> for Action {
+    fn from(value: SequenceAction) -> Self {
+        Self::Sequence(value)
+    }
+}
+
+impl From<TransferAction> for Action {
+    fn from(value: TransferAction) -> Self {
+        Self::Transfer(value)
+    }
+}
+
 #[derive(Debug)]
 pub struct ActionError {
     kind: ActionErrorKind,

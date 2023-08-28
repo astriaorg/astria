@@ -248,10 +248,16 @@ impl App {
 #[cfg(test)]
 mod test {
     use ed25519_consensus::SigningKey;
-    use prost::Message as _;
-    use proto::native::sequencer::v1alpha1::{
-        Address,
-        ADDRESS_LEN,
+    use proto::{
+        native::sequencer::v1alpha1::{
+            Address,
+            ChainId,
+            SequenceAction,
+            TransferAction,
+            UnsignedTransaction,
+            ADDRESS_LEN,
+        },
+        Message as _,
     };
     use tendermint::{
         abci::types::CommitInfo,
@@ -272,21 +278,9 @@ mod test {
         accounts::{
             action::TRANSFER_FEE,
             state_ext::StateReadExt as _,
-            types::{
-                Balance,
-                Nonce,
-            },
-            Transfer,
         },
         genesis::Account,
-        sequence::{
-            action::calculate_fee,
-            Action as SequenceAction,
-        },
-        transaction::{
-            action::Action,
-            Unsigned,
-        },
+        sequence::calculate_fee,
     };
 
     /// attempts to decode the given hex string into an address.
@@ -418,13 +412,19 @@ mod test {
 
         let alice = address_from_hex_string(ALICE_ADDRESS);
         let bob = address_from_hex_string(BOB_ADDRESS);
-        let value = Balance::from(333_333);
-        let tx = Unsigned {
-            nonce: Nonce::from(0),
-            actions: vec![Action::TransferAction(Transfer::new(bob, value))],
+        let value = 333_333;
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                TransferAction {
+                    to: bob,
+                    amount: value,
+                }
+                .into(),
+            ],
         };
         let signed_tx = tx.into_signed(&alice_keypair);
-        let bytes = signed_tx.to_proto().encode_to_vec();
+        let bytes = signed_tx.into_proto().encode_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(
@@ -433,7 +433,7 @@ mod test {
         );
         assert_eq!(
             app.state.get_account_balance(alice).await.unwrap(),
-            Balance::from(10u128.pow(19)) - (value + TRANSFER_FEE),
+            10u128.pow(19) - (value + TRANSFER_FEE),
         );
         assert_eq!(app.state.get_account_nonce(bob).await.unwrap(), 0);
         assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 1);
@@ -458,13 +458,18 @@ mod test {
         let bob = address_from_hex_string(BOB_ADDRESS);
 
         // 0-value transfer; only fee is deducted from sender
-        let value = Balance::from(0);
-        let tx = Unsigned {
-            nonce: Nonce::from(0),
-            actions: vec![Action::TransferAction(Transfer::new(bob, value))],
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                TransferAction {
+                    to: bob,
+                    amount: 0,
+                }
+                .into(),
+            ],
         };
         let signed_tx = tx.into_signed(&keypair);
-        let bytes = signed_tx.to_proto().encode_to_vec();
+        let bytes = signed_tx.into_proto().encode_to_vec();
         let res = app
             .deliver_tx(&bytes)
             .await
@@ -498,23 +503,26 @@ mod test {
         let data = b"hello world".to_vec();
         let fee = calculate_fee(&data).unwrap();
 
-        let tx = Unsigned {
-            nonce: Nonce::from(0),
-            actions: vec![Action::SequenceAction(SequenceAction::new(
-                b"testchainid".to_vec(),
-                data,
-            ))],
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                SequenceAction {
+                    chain_id: ChainId::with_hashed_bytes(b"testchainid"),
+                    data,
+                }
+                .into(),
+            ],
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let bytes = signed_tx.to_proto().encode_to_vec();
+        let bytes = signed_tx.into_proto().encode_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 1);
 
         assert_eq!(
             app.state.get_account_balance(alice).await.unwrap(),
-            Balance::from(10u128.pow(19)) - fee,
+            10u128.pow(19) - fee,
         );
     }
 

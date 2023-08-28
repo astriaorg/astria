@@ -169,7 +169,7 @@ mod test {
             &hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap(),
         )
         .unwrap();
-        state.put_account_balance(address, 1000.into()).unwrap();
+        state.put_account_balance(address, 1000).unwrap();
         state.put_block_height(height);
 
         storage.commit(state).await.unwrap();
