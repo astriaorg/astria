@@ -117,3 +117,102 @@ impl SequencerBlockSubset {
         None
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::{
+        collections::hash_map::DefaultHasher,
+        hash::{
+            Hash,
+            Hasher,
+        },
+    };
+
+    use sha2::Digest as _;
+    use tendermint::{
+        block::Id as BlockId,
+        hash::Hash as THash,
+    };
+
+    use super::*;
+
+    fn hash(s: &[u8]) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(s);
+        hasher.finalize().to_vec()
+    }
+
+    fn get_test_block_subset() -> SequencerBlockSubset {
+        SequencerBlockSubset {
+            block_hash: hash(b"block1").try_into().unwrap(),
+            header: astria_sequencer_types::test_utils::default_header(),
+            rollup_transactions: vec![],
+        }
+    }
+
+    // build a vec of sequential blocks for testing
+    fn get_test_block_vec(num_blocks: u32) -> Vec<SequencerBlockSubset> {
+        // let namespace = Namespace::from_slice(b"test");
+
+        let mut block = get_test_block_subset();
+        block.rollup_transactions.push(b"test_transaction".to_vec());
+
+        let mut blocks = vec![];
+
+        block.header.height = 1_u32.into();
+        blocks.push(block);
+
+        for i in 2..=num_blocks {
+            let current_hash_string = String::from("block") + &i.to_string();
+            let prev_hash_string = String::from("block") + &(i - 1).to_string();
+            let current_byte_hash: &[u8] = &current_hash_string.into_bytes();
+            let prev_byte_hash: &[u8] = &prev_hash_string.into_bytes();
+
+            let mut block = get_test_block_subset();
+            block.block_hash = THash::try_from(hash(current_byte_hash)).unwrap();
+            block.rollup_transactions.push(b"test_transaction".to_vec());
+
+            block.header.height = i.into();
+            let block_id = BlockId {
+                hash: THash::try_from(hash(prev_byte_hash)).unwrap(),
+                ..Default::default()
+            };
+            block.header.last_block_id = Some(block_id);
+
+            blocks.push(block);
+        }
+        blocks
+    }
+
+    // test that SequencerBlockSubset can be sorted
+    #[tokio::test]
+    async fn sequencer_block_data_ordering() {
+        let blocks = get_test_block_vec(3);
+        let mut blocks_sorted = vec![];
+        // push in reverse order
+        blocks_sorted.push(blocks[2].clone());
+        blocks_sorted.push(blocks[1].clone());
+        blocks_sorted.push(blocks[0].clone());
+        blocks_sorted.sort();
+        assert_eq!(blocks_sorted, blocks);
+    }
+
+    // test that the invariant k1 == k2 -> hash(k1) == hash(k2) holds for SequencerBlockSubset
+    #[tokio::test]
+    async fn sequencer_block_data_hashing_invariant() {
+        let blocks = get_test_block_vec(1);
+        let block1a = blocks[0].clone();
+        let block1b = blocks[0].clone();
+        assert_eq!(block1a, block1b);
+
+        let mut hasher1 = DefaultHasher::new();
+        block1a.hash(&mut hasher1);
+        let block1a_hash = hasher1.finish();
+
+        let mut hasher2 = DefaultHasher::new();
+        block1b.hash(&mut hasher2);
+        let block1b_hash = hasher2.finish();
+
+        assert_eq!(block1a_hash, block1b_hash);
+    }
+}

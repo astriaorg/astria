@@ -214,20 +214,20 @@ impl Queue {
     ///
     /// Once a block is added to the pending_blocks in the queue, this function
     /// is called. It walks the pending blocks from lowest to highest height,
-    /// checking to see if there is a continues chain of blocks. For every block
+    /// checking to see if there is a continuous chain of blocks. For every block
     /// that is a descendant of the most recent "soft" block, and has a direct
     /// descendant, that block gets added to the `soft_blocks` BTreeMap and the
     /// head height is updated.
-    /// after, and including, the most recent "soft" block that has a direct child
     fn update_internal_state(&mut self) {
         // check if the block added connects blocks in the pending queue
         let mut heights: Vec<Height> = self.pending_blocks.keys().cloned().collect();
         heights.sort();
+        // walk the pending blocks starting from the head height
         for height in heights {
-            // if the very first height in the pending blocks is the head
+            // if the very first height in the pending blocks is the head height
             if height == self.head_height {
                 if let Some(pending_blocks) = self.pending_blocks.clone().get(&height) {
-                    // walk the pending blocks and check if any of them are a parent
+                    // walk the pending blocks at that height and check if any of them are a parent
                     for block in pending_blocks.values() {
                         if self.is_block_a_parent(block.clone()) {
                             self.soft_blocks.insert(height, block.clone());
@@ -238,7 +238,7 @@ impl Queue {
                         }
                     }
                 }
-            // if the first height in the queue is not the head just stop reorg
+            // if the first height in the queue is not the head height just stop reorg
             } else {
                 break;
             }
@@ -380,6 +380,8 @@ mod test {
         blocks
     }
 
+    // test that executing consecutive blocks works and also doesn't leave any
+    // of those blocks in the queue
     #[tokio::test]
     async fn insert_next_block() {
         let (alert_tx, _) = mpsc::unbounded_channel();
@@ -414,6 +416,8 @@ mod test {
         assert_eq!(queue_len(executor.block_queue.clone()), 0);
     }
 
+    // trying to execute a non-consecutive block doesn't change the execution
+    // state and that block is added to the queue, extending its length
     #[tokio::test]
     async fn insert_not_next_block() {
         let (alert_tx, _) = mpsc::unbounded_channel();
@@ -436,8 +440,18 @@ mod test {
         assert_eq!(expected_execution_hash, execution_block_hash);
         // because the block is out of order it is added to the queue
         assert_eq!(queue_len(executor.block_queue.clone()), 1);
+
+        // the out of order block is not executed so it's hash is not in the
+        // sequencer hash to execution hash map
+        let sequencer_block_hash = blocks[1].block_hash();
+        let missing_block_execution_hash = executor
+            .sequencer_hash_to_execution_hash
+            .get(&sequencer_block_hash);
+        assert_eq!(missing_block_execution_hash, None);
     }
 
+    // test that filling a gap in the queued blocks, executes all consecutive
+    // blocks and clears the queue
     #[tokio::test]
     async fn fill_block_gap() {
         let (alert_tx, _) = mpsc::unbounded_channel();
@@ -458,7 +472,9 @@ mod test {
         assert_eq!(expected_execution_hash, execution_block_hash_1);
         assert_eq!(queue_len(executor.block_queue.clone()), 1);
 
-        // executing a block like normal
+        // executing the skipped block
+        // the execution state is updated twice because multiple blocks are
+        // executed. see hash(hash()) on next line
         let expected_execution_hash = hash(&hash(&executor.execution_state));
         let expected_execution_hash_of_missing_block = hash(&executor.execution_state);
         let execution_block_hash_0 = executor
@@ -467,6 +483,8 @@ mod test {
             .unwrap()
             .expect("expected execution block hash");
         assert_eq!(expected_execution_hash, execution_block_hash_0);
+        // check that the execution hash of the missing block is still in the
+        // sequencer_hash_to_execution_hash map
         let sequencer_block_hash = blocks[0].block_hash();
         let missing_block_execution_hash = executor
             .sequencer_hash_to_execution_hash
@@ -480,7 +498,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn fill_multiple_block_gaps() {
+    async fn fill_multiple_block_gaps_in_reverse_order() {
         let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = Namespace::from_slice(b"test");
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
@@ -488,6 +506,8 @@ mod test {
             .unwrap();
 
         let blocks = get_test_block_vec(5);
+
+        let original_execution_state = executor.execution_state.clone();
 
         // add an out of order block to the queue
         let expected_execution_hash = executor.execution_state.clone();
@@ -509,45 +529,68 @@ mod test {
         assert_eq!(expected_execution_hash, execution_block_hash_3);
         assert_eq!(queue_len(executor.block_queue.clone()), 2);
 
-        // executing a block like normal
-        let expected_execution_hash = hash(&hash(&executor.execution_state));
-        let expected_execution_hash_of_missing_block = hash(&executor.execution_state);
-        let execution_block_hash_0 = executor
-            .execute_block(blocks[0].clone())
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        assert_eq!(expected_execution_hash, execution_block_hash_0);
-        let sequencer_block_hash = blocks[0].block_hash();
-        let missing_block_execution_hash = executor
-            .sequencer_hash_to_execution_hash
-            .get(&sequencer_block_hash)
-            .unwrap()
-            .clone();
-        assert_eq!(
-            missing_block_execution_hash,
-            expected_execution_hash_of_missing_block
-        );
-
-        // executing a block like normal
-        let expected_execution_hash = hash(&hash(&executor.execution_state));
-        let expected_execution_hash_of_missing_block = hash(&executor.execution_state);
+        // add a block that fills the second gaps but not the
+        // first. execution state shouldn't change yet
+        let expected_execution_hash = executor.execution_state.clone();
         let execution_block_hash_2 = executor
             .execute_block(blocks[2].clone())
             .await
             .unwrap()
             .expect("expected execution block hash");
         assert_eq!(expected_execution_hash, execution_block_hash_2);
-        let sequencer_block_hash = blocks[2].block_hash();
-        let missing_block_execution_hash = executor
+        assert_eq!(queue_len(executor.block_queue.clone()), 3);
+
+        // add the final missing block to the queue
+        // all the block in the queue should be executed and the queue should be cleared
+        let expected_execution_hash = hash(&hash(&hash(&hash(&executor.execution_state))));
+        let execution_block_hash_0 = executor
+            .execute_block(blocks[0].clone())
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        // the returned execution hash is the hash of the execution state after
+        // the most recent block is executed (block 4)
+        assert_eq!(expected_execution_hash, execution_block_hash_0);
+        assert_eq!(queue_len(executor.block_queue.clone()), 0);
+
+        // check that the execution hash of all the blocks are in the
+        // sequencer_hash_to_execution_hash map
+        // block 1 has an exeuction hash
+        let sequencer_block_hash = blocks[0].block_hash();
+        let expected_state = hash(&original_execution_state);
+        let block_execution_hash = executor
             .sequencer_hash_to_execution_hash
             .get(&sequencer_block_hash)
             .unwrap()
             .clone();
-        assert_eq!(
-            missing_block_execution_hash,
-            expected_execution_hash_of_missing_block
-        );
+        assert_eq!(expected_state, block_execution_hash);
+        // block 2 has an exeuction hash
+        let sequencer_block_hash = blocks[1].block_hash();
+        let expected_state = hash(&hash(&original_execution_state));
+        let block_execution_hash = executor
+            .sequencer_hash_to_execution_hash
+            .get(&sequencer_block_hash)
+            .unwrap()
+            .clone();
+        assert_eq!(expected_state, block_execution_hash);
+        // block 3 has an exeuction hash
+        let sequencer_block_hash = blocks[2].block_hash();
+        let expected_state = hash(&hash(&hash(&original_execution_state)));
+        let block_execution_hash = executor
+            .sequencer_hash_to_execution_hash
+            .get(&sequencer_block_hash)
+            .unwrap()
+            .clone();
+        assert_eq!(expected_state, block_execution_hash);
+        // block 4 has an exeuction hash
+        let sequencer_block_hash = blocks[3].block_hash();
+        let expected_state = hash(&hash(&hash(&hash(&original_execution_state))));
+        let block_execution_hash = executor
+            .sequencer_hash_to_execution_hash
+            .get(&sequencer_block_hash)
+            .unwrap()
+            .clone();
+        assert_eq!(expected_state, block_execution_hash);
     }
 
     #[tokio::test]
