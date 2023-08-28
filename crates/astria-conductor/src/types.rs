@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 
 use astria_sequencer_types::{
     Namespace,
+    RawSequencerBlockData,
     SequencerBlockData,
 };
 use tendermint::{
@@ -56,12 +57,22 @@ impl SequencerBlockSubset {
         data: SequencerBlockData,
         namespace: Namespace,
     ) -> Self {
-        let (block_hash, header, _, mut rollup_txs) = data.into_values();
-        let rollup_transactions = rollup_txs.remove(&namespace).unwrap_or_default();
+        // we don't need to verify the action tree root here,
+        // as [`SequencerBlockData`] would not be constructable
+        // if it was invalid
+        let RawSequencerBlockData {
+            block_hash,
+            header,
+            last_commit: _,
+            mut rollup_data,
+            ..
+        } = data.into_raw();
+
+        let our_rollup_data = rollup_data.remove(&namespace).unwrap_or_default();
         Self {
             block_hash,
             header,
-            rollup_transactions,
+            rollup_transactions: our_rollup_data.transactions,
         }
     }
 

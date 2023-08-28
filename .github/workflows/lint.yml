@@ -1,0 +1,62 @@
+name: Lint
+on: 
+  pull_request:
+  push:
+    branches:
+      - "main"
+
+jobs:
+  run_checker:
+    uses: ./.github/workflows/reusable-run-checker.yml
+
+  proto:
+    runs-on: ubuntu-latest
+    needs: run_checker
+    if: ${{ needs.run_checker.outputs.run_lint_proto }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.15.1"
+          github_token: ${{ github.token }}
+      - uses: bufbuild/buf-lint-action@v1
+        with:
+          input: "crates/astria-proto"
+      - uses: bufbuild/buf-breaking-action@v1
+        with:
+          # The 'main' branch of the GitHub repository that defines the module.
+          input: "crates/astria-proto/proto"
+          against: "https://github.com/astriaorg/astria.git#branch=main,ref=HEAD,subdir=crates/astria-proto/proto"
+
+  rust:
+    runs-on: ubuntu-22.04
+    needs: run_checker
+    if: ${{ needs.run_checker.outputs.run_lint_rust }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2023-08-18
+          components: rustfmt
+      - name: run rustfmt
+        # note: for local development usually `cargo +nightly fmt` is sufficient;
+        # or `cargo +nightly-2023-08-18 fmt` for specifying the exactly release.
+        run: cargo fmt --all -- --check
+
+  toml:
+    runs-on: ubuntu-22.04
+    needs: run_checker
+    if: ${{ needs.run_checker.outputs.run_lint_toml }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: download taplo
+        run: |
+          curl -fsSL https://github.com/tamasfe/taplo/releases/download/0.8.1/taplo-full-linux-x86_64.gz \
+          | gzip -d - \
+          | install -m 755 /dev/stdin /usr/local/bin/taplo
+      - name: run taplo
+        run: taplo format --check
+
+  lint:
+    needs: [proto, rust, toml]
+    uses: ./.github/workflows/reusable-success.yml
