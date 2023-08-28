@@ -152,10 +152,9 @@ impl<C: ExecutionClient> Executor<C> {
                     self.alert_tx.send(Alert::BlockReceivedFromGossipNetwork {
                         block_height: block.header().height.value(),
                     })?;
-                    let Some(block_subset) = SequencerBlockSubset::from_sequencer_block_data(
-                        *block,
-                        self.namespace,
-                    ) else {
+                    let Some(block_subset) =
+                        SequencerBlockSubset::from_sequencer_block_data(*block, self.namespace)
+                    else {
                         info!(namespace = %self.namespace, "block did not contain data for namespace; skiping");
                         continue;
                     };
