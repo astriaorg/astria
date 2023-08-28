@@ -71,16 +71,16 @@ pub(crate) fn generate_sequence_actions_commitment(
 /// Within an entry, actions are ordered by their transaction index within a block.
 fn group_sequence_actions_by_chain_id(
     txs: &[SignedTransaction],
-) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
+) -> BTreeMap<[u8; 32], Vec<Vec<u8>>> {
     let mut rollup_txs_map = BTreeMap::new();
 
     for tx in txs.iter() {
         tx.actions().iter().for_each(|action| {
             if let Some(action) = action.as_sequence() {
-                let txs_for_rollup: &mut Vec<Vec<u8>> = rollup_txs_map
-                    .entry(action.chain_id.to_vec())
-                    .or_insert(vec![]);
-                txs_for_rollup.push(action.data.to_vec());
+                rollup_txs_map
+                    .entry(action.chain_id.0)
+                    .and_modify(|datas: &mut Vec<Vec<u8>>| datas.push(action.data.clone()))
+                    .or_insert_with(|| vec![action.data.clone()]);
             }
         });
     }

@@ -48,7 +48,7 @@ pub(crate) async fn spawn(
         &conf.celestia_bearer_token,
         executor_tx,
         block_verifier,
-        Namespace::from_slice(conf.chain_id.as_bytes()),
+        Namespace::with_hashed_bytes(conf.chain_id.as_bytes()),
     )
     .await
     .wrap_err("failed to create Reader")?;

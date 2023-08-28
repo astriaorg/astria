@@ -12,13 +12,9 @@ use astria_celestia_jsonrpc_client::{
     Client,
     ErrorKind,
 };
-use astria_sequencer_types::{
-    serde::Base64Standard,
-    Namespace,
-    RawSequencerBlockData,
-    RollupData,
-    SequencerBlockData,
-    DEFAULT_NAMESPACE,
+use astria_proto::native::sequencer::v1alpha1::{
+    ChainId,
+    CHAIN_ID_LEN,
 };
 use astria_sequencer_validation::{
     generate_action_tree_leaves,
@@ -33,6 +29,14 @@ use ed25519_consensus::{
 use eyre::{
     ensure,
     WrapErr as _,
+};
+use sequencer_types::{
+    serde::Base64Standard,
+    Namespace,
+    RawSequencerBlockData,
+    RollupData,
+    SequencerBlockData,
+    DEFAULT_NAMESPACE,
 };
 use serde::{
     de::DeserializeOwned,
@@ -160,7 +164,8 @@ impl NamespaceData for SequencerNamespaceData {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RollupNamespaceData {
     pub(crate) block_hash: Hash,
-    pub(crate) chain_id: Vec<u8>,
+    #[serde(with = "sequencer_types::serde::chain_id")]
+    pub(crate) chain_id: ChainId,
     pub rollup_txs: Vec<Vec<u8>>,
     pub(crate) inclusion_proof: InclusionProof,
 }
@@ -554,10 +559,10 @@ fn filter_and_convert_rollup_data_blobs(
 
 fn btree_from_rollup_data(
     rollup_data: HashMap<Namespace, RollupData>,
-) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
+) -> BTreeMap<[u8; CHAIN_ID_LEN], Vec<Vec<u8>>> {
     let mut btree = BTreeMap::new();
     for (_, data) in rollup_data {
-        btree.insert(data.chain_id, data.transactions);
+        btree.insert(data.chain_id.0, data.transactions);
     }
     btree
 }
@@ -590,7 +595,7 @@ fn assemble_blobs_from_sequencer_block_data(
 
         let rollup_namespace_data = RollupNamespaceData {
             block_hash,
-            chain_id: chain_id.clone(),
+            chain_id: ChainId(chain_id),
             rollup_txs: transactions,
             inclusion_proof,
         };
@@ -601,7 +606,7 @@ fn assemble_blobs_from_sequencer_block_data(
             .to_bytes()
             .wrap_err("failed converting signed rollup data namespace data to bytes")?;
 
-        let namespace = Namespace::from_slice(&chain_id);
+        let namespace = Namespace::with_hashed_bytes(&chain_id);
         blobs.push(blob::Blob {
             namespace_id: *namespace,
             data: blob_data,

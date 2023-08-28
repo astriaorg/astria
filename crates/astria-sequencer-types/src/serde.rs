@@ -14,6 +14,23 @@ use crate::{
 
 base64_serde_type!(pub Base64Standard, base64::engine::general_purpose::STANDARD);
 
+pub mod chain_id {
+    use proto::native::sequencer::v1alpha1::ChainId;
+    use serde::{
+        Deserializer,
+        Serializer,
+    };
+    pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<ChainId, D::Error> {
+        use proto::native::sequencer::v1alpha1::CHAIN_ID_LEN;
+        let inner: [u8; CHAIN_ID_LEN] = hex::serde::deserialize(de)?;
+        Ok(ChainId(inner))
+    }
+
+    pub fn serialize<S: Serializer>(val: &ChainId, se: S) -> Result<S::Ok, S::Error> {
+        hex::serde::serialize(val, se)
+    }
+}
+
 pub struct NamespaceToTxCount<'a>(pub(crate) &'a HashMap<Namespace, RollupData>);
 
 impl<'a> NamespaceToTxCount<'a> {

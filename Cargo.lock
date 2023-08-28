@@ -561,7 +561,7 @@ name = "astria-sequencer-types"
 version = "0.1.0"
 dependencies = [
  "astria-celestia-jsonrpc-client",
- "astria-sequencer",
+ "astria-proto",
  "astria-sequencer-validation",
  "base64 0.21.2",
  "base64-serde",

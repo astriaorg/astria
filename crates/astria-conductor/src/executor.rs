@@ -55,7 +55,7 @@ pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinH
     let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url).await?;
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
-        Namespace::from_slice(conf.chain_id.as_bytes()),
+        Namespace::with_hashed_bytes(conf.chain_id.as_bytes()),
         alert_tx,
     )
     .await?;
@@ -152,13 +152,14 @@ impl<C: ExecutionClient> Executor<C> {
                     self.alert_tx.send(Alert::BlockReceivedFromGossipNetwork {
                         block_height: block.header().height.value(),
                     })?;
-                    if let Err(e) = self
-                        .execute_block(SequencerBlockSubset::from_sequencer_block_data(
-                            *block,
-                            self.namespace,
-                        ))
-                        .await
-                    {
+                    let Some(block_subset) = SequencerBlockSubset::from_sequencer_block_data(
+                        *block,
+                        self.namespace,
+                    ) else {
+                        info!(namespace = %self.namespace, "block did not contain data for namespace; skiping");
+                        continue;
+                    };
+                    if let Err(e) = self.execute_block(block_subset).await {
                         error!("failed to execute block: {e:?}");
                     }
                 }
