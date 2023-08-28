@@ -465,6 +465,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "astria-proto",
+ "astria-sequencer-validation",
  "astria-telemetry",
  "async-trait",
  "borsh",
@@ -520,6 +521,7 @@ dependencies = [
  "astria-proto",
  "astria-sequencer",
  "astria-sequencer-types",
+ "astria-sequencer-validation",
  "astria-telemetry",
  "axum",
  "backon",
@@ -561,8 +563,10 @@ version = "0.1.0"
 dependencies = [
  "astria-celestia-jsonrpc-client",
  "astria-sequencer",
+ "astria-sequencer-validation",
  "base64 0.21.2",
  "base64-serde",
+ "ct-merkle",
  "eyre",
  "hex",
  "serde",
@@ -581,6 +585,20 @@ dependencies = [
  "eyre",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "astria-sequencer-validation"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "ct-merkle",
+ "eyre",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.7",
+ "tendermint",
 ]
 
 [[package]]
@@ -1584,6 +1602,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1a816186fa68d9e426e3cb4ae4dff1fcd8e4a2c34b781bf7a822574a0d0aac8"
 dependencies = [
  "sct 0.6.1",
+]
+
+[[package]]
+name = "ct-merkle"
+version = "0.1.0"
+source = "git+https://github.com/astriaorg/ct-merkle.git?rev=58f692640be65ef42bc14f69e52a9e836f407a33#58f692640be65ef42bc14f69e52a9e836f407a33"
+dependencies = [
+ "digest 0.10.7",
+ "generic-array",
+ "serde",
+ "subtle",
 ]
 
 [[package]]
@@ -2743,6 +2772,7 @@ version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
 dependencies = [
+ "serde",
  "typenum",
  "version_check",
  "zeroize",

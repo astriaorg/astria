@@ -7,4 +7,8 @@ pub use namespace::{
     Namespace,
     DEFAULT_NAMESPACE,
 };
-pub use sequencer_block_data::SequencerBlockData;
+pub use sequencer_block_data::{
+    RawSequencerBlockData,
+    RollupData,
+    SequencerBlockData,
+};

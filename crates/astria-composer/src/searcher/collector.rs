@@ -32,6 +32,14 @@ pub(super) struct Transaction {
     pub(super) inner: ethers::types::Transaction,
 }
 
+/// Collects transactions submitted to a rollup node and passes them downstream for further
+/// processing.
+///
+/// Collector is a sub-actor in the Searcher module that interfaces with
+/// individual rollups.
+/// It is responsible for fetching pending transactions submitted to the rollup nodes and then
+/// passing them downstream for the searcher to process. Thus, a searcher can have multiple
+/// collectors running at the same time funneling data from multiple rollup nodes.
 #[derive(Debug)]
 pub(super) struct Collector {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
@@ -41,7 +49,7 @@ pub(super) struct Collector {
     client: EthClient,
     // The channel on which the collector sends new txs to the searcher.
     searcher_channel: Sender<Transaction>,
-    // The status of this collector.
+    // The status of this collector instance.
     status: watch::Sender<Status>,
 }
 
@@ -63,6 +71,7 @@ impl Status {
 }
 
 impl Collector {
+    /// Initializes a new collector instance
     pub(super) async fn new(
         chain_id: String,
         url: String,
@@ -85,6 +94,8 @@ impl Collector {
         self.status.subscribe()
     }
 
+    /// Starts the collector instance and runs until failure or until
+    /// explicitly closed
     #[instrument(skip_all, fields(chain_id = self.chain_id))]
     pub(super) async fn run_until_stopped(self) -> eyre::Result<()> {
         use std::time::Duration;
@@ -198,6 +209,7 @@ impl Collector {
 /// A thin wrapper around [`Provider<Ws>`] to add timeouts.
 ///
 /// Currently only provides a timeout around for `get_net_version`.
+/// Also currently only with Geth nodes
 /// TODO(https://github.com/astriaorg/astria/issues/216): add timeouts for
 /// `subscribe_full_pendings_txs` (more complex because it's a stream).
 #[derive(Clone, Debug)]
@@ -206,6 +218,7 @@ struct EthClient {
 }
 
 impl EthClient {
+    /// Establishes a connection given a url
     async fn connect(url: &str) -> Result<Self, ProviderError> {
         let inner = Provider::connect(url).await?;
         Ok(Self {

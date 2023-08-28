@@ -51,7 +51,7 @@ impl Rollup {
         });
         let caps = ROLLUP_RE.captures(from).ok_or_else(ParseError::new)?;
         // Note that this will panic on invalid indices. However, these
-        // acccess will always be correct because the regex will only
+        // accesses will always be correct because the regex will only
         // match when these capture groups match.
         let chain_id = caps["chain_id"].to_string().to_lowercase();
         let url = caps["url"].to_string();
