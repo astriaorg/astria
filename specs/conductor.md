@@ -29,11 +29,11 @@ The architecture of the Conductor is inspired by the [Actor Model](https://en.wi
 
 ### Driver
 
-- Top level coordinator that runs and manages all the sub-components necessary for the Conductor
+- Top level coordinator that runs and manages all the subcomponents necessary for the Conductor
 - Creates the `Reader` and `Executor` actors on startup
 - Creates a gossip network for receiving data from the Sequencer network
     - The gossip network uses the [astria-gossipnet](https://github.com/astriaorg/astria/tree/main/crates/astria-gossipnet)
-- Runs an event loop that handles receiving `DriverCommand`s and messages from the gossip network
+- Runs an event loop that handles receiving `DriverCommand`s from other actors as well as messages from the gossip network
 - Validates and passes Sequencer blocks received from the gossip network to the `Executor`
 
 The Driver receives either `Events` ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-gossipnet/src/network_stream.rs#L39)) from the network, or `DriverCommand`s ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-conductor/src/driver.rs#L54)) from
@@ -41,7 +41,7 @@ the Conductor's internal event loop on a timer. The variants for `Event` and
 `DriverCommand` that are relevant to the processing of blocks within the
 Conductor are:
 - `Event::GossipsubMessage(Message)` ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-gossipnet/src/network_stream.rs#L50))
-  - The `Message` value within the `GossipsubMessage` contains the sequencer
+  - The `Message` value within the `GossipsubMessage` contains the Sequencer
     block data from the Astria Sequencer value for an `Event` is received the
     `Message` is then parsed to a `SequencerBlockData`
     ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-sequencer-types/src/sequencer_block_data.rs#L39)).
@@ -61,7 +61,7 @@ Conductor are:
 
 - Creates a `CelestiaClient` using the Celestia client implementation from `astria-sequencer-relayer` to communicate with the DA layer
 - Creates a `TendermintClient` which is used when validating blocks from the DA
-  layer against the sequencer data
+  layer against the Sequencer data
 - Runs an event loop that handles receiving `ReaderCommand`s that drive data retrieval from the DA layer
 - Passes the blocks it receives to the `Executor`
 
@@ -71,8 +71,8 @@ message from the driver. The `CelestiaClient`
 ([link](https://github.com/astriaorg/astria/blob/3c4e47dbe1818e4228691d6bfd2b2143a06f1a6e/crates/astria-sequencer-relayer/src/data_availability.rs#L244))
 is then called from the Reader to get data from the Celestia DA. This data is
 then parsed from a Celestia blob into individual blocks, each block is then validated to check that the validator set is correct and the
-proposer for the block matches the proposer of the sequencer, and that the previous commit of the current block is correct.
-Each block is then transformed into a `SequencerBlockSubset`s and and handed off to the Executor as a
+proposer for the block matches the proposer of the Sequencer, and that the previous commit of the current block is correct.
+Each block is then transformed into a `SequencerBlockSubset`s and handed off to the Executor as a
 `ExecutorCommand::BlockReceivedFromDataAvailability` for transaction filtering, and passing off to the rollup for execution.
 
 ### Executor
@@ -86,22 +86,22 @@ Each block is then transformed into a `SequencerBlockSubset`s and and handed off
 - If a block comes from the DA layer, a "finalize block" message is sent to the rollup
 
 The `ExecutorCommand` ([link](https://github.com/astriaorg/astria/blob/eeffd2dc24ec14cbc7a3b3197ec2a3c099a78605/crates/astria-conductor/src/executor.rs#L81)) variants that the Executor receives are as follows:
-- `ExecutorCommand::BlockReceivedFromGossipNetwork` commands are received when data comes from the sequencer.
+- `ExecutorCommand::BlockReceivedFromGossipNetwork` commands are received when data comes from the Sequencer.
 - `ExecutorCommand::BlockReceivedFromDataAvailability` commands are received
   when data comes from the DA layer.
 
 When blocks are received from the gossip network, their transactions are
 filtered based on the rollup's namespace, then are sent to the rollup for
 execution. The execution hash that is returned from the rollup is then stored in
-a hash map for sequencer block hash -> execution hash.
+a hash map for Sequencer block hash -> execution hash.
 
-When blocks are received from the DA layer, the hash map of sequencer block hash
+When blocks are received from the DA layer, the hash map of Sequencer block hash
 -> execution hash is checked to see if the block has already passed through the
 Conductor from the Sequencer. If the block isn't seen, it is filtered and sent
 to the rollup for execution exactly the same way the transactions are sent when
-received from the sequencer, then message to finalize the block is sent.
+received from the Sequencer, then a message to finalize the block is sent.
 If the block is already present in the hash map, just the finalize block message
-is sent. After being finalized, the sequencer block hash -> execution hash entry
+is sent. After being finalized, the Sequencer block hash -> execution hash entry
 in the hash map is deleted.
 
 ## Execution Data
@@ -116,7 +116,7 @@ When a Sequencer block is received from the gossip network the Conductor filters
 
 ### Soft Commitments
 
-When a sequencer block is received by the Conductor from the gossip network, it is assumed to be the `head` of the chain, thus its parent block is designated as a `soft` commitment. Data received in this manner has been validated by the sequencer network, and rollups can trust that the data will not be reverted. This is also the primary moment in the data life cycle for Astria that transactions are sent to the rollup for execution.
+When a Sequencer block is received by the Conductor from the gossip network, it is assumed to be the `head` of the chain, thus its parent block is designated as a `soft` commitment. Data received in this manner has been validated by the Sequencer network, and rollups can trust that the data will not be reverted. This is also the primary moment in the data life cycle for Astria that transactions are sent to the rollup for execution.
 
 As mentioned in the [Transaction Filtering](#transaction-filtering) section above, the only information sent to the rollup is the list of ordered transactions and the previous execution hash from the rollup. It is the rollup node's responsibility to build their own specific block from the data provided and return the execution hash that resulted from adding the new block. 
 
@@ -124,6 +124,6 @@ The Conductor keeps a map of Sequencer block hashes to rollup execution hashes f
 
 ### Firm Commitments
 
-When the Conductor pulls data from the DA, it again filters that data by namespace and compares the block hashes seen there with those of the already executed blocks stored in the map mentioned at the end of the [Soft Commitments](#soft-commitments) section. For each block seen in DA that matches an executed block, a `FinalizeBlock` message is sent to the rollup to set those blocks to `final` and the entries in the execution hash to sequencer block hash map are cleared.
+When the Conductor pulls data from the DA, it again filters that data by namespace and compares the block hashes seen there with those of the already executed blocks stored in the map mentioned at the end of the [Soft Commitments](#soft-commitments) section. For each block seen in DA that matches an executed block, a `FinalizeBlock` message is sent to the rollup to set those blocks to `final` and the entries in the execution hash to Sequencer block hash map are cleared.
 
 If blocks are seen in DA data that haven't been seen via gossip, the transactions in those blocks are filtered for the namespace and sent to the rollup for execution as well as being set to final.
