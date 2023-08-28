@@ -114,7 +114,7 @@ impl Queue {
             self.soft_blocks.clear();
             let highest_soft_block = soft_blocks[soft_blocks.len() - 1].clone();
             self.head_height = highest_soft_block.height().increment();
-            self.remove_data_blow_height(self.head_height);
+            self.remove_data_below_height(self.head_height);
             Some(soft_blocks)
         } else {
             None
@@ -133,7 +133,7 @@ impl Queue {
             }
             let most_recent_height = output_blocks[output_blocks.len() - 1].height();
             self.head_height = most_recent_height.increment();
-            self.remove_data_blow_height(self.head_height);
+            self.remove_data_below_height(self.head_height);
             return Some(output_blocks);
         }
         None
@@ -233,7 +233,7 @@ impl Queue {
                             self.soft_blocks.insert(height, block.clone());
                             self.most_recent_soft_hash = block.block_hash();
                             self.head_height = height.increment();
-                            self.remove_data_blow_height(self.head_height);
+                            self.remove_data_below_height(self.head_height);
                             break;
                         }
                     }
