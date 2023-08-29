@@ -74,7 +74,7 @@ fn group_sequence_actions_by_chain_id(
 ) -> BTreeMap<[u8; 32], Vec<Vec<u8>>> {
     let mut rollup_txs_map = BTreeMap::new();
 
-    for tx in txs.iter() {
+    for tx in txs {
         tx.actions().iter().for_each(|action| {
             if let Some(action) = action.as_sequence() {
                 rollup_txs_map

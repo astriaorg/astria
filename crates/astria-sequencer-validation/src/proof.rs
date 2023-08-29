@@ -41,13 +41,10 @@ impl<T: AsRef<[u8]>> MerkleTree<T> {
         MerkleTree(tree)
     }
 
-    /// Returns the root hash of the merkle tree.
+    /// Returns the root hash of the merkle tree as a fixed sized array of 32 bytes.
     #[must_use]
     pub fn root(&self) -> [u8; 32] {
-        sha2::digest::Output::<Sha256>::from_slice(self.0.root().as_bytes())
-            .as_slice()
-            .try_into()
-            .expect("sha256 output is always 32 bytes")
+        (*self.0.root().as_bytes()).into()
     }
 
     /// Returns the inclusion proof for the leaf at the given index.

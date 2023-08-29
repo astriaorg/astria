@@ -299,15 +299,15 @@ mod test {
         vec![
             Account {
                 address: address_from_hex_string(ALICE_ADDRESS),
-                balance: 10u128.pow(19).into(),
+                balance: 10u128.pow(19),
             },
             Account {
                 address: address_from_hex_string(BOB_ADDRESS),
-                balance: 10u128.pow(19).into(),
+                balance: 10u128.pow(19),
             },
             Account {
                 address: address_from_hex_string(CAROL_ADDRESS),
-                balance: 10u128.pow(19).into(),
+                balance: 10u128.pow(19),
             },
         ]
     }
