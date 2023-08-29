@@ -423,7 +423,7 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
         nonce: 1,
         actions: vec![
             SequenceAction {
-                chain_id: ChainId::with_hashed_bytes(&[b"test_chain_id_", &*suffix].concat()),
+                chain_id: ChainId::with_hashed_bytes([b"test_chain_id_", &*suffix].concat()),
                 data: [b"hello_world_id_", &*suffix].concat(),
             }
             .into(),
@@ -434,7 +434,7 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
     .encode_to_vec();
     let action_tree =
         astria_sequencer_validation::MerkleTree::from_leaves(vec![signed_tx_bytes.clone()]);
-    let data = vec![action_tree.root().to_vec(), signed_tx_bytes.clone()];
+    let data = vec![action_tree.root().to_vec(), signed_tx_bytes];
     let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
         &data,
     )));
