@@ -12,10 +12,6 @@ use astria_celestia_jsonrpc_client::{
     Client,
     ErrorKind,
 };
-use astria_proto::native::sequencer::v1alpha1::{
-    ChainId,
-    CHAIN_ID_LEN,
-};
 use astria_sequencer_validation::{
     generate_action_tree_leaves,
     InclusionProof,
@@ -29,6 +25,10 @@ use ed25519_consensus::{
 use eyre::{
     ensure,
     WrapErr as _,
+};
+use proto::native::sequencer::v1alpha1::{
+    ChainId,
+    CHAIN_ID_LEN,
 };
 use sequencer_types::{
     serde::Base64Standard,
