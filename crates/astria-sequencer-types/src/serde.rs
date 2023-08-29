@@ -15,17 +15,32 @@ use crate::{
 base64_serde_type!(pub Base64Standard, base64::engine::general_purpose::STANDARD);
 
 pub mod chain_id {
+    //! Helper functions to serialize and deserialize [`ChainId`].
+    //!
+    //! To be used in `#[serde(with = "crate::serde::chain_id")]` attributes
+    //! when deriving `Deserialize` and `Serialize` on types containing a `ChainId`.
     use proto::native::sequencer::v1alpha1::ChainId;
     use serde::{
         Deserializer,
         Serializer,
     };
+    /// Utility to deserialize bytes into a [`ChainId`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the same error as [`hex::serde::deserialize`] if the input was not
+    /// hex formatted or did not encode 32 bytes.
     pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<ChainId, D::Error> {
         use proto::native::sequencer::v1alpha1::CHAIN_ID_LEN;
         let inner: [u8; CHAIN_ID_LEN] = hex::serde::deserialize(de)?;
         Ok(ChainId(inner))
     }
 
+    /// Utility to serialize [`ChainId`] to a hex encoded byte string.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same error as [`hex::serde::serialize`].
     pub fn serialize<S: Serializer>(val: &ChainId, se: S) -> Result<S::Ok, S::Error> {
         hex::serde::serialize(val, se)
     }
