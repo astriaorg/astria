@@ -518,7 +518,6 @@ dependencies = [
  "astria-celestia-jsonrpc-client",
  "astria-gossipnet",
  "astria-proto",
- "astria-sequencer",
  "astria-sequencer-types",
  "astria-sequencer-validation",
  "astria-telemetry",
