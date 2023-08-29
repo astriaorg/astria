@@ -54,4 +54,3 @@ once_cell = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 wiremock = { workspace = true }
-astria-sequencer = { path = "../astria-sequencer" }
