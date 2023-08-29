@@ -238,7 +238,8 @@ impl UnsignedTransaction {
 
     /// Attempt to convert from a raw, unchecked protobuf [`raw::UnsignedTransaction`].
     ///
-    /// Note that a contained raw action is dropped if unset.
+    /// Note that actions contained in the transactions that are not set are dropped
+    /// quietly.
     ///
     /// # Errors
     ///
