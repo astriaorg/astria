@@ -18,11 +18,11 @@ use tracing::{
     instrument,
 };
 
-/// Module-private refinement type to read and write a u32 from rocksdb.
+/// Newtype wrapper to read and write a u32 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Nonce(u32);
 
-/// Module-private Refinement type to read and write a u128 from rocksdb.
+/// Newtype wrapper to read and write a u128 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Balance(u128);
 
