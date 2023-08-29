@@ -82,10 +82,10 @@ impl Error for SignedTransactionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
             SignedTransactionErrorKind::UnsetTransaction => None,
-            SignedTransactionErrorKind::Signature(e) => Some(e),
+            SignedTransactionErrorKind::Signature(e)
+            | SignedTransactionErrorKind::VerificationKey(e)
+            | SignedTransactionErrorKind::Verification(e) => Some(e),
             SignedTransactionErrorKind::Transaction(e) => Some(e),
-            SignedTransactionErrorKind::VerificationKey(e) => Some(e),
-            SignedTransactionErrorKind::Verification(e) => Some(e),
         }
     }
 }
@@ -102,7 +102,7 @@ enum SignedTransactionErrorKind {
 /// A signed transaction.
 ///
 /// [`SignedTransaction`] contains an [`UnsignedTransaction`] together
-/// with its signature and public_key.
+/// with its signature and public key.
 #[derive(Clone, Debug)]
 pub struct SignedTransaction {
     signature: Signature,
@@ -111,6 +111,7 @@ pub struct SignedTransaction {
 }
 
 impl SignedTransaction {
+    #[must_use]
     pub fn into_proto(self) -> raw::SignedTransaction {
         let Self {
             signature,
@@ -124,6 +125,15 @@ impl SignedTransaction {
         }
     }
 
+    /// Attempt to convert from a raw, unchecked protobuf [`raw::SignedTransaction`].
+    ///
+    /// # Errors
+    ///
+    /// Will return an error if signature or verification key cannot be reconstructed from the bytes
+    /// contained in the raw input, if the transaction field was empty (mmeaning it was mapped to
+    /// `None`), if the inner transaction could not be verified given the key and signature, or
+    /// if the native [`UnsignedTransaction`] could not be created from the inner raw
+    /// [`raw::UnsignedTransaction`].
     pub fn try_from_proto(proto: raw::SignedTransaction) -> Result<Self, SignedTransactionError> {
         use crate::Message as _;
         let raw::SignedTransaction {
@@ -151,6 +161,7 @@ impl SignedTransaction {
         })
     }
 
+    #[must_use]
     pub fn into_parts(self) -> (Signature, VerificationKey, UnsignedTransaction) {
         let Self {
             signature,
@@ -160,18 +171,22 @@ impl SignedTransaction {
         (signature, verification_key, transaction)
     }
 
+    #[must_use]
     pub fn actions(&self) -> &[Action] {
         &self.transaction.actions
     }
 
+    #[must_use]
     pub fn signature(&self) -> Signature {
         self.signature
     }
 
+    #[must_use]
     pub fn verification_key(&self) -> VerificationKey {
         self.verification_key
     }
 
+    #[must_use]
     pub fn unsigned_transaction(&self) -> &UnsignedTransaction {
         &self.transaction
     }
@@ -184,6 +199,7 @@ pub struct UnsignedTransaction {
 }
 
 impl UnsignedTransaction {
+    #[must_use]
     pub fn into_signed(self, signing_key: &SigningKey) -> SignedTransaction {
         use crate::Message as _;
         let bytes = self.to_proto().encode_to_vec();
@@ -213,13 +229,21 @@ impl UnsignedTransaction {
             nonce,
             actions,
         } = self;
-        let actions = actions.into_iter().map(Action::to_proto).collect();
+        let actions = actions.iter().map(Action::to_proto).collect();
         raw::UnsignedTransaction {
             nonce: *nonce,
             actions,
         }
     }
 
+    /// Attempt to convert from a raw, unchecked protobuf [`raw::UnsignedTransaction`].
+    ///
+    /// Note that a contained raw action is dropped if unset.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if one of the inner raw actions could not be converted to a native
+    /// [`Action`].
     pub fn try_from_proto(
         proto: raw::UnsignedTransaction,
     ) -> Result<Self, UnsignedTransactionError> {
@@ -295,6 +319,7 @@ pub enum Action {
 }
 
 impl Action {
+    #[must_use]
     pub fn into_proto(self) -> raw::Action {
         use raw::action::Value;
         let kind = match self {
@@ -306,6 +331,7 @@ impl Action {
         }
     }
 
+    #[must_use]
     pub fn to_proto(&self) -> raw::Action {
         use raw::action::Value;
         let kind = match self {
@@ -317,6 +343,12 @@ impl Action {
         }
     }
 
+    /// Attempt to convert from a raw, unchecked protobuf [`raw::Action`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if conversion of one of the inner raw action variants
+    /// to a native action ([`SequenceAction`] or [`TransaferAction`]) fails.
     pub fn try_from_proto(proto: raw::Action) -> Result<Self, ActionError> {
         use raw::action::Value;
         let raw::Action {
@@ -336,6 +368,7 @@ impl Action {
         Ok(action)
     }
 
+    #[must_use]
     pub fn as_sequence(&self) -> Option<&SequenceAction> {
         let Self::Sequence(sequence_action) = self else {
             return None;
@@ -343,6 +376,7 @@ impl Action {
         Some(sequence_action)
     }
 
+    #[must_use]
     pub fn as_transfer(&self) -> Option<&TransferAction> {
         let Self::Transfer(transfer_action) = self else {
             return None;
@@ -427,6 +461,7 @@ pub struct SequenceAction {
 }
 
 impl SequenceAction {
+    #[must_use]
     pub fn into_proto(self) -> raw::SequenceAction {
         let Self {
             chain_id,
@@ -438,6 +473,7 @@ impl SequenceAction {
         }
     }
 
+    #[must_use]
     pub fn to_proto(&self) -> raw::SequenceAction {
         let Self {
             chain_id,
@@ -449,6 +485,12 @@ impl SequenceAction {
         }
     }
 
+    /// Convert from a raw, unchecked protobuf [`raw::SequenceAction`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the raw action's `chain_id` did not have the expected
+    /// length.
     pub fn try_from_proto(proto: raw::SequenceAction) -> Result<Self, SequenceActionError> {
         let raw::SequenceAction {
             chain_id,
@@ -507,6 +549,7 @@ pub struct TransferAction {
 }
 
 impl TransferAction {
+    #[must_use]
     pub fn into_proto(self) -> raw::TransferAction {
         let Self {
             to,
@@ -518,6 +561,7 @@ impl TransferAction {
         }
     }
 
+    #[must_use]
     pub fn to_proto(&self) -> raw::TransferAction {
         let Self {
             to,
@@ -529,6 +573,12 @@ impl TransferAction {
         }
     }
 
+    /// Convert from a raw, unchecked protobuf [`raw::TransferAction`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the raw action's `to` address did not have the expected
+    /// length.
     pub fn try_from_proto(proto: raw::TransferAction) -> Result<Self, TransferActionError> {
         let raw::TransferAction {
             to,
@@ -597,6 +647,7 @@ impl Error for IncorrectChainIdLength {}
 pub struct ChainId(pub [u8; CHAIN_ID_LEN]);
 
 impl ChainId {
+    #[must_use]
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_vec()
     }
@@ -645,7 +696,7 @@ impl From<[u8; CHAIN_ID_LEN]> for ChainId {
 
 impl Display for ChainId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for byte in self.0.into_iter() {
+        for byte in self.0 {
             write!(f, "{byte:02x}")?;
         }
         Ok(())
@@ -656,6 +707,7 @@ impl Display for ChainId {
 pub struct Address(pub [u8; ADDRESS_LEN]);
 
 impl Address {
+    #[must_use]
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_vec()
     }
@@ -664,6 +716,9 @@ impl Address {
     ///
     /// The first 20 bytes of the sha256 hash of the verification key is the address.
     #[must_use]
+    // Silence the clippy lint because the function body asserts that the panic
+    // cannot happen.
+    #[allow(clippy::missing_panics_doc)]
     pub fn from_verification_key(public_key: ed25519_consensus::VerificationKey) -> Self {
         use sha2::Digest as _;
         /// this ensures that `ADDRESS_LEN` is never accidentally changed to a value
@@ -709,7 +764,7 @@ impl From<[u8; ADDRESS_LEN]> for Address {
 
 impl Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for byte in self.0.into_iter() {
+        for byte in self.0 {
             write!(f, "{byte:02x}")?;
         }
         Ok(())
