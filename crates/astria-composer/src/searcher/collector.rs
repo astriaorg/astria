@@ -126,7 +126,7 @@ impl Collector {
             match searcher_channel
                 .send_timeout(
                     Transaction {
-                        chain_id: chain_id.clone(),
+                        chain_id,
                         inner: tx,
                     },
                     Duration::from_millis(500),
