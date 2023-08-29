@@ -216,7 +216,7 @@ impl SequencerBlockData {
 
             let raw_tx = raw::SignedTransaction::decode(&**tx)
                 .wrap_err("failed decoding bytes to protobuf signed transaction")?;
-            let tx = SignedTransaction::try_from_proto(raw_tx).wrap_err(
+            let tx = SignedTransaction::try_from_raw(raw_tx).wrap_err(
                 "failed constructing native signed transaction from raw protobuf signed \
                  transaction",
             )?;

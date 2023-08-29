@@ -314,7 +314,7 @@ pub trait SequencerClientExt: Client {
         tx: SignedTransaction,
     ) -> Result<tx_sync::Response, Error> {
         use proto::Message as _;
-        let tx_bytes = tx.into_proto().encode_to_vec();
+        let tx_bytes = tx.into_raw().encode_to_vec();
         self.broadcast_tx_sync(tx_bytes)
             .await
             .map_err(|e| Error::tendermint_rpc("broadcast_tx_sync", e))
@@ -333,7 +333,7 @@ pub trait SequencerClientExt: Client {
         tx: SignedTransaction,
     ) -> Result<tx_commit::Response, Error> {
         use proto::Message as _;
-        let tx_bytes = tx.into_proto().encode_to_vec();
+        let tx_bytes = tx.into_raw().encode_to_vec();
         self.broadcast_tx_commit(tx_bytes)
             .await
             .map_err(|e| Error::tendermint_rpc("broadcast_tx_comit", e))

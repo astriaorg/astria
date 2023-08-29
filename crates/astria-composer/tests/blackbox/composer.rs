@@ -76,7 +76,7 @@ async fn mount_broadcast_tx_sync_mock(
                 .expect("can't deserialize to JSONRPC wrapped tx_sync::Request");
         let raw_signed_tx = raw::SignedTransaction::decode(&*wrapped_tx_sync_req.params().tx)
             .expect("can't deserialize signed sequencer tx from broadcast jsonrpc request");
-        let signed_tx = SignedTransaction::try_from_proto(raw_signed_tx)
+        let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
             .expect("can't convert raw signed tx to checked signed tx");
         debug!(?signed_tx, "sequencer mock received signed transaction");
         let Some(sent_action) = signed_tx.actions().get(0) else {

@@ -155,7 +155,7 @@ async fn get_latest_nonce() {
         .get_latest_nonce(ALICE_ADDRESS)
         .await
         .unwrap()
-        .into_proto();
+        .into_raw();
     assert_eq!(expected_response, actual_response);
 }
 
@@ -178,7 +178,7 @@ async fn get_latest_balance() {
         .get_latest_balance(ALICE_ADDRESS)
         .await
         .unwrap()
-        .into_proto();
+        .into_raw();
     assert_eq!(expected_response, actual_response);
 }
 

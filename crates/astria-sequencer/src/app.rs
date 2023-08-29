@@ -130,7 +130,7 @@ impl App {
 
         let raw_signed_tx = raw::SignedTransaction::decode(tx)
             .context("failed deserializing raw signed protobuf transaction from bytes")?;
-        let signed_tx = SignedTransaction::try_from_proto(raw_signed_tx)
+        let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
             .context("failed creating a verified signed transaction from the raw proto type")?;
 
         let signed_tx_2 = signed_tx.clone();
@@ -424,7 +424,7 @@ mod test {
             ],
         };
         let signed_tx = tx.into_signed(&alice_keypair);
-        let bytes = signed_tx.into_proto().encode_to_vec();
+        let bytes = signed_tx.into_raw().encode_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(
@@ -469,7 +469,7 @@ mod test {
             ],
         };
         let signed_tx = tx.into_signed(&keypair);
-        let bytes = signed_tx.into_proto().encode_to_vec();
+        let bytes = signed_tx.into_raw().encode_to_vec();
         let res = app
             .deliver_tx(&bytes)
             .await
@@ -515,7 +515,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let bytes = signed_tx.into_proto().encode_to_vec();
+        let bytes = signed_tx.into_raw().encode_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 1);

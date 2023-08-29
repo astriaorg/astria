@@ -74,7 +74,7 @@ fn handle_check_tx(req: request::CheckTx) -> response::CheckTx {
             };
         }
     };
-    let signed_tx = SignedTransaction::try_from_proto(raw_signed_tx).unwrap();
+    let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx).unwrap();
     // if the tx passes the check, status code 0 is returned.
     // TODO: status codes for various errors
     // TODO: offload `check_stateless` using `deliver_tx_bytes` mechanism

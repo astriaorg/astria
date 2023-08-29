@@ -430,7 +430,7 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
         ],
     }
     .into_signed(signing_key)
-    .into_proto()
+    .into_raw()
     .encode_to_vec();
     let action_tree =
         astria_sequencer_validation::MerkleTree::from_leaves(vec![signed_tx_bytes.clone()]);

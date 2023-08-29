@@ -112,7 +112,7 @@ pub struct SignedTransaction {
 
 impl SignedTransaction {
     #[must_use]
-    pub fn into_proto(self) -> raw::SignedTransaction {
+    pub fn into_raw(self) -> raw::SignedTransaction {
         let Self {
             signature,
             verification_key,
@@ -121,7 +121,7 @@ impl SignedTransaction {
         raw::SignedTransaction {
             signature: signature.to_bytes().to_vec(),
             public_key: verification_key.to_bytes().to_vec(),
-            transaction: Some(transaction.into_proto()),
+            transaction: Some(transaction.into_raw()),
         }
     }
 
@@ -134,7 +134,7 @@ impl SignedTransaction {
     /// `None`), if the inner transaction could not be verified given the key and signature, or
     /// if the native [`UnsignedTransaction`] could not be created from the inner raw
     /// [`raw::UnsignedTransaction`].
-    pub fn try_from_proto(proto: raw::SignedTransaction) -> Result<Self, SignedTransactionError> {
+    pub fn try_from_raw(proto: raw::SignedTransaction) -> Result<Self, SignedTransactionError> {
         use crate::Message as _;
         let raw::SignedTransaction {
             signature,
@@ -152,7 +152,7 @@ impl SignedTransaction {
         verification_key
             .verify(&signature, &bytes)
             .map_err(SignedTransactionError::verification)?;
-        let transaction = UnsignedTransaction::try_from_proto(transaction)
+        let transaction = UnsignedTransaction::try_from_raw(transaction)
             .map_err(SignedTransactionError::transaction)?;
         Ok(Self {
             signature,
@@ -202,7 +202,7 @@ impl UnsignedTransaction {
     #[must_use]
     pub fn into_signed(self, signing_key: &SigningKey) -> SignedTransaction {
         use crate::Message as _;
-        let bytes = self.to_proto().encode_to_vec();
+        let bytes = self.to_raw().encode_to_vec();
         let signature = signing_key.sign(&bytes);
         let verification_key = signing_key.verification_key();
         SignedTransaction {
@@ -212,24 +212,24 @@ impl UnsignedTransaction {
         }
     }
 
-    pub fn into_proto(self) -> raw::UnsignedTransaction {
+    pub fn into_raw(self) -> raw::UnsignedTransaction {
         let Self {
             nonce,
             actions,
         } = self;
-        let actions = actions.into_iter().map(Action::into_proto).collect();
+        let actions = actions.into_iter().map(Action::into_raw).collect();
         raw::UnsignedTransaction {
             nonce,
             actions,
         }
     }
 
-    pub fn to_proto(&self) -> raw::UnsignedTransaction {
+    pub fn to_raw(&self) -> raw::UnsignedTransaction {
         let Self {
             nonce,
             actions,
         } = self;
-        let actions = actions.iter().map(Action::to_proto).collect();
+        let actions = actions.iter().map(Action::to_raw).collect();
         raw::UnsignedTransaction {
             nonce: *nonce,
             actions,
@@ -244,9 +244,7 @@ impl UnsignedTransaction {
     ///
     /// Returns an error if one of the inner raw actions could not be converted to a native
     /// [`Action`].
-    pub fn try_from_proto(
-        proto: raw::UnsignedTransaction,
-    ) -> Result<Self, UnsignedTransactionError> {
+    pub fn try_from_raw(proto: raw::UnsignedTransaction) -> Result<Self, UnsignedTransactionError> {
         let raw::UnsignedTransaction {
             nonce,
             actions,
@@ -256,7 +254,7 @@ impl UnsignedTransaction {
             .into_iter()
             .filter_map(|raw_act| {
                 // Silently drop unset actions.
-                let converted = Action::try_from_proto(raw_act);
+                let converted = Action::try_from_raw(raw_act);
                 if let Err(e) = &converted {
                     if e.is_unset() {
                         return None;
@@ -320,11 +318,11 @@ pub enum Action {
 
 impl Action {
     #[must_use]
-    pub fn into_proto(self) -> raw::Action {
+    pub fn into_raw(self) -> raw::Action {
         use raw::action::Value;
         let kind = match self {
-            Action::Sequence(act) => Value::SequenceAction(act.into_proto()),
-            Action::Transfer(act) => Value::TransferAction(act.into_proto()),
+            Action::Sequence(act) => Value::SequenceAction(act.into_raw()),
+            Action::Transfer(act) => Value::TransferAction(act.into_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -332,11 +330,11 @@ impl Action {
     }
 
     #[must_use]
-    pub fn to_proto(&self) -> raw::Action {
+    pub fn to_raw(&self) -> raw::Action {
         use raw::action::Value;
         let kind = match self {
-            Action::Sequence(act) => Value::SequenceAction(act.to_proto()),
-            Action::Transfer(act) => Value::TransferAction(act.to_proto()),
+            Action::Sequence(act) => Value::SequenceAction(act.to_raw()),
+            Action::Transfer(act) => Value::TransferAction(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -349,7 +347,7 @@ impl Action {
     ///
     /// Returns an error if conversion of one of the inner raw action variants
     /// to a native action ([`SequenceAction`] or [`TransaferAction`]) fails.
-    pub fn try_from_proto(proto: raw::Action) -> Result<Self, ActionError> {
+    pub fn try_from_raw(proto: raw::Action) -> Result<Self, ActionError> {
         use raw::action::Value;
         let raw::Action {
             value,
@@ -359,10 +357,10 @@ impl Action {
         };
         let action = match action {
             Value::SequenceAction(act) => {
-                Self::Sequence(SequenceAction::try_from_proto(act).map_err(ActionError::sequence)?)
+                Self::Sequence(SequenceAction::try_from_raw(act).map_err(ActionError::sequence)?)
             }
             Value::TransferAction(act) => {
-                Self::Transfer(TransferAction::try_from_proto(act).map_err(ActionError::transfer)?)
+                Self::Transfer(TransferAction::try_from_raw(act).map_err(ActionError::transfer)?)
             }
         };
         Ok(action)
@@ -462,7 +460,7 @@ pub struct SequenceAction {
 
 impl SequenceAction {
     #[must_use]
-    pub fn into_proto(self) -> raw::SequenceAction {
+    pub fn into_raw(self) -> raw::SequenceAction {
         let Self {
             chain_id,
             data,
@@ -474,7 +472,7 @@ impl SequenceAction {
     }
 
     #[must_use]
-    pub fn to_proto(&self) -> raw::SequenceAction {
+    pub fn to_raw(&self) -> raw::SequenceAction {
         let Self {
             chain_id,
             data,
@@ -491,7 +489,7 @@ impl SequenceAction {
     ///
     /// Returns an error if the raw action's `chain_id` did not have the expected
     /// length.
-    pub fn try_from_proto(proto: raw::SequenceAction) -> Result<Self, SequenceActionError> {
+    pub fn try_from_raw(proto: raw::SequenceAction) -> Result<Self, SequenceActionError> {
         let raw::SequenceAction {
             chain_id,
             data,
@@ -550,7 +548,7 @@ pub struct TransferAction {
 
 impl TransferAction {
     #[must_use]
-    pub fn into_proto(self) -> raw::TransferAction {
+    pub fn into_raw(self) -> raw::TransferAction {
         let Self {
             to,
             amount,
@@ -562,7 +560,7 @@ impl TransferAction {
     }
 
     #[must_use]
-    pub fn to_proto(&self) -> raw::TransferAction {
+    pub fn to_raw(&self) -> raw::TransferAction {
         let Self {
             to,
             amount,
@@ -579,7 +577,7 @@ impl TransferAction {
     ///
     /// Returns an error if the raw action's `to` address did not have the expected
     /// length.
-    pub fn try_from_proto(proto: raw::TransferAction) -> Result<Self, TransferActionError> {
+    pub fn try_from_raw(proto: raw::TransferAction) -> Result<Self, TransferActionError> {
         let raw::TransferAction {
             to,
             amount,
@@ -790,7 +788,7 @@ impl raw::BalanceResponse {
     /// native [`BalanceResponse`].
     #[must_use]
     pub fn into_native(self) -> BalanceResponse {
-        BalanceResponse::from_proto(&self)
+        BalanceResponse::from_raw(&self)
     }
 
     /// Converts a protobuf [`raw::BalanceResponse`] to an astria
@@ -811,7 +809,7 @@ pub struct BalanceResponse {
 impl BalanceResponse {
     /// Converts a protobuf [`raw::BalanceResponse`] to an astria
     /// native [`BalanceResponse`].
-    pub fn from_proto(proto: &raw::BalanceResponse) -> Self {
+    pub fn from_raw(proto: &raw::BalanceResponse) -> Self {
         let raw::BalanceResponse {
             height,
             balance,
@@ -825,7 +823,7 @@ impl BalanceResponse {
     /// Converts an astria native [`BalanceResponse`] to a
     /// protobuf [`raw::BalanceResponse`].
     #[must_use]
-    pub fn into_proto(self) -> raw::BalanceResponse {
+    pub fn into_raw(self) -> raw::BalanceResponse {
         raw::BalanceResponse::from_native(self)
     }
 }
@@ -849,7 +847,7 @@ impl raw::NonceResponse {
     /// native [`NonceResponse`].
     #[must_use]
     pub fn into_native(self) -> NonceResponse {
-        NonceResponse::from_proto(&self)
+        NonceResponse::from_raw(&self)
     }
 
     /// Converts a protobuf [`raw::NonceResponse`] to an astria
@@ -871,7 +869,7 @@ impl NonceResponse {
     /// Converts a protobuf [`raw::NonceResponse`] to an astria
     /// native [`NonceResponse`].
     #[must_use]
-    pub fn from_proto(proto: &raw::NonceResponse) -> Self {
+    pub fn from_raw(proto: &raw::NonceResponse) -> Self {
         let raw::NonceResponse {
             height,
             nonce,
@@ -885,7 +883,7 @@ impl NonceResponse {
     /// Converts an astria native [`NonceResponse`] to a
     /// protobuf [`raw::NonceResponse`].
     #[must_use]
-    pub fn into_proto(self) -> raw::NonceResponse {
+    pub fn into_raw(self) -> raw::NonceResponse {
         raw::NonceResponse::from_native(self)
     }
 }
@@ -919,7 +917,7 @@ mod tests {
             height: 42,
             balance: 42,
         };
-        let actual = expected.into_proto().into_native();
+        let actual = expected.into_raw().into_native();
         assert_eq!(expected, actual);
     }
 
@@ -929,7 +927,7 @@ mod tests {
             height: 42,
             nonce: 42,
         };
-        let actual = expected.into_proto().into_native();
+        let actual = expected.into_raw().into_native();
         assert_eq!(expected, actual);
     }
 

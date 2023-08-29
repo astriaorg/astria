@@ -47,7 +47,7 @@ pub(crate) async fn balance_request(
         height: height.value(),
         balance,
     }
-    .into_proto()
+    .into_raw()
     .encode_to_vec()
     .into();
     response::Query {
@@ -88,7 +88,7 @@ pub(crate) async fn nonce_request(
         height: height.value(),
         nonce,
     }
-    .into_proto()
+    .into_raw()
     .encode_to_vec()
     .into();
     response::Query {

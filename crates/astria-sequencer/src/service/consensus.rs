@@ -312,7 +312,7 @@ mod test {
         let signing_key = SigningKey::new(OsRng);
         let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.into_proto().encode_to_vec();
+        let tx_bytes = signed_tx.into_raw().encode_to_vec();
 
         let txs = vec![tx_bytes.clone().into()];
         let (action_commitment, txs_included) = generate_sequence_actions_commitment(txs.clone());
@@ -336,7 +336,7 @@ mod test {
         let signing_key = SigningKey::new(OsRng);
         let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.into_proto().encode_to_vec();
+        let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
         let (action_commitment, txs_included) = generate_sequence_actions_commitment(txs.clone());
         assert_eq!(txs, txs_included);
@@ -456,7 +456,7 @@ mod test {
         let signing_key = SigningKey::new(OsRng);
         let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.into_proto().encode_to_vec();
+        let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
         let (action_commitment, txs_included) = generate_sequence_actions_commitment(txs.clone());
         assert_eq!(txs, txs_included);

@@ -39,7 +39,7 @@ pub(crate) fn generate_sequence_actions_commitment(
                 err
             })
             .ok()
-            .and_then(|raw_tx| SignedTransaction::try_from_proto(raw_tx)
+            .and_then(|raw_tx| SignedTransaction::try_from_raw(raw_tx)
                 .map_err(|err| {
                     info!(error = ?err, "could not convert raw signed transaction to native signed transaction");
                     err
@@ -123,7 +123,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.into_proto().encode_to_vec();
+        let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
         let (action_commitment_0, _) = generate_sequence_actions_commitment(txs);
 
@@ -134,7 +134,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.into_proto().encode_to_vec();
+        let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
         let (action_commitment_1, _) = generate_sequence_actions_commitment(txs);
         assert_eq!(action_commitment_0, action_commitment_1);
@@ -218,7 +218,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.into_proto().encode_to_vec();
+        let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
         let (actual, _) = generate_sequence_actions_commitment(txs);
 
