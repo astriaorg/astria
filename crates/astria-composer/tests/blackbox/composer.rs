@@ -60,14 +60,17 @@ async fn tx_from_two_rollups_are_received_by_sequencer() {
 /// sequence action is for the given `expected_chain_id`.
 async fn mount_broadcast_tx_sync_mock(
     server: &MockServer,
-    expected_chain_id: &'static str,
+    expected_chain_name: &'static str,
 ) -> MockGuard {
     use proto::{
         generated::sequencer::v1alpha1 as raw,
-        native::sequencer::v1alpha1::SignedTransaction,
+        native::sequencer::v1alpha1::{
+            ChainId,
+            SignedTransaction,
+        },
         Message as _,
     };
-    let matcher = |request: &Request| {
+    let matcher = move |request: &Request| {
         let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
             serde_json::from_slice(&request.body)
                 .expect("can't deserialize to JSONRPC wrapped tx_sync::Request");
@@ -77,12 +80,13 @@ async fn mount_broadcast_tx_sync_mock(
             .expect("can't convert raw signed tx to checked signed tx");
         debug!(?signed_tx, "sequencer mock received signed transaction");
         let Some(sent_action) = signed_tx.actions().get(0) else {
-            panic!("received transaction contained to actions");
+            panic!("received transaction contained no actions");
         };
         let Some(sequence_action) = sent_action.as_sequence() else {
             panic!("mocked sequencer expected a sequence action");
         };
-        sequence_action.chain_id.as_ref() == expected_chain_id.as_bytes()
+        let expected_chain_id = ChainId::with_hashed_bytes(expected_chain_name);
+        sequence_action.chain_id == expected_chain_id
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
