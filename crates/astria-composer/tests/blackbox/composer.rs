@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use astria_sequencer::transaction;
 use ethers::types::Transaction;
 use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
@@ -63,20 +62,27 @@ async fn mount_broadcast_tx_sync_mock(
     server: &MockServer,
     expected_chain_id: &'static str,
 ) -> MockGuard {
+    use proto::{
+        generated::sequencer::v1alpha1 as raw,
+        native::sequencer::v1alpha1::SignedTransaction,
+        Message as _,
+    };
     let matcher = |request: &Request| {
         let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
             serde_json::from_slice(&request.body)
                 .expect("can't deserialize to JSONRPC wrapped tx_sync::Request");
-        let signed_tx = transaction::Signed::try_from_slice(&wrapped_tx_sync_req.params().tx)
+        let raw_signed_tx = raw::SignedTransaction::decode(&*wrapped_tx_sync_req.params().tx)
             .expect("can't deserialize signed sequencer tx from broadcast jsonrpc request");
+        let signed_tx = SignedTransaction::try_from_proto(raw_signed_tx)
+            .expect("can't convert raw signed tx to checked signed tx");
         debug!(?signed_tx, "sequencer mock received signed transaction");
-        let Some(sent_action) = signed_tx.transaction().actions().get(0) else {
+        let Some(sent_action) = signed_tx.actions().get(0) else {
             panic!("received transaction contained to actions");
         };
         let Some(sequence_action) = sent_action.as_sequence() else {
             panic!("mocked sequencer expected a sequence action");
         };
-        sequence_action.chain_id() == expected_chain_id.as_bytes()
+        sequence_action.chain_id.as_ref() == expected_chain_id.as_bytes()
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
