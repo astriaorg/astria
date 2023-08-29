@@ -394,7 +394,7 @@ mod test {
     #[tokio::test]
     async fn execute_block_with_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = Namespace::from_slice(b"test");
+        let namespace = Namespace::with_hashed_bytes(b"test");
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
             .await
             .unwrap();
@@ -414,7 +414,7 @@ mod test {
     #[tokio::test]
     async fn execute_block_without_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = Namespace::from_slice(b"test");
+        let namespace = Namespace::with_hashed_bytes(b"test");
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
             .await
             .unwrap();
@@ -427,7 +427,7 @@ mod test {
     #[tokio::test]
     async fn handle_block_received_from_data_availability_not_yet_executed() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = Namespace::from_slice(b"test");
+        let namespace = Namespace::with_hashed_bytes(b"test");
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
@@ -463,7 +463,7 @@ mod test {
     #[tokio::test]
     async fn handle_block_received_from_data_availability_no_relevant_transactions() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = Namespace::from_slice(b"test");
+        let namespace = Namespace::with_hashed_bytes(b"test");
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
