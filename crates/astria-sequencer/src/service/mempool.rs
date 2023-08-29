@@ -84,7 +84,7 @@ fn handle_check_tx(req: request::CheckTx) -> response::CheckTx {
         Err(e) => response::CheckTx {
             code: AbciCode::INVALID_PARAMETER.into(),
             info: "failed verifying decoded protobuf SignedTransaction".into(),
-            log: format!("{e:#}"),
+            log: format!("{e:?}"),
             ..response::CheckTx::default()
         },
     }
