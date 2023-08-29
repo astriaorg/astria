@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package astria.sequencer.v1alpha2;
+
+import "tendermint/types/types.proto";
+
+// `IndexedTransaction` represents a sequencer transaction along with the index
+// it was originally in the sequencer block.
+message IndexedTransaction {
+    uint64 block_index = 1; // TODO: this is usize - how to define for variable size?
+    bytes transaction = 2;
+}
+
+message RollupNamespace {
+    uint64 block_height = 1;
+    bytes namespace = 2;
+}
+
+// `RollupNamespaceData`
+message RollupNamespaceData {
+    bytes block_hash = 1;
+    repeated IndexedTransaction rollup_txs = 2;
+}
+
+// `SequencerNamespaceData`
+message SequencerNamespaceData {
+    bytes block_hash = 1;
+    tendermint.types.Header header = 2;
+    repeated IndexedTransaction sequencer_txs = 3;
+    repeated RollupNamespace rollup_namespaces = 4;
+}
+
+// `SignedNamespaceData?`
+message SignedNamespaceData {
+    bytes data = 1;
+    bytes public_key = 2;
+    bytes signature = 3;
+}

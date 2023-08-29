@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package astria.sequencer.v1alpha2;
+
+import "astria/primitive/v1/types.proto";
+
+// `SignedTransaction` contains an encoded transaction together with its
+// signature and verification key derived from the signing key that produced
+// the signature.
+//
+// The encoded transaction is expected to be decodable to a `Transaction`.
+// `Signature` is expected to be a slice of 64 bytes, and `verification_key`
+// a slice of 32 bytes that can be converted to an ed25519 verification key.
+//
+// The transaction bytes must be verifiab le given the signature and key.
+message SignedTransaction {
+    bytes signature = 1;
+    // FIXME: What's the point of sending the verification key along with
+    // the transaction? If Anna sends us a transaction and its signature,
+    // shouldn't we have exchanged keys through a different channel so
+    // that we can independently verify that the transaction is indeed
+    // signed by her?
+    bytes verification_key = 2;
+    bytes transaction = 3;
+}
+
+// `Transaction` contains a nonce and a list of actions.
+message Transaction {
+    uint32 nonce = 1;
+    repeated Action actions = 2;
+}
+
+// `Action` is the collection of all actions that can be part of a `Transaction`.
+//
+// Note that an unset oneof `value` is ignored.
+message Action {
+    oneof value {
+        TransferAction transfer_action = 1;
+        SequenceAction sequence_action = 2;
+    }   
+}
+
+// `TransferAction` represents a value transfer transaction.
+//
+// `to` is expected to a slice of 20 bytes representating an astria address.
+message TransferAction {
+    bytes to = 1;
+    astria.primitive.v1.Uint128 amount = 2;
+}
+
+// `SequenceAction` represents a transaction destined for another chain.
+//
+// `to` is expected to be a slice of 32 bytes representatin an astria chain ID.
+// `data` is treated as an opaque buffer of bytes.
+message SequenceAction {
+    bytes chain_id = 1;
+    bytes data = 2;
+}
