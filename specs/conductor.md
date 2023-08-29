@@ -43,8 +43,8 @@ Conductor are:
 
 - `Event::GossipsubMessage(Message)` ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-gossipnet/src/network_stream.rs#L50))
     - The `Message` value within the `GossipsubMessage` contains the Sequencer
-      block data from the Astria Sequencer value for an `Event` is received the
-      `Message` is then parsed to a `SequencerBlockData`
+      block data from the Astria Sequencer. The `Message` is then parsed to a
+      `SequencerBlockData`
       ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-sequencer-types/src/sequencer_block_data.rs#L39)).
       Once transformed, the block data is validated to make sure that the
       validator set correctly agreed on the block, the proposer for the Sequencer
