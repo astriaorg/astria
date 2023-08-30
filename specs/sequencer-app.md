@@ -85,8 +85,35 @@ If the node is a validator, and the proposer for this round, `PrepareProposal` i
 
 ### ProcessProposal
 
-If the node is a validator, but not the proposer for this round, `ProcessProposal` is called.
+If the node is a validator, but not the proposer for this round, `ProcessProposal` is called. This checks if the commitment to the rollup data is correct. If it is not correct, the validator rejects the block.
+
+### BeginBlock
+
+This is executed by all sequencer nodes at the start of a block. It updates the current block height and timestamp in the state.
+
+### DeliverTx
+
+This is executed by all sequencer nodes for each transaction in a block. It receives bytes, which it parses into a signed transaction. It then performs stateless and stateful checks before executing the transaction's state changes.
+
+### EndBlock
+
+This is executed by all sequencer nodes at the end of a block. It currently is a no-op.
+
+### Commit
+
+This is executed by all sequencer nodes to write the state changes to disk.
 
 ## Transaction lifecycle
 
+The lifecycle of a sequencer transaction is as follows:
+- a user/application constructs a `Unsigned` transaction, which they sign, converting it into a `Signed` transaction
+- this transaction is serialized and submitted to a sequencer node via cometbft's RPC endpoints `broadcast_tx_..`
+- cometbft calls into the sequencer application to validate the transaction using the ABCI method `CheckTx`. `CheckTx` returns either success or an error. if success is returned, the transaction is added to the cometbft mempool and broadcast throughout the network; otherwise, the transaction is discarded.
+- the transaction will live in the mempool until it's included in a block proposal by a proposer.
+- once inside a proposed block, the transaction will be executed by `DeliverTx` during that block's lifecycle. at this point, the transaction will either execute successfully or fail, but it is included in the block either way. if the transaction fails, it will be included in the block with a failure result, and will not have made any state changes.
+
 ## ABCI queries
+
+The sequencer supports queries directly into its state via ABCI. Currently, the state queries supported are for:
+- account balance via the `accounts/balance/ADDRESS` path
+- account nonce via the `accounts/nonce/ADDRESS` path
