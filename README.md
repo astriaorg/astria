@@ -98,12 +98,12 @@ cargo +nightly-2023-07-07 fmt --all
 
 ```sh
 # Install for macOS
-$ brew install taplo
+brew install taplo
 # Install for Arch Linux
-$ sudo pacman -S taplo
+sudo pacman -S taplo
 
 # Run
-$ taplo format
+taplo format
 ```
 
 ### Markdown

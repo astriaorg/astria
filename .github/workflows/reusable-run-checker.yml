@@ -7,22 +7,22 @@ on:
         description: If tests need to be run, will be 'true'
         value: ${{ jobs.changes.outputs.test_workflow == 'true' || jobs.changes.outputs.crates == 'true' }}
       run_docker:
-        description: If docker workflow need to run need to be run, will be 'true'
+        description: If docker workflow needs to be run, will be 'true'
         value: ${{ jobs.changes.outputs.docker_workflow == 'true' || jobs.changes.outputs.crates == 'true' }}
       run_lint_proto:
-        description: If lint for protos need to run need to be run, will be 'true'
+        description: If lint for protos needs to be run, will be 'true'
         value: ${{ jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.proto == 'true' }}
       run_lint_rust:
-        description: If lint for rust needs to run need to be run, will be 'true'
+        description: If lint for rust needs to be run, will be 'true'
         value: ${{ jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.rust == 'true' || jobs.changes.outputs.rustfmt == 'true' }}
       run_lint_toml:
-        description: If lint for toml needs to run need to be run, will be 'true'
+        description: If lint for toml needs to be run, will be 'true'
         value: ${{ jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.toml == 'true' }}
       run_lint_markdown:
-        description: If lint for markdown needs to run need to be run, will be 'true'
+        description: If lint for markdown needs to be run, will be 'true'
         value: ${{ jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.markdown == 'true' }}
       run_release_proto:
-        description: If release for protos need to run need to be run, will be 'true'
+        description: If release for protos needs to be run, will be 'true'
         value: ${{ jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.proto == 'true' }}
 
 jobs:

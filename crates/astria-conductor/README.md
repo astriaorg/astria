@@ -6,7 +6,7 @@ Coordinates blocks between the data availability layer and the execution layer.
 
 * create `ConductorConfig.toml` in the repo root and populate accordingly, e.g.
 
-```bash
+```sh
 celestia_node_url = "http://localhost:26659"
 tendermint_url = "http://localhost:1318"
 chain_id = "ethereum"
@@ -26,6 +26,6 @@ execution_rpc_url = "http://localhost:50051"
 Running all the tests will spin up a local Celestia cluster, Metro node, Geth
 node, and the relayer. It will then run the tests against the local setup.
 
-```bash
+```sh
 cargo test -- --nocapture --color always
 ```
