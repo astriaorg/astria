@@ -10,7 +10,6 @@ use ethers::providers::{
     Ws,
 };
 use humantime::format_duration;
-use proto::native::sequencer::v1alpha1::ChainId;
 use tokio::sync::{
     mpsc::{
         error::SendTimeoutError,
@@ -29,7 +28,7 @@ use tracing::{
 ///
 /// Used to send new transactions to the searcher.
 pub(super) struct Transaction {
-    pub(super) chain_id: ChainId,
+    pub(super) chain_id: String,
     pub(super) inner: ethers::types::Transaction,
 }
 
@@ -45,8 +44,7 @@ pub(super) struct Transaction {
 pub(super) struct Collector {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to.
-    chain_id: ChainId,
-    chain_name: String,
+    chain_id: String,
     // The client for getting new pending transactions from an ethereum rollup.
     client: EthClient,
     // The channel on which the collector sends new txs to the searcher.
@@ -75,7 +73,7 @@ impl Status {
 impl Collector {
     /// Initializes a new collector instance
     pub(super) async fn new(
-        chain_name: String,
+        chain_id: String,
         url: String,
         searcher_channel: Sender<Transaction>,
     ) -> eyre::Result<Self> {
@@ -83,10 +81,8 @@ impl Collector {
             .await
             .wrap_err("failed connecting to eth")?;
         let (status, _) = watch::channel(Status::new());
-        let chain_id = ChainId::with_hashed_bytes(&chain_name);
         Ok(Self {
             chain_id,
-            chain_name,
             client,
             searcher_channel,
             status,
@@ -100,7 +96,7 @@ impl Collector {
 
     /// Starts the collector instance and runs until failure or until
     /// explicitly closed
-    #[instrument(skip_all, fields(chain.name = self.chain_name, chain.id = %self.chain_id))]
+    #[instrument(skip_all, fields(chain.id = self.chain_id))]
     pub(super) async fn run_until_stopped(self) -> eyre::Result<()> {
         use std::time::Duration;
 
@@ -126,7 +122,7 @@ impl Collector {
             match searcher_channel
                 .send_timeout(
                     Transaction {
-                        chain_id,
+                        chain_id: chain_id.clone(),
                         inner: tx,
                     },
                     Duration::from_millis(500),

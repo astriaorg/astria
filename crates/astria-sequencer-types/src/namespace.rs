@@ -41,7 +41,7 @@ impl Namespace {
     /// returns an 10-byte namespace given a byte slice by hashing
     /// the bytes with sha256 and returning the first 10 bytes.
     #[must_use]
-    pub fn with_hashed_bytes(bytes: &[u8]) -> Namespace {
+    pub fn from_slice(bytes: &[u8]) -> Namespace {
         let mut hasher = Sha256::new();
         hasher.update(bytes);
         let result = hasher.finalize();

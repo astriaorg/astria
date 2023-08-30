@@ -13,7 +13,6 @@ use tracing::info;
 use crate::generated::sequencer::v1alpha1 as raw;
 
 pub const ADDRESS_LEN: usize = 20;
-pub const CHAIN_ID_LEN: usize = 32;
 
 #[derive(Debug)]
 pub struct SignedTransactionError {
@@ -357,9 +356,7 @@ impl Action {
             return Err(ActionError::unset());
         };
         let action = match action {
-            Value::SequenceAction(act) => {
-                Self::Sequence(SequenceAction::try_from_raw(act).map_err(ActionError::sequence)?)
-            }
+            Value::SequenceAction(act) => Self::Sequence(SequenceAction::from_raw(act)),
             Value::TransferAction(act) => {
                 Self::Transfer(TransferAction::try_from_raw(act).map_err(ActionError::transfer)?)
             }
@@ -412,12 +409,6 @@ impl ActionError {
         matches!(self.kind, ActionErrorKind::Unset)
     }
 
-    fn sequence(inner: SequenceActionError) -> Self {
-        Self {
-            kind: ActionErrorKind::Sequence(inner),
-        }
-    }
-
     fn transfer(inner: TransferActionError) -> Self {
         Self {
             kind: ActionErrorKind::Transfer(inner),
@@ -430,7 +421,6 @@ impl Display for ActionError {
         let msg = match &self.kind {
             ActionErrorKind::Unset => "oneof value was not set",
             ActionErrorKind::Transfer(_) => "raw transfer action was not valid",
-            ActionErrorKind::Sequence(_) => "raw sequence action was not valid",
         };
         f.pad(msg)
     }
@@ -441,7 +431,6 @@ impl Error for ActionError {
         match &self.kind {
             ActionErrorKind::Unset => None,
             ActionErrorKind::Transfer(e) => Some(e),
-            ActionErrorKind::Sequence(e) => Some(e),
         }
     }
 }
@@ -450,12 +439,11 @@ impl Error for ActionError {
 enum ActionErrorKind {
     Unset,
     Transfer(TransferActionError),
-    Sequence(SequenceActionError),
 }
 
 #[derive(Clone, Debug)]
 pub struct SequenceAction {
-    pub chain_id: ChainId,
+    pub chain_id: Vec<u8>,
     pub data: Vec<u8>,
 }
 
@@ -485,60 +473,16 @@ impl SequenceAction {
     }
 
     /// Convert from a raw, unchecked protobuf [`raw::SequenceAction`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the raw action's `chain_id` did not have the expected
-    /// length.
-    pub fn try_from_raw(proto: raw::SequenceAction) -> Result<Self, SequenceActionError> {
+    pub fn from_raw(proto: raw::SequenceAction) -> Self {
         let raw::SequenceAction {
             chain_id,
             data,
         } = proto;
-        let chain_id =
-            ChainId::try_from_slice(&chain_id).map_err(SequenceActionError::chain_id_len)?;
-        Ok(Self {
+        Self {
             chain_id,
             data,
-        })
-    }
-}
-
-#[derive(Debug)]
-pub struct SequenceActionError {
-    kind: SequenceActionErrorKind,
-}
-
-impl Display for SequenceActionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let msg = match &self.kind {
-            SequenceActionErrorKind::ChainId(_) => {
-                "`chain_id` field did not contain a valid chain ID"
-            }
-        };
-        f.pad(msg)
-    }
-}
-
-impl Error for SequenceActionError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match &self.kind {
-            SequenceActionErrorKind::ChainId(e) => Some(e),
         }
     }
-}
-
-impl SequenceActionError {
-    fn chain_id_len(inner: IncorrectChainIdLength) -> Self {
-        Self {
-            kind: SequenceActionErrorKind::ChainId(inner),
-        }
-    }
-}
-
-#[derive(Debug)]
-enum SequenceActionErrorKind {
-    ChainId(IncorrectChainIdLength),
 }
 
 #[derive(Clone, Debug)]
@@ -626,80 +570,6 @@ impl Error for TransferActionError {
 #[derive(Debug)]
 enum TransferActionErrorKind {
     Address(IncorrectAddressLength),
-}
-
-/// Indicates that the protobuf response contained an array field that was not 20 bytes long.
-#[derive(Debug)]
-pub struct IncorrectChainIdLength {
-    received: usize,
-}
-
-impl Display for IncorrectChainIdLength {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "expected 32 bytes, got {}", self.received)
-    }
-}
-
-impl Error for IncorrectChainIdLength {}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ChainId(pub [u8; CHAIN_ID_LEN]);
-
-impl ChainId {
-    #[must_use]
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.0.to_vec()
-    }
-
-    /// Construct a chain ID from the result of applying sha256 to some input bytes.
-    #[must_use]
-    pub fn with_hashed_bytes<T: AsRef<[u8]>>(bytes: T) -> Self {
-        fn with_hashed_bytes(bytes: &[u8]) -> ChainId {
-            use sha2::Digest as _;
-            let mut hasher = sha2::Sha256::new();
-            hasher.update(bytes);
-            ChainId(hasher.finalize().into())
-        }
-        with_hashed_bytes(bytes.as_ref())
-    }
-
-    /// Convert a byte slice to a Chain ID.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the supplied byte slice was not 32 bytes long.
-    pub fn try_from_slice(bytes: &[u8]) -> Result<Self, IncorrectChainIdLength> {
-        let inner = <[u8; CHAIN_ID_LEN]>::try_from(bytes).map_err(|_| IncorrectChainIdLength {
-            received: bytes.len(),
-        })?;
-        Ok(Self::from_array(inner))
-    }
-
-    #[must_use]
-    pub fn from_array(array: [u8; CHAIN_ID_LEN]) -> Self {
-        Self(array)
-    }
-}
-
-impl AsRef<[u8]> for ChainId {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl From<[u8; CHAIN_ID_LEN]> for ChainId {
-    fn from(inner: [u8; CHAIN_ID_LEN]) -> Self {
-        Self(inner)
-    }
-}
-
-impl Display for ChainId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for byte in self.0 {
-            write!(f, "{byte:02x}")?;
-        }
-        Ok(())
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -55,7 +55,7 @@ pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinH
     let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url).await?;
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
-        Namespace::with_hashed_bytes(conf.chain_id.as_bytes()),
+        Namespace::from_slice(conf.chain_id.as_bytes()),
         alert_tx,
     )
     .await?;
@@ -394,7 +394,7 @@ mod test {
     #[tokio::test]
     async fn execute_block_with_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = Namespace::with_hashed_bytes(b"test");
+        let namespace = Namespace::from_slice(b"test");
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
             .await
             .unwrap();
@@ -414,7 +414,7 @@ mod test {
     #[tokio::test]
     async fn execute_block_without_relevant_txs() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = Namespace::with_hashed_bytes(b"test");
+        let namespace = Namespace::from_slice(b"test");
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
             .await
             .unwrap();
@@ -427,7 +427,7 @@ mod test {
     #[tokio::test]
     async fn handle_block_received_from_data_availability_not_yet_executed() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = Namespace::with_hashed_bytes(b"test");
+        let namespace = Namespace::from_slice(b"test");
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
@@ -463,7 +463,7 @@ mod test {
     #[tokio::test]
     async fn handle_block_received_from_data_availability_no_relevant_transactions() {
         let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = Namespace::with_hashed_bytes(b"test");
+        let namespace = Namespace::from_slice(b"test");
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),

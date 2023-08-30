@@ -60,14 +60,11 @@ async fn tx_from_two_rollups_are_received_by_sequencer() {
 /// sequence action is for the given `expected_chain_id`.
 async fn mount_broadcast_tx_sync_mock(
     server: &MockServer,
-    expected_chain_name: &'static str,
+    expected_chain_id: &'static str,
 ) -> MockGuard {
     use proto::{
         generated::sequencer::v1alpha1 as raw,
-        native::sequencer::v1alpha1::{
-            ChainId,
-            SignedTransaction,
-        },
+        native::sequencer::v1alpha1::SignedTransaction,
         Message as _,
     };
     let matcher = move |request: &Request| {
@@ -85,8 +82,7 @@ async fn mount_broadcast_tx_sync_mock(
         let Some(sequence_action) = sent_action.as_sequence() else {
             panic!("mocked sequencer expected a sequence action");
         };
-        let expected_chain_id = ChainId::with_hashed_bytes(expected_chain_name);
-        sequence_action.chain_id == expected_chain_id
+        sequence_action.chain_id == expected_chain_id.as_bytes()
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),

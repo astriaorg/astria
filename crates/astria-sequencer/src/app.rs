@@ -251,7 +251,6 @@ mod test {
     use proto::{
         native::sequencer::v1alpha1::{
             Address,
-            ChainId,
             SequenceAction,
             TransferAction,
             UnsignedTransaction,
@@ -507,7 +506,7 @@ mod test {
             nonce: 0,
             actions: vec![
                 SequenceAction {
-                    chain_id: ChainId::with_hashed_bytes(b"testchainid"),
+                    chain_id: b"testchainid".to_vec(),
                     data,
                 }
                 .into(),

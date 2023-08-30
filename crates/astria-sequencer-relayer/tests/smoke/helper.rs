@@ -12,7 +12,6 @@ use astria_sequencer_relayer::{
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
 use proto::native::sequencer::v1alpha1::{
-    ChainId,
     SequenceAction,
     UnsignedTransaction,
 };
@@ -423,7 +422,7 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
         nonce: 1,
         actions: vec![
             SequenceAction {
-                chain_id: ChainId::with_hashed_bytes([b"test_chain_id_", &*suffix].concat()),
+                chain_id: [b"test_chain_id_", &*suffix].concat(),
                 data: [b"hello_world_id_", &*suffix].concat(),
             }
             .into(),

@@ -26,12 +26,12 @@ use sha2::Sha256;
 /// inclusion_proof.verify(&value, root).unwrap();
 /// ```
 #[derive(Debug, Default)]
-pub struct MerkleTree<T: AsRef<[u8]>>(CtMerkleTree<Sha256, T>);
+pub struct MerkleTree(CtMerkleTree<Sha256, Vec<u8>>);
 
-impl<T: AsRef<[u8]>> MerkleTree<T> {
+impl MerkleTree {
     /// Creates a new merkle tree from the given leaves.
     #[must_use]
-    pub fn from_leaves(leaves: Vec<T>) -> Self {
+    pub fn from_leaves(leaves: Vec<Vec<u8>>) -> Self {
         let tree = leaves
             .into_iter()
             .fold(CtMerkleTree::new(), |mut tree, leaf| {

@@ -26,10 +26,6 @@ use eyre::{
     ensure,
     WrapErr as _,
 };
-use proto::native::sequencer::v1alpha1::{
-    ChainId,
-    CHAIN_ID_LEN,
-};
 use sequencer_types::{
     serde::Base64Standard,
     Namespace,
@@ -164,8 +160,8 @@ impl NamespaceData for SequencerNamespaceData {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RollupNamespaceData {
     pub(crate) block_hash: Hash,
-    #[serde(with = "sequencer_types::serde::chain_id")]
-    pub(crate) chain_id: ChainId,
+    #[serde(with = "hex::serde")]
+    pub(crate) chain_id: Vec<u8>,
     pub rollup_txs: Vec<Vec<u8>>,
     pub(crate) inclusion_proof: InclusionProof,
 }
@@ -559,10 +555,10 @@ fn filter_and_convert_rollup_data_blobs(
 
 fn btree_from_rollup_data(
     rollup_data: HashMap<Namespace, RollupData>,
-) -> BTreeMap<[u8; CHAIN_ID_LEN], Vec<Vec<u8>>> {
+) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
     let mut btree = BTreeMap::new();
     for (_, data) in rollup_data {
-        btree.insert(data.chain_id.0, data.transactions);
+        btree.insert(data.chain_id, data.transactions);
     }
     btree
 }
@@ -593,9 +589,10 @@ fn assemble_blobs_from_sequencer_block_data(
             .map_err(|e| eyre::eyre!(e))
             .context("failed to generate inclusion proof")?;
 
+        let namespace = Namespace::from_slice(&chain_id);
         let rollup_namespace_data = RollupNamespaceData {
             block_hash,
-            chain_id: ChainId(chain_id),
+            chain_id,
             rollup_txs: transactions,
             inclusion_proof,
         };
@@ -606,7 +603,6 @@ fn assemble_blobs_from_sequencer_block_data(
             .to_bytes()
             .wrap_err("failed converting signed rollup data namespace data to bytes")?;
 
-        let namespace = Namespace::with_hashed_bytes(&chain_id);
         blobs.push(blob::Blob {
             namespace_id: *namespace,
             data: blob_data,

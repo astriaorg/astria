@@ -71,18 +71,16 @@ pub(crate) fn generate_sequence_actions_commitment(
 /// Within an entry, actions are ordered by their transaction index within a block.
 fn group_sequence_actions_by_chain_id(
     txs: &[SignedTransaction],
-) -> BTreeMap<[u8; 32], Vec<Vec<u8>>> {
+) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
     let mut rollup_txs_map = BTreeMap::new();
 
-    for tx in txs {
-        tx.actions().iter().for_each(|action| {
-            if let Some(action) = action.as_sequence() {
-                rollup_txs_map
-                    .entry(action.chain_id.0)
-                    .and_modify(|datas: &mut Vec<Vec<u8>>| datas.push(action.data.clone()))
-                    .or_insert_with(|| vec![action.data.clone()]);
-            }
-        });
+    for action in txs.iter().flat_map(|tx| tx.actions()) {
+        if let Some(action) = action.as_sequence() {
+            let txs_for_rollup: &mut Vec<Vec<u8>> = rollup_txs_map
+                .entry(action.chain_id.clone())
+                .or_insert(vec![]);
+            txs_for_rollup.push(action.data.clone());
+        }
     }
 
     rollup_txs_map
@@ -94,7 +92,6 @@ mod test {
     use proto::{
         native::sequencer::v1alpha1::{
             Address,
-            ChainId,
             SequenceAction,
             TransferAction,
             UnsignedTransaction,
@@ -108,7 +105,7 @@ mod test {
     #[test]
     fn generate_sequence_actions_commitment_should_ignore_transfers() {
         let sequence_action = SequenceAction {
-            chain_id: ChainId::with_hashed_bytes(b"testchainid"),
+            chain_id: b"testchainid".to_vec(),
             data: b"helloworld".to_vec(),
         };
         let transfer_action = TransferAction {
@@ -149,7 +146,7 @@ mod test {
             nonce: 0,
             actions: vec![
                 SequenceAction {
-                    chain_id: ChainId::with_hashed_bytes(chain_id_0),
+                    chain_id: chain_id_0.to_vec(),
                     data: b"helloworld".to_vec(),
                 }
                 .into(),
@@ -162,7 +159,7 @@ mod test {
             nonce: 0,
             actions: vec![
                 SequenceAction {
-                    chain_id: ChainId::with_hashed_bytes(chain_id_1),
+                    chain_id: chain_id_1.to_vec(),
                     data: b"helloworld".to_vec(),
                 }
                 .into(),
@@ -175,7 +172,7 @@ mod test {
             nonce: 0,
             actions: vec![
                 SequenceAction {
-                    chain_id: ChainId::with_hashed_bytes(chain_id_2),
+                    chain_id: chain_id_2.to_vec(),
                     data: b"helloworld".to_vec(),
                 }
                 .into(),
@@ -203,7 +200,7 @@ mod test {
         // thus if this test needs to be updated, we should cut a new release.
 
         let sequence_action = SequenceAction {
-            chain_id: ChainId::with_hashed_bytes(b"testchainid"),
+            chain_id: b"testchainid".to_vec(),
             data: b"helloworld".to_vec(),
         };
         let transfer_action = TransferAction {

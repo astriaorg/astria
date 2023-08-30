@@ -253,7 +253,6 @@ mod test {
     use ed25519_consensus::SigningKey;
     use proto::{
         native::sequencer::v1alpha1::{
-            ChainId,
             SequenceAction,
             UnsignedTransaction,
         },
@@ -273,7 +272,7 @@ mod test {
             nonce: 0,
             actions: vec![
                 SequenceAction {
-                    chain_id: ChainId::with_hashed_bytes(b"testchainid"),
+                    chain_id: b"testchainid".to_vec(),
                     data: b"helloworld".to_vec(),
                 }
                 .into(),

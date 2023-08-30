@@ -234,7 +234,7 @@ impl Searcher {
             let unsigned_tx = UnsignedTransaction {
                 nonce: curr_nonce,
                 actions: vec![Action::Sequence(SequenceAction {
-                    chain_id,
+                    chain_id: chain_id.into_bytes(),
                     data,
                 })],
             };

@@ -13,7 +13,6 @@ use eyre::{
     ensure,
     WrapErr as _,
 };
-use proto::native::sequencer::v1alpha1::ChainId;
 use serde::{
     Deserialize,
     Serialize,
@@ -40,8 +39,8 @@ pub enum Error {
 /// Rollup data that relayer/conductor need to know.
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct RollupData {
-    #[serde(with = "crate::serde::chain_id")]
-    pub chain_id: ChainId,
+    #[serde(with = "hex::serde")]
+    pub chain_id: Vec<u8>,
     pub transactions: Vec<Vec<u8>>,
 }
 
@@ -222,12 +221,18 @@ impl SequencerBlockData {
             )?;
             tx.actions().iter().for_each(|action| {
                 if let Some(action) = action.as_sequence() {
-                    let namespace = Namespace::with_hashed_bytes(action.chain_id.as_ref());
-                    let rollup_data = rollup_data.entry(namespace).or_insert(RollupData {
-                        chain_id: action.chain_id,
-                        transactions: vec![],
-                    });
-                    rollup_data.transactions.push(action.data.clone());
+                    // TODO(https://github.com/astriaorg/astria/issues/318): intern
+                    // these namespaces so they don't get rebuild on every iteration.
+                    let namespace = Namespace::from_slice(&action.chain_id);
+                    rollup_data
+                        .entry(namespace)
+                        .and_modify(|data: &mut RollupData| {
+                            data.transactions.push(action.data.clone())
+                        })
+                        .or_insert_with(|| RollupData {
+                            chain_id: action.chain_id.clone(),
+                            transactions: vec![action.data.clone()],
+                        });
                 }
             });
         }
