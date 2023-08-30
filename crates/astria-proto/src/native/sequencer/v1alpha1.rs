@@ -455,7 +455,7 @@ impl SequenceAction {
             data,
         } = self;
         raw::SequenceAction {
-            chain_id: chain_id.to_vec(),
+            chain_id,
             data,
         }
     }
@@ -467,12 +467,13 @@ impl SequenceAction {
             data,
         } = self;
         raw::SequenceAction {
-            chain_id: chain_id.to_vec(),
+            chain_id: chain_id.clone(),
             data: data.clone(),
         }
     }
 
     /// Convert from a raw, unchecked protobuf [`raw::SequenceAction`].
+    #[must_use]
     pub fn from_raw(proto: raw::SequenceAction) -> Self {
         let raw::SequenceAction {
             chain_id,
