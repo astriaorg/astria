@@ -96,7 +96,7 @@ impl Collector {
 
     /// Starts the collector instance and runs until failure or until
     /// explicitly closed
-    #[instrument(skip_all, fields(chain.id = self.chain_id))]
+    #[instrument(skip_all, fields(chain_id = self.chain_id))]
     pub(super) async fn run_until_stopped(self) -> eyre::Result<()> {
         use std::time::Duration;
 

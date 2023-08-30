@@ -155,7 +155,7 @@ impl<C: ExecutionClient> Executor<C> {
                     let Some(block_subset) =
                         SequencerBlockSubset::from_sequencer_block_data(*block, self.namespace)
                     else {
-                        info!(namespace = %self.namespace, "block did not contain data for namespace; skiping");
+                        info!(namespace = %self.namespace, "block did not contain data for namespace; skipping");
                         continue;
                     };
                     if let Err(e) = self.execute_block(block_subset).await {

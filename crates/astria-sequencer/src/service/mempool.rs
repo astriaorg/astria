@@ -76,8 +76,8 @@ fn handle_check_tx(req: request::CheckTx) -> response::CheckTx {
     };
     let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx).unwrap();
     // if the tx passes the check, status code 0 is returned.
-    // TODO: status codes for various errors
-    // TODO: offload `check_stateless` using `deliver_tx_bytes` mechanism
+    // TODO(https://github.com/astriaorg/astria/issues/228): status codes for various errors
+    // TODO(https://github.com/astriaorg/astria/issues/319): offload `check_stateless` using `deliver_tx_bytes` mechanism
     //       and a worker task similar to penumbra
     match transaction::check_stateless(&signed_tx) {
         Ok(_) => response::CheckTx::default(),
