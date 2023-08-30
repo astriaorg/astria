@@ -20,8 +20,14 @@ use crate::{
     Config,
 };
 
+/// Composer is a service responsible for submitting transactions to the Astria
+/// Shared Sequencer.
 pub struct Composer {
+    /// ApiServer is used for monitoring status of the Composer service.
     api_server: ApiServer,
+    /// Searcher establishes connections to individual rollup nodes, receiving
+    /// pending transactions from them and wraps them as sequencer transactions
+    /// for submission.
     searcher: Searcher,
 }
 
@@ -54,6 +60,7 @@ impl Composer {
         })
     }
 
+    /// Returns the socket address the api server is served over
     pub fn local_addr(&self) -> SocketAddr {
         self.api_server.local_addr()
     }
