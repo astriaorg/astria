@@ -227,7 +227,7 @@ impl SequencerBlockData {
                     rollup_data
                         .entry(namespace)
                         .and_modify(|data: &mut RollupData| {
-                            data.transactions.push(action.data.clone())
+                            data.transactions.push(action.data.clone());
                         })
                         .or_insert_with(|| RollupData {
                             chain_id: action.chain_id.clone(),

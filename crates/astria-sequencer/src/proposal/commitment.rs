@@ -74,7 +74,7 @@ fn group_sequence_actions_by_chain_id(
 ) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
     let mut rollup_txs_map = BTreeMap::new();
 
-    for action in txs.iter().flat_map(|tx| tx.actions()) {
+    for action in txs.iter().flat_map(SignedTransaction::actions) {
         if let Some(action) = action.as_sequence() {
             let txs_for_rollup: &mut Vec<Vec<u8>> = rollup_txs_map
                 .entry(action.chain_id.clone())
