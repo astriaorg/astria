@@ -50,9 +50,9 @@ message TransferAction {
 
 // `SequenceAction` represents a transaction destined for another chain.
 //
-// `to` is expected to be a slice of 32 bytes representatin an astria chain ID.
+// `chain_id` is a plain text identifier of the chain that `data` belongs to.
 // `data` is treated as an opaque buffer of bytes.
 message SequenceAction {
-    bytes chain_id = 1;
+    string chain_id = 1;
     bytes data = 2;
 }
