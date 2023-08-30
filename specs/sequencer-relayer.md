@@ -52,10 +52,10 @@ proposed block, which is not fully finalized by the sequencer network yet.
 ### P2P/Gossipnet
 
 > Note: The P2P/gossipnet may be removed/replaced by an alternate model in the
-> future. It's known that this is heavy weight and is propogating data to all
+> future. It's known that this is heavyweight and is propogating data to all
 > rollups which they are not all interested in.
 
-After receiving a block from the sequencer, if it is signed by the relayers
+After receiving a block from the sequencer, if it is signed by the relayer's
 validator key, it is converted into the `SequencerBlockData` shape
 ([link](https://github.com/astriaorg/astria/blob/7ebb743ed6f1d9eef69372f2cbb4ab9cbe2668b3/crates/astria-sequencer-types/src/sequencer_block_data.rs#L39-L46)).
 This object is then pushed to the libp2p "gossipnet" network, for execution by
