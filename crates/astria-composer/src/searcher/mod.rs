@@ -10,7 +10,6 @@ use std::{
     time::Duration,
 };
 
-use astria_sequencer::transaction;
 use color_eyre::eyre::{
     self,
     bail,
@@ -19,6 +18,12 @@ use color_eyre::eyre::{
 };
 use ed25519_consensus::SigningKey;
 use humantime::format_duration;
+use proto::native::sequencer::v1alpha1::{
+    Action,
+    SequenceAction,
+    SignedTransaction,
+    UnsignedTransaction,
+};
 use secrecy::{
     ExposeSecret as _,
     Zeroize as _,
@@ -73,7 +78,7 @@ pub(super) struct Searcher {
     collector_tasks: tokio_util::task::JoinMap<String, eyre::Result<()>>,
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
-    conversion_tasks: JoinSet<eyre::Result<transaction::Signed>>,
+    conversion_tasks: JoinSet<eyre::Result<SignedTransaction>>,
     // Set of in-flight RPCs submitting signed transactions to the sequencer.
     submission_tasks: JoinSet<eyre::Result<()>>,
 }
@@ -212,11 +217,6 @@ impl Searcher {
 
     /// Serializes and signs a sequencer tx from a rollup tx.
     fn handle_pending_tx(&mut self, tx: collector::Transaction) {
-        use astria_sequencer::{
-            accounts::types::Nonce,
-            transaction::action,
-        };
-
         let collector::Transaction {
             chain_id,
             inner: rollup_tx,
@@ -228,20 +228,21 @@ impl Searcher {
         self.conversion_tasks.spawn_blocking(move || {
             // Pack into sequencer tx
             let data = rollup_tx.rlp().to_vec();
-            let chain_id = chain_id.into_bytes();
-            let seq_action = action::Action::new_sequence_action(chain_id, data);
 
             // get current nonce and increment nonce
             let curr_nonce = nonce.fetch_add(1, Ordering::Relaxed);
-            let unsigned_tx =
-                transaction::Unsigned::new_with_actions(Nonce::from(curr_nonce), vec![seq_action]);
-
-            // Sign transaction
+            let unsigned_tx = UnsignedTransaction {
+                nonce: curr_nonce,
+                actions: vec![Action::Sequence(SequenceAction {
+                    chain_id: chain_id.into_bytes(),
+                    data,
+                })],
+            };
             Ok(unsigned_tx.into_signed(&sequencer_key))
         });
     }
 
-    fn handle_signed_tx(&mut self, tx: transaction::Signed) {
+    fn handle_signed_tx(&mut self, tx: SignedTransaction) {
         use sequencer_client::SequencerClientExt as _;
         let client = self.sequencer_client.inner.clone();
         self.submission_tasks.spawn(async move {

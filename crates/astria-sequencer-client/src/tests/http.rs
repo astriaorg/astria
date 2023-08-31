@@ -1,15 +1,10 @@
 use ed25519_consensus::SigningKey;
 use hex_literal::hex;
-use proto::native::sequencer::v1alpha1::Address;
-use sequencer::{
-    accounts::{
-        types::{
-            Balance,
-            Nonce,
-        },
-        Transfer,
-    },
-    transaction,
+use proto::native::sequencer::v1alpha1::{
+    Address,
+    SignedTransaction,
+    TransferAction,
+    UnsignedTransaction,
 };
 use serde_json::json;
 use tendermint::{
@@ -39,7 +34,7 @@ use crate::{
 };
 
 const ALICE_ADDRESS: [u8; 20] = hex!("1c0c490f1b5528d8173c5de46d131160e4b2c0c3");
-const BOB_ADDRESS: [u8; 20] = hex!("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a");
+const BOB_ADDRESS: Address = Address(hex!("34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a"));
 
 struct MockSequencer {
     server: MockServer,
@@ -119,20 +114,26 @@ async fn register_broadcast_tx_commit_response(
     .await
 }
 
-fn create_signed_transaction() -> transaction::Signed {
+fn create_signed_transaction() -> SignedTransaction {
     let alice_secret_bytes: [u8; 32] =
         hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
             .unwrap()
             .try_into()
             .unwrap();
-    let alice_keypair = SigningKey::from(alice_secret_bytes);
+    let alice_key = SigningKey::from(alice_secret_bytes);
 
-    let actions = vec![transaction::Action::TransferAction(Transfer::new(
-        Address::try_from_slice(BOB_ADDRESS.as_slice()).unwrap(),
-        Balance::from(333_333),
-    ))];
-    let tx = transaction::Unsigned::new_with_actions(Nonce::from(1), actions);
-    tx.into_signed(&alice_keypair)
+    let actions = vec![
+        TransferAction {
+            to: BOB_ADDRESS,
+            amount: 333_333,
+        }
+        .into(),
+    ];
+    UnsignedTransaction {
+        nonce: 1,
+        actions,
+    }
+    .into_signed(&alice_key)
 }
 
 #[tokio::test]
@@ -154,7 +155,7 @@ async fn get_latest_nonce() {
         .get_latest_nonce(ALICE_ADDRESS)
         .await
         .unwrap()
-        .into_proto();
+        .into_raw();
     assert_eq!(expected_response, actual_response);
 }
 
@@ -177,7 +178,7 @@ async fn get_latest_balance() {
         .get_latest_balance(ALICE_ADDRESS)
         .await
         .unwrap()
-        .into_proto();
+        .into_raw();
     assert_eq!(expected_response, actual_response);
 }
 

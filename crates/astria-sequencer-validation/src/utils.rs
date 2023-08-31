@@ -8,11 +8,11 @@ use crate::MerkleTree;
 pub fn generate_action_tree_leaves(
     chain_id_to_txs: BTreeMap<Vec<u8>, Vec<Vec<u8>>>,
 ) -> Vec<Vec<u8>> {
-    let mut leaves: Vec<Vec<u8>> = vec![];
+    let mut leaves = Vec::new();
     for (chain_id, txs) in chain_id_to_txs {
-        let chain_id_root = MerkleTree::from_leaves(txs).root();
+        let root = MerkleTree::from_leaves(txs).root();
         let mut leaf = chain_id.clone();
-        leaf.append(&mut chain_id_root.to_vec());
+        leaf.append(&mut root.to_vec());
         leaves.push(leaf);
     }
     leaves

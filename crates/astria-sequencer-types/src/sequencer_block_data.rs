@@ -11,7 +11,6 @@ use base64::{
 use eyre::{
     bail,
     ensure,
-    eyre,
     WrapErr as _,
 };
 use serde::{
@@ -38,8 +37,9 @@ pub enum Error {
 }
 
 /// Rollup data that relayer/conductor need to know.
-#[derive(Default, Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct RollupData {
+    #[serde(with = "hex::serde")]
     pub chain_id: Vec<u8>,
     pub transactions: Vec<Vec<u8>>,
 }
@@ -184,9 +184,11 @@ impl SequencerBlockData {
     /// See `specs/sequencer-inclusion-proofs.md` for most details on the action tree root
     /// and inclusion proof purpose.
     pub fn from_tendermint_block(b: Block) -> eyre::Result<Self> {
-        // TODO(https://github.com/astriaorg/astria/issues/305): this crate should not import astria_sequencer
-        use astria_sequencer::transaction::Signed;
-
+        use proto::{
+            generated::sequencer::v1alpha1 as raw,
+            native::sequencer::v1alpha1::SignedTransaction,
+            Message as _,
+        };
         let Some(data_hash) = b.header.data_hash else {
             bail!(Error::MissingDataHash);
         };
@@ -211,17 +213,26 @@ impl SequencerBlockData {
                 "parsing data from tendermint block",
             );
 
-            let tx = Signed::try_from_slice(tx)
-                .map_err(|e| eyre!(e))
-                .wrap_err("failed reading signed sequencer transaction from bytes")?;
-            tx.transaction().actions().iter().for_each(|action| {
+            let raw_tx = raw::SignedTransaction::decode(&**tx)
+                .wrap_err("failed decoding bytes to protobuf signed transaction")?;
+            let tx = SignedTransaction::try_from_raw(raw_tx).wrap_err(
+                "failed constructing native signed transaction from raw protobuf signed \
+                 transaction",
+            )?;
+            tx.actions().iter().for_each(|action| {
                 if let Some(action) = action.as_sequence() {
-                    let namespace = Namespace::from_slice(action.chain_id());
-                    let rollup_data = rollup_data.entry(namespace).or_insert(RollupData {
-                        chain_id: action.chain_id().to_vec(),
-                        transactions: vec![],
-                    });
-                    rollup_data.transactions.push(action.data().to_vec());
+                    // TODO(https://github.com/astriaorg/astria/issues/318): intern
+                    // these namespaces so they don't get rebuild on every iteration.
+                    let namespace = Namespace::from_slice(&action.chain_id);
+                    rollup_data
+                        .entry(namespace)
+                        .and_modify(|data: &mut RollupData| {
+                            data.transactions.push(action.data.clone());
+                        })
+                        .or_insert_with(|| RollupData {
+                            chain_id: action.chain_id.clone(),
+                            transactions: vec![action.data.clone()],
+                        });
                 }
             });
         }
