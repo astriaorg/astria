@@ -237,9 +237,6 @@ impl UnsignedTransaction {
 
     /// Attempt to convert from a raw, unchecked protobuf [`raw::UnsignedTransaction`].
     ///
-    /// Note that actions contained in the transactions that are not set are dropped
-    /// quietly.
-    ///
     /// # Errors
     ///
     /// Returns an error if one of the inner raw actions could not be converted to a native
@@ -252,16 +249,7 @@ impl UnsignedTransaction {
         let n_raw_actions = actions.len();
         let actions: Vec<_> = actions
             .into_iter()
-            .filter_map(|raw_act| {
-                // Silently drop unset actions.
-                let converted = Action::try_from_raw(raw_act);
-                if let Err(e) = &converted {
-                    if e.is_unset() {
-                        return None;
-                    }
-                }
-                Some(converted)
-            })
+            .map(Action::try_from_raw)
             .collect::<Result<_, _>>()
             .map_err(UnsignedTransactionError::action)?;
         if actions.len() != n_raw_actions {
@@ -403,10 +391,6 @@ impl ActionError {
         Self {
             kind: ActionErrorKind::Unset,
         }
-    }
-
-    fn is_unset(&self) -> bool {
-        matches!(self.kind, ActionErrorKind::Unset)
     }
 
     fn transfer(inner: TransferActionError) -> Self {
