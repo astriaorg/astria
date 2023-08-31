@@ -4,7 +4,6 @@ use astria_sequencer_validation::generate_action_tree_leaves;
 use bytes::Bytes;
 use proto::native::sequencer::v1alpha1::SignedTransaction;
 use tendermint::merkle::simple_hash_from_byte_vectors;
-use tracing::info;
 
 /// Called when we receive a `PrepareProposal` or `ProcessProposal` consensus message.
 ///
@@ -30,18 +29,19 @@ pub(crate) fn generate_sequence_actions_commitment(
         generated::sequencer::v1alpha1 as raw,
         Message as _,
     };
+    use tracing::debug;
     let txs = txs_bytes
         .into_iter()
         .filter_map(|bytes| {
             raw::SignedTransaction::decode(&*bytes)
             .map_err(|err| {
-                info!(error = ?err, "failed to deserialize bytes as a signed transaction");
+                debug!(error = ?err, "failed to deserialize bytes as a signed transaction");
                 err
             })
             .ok()
             .and_then(|raw_tx| SignedTransaction::try_from_raw(raw_tx)
                 .map_err(|err| {
-                    info!(error = ?err, "could not convert raw signed transaction to native signed transaction");
+                    debug!(error = ?err, "could not convert raw signed transaction to native signed transaction");
                     err
                 })
                 .ok()
