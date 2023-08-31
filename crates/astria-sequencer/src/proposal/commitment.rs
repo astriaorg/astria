@@ -1,10 +1,7 @@
 use std::collections::BTreeMap;
 
-use astria_sequencer_validation::generate_action_tree_leaves;
 use bytes::Bytes;
-use tendermint::merkle::simple_hash_from_byte_vectors;
-
-use crate::transaction::Signed;
+use proto::native::sequencer::v1alpha1::SignedTransaction;
 
 /// Called when we receive a `PrepareProposal` or `ProcessProposal` consensus message.
 ///
@@ -26,18 +23,39 @@ use crate::transaction::Signed;
 pub(crate) fn generate_sequence_actions_commitment(
     txs_bytes: Vec<Bytes>,
 ) -> ([u8; 32], Vec<Bytes>) {
-    // ignore any transactions that are not deserializable
+    use proto::{
+        generated::sequencer::v1alpha1 as raw,
+        Message as _,
+    };
+    use sequencer_validation::generate_action_tree_leaves;
+    use tendermint::{
+        crypto::default::Sha256,
+        merkle::simple_hash_from_byte_vectors,
+    };
+    use tracing::debug;
+
     let txs = txs_bytes
         .into_iter()
-        .filter_map(|tx_bytes| match Signed::try_from_slice(&tx_bytes) {
-            Ok(tx) => Some((tx, tx_bytes)),
-            Err(err) => {
-                tracing::debug!(tx_bytes = hex::encode(tx_bytes), error = ?err, "failed to deserialize tx bytes");
-                None
-            }
+        .filter_map(|bytes| {
+            raw::SignedTransaction::decode(&*bytes)
+            .map_err(|err| {
+                debug!(error = ?err, "failed to deserialize bytes as a signed transaction");
+                err
+            })
+            .ok()
+            .and_then(|raw_tx| SignedTransaction::try_from_raw(raw_tx)
+                .map_err(|err| {
+                    debug!(error = ?err, "could not convert raw signed transaction to native signed transaction");
+                    err
+                })
+                .ok()
+            )
+            .map(move |signed_tx| (signed_tx, bytes))
         })
-        .collect::<Vec<(Signed, Bytes)>>();
-    let (signed_txs, txs_to_include): (Vec<Signed>, Vec<Bytes>) = txs.into_iter().unzip();
+
+        .collect::<Vec<(SignedTransaction, Bytes)>>();
+    let (signed_txs, txs_to_include): (Vec<SignedTransaction>, Vec<Bytes>) =
+        txs.into_iter().unzip();
 
     let chain_id_to_txs = group_sequence_actions_by_chain_id(&signed_txs);
 
@@ -46,7 +64,7 @@ pub(crate) fn generate_sequence_actions_commitment(
     // the leaves are sorted in ascending order by `chain_id`.
     let leaves = generate_action_tree_leaves(chain_id_to_txs);
     (
-        simple_hash_from_byte_vectors::<tendermint::crypto::default::Sha256>(&leaves),
+        simple_hash_from_byte_vectors::<Sha256>(&leaves),
         txs_to_include,
     )
 }
@@ -55,18 +73,18 @@ pub(crate) fn generate_sequence_actions_commitment(
 /// Other types of actions are ignored.
 ///
 /// Within an entry, actions are ordered by their transaction index within a block.
-fn group_sequence_actions_by_chain_id(txs: &[Signed]) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
+fn group_sequence_actions_by_chain_id(
+    txs: &[SignedTransaction],
+) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
     let mut rollup_txs_map = BTreeMap::new();
 
-    for tx in txs.iter() {
-        tx.transaction().actions().iter().for_each(|action| {
-            if let Some(action) = action.as_sequence() {
-                let txs_for_rollup: &mut Vec<Vec<u8>> = rollup_txs_map
-                    .entry(action.chain_id().to_vec())
-                    .or_insert(vec![]);
-                txs_for_rollup.push(action.data().to_vec());
-            }
-        });
+    for action in txs.iter().flat_map(SignedTransaction::actions) {
+        if let Some(action) = action.as_sequence() {
+            let txs_for_rollup: &mut Vec<Vec<u8>> = rollup_txs_map
+                .entry(action.chain_id.clone())
+                .or_insert(vec![]);
+            txs_for_rollup.push(action.data.clone());
+        }
     }
 
     rollup_txs_map
@@ -74,59 +92,51 @@ fn group_sequence_actions_by_chain_id(txs: &[Signed]) -> BTreeMap<Vec<u8>, Vec<V
 
 #[cfg(test)]
 mod test {
-    use astria_proto::native::sequencer::v1alpha1::Address;
     use ed25519_consensus::SigningKey;
-    use prost::Message as _;
+    use proto::{
+        native::sequencer::v1alpha1::{
+            Address,
+            SequenceAction,
+            TransferAction,
+            UnsignedTransaction,
+        },
+        Message as _,
+    };
     use rand::rngs::OsRng;
+    use sequencer_validation::generate_action_tree_leaves;
 
     use super::*;
-    use crate::{
-        accounts::{
-            self,
-            types::{
-                Balance,
-                Nonce,
-            },
-        },
-        sequence,
-        transaction::{
-            action::Action,
-            Unsigned,
-        },
-    };
 
     #[test]
     fn generate_sequence_actions_commitment_should_ignore_transfers() {
-        let sequence_action = Action::SequenceAction(sequence::Action::new(
-            b"testchainid".to_vec(),
-            b"helloworld".to_vec(),
-        ));
+        let sequence_action = SequenceAction {
+            chain_id: b"testchainid".to_vec(),
+            data: b"helloworld".to_vec(),
+        };
+        let transfer_action = TransferAction {
+            to: Address([0u8; 20]),
+            amount: 1,
+        };
 
         let signing_key = SigningKey::new(OsRng);
-        let tx = Unsigned {
-            nonce: Nonce::from(0),
-            actions: vec![
-                sequence_action.clone(),
-                Action::TransferAction(accounts::Transfer::new(
-                    Address([0u8; 20]),
-                    Balance::from(1),
-                )),
-            ],
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![sequence_action.clone().into(), transfer_action.into()],
         };
 
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.to_proto().encode_to_vec();
+        let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
         let (action_commitment_0, _) = generate_sequence_actions_commitment(txs);
 
         let signing_key = SigningKey::new(OsRng);
-        let tx = Unsigned {
-            nonce: Nonce::from(0),
-            actions: vec![sequence_action],
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![sequence_action.into()],
         };
 
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.to_proto().encode_to_vec();
+        let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
         let (action_commitment_1, _) = generate_sequence_actions_commitment(txs);
         assert_eq!(action_commitment_0, action_commitment_1);
@@ -137,32 +147,41 @@ mod test {
         let signing_key = SigningKey::new(OsRng);
 
         let chain_id_0 = b"testchainid0";
-        let tx = Unsigned {
-            nonce: Nonce::from(0),
-            actions: vec![Action::SequenceAction(sequence::Action::new(
-                chain_id_0.to_vec(),
-                b"helloworld".to_vec(),
-            ))],
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                SequenceAction {
+                    chain_id: chain_id_0.to_vec(),
+                    data: b"helloworld".to_vec(),
+                }
+                .into(),
+            ],
         };
         let signed_tx_0 = tx.into_signed(&signing_key);
 
         let chain_id_1 = b"testchainid1";
-        let tx = Unsigned {
-            nonce: Nonce::from(0),
-            actions: vec![Action::SequenceAction(sequence::Action::new(
-                chain_id_1.to_vec(),
-                b"helloworld".to_vec(),
-            ))],
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                SequenceAction {
+                    chain_id: chain_id_1.to_vec(),
+                    data: b"helloworld".to_vec(),
+                }
+                .into(),
+            ],
         };
         let signed_tx_1 = tx.into_signed(&signing_key);
 
         let chain_id_2 = b"testchainid2";
-        let tx = Unsigned {
-            nonce: Nonce::from(0),
-            actions: vec![Action::SequenceAction(sequence::Action::new(
-                chain_id_2.to_vec(),
-                b"helloworld".to_vec(),
-            ))],
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                SequenceAction {
+                    chain_id: chain_id_2.to_vec(),
+                    data: b"helloworld".to_vec(),
+                }
+                .into(),
+            ],
         };
         let signed_tx_2 = tx.into_signed(&signing_key);
 
@@ -178,37 +197,37 @@ mod test {
     }
 
     #[test]
+    // TODO(https://github.com/astriaorg/astria/issues/312): ensure this test is stable
+    // against changes in the serialization format (protobuf is not deterministic)
     fn generate_sequence_actions_commitment_snapshot() {
         // this tests that the commitment generated is what is expected via a test vector.
         // this test will only break in the case of a breaking change to the commitment scheme,
         // thus if this test needs to be updated, we should cut a new release.
 
-        let sequence_action = Action::SequenceAction(sequence::Action::new(
-            b"testchainid".to_vec(),
-            b"helloworld".to_vec(),
-        ));
+        let sequence_action = SequenceAction {
+            chain_id: b"testchainid".to_vec(),
+            data: b"helloworld".to_vec(),
+        };
+        let transfer_action = TransferAction {
+            to: Address([0u8; 20]),
+            amount: 1,
+        };
 
         let signing_key = SigningKey::new(OsRng);
-        let tx = Unsigned {
-            nonce: Nonce::from(0),
-            actions: vec![
-                sequence_action,
-                Action::TransferAction(accounts::Transfer::new(
-                    Address([0u8; 20]),
-                    Balance::from(1),
-                )),
-            ],
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![sequence_action.into(), transfer_action.into()],
         };
 
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.to_proto().encode_to_vec();
+        let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let (action_commitment, _) = generate_sequence_actions_commitment(txs);
+        let (actual, _) = generate_sequence_actions_commitment(txs);
 
-        let expected_commitment: [u8; 32] = [
+        let expected: [u8; 32] = [
             97, 82, 159, 138, 201, 12, 241, 95, 99, 19, 162, 205, 37, 38, 130, 165, 78, 185, 141,
             6, 69, 51, 32, 9, 224, 92, 34, 25, 192, 213, 235, 3,
         ];
-        assert_eq!(action_commitment, expected_commitment);
+        assert_eq!(expected, actual);
     }
 }
