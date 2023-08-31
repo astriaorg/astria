@@ -253,7 +253,8 @@ impl Reader {
         }
 
         // sort blocks by height
-        // TODO: there isn't a guarantee that the blocks aren't severely out of order,
+        // TODO: (https://github.com/astriaorg/astria/issues/323)
+        // there isn't a guarantee that the blocks aren't severely out of order,
         // and we need to ensure that there are no gaps between the block heights before processing.
         blocks.sort_by(|a, b| a.header.height.cmp(&b.header.height));
         Ok(Some(blocks))
