@@ -1,9 +1,7 @@
 use std::collections::BTreeMap;
 
-use astria_sequencer_validation::generate_action_tree_leaves;
 use bytes::Bytes;
 use proto::native::sequencer::v1alpha1::SignedTransaction;
-use tendermint::merkle::simple_hash_from_byte_vectors;
 
 /// Called when we receive a `PrepareProposal` or `ProcessProposal` consensus message.
 ///
@@ -29,7 +27,13 @@ pub(crate) fn generate_sequence_actions_commitment(
         generated::sequencer::v1alpha1 as raw,
         Message as _,
     };
+    use sequencer_validation::generate_action_tree_leaves;
+    use tendermint::{
+        crypto::default::Sha256,
+        merkle::simple_hash_from_byte_vectors,
+    };
     use tracing::debug;
+
     let txs = txs_bytes
         .into_iter()
         .filter_map(|bytes| {
@@ -60,7 +64,7 @@ pub(crate) fn generate_sequence_actions_commitment(
     // the leaves are sorted in ascending order by `chain_id`.
     let leaves = generate_action_tree_leaves(chain_id_to_txs);
     (
-        simple_hash_from_byte_vectors::<tendermint::crypto::default::Sha256>(&leaves),
+        simple_hash_from_byte_vectors::<Sha256>(&leaves),
         txs_to_include,
     )
 }
@@ -99,6 +103,7 @@ mod test {
         Message as _,
     };
     use rand::rngs::OsRng;
+    use sequencer_validation::generate_action_tree_leaves;
 
     use super::*;
 
