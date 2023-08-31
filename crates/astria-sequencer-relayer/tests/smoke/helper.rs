@@ -9,9 +9,13 @@ use astria_sequencer_relayer::{
     validator::Validator,
     SequencerRelayer,
 };
-use astria_sequencer_types::SequencerBlockData;
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
+use proto::native::sequencer::v1alpha1::{
+    SequenceAction,
+    UnsignedTransaction,
+};
+use sequencer_types::SequencerBlockData;
 use serde_json::json;
 use tempfile::NamedTempFile;
 use tendermint_rpc::{
@@ -400,13 +404,7 @@ fn create_non_default_last_commit() -> tendermint::block::Commit {
 }
 
 fn create_block_response(validator: &Validator, height: u32) -> endpoint::block::Response {
-    use astria_sequencer::{
-        accounts::types::Nonce,
-        transaction::{
-            action::Action,
-            Unsigned,
-        },
-    };
+    use proto::Message as _;
     use tendermint::{
         block,
         chain,
@@ -420,17 +418,22 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
     let signing_key = validator.signing_key();
 
     let suffix = height.to_string().into_bytes();
-    let signed_tx = Unsigned::new_with_actions(
-        Nonce::from(1),
-        vec![Action::new_sequence_action(
-            [b"test_chain_id_", &*suffix].concat(),
-            [b"hello_world_id_", &*suffix].concat(),
-        )],
-    )
-    .into_signed(signing_key);
+    let signed_tx_bytes = UnsignedTransaction {
+        nonce: 1,
+        actions: vec![
+            SequenceAction {
+                chain_id: [b"test_chain_id_", &*suffix].concat(),
+                data: [b"hello_world_id_", &*suffix].concat(),
+            }
+            .into(),
+        ],
+    }
+    .into_signed(signing_key)
+    .into_raw()
+    .encode_to_vec();
     let action_tree =
-        astria_sequencer_validation::MerkleTree::from_leaves(vec![signed_tx.to_bytes()]);
-    let data = vec![action_tree.root().to_vec(), signed_tx.to_bytes()];
+        astria_sequencer_validation::MerkleTree::from_leaves(vec![signed_tx_bytes.clone()]);
+    let data = vec![action_tree.root().to_vec(), signed_tx_bytes];
     let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
         &data,
     )));
