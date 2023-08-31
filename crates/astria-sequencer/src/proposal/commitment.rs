@@ -34,7 +34,7 @@ pub(crate) fn generate_sequence_actions_commitment(
     };
     use tracing::debug;
 
-    let txs = txs_bytes
+    let (signed_txs, txs_to_include): (Vec<_>, Vec<_>) = txs_bytes
         .into_iter()
         .filter_map(|bytes| {
             raw::SignedTransaction::decode(&*bytes)
@@ -52,10 +52,7 @@ pub(crate) fn generate_sequence_actions_commitment(
             )
             .map(move |signed_tx| (signed_tx, bytes))
         })
-
-        .collect::<Vec<(SignedTransaction, Bytes)>>();
-    let (signed_txs, txs_to_include): (Vec<SignedTransaction>, Vec<Bytes>) =
-        txs.into_iter().unzip();
+        .unzip();
 
     let chain_id_to_txs = group_sequence_actions_by_chain_id(&signed_txs);
 
