@@ -28,6 +28,19 @@ jobs:
           cache-provider: "buildjet"
       - name: Check that each crate compiles individually (circumventing workspace wide dependency resolution)
         run: cargo hack check --all --all-features
+
+  lockfile:
+    runs-on: ubuntu-22.04
+    needs: run_checker
+    if: ${{ needs.run_checker.outputs.run_tests }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@1.70.0
+      - uses: Swatinem/rust-cache@v2.6.1
+        with:
+          cache-provider: "github"
+      - name: Check that the lockfile is updated
+        run: cargo fetch --locked
     
   rust:
     runs-on: buildjet-8vcpu-ubuntu-2204
@@ -138,5 +151,5 @@ jobs:
           -- --deny warnings
 
   test:
-    needs: [compiles, rust, rpc_client, doctest, clippy]
+    needs: [compiles, rust, rpc_client, doctest, clippy, lockfile]
     uses: ./.github/workflows/reusable-success.yml
