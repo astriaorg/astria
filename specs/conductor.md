@@ -50,19 +50,21 @@ The responsibilities of each module are as follows:
 
 #### The Execution Queue
 The Queue within the Executor is responsible for verifying the ordering of
-blocks received from the Sequencer. The basic flow for the blocks through the
-Executor and into and out of the Queue, is as follows:
-**From the Sequencer:**
-1. Blocks are received from the Sequencer and are validated.
-2. Validated blocks are then sent to the `execute_block` function for the
-   Executor
+blocks received only from the Sequencer. The basic flow for the blocks into 
+and out of the Queue, is as follows:
+
+
+1. Blocks are received from the Sequencer and are validated in the Driver.
+2. Validated blocks are then sent to the Executor and ultimately to `execute_block`
 3. Once inside `execute_block` that block is added to the Queue.
 4. The Queue verifies the order of the blocks to make sure that they are
-   following the correct fork choice rules based on the CometBFT fork choice rules.
-5. The list of all blocks that can be executed are then popped from the queue
+   following the CometBFT fork choice rules.
+5. All blocks that can be executed are then popped from the queue
    and are individually passed to the rollup for execution.
 
-The different fork choice rules are set using the `execution_commit_level`. There are three options:
+The different fork choice rules are set using the `execution_commit_level`.
+There are three options:
+
 1. `HEAD`: The HEAD setting means that every time the sequencer creates a new
    block at head height N, that block will get sent to the execution layer. The
    HEAD blocks at height N can be reorged or updated until
@@ -78,8 +80,6 @@ The different fork choice rules are set using the `execution_commit_level`. Ther
 3. `FIRM`: The FIRM setting indicates that only blocks that have been written
    and propagated across the DA network will be sent to the execution layer. All
    blocks sent will always be FIRM.
-
-
 
 ## Execution Data
 ### Transaction Filtering

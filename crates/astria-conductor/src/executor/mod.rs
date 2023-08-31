@@ -208,8 +208,10 @@ impl<C: ExecutionClient> Executor<C> {
     /// hash of the last block is returned. The execution hash of all executed
     /// blocks are stored in the `sequencer_hash_to_execution_hash` map.
     async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Vec<u8>>> {
-        // TODO: (GHI 285 - https://github.com/astriaorg/astria/issues/285): decide how empty blocks should be handled. either do nothing,
+        // TODO: (GHI 285 - https://github.com/astriaorg/astria/issues/285):
+        // decide how empty blocks should be handled. either do nothing,
         // or execute an empty block.
+
         // if there are no transactions in the block, return None
         if block.rollup_transactions.is_empty() {
             debug!(
@@ -229,13 +231,18 @@ impl<C: ExecutionClient> Executor<C> {
             return Ok(Some(execution_hash.clone()));
         }
 
-        self.block_queue.insert(block.clone());
+        let mut final_response = Ok(Some(self.execution_state.clone()));
+        // TODO: (GHI 250 - https://github.com/astriaorg/astria/issues/250):
+        // if blocks are coming from DA, do we still need them to pass through
+        // the queue? if not, we can skip the insert and pop_blocks calls
+        if let Ok(None) = self.block_queue.insert(block.clone()) {
+            return final_response;
+        };
         // TODO: (GHI 250 - https://github.com/astriaorg/astria/issues/250):
         // add a match statement here to either `pop_blocks` (returns soft and
         // head) or `pop_soft_blocks` (just soft) based on the `execution_commit_level` setting
         let queued_blocks = self.block_queue.pop_blocks();
 
-        let mut final_response = Ok(Some(self.execution_state.clone()));
         if let Some(blocks) = queued_blocks {
             // execute all the blocks returned from the queue
             for block in blocks {

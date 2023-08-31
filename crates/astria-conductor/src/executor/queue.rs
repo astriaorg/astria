@@ -3,6 +3,7 @@ use std::collections::{
     HashMap,
 };
 
+use color_eyre::eyre::Result;
 use tendermint::{
     block::Height,
     hash::Hash,
@@ -47,7 +48,7 @@ impl Queue {
     /// the internal state of the queue will also be updated to properly order
     /// and arrange all blocks in the queue, based on the Tendermint/CometBFT fork
     /// choice rules.
-    pub(super) fn insert(&mut self, block: SequencerBlockSubset) {
+    pub(super) fn insert(&mut self, block: SequencerBlockSubset) -> Result<Option<Hash>> {
         // if the block is already in the queue, return its hash
         if self.is_block_present(&block) {
             info!(
@@ -55,6 +56,7 @@ impl Queue {
                 block.hash = %block.block_hash(),
                 "block is already present in the queue"
             );
+            return Ok(Some(block.block_hash()));
         }
 
         // if the block is stale, ignore it
@@ -63,19 +65,19 @@ impl Queue {
                 block.height = %block.height(),
                 "block is stale and will not be added to the queue"
             );
+            return Ok(None);
         }
 
         // if the block is at the head height OR in the future, just add it to
         // the pending blocks
         self.insert_to_pending_blocks(block.clone());
 
-        self.update_internal_state();
-
         info!(
             block.height = %block.height(),
             block.hash = %block.block_hash(),
             "block added to queue"
         );
+        Ok(Some(block.block_hash()))
     }
 
     /// Removes and returns all "soft" and "Head" blocks in the queue, inorder
@@ -105,17 +107,25 @@ impl Queue {
         }
     }
 
-    // TODO: this will return all the blocks in the soft queue that are already "safe"
+    /// Removes and returns all "soft" blocks in the queue, inorder from oldest
+    /// to newest.
+    ///
+    /// This function returns an `Option<Vec<SequencerBlockData>>`. A `Some`
+    /// value contains a vector of `SequencerBlockData` that are ready to be
+    /// passed on to execution.
+    /// A `None` value indicates that there are no blocks in the queue that are
+    /// ready to be passed on. A `None` value does not mean there are no blocks
+    /// in the queue.
     pub(super) fn pop_soft_blocks(&mut self) -> Option<Vec<SequencerBlockSubset>> {
-        let mut soft_blocks: Vec<SequencerBlockSubset> =
+        let mut returned_soft_blocks: Vec<SequencerBlockSubset> =
             self.soft_blocks.values().cloned().collect();
-        if !soft_blocks.is_empty() {
-            soft_blocks.sort();
+        if !returned_soft_blocks.is_empty() {
+            returned_soft_blocks.sort();
             self.soft_blocks.clear();
-            let highest_soft_block = soft_blocks[soft_blocks.len() - 1].clone();
+            let highest_soft_block = returned_soft_blocks[returned_soft_blocks.len() - 1].clone();
             self.head_height = highest_soft_block.height().increment();
             self.remove_data_below_height(self.head_height);
-            Some(soft_blocks)
+            Some(returned_soft_blocks)
         } else {
             None
         }
@@ -192,6 +202,7 @@ impl Queue {
             new_map.insert(block_hash, block);
             self.pending_blocks.insert(height, new_map);
         }
+        self.update_internal_state();
     }
 
     // remove all data in the queue below a given height. this does not remove
