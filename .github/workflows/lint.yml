@@ -57,6 +57,18 @@ jobs:
       - name: run taplo
         run: taplo format --check
 
+  markdown:
+    runs-on: ubuntu-22.04
+    needs: run_checker
+    if: ${{ needs.run_checker.outputs.run_lint_markdown }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: DavidAnson/markdownlint-cli2-action@v11
+        with:
+          globs: |
+            '**/*.md'
+            '#.github'
+
   lint:
-    needs: [proto, rust, toml]
+    needs: [proto, rust, toml, markdown]
     uses: ./.github/workflows/reusable-success.yml
