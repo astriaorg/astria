@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use astria_conductor::{
-    alert::Alert,
     cli::Cli,
     config::Config,
     driver::{
@@ -12,7 +11,6 @@ use astria_conductor::{
 };
 use clap::Parser;
 use color_eyre::eyre::{
-    eyre,
     Result,
 };
 use figment::{
@@ -31,7 +29,6 @@ use tokio::{
         SignalKind,
     },
     sync::{
-        mpsc,
         watch,
     },
     time,
@@ -71,9 +68,8 @@ async fn run() -> Result<()> {
     } = spawn_signal_handler();
 
     // spawn our driver
-    let (alert_tx, mut alert_rx) = mpsc::unbounded_channel();
     let (mut driver, executor_join_handle, reader_join_handle) =
-        Driver::new(conf, alert_tx.clone()).await?;
+        Driver::new(conf).await?;
     let driver_tx = driver.cmd_tx.clone();
 
     tokio::task::spawn(async move {
@@ -82,27 +78,19 @@ async fn run() -> Result<()> {
         }
     });
 
-    let executor_alert_tx = alert_tx.clone();
     tokio::task::spawn(async move {
         match executor_join_handle.await {
+
             Ok(run_res) => match run_res {
                 Ok(_) => {
-                    _ = executor_alert_tx.send(Alert::DriverError(eyre!(
-                        "executor task exited unexpectedly"
-                    )));
+                    error!("executor task exited unexpectedly");
                 }
                 Err(e) => {
-                    _ = executor_alert_tx.send(Alert::DriverError(eyre!(
-                        "executor exited with error: {}",
-                        e
-                    )));
+                    error!("executor exited with error: {}", e);
                 }
             },
             Err(e) => {
-                _ = executor_alert_tx.send(Alert::DriverError(eyre!(
-                    "received JoinError from executor task: {}",
-                    e
-                )));
+                error!("received JoinError from executor task: {}", e);
             }
         }
     });
@@ -112,19 +100,14 @@ async fn run() -> Result<()> {
             match reader_join_handle.unwrap().await {
                 Ok(run_res) => match run_res {
                     Ok(_) => {
-                        _ = alert_tx
-                            .send(Alert::DriverError(eyre!("reader task exited unexpectedly")));
+                        error!("reader task exited unexpectedly");
                     }
                     Err(e) => {
-                        _ = alert_tx
-                            .send(Alert::DriverError(eyre!("reader exited with error: {}", e)));
+                        error!("reader exited with error: {}", e);
                     }
                 },
                 Err(e) => {
-                    _ = alert_tx.send(Alert::DriverError(eyre!(
-                        "received JoinError from reader task: {}",
-                        e
-                    )));
+                    error!("received JoinError from reader task: {}", e);
                 }
             }
         });
@@ -148,22 +131,6 @@ async fn run() -> Result<()> {
 
             _ = reload_rx.changed() => {
                 info!("reloading is currently not implemented");
-            }
-
-            // handle alerts from the driver
-            Some(alert) = alert_rx.recv() => {
-                match alert {
-                    Alert::DriverError(error_string) => {
-                        error!("error: {}", error_string);
-                        break;
-                    }
-                    Alert::BlockReceivedFromGossipNetwork{block_height} => {
-                        info!("sequencer block received from p2p network; height: {}", block_height);
-                    }
-                    Alert::BlockReceivedFromDataAvailability{block_height} => {
-                        info!("sequencer block received from DA layer; height: {}", block_height);
-                    }
-                }
             }
             // request new blocks every X seconds
             _ = interval.tick() => {

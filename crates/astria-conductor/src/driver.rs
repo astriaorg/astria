@@ -29,7 +29,6 @@ use tracing::{
 };
 
 use crate::{
-    alert::AlertSender,
     block_verifier::BlockVerifier,
     config::Config,
     executor,
@@ -81,12 +80,9 @@ pub struct Driver {
 }
 
 impl Driver {
-    pub async fn new(
-        conf: Config,
-        alert_tx: AlertSender,
-    ) -> Result<(Self, executor::JoinHandle, Option<reader::JoinHandle>)> {
+    pub async fn new(conf: Config) -> Result<(Self, executor::JoinHandle, Option<reader::JoinHandle>)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let (executor_join_handle, executor_tx) = executor::spawn(&conf, alert_tx.clone())
+        let (executor_join_handle, executor_tx) = executor::spawn(&conf)
             .await
             .wrap_err("failed to construct Executor")?;
 
@@ -171,6 +167,10 @@ impl Driver {
                     .await
                     .wrap_err("invalid block received from gossip network")?;
 
+                info!(
+                    "sequencer block received from p2p network; height: {}",
+                    block.header().height.value()
+                );
                 self.executor_tx
                     .send(ExecutorCommand::BlockReceivedFromGossipNetwork {
                         block: Box::new(block),
