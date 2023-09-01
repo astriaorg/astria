@@ -199,7 +199,7 @@ impl<C: SequencerClient> BlockVerifier<C> {
     ///   from tendermint
     /// - the signer of the SignedNamespaceData the proposer
     /// - the signature is valid
-    /// - the root of the markle tree of all the header fields matches the block's block_hash
+    /// - the root of the merkle tree of all the header fields matches the block's block_hash
     /// - the root of the merkle tree of all transactions in the block matches the block's data_hash
     /// - the inclusion proof of the action tree root inside `data_hash` is valid
     /// - validate the block was actually finalized; ie >2/3 stake signed off on it
@@ -260,7 +260,7 @@ impl<C: SequencerClient> BlockVerifier<C> {
                 // in the block is for the previous height
                 let validator_set = self
                     .sequencer_client
-                    .validators(height, tendermint_rpc::Paging::Default)
+                    .validators(height - 1, tendermint_rpc::Paging::Default)
                     .await
                     .wrap_err("failed to get validator set")?;
 
