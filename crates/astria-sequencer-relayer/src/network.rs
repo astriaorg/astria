@@ -3,12 +3,12 @@ use astria_gossipnet::network::{
     NetworkBuilder,
     Sha256Topic,
 };
-use astria_sequencer_types::SequencerBlockData;
 use eyre::{
     Result,
     WrapErr as _,
 };
 use futures::StreamExt;
+use sequencer_types::SequencerBlockData;
 use tokio::{
     select,
     sync::{
