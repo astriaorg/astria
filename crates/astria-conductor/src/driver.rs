@@ -80,7 +80,9 @@ pub struct Driver {
 }
 
 impl Driver {
-    pub async fn new(conf: Config) -> Result<(Self, executor::JoinHandle, Option<reader::JoinHandle>)> {
+    pub async fn new(
+        conf: Config,
+    ) -> Result<(Self, executor::JoinHandle, Option<reader::JoinHandle>)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let (executor_join_handle, executor_tx) = executor::spawn(&conf)
             .await

@@ -10,9 +10,7 @@ use astria_conductor::{
     telemetry,
 };
 use clap::Parser;
-use color_eyre::eyre::{
-    Result,
-};
+use color_eyre::eyre::Result;
 use figment::{
     providers::{
         Env,
@@ -28,9 +26,7 @@ use tokio::{
         signal,
         SignalKind,
     },
-    sync::{
-        watch,
-    },
+    sync::watch,
     time,
 };
 use tracing::{
@@ -68,8 +64,7 @@ async fn run() -> Result<()> {
     } = spawn_signal_handler();
 
     // spawn our driver
-    let (mut driver, executor_join_handle, reader_join_handle) =
-        Driver::new(conf).await?;
+    let (mut driver, executor_join_handle, reader_join_handle) = Driver::new(conf).await?;
     let driver_tx = driver.cmd_tx.clone();
 
     tokio::task::spawn(async move {
@@ -80,7 +75,6 @@ async fn run() -> Result<()> {
 
     tokio::task::spawn(async move {
         match executor_join_handle.await {
-
             Ok(run_res) => match run_res {
                 Ok(_) => {
                     error!("executor task exited unexpectedly");

@@ -111,10 +111,7 @@ struct Executor<C> {
 }
 
 impl<C: ExecutionClient> Executor<C> {
-    async fn new(
-        mut execution_rpc_client: C,
-        namespace: Namespace,
-    ) -> Result<(Self, Sender)> {
+    async fn new(mut execution_rpc_client: C, namespace: Namespace) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let init_state_response = execution_rpc_client.call_init_state().await?;
         let execution_state = init_state_response.block_hash;
@@ -307,9 +304,7 @@ mod test {
     };
     use prost_types::Timestamp;
     use sha2::Digest as _;
-    use tokio::sync::{
-        Mutex,
-    };
+    use tokio::sync::Mutex;
 
     use super::*;
 
@@ -409,9 +404,7 @@ mod test {
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace)
-            .await
-            .unwrap();
+        let (mut executor, _) = Executor::new(execution_client, namespace).await.unwrap();
 
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
@@ -444,9 +437,7 @@ mod test {
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace)
-            .await
-            .unwrap();
+        let (mut executor, _) = Executor::new(execution_client, namespace).await.unwrap();
 
         let block: SequencerBlockSubset = get_test_block_subset();
         let previous_execution_state = executor.execution_state.clone();
