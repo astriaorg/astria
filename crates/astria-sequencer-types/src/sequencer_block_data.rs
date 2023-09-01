@@ -298,7 +298,7 @@ impl SequencerBlockData {
             "block height must be greater than 0"
         );
         Height::try_from(self.header().height.value() - 1)
-            .expect("should have been able to decriment tendermint height")
+            .expect("should have been able to decrement tendermint height")
     }
 
     /// Get the height of the block's child, or the next block.
