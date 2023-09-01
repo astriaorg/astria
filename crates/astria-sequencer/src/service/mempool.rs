@@ -10,7 +10,6 @@ use futures::{
     Future,
     FutureExt,
 };
-use penumbra_tower_trace::RequestExt as _;
 use tendermint::abci::{
     request,
     response,
@@ -20,8 +19,6 @@ use tendermint::abci::{
 use tower::Service;
 use tower_abci::BoxError;
 use tracing::Instrument;
-
-use crate::transaction::Signed;
 
 /// Mempool handles [`request::CheckTx`] abci requests.
 //
@@ -40,37 +37,55 @@ impl Service<MempoolRequest> for Mempool {
     }
 
     fn call(&mut self, req: MempoolRequest) -> Self::Future {
+        use penumbra_tower_trace::RequestExt as _;
         let span = req.create_span();
-        let MempoolRequest::CheckTx(request::CheckTx {
-            tx: tx_bytes, ..
-        }) = req;
         async move {
-            // if the tx passes the check, status code 0 is returned.
-            // TODO: status codes for various errors
-            // TODO: offload `check_stateless` using `deliver_tx_bytes` mechanism
-            //       and a worker task similar to penumbra
-            let tx = match Signed::try_from_slice(&tx_bytes) {
-                Ok(tx) => tx,
-                Err(e) => {
-                    return Ok(MempoolResponse::CheckTx(response::CheckTx {
-                        code: 1.into(),
-                        log: format!("{e:#}"),
-                        ..Default::default()
-                    }));
-                }
+            let rsp = match req {
+                MempoolRequest::CheckTx(req) => MempoolResponse::CheckTx(handle_check_tx(req)),
             };
-
-            let rsp = match tx.check_stateless() {
-                Ok(_) => response::CheckTx::default(),
-                Err(e) => response::CheckTx {
-                    code: 1.into(),
-                    log: format!("{e:#}"),
-                    ..Default::default()
-                },
-            };
-            Ok(MempoolResponse::CheckTx(rsp))
+            Ok(rsp)
         }
         .instrument(span)
         .boxed()
+    }
+}
+
+fn handle_check_tx(req: request::CheckTx) -> response::CheckTx {
+    use proto::{
+        generated::sequencer::v1alpha1 as raw,
+        native::sequencer::v1alpha1::SignedTransaction,
+        Message as _,
+    };
+
+    use super::AbciCode;
+    use crate::transaction;
+
+    let request::CheckTx {
+        tx, ..
+    } = req;
+    let raw_signed_tx = match raw::SignedTransaction::decode(tx) {
+        Ok(tx) => tx,
+        Err(e) => {
+            return response::CheckTx {
+                code: AbciCode::INVALID_PARAMETER.into(),
+                log: format!("{e:?}"),
+                info: "failed decoding bytes as a protobuf SignedTransaction".into(),
+                ..response::CheckTx::default()
+            };
+        }
+    };
+    let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx).unwrap();
+    // if the tx passes the check, status code 0 is returned.
+    // TODO(https://github.com/astriaorg/astria/issues/228): status codes for various errors
+    // TODO(https://github.com/astriaorg/astria/issues/319): offload `check_stateless` using `deliver_tx_bytes` mechanism
+    //       and a worker task similar to penumbra
+    match transaction::check_stateless(&signed_tx) {
+        Ok(_) => response::CheckTx::default(),
+        Err(e) => response::CheckTx {
+            code: AbciCode::INVALID_PARAMETER.into(),
+            info: "failed verifying decoded protobuf SignedTransaction".into(),
+            log: format!("{e:?}"),
+            ..response::CheckTx::default()
+        },
     }
 }

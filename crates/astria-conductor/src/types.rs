@@ -34,8 +34,7 @@ impl SequencerBlockSubset {
             ..
         } = data.into_raw();
 
-        let our_rollup_data = rollup_data.remove(&namespace);
-        let Some(our_rollup_data) = our_rollup_data else {
+        let Some(our_rollup_data) = rollup_data.remove(&namespace) else {
             return None;
         };
 
