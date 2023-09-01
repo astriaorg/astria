@@ -20,7 +20,7 @@ be seen in `local.env.example`.
 
 To copy a configuration to your `.env` file run:
 
-```bash
+```sh
 
 # Can specify an environment
 just copy-env <ENVIRONMENT>
