@@ -45,39 +45,6 @@ use tracing::{
     warn,
 };
 
-#[async_trait::async_trait]
-pub(crate) trait SequencerClient {
-    async fn validators(
-        &self,
-        height: u32,
-        paging: tendermint_rpc::Paging,
-    ) -> eyre::Result<ValidatorSet>;
-}
-
-pub(crate) struct TendermintHttpClient(HttpClient);
-
-impl TendermintHttpClient {
-    pub(crate) fn new(sequencer_url: &str) -> eyre::Result<Self> {
-        Ok(Self(
-            HttpClient::new(sequencer_url).wrap_err("failed to construct sequencer client")?,
-        ))
-    }
-}
-
-#[async_trait::async_trait]
-impl SequencerClient for TendermintHttpClient {
-    async fn validators(
-        &self,
-        height: u32,
-        paging: tendermint_rpc::Paging,
-    ) -> eyre::Result<ValidatorSet> {
-        self.0
-            .validators(height, paging)
-            .await
-            .map_err(|e| eyre::eyre!("failed to get validator set: {}", e))
-    }
-}
-
 /// `BlockVerifier` is responsible for verifying the correctness of a block
 /// before executing it.
 /// It has two public functions: `validate_signed_namespace_data` and `validate_sequencer_block`.
@@ -85,15 +52,16 @@ impl SequencerClient for TendermintHttpClient {
 /// `validate_signed_namespace_data` is used to validate the data received from the data
 /// availability layer. `validate_sequencer_block` is used to validate the blocks received from
 /// either the data availability layer or the gossip network.
-pub(crate) struct BlockVerifier<C: SequencerClient> {
-    sequencer_client: C,
+pub(crate) struct BlockVerifier {
+    sequencer_client: HttpClient,
 }
 
-impl<C: SequencerClient> BlockVerifier<C> {
-    pub(crate) fn new(client: C) -> Self {
-        Self {
-            sequencer_client: client,
-        }
+impl BlockVerifier {
+    pub(crate) fn new(sequencer_url: &str) -> eyre::Result<Self> {
+        Ok(Self {
+            sequencer_client: HttpClient::new(sequencer_url)
+                .wrap_err("failed to construct sequencer client")?,
+        })
     }
 
     /// validates `SignedNamespaceData` received from Celestia.
@@ -103,10 +71,6 @@ impl<C: SequencerClient> BlockVerifier<C> {
         &self,
         data: &SignedNamespaceData<SequencerNamespaceData>,
     ) -> eyre::Result<()> {
-        // verify the block signature
-        data.verify()
-            .wrap_err("failed to verify signature of signed namepsace data")?;
-
         // get validator set for this height
         let height: u32 = data.data.header.height.value().try_into().expect(
             "a tendermint height (currently non-negative i32) should always fit into a u32",
@@ -117,22 +81,7 @@ impl<C: SequencerClient> BlockVerifier<C> {
             .await
             .wrap_err("failed to get validator set")?;
 
-        // find proposer address for this height
-        let expected_proposer_public_key = get_proposer(&validator_set)
-            .wrap_err("failed to get proposer from validator set")?
-            .pub_key
-            .to_bytes();
-
-        // verify the namespace data signing public key matches the proposer public key
-        let proposer_public_key = &data.public_key;
-        ensure!(
-            proposer_public_key == &expected_proposer_public_key,
-            "public key mismatch: expected {}, got {}",
-            hex::encode(expected_proposer_public_key),
-            hex::encode(proposer_public_key),
-        );
-
-        Ok(())
+        validate_signed_namespace_data(validator_set, data).await
     }
 
     /// validates `RollupNamespaceData` received from Celestia.
@@ -207,102 +156,136 @@ impl<C: SequencerClient> BlockVerifier<C> {
         &self,
         data: &SequencerNamespaceData,
     ) -> eyre::Result<()> {
-        let SequencerNamespaceData {
-            block_hash,
-            header,
-            last_commit,
-            rollup_namespaces: _,
-            action_tree_root,
-            action_tree_root_inclusion_proof,
-        } = data;
-
         // sequencer block's height
-        let height: u32 = header.height.value().try_into().expect(
+        let height: u32 = data.header.height.value().try_into().expect(
             "a tendermint height (currently non-negative i32) should always fit into a u32",
         );
 
         // get the validator set for this height
-        let validator_set = self
+        let current_validator_set = self
             .sequencer_client
             .validators(height, tendermint_rpc::Paging::Default)
             .await
             .wrap_err("failed to get validator set")?;
 
-        // find proposer address for this height
-        let expected_proposer_address = public_key_bytes_to_address(
-            &get_proposer(&validator_set)
-                .wrap_err("failed to get proposer from validator set")?
-                .pub_key,
-        )
-        .wrap_err("failed to convert proposer public key to address")?;
+        // get validator set for the previous height, as the commit contained
+        // in the block is for the previous height
+        let parent_validator_set = self
+            .sequencer_client
+            .validators(height - 1, tendermint_rpc::Paging::Default)
+            .await
+            .wrap_err("failed to get validator set")?;
 
-        // check if the proposer address matches the sequencer block's proposer
-        let received_proposer_address = header.proposer_address;
-        ensure!(
-            received_proposer_address == expected_proposer_address,
-            "proposer address mismatch: expected `{expected_proposer_address}`, got \
-             `{received_proposer_address}`",
-        );
-
-        match &last_commit {
-            Some(last_commit) => {
-                // validate that commit signatures hash to header.last_commit_hash
-                let calculated_last_commit_hash = calculate_last_commit_hash(last_commit);
-                let Some(last_commit_hash) = header.last_commit_hash.as_ref() else {
-                    bail!("last commit hash should not be empty");
-                };
-
-                if &calculated_last_commit_hash != last_commit_hash {
-                    bail!("last commit hash in header does not match calculated last commit hash");
-                }
-
-                // get validator set for the previous height, as the commit contained
-                // in the block is for the previous height
-                let validator_set = self
-                    .sequencer_client
-                    .validators(height - 1, tendermint_rpc::Paging::Default)
-                    .await
-                    .wrap_err("failed to get validator set")?;
-
-                // verify that the validator votes on the previous block have >2/3 voting power
-                let last_commit = last_commit.clone();
-                let chain_id = header.chain_id.clone();
-                tokio::task::spawn_blocking(move || -> eyre::Result<()> {
-                    ensure_commit_has_quorum(&last_commit, &validator_set, chain_id.as_ref())
-                })
-                .await?
-                .wrap_err("failed to ensure commit has quorum")?
-
-                // TODO: commit is for previous block; how do we handle this? (#50)
-            }
-            None => {
-                // the last commit can only be empty on block 1
-                ensure!(header.height == 1u32.into(), "last commit hash not found");
-                ensure!(
-                    header.last_commit_hash.is_none(),
-                    "last commit hash should be empty"
-                );
-            }
-        }
-
-        // validate the block header matches the block hash
-        let block_hash_from_header = header.hash();
-        ensure!(
-            block_hash_from_header == *block_hash,
-            "block hash calculated from tendermint header does not match block hash stored in \
-             sequencer block",
-        );
-
-        // validate the action tree root was included inside `data_hash`
-        let Some(data_hash) = header.data_hash else {
-            bail!("data hash should not be empty");
-        };
-        action_tree_root_inclusion_proof
-            .verify(action_tree_root, data_hash)
-            .wrap_err("failed to verify action tree root inclusion proof")?;
-
-        Ok(())
+        validate_sequencer_namespace_data(current_validator_set, parent_validator_set, data).await
     }
+}
+
+async fn validate_signed_namespace_data(
+    validator_set: ValidatorSet,
+    data: &SignedNamespaceData<SequencerNamespaceData>,
+) -> eyre::Result<()> {
+    // verify the block signature
+    data.verify()
+        .wrap_err("failed to verify signature of signed namepsace data")?;
+
+    // find proposer address for this height
+    let expected_proposer_public_key = get_proposer(&validator_set)
+        .wrap_err("failed to get proposer from validator set")?
+        .pub_key
+        .to_bytes();
+
+    // verify the namespace data signing public key matches the proposer public key
+    let proposer_public_key = &data.public_key;
+    ensure!(
+        proposer_public_key == &expected_proposer_public_key,
+        "public key mismatch: expected {}, got {}",
+        hex::encode(expected_proposer_public_key),
+        hex::encode(proposer_public_key),
+    );
+
+    Ok(())
+}
+
+async fn validate_sequencer_namespace_data(
+    current_validator_set: ValidatorSet,
+    parent_validator_set: ValidatorSet,
+    data: &SequencerNamespaceData,
+) -> eyre::Result<()> {
+    let SequencerNamespaceData {
+        block_hash,
+        header,
+        last_commit,
+        rollup_namespaces: _,
+        action_tree_root,
+        action_tree_root_inclusion_proof,
+    } = data;
+
+    // find proposer address for this height
+    let expected_proposer_address = public_key_bytes_to_address(
+        &get_proposer(&current_validator_set)
+            .wrap_err("failed to get proposer from validator set")?
+            .pub_key,
+    )
+    .wrap_err("failed to convert proposer public key to address")?;
+
+    // check if the proposer address matches the sequencer block's proposer
+    let received_proposer_address = header.proposer_address;
+    ensure!(
+        received_proposer_address == expected_proposer_address,
+        "proposer address mismatch: expected `{expected_proposer_address}`, got \
+         `{received_proposer_address}`",
+    );
+
+    match &last_commit {
+        Some(last_commit) => {
+            // validate that commit signatures hash to header.last_commit_hash
+            let calculated_last_commit_hash = calculate_last_commit_hash(last_commit);
+            let Some(last_commit_hash) = header.last_commit_hash.as_ref() else {
+                bail!("last commit hash should not be empty");
+            };
+
+            if &calculated_last_commit_hash != last_commit_hash {
+                bail!("last commit hash in header does not match calculated last commit hash");
+            }
+
+            // verify that the validator votes on the previous block have >2/3 voting power
+            let last_commit = last_commit.clone();
+            let chain_id = header.chain_id.clone();
+            tokio::task::spawn_blocking(move || -> eyre::Result<()> {
+                ensure_commit_has_quorum(&last_commit, &parent_validator_set, chain_id.as_ref())
+            })
+            .await?
+            .wrap_err("failed to ensure commit has quorum")?
+
+            // TODO: commit is for previous block; how do we handle this? (#50)
+        }
+        None => {
+            // the last commit can only be empty on block 1
+            ensure!(header.height == 1u32.into(), "last commit hash not found");
+            ensure!(
+                header.last_commit_hash.is_none(),
+                "last commit hash should be empty"
+            );
+        }
+    }
+
+    // validate the block header matches the block hash
+    let block_hash_from_header = header.hash();
+    ensure!(
+        block_hash_from_header == *block_hash,
+        "block hash calculated from tendermint header does not match block hash stored in \
+         sequencer block",
+    );
+
+    // validate the action tree root was included inside `data_hash`
+    let Some(data_hash) = header.data_hash else {
+        bail!("data hash should not be empty");
+    };
+    action_tree_root_inclusion_proof
+        .verify(action_tree_root, data_hash)
+        .wrap_err("failed to verify action tree root inclusion proof")?;
+
+    Ok(())
 }
 
 fn public_key_bytes_to_address(public_key: &tendermint::PublicKey) -> eyre::Result<AccountId> {
@@ -515,35 +498,26 @@ mod test {
 
     use super::*;
 
-    struct MockSequencerClient;
+    fn make_test_validator_set(height: u32) -> ValidatorSet {
+        use ed25519_consensus::SigningKey;
 
-    #[async_trait::async_trait]
-    impl SequencerClient for MockSequencerClient {
-        async fn validators(
-            &self,
-            height: u32,
-            _: tendermint_rpc::Paging,
-        ) -> eyre::Result<ValidatorSet> {
-            use ed25519_consensus::SigningKey;
+        let key_bytes = STANDARD.decode("XXhEZctO2gj3JhjHV7214N53zEl3s05eD9cWIJJHAVrPP2L5ARCQ0PSkNA85f3avKwpBsaDD6Q6VJlhN6ZHKjQ==").unwrap();
+        let signing_key = SigningKey::try_from(key_bytes[0..32].to_vec().as_slice()).unwrap();
+        let pub_key = tendermint::public_key::PublicKey::Ed25519(
+            signing_key.verification_key().as_ref().try_into().unwrap(),
+        );
 
-            let key_bytes = STANDARD.decode("XXhEZctO2gj3JhjHV7214N53zEl3s05eD9cWIJJHAVrPP2L5ARCQ0PSkNA85f3avKwpBsaDD6Q6VJlhN6ZHKjQ==").unwrap();
-            let signing_key = SigningKey::try_from(key_bytes[0..32].to_vec().as_slice()).unwrap();
-            let pub_key = tendermint::public_key::PublicKey::Ed25519(
-                signing_key.verification_key().as_ref().try_into().unwrap(),
-            );
+        // public key: zz9i+QEQkND0pDQPOX92rysKQbGgw+kOlSZYTemRyo0=
+        // address: E3849B2AE431ABB2865923B57454514CC7DB350B
 
-            // public key: zz9i+QEQkND0pDQPOX92rysKQbGgw+kOlSZYTemRyo0=
-            // address: E3849B2AE431ABB2865923B57454514CC7DB350B
-
-            let validator = validator::Info {
-                address: tendermint::account::Id::from(pub_key),
-                pub_key,
-                power: 10u32.into(),
-                proposer_priority: 0.into(),
-                name: None,
-            };
-            Ok(ValidatorSet::new(height.into(), vec![validator], 1))
-        }
+        let validator = validator::Info {
+            address: tendermint::account::Id::from(pub_key),
+            pub_key,
+            power: 10u32.into(),
+            proposer_priority: 0.into(),
+            name: None,
+        };
+        ValidatorSet::new(height.into(), vec![validator], 1)
     }
 
     #[tokio::test]
@@ -559,6 +533,7 @@ mod test {
             tendermint::account::Id::from_str("E3849B2AE431ABB2865923B57454514CC7DB350B").unwrap();
 
         let mut header = astria_sequencer_types::test_utils::default_header();
+        let height = header.height.value() as u32;
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
         header.proposer_address = proposer_address;
         let block_hash = header.hash();
@@ -572,11 +547,13 @@ mod test {
             action_tree_root_inclusion_proof,
         };
 
-        let block_verifier = BlockVerifier::new(MockSequencerClient);
-        block_verifier
-            .validate_sequencer_namespace_data(&sequencer_namespace_data)
-            .await
-            .unwrap();
+        validate_sequencer_namespace_data(
+            make_test_validator_set(height),
+            make_test_validator_set(height - 1),
+            &sequencer_namespace_data,
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -598,6 +575,7 @@ mod test {
             tendermint::account::Id::from_str("E3849B2AE431ABB2865923B57454514CC7DB350B").unwrap();
 
         let mut header = astria_sequencer_types::test_utils::default_header();
+        let height = header.height.value() as u32;
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
         header.proposer_address = proposer_address;
         let block_hash = header.hash();
@@ -618,10 +596,15 @@ mod test {
             action_tree.prove_inclusion(0).unwrap(),
         );
 
-        let block_verifier = BlockVerifier::new(MockSequencerClient);
-        block_verifier
-            .validate_rollup_data(&sequencer_namespace_data, &rollup_namespace_data)
-            .await
+        validate_sequencer_namespace_data(
+            make_test_validator_set(height),
+            make_test_validator_set(height - 1),
+            &sequencer_namespace_data,
+        )
+        .await
+        .unwrap();
+        rollup_namespace_data
+            .verify_inclusion_proof(sequencer_namespace_data.action_tree_root)
             .unwrap();
     }
 

@@ -22,10 +22,7 @@ use tracing::{
 };
 
 use crate::{
-    block_verifier::{
-        BlockVerifier,
-        TendermintHttpClient,
-    },
+    block_verifier::BlockVerifier,
     config::Config,
     executor,
     types::SequencerBlockSubset,
@@ -43,7 +40,7 @@ type Receiver = UnboundedReceiver<ReaderCommand>;
 pub(crate) async fn spawn(
     conf: &Config,
     executor_tx: executor::Sender,
-    block_verifier: Arc<BlockVerifier<TendermintHttpClient>>,
+    block_verifier: Arc<BlockVerifier>,
 ) -> eyre::Result<(JoinHandle, Sender)> {
     info!("Spawning reader task.");
     let (mut reader, reader_tx) = Reader::new(
@@ -81,7 +78,7 @@ pub struct Reader {
     /// the last block height fetched from Celestia
     curr_block_height: u64,
 
-    block_verifier: Arc<BlockVerifier<TendermintHttpClient>>,
+    block_verifier: Arc<BlockVerifier>,
 
     /// Namespace ID
     namespace: Namespace,
@@ -93,7 +90,7 @@ impl Reader {
         celestia_node_url: &str,
         celestia_bearer_token: &str,
         executor_tx: executor::Sender,
-        block_verifier: Arc<BlockVerifier<TendermintHttpClient>>,
+        block_verifier: Arc<BlockVerifier>,
         namespace: Namespace,
     ) -> eyre::Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
