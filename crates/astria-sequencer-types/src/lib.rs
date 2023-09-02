@@ -8,6 +8,7 @@ pub use namespace::{
     DEFAULT_NAMESPACE,
 };
 pub use sequencer_block_data::{
+    calculate_last_commit_hash,
     RawSequencerBlockData,
     RollupData,
     SequencerBlockData,

@@ -34,6 +34,8 @@ use crate::namespace::Namespace;
 pub enum Error {
     #[error("block has no data hash")]
     MissingDataHash,
+    #[error("block has no last commit hash")]
+    MissingLastCommitHash,
 }
 
 /// Rollup data that relayer/conductor need to know.
@@ -85,7 +87,21 @@ impl SequencerBlockData {
         action_tree_root_inclusion_proof
             .verify(action_tree_root.as_bytes(), data_hash)
             .wrap_err("failed to verify action tree root inclusion proof")?;
+
         // TODO(https://github.com/astriaorg/astria/issues/270): also verify last_commit_hash
+        let Some(last_commit_hash) = header.last_commit_hash else {
+            bail!(Error::MissingLastCommitHash);
+        };
+
+        let calculated_last_commit_hash = calculate_last_commit_hash(
+            last_commit
+                .as_ref()
+                .expect("last_commit must be set if last_commit_hash is set"),
+        );
+        ensure!(
+            calculated_last_commit_hash == last_commit_hash,
+            "last commit hash does not match the one calculated from the block's commit signatures",
+        );
 
         let data = Self {
             block_hash,
@@ -278,6 +294,31 @@ impl SequencerBlockData {
     }
 }
 
+// Calculates the `last_commit_hash` given a Tendermint [`Commit`].
+//
+// It merkleizes the commit and returns the root. The leaves of the merkle tree
+// are the protobuf-encoded [`CommitSig`]s; ie. the signatures that the commit consist of.
+//
+// See https://github.com/cometbft/cometbft/blob/539985efc7d461668ffb46dff88b3f7bb9275e5a/types/block.go#L922
+#[must_use]
+pub fn calculate_last_commit_hash(commit: &tendermint::block::Commit) -> Hash {
+    use prost::Message as _;
+    use tendermint::{
+        crypto,
+        merkle,
+    };
+    use tendermint_proto::types::CommitSig as RawCommitSig;
+
+    let signatures = commit
+        .signatures
+        .iter()
+        .filter_map(|v| Some(RawCommitSig::try_from(v.clone()).ok()?.encode_to_vec()))
+        .collect::<Vec<_>>();
+    Hash::Sha256(merkle::simple_hash_from_byte_vectors::<
+        crypto::default::Sha256,
+    >(&signatures))
+}
+
 /// An unverified version of [`SequencerBlockData`], primarily used for
 /// serialization/deserialization.
 #[allow(clippy::module_name_repetitions)]
@@ -386,5 +427,24 @@ mod test {
         let bytes = data.to_bytes().unwrap();
         let actual = SequencerBlockData::from_bytes(&bytes).unwrap();
         assert_eq!(data, actual);
+    }
+
+    #[test]
+    fn test_calculate_last_commit_hash() {
+        use std::str::FromStr as _;
+
+        use tendermint::block::Commit;
+
+        // these values were retrieved by running the sequencer node and requesting the following:
+        // curl http://localhost:26657/commit?height=79
+        // curl http://localhost:26657/block?height=80 | grep last_commit_hash
+        let commit_str = r#"{"height":"79","round":0,"block_id":{"hash":"74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA","parts":{"total":1,"hash":"7632FFB5D84C3A64279BC9EA86992418ED23832C66E0C3504B7025A9AF42C8C4"}},"signatures":[{"block_id_flag":2,"validator_address":"D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9","timestamp":"2023-07-05T19:02:55.206600022Z","signature":"qy9vEjqSrF+8sD0K0IAXA398xN1s3QI2rBBDbBMWf0rw0L+B9Z92DZEptf6bPYWuKUFdEc0QFKhUMQA8HjBaAw=="}]}"#;
+        let expected_last_commit_hash =
+            Hash::from_str("EF285154CDF29146FF423EB48BC7F88A0B57022C9B63455EC7AE876F4EA45B6F")
+                .unwrap();
+        let commit = serde_json::from_str::<Commit>(commit_str).unwrap();
+        let last_commit_hash = crate::calculate_last_commit_hash(&commit);
+        assert!(matches!(last_commit_hash, Hash::Sha256(_)));
+        assert!(expected_last_commit_hash.as_bytes() == last_commit_hash.as_bytes());
     }
 }

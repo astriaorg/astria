@@ -5,7 +5,10 @@ use astria_sequencer_relayer::data_availability::{
     SequencerNamespaceData,
     SignedNamespaceData,
 };
-use astria_sequencer_types::SequencerBlockData;
+use astria_sequencer_types::{
+    calculate_last_commit_hash,
+    SequencerBlockData,
+};
 use color_eyre::eyre::{
     self,
     bail,
@@ -25,8 +28,6 @@ use tendermint::{
         Id as BlockId,
     },
     chain::Id as ChainId,
-    crypto,
-    merkle,
     validator::Info as Validator,
     vote::{
         self,
@@ -34,7 +35,6 @@ use tendermint::{
     },
     Hash,
 };
-use tendermint_proto::types::CommitSig as RawCommitSig;
 use tendermint_rpc::{
     endpoint::validators::Response as ValidatorSet,
     Client,
@@ -387,19 +387,6 @@ fn verify_vote_signature(
     Ok(())
 }
 
-// see https://github.com/cometbft/cometbft/blob/539985efc7d461668ffb46dff88b3f7bb9275e5a/types/block.go#L922
-// block_id_flag types are: https://github.com/cometbft/cometbft/blob/4e130bde8e85ec78ae81d06aa54df056a8fae43a/spec/core/data_structures.md?plain=1#L251
-fn calculate_last_commit_hash(commit: &tendermint::block::Commit) -> Hash {
-    let signatures = commit
-        .signatures
-        .iter()
-        .filter_map(|v| Some(RawCommitSig::try_from(v.clone()).ok()?.encode_to_vec()))
-        .collect::<Vec<_>>();
-    Hash::Sha256(merkle::simple_hash_from_byte_vectors::<
-        crypto::default::Sha256,
-    >(&signatures))
-}
-
 /// returns the proposer given the current set by ordering the validators by proposer priority.
 /// the validator with the highest proposer priority is the proposer.
 /// TODO: could there ever be two validators with the same priority?
@@ -515,20 +502,5 @@ mod test {
                 .to_string()
                 .contains("commit voting power is less than 2/3 of total voting power")
         );
-    }
-
-    #[test]
-    fn test_calculate_last_commit_hash() {
-        // these values were retrieved by running the sequencer node and requesting the following:
-        // curl http://localhost:26657/commit?height=79
-        // curl http://localhost:26657/block?height=80 | grep last_commit_hash
-        let commit_str = r#"{"height":"79","round":0,"block_id":{"hash":"74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA","parts":{"total":1,"hash":"7632FFB5D84C3A64279BC9EA86992418ED23832C66E0C3504B7025A9AF42C8C4"}},"signatures":[{"block_id_flag":2,"validator_address":"D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9","timestamp":"2023-07-05T19:02:55.206600022Z","signature":"qy9vEjqSrF+8sD0K0IAXA398xN1s3QI2rBBDbBMWf0rw0L+B9Z92DZEptf6bPYWuKUFdEc0QFKhUMQA8HjBaAw=="}]}"#;
-        let expected_last_commit_hash =
-            Hash::from_str("EF285154CDF29146FF423EB48BC7F88A0B57022C9B63455EC7AE876F4EA45B6F")
-                .unwrap();
-        let commit = serde_json::from_str::<Commit>(commit_str).unwrap();
-        let last_commit_hash = calculate_last_commit_hash(&commit);
-        assert!(matches!(last_commit_hash, Hash::Sha256(_)));
-        assert!(expected_last_commit_hash.as_bytes() == last_commit_hash.as_bytes());
     }
 }
