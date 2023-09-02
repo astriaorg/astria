@@ -85,7 +85,7 @@ pub struct Reader {
 }
 
 impl Reader {
-    /// Creates a new Reader instance and returns a command sender and an alert receiver.
+    /// Creates a new Reader instance and returns a command sender.
     pub async fn new(
         celestia_node_url: &str,
         celestia_bearer_token: &str,
@@ -261,6 +261,10 @@ impl Reader {
 
     /// Processes an individual block
     async fn process_block(&self, block: SequencerBlockSubset) -> eyre::Result<()> {
+        info!(
+            "sequencer block received from DA layer; height: {}",
+            block.header.height
+        );
         self.executor_tx.send(
             executor::ExecutorCommand::BlockReceivedFromDataAvailability {
                 block: Box::new(block),
