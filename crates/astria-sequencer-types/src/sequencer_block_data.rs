@@ -359,7 +359,34 @@ mod test {
     use tendermint::Hash;
 
     use super::SequencerBlockData;
-    use crate::RawSequencerBlockData;
+    use crate::{
+        calculate_last_commit_hash,
+        RawSequencerBlockData,
+    };
+
+    fn make_test_commit_and_hash() -> (Hash, tendermint::block::Commit) {
+        use std::str::FromStr as _;
+        let commit = tendermint::block::Commit {
+            height: 1u32.into(),
+            round: 0u16.into(),
+            block_id: tendermint::block::Id {
+                hash: Hash::from_str(
+                    "74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA",
+                )
+                .unwrap(),
+                part_set_header: tendermint::block::parts::Header::new(
+                    1,
+                    Hash::from_str(
+                        "7632FFB5D84C3A64279BC9EA86992418ED23832C66E0C3504B7025A9AF42C8C4",
+                    )
+                    .unwrap(),
+                )
+                .unwrap(),
+            },
+            signatures: vec![],
+        };
+        (calculate_last_commit_hash(&commit), commit)
+    }
 
     #[test]
     fn new_sequencer_block() {
@@ -380,12 +407,15 @@ mod test {
             )
         };
 
+        let (last_commit_hash, last_commit) = make_test_commit_and_hash();
+        header.last_commit_hash = Some(last_commit_hash);
+
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
         let block_hash = header.hash();
         SequencerBlockData::try_from_raw(RawSequencerBlockData {
             block_hash,
             header,
-            last_commit: None,
+            last_commit: Some(last_commit),
             rollup_data: HashMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
@@ -412,12 +442,15 @@ mod test {
             )
         };
 
+        let (last_commit_hash, last_commit) = make_test_commit_and_hash();
+        header.last_commit_hash = Some(last_commit_hash);
+
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
         let block_hash = header.hash();
         let data = SequencerBlockData::try_from_raw(RawSequencerBlockData {
             block_hash,
             header,
-            last_commit: None,
+            last_commit: Some(last_commit),
             rollup_data: HashMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
