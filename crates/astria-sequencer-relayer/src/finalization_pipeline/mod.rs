@@ -6,22 +6,22 @@ use std::{
 use astria_sequencer_types::SequencerBlockData;
 use tendermint::Hash;
 
-pub(crate) mod head_candidate;
+pub(crate) mod head;
 pub(crate) mod pipeline_item;
 
-pub(crate) use head_candidate::HeadCandidate;
+pub(crate) use head::HeadBlock;
 pub(crate) use pipeline_item::PipelineItem;
 
 const CHILD_HEIGHT: u64 = 1;
 const GRANDCHILD_HEIGHT: u64 = 2;
 
-// head of the sequencer chain as observed on cometbft.
+/// Head of the shared-sequencer chain as observed on cometbft.
 #[derive(Default)]
-pub(crate) struct Head {
+pub(crate) struct SoftBlock {
     block: PipelineItem,
 }
 
-/// Pipeline can handle forks 1 heights deep.
+/// Pipeline can handle forks 1 block long.
 ///
 /// Fork choice is such that, the block pointed to by the first received grandchild block, is the
 /// new canonical head.
@@ -34,15 +34,15 @@ pub(crate) struct Head {
 #[derive(Default)]
 pub(crate) struct FinalizationPipeline {
     /// Head of the canonical chain.
-    pub(crate) chain_head: Head,
+    pub(crate) chain_head: SoftBlock,
     // queue of blocks pending finalization (xor pending orphanhood)
     pending: HashMap<Hash, PipelineItem>,
     // blocks proposed by the sequencer running this relayer. to be submitted to DA layer.
-    validator_finalized: Vec<SequencerBlockData>,
+    finalized: Vec<SequencerBlockData>,
 }
 
 impl FinalizationPipeline {
-    pub(crate) fn submit(&mut self, new_block: HeadCandidate) {
+    pub(crate) fn submit(&mut self, new_block: HeadBlock) {
         let new_block: PipelineItem = new_block.into();
 
         match new_block.parent_block_hash() {
@@ -70,11 +70,11 @@ impl FinalizationPipeline {
                         if competing_block.block_hash() == parent_of_new_block {
                             let old_head = mem::replace(
                                 &mut self.chain_head,
-                                competing_block.canonize().unwrap(),
+                                competing_block.soften().unwrap(),
                             );
 
                             if let Some(Ok(finalized_validator_block)) = old_head.block.finalize() {
-                                self.validator_finalized.push(finalized_validator_block);
+                                self.finalized.push(finalized_validator_block);
                             }
                             return;
                         }
@@ -83,18 +83,18 @@ impl FinalizationPipeline {
             }
             None => {
                 // block is genesis
-                self.chain_head = new_block.canonize().unwrap();
+                self.chain_head = new_block.soften().unwrap();
             }
         }
     }
 
     #[must_use]
     pub(crate) fn drain_finalized(&mut self) -> Vec<SequencerBlockData> {
-        mem::take(&mut self.validator_finalized)
+        mem::take(&mut self.finalized)
     }
 
     pub(crate) fn has_finalized(&self) -> bool {
-        !self.validator_finalized.is_empty()
+        !self.finalized.is_empty()
     }
 }
 
@@ -115,7 +115,7 @@ mod test {
 
     use super::{
         FinalizationPipeline,
-        HeadCandidate,
+        HeadBlock,
     };
 
     fn make_parent_and_child_blocks(
@@ -123,7 +123,7 @@ mod test {
         parent_block_height: u32,
         child_block_hash: u8,
         child_block_height: u32,
-    ) -> [HeadCandidate; 2] {
+    ) -> [HeadBlock; 2] {
         let mut parent_block = RawSequencerBlockData {
             block_hash: Hash::Sha256([parent_block_hash; 32]),
             ..Default::default()
@@ -143,8 +143,8 @@ mod test {
         child_block.header.last_block_id = Some(parent_id.into());
         let child_block = SequencerBlockData::from_raw_unverified(child_block);
 
-        let parent_block = HeadCandidate::ProposedByValidator(parent_block);
-        let child_block = HeadCandidate::ProposedByValidator(child_block);
+        let parent_block = HeadBlock::FromValidator(parent_block);
+        let child_block = HeadBlock::FromValidator(child_block);
 
         [parent_block, child_block]
     }

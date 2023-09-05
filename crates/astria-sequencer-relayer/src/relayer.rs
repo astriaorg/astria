@@ -34,7 +34,7 @@ use crate::{
     data_availability::CelestiaClient,
     finalization_pipeline::{
         FinalizationPipeline,
-        HeadCandidate,
+        HeadBlock,
     },
     macros::report_err,
     validator::Validator,
@@ -242,17 +242,15 @@ impl Relayer {
                 });
                 // Store the converted data
                 self.finalization_pipeline
-                    .submit(HeadCandidate::new_from_validator(
-                        sequencer_block_data.into(),
-                    ));
+                    .submit(HeadBlock::new_by_validator(sequencer_block_data.into()));
             }
             // Ignore sequencer responses that were filtered out
             Err(ConversionError::NotProposedByValidator(block)) => {
                 // pass to finalization pipeline to track canonical head
                 self.finalization_pipeline
-                    .submit(HeadCandidate::new_from_cometbft(block));
+                    .submit(HeadBlock::new_by_other_validator(block));
             }
-            Err(ConversionError::HeightAlreadyCanonical) => (),
+            Err(ConversionError::HeightTooLow) => (),
             // Report if the conversion failed
             // TODO: inject the correct tracing span
             Err(ConversionError::ConversionFromTendermint(e)) => report_err!(
@@ -469,7 +467,7 @@ impl Relayer {
 }
 
 enum ConversionError {
-    HeightAlreadyCanonical,
+    HeightTooLow,
     NotProposedByValidator(block::Response),
     ConversionFromTendermint(eyre::Report),
 }
@@ -485,7 +483,7 @@ fn convert_block_response_to_sequencer_block_data(
             "sequencer block response contained height at or below the current height tracked in \
              relayer"
         );
-        return Err(ConversionError::HeightAlreadyCanonical);
+        return Err(ConversionError::HeightTooLow);
     }
     if res.block.header.proposer_address != validator.address {
         debug!("proposer recorded in sequencer block response does not match internal validator");

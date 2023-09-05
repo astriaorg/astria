@@ -2,25 +2,25 @@ use astria_sequencer_types::SequencerBlockData;
 use tendermint::Hash;
 
 use super::{
-    Head,
-    HeadCandidate,
+    HeadBlock,
+    SoftBlock,
 };
 
 #[derive(Clone, Copy, Default, Debug)]
 enum State {
     #[default]
-    Fork,
-    Canonical,
+    Head, // head of 1 block long fork, block points to canonical head of chain
+    Soft, // head of canonical chain, block points to final head of chain
 }
 
 #[derive(Default, Debug)]
 pub(crate) struct PipelineItem {
-    block: HeadCandidate,
+    block: HeadBlock,
     state: State,
 }
 
-impl From<HeadCandidate> for PipelineItem {
-    fn from(block: HeadCandidate) -> Self {
+impl From<HeadBlock> for PipelineItem {
+    fn from(block: HeadBlock) -> Self {
         Self {
             block,
             state: State::default(),
@@ -37,30 +37,30 @@ impl TryInto<SequencerBlockData> for PipelineItem {
 }
 
 impl PipelineItem {
-    // head candidate state changes:
+    // pipeline item state changes:
     //
-    // fork -> canonical (on canonize)
-    // canonical -> final (on finalization)
+    // head -> soft (on soften)                         i.e. fork -> canonical (on canonize)
+    // soft -> final (on finalization)                  i.e. canonical -> final (on finalization)
 
-    // integrates a block into the canonical chain
+    // makes head block soft, i.e. makes fork block head of canonical chain
     #[must_use]
-    pub(super) fn canonize(mut self) -> Option<Head> {
+    pub(super) fn soften(mut self) -> Option<SoftBlock> {
         use State::*;
         let Self {
             state, ..
         } = self;
         match state {
-            Fork => {
-                self.state = Canonical;
-                Some(Head {
+            Head => {
+                self.state = Soft;
+                Some(SoftBlock {
                     block: self,
                 })
             }
-            Canonical => None,
+            Soft => None,
         }
     }
 
-    // finalizes the canonical head
+    // makes soft block final, i.e. finalizes the canonical head
     #[must_use]
     pub(super) fn finalize(self) -> Option<Result<SequencerBlockData, ()>> {
         use State::*;
@@ -69,8 +69,8 @@ impl PipelineItem {
             block,
         } = self;
         match state {
-            Canonical => Some(block.try_into()),
-            Fork => None,
+            Soft => Some(block.try_into()),
+            Head => None,
         }
     }
 
