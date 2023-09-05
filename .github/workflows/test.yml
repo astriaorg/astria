@@ -69,8 +69,8 @@ jobs:
           echo "COMETBFT=$HOME/cometbft/cometbft" >> "$GITHUB_ENV"
       - name: Download and install cometbft
         run: |
+          mkdir $COMETBFT_DIR
           wget https://github.com/cometbft/cometbft/releases/download/v0.37.2/cometbft_0.37.2_linux_amd64.tar.gz
-          mkdir cometbft
           tar -C $COMETBFT_DIR -xvzf cometbft_0.37.2_linux_amd64.tar.gz
           chmod +x $COMETBFT
       - name: Run tests (excluding RPC client, which needs kubernetes)
