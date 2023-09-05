@@ -14,8 +14,6 @@ use serde::{
 
 mod cli;
 
-/// Max time in ms to wait for a block to finalize after it is received from the sequencer.
-pub const MAX_RELAYER_QUEUE_TIME_MS: u64 = 3 * DEFAULT_SEQUENCER_BLOCK_TIME_MS;
 /// Default block time in ms for a sequencer block.
 pub const DEFAULT_SEQUENCER_BLOCK_TIME_MS: u64 = 1000;
 
