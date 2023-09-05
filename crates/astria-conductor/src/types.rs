@@ -44,9 +44,7 @@ impl std::hash::Hash for SequencerBlockSubset {
         self.block_hash.hash(state);
         self.header.hash().hash(state);
 
-        let mut transactions = self.rollup_transactions.clone();
-        transactions.sort();
-        for tx in transactions {
+        for tx in self.rollup_transactions.iter() {
             tx.hash(state);
         }
     }
@@ -96,14 +94,14 @@ impl SequencerBlockSubset {
     ///
     /// # Panics
     ///
-    /// This function will panic if the block height is less than or equal to 1.
-    /// Only the genesis block has a height of 1, and all other blocks must have
-    /// a larger height.
+    /// This function will panic if the block height is less than 1.
+    /// The genesis block has a height of 0, and all other blocks must have
+    /// a height >= 1.
     #[must_use]
     pub fn parent_height(&self) -> Height {
         assert!(
-            self.height().value() > 1,
-            "block height must be greater than 1"
+            self.height().value() > 0,
+            "block height must be greater than 0"
         );
         Height::try_from(self.header().height.value() - 1)
             .expect("should have been able to decriment tendermint height")

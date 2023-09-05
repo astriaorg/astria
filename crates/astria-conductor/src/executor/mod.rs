@@ -232,10 +232,9 @@ impl<C: ExecutionClient> Executor<C> {
         }
 
         let mut final_response = Ok(Some(self.execution_state.clone()));
-        // TODO: (GHI 250 - https://github.com/astriaorg/astria/issues/250):
-        // if blocks are coming from DA, do we still need them to pass through
-        // the queue? if not, we can skip the insert and pop_blocks calls
-        if let Ok(None) = self.block_queue.insert(block.clone()) {
+        // insert the block into the queue. If the block was added,
+        // Ok(Some(Hash)) is returned and we move on.
+        if let Ok(None) = self.block_queue.insert(block) {
             return final_response;
         };
         // TODO: (GHI 250 - https://github.com/astriaorg/astria/issues/250):
@@ -246,7 +245,14 @@ impl<C: ExecutionClient> Executor<C> {
         if let Some(blocks) = queued_blocks {
             // execute all the blocks returned from the queue
             for block in blocks {
-                final_response = self.execute_single_block(block).await;
+                match self.execute_single_block(block).await {
+                    Ok(response) => {
+                        final_response = Ok(response);
+                    }
+                    Err(e) => {
+                        error!("failed to execute block: {e:?}");
+                    }
+                }
             }
         }
 

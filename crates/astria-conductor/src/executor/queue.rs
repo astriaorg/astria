@@ -8,17 +8,21 @@ use tendermint::{
     block::Height,
     hash::Hash,
 };
-use tracing::info;
+use tracing::{
+    debug,
+    info,
+};
 
 use crate::types::SequencerBlockSubset;
 
 /// A queue for the SequencerBlockSubset type that holds blocks that are
 /// pending or not yet ready for execution.
 ///
-/// This Queue handles all the fork choice logic for incoming Sequencer blocks
-/// from gossip. It is responsible for determining which blocks are safe to
-/// pass on to execution, and holds on to the other data until it is safe to
-/// execute, or deletes it if it is no longer needed or becomes stale or invalid.
+/// This Queue handles all the fork choice logic for incoming Sequencer blocks. It is responsible
+/// for determining which blocks are ready to pass on to execution. The queue will hold on to the
+/// other data that may have been recieved out of order. Whenever a new block is recieved,
+/// it checkes for continuity among the blocks that are currently in the queue or deletes that data
+/// if it is no longer needed or becomes stale.
 #[derive(Debug, Clone)]
 pub(super) struct Queue {
     head_height: Height,
@@ -51,17 +55,17 @@ impl Queue {
     pub(super) fn insert(&mut self, block: SequencerBlockSubset) -> Result<Option<Hash>> {
         // if the block is already in the queue, return its hash
         if self.is_block_present(&block) {
-            info!(
+            debug!(
                 block.height = %block.height(),
                 block.hash = %block.block_hash(),
                 "block is already present in the queue"
             );
-            return Ok(Some(block.block_hash()));
+            return Ok(None);
         }
 
         // if the block is stale, ignore it
         if block.header().height < self.head_height {
-            info!(
+            debug!(
                 block.height = %block.height(),
                 "block is stale and will not be added to the queue"
             );
