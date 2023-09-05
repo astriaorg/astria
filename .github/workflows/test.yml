@@ -46,6 +46,9 @@ jobs:
     runs-on: buildjet-8vcpu-ubuntu-2204
     needs: run_checker
     if: ${{ needs.run_checker.outputs.run_tests }}
+    env:
+      COMETBFT_DIR: ${{ env.HOME }}/cometbft
+      COMETBFT: ${{ env.COMETBFT_DIR }}/cometbft
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.70.0
@@ -63,6 +66,12 @@ jobs:
           --all-features \
           --all-targets \
           --exclude astria-celestia-jsonrpc-client
+      - name: Download and install cometbft
+        run: |
+          wget https://github.com/cometbft/cometbft/releases/download/v0.37.2/cometbft_0.37.2_linux_amd64.tar.gz
+          mkdir cometbft
+          tar -C $COMETBFT_DIR -xvzf cometbft_0.37.2_linux_amd64.tar.gz
+          chmod +x $COMETBFT
       - name: Run tests (excluding RPC client, which needs kubernetes)
         timeout-minutes: 20
         run: |

@@ -5,7 +5,7 @@
 //! # tokio_test::block_on(async {
 //! use cometbft_launcher::CometBft;
 //! let cometbft = CometBft::builder()
-//!     .proxy_app("http://127.0.0.1:26657")
+//!     .proxy_app("tcp://127.0.0.1:26657")
 //!     .launch()
 //!     .await
 //!     .unwrap();
