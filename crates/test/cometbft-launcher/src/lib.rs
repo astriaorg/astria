@@ -32,7 +32,7 @@ use tokio::process::{
     Command,
 };
 
-/// CometBFT running in a subprocess.
+/// `CometBft` running in a subprocess.
 pub struct CometBft {
     /// The temporary directory within cometbft created its config files.
     pub home: TempDir,
@@ -44,6 +44,7 @@ pub struct CometBft {
 
 impl CometBft {
     /// Configure a cometbft instance.
+    #[must_use]
     pub fn builder() -> CometBftBuilder {
         CometBftBuilder::new()
     }
@@ -56,6 +57,7 @@ pub struct CometBftBuilder {
 }
 
 impl CometBftBuilder {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -64,14 +66,23 @@ impl CometBftBuilder {
     ///
     /// Default is to pass `cometbft start --proxy_app=noop`. `proxy_app` will
     /// be passed as-is without extra verification.
+    #[must_use]
     pub fn proxy_app(self, proxy_app: impl AsRef<OsStr>) -> Self {
         Self {
             proxy_app: Some(proxy_app.as_ref().to_os_string()),
-            ..self
         }
     }
 
     /// Launches cometbft in a subprocess consuming the builder.
+    ///
+    /// # Errors
+    /// This function will retun errors under the following conditions:
+    /// - the `cometbft` exectuble could not be found in `PATH` or the `COMETBFT` env var;
+    /// - creating a tempdir to hold the cometbft config failed;
+    /// - running `cometbft init` failed;
+    /// - setting the rpc and p2p listen addresses failed overwriting cometbft toml;
+    /// - running `cometbft start` failed;
+    /// - finding the socket over which cometbft serves its RPCs failed.
     pub async fn launch(self) -> anyhow::Result<CometBft> {
         let Self {
             proxy_app,
@@ -109,9 +120,13 @@ impl CometBftBuilder {
 
 /// Returns the cometbft rpc listenaddress by sending a HTTP GET using the /status endpoint.
 async fn find_rpc_listen_address(process: &Child) -> anyhow::Result<SocketAddr> {
-    let pid = process.id().context(
-        "cometbft process did not have a PID; this can only happen if it already completed",
-    )? as i32;
+    let pid = process
+        .id()
+        .context(
+            "cometbft process did not have a PID; this can only happen if it already completed",
+        )?
+        .try_into()
+        .expect("failed converting a u32 PID to i32; this should never fail in practice");
 
     let rpc_listen_addr = tryhard::retry_fn(move || async move {
         let addrs = tokio::task::spawn_blocking(move || enumerate_local_tcp_socket_addrs(pid))
@@ -190,7 +205,10 @@ fn enumerate_local_tcp_socket_addrs(pid: i32) -> anyhow::Result<Vec<SocketAddr>>
             if let SocketInfoKind::Tcp = socket.psi.soi_kind.into() {
                 // unsafe ok because union is discriminated by soi_kind
                 let info = unsafe { socket.psi.soi_proto.pri_tcp };
-                let port = u16::from_be(info.tcpsi_ini.insi_lport as u16);
+                let port = u16::from_be(info.tcpsi_ini.insi_lport.try_into().expect(
+                    "converting an i32 local port to u16 failed; this should never happen in \
+                     practice",
+                ));
                 // For reference on accessing union fields:
                 // https://github.com/apple-oss-distributions/lsof/blob/a26b67d2f0c6600d269f0b33233a2cb4b877b279/lsof/dialects/darwin/libproc/dsock.c#L144
                 let ip_addr: IpAddr = match socket.psi.soi_family {
@@ -294,7 +312,7 @@ async fn init_cometbft(executable: &OsStr, home: &OsStr) -> anyhow::Result<()> {
 
 /// Runs `cometbft start` in the provided home directory and using `proxy_app`.
 fn start_cometbft(executable: &OsStr, home: &OsStr, proxy_app: &OsStr) -> anyhow::Result<Child> {
-    Command::new(&executable)
+    Command::new(executable)
         .arg("start")
         .arg("--home")
         .arg(home)
