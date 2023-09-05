@@ -8,7 +8,6 @@
 //! blockchain. It's marked as a soft commitment; the block is not finalized until it's received
 //! from the data availability layer. In the second case, the execution layer is notified to mark
 //! the block as finalized.
-pub mod alert;
 pub mod block_verifier;
 pub mod cli;
 pub mod config;
