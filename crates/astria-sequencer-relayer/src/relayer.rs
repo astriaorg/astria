@@ -33,8 +33,8 @@ use tracing::{
 use crate::{
     data_availability::CelestiaClient,
     finalization_pipeline::{
+        BlockWrapper,
         FinalizationPipeline,
-        HeadBlock,
     },
     macros::report_err,
     validator::Validator,
@@ -242,13 +242,13 @@ impl Relayer {
                 });
                 // Store the converted data
                 self.finalization_pipeline
-                    .submit(HeadBlock::new_by_validator(sequencer_block_data.into()));
+                    .submit(BlockWrapper::new_by_validator(sequencer_block_data.into()));
             }
             // Ignore sequencer responses that were filtered out
             Err(ConversionError::NotProposedByValidator(block)) => {
                 // pass to finalization pipeline to track canonical head
                 self.finalization_pipeline
-                    .submit(HeadBlock::new_by_other_validator(block));
+                    .submit(BlockWrapper::new_by_other_validator(block));
             }
             Err(ConversionError::HeightTooLow) => (),
             // Report if the conversion failed

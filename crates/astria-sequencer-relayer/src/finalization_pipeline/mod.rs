@@ -6,25 +6,30 @@ use std::{
 use astria_sequencer_types::SequencerBlockData;
 use tendermint::Hash;
 
-pub(crate) mod head;
+pub(crate) mod block_wrapper;
 pub(crate) mod pipeline_item;
 
-pub(crate) use head::HeadBlock;
+pub(crate) use block_wrapper::BlockWrapper;
 pub(crate) use pipeline_item::PipelineItem;
 
 const CHILD_HEIGHT: u64 = 1;
 const GRANDCHILD_HEIGHT: u64 = 2;
 
-/// Head of the shared-sequencer chain as observed on cometbft.
+/// Tracking canonical head of shared-sequencer chain as observed on cometbft.
 #[derive(Default)]
 pub(crate) struct SoftBlock {
     block: PipelineItem,
 }
 
-/// Pipeline can handle forks 1 block long.
+/// Pipeline handles validated blocks received from sequencer on localhost interface, as according
+/// to cometbft single slot finality, i.e. pipeline handles forks 1 block long.
 ///
-/// Fork choice is such that, the block pointed to by the first received grandchild block, is the
-/// new canonical head.
+/// (warning! pipeline not intended for rpc connection relayer-sequencer on other IF than localhost,
+/// not designed for unordered arrival of blocks over network)
+///
+/// Fork choice is such that, the block pointed to by the FCFS block at grandchild height relative
+/// to the soft block, i.e. to the canonical head of the shared-sequencer chain, is the
+/// new soft block, i.e. the new shared-sequencer chain canonical head.
 ///
 /// Fork choice is executed when a block at grandchild height relative to the
 /// canonical head is received. Blocks are assumed to come (from cometbft) via sequencer in
@@ -34,7 +39,7 @@ pub(crate) struct SoftBlock {
 #[derive(Default)]
 pub(crate) struct FinalizationPipeline {
     /// Head of the canonical chain.
-    pub(crate) chain_head: SoftBlock,
+    pub(crate) soft_block: SoftBlock,
     // queue of blocks pending finalization (xor pending orphanhood)
     pending: HashMap<Hash, PipelineItem>,
     // blocks proposed by the sequencer running this relayer. to be submitted to DA layer.
@@ -42,18 +47,18 @@ pub(crate) struct FinalizationPipeline {
 }
 
 impl FinalizationPipeline {
-    pub(crate) fn submit(&mut self, new_block: HeadBlock) {
+    pub(crate) fn submit(&mut self, new_block: BlockWrapper) {
         let new_block: PipelineItem = new_block.into();
 
         match new_block.parent_block_hash() {
             Some(parent_of_new_block) => {
-                debug_assert!(new_block.height() > self.chain_head.block.height());
+                debug_assert!(new_block.height() > self.soft_block.block.height());
 
-                let steps = new_block.height() - self.chain_head.block.height();
+                let steps = new_block.height() - self.soft_block.block.height();
                 if steps == CHILD_HEIGHT {
                     // finalization pipeline assumes blocks arrive in sequential order from
                     // sequencer
-                    debug_assert!(parent_of_new_block == self.chain_head.block.block_hash());
+                    debug_assert!(parent_of_new_block == self.soft_block.block.block_hash());
 
                     self.pending.insert(new_block.block_hash(), new_block);
                 } else if steps == GRANDCHILD_HEIGHT {
@@ -64,13 +69,16 @@ impl FinalizationPipeline {
                     );
                     for competing_block in pending_at_prev_height.into_values() {
                         debug_assert!(
-                            competing_block.height() == self.chain_head.block.height() + 1
+                            competing_block.height() == self.soft_block.block.height() + 1
                         );
 
                         if competing_block.block_hash() == parent_of_new_block {
                             let old_head = mem::replace(
-                                &mut self.chain_head,
-                                competing_block.soften().unwrap(),
+                                &mut self.soft_block,
+                                competing_block.soften().expect(
+                                    "all blocks from sequencer are canonical (single slot \
+                                     finality)",
+                                ),
                             );
 
                             if let Some(Ok(finalized_validator_block)) = old_head.block.finalize() {
@@ -83,7 +91,7 @@ impl FinalizationPipeline {
             }
             None => {
                 // block is genesis
-                self.chain_head = new_block.soften().unwrap();
+                self.soft_block = new_block.soften().unwrap();
             }
         }
     }
@@ -114,8 +122,8 @@ mod test {
     };
 
     use super::{
+        BlockWrapper,
         FinalizationPipeline,
-        HeadBlock,
     };
 
     fn make_parent_and_child_blocks(
@@ -123,7 +131,7 @@ mod test {
         parent_block_height: u32,
         child_block_hash: u8,
         child_block_height: u32,
-    ) -> [HeadBlock; 2] {
+    ) -> [BlockWrapper; 2] {
         let mut parent_block = RawSequencerBlockData {
             block_hash: Hash::Sha256([parent_block_hash; 32]),
             ..Default::default()
@@ -143,8 +151,8 @@ mod test {
         child_block.header.last_block_id = Some(parent_id.into());
         let child_block = SequencerBlockData::from_raw_unverified(child_block);
 
-        let parent_block = HeadBlock::FromValidator(parent_block);
-        let child_block = HeadBlock::FromValidator(child_block);
+        let parent_block = BlockWrapper::FromValidator(parent_block);
+        let child_block = BlockWrapper::FromValidator(child_block);
 
         [parent_block, child_block]
     }
@@ -198,7 +206,7 @@ mod test {
         pipeline.submit(third_block);
         assert!(!pipeline.has_finalized());
 
-        pipeline.submit(child_second_block);
+        pipeline.submit(child_second_block); // finalizes second block
         assert!(pipeline.has_finalized());
 
         let mut finalized_blocks = pipeline.drain_finalized();

@@ -2,19 +2,26 @@ use astria_sequencer_types::SequencerBlockData;
 use tendermint::Hash;
 use tendermint_rpc::endpoint::block;
 
+/// Wrapper for sending a sequencer block down the finalization pipeline. A distinction is made
+/// between blocks published to cometbft by the sequencer running this relayer sidecar, and
+/// by other sequencer's. Blocks published to cometbft by this sequencer, should be published to 
+/// DA by the relayer, hence they end up in the `finalized` queue in 
+/// [`super::FinalizationPipeline`].
 #[derive(Clone, Default, Debug)]
-pub(crate) enum HeadBlock {
+pub(crate) enum BlockWrapper {
+    /// Blocks proposed by the validator running this relayer.
     FromValidator(SequencerBlockData),
+    /// Blocks proposed by other validators, received by the sequencer over cometbft.
     FromOtherValidator(SequencerBlockSubset),
     #[default]
     Default,
 }
 
-impl TryInto<SequencerBlockData> for HeadBlock {
+impl TryInto<SequencerBlockData> for BlockWrapper {
     type Error = ();
 
     fn try_into(self) -> Result<SequencerBlockData, Self::Error> {
-        use HeadBlock::*;
+        use BlockWrapper::*;
         match self {
             FromValidator(block) => Ok(block),
             FromOtherValidator(_) => Err(()),
@@ -23,7 +30,7 @@ impl TryInto<SequencerBlockData> for HeadBlock {
     }
 }
 
-impl HeadBlock {
+impl BlockWrapper {
     pub(crate) fn new_by_validator(block: SequencerBlockData) -> Self {
         Self::FromValidator(block)
     }
@@ -33,7 +40,7 @@ impl HeadBlock {
     }
 
     pub(crate) fn block_hash(&self) -> Hash {
-        use HeadBlock::*;
+        use BlockWrapper::*;
         match self {
             FromValidator(block) => block.block_hash(),
             FromOtherValidator(block) => block.block_hash,
@@ -42,7 +49,7 @@ impl HeadBlock {
     }
 
     pub(crate) fn parent_block_hash(&self) -> Option<Hash> {
-        use HeadBlock::*;
+        use BlockWrapper::*;
         match self {
             FromValidator(block) => block.parent_block_hash(),
             FromOtherValidator(block) => block.parent_block_hash,
@@ -51,7 +58,7 @@ impl HeadBlock {
     }
 
     pub(crate) fn height(&self) -> u64 {
-        use HeadBlock::*;
+        use BlockWrapper::*;
         match self {
             FromValidator(block) => block.header().height.into(),
             FromOtherValidator(block) => block.height,

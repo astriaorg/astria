@@ -2,25 +2,29 @@ use astria_sequencer_types::SequencerBlockData;
 use tendermint::Hash;
 
 use super::{
-    HeadBlock,
+    BlockWrapper,
     SoftBlock,
 };
 
+// tracks state of an item in the pipeline. all blocks received from the sequencer running this
+// relayer are assumed to be heads, i.e. 1 block long forks of the canonical chain
 #[derive(Clone, Copy, Default, Debug)]
 enum State {
     #[default]
     Head, // head of 1 block long fork, block points to canonical head of chain
-    Soft, // head of canonical chain, block points to final head of chain
+    Soft, // canonical head of chain, block points to final head of chain
 }
 
+/// Handles conversion between head block, soft block and final block as a block travels down the
+/// pipeline.
 #[derive(Default, Debug)]
 pub(crate) struct PipelineItem {
-    block: HeadBlock,
+    block: BlockWrapper,
     state: State,
 }
 
-impl From<HeadBlock> for PipelineItem {
-    fn from(block: HeadBlock) -> Self {
+impl From<BlockWrapper> for PipelineItem {
+    fn from(block: BlockWrapper) -> Self {
         Self {
             block,
             state: State::default(),
@@ -39,8 +43,8 @@ impl TryInto<SequencerBlockData> for PipelineItem {
 impl PipelineItem {
     // pipeline item state changes:
     //
-    // head -> soft (on soften)                         i.e. fork -> canonical (on canonize)
-    // soft -> final (on finalization)                  i.e. canonical -> final (on finalization)
+    // head -> soft (on soften)          i.e. fork -> canonical (on canonize)
+    // soft -> final (on finalization)   i.e. canonical -> final (on finalization)
 
     // makes head block soft, i.e. makes fork block head of canonical chain
     #[must_use]
