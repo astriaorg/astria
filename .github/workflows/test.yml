@@ -2,8 +2,6 @@ name: Test
 env:
   CI: true
   RUSTFLAGS: "-D warnings -D unreachable-pub --cfg tokio_unstable"
-  COMETBFT_DIR: ${{ env.HOME }}/cometbft
-  COMETBFT: ${{ env.COMETBFT_DIR }}/cometbft
 on: 
   pull_request:
   push:
@@ -65,6 +63,10 @@ jobs:
           --all-features \
           --all-targets \
           --exclude astria-celestia-jsonrpc-client
+      - name: Add COMETBFT and COMETBFT_DIR vars to environment
+        run: |
+          echo "COMETBFT_DIR=$HOME/cometbft" >> "$GITHUB_ENV"
+          echo "COMETBFT=$HOME/cometbft/cometbft" >> "$GITHUB_ENV"
       - name: Download and install cometbft
         run: |
           wget https://github.com/cometbft/cometbft/releases/download/v0.37.2/cometbft_0.37.2_linux_amd64.tar.gz
