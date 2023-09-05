@@ -1,0 +1,27 @@
+[package]
+name = "cometbft-launcher"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.64.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = { workspace = true }
+reqwest = {workspace = true}
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["fs", "process", "rt"] }
+toml_edit = "0.19.14"
+tryhard = "0.5.1"
+which = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+procfs = "0.15.1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2.62"
+libproc = "0.14.1"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio-test = { workspace = true }

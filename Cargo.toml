@@ -1,22 +1,12 @@
 [workspace]
 members = [
-  "crates/astria-celestia-jsonrpc-client",
-  "crates/astria-composer",
-  "crates/astria-conductor",
-  "crates/astria-gossipnet",
-  "crates/astria-proto",
-  "crates/astria-sequencer",
-  "crates/astria-sequencer-client",
-  "crates/astria-sequencer-relayer",
-  "crates/astria-sequencer-types",
-  "crates/astria-sequencer-utils",
-  "crates/astria-sequencer-validation",
-  "crates/astria-telemetry",
-  "crates/astria-test-utils",
+  "crates/astria-*",
+  "crates/test/*",
 ]
 resolver = "2"
 
 [workspace.dependencies]
+anyhow = "1"
 async-trait = "0.1.52"
 axum = "0.6.16"
 backon = "0.4.1"
@@ -63,6 +53,7 @@ tendermint-config = "0.32"
 tendermint-proto = "0.32"
 tendermint-rpc = "0.32"
 tokio = "1.28"
+tokio-test = "0.4.2"
 tonic = "0.9"
 tracing = "0.1"
 tracing-subscriber = "0.3"
