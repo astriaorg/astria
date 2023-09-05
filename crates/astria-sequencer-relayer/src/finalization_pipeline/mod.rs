@@ -12,17 +12,32 @@ pub(crate) mod pipeline_item;
 pub(crate) use head_candidate::HeadCandidate;
 pub(crate) use pipeline_item::PipelineItem;
 
+const CHILD_HEIGHT: u64 = 1;
+const GRANDCHILD_HEIGHT: u64 = 2;
+
 // head of the sequencer chain as observed on cometbft.
 #[derive(Default)]
 pub(crate) struct Head {
     block: PipelineItem,
 }
 
-// pipeline can handle forks 1 height deep
+/// Pipeline can handle forks 1 heights deep.
+///
+/// Fork choice is such that, the block pointed to by the first received grandchild block, is the
+/// new canonical head.
+///
+/// Fork choice is executed when a block at grandchild height relative to the
+/// canonical head is received. Blocks are assumed to come (from cometbft) via sequencer in
+/// sequential order, pointing to the canonical chain (blocks at child height relative to
+/// canonical head point to canonical head, and blocks at grandchild height relative to canonical
+/// head point to a fork of the canonical chain).
 #[derive(Default)]
 pub(crate) struct FinalizationPipeline {
+    /// Head of the canonical chain.
     pub(crate) chain_head: Head,
+    // queue of blocks pending finalization (xor pending orphanhood)
     pending: HashMap<Hash, PipelineItem>,
+    // blocks proposed by the sequencer running this relayer. to be submitted to DA layer.
     validator_finalized: Vec<SequencerBlockData>,
 }
 
@@ -31,15 +46,18 @@ impl FinalizationPipeline {
         let new_block: PipelineItem = new_block.into();
 
         match new_block.parent_block_hash() {
-            Some(new_block_parent) => {
+            Some(parent_of_new_block) => {
                 debug_assert!(new_block.height() > self.chain_head.block.height());
 
                 let steps = new_block.height() - self.chain_head.block.height();
-                if steps == 1 {
-                    debug_assert!(new_block_parent == self.chain_head.block.block_hash());
+                if steps == CHILD_HEIGHT {
+                    // finalization pipeline assumes blocks arrive in sequential order from
+                    // sequencer
+                    debug_assert!(parent_of_new_block == self.chain_head.block.block_hash());
 
                     self.pending.insert(new_block.block_hash(), new_block);
-                } else if steps == 2 {
+                } else if steps == GRANDCHILD_HEIGHT {
+                    // do fork choice
                     let pending_at_prev_height = mem::replace(
                         &mut self.pending,
                         HashMap::from([(new_block.block_hash(), new_block)]),
@@ -49,7 +67,7 @@ impl FinalizationPipeline {
                             competing_block.height() == self.chain_head.block.height() + 1
                         );
 
-                        if competing_block.block_hash() == new_block_parent {
+                        if competing_block.block_hash() == parent_of_new_block {
                             let old_head = mem::replace(
                                 &mut self.chain_head,
                                 competing_block.canonize().unwrap(),

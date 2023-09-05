@@ -60,8 +60,9 @@ pub struct Relayer {
     // A watch channel to track the state of the relayer. Used by the API service.
     state_tx: watch::Sender<State>,
 
-    // Sequencer blocks that have been received but not yet finalized. Only finalized blocks are
-    // submitted to the data availability layer.
+    // Sequencer blocks that have been received but not yet finalized (for example, because a
+    // submit RPC was currently in flight). Only finalized blocks are submitted to the data
+    // availability layer.
     finalization_pipeline: FinalizationPipeline,
 
     // A collection of workers to convert a raw cometbft/tendermint block response to

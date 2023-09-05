@@ -40,6 +40,7 @@ impl PipelineItem {
     // head candidate state changes:
     //
     // fork -> canonical (on canonize)
+    // canonical -> final (on finalization)
 
     // integrates a block into the canonical chain
     #[must_use]
@@ -59,7 +60,7 @@ impl PipelineItem {
         }
     }
 
-    // finalizes a block at HEAD^
+    // finalizes the canonical head
     #[must_use]
     pub(super) fn finalize(self) -> Option<Result<SequencerBlockData, ()>> {
         use State::*;
