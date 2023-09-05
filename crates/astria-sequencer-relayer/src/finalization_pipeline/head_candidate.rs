@@ -69,7 +69,7 @@ pub(crate) struct CometBftHeadCandidate {
 
 impl From<block::Response> for CometBftHeadCandidate {
     fn from(res: block::Response) -> Self {
-        let block_hash = res.block.header.hash();
+        let block_hash = res.block_id.hash;
         let parent_block_hash = res.block.header.last_block_id.map(|id| id.hash);
         let height = res.block.header.height.into();
         Self {
