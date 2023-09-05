@@ -2,6 +2,8 @@ name: Test
 env:
   CI: true
   RUSTFLAGS: "-D warnings -D unreachable-pub --cfg tokio_unstable"
+  COMETBFT_DIR: ${{ env.HOME }}/cometbft
+  COMETBFT: ${{ env.COMETBFT_DIR }}/cometbft
 on: 
   pull_request:
   push:
@@ -46,9 +48,6 @@ jobs:
     runs-on: buildjet-8vcpu-ubuntu-2204
     needs: run_checker
     if: ${{ needs.run_checker.outputs.run_tests }}
-    env:
-      COMETBFT_DIR: ${{ env.HOME }}/cometbft
-      COMETBFT: ${{ env.COMETBFT_DIR }}/cometbft
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.70.0
