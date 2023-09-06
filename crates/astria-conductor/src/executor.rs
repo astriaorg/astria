@@ -135,6 +135,7 @@ impl<C: ExecutionClient> Executor<C> {
                 ExecutorCommand::BlockReceivedFromGossipNetwork {
                     block,
                 } => {
+                    let height = block.header().height.value();
                     let Some(block_subset) =
                         SequencerBlockSubset::from_sequencer_block_data(*block, self.namespace)
                     else {
@@ -142,23 +143,40 @@ impl<C: ExecutionClient> Executor<C> {
                         continue;
                     };
                     if let Err(e) = self.execute_block(block_subset).await {
-                        error!("failed to execute block: {e:?}");
+                        error!(
+                            actor_name = "executor",
+                            height = height,
+                            error.msg = %e,
+                            error.cause = ?e,
+                            "failed to execute block"
+                        );
                     }
                 }
 
                 ExecutorCommand::BlockReceivedFromDataAvailability {
                     block,
                 } => {
+                    let height = block.header.height.value();
                     if let Err(e) = self
                         .handle_block_received_from_data_availability(*block)
                         .await
                     {
-                        error!("failed to finalize block: {}", e);
+                        error!(
+                            actor_name = "executor",
+                            height = height,
+                            error.msg = %e,
+                            error.cause = ?e,
+                            "failed to finalize block"
+                        );
                     }
                 }
 
                 ExecutorCommand::Shutdown => {
-                    info!("Shutting down executor event loop.");
+                    info!(
+                        actor_name = "executor",
+                        namespace = %self.namespace,
+                        "Shutting down executor event loop."
+                    );
                     break;
                 }
             }
