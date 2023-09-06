@@ -1,29 +1,66 @@
-# astria-conductor
+# Astria-Conductor
 
 Coordinates blocks between the data availability layer and the execution layer.
 
-## Running for development
+## Running Conductor
 
-* create `ConductorConfig.toml` in the repo root and populate accordingly, e.g.
+### Dependencies
 
-  ```sh
-  celestia_node_url = "http://localhost:26659"
-  tendermint_url = "http://localhost:1318"
-  chain_id = "ethereum"
-  execution_rpc_url = "http://localhost:50051"
-  ```
+We use [just](https://just.systems/man/en/chapter_4.html) for convenient project
+specific commands.
 
-* run `cargo run`
-* alternatively, you can do `cargo build && ./target/debug/conductor`.
-* to connect directly to a node via p2p, you can use the `--bootnodes` flag,
-  e.g. `--bootnodes=/ip4/127.0.0.1/tcp/33900` or
-  `--bootnodes=/ip4/127.0.0.1/tcp/34471/p2p/12D3KooWDCHwgGetpJuHknJqv2dNbYpe3LqgH8BKrsYHV9ALpAj8`.
+### Configuration
+Composer is configured via environment variables. An example configuration can
+be seen in `local.env.example`.
 
-## Tests
-
-Running all the tests will spin up a local Celestia cluster, Metro node, Geth
-node, and the relayer. It will then run the tests against the local setup.
+To copy a configuration to your `.env` file run:
 
 ```sh
-cargo test -- --nocapture --color always
+# Can specify an environment
+just copy-env <ENVIRONMENT>
+
+# By default will copy `local.env.example`
+just copy-env
+```
+
+### Running locally
+
+After creating a `.env` file either manually or by copying as above, `just` will
+load it and run locally:
+
+```bash
+just run
+```
+
+### Additional env variables
+
+#### Bootnodes
+
+You can also connect directly to a node - just add a bootnode address to the .env file
+
+```bash
+ASTRIA_CONDUCTOR_BOOTNODES="/ip4/127.0.0.1/tcp/34471/p2p/12D3KooWDCHwgGetpJuHknJqv2dNbYpe3LqgH8BKrsYHV9ALpAj8"
+```
+
+#### libp2p options
+
+You can add a libp2p private key or port
+
+```bash
+ASTRIA_CONDUCTOR_LIBP2P_PRIVATE_KEY="{{your key}}"
+ASTRIA_CONDUCTOR_LIBP2P_PORT="{{your port}}"
+```
+
+#### Celestia JWT bearer token
+
+You can add a JWT token that's used in celestia jsonrpc calls
+
+```bash
+ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN="{{your token}}"
+```
+
+### Running tests
+
+```bash
+just test
 ```

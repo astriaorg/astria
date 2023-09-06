@@ -1,0 +1,18 @@
+alias r := run
+alias t := test
+
+default:
+  @just --list
+
+set dotenv-load
+set fallback
+
+default_env := 'local'
+copy-env TYPE=default_env:
+  cp {{ TYPE }}.env.example .env
+
+run:
+  cargo run
+
+test:
+  cargo test -- --nocapture --color always

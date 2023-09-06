@@ -1,25 +1,14 @@
 use std::time::Duration;
 
 use astria_conductor::{
-    cli::Cli,
-    config::Config,
+    config,
     driver::{
         Driver,
         DriverCommand,
     },
     telemetry,
 };
-use clap::Parser;
 use color_eyre::eyre::Result;
-use figment::{
-    providers::{
-        Env,
-        Format,
-        Serialized,
-        Toml,
-    },
-    Figment,
-};
 use tokio::{
     select,
     signal::unix::{
@@ -43,17 +32,16 @@ async fn main() -> Result<()> {
 
 #[instrument(name = "astria_conductor::run")]
 async fn run() -> Result<()> {
-    let args = Cli::parse();
-    // hierarchical config. cli args override Envars which override toml config values
-    let conf: Config = Figment::new()
-        .merge(Toml::file("ConductorConfig.toml"))
-        .merge(Env::prefixed("RUST_").split("_").only(&["log"]))
-        .merge(Env::prefixed("ASTRIA_"))
-        .merge(Serialized::defaults(args))
-        .extract()?;
+    let conf = match config::get() {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("failed to read configuration: {e}");
+            std::process::exit(2);
+        }
+    };
 
-    telemetry::init(std::io::stdout, conf.log.as_deref().unwrap_or("info"))
-        .expect("failed to initialize telemetry");
+    // hierarchical config. cli args override Envars which override toml config values
+    telemetry::init(std::io::stdout, &conf.log).expect("failed to initialize telemetry");
 
     info!("Using chain ID {}", conf.chain_id);
     info!("Using Celestia node at {}", conf.celestia_node_url);
