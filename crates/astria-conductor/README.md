@@ -10,7 +10,7 @@ We use [just](https://just.systems/man/en/chapter_4.html) for convenient project
 specific commands.
 
 ### Configuration
-Composer is configured via environment variables. An example configuration can
+Conductor is configured via environment variables. An example configuration can
 be seen in `local.env.example`.
 
 To copy a configuration to your `.env` file run:
