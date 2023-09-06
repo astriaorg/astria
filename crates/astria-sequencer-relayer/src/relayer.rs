@@ -67,7 +67,7 @@ pub struct Relayer {
 
     // A collection of workers to convert a raw cometbft/tendermint block response to
     // the sequencer block data type.
-    conversion_workers: task::JoinSet<Result<SequencerBlockData, ConversionError>>,
+    conversion_workers: task::JoinSet<eyre::Result<SequencerBlockData>>,
 
     // Task to submit blocks to the data availability layer. If this is set it means that
     // an RPC is currently in flight and new blocks are queued up. They will be submitted
@@ -182,13 +182,12 @@ impl Relayer {
                     "received block from sequencer"
                 );
                 let current_height = self.state_tx.borrow().current_sequencer_height;
-                let validator = self.validator.clone();
                 // Start the costly conversion; note that the current height at
                 // the time of receipt matters. The internal state might have advanced
                 // past the height recorded in the block while it was converting, but
                 // that's ok.
                 self.conversion_workers.spawn_blocking(move || {
-                    convert_block_response_to_sequencer_block_data(rsp, current_height, validator)
+                    convert_block_response_to_sequencer_block_data(rsp, current_height)
                 });
             }
 
@@ -200,7 +199,7 @@ impl Relayer {
     #[instrument(skip_all)]
     fn handle_conversion_completed(
         &mut self,
-        join_result: Result<Result<SequencerBlockData, ConversionError>, task::JoinError>,
+        join_result: Result<eyre::Result<SequencerBlockData>, task::JoinError>,
     ) -> HandleConversionCompletedResult {
         // First check if the join task panicked
         let conversion_result = match join_result {
@@ -240,20 +239,20 @@ impl Relayer {
                     }
                     false
                 });
+                let pipeline_wrapper =
+                    if sequencer_block_data.header().proposer_address == self.validator.address {
+                        BlockWrapper::new_by_validator(sequencer_block_data.into())
+                    } else {
+                        // pass to finalization pipeline to track canonical head
+                        BlockWrapper::new_by_other_validator(sequencer_block_data)
+                    };
                 // Store the converted data
-                self.finalization_pipeline
-                    .submit(BlockWrapper::new_by_validator(sequencer_block_data.into()));
+                self.finalization_pipeline.submit(pipeline_wrapper);
             }
             // Ignore sequencer responses that were filtered out
-            Err(ConversionError::NotProposedByValidator(block)) => {
-                // pass to finalization pipeline to track canonical head
-                self.finalization_pipeline
-                    .submit(BlockWrapper::new_by_other_validator(block));
-            }
-            Err(ConversionError::HeightTooLow) => (),
             // Report if the conversion failed
             // TODO: inject the correct tracing span
-            Err(ConversionError::ConversionFromTendermint(e)) => report_err!(
+            Err(e) => report_err!(
                 e,
                 "failed converting sequencer block response to block data"
             ),
@@ -466,33 +465,19 @@ impl Relayer {
     }
 }
 
-enum ConversionError {
-    HeightTooLow,
-    NotProposedByValidator(block::Response),
-    ConversionFromTendermint(eyre::Report),
-}
-
 #[instrument(skip_all)]
 fn convert_block_response_to_sequencer_block_data(
     res: block::Response,
     current_height: Option<u64>,
-    validator: Validator,
-) -> Result<SequencerBlockData, ConversionError> {
+) -> eyre::Result<SequencerBlockData> {
     if Some(res.block.header.height.value()) < current_height {
         debug!(
             "sequencer block response contained height at or below the current height tracked in \
              relayer"
         );
-        return Err(ConversionError::HeightTooLow);
-    }
-    if res.block.header.proposer_address != validator.address {
-        debug!("proposer recorded in sequencer block response does not match internal validator");
-
-        return Err(ConversionError::NotProposedByValidator(res));
     }
     let sequencer_block_data = SequencerBlockData::from_tendermint_block(res.block)
-        .wrap_err("failed converting sequencer block response to sequencer block data")
-        .map_err(|e| ConversionError::ConversionFromTendermint(e))?;
+        .wrap_err("failed converting sequencer block response to sequencer block data")?;
     Ok(sequencer_block_data)
 }
 

@@ -1,11 +1,10 @@
 use astria_sequencer_types::SequencerBlockData;
 use tendermint::Hash;
-use tendermint_rpc::endpoint::block;
 
 /// Wrapper for sending a sequencer block down the finalization pipeline. A distinction is made
 /// between blocks published to cometbft by the sequencer running this relayer sidecar, and
-/// by other sequencer's. Blocks published to cometbft by this sequencer, should be published to 
-/// DA by the relayer, hence they end up in the `finalized` queue in 
+/// by other sequencer's. Blocks published to cometbft by this sequencer, should be published to
+/// DA by the relayer, hence they end up in the `finalized` queue in
 /// [`super::FinalizationPipeline`].
 #[derive(Clone, Default, Debug)]
 pub(crate) enum BlockWrapper {
@@ -35,7 +34,7 @@ impl BlockWrapper {
         Self::FromValidator(block)
     }
 
-    pub(crate) fn new_by_other_validator(block: block::Response) -> Self {
+    pub(crate) fn new_by_other_validator(block: SequencerBlockData) -> Self {
         Self::FromOtherValidator(block.into())
     }
 
@@ -75,11 +74,11 @@ pub(crate) struct SequencerBlockSubset {
     height: u64,
 }
 
-impl From<block::Response> for SequencerBlockSubset {
-    fn from(res: block::Response) -> Self {
-        let block_hash = res.block_id.hash;
-        let parent_block_hash = res.block.header.last_block_id.map(|id| id.hash);
-        let height = res.block.header.height.into();
+impl From<SequencerBlockData> for SequencerBlockSubset {
+    fn from(block: SequencerBlockData) -> Self {
+        let block_hash = block.block_hash();
+        let parent_block_hash = block.parent_block_hash();
+        let height = block.header().height.into();
         Self {
             block_hash,
             parent_block_hash,
