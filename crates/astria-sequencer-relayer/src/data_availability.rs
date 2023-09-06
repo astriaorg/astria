@@ -189,9 +189,7 @@ impl RollupNamespaceData {
         let mut leaf = self.chain_id.clone();
         leaf.append(&mut rollup_data_root.to_vec());
 
-        self.inclusion_proof
-            .verify(&leaf, root_hash)
-            .wrap_err("failed to verify rollup data inclusion proof")
+        self.inclusion_proof.verify(&leaf, root_hash)
     }
 }
 

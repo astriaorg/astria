@@ -487,37 +487,36 @@ mod test {
         generate_action_tree_leaves,
         MerkleTree,
     };
-    use base64::engine::{
-        general_purpose::STANDARD,
-        Engine as _,
-    };
     use tendermint::{
+        account,
         block::Commit,
         validator,
     };
 
     use super::*;
 
-    fn make_test_validator_set(height: u32) -> ValidatorSet {
-        use ed25519_consensus::SigningKey;
+    fn make_test_validator_set(height: u32) -> (ValidatorSet, account::Id) {
+        use rand::rngs::OsRng;
 
-        let key_bytes = STANDARD.decode("XXhEZctO2gj3JhjHV7214N53zEl3s05eD9cWIJJHAVrPP2L5ARCQ0PSkNA85f3avKwpBsaDD6Q6VJlhN6ZHKjQ==").unwrap();
-        let signing_key = SigningKey::try_from(key_bytes[0..32].to_vec().as_slice()).unwrap();
-        let pub_key = tendermint::public_key::PublicKey::Ed25519(
-            signing_key.verification_key().as_ref().try_into().unwrap(),
-        );
-
-        // public key: zz9i+QEQkND0pDQPOX92rysKQbGgw+kOlSZYTemRyo0=
-        // address: E3849B2AE431ABB2865923B57454514CC7DB350B
+        let signing_key = ed25519_consensus::SigningKey::new(OsRng);
+        let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(
+            signing_key.verification_key().as_ref(),
+        )
+        .unwrap();
+        let address = tendermint::account::Id::from(pub_key);
 
         let validator = validator::Info {
-            address: tendermint::account::Id::from(pub_key),
+            address,
             pub_key,
             power: 10u32.into(),
             proposer_priority: 0.into(),
             name: None,
         };
-        ValidatorSet::new(height.into(), vec![validator], 1)
+
+        (
+            ValidatorSet::new(height.into(), vec![validator], 1),
+            address,
+        )
     }
 
     #[tokio::test]
@@ -529,12 +528,11 @@ mod test {
         let action_tree_root_inclusion_proof = tx_tree.prove_inclusion(0).unwrap();
         let data_hash = tx_tree.root();
 
-        let proposer_address =
-            tendermint::account::Id::from_str("E3849B2AE431ABB2865923B57454514CC7DB350B").unwrap();
-
         let mut header = astria_sequencer_types::test_utils::default_header();
         let height = header.height.value() as u32;
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+
+        let (validator_set, proposer_address) = make_test_validator_set(height);
         header.proposer_address = proposer_address;
         let block_hash = header.hash();
 
@@ -548,8 +546,8 @@ mod test {
         };
 
         validate_sequencer_namespace_data(
-            make_test_validator_set(height),
-            make_test_validator_set(height - 1),
+            validator_set,
+            make_test_validator_set(height - 1).0,
             &sequencer_namespace_data,
         )
         .await
@@ -571,12 +569,11 @@ mod test {
         let action_tree_root_inclusion_proof = tx_tree.prove_inclusion(0).unwrap();
         let data_hash = tx_tree.root();
 
-        let proposer_address =
-            tendermint::account::Id::from_str("E3849B2AE431ABB2865923B57454514CC7DB350B").unwrap();
-
         let mut header = astria_sequencer_types::test_utils::default_header();
         let height = header.height.value() as u32;
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+
+        let (validator_set, proposer_address) = make_test_validator_set(height);
         header.proposer_address = proposer_address;
         let block_hash = header.hash();
 
@@ -597,8 +594,8 @@ mod test {
         );
 
         validate_sequencer_namespace_data(
-            make_test_validator_set(height),
-            make_test_validator_set(height - 1),
+            validator_set,
+            make_test_validator_set(height - 1).0,
             &sequencer_namespace_data,
         )
         .await
