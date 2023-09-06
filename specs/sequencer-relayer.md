@@ -1,6 +1,6 @@
 # Astria Sequencer Relayer
 
-The Astria Sequencer Relayer (Relayer), is a stateless service which reads new
+The Astria Sequencer Relayer (Relayer) is a stateless service which reads new
 blocks from the sequencer, publishes them to the gossipnet for rollup execution,
 and writes batches of sequencer blocks to DA.
 
@@ -140,7 +140,7 @@ derived from the `chain_id` for the rollup tx
 
 These blobs are submitted to Celestia via the `State.SubmitPayForBlob` JSON RPC
 ([State APIs](https://node-rpc-docs.celestia.org/#state)). This job is blocking
-until it is included, once it has been included the next set of queued
+until it is included. Once it has been included, the next set of queued
 information is grabbed to be pushed.
 
 ## Event Loops
