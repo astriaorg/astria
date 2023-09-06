@@ -3,7 +3,7 @@ use std::{
     mem,
 };
 
-use astria_sequencer_types::SequencerBlockData;
+use sequencer_types::SequencerBlockData;
 use tendermint::Hash;
 
 pub(crate) mod block_wrapper;
@@ -109,7 +109,7 @@ impl FinalizationPipeline {
 
 #[cfg(test)]
 mod test {
-    use astria_sequencer_types::{
+    use sequencer_types::{
         RawSequencerBlockData,
         SequencerBlockData,
     };

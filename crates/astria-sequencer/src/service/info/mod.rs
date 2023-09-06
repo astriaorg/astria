@@ -1,5 +1,4 @@
 use std::{
-    fmt::Display,
     pin::Pin,
     task::{
         Context,
@@ -38,35 +37,7 @@ use tracing::{
 
 mod abci_query_router;
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct AbciCode(u32);
-impl AbciCode {
-    pub(crate) const INTERNAL_ERROR: Self = Self(3);
-    pub(crate) const INVALID_PARAMETER: Self = Self(2);
-    pub(crate) const OK: Self = Self(0);
-    pub(crate) const UNKNOWN_PATH: Self = Self(1);
-
-    pub(crate) fn info(self) -> Option<&'static str> {
-        match self.0 {
-            0 => Some("Ok"),
-            1 => Some("provided path is unknown"),
-            2 => Some("one or more path parameters were invalid"),
-            3 => Some("an internal server error occured"),
-            _ => None,
-        }
-    }
-}
-impl Display for AbciCode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.info().unwrap_or("<unknown abci code>"))
-    }
-}
-
-impl From<AbciCode> for Code {
-    fn from(value: AbciCode) -> Self {
-        value.0.into()
-    }
-}
+use super::AbciCode;
 
 #[derive(Clone)]
 pub(crate) struct Info {
@@ -170,8 +141,8 @@ impl Service<InfoRequest> for Info {
 
 #[cfg(test)]
 mod test {
-    use astria_proto::native::sequencer::v1alpha1::Address;
     use penumbra_storage::StateDelta;
+    use proto::native::sequencer::v1alpha1::Address;
     use tendermint::abci::{
         request,
         InfoRequest,
@@ -198,7 +169,7 @@ mod test {
             &hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap(),
         )
         .unwrap();
-        state.put_account_balance(address, 1000.into()).unwrap();
+        state.put_account_balance(address, 1000).unwrap();
         state.put_block_height(height);
 
         storage.commit(state).await.unwrap();

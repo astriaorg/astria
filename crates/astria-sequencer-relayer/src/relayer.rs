@@ -1,15 +1,15 @@
 use std::time::Duration;
 
-use astria_sequencer_types::{
-    serde::NamespaceToTxCount,
-    SequencerBlockData,
-};
 use eyre::{
     bail,
     Result,
     WrapErr as _,
 };
 use humantime::format_duration;
+use sequencer_types::{
+    serde::NamespaceToTxCount,
+    SequencerBlockData,
+};
 use tendermint_rpc::{
     endpoint::block,
     HttpClient,

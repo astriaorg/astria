@@ -251,7 +251,13 @@ mod test {
     use std::str::FromStr;
 
     use ed25519_consensus::SigningKey;
-    use prost::Message as _;
+    use proto::{
+        native::sequencer::v1alpha1::{
+            SequenceAction,
+            UnsignedTransaction,
+        },
+        Message as _,
+    };
     use rand::rngs::OsRng;
     use tendermint::{
         account::Id,
@@ -260,14 +266,19 @@ mod test {
     };
 
     use super::*;
-    use crate::{
-        accounts::types::Nonce,
-        sequence,
-        transaction::{
-            action::Action,
-            Unsigned,
-        },
-    };
+
+    fn make_unsigned_tx() -> UnsignedTransaction {
+        UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                SequenceAction {
+                    chain_id: b"testchainid".to_vec(),
+                    data: b"helloworld".to_vec(),
+                }
+                .into(),
+            ],
+        }
+    }
 
     fn new_prepare_proposal_request(txs: Vec<Bytes>) -> request::PrepareProposal {
         request::PrepareProposal {
@@ -298,16 +309,9 @@ mod test {
     #[test]
     fn prepare_and_process_proposal() {
         let signing_key = SigningKey::new(OsRng);
-        let tx = Unsigned {
-            nonce: Nonce::from(0),
-            actions: vec![Action::SequenceAction(sequence::Action::new(
-                b"testchainid".to_vec(),
-                b"helloworld".to_vec(),
-            ))],
-        };
-
+        let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.to_proto().encode_to_vec();
+        let tx_bytes = signed_tx.into_raw().encode_to_vec();
 
         let txs = vec![tx_bytes.clone().into()];
         let (action_commitment, txs_included) = generate_sequence_actions_commitment(txs.clone());
@@ -329,16 +333,9 @@ mod test {
     #[test]
     fn process_proposal_ok() {
         let signing_key = SigningKey::new(OsRng);
-        let tx = Unsigned {
-            nonce: Nonce::from(0),
-            actions: vec![Action::SequenceAction(sequence::Action::new(
-                b"testchainid".to_vec(),
-                b"helloworld".to_vec(),
-            ))],
-        };
-
+        let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.to_proto().encode_to_vec();
+        let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
         let (action_commitment, txs_included) = generate_sequence_actions_commitment(txs.clone());
         assert_eq!(txs, txs_included);
@@ -456,16 +453,9 @@ mod test {
         let mut consensus_service = new_consensus_service().await;
 
         let signing_key = SigningKey::new(OsRng);
-        let tx = Unsigned {
-            nonce: Nonce::from(0),
-            actions: vec![Action::SequenceAction(sequence::Action::new(
-                b"testchainid".to_vec(),
-                b"helloworld".to_vec(),
-            ))],
-        };
-
+        let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.to_proto().encode_to_vec();
+        let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
         let (action_commitment, txs_included) = generate_sequence_actions_commitment(txs.clone());
         assert_eq!(txs, txs_included);

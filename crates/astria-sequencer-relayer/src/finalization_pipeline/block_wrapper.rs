@@ -1,4 +1,4 @@
-use astria_sequencer_types::SequencerBlockData;
+use sequencer_types::SequencerBlockData;
 use tendermint::Hash;
 
 /// Wrapper for sending a sequencer block down the finalization pipeline. A distinction is made

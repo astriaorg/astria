@@ -12,14 +12,6 @@ use astria_celestia_jsonrpc_client::{
     Client,
     ErrorKind,
 };
-use astria_sequencer_types::{
-    serde::Base64Standard,
-    Namespace,
-    RawSequencerBlockData,
-    RollupData,
-    SequencerBlockData,
-    DEFAULT_NAMESPACE,
-};
 use astria_sequencer_validation::{
     generate_action_tree_leaves,
     InclusionProof,
@@ -33,6 +25,14 @@ use ed25519_consensus::{
 use eyre::{
     ensure,
     WrapErr as _,
+};
+use sequencer_types::{
+    serde::Base64Standard,
+    Namespace,
+    RawSequencerBlockData,
+    RollupData,
+    SequencerBlockData,
+    DEFAULT_NAMESPACE,
 };
 use serde::{
     de::DeserializeOwned,
@@ -150,7 +150,7 @@ pub struct SequencerNamespaceData {
     pub header: Header,
     pub last_commit: Option<Commit>,
     pub rollup_namespaces: Vec<Namespace>,
-    pub action_tree_root: Hash,
+    pub action_tree_root: [u8; 32],
     pub action_tree_root_inclusion_proof: InclusionProof,
 }
 
@@ -160,12 +160,38 @@ impl NamespaceData for SequencerNamespaceData {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RollupNamespaceData {
     pub(crate) block_hash: Hash,
+    #[serde(with = "hex::serde")]
     pub(crate) chain_id: Vec<u8>,
     pub rollup_txs: Vec<Vec<u8>>,
     pub(crate) inclusion_proof: InclusionProof,
 }
 
 impl NamespaceData for RollupNamespaceData {}
+
+impl RollupNamespaceData {
+    pub fn new(
+        block_hash: Hash,
+        chain_id: Vec<u8>,
+        rollup_txs: Vec<Vec<u8>>,
+        inclusion_proof: InclusionProof,
+    ) -> Self {
+        Self {
+            block_hash,
+            chain_id,
+            rollup_txs,
+            inclusion_proof,
+        }
+    }
+
+    pub fn verify_inclusion_proof(&self, root_hash: [u8; 32]) -> eyre::Result<()> {
+        let rollup_data_tree = MerkleTree::from_leaves(self.rollup_txs.clone());
+        let rollup_data_root = rollup_data_tree.root();
+        let mut leaf = self.chain_id.clone();
+        leaf.append(&mut rollup_data_root.to_vec());
+
+        self.inclusion_proof.verify(&leaf, root_hash)
+    }
+}
 
 #[derive(Debug)]
 pub struct CelestiaClientBuilder {
@@ -588,9 +614,10 @@ fn assemble_blobs_from_sequencer_block_data(
             .map_err(|e| eyre::eyre!(e))
             .context("failed to generate inclusion proof")?;
 
+        let namespace = Namespace::from_slice(&chain_id);
         let rollup_namespace_data = RollupNamespaceData {
             block_hash,
-            chain_id: chain_id.clone(),
+            chain_id,
             rollup_txs: transactions,
             inclusion_proof,
         };
@@ -601,7 +628,6 @@ fn assemble_blobs_from_sequencer_block_data(
             .to_bytes()
             .wrap_err("failed converting signed rollup data namespace data to bytes")?;
 
-        let namespace = Namespace::from_slice(&chain_id);
         blobs.push(blob::Blob {
             namespace_id: *namespace,
             data: blob_data,

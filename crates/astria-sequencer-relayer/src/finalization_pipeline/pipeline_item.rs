@@ -1,4 +1,4 @@
-use astria_sequencer_types::SequencerBlockData;
+use sequencer_types::SequencerBlockData;
 use tendermint::Hash;
 
 use super::{

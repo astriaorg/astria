@@ -17,8 +17,8 @@ tendermint = { workspace = true, features = ["rust-crypto"] }
 tracing = { workspace = true }
 
 astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client" }
-astria-sequencer = { path = "../astria-sequencer" }
 astria-sequencer-validation = { path = "../astria-sequencer-validation" }
+proto = { package = "astria-proto", path = "../astria-proto" }
 
 [dev-dependencies]
 ct-merkle = { version = "0.1", features = ["serde"] }

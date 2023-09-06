@@ -29,10 +29,6 @@ use tracing::{
 };
 
 use crate::{
-    alert::{
-        Alert,
-        AlertSender,
-    },
     config::Config,
     execution_client::{
         ExecutionClient,
@@ -50,13 +46,12 @@ type Receiver = UnboundedReceiver<ExecutorCommand>;
 
 /// spawns a executor task and returns a tuple with the task's join handle
 /// and the channel for sending commands to this executor
-pub(crate) async fn spawn(conf: &Config, alert_tx: AlertSender) -> Result<(JoinHandle, Sender)> {
+pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
     info!("Spawning executor task.");
     let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url).await?;
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
         Namespace::from_slice(conf.chain_id.as_bytes()),
-        alert_tx,
     )
     .await?;
     let join_handle = task::spawn(async move { executor.run().await });
@@ -78,7 +73,7 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> 
 }
 
 #[derive(Debug)]
-pub enum ExecutorCommand {
+pub(crate) enum ExecutorCommand {
     /// used when a block is received from the gossip network
     BlockReceivedFromGossipNetwork {
         block: Box<SequencerBlockData>,
@@ -100,10 +95,6 @@ struct Executor<C> {
     /// Namespace ID
     namespace: Namespace,
 
-    /// The channel on which the driver and tasks in the driver can post alerts
-    /// to the consumer of the driver.
-    alert_tx: AlertSender,
-
     /// Tracks the state of the execution chain
     execution_state: Vec<u8>,
 
@@ -120,11 +111,7 @@ struct Executor<C> {
 }
 
 impl<C: ExecutionClient> Executor<C> {
-    async fn new(
-        mut execution_rpc_client: C,
-        namespace: Namespace,
-        alert_tx: AlertSender,
-    ) -> Result<(Self, Sender)> {
+    async fn new(mut execution_rpc_client: C, namespace: Namespace) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let init_state_response = execution_rpc_client.call_init_state().await?;
         let execution_state = init_state_response.block_hash;
@@ -133,7 +120,6 @@ impl<C: ExecutionClient> Executor<C> {
                 cmd_rx,
                 execution_rpc_client,
                 namespace,
-                alert_tx,
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
             },
@@ -149,16 +135,13 @@ impl<C: ExecutionClient> Executor<C> {
                 ExecutorCommand::BlockReceivedFromGossipNetwork {
                     block,
                 } => {
-                    self.alert_tx.send(Alert::BlockReceivedFromGossipNetwork {
-                        block_height: block.header().height.value(),
-                    })?;
-                    if let Err(e) = self
-                        .execute_block(SequencerBlockSubset::from_sequencer_block_data(
-                            *block,
-                            self.namespace,
-                        ))
-                        .await
-                    {
+                    let Some(block_subset) =
+                        SequencerBlockSubset::from_sequencer_block_data(*block, self.namespace)
+                    else {
+                        info!(namespace = %self.namespace, "block did not contain data for namespace; skipping");
+                        continue;
+                    };
+                    if let Err(e) = self.execute_block(block_subset).await {
                         error!("failed to execute block: {e:?}");
                     }
                 }
@@ -166,11 +149,6 @@ impl<C: ExecutionClient> Executor<C> {
                 ExecutorCommand::BlockReceivedFromDataAvailability {
                     block,
                 } => {
-                    self.alert_tx
-                        .send(Alert::BlockReceivedFromDataAvailability {
-                            block_height: block.header.height.value(),
-                        })?;
-
                     if let Err(e) = self
                         .handle_block_received_from_data_availability(*block)
                         .await
@@ -326,10 +304,7 @@ mod test {
     };
     use prost_types::Timestamp;
     use sha2::Digest as _;
-    use tokio::sync::{
-        mpsc,
-        Mutex,
-    };
+    use tokio::sync::Mutex;
 
     use super::*;
 
@@ -393,9 +368,8 @@ mod test {
 
     #[tokio::test]
     async fn execute_block_with_relevant_txs() {
-        let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = Namespace::from_slice(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
+        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace)
             .await
             .unwrap();
 
@@ -413,9 +387,8 @@ mod test {
 
     #[tokio::test]
     async fn execute_block_without_relevant_txs() {
-        let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = Namespace::from_slice(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
+        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace)
             .await
             .unwrap();
 
@@ -426,15 +399,12 @@ mod test {
 
     #[tokio::test]
     async fn handle_block_received_from_data_availability_not_yet_executed() {
-        let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = Namespace::from_slice(b"test");
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace, alert_tx)
-            .await
-            .unwrap();
+        let (mut executor, _) = Executor::new(execution_client, namespace).await.unwrap();
 
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
@@ -462,15 +432,12 @@ mod test {
 
     #[tokio::test]
     async fn handle_block_received_from_data_availability_no_relevant_transactions() {
-        let (alert_tx, _) = mpsc::unbounded_channel();
         let namespace = Namespace::from_slice(b"test");
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace, alert_tx)
-            .await
-            .unwrap();
+        let (mut executor, _) = Executor::new(execution_client, namespace).await.unwrap();
 
         let block: SequencerBlockSubset = get_test_block_subset();
         let previous_execution_state = executor.execution_state.clone();

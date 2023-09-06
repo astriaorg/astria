@@ -41,8 +41,9 @@ pub enum Error {
 }
 
 /// Rollup data that relayer/conductor need to know.
-#[derive(Default, Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct RollupData {
+    #[serde(with = "hex::serde")]
     pub chain_id: Vec<u8>,
     pub transactions: Vec<Vec<u8>>,
 }
@@ -60,7 +61,7 @@ pub struct SequencerBlockData {
     /// namespace -> rollup data (chain ID and transactions)
     rollup_data: HashMap<Namespace, RollupData>,
     /// The root of the action tree for this block.
-    action_tree_root: Hash,
+    action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included
     /// in `Header::data_hash`.
     action_tree_root_inclusion_proof: InclusionProof,
@@ -73,7 +74,7 @@ impl Default for SequencerBlockData {
             header: default_header(),
             last_commit: None,
             rollup_data: HashMap::default(),
-            action_tree_root: Hash::default(),
+            action_tree_root: [0u8; 32],
             action_tree_root_inclusion_proof: InclusionProof::default(),
         }
     }
@@ -100,7 +101,7 @@ impl SequencerBlockData {
         };
         if !cfg!(feature = "relayer-test") {
             action_tree_root_inclusion_proof
-                .verify(action_tree_root.as_bytes(), data_hash)
+                .verify(&action_tree_root, data_hash)
                 .wrap_err("failed to verify action tree root inclusion proof")?;
             // TODO(https://github.com/astriaorg/astria/issues/270): also verify last_commit_hash
         }
@@ -207,9 +208,11 @@ impl SequencerBlockData {
     /// See `specs/sequencer-inclusion-proofs.md` for most details on the action tree root
     /// and inclusion proof purpose.
     pub fn from_tendermint_block(b: Block) -> eyre::Result<Self> {
-        // TODO(https://github.com/astriaorg/astria/issues/305): this crate should not import astria_sequencer
-        use astria_sequencer::transaction::Signed;
-
+        use proto::{
+            generated::sequencer::v1alpha1 as raw,
+            native::sequencer::v1alpha1::SignedTransaction,
+            Message as _,
+        };
         let Some(data_hash) = b.header.data_hash else {
             bail!(Error::MissingDataHash);
         };
@@ -218,8 +221,10 @@ impl SequencerBlockData {
             bail!("block has no transactions; ie action tree root is missing");
         }
 
-        let action_tree_root =
-            Hash::try_from(b.data[0].clone()).wrap_err("failed to parse action tree root")?;
+        let action_tree_root: [u8; 32] = b.data[0]
+            .clone()
+            .try_into()
+            .map_err(|_| eyre!("action tree root must be 32 bytes"))?;
 
         // we unwrap sequencer txs into rollup-specific data here,
         // and namespace them correspondingly
@@ -233,17 +238,27 @@ impl SequencerBlockData {
                 bytes = general_purpose::STANDARD.encode(tx.as_slice()),
                 "parsing data from tendermint block",
             );
-            let tx = Signed::try_from_slice(tx)
-                .map_err(|e| eyre!(e))
-                .wrap_err("failed reading signed sequencer transaction from bytes")?;
-            tx.transaction().actions().iter().for_each(|action| {
+
+            let raw_tx = raw::SignedTransaction::decode(&**tx)
+                .wrap_err("failed decoding bytes to protobuf signed transaction")?;
+            let tx = SignedTransaction::try_from_raw(raw_tx).wrap_err(
+                "failed constructing native signed transaction from raw protobuf signed \
+                 transaction",
+            )?;
+            tx.actions().iter().for_each(|action| {
                 if let Some(action) = action.as_sequence() {
-                    let namespace = Namespace::from_slice(action.chain_id());
-                    let rollup_data = rollup_data.entry(namespace).or_insert(RollupData {
-                        chain_id: action.chain_id().to_vec(),
-                        transactions: vec![],
-                    });
-                    rollup_data.transactions.push(action.data().to_vec());
+                    // TODO(https://github.com/astriaorg/astria/issues/318): intern
+                    // these namespaces so they don't get rebuild on every iteration.
+                    let namespace = Namespace::from_slice(&action.chain_id);
+                    rollup_data
+                        .entry(namespace)
+                        .and_modify(|data: &mut RollupData| {
+                            data.transactions.push(action.data.clone());
+                        })
+                        .or_insert_with(|| RollupData {
+                            chain_id: action.chain_id.clone(),
+                            transactions: vec![action.data.clone()],
+                        });
                 }
             });
         }
@@ -333,7 +348,7 @@ pub struct RawSequencerBlockData {
     /// namespace -> rollup data (chain ID and transactions)
     pub rollup_data: HashMap<Namespace, RollupData>,
     /// The root of the action tree for this block.
-    pub action_tree_root: Hash,
+    pub action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included
     /// in `Header::data_hash`.
     pub action_tree_root_inclusion_proof: InclusionProof,
@@ -360,7 +375,7 @@ impl Default for RawSequencerBlockData {
             header: default_header(),
             last_commit: None,
             rollup_data: HashMap::default(),
-            action_tree_root: Hash::default(),
+            action_tree_root: [0u8; 32],
             action_tree_root_inclusion_proof: InclusionProof::default(),
         }
     }
@@ -389,7 +404,7 @@ mod test {
             ];
             let tree = MerkleTree::from_leaves(transactions);
             (
-                Hash::try_from(action_tree_root.to_vec()).unwrap(),
+                action_tree_root,
                 tree.prove_inclusion(0).unwrap(),
                 tree.root(),
             )
@@ -421,7 +436,7 @@ mod test {
             ];
             let tree = MerkleTree::from_leaves(transactions);
             (
-                Hash::try_from(action_tree_root.to_vec()).unwrap(),
+                action_tree_root,
                 tree.prove_inclusion(0).unwrap(),
                 tree.root(),
             )

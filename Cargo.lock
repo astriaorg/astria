@@ -364,7 +364,6 @@ name = "astria-composer"
 version = "0.1.0"
 dependencies = [
  "astria-proto",
- "astria-sequencer",
  "astria-sequencer-client",
  "astria-telemetry",
  "async-trait",
@@ -405,6 +404,7 @@ dependencies = [
  "astria-sequencer-client",
  "astria-sequencer-relayer",
  "astria-sequencer-types",
+ "astria-sequencer-validation",
  "astria-telemetry",
  "async-trait",
  "base64 0.21.2",
@@ -417,6 +417,7 @@ dependencies = [
  "once_cell",
  "prost",
  "prost-types",
+ "rand 0.8.5",
  "reqwest",
  "serde",
  "serde_json",
@@ -456,6 +457,7 @@ dependencies = [
  "tempfile",
  "tendermint-proto",
  "tonic 0.9.2",
+ "tracing",
  "which",
 ]
 
@@ -496,7 +498,6 @@ name = "astria-sequencer-client"
 version = "0.1.0"
 dependencies = [
  "astria-proto",
- "astria-sequencer",
  "async-trait",
  "ed25519-consensus",
  "eyre",
@@ -519,7 +520,6 @@ dependencies = [
  "astria-celestia-jsonrpc-client",
  "astria-gossipnet",
  "astria-proto",
- "astria-sequencer",
  "astria-sequencer-types",
  "astria-sequencer-validation",
  "astria-telemetry",
@@ -563,7 +563,7 @@ name = "astria-sequencer-types"
 version = "0.1.0"
 dependencies = [
  "astria-celestia-jsonrpc-client",
- "astria-sequencer",
+ "astria-proto",
  "astria-sequencer-validation",
  "base64 0.21.2",
  "base64-serde",
