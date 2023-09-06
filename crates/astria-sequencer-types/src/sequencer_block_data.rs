@@ -11,6 +11,7 @@ use base64::{
 use eyre::{
     bail,
     ensure,
+    eyre,
     WrapErr as _,
 };
 use serde::{
@@ -62,7 +63,7 @@ pub struct SequencerBlockData {
     /// namespace -> rollup data (chain ID and transactions)
     rollup_data: HashMap<Namespace, RollupData>,
     /// The root of the action tree for this block.
-    action_tree_root: Hash,
+    action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included
     /// in `Header::data_hash`.
     action_tree_root_inclusion_proof: InclusionProof,
@@ -102,7 +103,7 @@ impl SequencerBlockData {
             bail!(Error::MissingDataHash);
         };
         action_tree_root_inclusion_proof
-            .verify(action_tree_root.as_bytes(), data_hash)
+            .verify(&action_tree_root, data_hash)
             .wrap_err("failed to verify action tree root inclusion proof")?;
 
         // genesis and height 1 do not have a last commit
@@ -235,8 +236,10 @@ impl SequencerBlockData {
             bail!("block has no transactions; ie action tree root is missing");
         }
 
-        let action_tree_root =
-            Hash::try_from(b.data[0].clone()).wrap_err("failed to parse action tree root")?;
+        let action_tree_root: [u8; 32] = b.data[0]
+            .clone()
+            .try_into()
+            .map_err(|_| eyre!("action tree root must be 32 bytes"))?;
 
         // we unwrap sequencer txs into rollup-specific data here,
         // and namespace them correspondingly
@@ -311,7 +314,7 @@ pub struct RawSequencerBlockData {
     /// namespace -> rollup data (chain ID and transactions)
     pub rollup_data: HashMap<Namespace, RollupData>,
     /// The root of the action tree for this block.
-    pub action_tree_root: Hash,
+    pub action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included
     /// in `Header::data_hash`.
     pub action_tree_root_inclusion_proof: InclusionProof,
@@ -357,7 +360,7 @@ mod test {
             ];
             let tree = MerkleTree::from_leaves(transactions);
             (
-                Hash::try_from(action_tree_root.to_vec()).unwrap(),
+                action_tree_root,
                 tree.prove_inclusion(0).unwrap(),
                 tree.root(),
             )
@@ -392,7 +395,7 @@ mod test {
             ];
             let tree = MerkleTree::from_leaves(transactions);
             (
-                Hash::try_from(action_tree_root.to_vec()).unwrap(),
+                action_tree_root,
                 tree.prove_inclusion(0).unwrap(),
                 tree.root(),
             )

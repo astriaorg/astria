@@ -90,7 +90,7 @@ impl Driver {
 
         let block_verifier = Arc::new(
             BlockVerifier::new(&conf.tendermint_url)
-                .wrap_err("failed to construct BlockVerifier")?,
+                .wrap_err("failed to construct block verifier")?,
         );
 
         let (reader_join_handle, reader_tx) = if conf.disable_finalization {
