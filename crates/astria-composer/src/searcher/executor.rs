@@ -12,7 +12,6 @@ use std::{
 use astria_sequencer::{
     accounts::types::Nonce,
     transaction::{
-        self,
         Action,
         Signed,
         Unsigned,
@@ -52,13 +51,12 @@ use crate::Config;
 
 pub(super) type StatusReceiver = watch::Receiver<Status>;
 pub(super) type Sender = mpsc::Sender<Vec<Action>>;
-pub type Receiver = mpsc::Receiver<Vec<Action>>;
 
 pub(super) async fn spawn(cfg: &Config) -> eyre::Result<(Sender, StatusReceiver)> {
     info!("Spawning Executor subtask for Searcher");
     // create channel for sending bundles to executor
     let (executor_tx, executor_rx) = mpsc::channel(256);
-    let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx).await?;
+    let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx)?;
 
     // create channel for receiving executor status
     let status_rx = executor.subscribe();
@@ -106,7 +104,7 @@ pub(super) struct Executor {
     // Nonce of the sequencer account we sign with
     nonce: Arc<AtomicU32>,
     // The sequencer address associated with the private key
-    sequencer_address: Address,
+    _sequencer_address: Address,
 }
 
 #[derive(Debug)]
@@ -132,14 +130,14 @@ impl Status {
 /// an `Unsigned`, then signs them with the sequencer key and submits to the sequencer.
 /// Its `status` field indicates that connection to the sequencer node has been established.
 impl Executor {
-    pub(super) async fn new(
+    pub(super) fn new(
         sequencer_url: &str,
         private_key: &SecretString,
         executor_rx: mpsc::Receiver<Vec<Action>>,
     ) -> eyre::Result<Self> {
         // connect to sequencer node
-        let sequencer_client = SequencerClient::new(&sequencer_url)
-            .wrap_err("failed constructing sequencer client")?;
+        let sequencer_client =
+            SequencerClient::new(sequencer_url).wrap_err("failed constructing sequencer client")?;
 
         // create signing key for sequencer txs
         let mut private_key_bytes: [u8; 32] = hex::decode(private_key.expose_secret())
@@ -162,7 +160,7 @@ impl Executor {
             sequencer_client,
             sequencer_key,
             nonce: Arc::new(AtomicU32::new(0)),
-            sequencer_address,
+            _sequencer_address: sequencer_address,
         })
     }
 
@@ -177,24 +175,21 @@ impl Executor {
     }
 
     /// Gets the next nonce to sign over
-    async fn get_next_nonce(&mut self) -> eyre::Result<Nonce> {
+    fn get_next_nonce(&mut self) -> Nonce {
         // get current nonce and calculate next one
         let curr_nonce = self.nonce();
         let next_nonce = curr_nonce + Nonce::from(1);
         // save next nonce
         self.nonce.store(u32::from(next_nonce), Ordering::Relaxed);
-        Ok(curr_nonce)
+        curr_nonce
     }
 
     /// Creates an `Unsigned` from `Vec<Action>` using the current nonce.
     /// If the current nonce is not stored, fetches the latest nonce from the sequencer node.
-    async fn make_unsigned_tx(&mut self, actions: Vec<Action>) -> eyre::Result<Unsigned> {
+    fn make_unsigned_tx(&mut self, actions: Vec<Action>) -> Unsigned {
         // get current nonce and increment nonce
-        let curr_nonce = self
-            .get_next_nonce()
-            .await
-            .map_err(|e| eyre!("failed to get next nonce: {:?}", e))?;
-        Ok(Unsigned::new_with_actions(Nonce::from(curr_nonce), actions))
+        let curr_nonce = self.get_next_nonce();
+        Unsigned::new_with_actions(curr_nonce, actions)
     }
 
     /// TODO
@@ -229,7 +224,7 @@ impl Executor {
         // Vec<Action> -> Unsigned -> Signed -> Submit
         while let Some(bundle) = self.executor_rx.recv().await {
             // create unsigned tx
-            let unsigned_tx = self.make_unsigned_tx(bundle).await?;
+            let unsigned_tx = self.make_unsigned_tx(bundle);
             // sign tx
             let signed_tx = unsigned_tx.into_signed(&self.sequencer_key);
             // submit tx
@@ -271,7 +266,7 @@ impl Executor {
         (|| {
             let client = self.sequencer_client.clone();
             async move {
-                todo!("replace with self.get_nonce() or something");
+                // TODO: replace with fetching nonce
                 // let nonce_response = self
                 //     .sequencer_client
                 //     .inner

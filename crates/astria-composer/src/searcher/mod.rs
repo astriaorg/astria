@@ -1,30 +1,13 @@
-use std::{
-    collections::HashMap,
-    sync::{
-        atomic::{
-            AtomicU32,
-            Ordering,
-        },
-        Arc,
-    },
-    time::Duration,
-};
+use std::collections::HashMap;
 
 use astria_sequencer::{
     sequence,
-    transaction::{
-        self,
-        Action,
-    },
+    transaction::Action,
 };
 use color_eyre::eyre::{
     self,
-    bail,
-    eyre,
     WrapErr as _,
 };
-use ed25519_consensus::SigningKey;
-use humantime::format_duration;
 use tokio::{
     select,
     sync::{
@@ -34,19 +17,10 @@ use tokio::{
         },
         watch,
     },
-    task::{
-        JoinHandle,
-        JoinSet,
-    },
+    task::JoinSet,
 };
-use tracing::{
-    debug,
-    error,
-    instrument,
-    warn,
-};
+use tracing::warn;
 
-use self::executor::Executor;
 use crate::Config;
 
 mod collector;
@@ -146,7 +120,7 @@ impl Searcher {
 
         let (status, _) = watch::channel(Status::default());
 
-        let (executor_tx, executor_status) = executor::spawn(&cfg)
+        let (executor_tx, executor_status) = executor::spawn(cfg)
             .await
             .wrap_err("failed to construct Executor")?;
 
