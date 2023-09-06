@@ -22,7 +22,6 @@ impl TryInto<SequencerBlockData> for BlockWrapper {
         match self {
             FromValidator(block) => Ok(block),
             FromOtherValidator(_) => Err(()),
-            _ => unreachable!(),
         }
     }
 }
@@ -41,7 +40,6 @@ impl BlockWrapper {
         match self {
             FromValidator(block) => block.block_hash(),
             FromOtherValidator(block) => block.block_hash,
-            _ => unreachable!(),
         }
     }
 
@@ -50,7 +48,6 @@ impl BlockWrapper {
         match self {
             FromValidator(block) => block.parent_block_hash(),
             FromOtherValidator(block) => block.parent_block_hash,
-            _ => unreachable!(),
         }
     }
 
@@ -59,7 +56,6 @@ impl BlockWrapper {
         match self {
             FromValidator(block) => block.header().height.into(),
             FromOtherValidator(block) => block.height,
-            _ => unreachable!(),
         }
     }
 }
