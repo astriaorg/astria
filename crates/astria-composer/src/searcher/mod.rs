@@ -34,10 +34,14 @@ use tokio::{
         },
         watch,
     },
-    task::JoinSet,
+    task::{
+        JoinHandle,
+        JoinSet,
+    },
 };
 use tracing::{
     debug,
+    error,
     instrument,
     warn,
 };
@@ -64,10 +68,9 @@ pub(super) struct Searcher {
     // transactions.
     conversion_tasks: JoinSet<Vec<Action>>,
     // A channel on which to send the `Executor` bundles for attaching a nonce to, sign and submit
-    bundles_tx: mpsc::Sender<Vec<Action>>,
-    // Executor responsible for submitting transaction to the sequencer node.
-    executor: Executor,
-    executor_status: watch::Receiver<executor::Status>,
+    executor_tx: executor::Sender,
+    // Channel from which to read the internal status of the executor.
+    executor_status: executor::StatusReceiver,
     // Set of in-flight RPCs submitting signed transactions to the sequencer.
     submission_tasks: JoinSet<eyre::Result<()>>,
 }
@@ -75,12 +78,12 @@ pub(super) struct Searcher {
 #[derive(Debug, Default)]
 pub(crate) struct Status {
     all_collectors_connected: bool,
-    sequencer_connected: bool,
+    executor_connected: bool,
 }
 
 impl Status {
     pub(crate) fn is_ready(&self) -> bool {
-        self.all_collectors_connected && self.sequencer_connected
+        self.all_collectors_connected && self.executor_connected
     }
 }
 
@@ -143,10 +146,9 @@ impl Searcher {
 
         let (status, _) = watch::channel(Status::default());
 
-        let (bundles_tx, bundles_rx) = mpsc::channel(256);
-
-        let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, bundles_rx).await?;
-        let executor_status = executor.subscribe();
+        let (executor_tx, executor_status) = executor::spawn(&cfg)
+            .await
+            .wrap_err("failed to construct Executor")?;
 
         Ok(Searcher {
             status,
@@ -155,9 +157,8 @@ impl Searcher {
             new_transactions,
             collector_tasks: tokio_util::task::JoinMap::new(),
             conversion_tasks: JoinSet::new(),
-            executor,
+            executor_tx,
             executor_status,
-            bundles_tx,
             submission_tasks: JoinSet::new(),
         })
     }
@@ -186,9 +187,8 @@ impl Searcher {
     }
 
     /// Runs the Searcher
-    pub(super) async fn run(self) -> eyre::Result<()> {
+    pub(super) async fn run(mut self) -> eyre::Result<()> {
         self.spawn_collectors();
-        let _executor_task = tokio::spawn(self.executor.run_until_stopped());
         let wait_for_collectors = self.wait_for_collectors();
         let wait_for_executor = self.wait_for_executor();
         match tokio::try_join!(wait_for_collectors, wait_for_executor) {
@@ -204,7 +204,7 @@ impl Searcher {
                 // submit signed sequencer txs to sequencer
                 Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
                     match join_result {
-                        Ok(actions) => self.bundles_tx.send(actions).await?,
+                        Ok(actions) => self.executor_tx.send(actions).await?,
                         Err(e) => warn!(
                             error.message = %e,
                             error.cause_chain = ?e,
@@ -289,16 +289,26 @@ impl Searcher {
     }
 
     async fn wait_for_executor(&self) -> eyre::Result<()> {
+        // wait to receive executor status
         let mut status = self.executor_status.clone();
-        match status.wait_for(executor::Status::is_connected).await {
-            // `wait_for` returns a reference to status; throw it
-            // away because this future cannot return a reference to
-            // a stack local object.
-            Ok(_) => Ok(()),
-            // if an collector fails while waiting for its status, this
-            // will return an error
-            Err(e) => Err(e),
+        async move {
+            match status.wait_for(executor::Status::is_connected).await {
+                // `wait_for` returns a reference to status; throw it
+                // away because this future cannot return a reference to
+                // a stack local object.
+                Ok(_) => Ok(()),
+                // if an collector fails while waiting for its status, this
+                // will return an error
+                Err(e) => Err(e),
+            }
         }
-        .wrap_err("failed waiting for executor to become ready")
+        .await
+        .wrap_err("executor failed while waiting for it to become ready")?;
+
+        // update searcher status
+        self.status
+            .send_modify(|status| status.executor_connected = true);
+
+        Ok(())
     }
 }

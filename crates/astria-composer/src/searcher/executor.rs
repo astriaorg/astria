@@ -33,7 +33,6 @@ use secrecy::{
 };
 use sequencer_client::{
     Address,
-    NonceResponse,
     SequencerClientExt,
 };
 use tendermint::abci;
@@ -43,16 +42,62 @@ use tokio::sync::{
 };
 use tracing::{
     debug,
+    error,
+    info,
     instrument,
     warn,
 };
+
+use crate::Config;
+
+pub(super) type StatusReceiver = watch::Receiver<Status>;
+pub(super) type Sender = mpsc::Sender<Vec<Action>>;
+pub type Receiver = mpsc::Receiver<Vec<Action>>;
+
+pub(super) async fn spawn(cfg: &Config) -> eyre::Result<(Sender, StatusReceiver)> {
+    info!("Spawning Executor subtask for Searcher");
+    // create channel for sending bundles to executor
+    let (executor_tx, executor_rx) = mpsc::channel(256);
+    let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx).await?;
+
+    // create channel for receiving executor status
+    let status_rx = executor.subscribe();
+
+    // spawn executor task
+    let join_handle = tokio::spawn(executor.run_until_stopped());
+
+    // handle executor failure by logging
+    tokio::task::spawn(async move {
+        match join_handle.await {
+            Ok(Ok(())) => {
+                error!("executor task exited unexpectedly");
+            }
+            Ok(Err(e)) => {
+                error!(
+                    error.message = %e,
+                    error.cause_chain = ?e,
+                    "executor task failed unexpectedly with error",
+                );
+            }
+            Err(e) => {
+                error!(
+                    error.message = %e,
+                    error.cause_chain = ?e,
+                    "executor task panicked",
+                );
+            }
+        }
+    });
+
+    Ok((executor_tx, status_rx))
+}
 
 #[derive(Debug)]
 pub(super) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
     // Channel for receving bundles to pack, sign, and submit
-    bundles_rx: mpsc::Receiver<Vec<Action>>,
+    executor_rx: mpsc::Receiver<Vec<Action>>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
     sequencer_client: SequencerClient,
@@ -90,7 +135,7 @@ impl Executor {
     pub(super) async fn new(
         sequencer_url: &str,
         private_key: &SecretString,
-        bundles_rx: mpsc::Receiver<Vec<Action>>,
+        executor_rx: mpsc::Receiver<Vec<Action>>,
     ) -> eyre::Result<Self> {
         // connect to sequencer node
         let sequencer_client = SequencerClient::new(&sequencer_url)
@@ -113,7 +158,7 @@ impl Executor {
 
         Ok(Self {
             status,
-            bundles_rx,
+            executor_rx,
             sequencer_client,
             sequencer_key,
             nonce: Arc::new(AtomicU32::new(0)),
@@ -182,7 +227,7 @@ impl Executor {
 
         // for each bundle received, create unsigned tx, sign tx, then submit tx
         // Vec<Action> -> Unsigned -> Signed -> Submit
-        while let Some(bundle) = self.bundles_rx.recv().await {
+        while let Some(bundle) = self.executor_rx.recv().await {
             // create unsigned tx
             let unsigned_tx = self.make_unsigned_tx(bundle).await?;
             // sign tx
