@@ -1,33 +1,35 @@
 # Testing in Kubernetes
 
-`sequencer-relayer` core functionality is to retrieve blocks from
-a sequencer (metro) and to relay them to a data availability layer
-(celestia). To that end, its integration tests require both to
-be present.
+`sequencer-relayer` core functionality is to retrieve blocks from a sequencer
+(metro) and to relay them to a data availability layer (celestia). To that end,
+its integration tests require both to be present.
 
-To ensure that tests are fully isolated, each test creates a unique
-kubernetes namespace. In each namespace a pod comprising celestia,
-an RPC node, and metro are deployed, as well as a service and ingress
-rules to communicate with that pod.
+To ensure that tests are fully isolated, each test creates a unique kubernetes
+namespace. In each namespace a pod comprising celestia, an RPC node, and metro
+are deployed, as well as a service and ingress rules to communicate with that
+pod.
 
 To run integration tests locally, follow the steps below.
 
-# Preparation
+## Preparation
 
-## Docker
+### Docker
 
 The steps below assume docker is available and running. On macOS, run:
+
 ```sh
-$ brew install --cask docker-desktop
+brew install --cask docker-desktop
 ```
+
 and then start `docker-desktop` (for example, via Spotlight).
 
-On Arch Linux (and most other distributions) follow: https://wiki.archlinux.org/title/Docker
+On Arch Linux (and most other distributions) follow:
+<https://wiki.archlinux.org/title/Docker>
 
-## Just command runner
+### Just command runner
 
-The [`justfile`](./justfile) in this repository contains the definitions
-that are run below. To use it, install `just`:
+The [`justfile`](./justfile) in this repository contains the definitions that
+are run below. To use it, install `just`:
 
 ```sh
 # On macOS
@@ -37,13 +39,13 @@ $ brew install just
 $ sudo pacman -S just
 ```
 
-## Install kind, kubectl
+### Install kind, kubectl
 
-The integration tests were written against kind (kubernetes-in-docker`),
-and CI is done by starting a kind cluster in the github workflow. This
-might work with minikube and k3s, but wasn't tested.
+The integration tests were written against kind (kubernetes-in-docker`), and CI
+is done by starting a kind cluster in the github workflow. This might work with
+minikube and k3s, but wasn't tested.
 
-Quick-start on kind: https://kind.sigs.k8s.io/docs/user/quick-start/
+Quick-start on kind: <https://kind.sigs.k8s.io/docs/user/quick-start/>
 
 ```sh
 # macOS
@@ -55,7 +57,7 @@ $ rua install kind
 $ sudo pacman -S kubectl
 ```
 
-## start the kind cluster
+### start the kind cluster
 
 ```sh
 $ just create-cluster
@@ -65,24 +67,23 @@ $ kubectl config current-context
 kind-test-cluster
 ```
 
-## deploy the nginx ingress controller and prepull required images
+### deploy the nginx ingress controller and prepull required images
 
-The ingress controller is necessary to be able to route requests to
-the individual pods (and thus containers) in each of the deployments.
-The images are prepulled so that they are available when deploying
-the pods.
+The ingress controller is necessary to be able to route requests to the
+individual pods (and thus containers) in each of the deployments. The images are
+prepulled so that they are available when deploying the pods.
 
 ```sh
-$ just deploy-ingress-controller
-$ just perform-prepull
+just deploy-ingress-controller
+just perform-prepull
 ```
 
-Deploying the ingress controller and pulling all images can take some
-time, so you can wait for both steps to be completed before continuing on:
+Deploying the ingress controller and pulling all images can take some time, so
+you can wait for both steps to be completed before continuing on:
 
 ```sh
-$ just wait-for-ingress-controller
-$ just wait-for-prepull
+just wait-for-ingress-controller
+just wait-for-prepull
 ```
 
 ## Running tests
@@ -90,18 +91,19 @@ $ just wait-for-prepull
 The sequencer-relayer tests can then be run using:
 
 ```sh
-$ cargo test --release -- --ignored
+cargo test --release -- --ignored
 ```
-The `-- --ignored` is necessary because by default cargo will omit
-these tests because they each take quite a bit of time.
+
+The `-- --ignored` is necessary because by default cargo will omit these tests
+because they each take quite a bit of time.
 
 ## Cleaning up tests
 
-Most namespaces (and the objects they contain) should be deleted
-through the `Drop` impl of the `TestEnvironment` type. However,
-sometimes the test completes before the a deletion request
-can be sent to the Kubernetes REST API. In those cases you will see
-UUID-named namespaces like this:
+Most namespaces (and the objects they contain) should be deleted through the
+`Drop` impl of the `TestEnvironment` type. However, sometimes the test completes
+before the a deletion request can be sent to the Kubernetes REST API. In those
+cases you will see UUID-named namespaces like this:
+
 ```sh
 $ kubectl get namespaces
 NAME                               STATUS   AGE
@@ -113,15 +115,17 @@ kube-public                        Active   129m
 kube-system                        Active   129m
 local-path-storage                 Active   129m
 ```
+
 You can delete them with
+
 ```sh
-$ kubectl delete namespaces 545bf8408b744afa9eeed78014ab767e
+kubectl delete namespaces 545bf8408b744afa9eeed78014ab767e
 ```
 
 ## Creating an example namespaces and a sample deployment
 
-The following steps are not necessary to run the tests themselves,
-but they illustrate what cargo/the tests are doing under the hood.
+The following steps are not necessary to run the tests themselves, but they
+illustrate what cargo/the tests are doing under the hood.
 
 ```sh
 # Create a namespace called "test"

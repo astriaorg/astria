@@ -1,5 +1,6 @@
 use astria_sequencer_types::{
     Namespace,
+    RawSequencerBlockData,
     SequencerBlockData,
 };
 use tendermint::{
@@ -21,13 +22,23 @@ impl SequencerBlockSubset {
     pub(crate) fn from_sequencer_block_data(
         data: SequencerBlockData,
         namespace: Namespace,
-    ) -> Self {
-        let (block_hash, header, _, mut rollup_txs) = data.into_values();
-        let rollup_data = rollup_txs.remove(&namespace).unwrap_or_default();
-        Self {
+    ) -> Option<Self> {
+        // we don't need to verify the action tree root here,
+        // as [`SequencerBlockData`] would not be constructable
+        // if it was invalid
+        let RawSequencerBlockData {
             block_hash,
             header,
-            rollup_transactions: rollup_data.transactions,
-        }
+            last_commit: _,
+            mut rollup_data,
+            ..
+        } = data.into_raw();
+
+        let our_rollup_data = rollup_data.remove(&namespace)?;
+        Some(Self {
+            block_hash,
+            header,
+            rollup_transactions: our_rollup_data.transactions,
+        })
     }
 }

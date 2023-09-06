@@ -10,7 +10,6 @@ use std::{
     time::Duration,
 };
 
-use astria_sequencer::transaction;
 use color_eyre::eyre::{
     self,
     bail,
@@ -19,6 +18,12 @@ use color_eyre::eyre::{
 };
 use ed25519_consensus::SigningKey;
 use humantime::format_duration;
+use proto::native::sequencer::v1alpha1::{
+    Action,
+    SequenceAction,
+    SignedTransaction,
+    UnsignedTransaction,
+};
 use secrecy::{
     ExposeSecret as _,
     Zeroize as _,
@@ -52,10 +57,13 @@ mod rollup;
 
 use collector::Collector;
 
-/// the astria seqeuencer.
+/// A Searcher collates transactions from multiple rollups and bundles them into
+/// Astria sequencer transactions that are then passed on to the
+/// Shared Sequencer. The rollup transactions that make up these sequencer transactions
+/// have have the property of atomic inclusion, i.e. if they are submitted to the
+/// sequencer, all of them are going to be executed in the same Astria block.
 pub(super) struct Searcher {
-    // The client for submitting wrapped and signed pending eth transactions to the astria
-    // sequencer.
+    // The client for submitting signed astria transactions to the sequencer.
     sequencer_client: SequencerClient,
     // Private key used to sign sequencer transactions
     sequencer_key: SigningKey,
@@ -70,11 +78,12 @@ pub(super) struct Searcher {
     collector_tasks: tokio_util::task::JoinMap<String, eyre::Result<()>>,
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
-    conversion_tasks: JoinSet<eyre::Result<transaction::Signed>>,
+    conversion_tasks: JoinSet<eyre::Result<SignedTransaction>>,
     // Set of in-flight RPCs submitting signed transactions to the sequencer.
     submission_tasks: JoinSet<eyre::Result<()>>,
 }
 
+/// Announces the current status of the Searcher for other modules in the crate to use
 #[derive(Debug, Default)]
 pub(crate) struct Status {
     all_collectors_connected: bool,
@@ -201,17 +210,13 @@ impl Searcher {
         })
     }
 
+    /// Other modules can use this to get notified of changes to the Searcher state
     pub(crate) fn subscribe_to_state(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
     }
 
     /// Serializes and signs a sequencer tx from a rollup tx.
     fn handle_pending_tx(&mut self, tx: collector::Transaction) {
-        use astria_sequencer::{
-            accounts::types::Nonce,
-            transaction::action,
-        };
-
         let collector::Transaction {
             chain_id,
             inner: rollup_tx,
@@ -223,20 +228,21 @@ impl Searcher {
         self.conversion_tasks.spawn_blocking(move || {
             // Pack into sequencer tx
             let data = rollup_tx.rlp().to_vec();
-            let chain_id = chain_id.into_bytes();
-            let seq_action = action::Action::new_sequence_action(chain_id, data);
 
             // get current nonce and increment nonce
             let curr_nonce = nonce.fetch_add(1, Ordering::Relaxed);
-            let unsigned_tx =
-                transaction::Unsigned::new_with_actions(Nonce::from(curr_nonce), vec![seq_action]);
-
-            // Sign transaction
+            let unsigned_tx = UnsignedTransaction {
+                nonce: curr_nonce,
+                actions: vec![Action::Sequence(SequenceAction {
+                    chain_id: chain_id.into_bytes(),
+                    data,
+                })],
+            };
             Ok(unsigned_tx.into_signed(&sequencer_key))
         });
     }
 
-    fn handle_signed_tx(&mut self, tx: transaction::Signed) {
+    fn handle_signed_tx(&mut self, tx: SignedTransaction) {
         use sequencer_client::SequencerClientExt as _;
         let client = self.sequencer_client.inner.clone();
         self.submission_tasks.spawn(async move {
@@ -257,7 +263,7 @@ impl Searcher {
         });
     }
 
-    /// Runs the Searcher
+    /// Starts the searcher and runs it until failure
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         self.spawn_collectors();
         let wait_for_collectors = self.wait_for_collectors();
