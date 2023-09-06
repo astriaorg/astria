@@ -1,9 +1,39 @@
+//! This module defines the queue for blocks that are waiting
+//! to be executed by the Conductor's Executor.
+//!
+//! The purpose of the queue is to handle blocks that are recieved from either the P2P network or
+//! the Data Availability layer. The queue also handles the fork choice logic for the incoming
+//! blocks so that when blocks are pulled from the queue, only blocks that are ready for execution
+//! are removed.
+//! The internal structure of the queue is a HashMap of HashMaps for the "pending
+//! blocks" and a BTreemap for the "soft blocks":
+//!     `pending_blocks: HashMap<Height, HashMap<Hash, SequencerBlockSubset>>`
+//!     `soft_blocks: BTreeMap<Height, SequencerBlockSubset>`
+//! All blocks that are added to the queue are first added to the pending blocks
+//! internally. The pending blocks represent all the unordered blocks that are
+//! in the queue. The particular structure of the pending blocks allows for a wide range of
+//! flexibility to the order that blocks can be added to the queue.
+//! Once a new block is added, the fork choice logic is run over the pending
+//! blocks to see if any can be moved into the soft blocks. If the incoming
+//! block has a child in the pending blocks, the incoming block is considered soft and is added to
+//! the soft blocks. If the incoming block has a parent in the pending blocks that parent block is
+//! considered soft and added to the soft blocks. The soft blocks represent all the blocks that are
+//! ready for execution and have the added garuntee that they will not be reverted based on the
+//! Tendermint/CometBFT fork choice rules.
+//! Although all blocks in the soft blocks are ready for execution, there is no
+//! garuntee that there aren't gaps between blocks. When pulling blocks from the
+//! queue, continuity is always checked. If there is a gap in the soft blocks,
+//! only the blocks up to that gap will be pulled. If there is no gap, all the
+//! soft blocks will be pulled as well as all the blocks in the pending blocks
+//! that are at the head height of the chain.
+//! The head height of the chain is updated when a new block is added to the
+//! soft blocks AND that block is a direct continuation of the chain.
+
 use std::collections::{
     BTreeMap,
     HashMap,
 };
 
-use color_eyre::eyre::Result;
 use tendermint::{
     block::Height,
     hash::Hash,
@@ -25,9 +55,13 @@ use crate::types::SequencerBlockSubset;
 /// if it is no longer needed or becomes stale.
 #[derive(Debug, Clone)]
 pub(super) struct Queue {
+    // Internal var that tracks the height of the the chain. This height will
+    // always be the height of the most recent soft block + 1
     head_height: Height,
+    // Internal var that tracks the hash of the most recent soft block. The most
+    // recent soft block is the block that has most recently had a child block
+    // appear in the queue.
     most_recent_soft_hash: Hash,
-
     // The collection of all pending blocks. the blocks in this map at Height ==
     // Queue.head_height are the head blocks
     pending_blocks: HashMap<Height, HashMap<Hash, SequencerBlockSubset>>,
@@ -52,7 +86,7 @@ impl Queue {
     /// the internal state of the queue will also be updated to properly order
     /// and arrange all blocks in the queue, based on the Tendermint/CometBFT fork
     /// choice rules.
-    pub(super) fn insert(&mut self, block: SequencerBlockSubset) -> Result<Option<Hash>> {
+    pub(super) fn insert(&mut self, block: SequencerBlockSubset) -> Option<Hash> {
         // if the block is already in the queue, return its hash
         if self.is_block_present(&block) {
             debug!(
@@ -60,7 +94,7 @@ impl Queue {
                 block.hash = %block.block_hash(),
                 "block is already present in the queue"
             );
-            return Ok(None);
+            return None;
         }
 
         // if the block is stale, ignore it
@@ -69,7 +103,7 @@ impl Queue {
                 block.height = %block.height(),
                 "block is stale and will not be added to the queue"
             );
-            return Ok(None);
+            return None;
         }
 
         // if the block is at the head height OR in the future, just add it to
@@ -81,86 +115,62 @@ impl Queue {
             block.hash = %block.block_hash(),
             "block added to queue"
         );
-        Ok(Some(block.block_hash()))
+        Some(block.block_hash())
     }
 
-    /// Removes and returns all "soft" and "Head" blocks in the queue, inorder
-    /// from oldest to newest.
-    ///
-    /// This function returns an `Option<Vec<SequencerBlockData>>`. A `Some`
-    /// value contains a vector of `SequencerBlockData` that are ready to be
-    /// passed on to execution.
-    /// A `None` value indicates that there are no blocks in the queue that are
-    /// ready to be passed on. A `None` value does not mean there are no blocks
-    /// in the queue.
-    pub(super) fn pop_blocks(&mut self) -> Option<Vec<SequencerBlockSubset>> {
-        let mut output_blocks: Vec<SequencerBlockSubset> = vec![];
-
-        let soft_blocks = self.pop_soft_blocks();
-        if let Some(mut soft_blocks) = soft_blocks {
-            output_blocks.append(soft_blocks.as_mut());
-        }
-        if let Some(mut head_blocks) = self.pop_head_blocks() {
-            output_blocks.append(head_blocks.as_mut());
-        }
-
-        if !output_blocks.is_empty() {
-            Some(output_blocks)
-        } else {
-            None
-        }
-    }
-
-    /// Removes and returns all "soft" blocks in the queue, inorder from oldest
+    /// Removes and returns all "Soft" blocks in the queue, in order from oldest
     /// to newest.
-    ///
-    /// This function returns an `Option<Vec<SequencerBlockData>>`. A `Some`
-    /// value contains a vector of `SequencerBlockData` that are ready to be
-    /// passed on to execution.
-    /// A `None` value indicates that there are no blocks in the queue that are
-    /// ready to be passed on. A `None` value does not mean there are no blocks
-    /// in the queue.
-    pub(super) fn pop_soft_blocks(&mut self) -> Option<Vec<SequencerBlockSubset>> {
-        let mut returned_soft_blocks: Vec<SequencerBlockSubset> =
+    pub(super) fn drain_soft_blocks(&mut self) -> impl Iterator<Item = SequencerBlockSubset> {
+        // get the soft blocks
+        // TODO: make sure to only grab up to a gap
+        let returned_soft_blocks: Vec<SequencerBlockSubset> =
             self.soft_blocks.values().cloned().collect();
         if !returned_soft_blocks.is_empty() {
-            returned_soft_blocks.sort();
+            // remove all the soft blocks from the soft blocks map
             self.soft_blocks.clear();
-            let highest_soft_block = returned_soft_blocks[returned_soft_blocks.len() - 1].clone();
-            self.head_height = highest_soft_block.height().increment();
-            self.remove_data_below_height(self.head_height);
-            Some(returned_soft_blocks)
-        } else {
-            None
         }
+        returned_soft_blocks.into_iter()
     }
 
     /// Return all the blocks at the head height
-    fn pop_head_blocks(&mut self) -> Option<Vec<SequencerBlockSubset>> {
+    fn drain_head_blocks(&mut self) -> impl Iterator<Item = SequencerBlockSubset> {
+        let mut output_blocks: Vec<SequencerBlockSubset> = vec![];
+        // get all the blocks at the head height from the pending blocks
         if let Some(head_blocks) = self.pending_blocks.get_mut(&self.head_height) {
-            let mut output_blocks: Vec<SequencerBlockSubset> = vec![];
-            let tmp_blocks = head_blocks.clone();
-            let mut blocks: Vec<&SequencerBlockSubset> = tmp_blocks.values().collect();
+            // sort the blocks (oldest to newest) and append them to the output blocks
+            let mut blocks: Vec<&SequencerBlockSubset> = head_blocks.values().collect();
             blocks.sort();
             for block in blocks {
                 output_blocks.push(block.clone());
             }
-            let most_recent_height = output_blocks[output_blocks.len() - 1].height();
-            self.head_height = most_recent_height.increment();
+            // now that we pulled out the blocks at the head height, the new
+            // head height is the height of the most recent block + 1, or
+            // new_head_height = old_head_height + 1
+            self.head_height = self.head_height.increment();
+            // removed all the blocks below the current head height, this
+            // deleted the data from the pending queue that we are about to
+            // return
             self.remove_data_below_height(self.head_height);
-            return Some(output_blocks);
         }
-        None
+        output_blocks.into_iter()
+    }
+
+    /// Removes and returns all "Soft" and "Head" blocks in the queue, inorder
+    /// from oldest to newest.
+    pub(super) fn drain_blocks(&mut self) -> impl Iterator<Item = SequencerBlockSubset> {
+        let soft_blocks = self.drain_soft_blocks();
+        let head_blocks = self.drain_head_blocks();
+        soft_blocks.chain(head_blocks)
     }
 
     /// Check to see if the block is already present in the queue
-    fn is_block_present(&mut self, block: &SequencerBlockSubset) -> bool {
+    fn is_block_present(&self, block: &SequencerBlockSubset) -> bool {
         let block_hash = block.block_hash();
         let height = block.height();
 
         // check if the block is already present in the pending blocks
         if let Some(pending_blocks) = self.pending_blocks.get(&height) {
-            if let Some(_block) = pending_blocks.get(&block_hash) {
+            if pending_blocks.contains_key(&block_hash) {
                 return true;
             }
         }
@@ -176,7 +186,7 @@ impl Queue {
 
     /// Check if there is another block in the pending blocks at a lower height
     /// that points to this block as its parent.
-    fn is_block_a_parent(&mut self, block: SequencerBlockSubset) -> bool {
+    fn is_block_a_parent(&self, block: &SequencerBlockSubset) -> bool {
         let block_hash = block.block_hash();
         if let Some(child_blocks) = self.pending_blocks.get(&block.child_height()) {
             let blocks = child_blocks.values();
@@ -233,28 +243,61 @@ impl Queue {
     /// that is a descendant of the most recent "soft" block, and has a direct
     /// descendant, that block gets added to the `soft_blocks` BTreeMap and the
     /// head height is updated.
+    // fn update_internal_state(&mut self) {
+    //     // check if the block added connects blocks in the pending queue
+    //     let mut heights: Vec<Height> = self.pending_blocks.keys().cloned().collect();
+    //     heights.sort();
+    //     // walk the pending blocks starting from the head height
+    //     for height in heights {
+    //         // if the very first height in the pending blocks is the head height
+    //         if height == self.head_height {
+    //             if let Some(pending_blocks) = self.pending_blocks.clone().get(&height) {
+    //                 // walk the pending blocks at that height and check if any
+    //                 // of them are a parent
+    //                 for block in pending_blocks.values() {
+    //                     if self.is_block_a_parent(block) {
+    //                         self.soft_blocks.insert(height, block.clone());
+    //                         self.most_recent_soft_hash = block.block_hash();
+    //                         self.head_height = height.increment();
+    //                         self.remove_data_below_height(self.head_height);
+    //                         break;
+    //                     }
+    //                 }
+    //             }
+    //         // if the first height in the queue is not the head height just stop reorg
+    //         } else {
+    //             break;
+    //         }
+    //     }
+    // }
     fn update_internal_state(&mut self) {
         // check if the block added connects blocks in the pending queue
-        let mut heights: Vec<Height> = self.pending_blocks.keys().cloned().collect();
-        heights.sort();
-        // walk the pending blocks starting from the head height
-        for height in heights {
-            // if the very first height in the pending blocks is the head height
-            if height == self.head_height {
-                if let Some(pending_blocks) = self.pending_blocks.clone().get(&height) {
-                    // walk the pending blocks at that height and check if any of them are a parent
-                    for block in pending_blocks.values() {
-                        if self.is_block_a_parent(block.clone()) {
-                            self.soft_blocks.insert(height, block.clone());
-                            self.most_recent_soft_hash = block.block_hash();
-                            self.head_height = height.increment();
-                            self.remove_data_below_height(self.head_height);
-                            break;
-                        }
-                    }
+        'head_height: loop {
+            let head_height = self.head_height;
+            let Some(head_candidates) = self.pending_blocks.get(&head_height) else {
+                break 'head_height; // if the head height is not in the queue yet just stop reorg
+            };
+            // walk the pending blocks at that height and check if any of them are a parent
+            let mut new_soft_block_hash = None;
+            'block_candidates: for block in head_candidates.values() {
+                if self.is_block_a_parent(block) {
+                    new_soft_block_hash = Some(block.block_hash());
+                    break 'block_candidates;
                 }
-            // if the first height in the queue is not the head height just stop reorg
-            } else {
+            }
+            // TODO: comb through and make sure this logic is correct
+            // TODO: should potentially move to own function
+            if let Some(block_hash) = new_soft_block_hash {
+                let head_candidates = self.pending_blocks.get_mut(&self.head_height).unwrap();
+                let block = head_candidates.remove(&block_hash).unwrap().clone();
+                self.soft_blocks.insert(self.head_height, block);
+                self.most_recent_soft_hash = block_hash;
+                self.head_height = self.head_height.increment();
+                self.remove_data_below_height(self.head_height);
+            }
+            // TODO: add a test to check the situtation for each break condition
+            if head_height == self.head_height {
+                // head is at height of chain
                 break;
             }
         }

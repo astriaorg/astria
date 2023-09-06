@@ -86,7 +86,7 @@ pub struct Reader {
 
 impl Reader {
     /// Creates a new Reader instance and returns a command sender and an alert receiver.
-    pub async fn new(
+    pub(crate) async fn new(
         celestia_node_url: &str,
         celestia_bearer_token: &str,
         executor_tx: executor::Sender,
@@ -151,7 +151,9 @@ impl Reader {
 
     /// get_new_blocks fetches any new sequencer blocks from Celestia.
     #[instrument(name = "Reader::get_new_blocks", skip_all)]
-    pub async fn get_new_blocks(&mut self) -> eyre::Result<Option<Vec<SequencerBlockSubset>>> {
+    pub(crate) async fn get_new_blocks(
+        &mut self,
+    ) -> eyre::Result<Option<Vec<SequencerBlockSubset>>> {
         // get the latest celestia block height
         let first_new_height = self.curr_block_height + 1;
         let curr_block_height = self

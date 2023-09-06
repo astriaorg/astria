@@ -17,7 +17,7 @@ use tendermint::{
 /// information required for transaction data verification, and the transactions
 /// for one specific rollup.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SequencerBlockSubset {
+pub(crate) struct SequencerBlockSubset {
     pub(crate) block_hash: Hash,
     pub(crate) header: Header,
     pub(crate) rollup_transactions: Vec<Vec<u8>>,
@@ -38,7 +38,6 @@ impl PartialOrd for SequencerBlockSubset {
     }
 }
 
-// TODO: write a text to check this for the hash invariant
 impl std::hash::Hash for SequencerBlockSubset {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.block_hash.hash(state);
@@ -75,41 +74,24 @@ impl SequencerBlockSubset {
     }
 
     /// Return the block hash.
-    pub fn block_hash(&self) -> Hash {
+    pub(crate) fn block_hash(&self) -> Hash {
         self.block_hash
     }
 
     /// Return the header of the block.
-    pub fn header(&self) -> Header {
+    pub(crate) fn header(&self) -> Header {
         self.header.clone()
     }
 
     /// Get the height of the block.
     #[must_use]
-    pub fn height(&self) -> Height {
+    pub(crate) fn height(&self) -> Height {
         self.header().height
-    }
-
-    /// Get the height of the block's parent.
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if the block height is less than 1.
-    /// The genesis block has a height of 0, and all other blocks must have
-    /// a height >= 1.
-    #[must_use]
-    pub fn parent_height(&self) -> Height {
-        assert!(
-            self.height().value() > 0,
-            "block height must be greater than 0"
-        );
-        Height::try_from(self.header().height.value() - 1)
-            .expect("should have been able to decriment tendermint height")
     }
 
     /// Get the height of the block's child, or the next block.
     #[must_use]
-    pub fn child_height(&self) -> Height {
+    pub(crate) fn child_height(&self) -> Height {
         self.height().increment()
     }
 
@@ -119,7 +101,7 @@ impl SequencerBlockSubset {
     /// Will return `None` if the block does not have a parent hash. This is the case for the
     /// genesis block.
     #[must_use]
-    pub fn parent_hash(&self) -> Option<Hash> {
+    pub(crate) fn parent_hash(&self) -> Option<Hash> {
         if let Some(parent_hash) = self.header().last_block_id {
             return Some(parent_hash.hash);
         }
