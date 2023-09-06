@@ -16,7 +16,6 @@ const CHILD_HEIGHT: u64 = 1;
 const GRANDCHILD_HEIGHT: u64 = 2;
 
 /// Tracking canonical head of shared-sequencer chain as observed on cometbft.
-#[derive(Default)]
 pub(crate) struct SoftBlock {
     block: PipelineItem,
 }
@@ -39,7 +38,7 @@ pub(crate) struct SoftBlock {
 #[derive(Default)]
 pub(crate) struct FinalizationPipeline {
     /// Head of the canonical chain.
-    pub(crate) soft_block: SoftBlock,
+    pub(crate) soft_block: Option<SoftBlock>,
     // queue of blocks pending finalization (xor pending orphanhood)
     pending: HashMap<Hash, PipelineItem>,
     // blocks proposed by the sequencer running this relayer. to be submitted to DA layer.
@@ -52,13 +51,15 @@ impl FinalizationPipeline {
 
         match new_block.parent_block_hash() {
             Some(parent_of_new_block) => {
-                debug_assert!(new_block.height() > self.soft_block.block.height());
+                let soft_block = self.soft_block.as_ref().expect("post genesis");
 
-                let steps = new_block.height() - self.soft_block.block.height();
+                debug_assert!(new_block.height() > soft_block.block.height());
+
+                let steps = new_block.height() - soft_block.block.height();
                 if steps == CHILD_HEIGHT {
                     // finalization pipeline assumes blocks arrive in sequential order from
                     // sequencer
-                    debug_assert!(parent_of_new_block == self.soft_block.block.block_hash());
+                    debug_assert!(parent_of_new_block == soft_block.block.block_hash());
 
                     self.pending.insert(new_block.block_hash(), new_block);
                 } else if steps == GRANDCHILD_HEIGHT {
@@ -68,20 +69,20 @@ impl FinalizationPipeline {
                         HashMap::from([(new_block.block_hash(), new_block)]),
                     );
                     for competing_block in pending_at_prev_height.into_values() {
-                        debug_assert!(
-                            competing_block.height() == self.soft_block.block.height() + 1
-                        );
+                        debug_assert!(competing_block.height() == soft_block.block.height() + 1);
 
                         if competing_block.block_hash() == parent_of_new_block {
                             let old_head = mem::replace(
                                 &mut self.soft_block,
-                                competing_block.soften().expect(
+                                Some(competing_block.soften().expect(
                                     "all blocks from sequencer are canonical (single slot \
                                      finality)",
-                                ),
+                                )),
                             );
 
-                            if let Some(Ok(finalized_validator_block)) = old_head.block.finalize() {
+                            if let Some(Ok(finalized_validator_block)) =
+                                old_head.expect("post genesis").block.finalize()
+                            {
                                 self.finalized.push(finalized_validator_block);
                             }
                             return;
@@ -91,7 +92,7 @@ impl FinalizationPipeline {
             }
             None => {
                 // block is genesis
-                self.soft_block = new_block.soften().unwrap();
+                self.soft_block = new_block.soften();
             }
         }
     }
