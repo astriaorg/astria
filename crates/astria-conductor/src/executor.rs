@@ -47,7 +47,7 @@ type Receiver = UnboundedReceiver<ExecutorCommand>;
 /// spawns a executor task and returns a tuple with the task's join handle
 /// and the channel for sending commands to this executor
 pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
-    info!("Spawning executor task.");
+    info!(actor_name = "executor", "Spawning executor task.");
     let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url).await?;
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
@@ -55,7 +55,7 @@ pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
     )
     .await?;
     let join_handle = task::spawn(async move { executor.run().await });
-    info!("Spawned executor task.");
+    info!(actor_name = "executor", "Spawned executor task.");
     Ok((join_handle, executor_tx))
 }
 
@@ -128,7 +128,7 @@ impl<C: ExecutionClient> Executor<C> {
     }
 
     async fn run(&mut self) -> Result<()> {
-        info!("Starting executor event loop.");
+        info!(actor_name = "executor", "Starting executor event loop.");
 
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
@@ -139,7 +139,11 @@ impl<C: ExecutionClient> Executor<C> {
                     let Some(block_subset) =
                         SequencerBlockSubset::from_sequencer_block_data(*block, self.namespace)
                     else {
-                        info!(namespace = %self.namespace, "block did not contain data for namespace; skipping");
+                        info!(
+                            actor_name = "executor",
+                            namespace = %self.namespace,
+                            "block did not contain data for namespace; skipping"
+                        );
                         continue;
                     };
                     if let Err(e) = self.execute_block(block_subset).await {
@@ -195,6 +199,7 @@ impl<C: ExecutionClient> Executor<C> {
     async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Vec<u8>>> {
         if block.rollup_transactions.is_empty() {
             debug!(
+                actor_name = "executor",
                 height = block.header.height.value(),
                 "no transactions in block"
             );
@@ -203,6 +208,7 @@ impl<C: ExecutionClient> Executor<C> {
 
         if let Some(execution_hash) = self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
             debug!(
+                actor_name = "executor",
                 height = block.header.height.value(),
                 execution_hash = hex::encode(execution_hash),
                 "block already executed"
@@ -212,6 +218,7 @@ impl<C: ExecutionClient> Executor<C> {
 
         let prev_block_hash = self.execution_state.clone();
         info!(
+            actor_name = "executor",
             height = block.header.height.value(),
             parent_block_hash = hex::encode(&prev_block_hash),
             "executing block with given parent block",
@@ -228,6 +235,7 @@ impl<C: ExecutionClient> Executor<C> {
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
+            actor_name = "executor",
             sequencer_block_hash = ?block.block_hash,
             sequencer_block_height = block.header.height.value(),
             execution_block_hash = hex::encode(&response.block_hash),
@@ -269,7 +277,7 @@ impl<C: ExecutionClient> Executor<C> {
                     .wrap_err("failed to execute block")?
                 else {
                     // no txs for our namespace, nothing to do
-                    debug!("execute_block returned None; skipping finalize_block");
+                    debug!(actor_name = "executor", "execute_block returned None; skipping finalize_block");
                     return Ok(());
                 };
 
