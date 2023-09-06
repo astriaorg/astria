@@ -32,9 +32,9 @@ use secrecy::{
 };
 use sequencer_client::{
     Address,
+    NonceResponse,
     SequencerClientExt,
 };
-use tendermint::abci;
 use tokio::sync::{
     mpsc,
     watch,
@@ -104,7 +104,7 @@ pub(super) struct Executor {
     // Nonce of the sequencer account we sign with
     nonce: Arc<AtomicU32>,
     // The sequencer address associated with the private key
-    _sequencer_address: Address,
+    address: Address,
 }
 
 #[derive(Debug)]
@@ -160,7 +160,7 @@ impl Executor {
             sequencer_client,
             sequencer_key,
             nonce: Arc::new(AtomicU32::new(0)),
-            _sequencer_address: sequencer_address,
+            address: sequencer_address,
         })
     }
 
@@ -263,27 +263,25 @@ impl Executor {
             .with_min_delay(delay)
             .with_factor(factor)
             .with_max_times(n_retries);
-        (|| {
+
+        let nonce_response = (|| {
             let client = self.sequencer_client.clone();
+            let address = self.address;
             async move {
-                // TODO: replace with fetching nonce
-                // let nonce_response = self
-                //     .sequencer_client
-                //     .inner
-                //     .get_latest_nonce(address.0)
-                //     .await
-                //     .wrap_err("failed to query sequencer for nonce")?;
-                // self.sequencer_nonce
-                //     .store(nonce_response.nonce, Ordering::Relaxed);
-                client.abci_info().await
+                client.get_latest_nonce(address).await
             }
         })
         .retry(&backoff)
-        .notify(|err, dur| warn!(error.msg = %err, retry_in = %format_duration(dur), "failed getting abci info; retrying"))
+        .notify(|err, dur| 
+            warn!(error.msg = %err, retry_in = %format_duration(dur), "failed getting nonce for {:?}; retrying", self.address))
         .await
         .wrap_err(
-            "failed to retrieve abci info from sequencer after several retries",
+            "failed to retrieve initial nonce from sequencer after several retries",
         )?;
+
+        info!(nonce_response.nonce, "retrieved initial nonce from sequencer successfully");
+        self.nonce.store(nonce_response.nonce, Ordering::Relaxed);
+
         self.status.send_modify(|status| {
             status.is_connected = true;
         });
@@ -308,12 +306,14 @@ impl SequencerClient {
         })
     }
 
-    /// Wrapper around [`Client::abci_info`] with a 1s timeout.
-    async fn abci_info(self) -> eyre::Result<abci::response::Info> {
-        use sequencer_client::Client as _;
-        tokio::time::timeout(Duration::from_secs(1), self.inner.abci_info())
-            .await
-            .wrap_err("request timed out")?
-            .wrap_err("RPC returned with error")
+    /// Wrapper around [`Client::get_latest_nonce`] with a 1s timeout.
+    async fn get_latest_nonce(self, address: Address) -> eyre::Result<NonceResponse> {
+        tokio::time::timeout(
+            Duration::from_secs(1),
+            self.inner.get_latest_nonce(address.0),
+        )
+        .await
+        .wrap_err("request timed out")?
+        .wrap_err("RPC returned with error")
     }
 }
