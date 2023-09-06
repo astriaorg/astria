@@ -17,7 +17,7 @@ enum State {
 
 /// Handles conversion between head block, soft block and final block as a block travels down the
 /// pipeline.
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub(crate) struct PipelineItem {
     block: BlockWrapper,
     state: State,

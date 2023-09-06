@@ -6,14 +6,12 @@ use tendermint::Hash;
 /// by other sequencer's. Blocks published to cometbft by this sequencer, should be published to
 /// DA by the relayer, hence they end up in the `finalized` queue in
 /// [`super::FinalizationPipeline`].
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum BlockWrapper {
     /// Blocks proposed by the validator running this relayer.
     FromValidator(SequencerBlockData),
     /// Blocks proposed by other validators, received by the sequencer over cometbft.
     FromOtherValidator(SequencerBlockSubset),
-    #[default]
-    Default,
 }
 
 impl TryInto<SequencerBlockData> for BlockWrapper {

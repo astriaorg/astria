@@ -38,7 +38,7 @@ pub(crate) struct SoftBlock {
 #[derive(Default)]
 pub(crate) struct FinalizationPipeline {
     /// Head of the canonical chain.
-    pub(crate) soft_block: Option<SoftBlock>,
+    soft_block: Option<SoftBlock>,
     // queue of blocks pending finalization (xor pending orphanhood)
     pending: HashMap<Hash, PipelineItem>,
     // blocks proposed by the sequencer running this relayer. to be submitted to DA layer.
