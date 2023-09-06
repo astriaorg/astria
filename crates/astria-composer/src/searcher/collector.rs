@@ -38,7 +38,7 @@ pub(super) struct Collector {
     // action belongs to.
     chain_id: String,
     // The client for getting new pending transactions from an ethereum rollup.
-    client: EthClient,
+    client: GethClient,
     // The channel on which the collector sends new txs to the searcher.
     searcher_channel: Sender<Transaction>,
     // The status of this collector.
@@ -68,7 +68,7 @@ impl Collector {
         url: String,
         searcher_channel: Sender<Transaction>,
     ) -> eyre::Result<Self> {
-        let client = EthClient::connect(&url)
+        let client = GethClient::connect(&url)
             .await
             .wrap_err("failed connecting to eth")?;
         let (status, _) = watch::channel(Status::new());
@@ -91,7 +91,7 @@ impl Collector {
 
         use ethers::providers::Middleware as _;
         use futures::stream::StreamExt as _;
-        self.wait_for_evm(5, Duration::from_secs(5), 2.0)
+        self.wait_for_geth(5, Duration::from_secs(5), 2.0)
             .await
             .wrap_err("failed connecting ")?;
 
@@ -152,7 +152,7 @@ impl Collector {
     retries.initial_delay = %format_duration(delay),
     retries.exponential_factor = factor,
 ))]
-    async fn wait_for_evm(
+    async fn wait_for_geth(
         &self,
         n_retries: usize,
         delay: Duration,
@@ -201,11 +201,11 @@ impl Collector {
 /// TODO(https://github.com/astriaorg/astria/issues/216): add timeouts for
 /// `subscribe_full_pendings_txs` (more complex because it's a stream).
 #[derive(Clone, Debug)]
-struct EthClient {
+struct GethClient {
     inner: Provider<Ws>,
 }
 
-impl EthClient {
+impl GethClient {
     async fn connect(url: &str) -> Result<Self, ProviderError> {
         let inner = Provider::connect(url).await?;
         Ok(Self {
