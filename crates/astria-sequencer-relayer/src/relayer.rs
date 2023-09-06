@@ -62,7 +62,7 @@ pub struct Relayer {
 
     // Sequencer blocks that have been received but not yet finalized (for example, because a
     // submit RPC was currently in flight). Only finalized blocks are submitted to the data
-    // availability layer.
+    // availability layer. Finalized blocks stay in the pipeline until drained.
     finalization_pipeline: FinalizationPipeline,
 
     // A collection of workers to convert a raw cometbft/tendermint block response to

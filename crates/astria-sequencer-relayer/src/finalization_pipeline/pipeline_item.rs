@@ -10,9 +10,12 @@ use super::{
 // relayer are assumed to be heads, i.e. 1 block long forks of the canonical chain
 #[derive(Clone, Copy, Default, Debug)]
 enum State {
+    // head of 1 block long fork, block points to canonical head of chain. all blocks received
+    // from sequencer are assumed to be canonical (single slot finality)
     #[default]
-    Head, // head of 1 block long fork, block points to canonical head of chain
-    Soft, // canonical head of chain, block points to final head of chain
+    Head,
+    // canonical head of chain, block points to final head of chain
+    Soft,
 }
 
 /// Handles conversion between head block, soft block and final block as a block travels down the
