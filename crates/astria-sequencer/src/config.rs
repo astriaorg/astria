@@ -1,40 +1,83 @@
 use std::path::PathBuf;
 
-use clap::Parser;
+use figment::{
+    providers::Env,
+    Figment,
+};
 use serde::{
     Deserialize,
     Serialize,
 };
 
 const DEFAULT_ABCI_LISTEN_ADDR: &str = "127.0.0.1:26658";
+const DEFAULT_LOG: &str = "info";
 
-#[derive(Debug, Deserialize, Parser, Serialize)]
+pub fn get() -> Result<Config, figment::Error> {
+    Config::from_environment()
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Config {
     /// The endpoint on which Sequencer will listen for ABCI requests
-    #[arg(long, default_value_t = String::from(DEFAULT_ABCI_LISTEN_ADDR))]
+    #[serde(default = "default_abci_addr")]
     pub listen_addr: String,
     /// The path to penumbra storage db.
-    #[arg(long)]
     pub db_filepath: PathBuf,
-    /// Filter directives for emitting events
-    #[arg(long)]
-    pub log: Option<String>,
+    /// Log level: debug, info, warn, or error
+    #[serde(default = "default_log")]
+    pub log: String,
+}
+
+fn default_abci_addr() -> String {
+    DEFAULT_ABCI_LISTEN_ADDR.to_string()
+}
+
+fn default_log() -> String {
+    DEFAULT_LOG.to_string()
 }
 
 impl Config {
-    #[must_use]
-    pub fn get() -> Self {
-        let mut config = Config::parse();
-        match std::env::var("RUST_LOG") {
-            Ok(log) => {
-                if config.log.is_none() {
-                    config.log.replace(log);
-                }
-            }
-            Err(err) => {
-                eprintln!("ignoring RUST_LOG env var: {err:?}");
+    fn from_environment() -> Result<Config, figment::Error> {
+        Figment::new()
+            .merge(Env::prefixed("RUST_").split("_").only(&["log"]))
+            .merge(Env::prefixed("ASTRIA_SEQUENCER_"))
+            .extract()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use figment::Jail;
+
+    use super::Config;
+    const EXAMPLE_ENV: &str = include_str!("../local.env.example");
+
+    fn populate_environment_from_example(jail: &mut Jail) {
+        for line in EXAMPLE_ENV.lines() {
+            if let Some((key, val)) = line.trim().split_once('=') {
+                jail.set_env(key, val);
             }
         }
-        config
+    }
+
+    #[test]
+    fn ensure_example_env_is_in_sync() {
+        Jail::expect_with(|jail| {
+            populate_environment_from_example(jail);
+            Config::from_environment().unwrap();
+            Ok(())
+        });
+    }
+
+    #[test]
+    #[should_panic]
+    fn extra_env_vars_are_rejected() {
+        Jail::expect_with(|jail| {
+            populate_environment_from_example(jail);
+            jail.set_env("ASTRIA_SEQUENCER_FOOBAR", "BAZ");
+            Config::from_environment().unwrap();
+            Ok(())
+        });
     }
 }

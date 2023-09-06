@@ -1,0 +1,44 @@
+alias r := run
+
+default:
+  @just --list
+
+set dotenv-load
+set fallback
+
+default_env := 'local'
+copy-env type=default_env:
+  cp {{ type }}.env.example .env
+
+run:
+  cargo run
+
+build-penumbra:
+  sudo pacman -S gcc11 gcc12-libs && CC=/usr/bin/gcc-13 CXX=/usr/bin/c++-12 cargo build
+
+install-cometbft:
+  git clone https://github.com/astriaorg/cometbft
+  cd cometbft
+  export GOPATH=~/go
+  make install
+
+run-cometbft:
+  cometbft init
+  sed -i'.bak' 's/timeout_commit = "0s"/timeout_commit = "15s"/g' ~/.cometbft/config/config.toml
+  cometbft node
+
+run-testnet: install-cometbft
+  cargo build
+  ${OUT_DIR} ${NUM_VALIDATORS} ./scripts/testnet.sh
+
+cometbft-logs-testnet NODE="node0":
+  tail -f sequencer_testnet/{{ NODE }}/cometbft.log
+
+sequencer-logs-testnet NODE="node0":
+  tail -f sequencer_testnet/{{ NODE }}/sequencer.log
+
+stop-testnet:
+  pkill cometbft && pkill astria-sequencer
+
+clean-testnet DIR="sequencer_testnet": stop-testnet
+  rm -r {{ DIR }}

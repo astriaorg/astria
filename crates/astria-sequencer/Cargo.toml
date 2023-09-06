@@ -20,7 +20,6 @@ tower-actor = "0.1.0"
 async-trait = { workspace = true }
 borsh = { workspace = true }
 bytes = { workspace = true }
-clap = { workspace = true, features = ["derive"] }
 ed25519-consensus = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
@@ -33,3 +32,4 @@ tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
 tracing = { workspace = true }
+figment = { workspace = true, features = ["test", "env"]}
