@@ -223,15 +223,26 @@ impl Relayer {
                     namespaces_to_tx_count = %NamespaceToTxCount::new(sequencer_block_data.rollup_data()),
                     "gossiping sequencer block",
                 );
-                if self
-                    .gossip_block_tx
-                    .send(sequencer_block_data.clone())
-                    .is_err()
-                {
-                    return HandleConversionCompletedResult::GossipChannelClosed;
-                }
-                // Update the internal state if the block was admitted
                 let height = sequencer_block_data.header().height.value();
+                let pipeline_wrapper =
+                    if sequencer_block_data.header().proposer_address == self.validator.address {
+                        // submit blocks proposed by the sequencer running this relayer sidecar to
+                        // gossipnet
+                        if self
+                            .gossip_block_tx
+                            .send(sequencer_block_data.clone())
+                            .is_err()
+                        {
+                            return HandleConversionCompletedResult::GossipChannelClosed;
+                        }
+                        // pass to finalization pipeline, then submit if final to DA
+                        BlockWrapper::new_by_validator(sequencer_block_data.into())
+                    } else {
+                        // pass to finalization pipeline to track soft commit (canonical head of
+                        // shared-sequencer chain)
+                        BlockWrapper::new_by_other_validator(sequencer_block_data)
+                    };
+                // Update the internal state if the block was admitted
                 _ = self.state_tx.send_if_modified(|state| {
                     if Some(height) > state.current_sequencer_height {
                         state.current_sequencer_height = Some(height);
@@ -239,13 +250,6 @@ impl Relayer {
                     }
                     false
                 });
-                let pipeline_wrapper =
-                    if sequencer_block_data.header().proposer_address == self.validator.address {
-                        BlockWrapper::new_by_validator(sequencer_block_data.into())
-                    } else {
-                        // pass to finalization pipeline to track canonical head
-                        BlockWrapper::new_by_other_validator(sequencer_block_data)
-                    };
                 // Store the converted data
                 self.finalization_pipeline.submit(pipeline_wrapper);
             }
