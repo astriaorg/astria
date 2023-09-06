@@ -4,6 +4,7 @@ use astria_sequencer_relayer::config::Config;
 use helper::{
     spawn_sequencer_relayer,
     BlockResponseFourLinkChain,
+    BlockResponseThreeLinkChain,
     BlockResponseTwoLinkChain,
     CelestiaMode,
 };
@@ -23,11 +24,11 @@ async fn one_block_is_relayed_to_celestia_and_conductor() {
         spawn_sequencer_relayer(Config::default(), CelestiaMode::Immediate).await;
 
     let BlockResponseTwoLinkChain {
-        parent,
+        genesis,
         child,
     } = helper::mount_constant_block_response_child_parent_pair(&sequencer_relayer).await;
 
-    for block in [&parent, &child] {
+    for block in [&genesis, &child] {
         // advance the sequencer ticker once to poll the sequencer for once block. receiving child
         // finalizes parent.
         sequencer_relayer.advance_time_by_n_sequencer_ticks(1).await;
@@ -73,11 +74,11 @@ async fn same_block_is_dropped() {
         spawn_sequencer_relayer(Config::default(), CelestiaMode::Immediate).await;
 
     let BlockResponseTwoLinkChain {
-        parent,
+        genesis,
         child,
     } = helper::mount_constant_block_response_child_parent_pair(&sequencer_relayer).await;
 
-    for block in [&parent, &child] {
+    for block in [&genesis, &child] {
         // advance the sequencer ticker once to poll the sequencer for once block. receiving child
         // finalizes parent.
         sequencer_relayer.advance_time_by_n_sequencer_ticks(1).await;
@@ -132,7 +133,7 @@ async fn celestia_bundles_blobs() {
     let mut sequencer_relayer =
         spawn_sequencer_relayer(Config::default(), CelestiaMode::Immediate).await;
     let BlockResponseFourLinkChain {
-        grandparent,
+        genesis,
         parent,
         child,
         grandchild,
@@ -150,7 +151,7 @@ async fn celestia_bundles_blobs() {
     // advance the sequencer ticker by 1 four times and observe that conductor sees all blocks
     // published to gossip net. although in this mock set up, parent, child and grandchild are all
     // ready to be received at 2 ticks, relayer only polls sequencer for one block per tick.
-    for mounted_block in [grandparent, child, grandchild, parent] {
+    for mounted_block in [genesis, child, grandchild, parent] {
         sequencer_relayer.advance_time_by_n_sequencer_ticks(1).await;
         let block_seen_by_conductor = sequencer_relayer.conductor.block_rx.recv().await.unwrap();
         assert_eq!(
@@ -222,7 +223,7 @@ async fn slow_celestia_leads_to_bundled_blobs() {
     // - child is received at 2 ticks
     // - grandchild is received at 3 ticks -> finalizes child
     let BlockResponseFourLinkChain {
-        grandparent,
+        genesis,
         parent,
         child,
         grandchild,
@@ -232,7 +233,7 @@ async fn slow_celestia_leads_to_bundled_blobs() {
     // published to gossip net. although parent, child and grandchild are all ready to be received
     // at 2 ticks, relayer only polls sequencer for one block per tick. todo(emhane): remove
     // restriction.
-    for mounted_block in [grandparent, child, grandchild, parent] {
+    for mounted_block in [genesis, child, grandchild, parent] {
         sequencer_relayer.advance_time_by_n_sequencer_ticks(1).await;
         let block_seen_by_conductor = sequencer_relayer.conductor.block_rx.recv().await.unwrap();
         assert_eq!(
@@ -293,9 +294,7 @@ async fn slow_celestia_leads_to_bundled_blobs() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn test_timed_out_finalization() {
-    use astria_sequencer_relayer::config::MAX_RELAYER_QUEUE_TIME_MS;
-
+async fn test_finalization_competing_blocks() {
     // TODO: Hack to inhibit tokio auto-advance in tests;
     // Replace once a follow-up to https://github.com/tokio-rs/tokio/pull/5200 lands
     let (inhibit_tx, inhibit_rx) = tokio::sync::oneshot::channel();
@@ -303,90 +302,111 @@ async fn test_timed_out_finalization() {
 
     let config = Config::default();
     // sequencer is polled for one block response every sequencer block time
-    let tick_time_ms = config.block_time;
+    // todo(emhane): set constant queue time and default block time for test specifically,
+    // shorten total test time
     let tick = Duration::from_millis(config.block_time);
     // 0 ticks
     let test_start = tokio::time::Instant::now();
 
     let mut sequencer_relayer = spawn_sequencer_relayer(config, CelestiaMode::Immediate).await;
 
-    // - parent one is received at 1 tick
-    // - parent two is received at 2 ticks
-    // - child one is received at 5 ticks (delayed max queue time) -> finalizes parent one, times
-    // out parent two
-    // - child two is received at 6 ticks (delayed max queue time)
-    let [
-        BlockResponseTwoLinkChain {
+    // - genesis is received at 1 tick
+    // - parent one is received at 2 tick
+    // - parent two is received at 3 ticks
+    // - child one.one is received at 4 ticks -> finalizes genesis, makes parent one canonical,
+    //   discards parent two as by ssf
+    // - child one.two is received at 5 ticks
+    // - grandchild one.one.two is received at 6 ticks -> finalizes parent one, makes child one.two
+    //   canonical, discards child one.one as by ssf
+
+    let (
+        BlockResponseThreeLinkChain {
+            genesis,
             parent: parent_one,
-            child: child_one,
+            child: child_one_one,
         },
-        BlockResponseTwoLinkChain {
+        BlockResponseFourLinkChain {
+            genesis: _,
             parent: parent_two,
-            child: child_two,
+            child: child_one_two,
+            grandchild: grandchild_one_two_one,
         },
-    ] = helper::mount_two_response_pairs_delayed_children(&sequencer_relayer).await;
+    ) = helper::mount_genesis_and_two_response_pairs(&sequencer_relayer).await;
 
-    let parent_one_block_hash = parent_one.block.header.hash();
-    let parent_two_block_hash = parent_two.block.header.hash();
-    let child_one_block_hash = child_one.block.header.hash();
+    let genesis_block_hash = genesis.block_id.hash;
+    let parent_one_block_hash = parent_one.block_id.hash;
+    let parent_two_block_hash = parent_two.block_id.hash;
+    let child_one_one_block_hash = child_one_one.block_id.hash;
+    let child_one_two_block_hash = child_one_two.block_id.hash;
 
-    for mounted_block in [parent_one, parent_two, child_one, child_two] {
+    for mounted_block in [
+        genesis,
+        parent_one,
+        parent_two,
+        child_one_one,
+        child_one_two,
+        grandchild_one_two_one,
+    ] {
         let mounted_block_hash = mounted_block.block.header.hash();
         // advance time to poll sequencer for next block and submit it to gossip-net
-        if mounted_block_hash == child_one_block_hash {
-            // advance time max relayer queue time for children. this is the time mock sequencer
-            // is set to delay them (helper::mount_two_response_pairs_delayed_children)
-            let ticks = MAX_RELAYER_QUEUE_TIME_MS / tick_time_ms;
-            // todo(emhane): set constant queue time and default block time for test specifically,
-            // shorten total test time
-            assert_eq!(ticks, 3);
+        sequencer_relayer.advance_time_by_n_sequencer_ticks(1).await;
 
-            sequencer_relayer
-                .advance_time_by_n_sequencer_ticks(ticks)
-                .await;
-            // receiving first child from sequencer, after max relayer queue time,
-            // finalizes parent one and times out parent two.
-            //
-            // child one is received at 5 ticks
-            assert_eq!(test_start.elapsed(), 5 * tick);
-        } else {
-            // advance time once to receive parents from sequencer
-            sequencer_relayer.advance_time_by_n_sequencer_ticks(1).await;
-
-            assert_eq!(
-                test_start.elapsed(),
-                if mounted_block_hash == parent_one_block_hash {
-                    // parent one is received at 1 tick
-                    tick
-                } else if mounted_block_hash == parent_two_block_hash {
-                    // parent two is received at 2 ticks
-                    2 * tick
-                } else {
-                    // child two is ready to receive at 5 ticks, directly after child one, but
-                    // sequencer is not polled for another block till the next tick. hence the
-                    // relayer receives child two at 6 ticks.
-                    6 * tick
-                }
-            );
-        }
+        assert_eq!(
+            test_start.elapsed(),
+            if mounted_block_hash == genesis_block_hash {
+                // genesis is received at 1 tick
+                tick
+            } else if mounted_block_hash == parent_one_block_hash {
+                // parent one is received at 2 ticks
+                2 * tick
+            } else if mounted_block_hash == parent_two_block_hash {
+                // parent two is received at 3 ticks
+                3 * tick
+            } else if mounted_block_hash == child_one_one_block_hash {
+                // child one is received at 4 ticks
+                4 * tick
+            } else if mounted_block_hash == child_one_two_block_hash {
+                // child one is received at 5 ticks
+                5 * tick
+            } else {
+                // child two is received at 6 ticks
+                6 * tick
+            }
+        );
 
         // block submitted on gossip-net should be seen by conductor
         let block_seen_by_conductor = sequencer_relayer.conductor.block_rx.recv().await.unwrap();
 
         assert_eq!(mounted_block_hash, block_seen_by_conductor.block_hash());
+
+        if test_start.elapsed() == 4 * tick {
+            // genesis finalizes at height 4. celestia sees a pair of blobs (1 block + sequencer
+            // namespace data).
+            let blobs_seen_by_celestia = sequencer_relayer
+                .celestia
+                .state_rpc_confirmed_rx
+                .try_recv()
+                .unwrap();
+
+            assert_eq!(2, blobs_seen_by_celestia.len());
+        } else if test_start.elapsed() == 6 * tick {
+            // parent one finalizes at height 4. celestia sees a pair of blobs (1 block + sequencer
+            // namespace data).
+            let blobs_seen_by_celestia = sequencer_relayer
+                .celestia
+                .state_rpc_confirmed_rx
+                .try_recv()
+                .unwrap();
+
+            assert_eq!(2, blobs_seen_by_celestia.len());
+        }
     }
 
-    // only parent one finalizes. celestia sees a pair of blobs (1 block + sequencer namespace
-    // data).
-    let blobs_seen_by_celestia = sequencer_relayer
-        .celestia
-        .state_rpc_confirmed_rx
-        .try_recv()
-        .unwrap();
+    sequencer_relayer
+        .advance_to_time_mod_block_time_not_zero(10)
+        .await;
 
-    assert_eq!(2, blobs_seen_by_celestia.len());
-
-    // parent two times out
+    // parent two is discarded
     let blobs_seen_by_celestia = sequencer_relayer.celestia.state_rpc_confirmed_rx.try_recv();
 
     assert!(blobs_seen_by_celestia.is_err());

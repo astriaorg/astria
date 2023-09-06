@@ -4,15 +4,15 @@ use std::{
 };
 
 use astria_sequencer_relayer::{
-    config::{
-        Config,
-        MAX_RELAYER_QUEUE_TIME_MS,
-    },
+    config::Config,
     telemetry,
     validator::Validator,
     SequencerRelayer,
 };
-use astria_sequencer_types::SequencerBlockData;
+use astria_sequencer_types::{
+    test_utils,
+    SequencerBlockData,
+};
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
 use serde_json::json;
@@ -441,37 +441,30 @@ pub(crate) fn create_block_response(
     };
     use tendermint::{
         block,
-        chain,
         evidence,
-        hash::AppHash,
         merkle::simple_hash_from_byte_vectors,
         Block,
         Hash,
-        Time,
     };
 
-    // for a tendermint block response to convert to a sequencer block data, fields that need to
-    // be set are:
-    // - last commit
-    // - proposer address
+    let mut header = test_utils::default_header();
+
+    // for a tendermint block response to convert to a sequencer block data (fn
+    // from_tendermint_block in ../src/types.rs), fields that need to be set are:
     // - height
     // - data hash
+    // - last commit
     //
     // for submission to celestia (data availability), field that needs to be set:
     // - last block id
+    // - proposer address
 
-    // The first height must not, every height after must contain a commit. constraint set by
-    // tendermint for block construction.
-    let last_commit = (height != 1).then_some(create_non_default_last_commit());
-    // required to convert to sequencer block data (fn
-    // convert_block_response_to_sequencer_block_data in ../src/relayer.rs)
-    let proposer_address = *validator.address();
     // height greater than current height required to convert to sequencer block data (fn
     // convert_block_response_to_sequencer_block_data in ../src/relayer.rs)
-    let height = block::Height::from(height);
+    header.height = block::Height::from(height);
 
+    // data_hash must be some to convert to sequencer block data
     let signing_key = validator.signing_key();
-
     let suffix = height.to_string().into_bytes();
     let signed_tx = Unsigned::new_with_actions(
         Nonce::from(1),
@@ -483,13 +476,15 @@ pub(crate) fn create_block_response(
     .into_signed(signing_key);
     let action_tree_root = [1; 32]; // always goes at index 0 of data
     let data = vec![action_tree_root.to_vec(), signed_tx.to_bytes()];
-    // data_hash must be some to convert to sequencer block data (fn from_tendermint_block in
-    // ../src/types.rs)
-    let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
+    header.data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
         &data,
     )));
 
-    let last_block_id = parent.map(|parent| {
+    // The first height must not, every height after must contain a commit. constraint set by
+    // tendermint for block construction.
+    let last_commit = (height != 1).then_some(create_non_default_last_commit());
+
+    header.last_block_id = parent.map(|parent| {
         let parent = parent.block.header.hash().as_bytes().to_vec();
         block::Id {
             // block_hash in sequencer block data is set to tendermint block header hash (fn
@@ -498,37 +493,17 @@ pub(crate) fn create_block_response(
             part_set_header: block::parts::Header::default(),
         }
     });
+    // only blocks proposed by sequencer running this relayer sidecar will be published to DA
+    header.proposer_address = *validator.address();
+
+    let hash = header.hash();
 
     Response {
         block_id: block::Id {
-            hash: Hash::Sha256([0; 32]),
+            hash,
             part_set_header: block::parts::Header::new(0, Hash::None).unwrap(),
         },
-        block: Block::new(
-            block::Header {
-                version: block::header::Version {
-                    block: 0,
-                    app: 0,
-                },
-                chain_id: chain::Id::try_from("test").unwrap(),
-                height,
-                time: Time::now(),
-                last_block_id,
-                last_commit_hash: None,
-                data_hash,
-                validators_hash: Hash::Sha256([0; 32]),
-                next_validators_hash: Hash::Sha256([0; 32]),
-                consensus_hash: Hash::Sha256([0; 32]),
-                app_hash: AppHash::try_from([0; 32].to_vec()).unwrap(),
-                last_results_hash: None,
-                evidence_hash: None,
-                proposer_address,
-            },
-            data,
-            evidence::List::default(),
-            last_commit,
-        )
-        .unwrap(),
+        block: Block::new(header, data, evidence::List::default(), last_commit).unwrap(),
     }
 }
 
@@ -558,14 +533,20 @@ async fn start_mocked_sequencer() -> MockServer {
 }
 
 pub(crate) struct BlockResponseTwoLinkChain {
+    pub(crate) genesis: Response,
+    pub(crate) child: Response,
+}
+
+pub(crate) struct BlockResponseThreeLinkChain {
+    pub(crate) genesis: Response,
     pub(crate) parent: Response,
     pub(crate) child: Response,
 }
 
 pub(crate) struct BlockResponseFourLinkChain {
-    pub(crate) grandparent: Response,
-    pub(crate) child: Response,
+    pub(crate) genesis: Response,
     pub(crate) parent: Response,
+    pub(crate) child: Response,
     pub(crate) grandchild: Response,
 }
 
@@ -581,7 +562,7 @@ pub(crate) async fn mount_constant_block_response_child_parent_pair(
     let child = create_and_mount_block(Duration::ZERO, server, validator, 2, Some(&parent)).await;
 
     BlockResponseTwoLinkChain {
-        parent,
+        genesis: parent,
         child,
     }
 }
@@ -628,65 +609,67 @@ pub(crate) async fn mount_4_changing_block_responses(
     // each block must be of higher height than current height to convert to sequencer data
     // block. hence height is set to increment with order of arrival.
 
-    let grandparent = create_block_response(validator, 1, None);
-    let parent = create_block_response(validator, 4, Some(&grandparent));
+    let genesis = create_block_response(validator, 1, None);
+    let parent = create_block_response(validator, 4, Some(&genesis));
     let child = create_block_response(validator, 2, Some(&parent));
     let grandchild = create_block_response(validator, 3, Some(&child));
 
     // MockServer requires blocks to be mounted in order they should be received
-    mount_block(Duration::ZERO, server, grandparent.clone()).await;
+    mount_block(Duration::ZERO, server, genesis.clone()).await;
     mount_block(Duration::ZERO, server, child.clone()).await;
     mount_block(Duration::ZERO, server, grandchild.clone()).await;
     mount_block(Duration::ZERO, server, parent.clone()).await;
 
     // grandchild can't finalize
     BlockResponseFourLinkChain {
-        grandparent,
+        genesis,
         parent,
         child,
         grandchild,
     }
 }
 
-pub(crate) async fn mount_two_response_pairs_delayed_children(
+pub(crate) async fn mount_genesis_and_two_response_pairs(
     sequencer_relayer: &TestSequencerRelayer,
-) -> [BlockResponseTwoLinkChain; 2] {
+) -> (BlockResponseThreeLinkChain, BlockResponseFourLinkChain) {
     let validator = &sequencer_relayer.validator;
     let server = &sequencer_relayer.sequencer;
 
-    // first parent, increase current height to 1 upon arrival
-    let parent_one = create_and_mount_block(Duration::ZERO, server, validator, 1, None).await;
-    // second parent, increase current height to 2 upon arrival
-    let parent_two = create_and_mount_block(Duration::ZERO, server, validator, 2, None).await;
-
-    // delay starts counting from when response is mounted (i.e. from start of test)
-    let delay_children = Duration::from_millis(MAX_RELAYER_QUEUE_TIME_MS);
-    // the optimistic nature of queued blocks in terms of time out, means the block enqueued
-    // before second child, which is the first child, needs to time out parent two. if second
-    // child comes delayed but not first child, then finality will be checked before time out is
-    // checked for parent two.
-    //
+    // genesis is received at height 1
+    let genesis = create_and_mount_block(Duration::ZERO, server, validator, 1, None).await;
+    // first parent, increase current height to 2 upon arrival
+    let parent_one =
+        create_and_mount_block(Duration::ZERO, server, validator, 2, Some(&genesis)).await;
+    // second parent, at height 2
+    let parent_two =
+        create_and_mount_block(Duration::ZERO, server, validator, 2, Some(&genesis)).await;
     // first child, increase current height to 3 upon arrival
-    let child_one =
-        create_and_mount_block(delay_children, server, validator, 3, Some(&parent_one)).await;
+    let child_one_one =
+        create_and_mount_block(Duration::ZERO, server, validator, 3, Some(&parent_one)).await;
 
-    // child two needs to arrive after child one to make sure parent two doesn't finalize first
-    // (and so the height isn't increased to 4 by child two which would make child one at height 3
-    // fail conversion (fn convert_block_response_to_sequencer_block_data in ../src/relayer.rs)
+    // child two needs to arrive after child one (mounted last) to make sure parent two doesn't
+    // become canonical head first, as by single slot finality, which executes fork choice of fcfs
+    // basis.
     //
-    // second child, increase current height to 4 upon arrival
-    let child_two =
-        create_and_mount_block(delay_children, server, validator, 4, Some(&parent_two)).await;
+    // second child, at height 3
+    let child_one_two =
+        create_and_mount_block(Duration::ZERO, server, validator, 3, Some(&parent_one)).await;
 
-    // children can't finalize
-    [
-        BlockResponseTwoLinkChain {
+    let grandchild_one_two_one =
+        create_and_mount_block(Duration::ZERO, server, validator, 4, Some(&child_one_two)).await;
+
+    // genesis and parent one can finalize
+    (
+        BlockResponseThreeLinkChain {
+            genesis: genesis.clone(),
             parent: parent_one,
-            child: child_one,
+            child: child_one_one,
         },
-        BlockResponseTwoLinkChain {
+        BlockResponseFourLinkChain {
+            genesis,
             parent: parent_two,
-            child: child_two,
+            child: child_one_two,
+            grandchild: grandchild_one_two_one,
         },
-    ]
+    )
 }
