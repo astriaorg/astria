@@ -195,19 +195,19 @@ mod test {
 
         let mut pipeline = FinalizationPipeline::default();
 
-        pipeline.submit(parent_block.clone());
+        pipeline.submit(parent_block.clone()); // height 1
         assert!(!pipeline.has_finalized());
 
-        pipeline.submit(first_block);
+        pipeline.submit(first_block); // height 2
         assert!(!pipeline.has_finalized());
 
-        pipeline.submit(second_block);
+        pipeline.submit(second_block); // height 2
         assert!(!pipeline.has_finalized());
 
-        pipeline.submit(third_block);
+        pipeline.submit(third_block); // height 2
         assert!(!pipeline.has_finalized());
 
-        pipeline.submit(child_second_block); // finalizes second block
+        pipeline.submit(child_second_block); // height 3, finalizes second block
         assert!(pipeline.has_finalized());
 
         let mut finalized_blocks = pipeline.drain_finalized();
