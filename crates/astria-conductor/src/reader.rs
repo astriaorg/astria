@@ -103,7 +103,11 @@ impl Reader {
         // TODO: we should probably pass in the height we want to start at from some genesis/config
         // file
         let curr_block_height = celestia_client.get_latest_height().await?;
-        info!(actor_name = "reader", da_height = curr_block_height, "creating Reader");
+        info!(
+            actor_name = "reader",
+            da_height = curr_block_height,
+            "creating Reader"
+        );
 
         Ok((
             Self {
@@ -190,8 +194,7 @@ impl Reader {
         'check_heights: for height in first_new_height..=curr_block_height {
             info!(
                 actor_name = "reader",
-                height,
-                "querying data availability layer for sequencer namespace data"
+                height, "querying data availability layer for sequencer namespace data"
             );
             let sequencer_namespaced_datas = match self
                 .celestia_client

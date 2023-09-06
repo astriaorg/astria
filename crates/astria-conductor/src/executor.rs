@@ -277,7 +277,10 @@ impl<C: ExecutionClient> Executor<C> {
                     .wrap_err("failed to execute block")?
                 else {
                     // no txs for our namespace, nothing to do
-                    debug!(actor_name = "executor", "execute_block returned None; skipping finalize_block");
+                    debug!(
+                        actor_name = "executor",
+                        "execute_block returned None; skipping finalize_block"
+                    );
                     return Ok(());
                 };
 
