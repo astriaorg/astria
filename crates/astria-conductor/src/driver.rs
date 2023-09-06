@@ -123,7 +123,7 @@ impl Driver {
 
     /// Runs the Driver event loop.
     pub async fn run(&mut self) -> Result<()> {
-        info!("Starting driver event loop.");
+        info!(actor_name = "driver", "Starting driver event loop.");
         loop {
             select! {
                 res = self.network.get_mut().0.next() => {
@@ -131,11 +131,21 @@ impl Driver {
                         match res {
                             Ok(event) => {
                                 if let Err(e) = self.handle_network_event(event).await {
-                                    debug!(error = ?e, "failed to handle network event");
+                                    debug!(
+                                        actor_name = "driver",
+                                        error.msg = %e,
+                                        error.cause = ?e,
+                                        "failed to handle network event"
+                                    );
                                 }
                             }
                             Err(err) => {
-                                warn!(error = ?err, "encountered error while polling p2p network");
+                                warn!(
+                                    actor_name = "driver",
+                                    error.msg = %err,
+                                    error.cause = ?err,
+                                    "encountered error while polling p2p network"
+                                );
                             }
                         }
                     }
@@ -144,7 +154,10 @@ impl Driver {
                     if let Some(cmd) = cmd {
                         self.handle_driver_command(cmd).await.wrap_err("failed to handle driver command")?;
                     } else {
-                        info!("Driver command channel closed.");
+                        info!(
+                            actor_name = "driver",
+                            "Driver command channel closed."
+                        );
                         break;
                     }
                 }
@@ -156,10 +169,10 @@ impl Driver {
     async fn handle_network_event(&self, event: NetworkEvent) -> Result<()> {
         match event {
             NetworkEvent::NewListenAddr(addr) => {
-                info!("listening on {}", addr);
+                info!(actor_name = "driver", "listening on {}", addr);
             }
             NetworkEvent::GossipsubMessage(msg) => {
-                debug!("received gossip message: {:?}", msg);
+                debug!(actor_name = "driver", "received gossip message");
                 let block = SequencerBlockData::from_bytes(&msg.data)
                     .wrap_err("failed to deserialize SequencerBlockData received from network")?;
 
@@ -170,8 +183,9 @@ impl Driver {
                     .wrap_err("invalid block received from gossip network")?;
 
                 info!(
-                    "sequencer block received from p2p network; height: {}",
-                    block.header().height.value()
+                    actor_name = "driver",
+                    height = block.header().height.value(),
+                    "sequencer block received from p2p network",
                 );
                 self.executor_tx
                     .send(ExecutorCommand::BlockReceivedFromGossipNetwork {
@@ -179,7 +193,7 @@ impl Driver {
                     })
                     .wrap_err("failed to send SequencerBlockData from network to executor")?;
             }
-            _ => debug!("received network event: {:?}", event),
+            _ => debug!(actor_name = "driver", "received network event"),
         }
 
         Ok(())
@@ -213,7 +227,7 @@ impl Driver {
         }
         *is_shutdown = true;
 
-        info!("Shutting down driver.");
+        info!(actor_name = "driver", "Shutting down driver.");
         self.executor_tx.send(ExecutorCommand::Shutdown)?;
 
         let Some(reader_tx) = &self.reader_tx else {
