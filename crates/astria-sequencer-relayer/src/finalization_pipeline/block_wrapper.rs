@@ -27,12 +27,16 @@ impl TryInto<SequencerBlockData> for BlockWrapper {
 }
 
 impl BlockWrapper {
-    pub(crate) fn new_by_validator(block: SequencerBlockData) -> Self {
-        Self::FromValidator(block)
-    }
-
-    pub(crate) fn new_by_other_validator(block: SequencerBlockData) -> Self {
-        Self::FromOtherValidator(block.into())
+    pub(crate) fn new(block: SequencerBlockData, is_proposed_by_validator: bool) -> Self {
+        if is_proposed_by_validator {
+            // pass to finalization pipeline, then submit if final to DA
+            Self::FromValidator(block)
+        } else {
+            // pass to finalization pipeline to track soft commit (canonical head of
+            // shared-sequencer chain), only a subset of the block is needed from here on.
+            // discarded at end of pipeline.
+            Self::FromOtherValidator(block.into())
+        }
     }
 
     pub(crate) fn block_hash(&self) -> Hash {
@@ -60,7 +64,8 @@ impl BlockWrapper {
     }
 }
 
-/// Subset of the set of data held by [`SequencerBlockData`] needed to verify canonicity of chain.
+/// Subset of the set of data held by [`SequencerBlockData`] needed to verify canonicity of
+/// shared-sequencer chain.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct SequencerBlockSubset {
     block_hash: Hash,

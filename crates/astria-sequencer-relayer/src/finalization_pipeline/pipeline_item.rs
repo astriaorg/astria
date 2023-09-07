@@ -7,11 +7,13 @@ use super::{
 };
 
 // tracks state of an item in the pipeline. all blocks received from the sequencer running this
-// relayer are assumed to be heads, i.e. 1 block long forks of the canonical chain
+// relayer are validated hence assumed to be heads, i.e. 1 block long forks of the canonical
+// shared-sequencer chain
 #[derive(Clone, Copy, Default, Debug)]
 enum State {
     // head of 1 block long fork, block points to canonical head of chain. all blocks received
-    // from sequencer are assumed to be canonical (single slot finality)
+    // from sequencer are validated and hence assumed to be forks of canonical chain (single slot
+    // finality).
     #[default]
     Head,
     // canonical head of chain, block points to final head of chain

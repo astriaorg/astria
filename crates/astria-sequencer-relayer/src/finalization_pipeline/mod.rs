@@ -12,32 +12,42 @@ pub(crate) mod pipeline_item;
 pub(crate) use block_wrapper::BlockWrapper;
 pub(crate) use pipeline_item::PipelineItem;
 
-const CHILD_HEIGHT: u64 = 1;
-const GRANDCHILD_HEIGHT: u64 = 2;
+// the height of soft block + 1, i.e. the height of the canonical head + 1, child height with
+// respect to soft block
+const HEAD_HEIGHT: u64 = 1;
+// the height of soft block + 2, i.e. the height of the canonical head + 2, grandchild height with
+// respect to soft block
+const HEAD_PLUS_ONE_HEIGHT: u64 = 2;
 
 /// Tracking canonical head of shared-sequencer chain as observed on cometbft.
 pub(crate) struct SoftBlock {
     block: PipelineItem,
 }
 
-/// Pipeline handles validated blocks received from sequencer on localhost interface, as according
-/// to cometbft single slot finality, i.e. pipeline handles forks 1 block long.
+/// Pipeline handles validated blocks according to single slot finality (cometbft), received in
+/// sequential order with respect to height, i.e. pipeline handles forks 1 block long.
 ///
-/// (warning! pipeline not intended for rpc connection relayer-sequencer on other IF than localhost,
-/// not designed for unordered arrival of blocks over network)
+/// (warning! pipeline not intended for rpc connection relayer-sequencer on other IF than
+/// localhost, not designed for unordered arrival of blocks over network)
 ///
 /// Fork choice is such that, the block pointed to by the FCFS block at grandchild height relative
-/// to the soft block, i.e. to the canonical head of the shared-sequencer chain, is the
-/// new soft block, i.e. the new shared-sequencer chain canonical head.
+/// to the soft block, i.e. to the canonical head of the shared-sequencer chain, is the new soft
+/// block, i.e. the new shared-sequencer chain canonical head (single slot finality, also fast
+/// finality, instant finality).
 ///
-/// Fork choice is executed when a block at grandchild height relative to the
-/// canonical head is received. Blocks are assumed to come (from cometbft) via sequencer in
-/// sequential order, pointing to the canonical chain (blocks at child height relative to
-/// canonical head point to canonical head, and blocks at grandchild height relative to canonical
-/// head point to a fork of the canonical chain).
+/// Fork choice is executed when a block at grandchild height relative to the canonical head is
+/// received. Blocks are assumed to come (from cometbft) via sequencer to the relayer in
+/// sequential order with respect to height and to be validated. Assuming the validator set is
+/// honest, the conversion from tendermint block to [`SequencerBlockData`] will be successful and
+/// thereby also submission to the pipeline (validators check if commitment to rollup data is
+/// correct <https://github.com/astriaorg/astria/blob/main/specs/sequencer-app.md#processproposal>). This means all blocks at head height can be assumed to point to the soft
+/// block, i.e. all blocks at canonical head height + 1 point to the canonical head (blocks at
+/// grandchild height relative to canonical head point to a fork of the canonical shared-sequencer
+/// chain). As a follow, the arrival of a child block to any head block is expected to finalize
+/// that head block.
 #[derive(Default)]
 pub(crate) struct FinalizationPipeline {
-    /// Head of the canonical chain.
+    /// Head of the canonical shared-sequencer chain.
     soft_block: Option<SoftBlock>,
     // queue of blocks pending finalization (xor pending orphanhood)
     pending: HashMap<Hash, PipelineItem>,
@@ -51,18 +61,18 @@ impl FinalizationPipeline {
 
         match new_block.parent_block_hash() {
             Some(parent_of_new_block) => {
-                let soft_block = self.soft_block.as_ref().expect("post genesis");
+                let soft_block = self.soft_block.as_ref().expect("should post genesis");
 
                 debug_assert!(new_block.height() > soft_block.block.height());
 
                 let steps = new_block.height() - soft_block.block.height();
-                if steps == CHILD_HEIGHT {
+                if steps == HEAD_HEIGHT {
                     // finalization pipeline assumes blocks arrive in sequential order from
-                    // sequencer
+                    // sequencer and are validated
                     debug_assert!(parent_of_new_block == soft_block.block.block_hash());
 
                     self.pending.insert(new_block.block_hash(), new_block);
-                } else if steps == GRANDCHILD_HEIGHT {
+                } else if steps == HEAD_PLUS_ONE_HEIGHT {
                     // do fork choice
                     let pending_at_prev_height = mem::replace(
                         &mut self.pending,
@@ -74,14 +84,15 @@ impl FinalizationPipeline {
                         if competing_block.block_hash() == parent_of_new_block {
                             let old_head = mem::replace(
                                 &mut self.soft_block,
-                                Some(competing_block.soften().expect(
-                                    "all blocks from sequencer are canonical (single slot \
-                                     finality)",
-                                )),
+                                Some(
+                                    competing_block
+                                        .soften()
+                                        .expect("should be first attempt to soften block"),
+                                ),
                             );
 
                             if let Some(Ok(finalized_validator_block)) =
-                                old_head.expect("post genesis").block.finalize()
+                                old_head.expect("should be post genesis").block.finalize()
                             {
                                 self.finalized.push(finalized_validator_block);
                             }
