@@ -101,7 +101,7 @@ impl FinalizationPipeline {
                         debug_assert!(competing_block.height() == soft_block.height() + 1);
 
                         if competing_block.block_hash() == parent_of_new_block {
-                            let old_head = mem::replace(
+                            let old_soft_block = mem::replace(
                                 &mut self.soft_block,
                                 Some(
                                     competing_block
@@ -110,8 +110,10 @@ impl FinalizationPipeline {
                                 ),
                             );
 
-                            if let Some(finalized_validator_block) =
-                                old_head.expect("should be post genesis").block.finalize()
+                            if let Some(finalized_validator_block) = old_soft_block
+                                .expect("should be post genesis")
+                                .block
+                                .finalize()
                             {
                                 self.finalized.push(finalized_validator_block);
                             }
