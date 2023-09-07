@@ -437,34 +437,15 @@ mod test {
     // state and that block is added to the queue, extending its length
     #[tokio::test]
     async fn insert_not_next_block() {
-        let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = Namespace::from_slice(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
-            .await
-            .unwrap();
-
+        let mut queue = Queue::new();
         let blocks = get_test_block_vec(2);
 
-        // because the block is out of order it is added to the queue and the
-        // execution state doesn't change
-        let expected_execution_hash = executor.execution_state.clone();
-        let execution_block_hash = executor
-            // inserting block 2 when we haven't seen block 1
-            .execute_block(blocks[1].clone())
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        assert_eq!(expected_execution_hash, execution_block_hash);
-        // because the block is out of order it is added to the queue
-        assert_eq!(queue_len(&executor.block_queue), 1);
-
-        // the out of order block is not executed so it's hash is not in the
-        // sequencer hash to execution hash map
-        let sequencer_block_hash = blocks[1].block_hash();
-        let missing_block_execution_hash = executor
-            .sequencer_hash_to_execution_hash
-            .get(&sequencer_block_hash);
-        assert_eq!(missing_block_execution_hash, None);
+        // add block out of order
+        queue.insert(blocks[1].clone());
+        assert_eq!(queue_len(&queue), 1);
+        // the queue wont return the out of order block
+        assert_eq!(queue.drain_blocks().peekable().peek(), None);
+        assert_eq!(queue_len(&queue), 1);
     }
 
     // test that filling a gap in the queued blocks, executes all consecutive
