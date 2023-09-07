@@ -85,8 +85,8 @@ pub struct Reader {
 }
 
 impl Reader {
-    /// Creates a new Reader instance and returns a command sender and an alert receiver.
-    pub async fn new(
+    /// Creates a new Reader instance and returns a command sender.
+    pub(crate) async fn new(
         celestia_node_url: &str,
         celestia_bearer_token: &str,
         executor_tx: executor::Sender,
@@ -231,12 +231,7 @@ impl Reader {
                 };
                 if let Err(e) = self
                     .block_verifier
-                    .validate_rollup_data(
-                        data.data.block_hash,
-                        &data.data.header,
-                        &data.data.last_commit,
-                        &rollup_data,
-                    )
+                    .validate_rollup_data(&data.data, &rollup_data)
                     .await
                 {
                     // this means someone submitted an invalid block to celestia;
@@ -261,6 +256,10 @@ impl Reader {
 
     /// Processes an individual block
     async fn process_block(&self, block: SequencerBlockSubset) -> eyre::Result<()> {
+        info!(
+            "sequencer block received from DA layer; height: {}",
+            block.header.height
+        );
         self.executor_tx.send(
             executor::ExecutorCommand::BlockReceivedFromDataAvailability {
                 block: Box::new(block),

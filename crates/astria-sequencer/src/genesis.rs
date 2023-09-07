@@ -4,13 +4,11 @@ use std::{
 };
 
 use anyhow::Context;
-use astria_proto::native::sequencer::v1alpha1::Address;
+use proto::native::sequencer::v1alpha1::Address;
 use serde::{
     Deserialize,
     Deserializer,
 };
-
-use crate::accounts::types::Balance;
 
 /// The genesis state for the application.
 #[derive(Debug, Deserialize, Default)]
@@ -29,7 +27,7 @@ impl GenesisState {
 pub(crate) struct Account {
     #[serde(deserialize_with = "deserialize_address")]
     pub(crate) address: Address,
-    pub(crate) balance: Balance,
+    pub(crate) balance: u128,
 }
 
 fn deserialize_address<'de, D>(deserializer: D) -> Result<Address, D::Error>

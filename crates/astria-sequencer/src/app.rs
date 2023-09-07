@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{
+    ensure,
     Context,
     Result,
 };
@@ -10,6 +11,7 @@ use penumbra_storage::{
     StateDelta,
     Storage,
 };
+use proto::native::sequencer::v1alpha1::Address;
 use tendermint::abci::{
     self,
     Event,
@@ -28,7 +30,7 @@ use crate::{
         StateReadExt as _,
         StateWriteExt as _,
     },
-    transaction::Signed,
+    transaction,
 };
 
 /// The application hash, used to verify the application state.
@@ -48,6 +50,15 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 #[derive(Clone, Debug)]
 pub(crate) struct App {
     state: InterBlockState,
+
+    /// set to `true` when `begin_block` is called, and set to `false` when
+    /// `deliver_tx` is called for the first time.
+    /// this is a hack to allow the `action_tree_root` to pass `deliver_tx`,
+    /// as it's the first "tx" delivered.
+    /// when the app is fully updated to ABCI++, `begin_block`, `deliver_tx`,
+    /// and `end_block` will all become one function `finalize_block`, so
+    /// this will not be needed.
+    has_block_just_begun: bool,
 }
 
 impl App {
@@ -60,6 +71,7 @@ impl App {
 
         Self {
             state,
+            has_block_just_begun: false,
         }
     }
 
@@ -99,19 +111,34 @@ impl App {
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
 
+        self.has_block_just_begun = true;
         self.apply(state_tx)
     }
 
     #[instrument(name = "App:deliver_tx", skip(self))]
     pub(crate) async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
-        let tx =
-            Signed::try_from_slice(tx).context("failed deserializing transaction from bytes")?;
+        use proto::{
+            generated::sequencer::v1alpha1 as raw,
+            native::sequencer::v1alpha1::SignedTransaction,
+            Message as _,
+        };
+        if self.has_block_just_begun {
+            ensure!(tx.len() == 32);
+            self.has_block_just_begun = false;
+            return Ok(vec![]);
+        }
 
-        let tx2 = tx.clone();
-        let stateless = tokio::spawn(async move { tx2.check_stateless() });
-        let tx2 = tx.clone();
+        let raw_signed_tx = raw::SignedTransaction::decode(tx)
+            .context("failed deserializing raw signed protobuf transaction from bytes")?;
+        let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
+            .context("failed creating a verified signed transaction from the raw proto type")?;
+
+        let signed_tx_2 = signed_tx.clone();
+        let stateless = tokio::spawn(async move { transaction::check_stateless(&signed_tx_2) });
+        let signed_tx_2 = signed_tx.clone();
         let state2 = self.state.clone();
-        let stateful = tokio::spawn(async move { tx2.check_stateful(&state2).await });
+        let stateful =
+            tokio::spawn(async move { transaction::check_stateful(&signed_tx_2, &state2).await });
 
         stateless
             .await
@@ -128,7 +155,7 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should be present and unique");
 
-        tx.execute(&mut state_tx)
+        transaction::execute(&signed_tx, &mut state_tx)
             .await
             .context("failed executing transaction")?;
         state_tx.apply();
@@ -139,7 +166,7 @@ impl App {
         info!(
             ?tx,
             height,
-            sender = %tx.signer_address(),
+            sender = %Address::from_verification_key(signed_tx.verification_key()),
             "executed transaction"
         );
         Ok(vec![])
@@ -220,12 +247,17 @@ impl App {
 
 #[cfg(test)]
 mod test {
-    use astria_proto::native::sequencer::v1alpha1::{
-        Address,
-        ADDRESS_LEN,
-    };
     use ed25519_consensus::SigningKey;
-    use prost::Message as _;
+    use proto::{
+        native::sequencer::v1alpha1::{
+            Address,
+            SequenceAction,
+            TransferAction,
+            UnsignedTransaction,
+            ADDRESS_LEN,
+        },
+        Message as _,
+    };
     use tendermint::{
         abci::types::CommitInfo,
         account,
@@ -245,21 +277,9 @@ mod test {
         accounts::{
             action::TRANSFER_FEE,
             state_ext::StateReadExt as _,
-            types::{
-                Balance,
-                Nonce,
-            },
-            Transfer,
         },
         genesis::Account,
-        sequence::{
-            action::calculate_fee,
-            Action as SequenceAction,
-        },
-        transaction::{
-            action::Action,
-            Unsigned,
-        },
+        sequence::calculate_fee,
     };
 
     /// attempts to decode the given hex string into an address.
@@ -278,15 +298,15 @@ mod test {
         vec![
             Account {
                 address: address_from_hex_string(ALICE_ADDRESS),
-                balance: 10u128.pow(19).into(),
+                balance: 10u128.pow(19),
             },
             Account {
                 address: address_from_hex_string(BOB_ADDRESS),
-                balance: 10u128.pow(19).into(),
+                balance: 10u128.pow(19),
             },
             Account {
                 address: address_from_hex_string(CAROL_ADDRESS),
-                balance: 10u128.pow(19).into(),
+                balance: 10u128.pow(19),
             },
         ]
     }
@@ -391,13 +411,19 @@ mod test {
 
         let alice = address_from_hex_string(ALICE_ADDRESS);
         let bob = address_from_hex_string(BOB_ADDRESS);
-        let value = Balance::from(333_333);
-        let tx = Unsigned {
-            nonce: Nonce::from(0),
-            actions: vec![Action::TransferAction(Transfer::new(bob, value))],
+        let value = 333_333;
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                TransferAction {
+                    to: bob,
+                    amount: value,
+                }
+                .into(),
+            ],
         };
         let signed_tx = tx.into_signed(&alice_keypair);
-        let bytes = signed_tx.to_proto().encode_to_vec();
+        let bytes = signed_tx.into_raw().encode_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(
@@ -406,7 +432,7 @@ mod test {
         );
         assert_eq!(
             app.state.get_account_balance(alice).await.unwrap(),
-            Balance::from(10u128.pow(19)) - (value + TRANSFER_FEE),
+            10u128.pow(19) - (value + TRANSFER_FEE),
         );
         assert_eq!(app.state.get_account_nonce(bob).await.unwrap(), 0);
         assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 1);
@@ -431,13 +457,18 @@ mod test {
         let bob = address_from_hex_string(BOB_ADDRESS);
 
         // 0-value transfer; only fee is deducted from sender
-        let value = Balance::from(0);
-        let tx = Unsigned {
-            nonce: Nonce::from(0),
-            actions: vec![Action::TransferAction(Transfer::new(bob, value))],
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                TransferAction {
+                    to: bob,
+                    amount: 0,
+                }
+                .into(),
+            ],
         };
         let signed_tx = tx.into_signed(&keypair);
-        let bytes = signed_tx.to_proto().encode_to_vec();
+        let bytes = signed_tx.into_raw().encode_to_vec();
         let res = app
             .deliver_tx(&bytes)
             .await
@@ -471,23 +502,26 @@ mod test {
         let data = b"hello world".to_vec();
         let fee = calculate_fee(&data).unwrap();
 
-        let tx = Unsigned {
-            nonce: Nonce::from(0),
-            actions: vec![Action::SequenceAction(SequenceAction::new(
-                b"testchainid".to_vec(),
-                data,
-            ))],
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                SequenceAction {
+                    chain_id: b"testchainid".to_vec(),
+                    data,
+                }
+                .into(),
+            ],
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let bytes = signed_tx.to_proto().encode_to_vec();
+        let bytes = signed_tx.into_raw().encode_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 1);
 
         assert_eq!(
             app.state.get_account_balance(alice).await.unwrap(),
-            Balance::from(10u128.pow(19)) - fee,
+            10u128.pow(19) - fee,
         );
     }
 

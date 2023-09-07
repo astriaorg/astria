@@ -1,15 +1,15 @@
 use std::time::Duration;
 
-use astria_sequencer_types::{
-    serde::NamespaceToTxCount,
-    SequencerBlockData,
-};
 use eyre::{
     bail,
     Result,
     WrapErr as _,
 };
 use humantime::format_duration;
+use sequencer_types::{
+    serde::NamespaceToTxCount,
+    SequencerBlockData,
+};
 use tendermint_rpc::{
     endpoint::block,
     HttpClient,
@@ -215,8 +215,8 @@ impl Relayer {
                     height = %sequencer_block_data.header().height,
                     block_hash = hex::encode(sequencer_block_data.block_hash()),
                     proposer = %sequencer_block_data.header().proposer_address,
-                    num_contained_namespaces = sequencer_block_data.rollup_txs().len(),
-                    namespaces_to_tx_count = %NamespaceToTxCount::new(sequencer_block_data.rollup_txs()),
+                    num_contained_namespaces = sequencer_block_data.rollup_data().len(),
+                    namespaces_to_tx_count = %NamespaceToTxCount::new(sequencer_block_data.rollup_data()),
                     "gossiping sequencer block",
                 );
                 if self

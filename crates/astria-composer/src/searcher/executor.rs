@@ -8,15 +8,6 @@ use std::{
     },
     time::Duration,
 };
-
-use astria_sequencer::{
-    accounts::types::Nonce,
-    transaction::{
-        Action,
-        Signed,
-        Unsigned,
-    },
-};
 use color_eyre::eyre::{
     self,
     bail,
@@ -25,6 +16,7 @@ use color_eyre::eyre::{
 };
 use ed25519_consensus::SigningKey;
 use humantime::format_duration;
+use proto::native::sequencer::v1alpha1::{Action, SignedTransaction, UnsignedTransaction};
 use secrecy::{
     ExposeSecret as _,
     SecretString,
@@ -170,15 +162,15 @@ impl Executor {
     }
 
     /// Return the current nonce
-    fn nonce(&self) -> Nonce {
-        Nonce::from(self.nonce.load(Ordering::Relaxed))
+    fn nonce(&self) -> u32 {
+        self.nonce.load(Ordering::Relaxed)
     }
 
     /// Gets the next nonce to sign over
-    fn get_next_nonce(&mut self) -> Nonce {
+    fn get_next_nonce(&mut self) -> u32 {
         // get current nonce and calculate next one
         let curr_nonce = self.nonce();
-        let next_nonce = curr_nonce + Nonce::from(1);
+        let next_nonce = curr_nonce + 1;
         // save next nonce
         self.nonce.store(u32::from(next_nonce), Ordering::Relaxed);
         curr_nonce
@@ -186,14 +178,14 @@ impl Executor {
 
     /// Creates an `Unsigned` from `Vec<Action>` using the current nonce.
     /// If the current nonce is not stored, fetches the latest nonce from the sequencer node.
-    fn make_unsigned_tx(&mut self, actions: Vec<Action>) -> Unsigned {
+    fn make_unsigned_tx(&mut self, actions: Vec<Action>) -> UnsignedTransaction {
         // get current nonce and increment nonce
         let curr_nonce = self.get_next_nonce();
-        Unsigned::new_with_actions(curr_nonce, actions)
+        UnsignedTransaction{ nonce: curr_nonce, actions }
     }
 
     /// TODO
-    async fn submit_tx(&self, signed_tx: Signed) -> eyre::Result<()> {
+    async fn submit_tx(&self, signed_tx: SignedTransaction) -> eyre::Result<()> {
         let rsp = self
             .sequencer_client
             .inner

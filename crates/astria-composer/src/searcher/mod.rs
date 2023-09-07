@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use astria_sequencer::{
-    sequence,
-    transaction::Action,
-};
 use color_eyre::eyre::{
     self,
     WrapErr as _,
+};
+use proto::native::sequencer::v1alpha1::{
+    Action,
+    SequenceAction,
 };
 use tokio::{
     select,
@@ -29,7 +29,11 @@ mod rollup;
 
 use collector::Collector;
 
-/// the astria seqeuencer.
+/// A Searcher collates transactions from multiple rollups and bundles them into
+/// Astria sequencer transactions that are then passed on to the
+/// Shared Sequencer. The rollup transactions that make up these sequencer transactions
+/// have have the property of atomic inclusion, i.e. if they are submitted to the
+/// sequencer, all of them are going to be executed in the same Astria block.
 pub(super) struct Searcher {
     // Channel to report the internal status of the searcher to other parts of the system.
     status: watch::Sender<Status>,
@@ -49,6 +53,7 @@ pub(super) struct Searcher {
     submission_tasks: JoinSet<eyre::Result<()>>,
 }
 
+/// Announces the current status of the Searcher for other modules in the crate to use
 #[derive(Debug, Default)]
 pub(crate) struct Status {
     all_collectors_connected: bool,
@@ -137,6 +142,7 @@ impl Searcher {
         })
     }
 
+    /// Other modules can use this to get notified of changes to the Searcher state
     pub(crate) fn subscribe_to_state(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
     }
@@ -154,13 +160,16 @@ impl Searcher {
             // Pack into a vector of sequencer actions
             let data = rollup_tx.rlp().to_vec();
             let chain_id = chain_id.into_bytes();
-            let seq_action = Action::SequenceAction(sequence::Action::new(chain_id, data));
+            let seq_action = Action::Sequence(SequenceAction {
+                chain_id,
+                data,
+            });
 
             vec![seq_action]
         });
     }
 
-    /// Runs the Searcher
+    /// Starts the searcher and runs it until failure
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         self.spawn_collectors();
         let wait_for_collectors = self.wait_for_collectors();
