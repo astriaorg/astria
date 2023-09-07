@@ -22,7 +22,7 @@ use proto::native::sequencer::v1alpha1::SignedTransaction;
 /// This is somewhat arbitrary, but could be useful for proof of an action within the action tree.
 pub(crate) fn generate_sequence_actions_commitment(
     txs_bytes: Vec<Bytes>,
-) -> ([u8; 32], Vec<Bytes>) {
+) -> ([u8; 32], [u8; 32], Vec<Bytes>) {
     use proto::{
         generated::sequencer::v1alpha1 as raw,
         Message as _,
@@ -56,12 +56,15 @@ pub(crate) fn generate_sequence_actions_commitment(
 
     let chain_id_to_txs = group_sequence_actions_by_chain_id(&signed_txs);
 
+    let chain_ids = chain_id_to_txs.keys().cloned().collect::<Vec<_>>();
+
     // each leaf of the action tree is the root of a merkle tree of the `sequence::Action`s
     // with the same `chain_id`, prepended with `chain_id`.
     // the leaves are sorted in ascending order by `chain_id`.
     let leaves = generate_action_tree_leaves(chain_id_to_txs);
     (
         simple_hash_from_byte_vectors::<Sha256>(&leaves),
+        simple_hash_from_byte_vectors::<Sha256>(&chain_ids),
         txs_to_include,
     )
 }
@@ -124,7 +127,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let (action_commitment_0, _) = generate_sequence_actions_commitment(txs);
+        let (action_commitment_0, ..) = generate_sequence_actions_commitment(txs);
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
@@ -135,7 +138,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let (action_commitment_1, _) = generate_sequence_actions_commitment(txs);
+        let (action_commitment_1, ..) = generate_sequence_actions_commitment(txs);
         assert_eq!(action_commitment_0, action_commitment_1);
     }
 
@@ -219,7 +222,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let (actual, _) = generate_sequence_actions_commitment(txs);
+        let (actual, ..) = generate_sequence_actions_commitment(txs);
 
         let expected: [u8; 32] = [
             97, 82, 159, 138, 201, 12, 241, 95, 99, 19, 162, 205, 37, 38, 130, 165, 78, 185, 141,
