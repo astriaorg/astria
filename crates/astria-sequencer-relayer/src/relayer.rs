@@ -474,7 +474,7 @@ fn convert_block_response_to_sequencer_block_data(
     res: block::Response,
     current_height: Option<u64>,
 ) -> eyre::Result<SequencerBlockData> {
-    if Some(res.block.header.height.value()) < current_height {
+    if Some(res.block.header.height.value()) <= current_height {
         debug!(
             "sequencer block response contained height at or below the current height tracked in \
              relayer"
@@ -482,6 +482,7 @@ fn convert_block_response_to_sequencer_block_data(
     }
     let sequencer_block_data = SequencerBlockData::from_tendermint_block(res.block)
         .wrap_err("failed converting sequencer block response to sequencer block data")?;
+
     Ok(sequencer_block_data)
 }
 
