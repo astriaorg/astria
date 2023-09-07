@@ -22,7 +22,3 @@ proto = { package = "astria-proto", path = "../astria-proto" }
 
 [dev-dependencies]
 ct-merkle = { version = "0.1", features = ["serde"] }
-
-[features]
-relayer-test = [] # skips verification of txn data
-

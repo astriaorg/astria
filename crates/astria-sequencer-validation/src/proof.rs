@@ -85,16 +85,6 @@ impl PartialEq for InclusionProof {
 
 impl Eq for InclusionProof {}
 
-impl Default for InclusionProof {
-    fn default() -> Self {
-        Self {
-            idx: usize::default(),
-            num_leaves: usize::default(),
-            inclusion_proof: CtInclusionProof::from_bytes([0u8; 32].to_vec()),
-        }
-    }
-}
-
 impl InclusionProof {
     /// Verify that the merkle proof is valid for the given root hash and leaf value.
     ///

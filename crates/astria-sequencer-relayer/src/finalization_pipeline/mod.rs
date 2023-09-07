@@ -120,10 +120,7 @@ impl FinalizationPipeline {
 
 #[cfg(test)]
 mod test {
-    use sequencer_types::{
-        RawSequencerBlockData,
-        SequencerBlockData,
-    };
+    use sequencer_types::test_utils;
     use tendermint::{
         block::{
             parts::Header as IdHeader,
@@ -139,29 +136,26 @@ mod test {
     };
 
     fn make_parent_and_child_blocks(
-        parent_block_hash: u8,
+        parent_block_hash: Option<Hash>,
         parent_block_height: u32,
-        child_block_hash: u8,
         child_block_height: u32,
+        parent_block_salt: u8,
+        child_block_salt: u8,
     ) -> [BlockWrapper; 2] {
-        let mut parent_block = RawSequencerBlockData {
-            block_hash: Hash::Sha256([parent_block_hash; 32]),
-            ..Default::default()
-        };
+        let mut parent_block = test_utils::new_raw_block(parent_block_salt);
         parent_block.header.height = Height::from(parent_block_height);
-        let parent_block = SequencerBlockData::from_raw_unverified(parent_block);
+        let parent_block = test_utils::from_raw(parent_block);
 
-        let mut child_block = RawSequencerBlockData {
-            block_hash: Hash::Sha256([child_block_hash; 32]),
-            ..Default::default()
-        };
+        let mut child_block = test_utils::new_raw_block(child_block_salt);
         child_block.header.height = Height::from(child_block_height);
         let parent_id = Id {
-            hash: parent_block.block_hash(),
+            hash: parent_block_hash
+                .or_else(|| Some(parent_block.block_hash()))
+                .unwrap(),
             part_set_header: IdHeader::default(),
         };
         child_block.header.last_block_id = Some(parent_id.into());
-        let child_block = SequencerBlockData::from_raw_unverified(child_block);
+        let child_block = test_utils::from_raw(child_block);
 
         let parent_block = BlockWrapper::FromValidator(parent_block);
         let child_block = BlockWrapper::FromValidator(child_block);
@@ -170,14 +164,17 @@ mod test {
     }
 
     #[test]
-    fn test_finalization_parent_is_genesis() {
-        let [parent_block, child_block] = make_parent_and_child_blocks(0u8, 1, 1u8, 2);
+    fn finalization_parent_is_genesis() {
+        let [genesis_block, child_block] = make_parent_and_child_blocks(None, 1, 2, 0u8, 1u8);
 
-        let [_, grandchild_block] = make_parent_and_child_blocks(1u8, 2, 2u8, 3);
+        let child_block_hash = child_block.block_hash();
+
+        let [_, grandchild_block] =
+            make_parent_and_child_blocks(Some(child_block_hash), 2, 3, 1u8, 2u8);
 
         let mut pipeline = FinalizationPipeline::default();
 
-        pipeline.submit(parent_block.clone());
+        pipeline.submit(genesis_block.clone());
         assert!(!pipeline.has_finalized());
 
         pipeline.submit(child_block);
@@ -190,23 +187,29 @@ mod test {
 
         assert_eq!(
             finalized_blocks.pop().unwrap(),
-            parent_block.try_into().unwrap()
+            genesis_block.try_into().unwrap()
         )
     }
 
     #[test]
-    fn test_finalization_three_competing_blocks_at_height_two() {
-        let [parent_block, first_block] = make_parent_and_child_blocks(0u8, 1, 1u8, 2);
+    fn finalization_three_competing_blocks_at_height_two() {
+        let [genesis_block, first_block] = make_parent_and_child_blocks(None, 1, 2, 0u8, 1u8);
 
-        let [_, second_block] = make_parent_and_child_blocks(0u8, 1, 2u8, 2);
+        let genesis_block_hash = genesis_block.block_hash();
 
-        let [_, third_block] = make_parent_and_child_blocks(0u8, 1, 3u8, 2);
+        let [_, second_block] =
+            make_parent_and_child_blocks(Some(genesis_block_hash), 1, 2, 0u8, 2u8);
+        let [_, third_block] =
+            make_parent_and_child_blocks(Some(genesis_block_hash), 1, 2, 0u8, 3u8);
 
-        let [_, child_second_block] = make_parent_and_child_blocks(2u8, 1, 4u8, 3);
+        let second_block_hash = second_block.block_hash();
+
+        let [_, child_second_block] =
+            make_parent_and_child_blocks(Some(second_block_hash), 1, 3, 2u8, 4u8);
 
         let mut pipeline = FinalizationPipeline::default();
 
-        pipeline.submit(parent_block.clone()); // height 1
+        pipeline.submit(genesis_block.clone()); // height 1
         assert!(!pipeline.has_finalized());
 
         pipeline.submit(first_block); // height 2
@@ -226,7 +229,7 @@ mod test {
         assert_eq!(finalized_blocks.len(), 1);
         assert_eq!(
             finalized_blocks.pop().unwrap(),
-            parent_block.try_into().unwrap()
+            genesis_block.try_into().unwrap()
         );
     }
 }

@@ -67,19 +67,6 @@ pub struct SequencerBlockData {
     action_tree_root_inclusion_proof: InclusionProof,
 }
 
-impl Default for SequencerBlockData {
-    fn default() -> Self {
-        Self {
-            block_hash: Hash::default(),
-            header: default_header(),
-            last_commit: None,
-            rollup_data: HashMap::default(),
-            action_tree_root: [0u8; 32],
-            action_tree_root_inclusion_proof: InclusionProof::default(),
-        }
-    }
-}
-
 impl SequencerBlockData {
     /// Creates a new `SequencerBlockData` from the given data.
     ///
@@ -99,12 +86,10 @@ impl SequencerBlockData {
         let Some(data_hash) = header.data_hash else {
             bail!(Error::MissingDataHash);
         };
-        if !cfg!(feature = "relayer-test") {
-            action_tree_root_inclusion_proof
-                .verify(&action_tree_root, data_hash)
-                .wrap_err("failed to verify action tree root inclusion proof")?;
-            // TODO(https://github.com/astriaorg/astria/issues/270): also verify last_commit_hash
-        }
+        action_tree_root_inclusion_proof
+            .verify(&action_tree_root, data_hash)
+            .wrap_err("failed to verify action tree root inclusion proof")?;
+        // TODO(https://github.com/astriaorg/astria/issues/270): also verify last_commit_hash
 
         let data = Self {
             block_hash,
@@ -263,17 +248,6 @@ impl SequencerBlockData {
             });
         }
 
-        if cfg!(feature = "relayer-test") {
-            return Ok(Self {
-                block_hash: b.header.hash(),
-                header: b.header,
-                last_commit: b.last_commit,
-                rollup_data,
-                action_tree_root,
-                action_tree_root_inclusion_proof: InclusionProof::default(),
-            });
-        }
-
         // generate the action tree root proof of inclusion in `Header::data_hash`
         let tx_tree = MerkleTree::from_leaves(b.data);
         let calculated_data_hash = tx_tree.root();
@@ -313,27 +287,6 @@ impl SequencerBlockData {
         );
         Ok(())
     }
-
-    #[cfg(feature = "relayer-test")]
-    pub fn from_raw_unverified(raw_block: RawSequencerBlockData) -> Self {
-        let RawSequencerBlockData {
-            block_hash,
-            header,
-            last_commit,
-            action_tree_root,
-            rollup_data,
-            action_tree_root_inclusion_proof,
-        } = raw_block;
-
-        SequencerBlockData {
-            block_hash,
-            header,
-            last_commit,
-            action_tree_root,
-            rollup_data,
-            action_tree_root_inclusion_proof,
-        }
-    }
 }
 
 /// An unverified version of [`SequencerBlockData`], primarily used for
@@ -365,19 +318,6 @@ impl TryFrom<RawSequencerBlockData> for SequencerBlockData {
 impl From<SequencerBlockData> for RawSequencerBlockData {
     fn from(data: SequencerBlockData) -> Self {
         data.into_raw()
-    }
-}
-
-impl Default for RawSequencerBlockData {
-    fn default() -> Self {
-        Self {
-            block_hash: Hash::default(),
-            header: default_header(),
-            last_commit: None,
-            rollup_data: HashMap::default(),
-            action_tree_root: [0u8; 32],
-            action_tree_root_inclusion_proof: InclusionProof::default(),
-        }
     }
 }
 
@@ -430,7 +370,7 @@ mod test {
             let action_tree_root = [9u8; 32];
             let transactions = vec![
                 action_tree_root.to_vec(),
-                vec![0x11, 0x22, 0x33],
+                vec![0x11, 0x32, 0x33],
                 vec![0x44, 0x55, 0x66],
                 vec![0x77, 0x88, 0x99],
             ];
