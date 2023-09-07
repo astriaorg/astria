@@ -516,74 +516,59 @@ mod test {
 
     #[tokio::test]
     async fn fork_choice_head_setting() {
-        let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = Namespace::from_slice(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
-            .await
-            .unwrap();
-
+        // the queue.drain_blocks() funtion is used when the
+        // `execution_commit_level` == 'head'
+        let mut queue = Queue::new();
         let blocks = get_test_block_vec(4);
 
-        // because the block is executed the execution state is updated
-        let mut expected_execution_hash = hash(&executor.execution_state);
-        let execution_block_hash = executor
-            // insert the first block
-            .execute_block(blocks[0].clone())
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        assert_eq!(expected_execution_hash, execution_block_hash);
-        // because the block can be executed it does not stay in the queue
-        assert_eq!(queue_len(&executor.block_queue), 0);
+        // insert the first block
+        queue.insert(blocks[0].clone());
+        assert_eq!(queue_len(&queue), 1);
 
-        // add a block that doesn't have a parent
-        let execution_block_hash_2a = executor
-            .execute_block(blocks[2].clone())
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        // execution hash not updated
-        assert_eq!(expected_execution_hash, execution_block_hash_2a);
-        assert_eq!(queue_len(&executor.block_queue), 1);
+        // drain the blocks similar to normal use
+        let mut returned_blocks = queue.drain_blocks();
+        assert_eq!(queue_len(&queue), 0); // the queue is now empty
+        let mut block = returned_blocks.next().unwrap();
+        assert_eq!(block, blocks[0]);
 
-        // add in the same block again with a newer timestamp
-        // this simulates a different block at the same height
+        // insert a block with a gap
+        queue.insert(blocks[2].clone());
+        assert_eq!(queue_len(&queue), 1);
+        assert_eq!(queue.drain_blocks().peekable().peek(), None);
+
+        // create another block at the same height as the gap block
         let mut newer_2_block = blocks[2].clone();
         newer_2_block.header.time = Time::now();
         newer_2_block.block_hash = Hash::try_from(hash(b"some_other_hash")).unwrap();
-        let execution_block_hash_2b = executor
-            .execute_block(newer_2_block)
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        // execution hash not updated
-        assert_eq!(expected_execution_hash, execution_block_hash_2b);
-        assert_eq!(queue_len(&executor.block_queue), 2);
+        queue.insert(newer_2_block.clone());
+        assert_eq!(queue_len(&queue), 2);
+        assert_eq!(queue.drain_blocks().peekable().peek(), None);
 
-        // now when the missing block arrives, all the blocks get executed
-        // because everything at the head height is sent to execution
-        expected_execution_hash = hash(&hash(&hash(&executor.execution_state)));
-        let execution_block_hash_1 = executor
-            .execute_block(blocks[1].clone())
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        assert_eq!(expected_execution_hash, execution_block_hash_1);
-        // and the queue gets executed and cleared. the second block at height 2
-        // is cleared
-        assert_eq!(queue_len(&executor.block_queue), 0);
+        // insert the missing block
+        queue.insert(blocks[1].clone());
+        assert_eq!(queue_len(&queue), 3);
 
-        // execute another block after the head with multiple blocks
-        expected_execution_hash = hash(&executor.execution_state);
-        let execution_block_hash = executor
-            // insert the first block
-            .execute_block(blocks[3].clone())
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        assert_eq!(expected_execution_hash, execution_block_hash);
-        // because the block can be executed it does not stay in the queue
-        assert_eq!(queue_len(&executor.block_queue), 0);
+        // draining pulls all the blocks in the queue
+        returned_blocks = queue.drain_blocks();
+        assert_eq!(queue_len(&queue), 0);
+
+        block = returned_blocks.next().unwrap();
+        assert_eq!(block, blocks[1]);
+        // all the blocks at the head height are returned
+        block = returned_blocks.next().unwrap();
+        assert_eq!(block, blocks[2]);
+        block = returned_blocks.next().unwrap();
+        assert_eq!(block, newer_2_block);
+
+        // insert the next block
+        queue.insert(blocks[3].clone());
+        assert_eq!(queue_len(&queue), 1);
+
+        // this returns like normal again
+        returned_blocks = queue.drain_blocks();
+        assert_eq!(queue_len(&queue), 0);
+        block = returned_blocks.next().unwrap();
+        assert_eq!(block, blocks[3]);
     }
 
     // TODO (GHI #207: https://github.com/astriaorg/astria/issues/207)

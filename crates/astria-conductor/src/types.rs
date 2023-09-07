@@ -26,7 +26,7 @@ pub(crate) struct SequencerBlockSubset {
 impl Ord for SequencerBlockSubset {
     fn cmp(&self, other: &Self) -> Ordering {
         match self.header.height.cmp(&other.header.height) {
-            Ordering::Equal => other.header.time.cmp(&self.header.time),
+            Ordering::Equal => self.header.time.cmp(&other.header.time),
             other => other,
         }
     }
