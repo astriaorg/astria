@@ -279,77 +279,13 @@ impl Queue {
 
 #[cfg(test)]
 mod test {
-    use std::{
-        collections::HashSet,
-        sync::Arc,
-    };
-
-    use astria_proto::generated::execution::v1alpha1::{
-        DoBlockResponse,
-        InitStateResponse,
-    };
-    use astria_sequencer_types::Namespace;
-    use color_eyre::eyre::Result;
-    use prost_types::Timestamp;
     use sha2::Digest as _;
     use tendermint::{
         block::Id as BlockId,
         Time,
     };
-    use tokio::sync::{
-        mpsc,
-        Mutex,
-    };
 
     use super::*;
-    use crate::executor::{
-        ExecutionClient,
-        Executor,
-    };
-
-    // a mock ExecutionClient used for testing the Executor
-    struct MockExecutionClient {
-        finalized_blocks: Arc<Mutex<HashSet<Vec<u8>>>>,
-    }
-
-    impl MockExecutionClient {
-        fn new() -> Self {
-            Self {
-                finalized_blocks: Arc::new(Mutex::new(HashSet::new())),
-            }
-        }
-    }
-
-    impl crate::private::Sealed for MockExecutionClient {}
-
-    #[async_trait::async_trait]
-    impl ExecutionClient for MockExecutionClient {
-        // returns the sha256 hash of the prev_block_hash
-        // the Executor passes self.execution_state as prev_block_hash
-        async fn call_do_block(
-            &mut self,
-            prev_block_hash: Vec<u8>,
-            _transactions: Vec<Vec<u8>>,
-            _timestamp: Option<Timestamp>,
-        ) -> Result<DoBlockResponse> {
-            let res = hash(&prev_block_hash);
-            Ok(DoBlockResponse {
-                block_hash: res.to_vec(),
-            })
-        }
-
-        async fn call_finalize_block(&mut self, block_hash: Vec<u8>) -> Result<()> {
-            self.finalized_blocks.lock().await.insert(block_hash);
-            Ok(())
-        }
-
-        async fn call_init_state(&mut self) -> Result<InitStateResponse> {
-            let hasher = sha2::Sha256::new();
-            Ok(InitStateResponse {
-                block_hash: hasher.finalize().to_vec(),
-            })
-        }
-    }
 
     /// Return the number of blocks in the queue
     fn queue_len(queue: &Queue) -> usize {
