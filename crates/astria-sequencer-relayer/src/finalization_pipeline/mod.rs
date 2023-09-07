@@ -48,11 +48,11 @@ impl SoftBlock {
 /// sequential order with respect to height and to be validated. Assuming the validator set is
 /// honest, the conversion from tendermint block to [`SequencerBlockData`] will be successful and
 /// thereby also submission to the pipeline (validators check if commitment to rollup data is
-/// correct <https://github.com/astriaorg/astria/blob/main/specs/sequencer-app.md#processproposal>). This means all blocks at head height can be assumed to point to the soft
-/// block, i.e. all blocks at canonical head height + 1 point to the canonical head (blocks at
-/// grandchild height relative to canonical head point to a fork of the canonical shared-sequencer
-/// chain). As a follow, the arrival of a child block to any head block is expected to finalize
-/// that head block.
+/// correct <https://github.com/astriaorg/astria/blob/main/specs/sequencer-app.md#processproposal>).
+/// This means all blocks at head height can be assumed to point to the soft block, i.e. all
+/// blocks at canonical head height + 1 point to the canonical head (blocks at grandchild height
+/// relative to canonical head point to a fork of the canonical shared-sequencer chain). As a
+/// follow, the arrival of a child block to any head block is expected to finalize that head block.
 #[derive(Default)]
 pub(crate) struct FinalizationPipeline {
     /// Head of the canonical shared-sequencer chain.
