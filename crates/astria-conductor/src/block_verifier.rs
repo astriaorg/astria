@@ -70,7 +70,7 @@ impl BlockVerifier {
     ) -> eyre::Result<()> {
         // verify the block signature
         data.verify()
-            .wrap_err("failed to verify signature of signed namepsace data")?;
+            .wrap_err("failed to verify signature of signed namespace data")?;
 
         // get validator set for this height
         let height: u32 = data.data.header.height.value().try_into().expect(
@@ -123,7 +123,7 @@ impl BlockVerifier {
     ///   from tendermint
     /// - the signer of the SignedNamespaceData the proposer
     /// - the signature is valid
-    /// - the root of the markle tree of all the header fields matches the block's block_hash
+    /// - the root of the merkle tree of all the header fields matches the block's block_hash
     /// - the root of the merkle tree of all transactions in the block matches the block's data_hash
     /// - validate the block was actually finalized; ie >2/3 stake signed off on it
     pub async fn validate_sequencer_block_data(
