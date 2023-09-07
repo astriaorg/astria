@@ -478,98 +478,40 @@ mod test {
 
     #[tokio::test]
     async fn fill_multiple_block_gaps_in_reverse_order() {
-        let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = Namespace::from_slice(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
-            .await
-            .unwrap();
+        let mut queue = Queue::new();
+        let blocks = get_test_block_vec(4);
 
-        let blocks = get_test_block_vec(5);
+        queue.insert(blocks[1].clone());
+        assert_eq!(queue_len(&queue), 1);
+        // the queue wont return the out of order block
+        assert_eq!(queue.drain_blocks().peekable().peek(), None);
 
-        let original_execution_state = executor.execution_state.clone();
+        queue.insert(blocks[3].clone());
+        assert_eq!(queue_len(&queue), 2);
+        // the queue wont return the out of order blocks
+        assert_eq!(queue.drain_blocks().peekable().peek(), None);
 
-        // add an out of order block to the queue
-        let expected_execution_hash = executor.execution_state.clone();
-        let execution_block_hash_1 = executor
-            .execute_block(blocks[1].clone())
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        assert_eq!(expected_execution_hash, execution_block_hash_1);
-        assert_eq!(queue_len(&executor.block_queue), 1);
+        queue.insert(blocks[2].clone());
+        assert_eq!(queue_len(&queue), 3);
+        // the queue wont return the out of order blocks
+        assert_eq!(queue.drain_blocks().peekable().peek(), None);
 
-        // add another out of order block to the queue with another gap
-        let expected_execution_hash = executor.execution_state.clone();
-        let execution_block_hash_3 = executor
-            .execute_block(blocks[3].clone())
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        assert_eq!(expected_execution_hash, execution_block_hash_3);
-        assert_eq!(queue_len(&executor.block_queue), 2);
+        // insert the missing block
+        queue.insert(blocks[0].clone());
+        assert_eq!(queue_len(&queue), 4);
+        // drain now pulls all continuous blocks
+        let mut returned_blocks = queue.drain_blocks();
+        assert_eq!(queue_len(&queue), 0); // the queue is now empty
 
-        // add a block that fills the second gaps but not the
-        // first. execution state shouldn't change yet
-        let expected_execution_hash = executor.execution_state.clone();
-        let execution_block_hash_2 = executor
-            .execute_block(blocks[2].clone())
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        assert_eq!(expected_execution_hash, execution_block_hash_2);
-        assert_eq!(queue_len(&executor.block_queue), 3);
-
-        // add the final missing block to the queue
-        // all the block in the queue should be executed and the queue should be cleared
-        let expected_execution_hash = hash(&hash(&hash(&hash(&executor.execution_state))));
-        let execution_block_hash_0 = executor
-            .execute_block(blocks[0].clone())
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        // the returned execution hash is the hash of the execution state after
-        // the most recent block is executed (block 4)
-        assert_eq!(expected_execution_hash, execution_block_hash_0);
-        assert_eq!(queue_len(&executor.block_queue), 0);
-
-        // check that the execution hash of all the blocks are in the
-        // sequencer_hash_to_execution_hash map
-        // block 1 has an exeuction hash
-        let sequencer_block_hash = blocks[0].block_hash();
-        let expected_state = hash(&original_execution_state);
-        let block_execution_hash = executor
-            .sequencer_hash_to_execution_hash
-            .get(&sequencer_block_hash)
-            .unwrap()
-            .clone();
-        assert_eq!(expected_state, block_execution_hash);
-        // block 2 has an exeuction hash
-        let sequencer_block_hash = blocks[1].block_hash();
-        let expected_state = hash(&hash(&original_execution_state));
-        let block_execution_hash = executor
-            .sequencer_hash_to_execution_hash
-            .get(&sequencer_block_hash)
-            .unwrap()
-            .clone();
-        assert_eq!(expected_state, block_execution_hash);
-        // block 3 has an exeuction hash
-        let sequencer_block_hash = blocks[2].block_hash();
-        let expected_state = hash(&hash(&hash(&original_execution_state)));
-        let block_execution_hash = executor
-            .sequencer_hash_to_execution_hash
-            .get(&sequencer_block_hash)
-            .unwrap()
-            .clone();
-        assert_eq!(expected_state, block_execution_hash);
-        // block 4 has an exeuction hash
-        let sequencer_block_hash = blocks[3].block_hash();
-        let expected_state = hash(&hash(&hash(&hash(&original_execution_state))));
-        let block_execution_hash = executor
-            .sequencer_hash_to_execution_hash
-            .get(&sequencer_block_hash)
-            .unwrap()
-            .clone();
-        assert_eq!(expected_state, block_execution_hash);
+        // check that the blocks are returned in the correct order
+        let mut block = returned_blocks.next().unwrap();
+        assert_eq!(block, blocks[0]);
+        block = returned_blocks.next().unwrap();
+        assert_eq!(block, blocks[1]);
+        block = returned_blocks.next().unwrap();
+        assert_eq!(block, blocks[2]);
+        block = returned_blocks.next().unwrap();
+        assert_eq!(block, blocks[3]);
     }
 
     #[tokio::test]
