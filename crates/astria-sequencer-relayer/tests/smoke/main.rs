@@ -402,10 +402,6 @@ async fn test_finalization_competing_blocks() {
         }
     }
 
-    sequencer_relayer
-        .advance_to_time_mod_block_time_not_zero(10)
-        .await;
-
     // parent two is discarded
     let blobs_seen_by_celestia = sequencer_relayer.celestia.state_rpc_confirmed_rx.try_recv();
 
