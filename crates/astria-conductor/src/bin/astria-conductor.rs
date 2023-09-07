@@ -57,6 +57,10 @@ async fn run() -> Result<()> {
     info!("Using Celestia node at {}", conf.celestia_node_url);
     info!("Using execution node at {}", conf.execution_rpc_url);
     info!("Using Tendermint node at {}", conf.tendermint_url);
+    info!(
+        "Execution commit level set to: {}",
+        conf.execution_commit_level
+    );
 
     let SignalReceiver {
         mut reload_rx,

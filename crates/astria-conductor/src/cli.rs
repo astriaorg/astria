@@ -8,6 +8,7 @@ pub struct Cli {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub celestia_node_url: Option<String>,
 
+    /// URL of the Tendermint node (sequencer/metro).
     #[arg(long = "tendermint-url")]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub tendermint_url: Option<String>,
@@ -33,10 +34,18 @@ pub struct Cli {
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub libp2p_private_key: Option<String>,
 
+    /// Port to listen on for libp2p
     #[arg(long = "libp2p-port")]
     #[serde(skip_serializing_if = "::std::option::Option::is_none")]
     pub libp2p_port: Option<u16>,
 
+    /// Disable reading from the DA layer and block finalization
     #[arg(long = "disable-finalization")]
     pub disable_finalization: bool,
+
+    /// The Execution commit level for controlling the amount of finality of blocks sent
+    /// to the execution layer.
+    #[arg(long = "execution-commit-level")]
+    #[serde(skip_serializing_if = "::std::option::Option::is_none")]
+    pub execution_commit_level: Option<String>,
 }

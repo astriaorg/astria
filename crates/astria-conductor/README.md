@@ -11,6 +11,7 @@ Coordinates blocks between the data availability layer and the execution layer.
   tendermint_url = "http://localhost:1318"
   chain_id = "ethereum"
   execution_rpc_url = "http://localhost:50051"
+  execution_commit_level = "head"
   ```
 
 * run `cargo run`

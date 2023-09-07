@@ -46,6 +46,11 @@ pub struct Config {
 
     /// log directive to use for telemetry.
     pub log: Option<String>,
+
+    /// The Execution commit level for controlling the amount of finality of blocks sent
+    /// to the execution layer.
+    #[serde(default = "default_execution_commit_level")]
+    pub execution_commit_level: String,
 }
 
 fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
@@ -86,4 +91,8 @@ fn default_execution_rpc_url() -> String {
 
 fn default_libp2p_port() -> u16 {
     2451
+}
+
+fn default_execution_commit_level() -> String {
+    "head".to_string()
 }

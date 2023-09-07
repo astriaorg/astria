@@ -52,6 +52,7 @@ pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
         Namespace::from_slice(conf.chain_id.as_bytes()),
+        conf.execution_commit_level.clone(),
     )
     .await?;
     let join_handle = task::spawn(async move { executor.run().await });
@@ -108,10 +109,18 @@ struct Executor<C> {
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
     sequencer_hash_to_execution_hash: HashMap<Hash, Vec<u8>>,
+
+    /// The Execution commit level for controlling the finality level of blocks
+    /// sent to the execution layer.
+    execution_commit_level: String,
 }
 
 impl<C: ExecutionClient> Executor<C> {
-    async fn new(mut execution_rpc_client: C, namespace: Namespace) -> Result<(Self, Sender)> {
+    async fn new(
+        mut execution_rpc_client: C,
+        namespace: Namespace,
+        execution_commit_level: String,
+    ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let init_state_response = execution_rpc_client.call_init_state().await?;
         let execution_state = init_state_response.block_hash;
@@ -122,6 +131,7 @@ impl<C: ExecutionClient> Executor<C> {
                 namespace,
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
+                execution_commit_level,
             },
             cmd_tx,
         ))
@@ -369,9 +379,14 @@ mod test {
     #[tokio::test]
     async fn execute_block_with_relevant_txs() {
         let namespace = Namespace::from_slice(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace)
-            .await
-            .unwrap();
+        let execution_commit_level = "head".to_string();
+        let (mut executor, _) = Executor::new(
+            MockExecutionClient::new(),
+            namespace,
+            execution_commit_level,
+        )
+        .await
+        .unwrap();
 
         let expected_exection_hash = hash(&executor.execution_state);
         let mut block = get_test_block_subset();
@@ -388,9 +403,15 @@ mod test {
     #[tokio::test]
     async fn execute_block_without_relevant_txs() {
         let namespace = Namespace::from_slice(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace)
-            .await
-            .unwrap();
+        let execution_commit_level = "head".to_string();
+
+        let (mut executor, _) = Executor::new(
+            MockExecutionClient::new(),
+            namespace,
+            execution_commit_level,
+        )
+        .await
+        .unwrap();
 
         let block = get_test_block_subset();
         let execution_block_hash = executor.execute_block(block).await.unwrap();
@@ -400,11 +421,15 @@ mod test {
     #[tokio::test]
     async fn handle_block_received_from_data_availability_not_yet_executed() {
         let namespace = Namespace::from_slice(b"test");
+        let execution_commit_level = "head".to_string();
+
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace).await.unwrap();
+        let (mut executor, _) = Executor::new(execution_client, namespace, execution_commit_level)
+            .await
+            .unwrap();
 
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
@@ -433,11 +458,15 @@ mod test {
     #[tokio::test]
     async fn handle_block_received_from_data_availability_no_relevant_transactions() {
         let namespace = Namespace::from_slice(b"test");
+        let execution_commit_level = "head".to_string();
+
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace).await.unwrap();
+        let (mut executor, _) = Executor::new(execution_client, namespace, execution_commit_level)
+            .await
+            .unwrap();
 
         let block: SequencerBlockSubset = get_test_block_subset();
         let previous_execution_state = executor.execution_state.clone();
