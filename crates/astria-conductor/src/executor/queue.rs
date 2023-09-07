@@ -452,47 +452,28 @@ mod test {
     // blocks and clears the queue
     #[tokio::test]
     async fn fill_block_gap() {
-        let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = Namespace::from_slice(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
-            .await
-            .unwrap();
-
+        let mut queue = Queue::new();
         let blocks = get_test_block_vec(2);
 
-        // add an out of order block to the queue
-        let expected_execution_hash = executor.execution_state.clone();
-        let execution_block_hash_1 = executor
-            .execute_block(blocks[1].clone())
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        assert_eq!(expected_execution_hash, execution_block_hash_1);
-        assert_eq!(queue_len(&executor.block_queue), 1);
+        // add block out of order
+        queue.insert(blocks[1].clone());
+        assert_eq!(queue_len(&queue), 1);
+        // the queue wont return the out of order block
+        assert_eq!(queue.drain_blocks().peekable().peek(), None);
+        assert_eq!(queue_len(&queue), 1);
 
-        // executing the skipped block
-        // the execution state is updated twice because multiple blocks are
-        // executed. see hash(hash()) on next line
-        let expected_execution_hash = hash(&hash(&executor.execution_state));
-        let expected_execution_hash_of_missing_block = hash(&executor.execution_state);
-        let execution_block_hash_0 = executor
-            .execute_block(blocks[0].clone())
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        assert_eq!(expected_execution_hash, execution_block_hash_0);
-        // check that the execution hash of the missing block is still in the
-        // sequencer_hash_to_execution_hash map
-        let sequencer_block_hash = blocks[0].block_hash();
-        let missing_block_execution_hash = executor
-            .sequencer_hash_to_execution_hash
-            .get(&sequencer_block_hash)
-            .unwrap()
-            .clone();
-        assert_eq!(
-            missing_block_execution_hash,
-            expected_execution_hash_of_missing_block
-        );
+        // insert the missing first block
+        queue.insert(blocks[0].clone());
+        assert_eq!(queue_len(&queue), 2);
+
+        // get the iterator over the returnable blocks
+        let mut returned_blocks = queue.drain_blocks();
+        assert_eq!(queue_len(&queue), 0); // this drains the whole queue in this instance
+        // check that the blocks are returned in the correct order
+        let block0 = returned_blocks.next().unwrap();
+        assert_eq!(block0, blocks[0]);
+        let block1 = returned_blocks.next().unwrap();
+        assert_eq!(block1, blocks[1]);
     }
 
     #[tokio::test]
