@@ -29,10 +29,7 @@ use tendermint::{
 use thiserror::Error;
 use tracing::debug;
 
-use crate::{
-    namespace::Namespace,
-    test_utils::default_header,
-};
+use crate::namespace::Namespace;
 
 #[derive(Error, Debug)]
 pub enum Error {

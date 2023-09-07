@@ -32,10 +32,7 @@ use tracing::{
 
 use crate::{
     data_availability::CelestiaClient,
-    finalization_pipeline::{
-        BlockWrapper,
-        FinalizationPipeline,
-    },
+    finalization_pipeline::FinalizationPipeline,
     macros::report_err,
     validator::Validator,
 };
@@ -224,9 +221,9 @@ impl Relayer {
                     "gossiping sequencer block",
                 );
                 let height = sequencer_block_data.header().height.value();
-                let is_proposed_by_validator =
-                    sequencer_block_data.header().proposer_address == self.validator.address;
-                if is_proposed_by_validator {
+
+                // Store the converted data
+                if sequencer_block_data.header().proposer_address == self.validator.address {
                     // submit blocks proposed by the sequencer running this relayer sidecar to
                     // gossipnet
                     if self
@@ -236,9 +233,15 @@ impl Relayer {
                     {
                         return HandleConversionCompletedResult::GossipChannelClosed;
                     }
+
+                    self.finalization_pipeline
+                        .submit_proposed_block(sequencer_block_data);
+                } else {
+                    self.finalization_pipeline
+                        .submit_remote_block(sequencer_block_data);
                 }
-                // Update the internal state (if the block was admitted incase of block proposed
-                // by local validator)
+
+                // Update the internal state
                 _ = self.state_tx.send_if_modified(|state| {
                     if Some(height) > state.current_sequencer_height {
                         state.current_sequencer_height = Some(height);
@@ -246,11 +249,6 @@ impl Relayer {
                     }
                     false
                 });
-                // Store the converted data
-                self.finalization_pipeline.submit(BlockWrapper::new(
-                    sequencer_block_data,
-                    is_proposed_by_validator,
-                ));
             }
             // Ignore sequencer responses that were filtered out
             // Report if the conversion failed

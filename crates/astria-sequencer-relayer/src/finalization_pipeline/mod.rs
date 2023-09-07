@@ -6,11 +6,9 @@ use std::{
 use sequencer_types::SequencerBlockData;
 use tendermint::Hash;
 
-pub(crate) mod block_wrapper;
-pub(crate) mod pipeline_item;
+mod pipeline_item;
 
-pub(crate) use block_wrapper::BlockWrapper;
-pub(crate) use pipeline_item::PipelineItem;
+use pipeline_item::PipelineItem;
 
 // the height of soft block + 1, i.e. the height of the canonical head + 1, child height with
 // respect to soft block
@@ -20,8 +18,18 @@ const HEAD_HEIGHT: u64 = 1;
 const HEAD_PLUS_ONE_HEIGHT: u64 = 2;
 
 /// Tracking canonical head of shared-sequencer chain as observed on cometbft.
-pub(crate) struct SoftBlock {
+struct SoftBlock {
     block: PipelineItem,
+}
+
+impl SoftBlock {
+    fn block_hash(&self) -> Hash {
+        self.block.block_hash()
+    }
+
+    fn height(&self) -> u64 {
+        self.block.height()
+    }
 }
 
 /// Pipeline handles validated blocks according to single slot finality (cometbft), received in
@@ -56,20 +64,31 @@ pub(crate) struct FinalizationPipeline {
 }
 
 impl FinalizationPipeline {
-    pub(crate) fn submit(&mut self, new_block: BlockWrapper) {
-        let new_block: PipelineItem = new_block.into();
+    /// Submits a block proposed by the local validator to pipeline. Final block is stored in
+    /// pipeline until drained.
+    pub(crate) fn submit_proposed_block(&mut self, new_block: SequencerBlockData) {
+        self.submit(PipelineItem::new_proposed_block(new_block))
+    }
 
+    /// Submits a block proposed by another validator to pipeline to verify canonicity of blocks
+    /// proposed by local validator with respect to the shared-sequencer chain. Block is discarded
+    /// when final.
+    pub(crate) fn submit_remote_block(&mut self, new_block: SequencerBlockData) {
+        self.submit(PipelineItem::new_remote_block(new_block))
+    }
+
+    fn submit(&mut self, new_block: PipelineItem) {
         match new_block.parent_block_hash() {
             Some(parent_of_new_block) => {
                 let soft_block = self.soft_block.as_ref().expect("should post genesis");
 
-                debug_assert!(new_block.height() > soft_block.block.height());
+                debug_assert!(new_block.height() > soft_block.height());
 
-                let steps = new_block.height() - soft_block.block.height();
+                let steps = new_block.height() - soft_block.height();
                 if steps == HEAD_HEIGHT {
                     // finalization pipeline assumes blocks arrive in sequential order from
                     // sequencer and are validated
-                    debug_assert!(parent_of_new_block == soft_block.block.block_hash());
+                    debug_assert!(parent_of_new_block == soft_block.block_hash());
 
                     self.pending.insert(new_block.block_hash(), new_block);
                 } else if steps == HEAD_PLUS_ONE_HEIGHT {
@@ -79,7 +98,7 @@ impl FinalizationPipeline {
                         HashMap::from([(new_block.block_hash(), new_block)]),
                     );
                     for competing_block in pending_at_prev_height.into_values() {
-                        debug_assert!(competing_block.height() == soft_block.block.height() + 1);
+                        debug_assert!(competing_block.height() == soft_block.height() + 1);
 
                         if competing_block.block_hash() == parent_of_new_block {
                             let old_head = mem::replace(
@@ -91,7 +110,7 @@ impl FinalizationPipeline {
                                 ),
                             );
 
-                            if let Some(Ok(finalized_validator_block)) =
+                            if let Some(finalized_validator_block) =
                                 old_head.expect("should be post genesis").block.finalize()
                             {
                                 self.finalized.push(finalized_validator_block);
@@ -131,8 +150,8 @@ mod test {
     };
 
     use super::{
-        BlockWrapper,
         FinalizationPipeline,
+        PipelineItem,
     };
 
     fn make_parent_and_child_blocks(
@@ -141,7 +160,7 @@ mod test {
         child_block_height: u32,
         parent_block_salt: u8,
         child_block_salt: u8,
-    ) -> [BlockWrapper; 2] {
+    ) -> [PipelineItem; 2] {
         let mut parent_block = test_utils::new_raw_block(parent_block_salt);
         parent_block.header.height = Height::from(parent_block_height);
         let parent_block = test_utils::from_raw(parent_block);
@@ -157,8 +176,10 @@ mod test {
         child_block.header.last_block_id = Some(parent_id.into());
         let child_block = test_utils::from_raw(child_block);
 
-        let parent_block = BlockWrapper::FromValidator(parent_block);
-        let child_block = BlockWrapper::FromValidator(child_block);
+        // only final blocks proposed by local validator will be stored until drained from the
+        // pipeline
+        let parent_block = PipelineItem::new_proposed_block(parent_block);
+        let child_block = PipelineItem::new_proposed_block(child_block);
 
         [parent_block, child_block]
     }
@@ -185,10 +206,7 @@ mod test {
 
         let mut finalized_blocks = pipeline.drain_finalized();
 
-        assert_eq!(
-            finalized_blocks.pop().unwrap(),
-            genesis_block.try_into().unwrap()
-        )
+        assert_eq!(finalized_blocks.pop().unwrap(), genesis_block.into(),)
     }
 
     #[test]

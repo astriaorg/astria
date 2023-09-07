@@ -1,16 +1,13 @@
 use sequencer_types::SequencerBlockData;
 use tendermint::Hash;
 
-use super::{
-    BlockWrapper,
-    SoftBlock,
-};
+use super::SoftBlock;
 
 // tracks state of an item in the pipeline. all blocks received from the sequencer running this
 // relayer are validated hence assumed to be heads, i.e. 1 block long forks of the canonical
 // shared-sequencer chain
-#[derive(Clone, Copy, Default, Debug)]
-enum State {
+#[derive(Default, Debug, Clone, Copy)]
+enum CommitState {
     // head of 1 block long fork, block points to canonical head of chain. all blocks received
     // from sequencer are validated and hence assumed to be forks of canonical chain (single slot
     // finality).
@@ -20,33 +17,48 @@ enum State {
     Soft,
 }
 
+// distinction is made between blocks published to cometbft by the sequencer running this relayer
+// sidecar, and by other validator sequencer's. blocks published to cometbft by this sequencer,
+// are published to DA by the relayer, hence stay in [`super::FinalizationPipeline`] until drained.
+#[derive(Debug, Clone, Copy)]
+enum ProposerState {
+    LocalValidator,
+    RemoteValidator,
+}
+
 /// Handles conversion between head block, soft block and final block as a block travels down the
 /// pipeline.
-#[derive(Debug)]
-pub(crate) struct PipelineItem {
-    block: BlockWrapper,
-    state: State,
+#[derive(Debug, Clone)]
+pub(super) struct PipelineItem {
+    block: SequencerBlockData,
+    commit_state: CommitState,
+    proposer_state: ProposerState,
 }
 
-impl From<BlockWrapper> for PipelineItem {
-    fn from(block: BlockWrapper) -> Self {
-        Self {
-            block,
-            state: State::default(),
-        }
-    }
-}
-
-impl TryInto<SequencerBlockData> for PipelineItem {
-    type Error = ();
-
-    fn try_into(self) -> Result<SequencerBlockData, Self::Error> {
-        self.block.try_into()
+impl Into<SequencerBlockData> for PipelineItem {
+    fn into(self) -> SequencerBlockData {
+        self.block
     }
 }
 
 impl PipelineItem {
-    // pipeline item state changes:
+    pub(super) fn new_proposed_block(block: SequencerBlockData) -> Self {
+        Self {
+            block,
+            commit_state: CommitState::default(),
+            proposer_state: ProposerState::LocalValidator,
+        }
+    }
+
+    pub(super) fn new_remote_block(block: SequencerBlockData) -> Self {
+        Self {
+            block,
+            commit_state: CommitState::default(),
+            proposer_state: ProposerState::RemoteValidator,
+        }
+    }
+
+    // pipeline item commit state changes:
     //
     // head -> soft (on soften)          i.e. fork -> canonical (on canonize)
     // soft -> final (on finalization)   i.e. canonical -> final (on finalization)
@@ -54,13 +66,14 @@ impl PipelineItem {
     // makes head block soft, i.e. makes fork block head of canonical chain
     #[must_use]
     pub(super) fn soften(mut self) -> Option<SoftBlock> {
-        use State::*;
+        use CommitState::*;
         let Self {
-            state, ..
+            commit_state: state,
+            ..
         } = self;
         match state {
             Head => {
-                self.state = Soft;
+                self.commit_state = Soft;
                 Some(SoftBlock {
                     block: self,
                 })
@@ -71,15 +84,20 @@ impl PipelineItem {
 
     // makes soft block final, i.e. finalizes the canonical head
     #[must_use]
-    pub(super) fn finalize(self) -> Option<Result<SequencerBlockData, ()>> {
-        use State::*;
+    pub(super) fn finalize(self) -> Option<SequencerBlockData> {
+        use CommitState::*;
+        use ProposerState::*;
         let Self {
-            state,
+            commit_state,
             block,
+            proposer_state,
         } = self;
-        match state {
-            Soft => Some(block.try_into()),
-            Head => None,
+        match proposer_state {
+            LocalValidator => match commit_state {
+                Soft => Some(block), // finalizes, returned for store till pipeline drained
+                Head => None,
+            },
+            RemoteValidator => None, // finalizes and is discarded
         }
     }
 
@@ -92,6 +110,6 @@ impl PipelineItem {
     }
 
     pub(super) fn height(&self) -> u64 {
-        self.block.height()
+        self.block.header().height.into()
     }
 }
