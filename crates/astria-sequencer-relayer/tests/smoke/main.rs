@@ -232,7 +232,7 @@ async fn slow_celestia_leads_to_bundled_blobs() {
     // advance the sequencer ticker by 1 four times and observe that conductor sees all blocks
     // published to gossip net. although parent, child and grandchild are all ready to be received
     // at 2 ticks, relayer only polls sequencer for one block per tick. todo(emhane): remove
-    // restriction.
+    // restriction <https://github.com/astriaorg/astria/issues/331>
     for mounted_block in [genesis, child, grandchild, parent] {
         sequencer_relayer.advance_time_by_n_sequencer_ticks(1).await;
         let block_seen_by_conductor = sequencer_relayer.conductor.block_rx.recv().await.unwrap();
