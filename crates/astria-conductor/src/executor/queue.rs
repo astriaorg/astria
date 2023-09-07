@@ -27,7 +27,7 @@
 //! soft blocks will be pulled as well as all the blocks in the pending blocks
 //! that are at the head height of the chain.
 //! The head height of the chain is updated when a new block is added to the
-//! soft blocks AND that block is a direct continuation of the chain.
+//! soft blocks AND that block is a continuation of the chain.
 
 use std::collections::{
     BTreeMap,
@@ -208,9 +208,9 @@ impl Queue {
         let block_hash = block.block_hash();
 
         if let Some(pending_blocks) = self.pending_blocks.get_mut(&height) {
-            let mut new_map = pending_blocks.clone();
-            new_map.insert(block_hash, block);
-            self.pending_blocks.insert(height, new_map);
+            let mut map = pending_blocks.clone();
+            map.insert(block_hash, block);
+            self.pending_blocks.insert(height, map);
         } else {
             let mut new_map = HashMap::new();
             new_map.insert(block_hash, block);
@@ -243,33 +243,6 @@ impl Queue {
     /// that is a descendant of the most recent "soft" block, and has a direct
     /// descendant, that block gets added to the `soft_blocks` BTreeMap and the
     /// head height is updated.
-    // fn update_internal_state(&mut self) {
-    //     // check if the block added connects blocks in the pending queue
-    //     let mut heights: Vec<Height> = self.pending_blocks.keys().cloned().collect();
-    //     heights.sort();
-    //     // walk the pending blocks starting from the head height
-    //     for height in heights {
-    //         // if the very first height in the pending blocks is the head height
-    //         if height == self.head_height {
-    //             if let Some(pending_blocks) = self.pending_blocks.clone().get(&height) {
-    //                 // walk the pending blocks at that height and check if any
-    //                 // of them are a parent
-    //                 for block in pending_blocks.values() {
-    //                     if self.is_block_a_parent(block) {
-    //                         self.soft_blocks.insert(height, block.clone());
-    //                         self.most_recent_soft_hash = block.block_hash();
-    //                         self.head_height = height.increment();
-    //                         self.remove_data_below_height(self.head_height);
-    //                         break;
-    //                     }
-    //                 }
-    //             }
-    //         // if the first height in the queue is not the head height just stop reorg
-    //         } else {
-    //             break;
-    //         }
-    //     }
-    // }
     fn update_internal_state(&mut self) {
         // check if the block added connects blocks in the pending queue
         'head_height: loop {
@@ -379,14 +352,14 @@ mod test {
     }
 
     /// Return the number of blocks in the queue
-    fn queue_len(queue: Queue) -> usize {
-        let pending_blocks = queue.pending_blocks;
-        let soft_blocks = queue.soft_blocks;
+    fn queue_len(queue: &Queue) -> usize {
+        // let pending_blocks = queue.pending_blocks;
+        // let soft_blocks = queue.soft_blocks;
         let mut len = 0;
-        for height in pending_blocks.values() {
+        for height in queue.pending_blocks.values() {
             len += height.keys().len();
         }
-        len += soft_blocks.len();
+        len += queue.soft_blocks.len();
         len
     }
 
@@ -442,36 +415,22 @@ mod test {
     // of those blocks in the queue
     #[tokio::test]
     async fn insert_next_block() {
-        let (alert_tx, _) = mpsc::unbounded_channel();
-        let namespace = Namespace::from_slice(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace, alert_tx)
-            .await
-            .unwrap();
-
+        let mut queue = Queue::new();
         let blocks = get_test_block_vec(2);
 
-        // because the block is executed the execution state is updated
-        let mut expected_execution_hash = hash(&executor.execution_state);
-        let execution_block_hash = executor
-            // insert the first block
-            .execute_block(blocks[0].clone())
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        assert_eq!(expected_execution_hash, execution_block_hash);
-        // because the block can be executed it does not stay in the queue
-        assert_eq!(queue_len(executor.block_queue.clone()), 0);
+        // insert and remove the first block
+        queue.insert(blocks[0].clone());
+        assert_eq!(queue_len(&queue), 1);
+        let returned_block = queue.drain_blocks().next().unwrap();
+        assert_eq!(returned_block, blocks[0]);
+        assert_eq!(queue_len(&queue), 0);
 
-        expected_execution_hash = hash(&executor.execution_state);
-        let execution_block_hash_1 = executor
-            // insert the first block
-            .execute_block(blocks[1].clone())
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        assert_eq!(expected_execution_hash, execution_block_hash_1);
-        // because the block can be executed it does not stay in the queue
-        assert_eq!(queue_len(executor.block_queue.clone()), 0);
+        // insert and remove the second block
+        queue.insert(blocks[1].clone());
+        assert_eq!(queue_len(&queue), 1);
+        let returned_block = queue.drain_blocks().next().unwrap();
+        assert_eq!(returned_block, blocks[1]);
+        assert_eq!(queue_len(&queue), 0);
     }
 
     // trying to execute a non-consecutive block doesn't change the execution
@@ -497,7 +456,7 @@ mod test {
             .expect("expected execution block hash");
         assert_eq!(expected_execution_hash, execution_block_hash);
         // because the block is out of order it is added to the queue
-        assert_eq!(queue_len(executor.block_queue.clone()), 1);
+        assert_eq!(queue_len(&executor.block_queue), 1);
 
         // the out of order block is not executed so it's hash is not in the
         // sequencer hash to execution hash map
@@ -528,7 +487,7 @@ mod test {
             .unwrap()
             .expect("expected execution block hash");
         assert_eq!(expected_execution_hash, execution_block_hash_1);
-        assert_eq!(queue_len(executor.block_queue.clone()), 1);
+        assert_eq!(queue_len(&executor.block_queue), 1);
 
         // executing the skipped block
         // the execution state is updated twice because multiple blocks are
@@ -575,7 +534,7 @@ mod test {
             .unwrap()
             .expect("expected execution block hash");
         assert_eq!(expected_execution_hash, execution_block_hash_1);
-        assert_eq!(queue_len(executor.block_queue.clone()), 1);
+        assert_eq!(queue_len(&executor.block_queue), 1);
 
         // add another out of order block to the queue with another gap
         let expected_execution_hash = executor.execution_state.clone();
@@ -585,7 +544,7 @@ mod test {
             .unwrap()
             .expect("expected execution block hash");
         assert_eq!(expected_execution_hash, execution_block_hash_3);
-        assert_eq!(queue_len(executor.block_queue.clone()), 2);
+        assert_eq!(queue_len(&executor.block_queue), 2);
 
         // add a block that fills the second gaps but not the
         // first. execution state shouldn't change yet
@@ -596,7 +555,7 @@ mod test {
             .unwrap()
             .expect("expected execution block hash");
         assert_eq!(expected_execution_hash, execution_block_hash_2);
-        assert_eq!(queue_len(executor.block_queue.clone()), 3);
+        assert_eq!(queue_len(&executor.block_queue), 3);
 
         // add the final missing block to the queue
         // all the block in the queue should be executed and the queue should be cleared
@@ -609,7 +568,7 @@ mod test {
         // the returned execution hash is the hash of the execution state after
         // the most recent block is executed (block 4)
         assert_eq!(expected_execution_hash, execution_block_hash_0);
-        assert_eq!(queue_len(executor.block_queue.clone()), 0);
+        assert_eq!(queue_len(&executor.block_queue), 0);
 
         // check that the execution hash of all the blocks are in the
         // sequencer_hash_to_execution_hash map
@@ -671,7 +630,7 @@ mod test {
             .expect("expected execution block hash");
         assert_eq!(expected_execution_hash, execution_block_hash);
         // because the block can be executed it does not stay in the queue
-        assert_eq!(queue_len(executor.block_queue.clone()), 0);
+        assert_eq!(queue_len(&executor.block_queue), 0);
 
         // add a block that doesn't have a parent
         let execution_block_hash_2a = executor
@@ -681,7 +640,7 @@ mod test {
             .expect("expected execution block hash");
         // execution hash not updated
         assert_eq!(expected_execution_hash, execution_block_hash_2a);
-        assert_eq!(queue_len(executor.block_queue.clone()), 1);
+        assert_eq!(queue_len(&executor.block_queue), 1);
 
         // add in the same block again with a newer timestamp
         // this simulates a different block at the same height
@@ -695,7 +654,7 @@ mod test {
             .expect("expected execution block hash");
         // execution hash not updated
         assert_eq!(expected_execution_hash, execution_block_hash_2b);
-        assert_eq!(queue_len(executor.block_queue.clone()), 2);
+        assert_eq!(queue_len(&executor.block_queue), 2);
 
         // now when the missing block arrives, all the blocks get executed
         // because everything at the head height is sent to execution
@@ -708,7 +667,7 @@ mod test {
         assert_eq!(expected_execution_hash, execution_block_hash_1);
         // and the queue gets executed and cleared. the second block at height 2
         // is cleared
-        assert_eq!(queue_len(executor.block_queue.clone()), 0);
+        assert_eq!(queue_len(&executor.block_queue), 0);
 
         // execute another block after the head with multiple blocks
         expected_execution_hash = hash(&executor.execution_state);
@@ -720,7 +679,7 @@ mod test {
             .expect("expected execution block hash");
         assert_eq!(expected_execution_hash, execution_block_hash);
         // because the block can be executed it does not stay in the queue
-        assert_eq!(queue_len(executor.block_queue.clone()), 0);
+        assert_eq!(queue_len(&executor.block_queue), 0);
     }
 
     // TODO (GHI #207: https://github.com/astriaorg/astria/issues/207)
