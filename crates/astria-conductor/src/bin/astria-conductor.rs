@@ -32,6 +32,7 @@ use tokio::{
 use tracing::{
     error,
     info,
+    instrument,
 };
 
 #[tokio::main]
@@ -40,6 +41,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+#[instrument(name = "astria_conductor::run")]
 async fn run() -> Result<()> {
     let args = Cli::parse();
     // hierarchical config. cli args override Envars which override toml config values
