@@ -39,4 +39,8 @@ pub struct Cli {
 
     #[arg(long = "disable-finalization")]
     pub disable_finalization: bool,
+
+    /// Flag to skip or execute empty blocks
+    #[arg(long = "skip-empty-blocks")]
+    pub skip_empty_blocks: bool,
 }

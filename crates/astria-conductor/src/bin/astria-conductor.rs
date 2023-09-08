@@ -57,6 +57,11 @@ async fn run() -> Result<()> {
     info!("Using Celestia node at {}", conf.celestia_node_url);
     info!("Using execution node at {}", conf.execution_rpc_url);
     info!("Using Tendermint node at {}", conf.tendermint_url);
+    if !conf.skip_empty_blocks {
+        info!("Executing empty blocks");
+    } else {
+        info!("Not executing empty blocks");
+    }
 
     let SignalReceiver {
         mut reload_rx,

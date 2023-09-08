@@ -52,6 +52,7 @@ pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
         Namespace::from_slice(conf.chain_id.as_bytes()),
+        conf.skip_empty_blocks,
     )
     .await?;
     let join_handle = task::spawn(async move { executor.run().await });
@@ -108,10 +109,17 @@ struct Executor<C> {
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
     sequencer_hash_to_execution_hash: HashMap<Hash, Vec<u8>>,
+
+    /// Flag to skip or execute empty blocks
+    skip_empty_blocks: bool,
 }
 
 impl<C: ExecutionClient> Executor<C> {
-    async fn new(mut execution_rpc_client: C, namespace: Namespace) -> Result<(Self, Sender)> {
+    async fn new(
+        mut execution_rpc_client: C,
+        namespace: Namespace,
+        skip_empty_blocks: bool,
+    ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let init_state_response = execution_rpc_client.call_init_state().await?;
         let execution_state = init_state_response.block_hash;
@@ -122,6 +130,7 @@ impl<C: ExecutionClient> Executor<C> {
                 namespace,
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
+                skip_empty_blocks,
             },
             cmd_tx,
         ))
@@ -175,10 +184,10 @@ impl<C: ExecutionClient> Executor<C> {
     /// execution block hash.
     /// if there are no relevant transactions in the SequencerBlock, it returns None.
     async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Vec<u8>>> {
-        if block.rollup_transactions.is_empty() {
+        if self.skip_empty_blocks && block.rollup_transactions.is_empty() {
             debug!(
                 height = block.header.height.value(),
-                "no transactions in block"
+                "no transactions in block, skipping execution"
             );
             return Ok(None);
         }
@@ -369,9 +378,11 @@ mod test {
     #[tokio::test]
     async fn execute_block_with_relevant_txs() {
         let namespace = Namespace::from_slice(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace)
-            .await
-            .unwrap();
+        let skip_empty_blocks = false;
+        let (mut executor, _) =
+            Executor::new(MockExecutionClient::new(), namespace, skip_empty_blocks)
+                .await
+                .unwrap();
 
         let expected_exection_hash = hash(&executor.execution_state);
         let mut block = get_test_block_subset();
@@ -386,15 +397,38 @@ mod test {
     }
 
     #[tokio::test]
-    async fn execute_block_without_relevant_txs() {
+    async fn skip_block_without_relevant_txs() {
         let namespace = Namespace::from_slice(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace)
-            .await
-            .unwrap();
+        let skip_empty_blocks = true;
+        let (mut executor, _) =
+            Executor::new(MockExecutionClient::new(), namespace, skip_empty_blocks)
+                .await
+                .unwrap();
 
         let block = get_test_block_subset();
         let execution_block_hash = executor.execute_block(block).await.unwrap();
         assert!(execution_block_hash.is_none());
+    }
+
+    #[tokio::test]
+    async fn execute_block_without_relevant_txs() {
+        let namespace = Namespace::from_slice(b"test");
+        let skip_empty_blocks = false;
+        let (mut executor, _) =
+            Executor::new(MockExecutionClient::new(), namespace, skip_empty_blocks)
+                .await
+                .unwrap();
+
+        let expected_exection_hash = hash(&executor.execution_state);
+        let mut block = get_test_block_subset();
+        block.rollup_transactions.push(b"test_transaction".to_vec());
+
+        let execution_block_hash = executor
+            .execute_block(block)
+            .await
+            .unwrap()
+            .expect("expected execution block hash");
+        assert_eq!(expected_exection_hash, execution_block_hash);
     }
 
     #[tokio::test]
@@ -404,7 +438,10 @@ mod test {
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace).await.unwrap();
+        let skip_empty_blocks = false;
+        let (mut executor, _) = Executor::new(execution_client, namespace, skip_empty_blocks)
+            .await
+            .unwrap();
 
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
@@ -431,13 +468,17 @@ mod test {
     }
 
     #[tokio::test]
-    async fn handle_block_received_from_data_availability_no_relevant_transactions() {
+    async fn handle_block_received_from_data_availability_no_relevant_transactions_skip_empty_block()
+     {
         let namespace = Namespace::from_slice(b"test");
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace).await.unwrap();
+        let skip_empty_blocks = true;
+        let (mut executor, _) = Executor::new(execution_client, namespace, skip_empty_blocks)
+            .await
+            .unwrap();
 
         let block: SequencerBlockSubset = get_test_block_subset();
         let previous_execution_state = executor.execution_state.clone();
@@ -458,6 +499,41 @@ mod test {
         );
         assert_eq!(previous_execution_state, executor.execution_state,);
         // should be empty because nothing was executed
+        assert!(executor.sequencer_hash_to_execution_hash.is_empty());
+    }
+
+    #[tokio::test]
+    async fn handle_block_received_from_data_availability_no_relevant_transactions_execute_empty_block()
+     {
+        let namespace = Namespace::from_slice(b"test");
+        let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
+        let execution_client = MockExecutionClient {
+            finalized_blocks: finalized_blocks.clone(),
+        };
+        let skip_empty_blocks = false;
+        let (mut executor, _) = Executor::new(execution_client, namespace, skip_empty_blocks)
+            .await
+            .unwrap();
+
+        let block: SequencerBlockSubset = get_test_block_subset();
+        let expected_execution_state = hash(&executor.execution_state);
+
+        executor
+            .handle_block_received_from_data_availability(block)
+            .await
+            .unwrap();
+
+        // should be added to finalized blocks
+        assert!(!finalized_blocks.lock().await.is_empty());
+        assert!(
+            finalized_blocks
+                .lock()
+                .await
+                .get(&executor.execution_state)
+                .is_some()
+        );
+        assert_eq!(expected_execution_state, executor.execution_state,);
+        // should be empty because the block was executed AND finalized
         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
     }
 }
