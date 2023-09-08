@@ -25,7 +25,11 @@ use tokio::{
 use tracing::{
     debug,
     info,
+    instrument,
+    span,
     warn,
+    Instrument,
+    Level,
 };
 
 use crate::{
@@ -57,6 +61,7 @@ pub enum DriverCommand {
     Shutdown,
 }
 
+#[derive(Debug)]
 pub struct Driver {
     pub cmd_tx: Sender,
 
@@ -80,11 +85,14 @@ pub struct Driver {
 }
 
 impl Driver {
+    #[instrument(name = "driver", skip_all)]
     pub async fn new(
         conf: Config,
     ) -> Result<(Self, executor::JoinHandle, Option<reader::JoinHandle>)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        let executor_span = span!(Level::ERROR, "executor::spawn");
         let (executor_join_handle, executor_tx) = executor::spawn(&conf)
+            .instrument(executor_span)
             .await
             .wrap_err("failed to construct Executor")?;
 
@@ -96,8 +104,10 @@ impl Driver {
         let (reader_join_handle, reader_tx) = if conf.disable_finalization {
             (None, None)
         } else {
+            let reader_span = span!(Level::ERROR, "reader::spawn");
             let (reader_join_handle, reader_tx) =
                 reader::spawn(&conf, executor_tx.clone(), block_verifier.clone())
+                    .instrument(reader_span)
                     .await
                     .wrap_err("failed to construct data availability Reader")?;
             (Some(reader_join_handle), Some(reader_tx))
@@ -122,8 +132,9 @@ impl Driver {
     }
 
     /// Runs the Driver event loop.
+    #[instrument(name = "driver", skip_all)]
     pub async fn run(&mut self) -> Result<()> {
-        info!(actor_name = "driver", "Starting driver event loop.");
+        info!("Starting driver event loop.");
         loop {
             select! {
                 res = self.network.get_mut().0.next() => {
@@ -132,7 +143,6 @@ impl Driver {
                             Ok(event) => {
                                 if let Err(e) = self.handle_network_event(event).await {
                                     debug!(
-                                        actor_name = "driver",
                                         error.msg = %e,
                                         error.cause = ?e,
                                         "failed to handle network event"
@@ -141,7 +151,6 @@ impl Driver {
                             }
                             Err(err) => {
                                 warn!(
-                                    actor_name = "driver",
                                     error.msg = %err,
                                     error.cause = ?err,
                                     "encountered error while polling p2p network"
@@ -154,10 +163,7 @@ impl Driver {
                     if let Some(cmd) = cmd {
                         self.handle_driver_command(cmd).await.wrap_err("failed to handle driver command")?;
                     } else {
-                        info!(
-                            actor_name = "driver",
-                            "Driver command channel closed."
-                        );
+                        info!("Driver command channel closed.");
                         break;
                     }
                 }
@@ -169,10 +175,10 @@ impl Driver {
     async fn handle_network_event(&self, event: NetworkEvent) -> Result<()> {
         match event {
             NetworkEvent::NewListenAddr(addr) => {
-                info!(actor_name = "driver", "listening on {}", addr);
+                info!("listening on {}", addr);
             }
             NetworkEvent::GossipsubMessage(msg) => {
-                debug!(actor_name = "driver", "received gossip message");
+                debug!("received gossip message");
                 let block = SequencerBlockData::from_bytes(&msg.data)
                     .wrap_err("failed to deserialize SequencerBlockData received from network")?;
 
@@ -183,7 +189,6 @@ impl Driver {
                     .wrap_err("invalid block received from gossip network")?;
 
                 info!(
-                    actor_name = "driver",
                     height = block.header().height.value(),
                     "sequencer block received from p2p network",
                 );
@@ -193,7 +198,7 @@ impl Driver {
                     })
                     .wrap_err("failed to send SequencerBlockData from network to executor")?;
             }
-            _ => debug!(actor_name = "driver", "received network event"),
+            _ => debug!("received network event"),
         }
 
         Ok(())
@@ -227,7 +232,7 @@ impl Driver {
         }
         *is_shutdown = true;
 
-        info!(actor_name = "driver", "Shutting down driver.");
+        info!("Shutting down driver.");
         self.executor_tx.send(ExecutorCommand::Shutdown)?;
 
         let Some(reader_tx) = &self.reader_tx else {

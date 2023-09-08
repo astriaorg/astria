@@ -42,7 +42,10 @@ pub(crate) async fn spawn(
     executor_tx: executor::Sender,
     block_verifier: Arc<BlockVerifier>,
 ) -> eyre::Result<(JoinHandle, Sender)> {
-    info!(actor_name = "reader", "Spawning reader task.");
+    info!(
+        celestia_node_url = %conf.celestia_node_url,
+        "Spawning reader task."
+    );
     let (mut reader, reader_tx) = Reader::new(
         &conf.celestia_node_url,
         &conf.celestia_bearer_token,
@@ -53,7 +56,7 @@ pub(crate) async fn spawn(
     .await
     .wrap_err("failed to create Reader")?;
     let join_handle = task::spawn(async move { reader.run().await });
-    info!(actor_name = "reader", "Spawned reader task.");
+    info!("Spawned reader task.");
     Ok((join_handle, reader_tx))
 }
 
@@ -65,6 +68,7 @@ pub enum ReaderCommand {
     Shutdown,
 }
 
+#[derive(Debug)]
 pub struct Reader {
     /// Channel on which reader commands are received.
     cmd_rx: Receiver,
@@ -103,11 +107,7 @@ impl Reader {
         // TODO: we should probably pass in the height we want to start at from some genesis/config
         // file
         let curr_block_height = celestia_client.get_latest_height().await?;
-        info!(
-            actor_name = "reader",
-            da_height = curr_block_height,
-            "creating Reader"
-        );
+        info!(da_height = curr_block_height, "creating Reader");
 
         Ok((
             Self {
@@ -122,8 +122,9 @@ impl Reader {
         ))
     }
 
+    #[instrument(name = "reader", skip_all)]
     async fn run(&mut self) -> eyre::Result<()> {
-        info!(actor_name = "reader", "Starting reader event loop.");
+        info!("Starting reader event loop.");
 
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
@@ -132,7 +133,6 @@ impl Reader {
                         Ok(blocks) => blocks,
                         Err(e) => {
                             warn!(
-                                actor_name = "reader",
                                 error.msg = %e,
                                 error.cause = ?e,
                                 "failed to get new blocks"
@@ -144,7 +144,6 @@ impl Reader {
                         for block in blocks {
                             if let Err(e) = self.process_block(block).await {
                                 warn!(
-                                    actor_name = "reader",
                                     error.msg = %e,
                                     error.cause = ?e,
                                     "failed to process block"
@@ -154,7 +153,7 @@ impl Reader {
                     }
                 }
                 ReaderCommand::Shutdown => {
-                    info!(actor_name = "reader", "Shutting down reader event loop.");
+                    info!("Shutting down reader event loop.");
                     break;
                 }
             }
@@ -164,7 +163,6 @@ impl Reader {
     }
 
     /// get_new_blocks fetches any new sequencer blocks from Celestia.
-    #[instrument(name = "Reader::get_new_blocks", skip_all)]
     pub async fn get_new_blocks(&mut self) -> eyre::Result<Option<Vec<SequencerBlockSubset>>> {
         // get the latest celestia block height
         let first_new_height = self.curr_block_height + 1;
@@ -175,7 +173,6 @@ impl Reader {
             .wrap_err("failed getting latest height from celestia")?;
         if curr_block_height <= self.curr_block_height {
             info!(
-                actor_name = "reader",
                 height.celestia = curr_block_height,
                 height.previous = self.curr_block_height,
                 "no new celestia height"
@@ -184,7 +181,6 @@ impl Reader {
         }
 
         info!(
-            actor_name = "reader",
             height.start = first_new_height,
             height.end = curr_block_height,
             "checking celestia blocks for range of heights",
@@ -193,8 +189,8 @@ impl Reader {
         // check for any new sequencer blocks written from the previous to current block height
         'check_heights: for height in first_new_height..=curr_block_height {
             info!(
-                actor_name = "reader",
-                height, "querying data availability layer for sequencer namespace data"
+                height,
+                "querying data availability layer for sequencer namespace data"
             );
             let sequencer_namespaced_datas = match self
                 .celestia_client
@@ -204,7 +200,6 @@ impl Reader {
                 Ok(datas) => datas,
                 Err(e) => {
                     warn!(
-                        actor_name = "reader",
                         error.msg = %e,
                         error.cause = ?e,
                         height,
@@ -226,7 +221,6 @@ impl Reader {
                 {
                     // FIXME: provide more information here to identify the particular block?
                     warn!(
-                        actor_name = "reader",
                         error.msg = %e,
                         error.cause = ?e,
                         "failed to validate signed namespace data; skipping"
@@ -243,8 +237,8 @@ impl Reader {
                     Ok(Some(rollup_data)) => rollup_data,
                     Ok(None) => {
                         debug!(
-                            actor_name = "reader",
-                            height, "reader was unable to find rollup data for the given height"
+                            height,
+                            "reader was unable to find rollup data for the given height"
                         );
                         continue;
                     }
@@ -252,10 +246,10 @@ impl Reader {
                         // this means someone submitted an invalid block to celestia;
                         // we can ignore it
                         warn!(
-                            actor_name = "reader",
                             error.msg = %e,
                             error.cause = ?e,
-                            "failed to get sequencer block from namespace data");
+                            "failed to get sequencer block from namespace data"
+                        );
                         continue 'get_sequencer_blocks;
                     }
                 };
@@ -267,7 +261,6 @@ impl Reader {
                     // this means someone submitted an invalid block to celestia;
                     // we can ignore it
                     warn!(
-                        actor_name = "reader",
                         error.msg = %e,
                         error.cause = ?e,
                         "failed to validate sequencer block"
@@ -292,7 +285,6 @@ impl Reader {
     /// Processes an individual block
     async fn process_block(&self, block: SequencerBlockSubset) -> eyre::Result<()> {
         info!(
-            actor_name = "reader",
             height = block.header.height.value(),
             "sequencer block received from DA layer"
         );

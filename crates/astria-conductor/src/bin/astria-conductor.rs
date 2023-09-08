@@ -119,7 +119,6 @@ async fn run() -> Result<()> {
                 info!("shutting down conductor");
                 if let Some(e) = driver_tx.send(DriverCommand::Shutdown).err() {
                     error!(
-                        actor_name = "driver",
                         error.msg = %e,
                         error.cause = ?e,
                         "error sending Shutdown command to driver"
@@ -137,7 +136,6 @@ async fn run() -> Result<()> {
                     // the only error that can happen here is SendError which occurs
                     // if the driver's receiver channel is dropped
                     error!(
-                        actor_name = "driver",
                         error.msg = %e,
                         error.cause = ?e,
                         "error sending GetNewBlocks command to driver"
