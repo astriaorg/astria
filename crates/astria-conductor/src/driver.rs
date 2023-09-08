@@ -143,14 +143,14 @@ impl Driver {
                             Ok(event) => {
                                 if let Err(e) = self.handle_network_event(event).await {
                                     debug!(
-                                        error.msg = %e,
+                                        error = ?e,
                                         "failed to handle network event"
                                     );
                                 }
                             }
-                            Err(err) => {
+                            Err(e) => {
                                 warn!(
-                                    error.msg = %err,
+                                    error = ?e,
                                     "encountered error while polling p2p network"
                                 );
                             }
