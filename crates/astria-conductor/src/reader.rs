@@ -134,7 +134,7 @@ impl Reader {
                         Ok(blocks) => blocks,
                         Err(e) => {
                             warn!(
-                                error.msg = %e,
+                                error = ?e,
                                 "failed to get new blocks"
                             );
                             continue;
@@ -144,7 +144,7 @@ impl Reader {
                         for block in blocks {
                             if let Err(e) = self.process_block(block).await {
                                 warn!(
-                                    error.msg = %e,
+                                    error = ?e,
                                     "failed to process block"
                                 );
                             }
@@ -199,7 +199,7 @@ impl Reader {
                 Ok(datas) => datas,
                 Err(e) => {
                     warn!(
-                        error.msg = %e,
+                        error = ?e,
                         height,
                         "failed getting sequencer namespace data from data availability layer");
                     continue 'check_heights;
@@ -219,7 +219,7 @@ impl Reader {
                 {
                     // FIXME: provide more information here to identify the particular block?
                     warn!(
-                        error.msg = %e,
+                        error = ?e,
                         "failed to validate signed namespace data; skipping"
                     );
                     continue 'get_sequencer_blocks;
@@ -243,7 +243,7 @@ impl Reader {
                         // this means someone submitted an invalid block to celestia;
                         // we can ignore it
                         warn!(
-                            error.msg = %e,
+                            error = ?e,
                             "failed to get sequencer block from namespace data"
                         );
                         continue 'get_sequencer_blocks;
@@ -257,7 +257,7 @@ impl Reader {
                     // this means someone submitted an invalid block to celestia;
                     // we can ignore it
                     warn!(
-                        error.msg = %e,
+                        error = ?e,
                         "failed to validate sequencer block"
                     );
                     continue 'get_sequencer_blocks;

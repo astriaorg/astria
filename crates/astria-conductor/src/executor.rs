@@ -154,7 +154,7 @@ impl<C: ExecutionClient> Executor<C> {
                     if let Err(e) = self.execute_block(block_subset).await {
                         error!(
                             height = height,
-                            error.msg = %e,
+                            error = ?e,
                             "failed to execute block"
                         );
                     }
@@ -170,7 +170,7 @@ impl<C: ExecutionClient> Executor<C> {
                     {
                         error!(
                             height = height,
-                            error.msg = %e,
+                            error = ?e,
                             "failed to finalize block"
                         );
                     }
