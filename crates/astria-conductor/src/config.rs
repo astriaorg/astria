@@ -94,5 +94,5 @@ fn default_libp2p_port() -> u16 {
 }
 
 fn default_execution_commit_level() -> String {
-    "head".to_string()
+    "soft".to_string()
 }
