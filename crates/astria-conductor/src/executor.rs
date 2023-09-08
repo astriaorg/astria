@@ -212,6 +212,8 @@ impl<C: ExecutionClient> Executor<C> {
         let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
+        // TODO (https://github.com/astriaorg/astria/issues/345): reminder to
+        // update this once other issues are resolved. see link.
         let response = self
             .execution_rpc_client
             .call_do_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
