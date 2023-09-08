@@ -266,9 +266,8 @@ impl Executor {
 
         let nonce_response = (|| {
             let client = self.sequencer_client.clone();
-            let address = self.address;
             async move {
-                client.get_latest_nonce(address).await
+                client.get_latest_nonce(self.address).await
             }
         })
         .retry(&backoff)
@@ -310,7 +309,7 @@ impl SequencerClient {
     }
 
     /// Wrapper around [`Client::get_latest_nonce`] with a 1s timeout.
-    async fn get_latest_nonce(self, address: Address) -> eyre::Result<NonceResponse> {
+    async fn get_latest_nonce(&self, address: Address) -> eyre::Result<NonceResponse> {
         tokio::time::timeout(
             Duration::from_secs(1),
             self.inner.get_latest_nonce(address.0),
