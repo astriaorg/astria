@@ -172,7 +172,7 @@ impl Executor {
         let curr_nonce = self.nonce();
         let next_nonce = curr_nonce + 1;
         // save next nonce
-        self.nonce.store(u32::from(next_nonce), Ordering::Relaxed);
+        self.nonce.store(next_nonce, Ordering::Relaxed);
         curr_nonce
     }
 
