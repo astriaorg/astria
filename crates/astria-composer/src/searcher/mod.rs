@@ -125,9 +125,8 @@ impl Searcher {
 
         let (status, _) = watch::channel(Status::default());
 
-        let (executor_tx, executor_status) = executor::spawn(cfg)
-            .await
-            .wrap_err("failed to construct Executor")?;
+        let (executor_tx, executor_status) =
+            executor::spawn(cfg).wrap_err("failed to construct Executor")?;
 
         Ok(Searcher {
             status,

@@ -8,6 +8,7 @@ use std::{
     },
     time::Duration,
 };
+
 use color_eyre::eyre::{
     self,
     bail,
@@ -16,7 +17,11 @@ use color_eyre::eyre::{
 };
 use ed25519_consensus::SigningKey;
 use humantime::format_duration;
-use proto::native::sequencer::v1alpha1::{Action, SignedTransaction, UnsignedTransaction};
+use proto::native::sequencer::v1alpha1::{
+    Action,
+    SignedTransaction,
+    UnsignedTransaction,
+};
 use secrecy::{
     ExposeSecret as _,
     SecretString,
@@ -44,7 +49,7 @@ use crate::Config;
 pub(super) type StatusReceiver = watch::Receiver<Status>;
 pub(super) type Sender = mpsc::Sender<Vec<Action>>;
 
-pub(super) async fn spawn(cfg: &Config) -> eyre::Result<(Sender, StatusReceiver)> {
+pub(super) fn spawn(cfg: &Config) -> eyre::Result<(Sender, StatusReceiver)> {
     info!("Spawning Executor subtask for Searcher");
     // create channel for sending bundles to executor
     let (executor_tx, executor_rx) = mpsc::channel(256);
@@ -181,7 +186,10 @@ impl Executor {
     fn make_unsigned_tx(&mut self, actions: Vec<Action>) -> UnsignedTransaction {
         // get current nonce and increment nonce
         let curr_nonce = self.get_next_nonce();
-        UnsignedTransaction{ nonce: curr_nonce, actions }
+        UnsignedTransaction {
+            nonce: curr_nonce,
+            actions,
+        }
     }
 
     /// TODO
@@ -264,14 +272,17 @@ impl Executor {
             }
         })
         .retry(&backoff)
-        .notify(|err, dur| 
+        .notify(|err, dur|
             warn!(error.msg = %err, retry_in = %format_duration(dur), "failed getting nonce for {:?}; retrying", self.address))
         .await
         .wrap_err(
             "failed to retrieve initial nonce from sequencer after several retries",
         )?;
 
-        info!(nonce_response.nonce, "retrieved initial nonce from sequencer successfully");
+        info!(
+            nonce_response.nonce,
+            "retrieved initial nonce from sequencer successfully"
+        );
         self.nonce.store(nonce_response.nonce, Ordering::Relaxed);
 
         self.status.send_modify(|status| {
