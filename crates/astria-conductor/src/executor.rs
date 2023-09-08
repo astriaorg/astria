@@ -112,7 +112,7 @@ struct Executor<C> {
 
     /// The Execution commit level for controlling the finality level of blocks
     /// sent to the execution layer.
-    execution_commit_level: String,
+    _execution_commit_level: String,
 }
 
 impl<C: ExecutionClient> Executor<C> {
@@ -131,7 +131,7 @@ impl<C: ExecutionClient> Executor<C> {
                 namespace,
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
-                execution_commit_level,
+                _execution_commit_level: execution_commit_level,
             },
             cmd_tx,
         ))
