@@ -4,7 +4,8 @@ package astria.execution.v1alpha2;
 
 import "google/protobuf/timestamp.proto";
 
-// The set of information which deterministic driver of execution must know about a given executed Block
+// The set of information which deterministic driver of block production
+// mustknow about a given rollup Block
 message Block {
   // The block number
   uint32 number = 1;
@@ -29,7 +30,8 @@ message GetBlockRequest {
   BlockIdentifier identifier = 1;
 }
 
-// Used in BatchGetBlocks, will find all or none based on the list of identifiers.
+// Used in BatchGetBlocks, will find all or none based on the list of
+// identifiers.
 message BatchGetBlocksRequest {
   repeated BlockIdentifier identifiers = 1;
 }
@@ -39,10 +41,12 @@ message BatchGetBlocksResponse {
 }
 
 
-// CreateBlockRequest contains all the information needed to create a new executed block.
+// ExecuteBlockRequest contains all the information needed to create a new rollup
+// block.
 //
-// This information comes from previous execution blocks, as well as from sequencer blocks.
-message CreateBlockRequest {
+// This information comes from previous rollup blocks, as well as from sequencer
+// blocks.
+message ExecuteBlockRequest {
   // The hash of previous block, which new block will be created on top of.
   bytes prev_block_hash = 1;
   // List of transactions to include in the new block.
@@ -51,20 +55,19 @@ message CreateBlockRequest {
   google.protobuf.Timestamp timestamp = 3;
 }
 
-// The CommitmentState holds the block at each stage of sequencer commitment level
+// The CommitmentState holds the block at each stage of sequencer commitment
+// level
 //
 // A Valid CommitmentState:
-// - Block numbers are such that head >= soft >= firm.
-// - Head block may either be the same as soft, or have a height 1 higher than soft.
-// - No blocks ever decrease in block number, only head may stay the same and have other changes
-// - The chain defined by head is the canonical chain which always contains soft and firm blocks.
+// - Block numbers are such that soft >= firm.
+// - No blocks ever decrease in block number.
+// - The chain defined by soft is the had of the canonical chain the firm block
+//   must belong to.
 message CommitmentState {
-  // The head is the top of the executed chain
-  Block head = 1;
-  // Soft commitment is the executed block matching sequencer block with full consensus.
-  Block soft = 2;
+  // Soft commitment is the rollup block matching latest sequencer block.
+  Block soft = 1;
   // Firm commitment is achieved when data has been seen in DA.
-  Block firm = 3;
+  Block firm = 2;
 }
 
 // There is only one CommitmentState object, so the request is empty.
@@ -77,21 +80,25 @@ message UpdateCommitmentStateRequest {
 
 // ExecutionService is used to drive deterministic production of blocks.
 // 
-// The service can be implemented by any blockchain which wants to utilize the Astria Shared Sequencer,
-// and will have execution driven via the Astria "Conductor".
+// The service can be implemented by any blockchain which wants to utilize the
+// Astria Shared Sequencer, and will have block production driven via the Astria
+// "Conductor".
 service ExecutionService {
   // GetBlock will return a block given an identifier.
   rpc GetBlock(GetBlockRequest) returns (Block);
 
-  // BatchGetBlocks will return an array of Blocks given an array of block identifiers.
+  // BatchGetBlocks will return an array of Blocks given an array of block
+  // identifiers.
   rpc BatchGetBlocks(BatchGetBlocksRequest) returns (BatchGetBlocksResponse);
 
-  // CreateBlock is used to drive deterministic creation of an executed block from a sequenced block.
-  rpc CreateBlock(CreateBlockRequest) returns (Block);
+  // ExecuteBlock is called to deterministically derive a rollup block from
+  // filtered sequencer block information.
+  rpc ExecuteBlock(ExecuteBlockRequest) returns (Block);
 
   // GetCommitmentState fetches the current CommitmentState of the chain.
   rpc GetCommitmentState(GetCommitmentStateRequest) returns (CommitmentState);
 
-  // UpdateCommitmentState replaces the whole CommitmentState with a new CommitmentState.
+  // UpdateCommitmentState replaces the whole CommitmentState with a new
+  // CommitmentState.
   rpc UpdateCommitmentState(UpdateCommitmentStateRequest) returns (CommitmentState);
 }

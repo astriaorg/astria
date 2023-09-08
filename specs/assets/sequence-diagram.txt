@@ -5,85 +5,62 @@ title TX Flow
 actor Wallet
 participant Rollup Node
 participant Composer
+participant Conductor
 participant Sequencer
 participant Relayer
-control Gossip
-participant Conductor
 database DA
 
-activate DA
-
+group Setup
+parallel on
+Sequencer<-Relayer: WS Subscribe NewBlocks
+Conductor->Sequencer: WS Subscribe NewBlocks
 Rollup Node<-Composer: WS Subscribe Txs
+parallel off
+end
+
+group TX Submission
 Wallet->Rollup Node: Rollup Tx
 Wallet<--Rollup Node: Tx Hash
 Rollup Node-->Composer: Rollup Tx
-Composer->Composer:Wrap Tx
-Composer->Sequencer: Seq Tx
+Composer->Composer:Wrap/Bundle Tx(s)
+Composer->Sequencer: Sequencer Tx
+end
 
 Wallet->Rollup Node: Get Tx
 Wallet<--Rollup Node: Pending Tx
 
-loop Sequencer Block Building
+group Sequencer Block Building
 Sequencer->Sequencer: Build Block/Consensus
-Relayer->Sequencer: Get Latest Block
-Relayer<--Sequencer: Block Height N
 parallel on
-Relayer->Gossip: Block Height N
-Gossip-->Conductor: Block Height N
+Sequencer-->Conductor: NewBlock Height N
+Relayer<--Sequencer: NewBlock Height N
+note right of Relayer: Blocks are queued for batch write,\nsince sequencer produces blocks\nfaster than DA.
 parallel off
 end
 
-loop Execution of Sequenced Blcok
-Conductor->Rollup Node: UpdateCommitmentState (Soft N-1)
-Conductor->Rollup Node: CreateBlock(Block N)
+group Derivation of Rollup Block
+Conductor->Rollup Node: ExecuteBlock(Block N)
 activate Rollup Node
 note left of Rollup Node:Execute Block
-Conductor<--Rollup Node: Executed Block
+Conductor<--Rollup Node: New Rollup Block
 deactivate Rollup Node
-Conductor->Rollup Node: UpdateCommitmentState (Head N)
-end
-
-Wallet->Rollup Node: Get Tx
-Wallet<--Rollup Node: Executed Tx
-
-loop Sequencer Block Building
-Sequencer->Sequencer: Build Block/Consensus
-Relayer->Sequencer: Get Latest Block
-Relayer<--Sequencer: Block Height N + 1
-parallel on
-Relayer->Gossip: Block Height N + 1
-Gossip-->Conductor: Block Height N + 1
-parallel off
-end
-
-
-DA-->Relayer: PFB Commitment (0->K)
-deactivate DA
-Relayer -> DA: PFB Block Batch (K->N)
-activate DA
-
-loop Execution of Sequenced Block
 Conductor->Rollup Node: UpdateCommitmentState (Soft N)
-Conductor->Rollup Node:CreateBlock(Block N+1)
-activate Rollup Node
-note left of Rollup Node:Execute Block
-Conductor<--Rollup Node: Executed Block
-deactivate Rollup Node
-Conductor->Rollup Node: UpdateCommitmentState (Head N+1)
 end
 
-parallel on
-DA-->Relayer: PFB Commitment (K->N)
 Wallet->Rollup Node: Get Tx
-deactivate DA
-parallel off
+Wallet<--Rollup Node: Soft Commit Tx (executed)
 
-parallel on
-Conductor->DA: GetNamespacedData
-Wallet<--Rollup Node: Soft Commit Tx
-parallel off
+group DA submission & update
+Relayer -> DA: Post Batch (0->N)
+activate DA
+note left of DA: Posted blobs only return after\ninclusion. We run a loop to post\nqueued blocks after inflight\nrequest returns
+DA-->Relayer: Batch Success (0->N)
+deactivate DA
+
+Conductor->DA: Get Batch
 Conductor<--DA: Batch Blocks (0 -> N)
 Conductor->Rollup Node: UpdateCommitmentState (Firm N)
+end
 
 Wallet->Rollup Node: Get Tx
 Wallet<--Rollup Node: Firm Commit Tx
