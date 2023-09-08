@@ -26,6 +26,7 @@ use tracing::{
     error,
     info,
     instrument,
+    Instrument,
 };
 
 use crate::{
@@ -58,7 +59,7 @@ pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
         Namespace::from_slice(conf.chain_id.as_bytes()),
     )
     .await?;
-    let join_handle = task::spawn(async move { executor.run().await });
+    let join_handle = task::spawn(async move { executor.run().in_current_span().await });
     info!("Spawned executor task.");
     Ok((join_handle, executor_tx))
 }

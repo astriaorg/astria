@@ -19,6 +19,7 @@ use tracing::{
     info,
     instrument,
     warn,
+    Instrument,
 };
 
 use crate::{
@@ -55,7 +56,7 @@ pub(crate) async fn spawn(
     )
     .await
     .wrap_err("failed to create Reader")?;
-    let join_handle = task::spawn(async move { reader.run().await });
+    let join_handle = task::spawn(async move { reader.run().in_current_span().await });
     info!("Spawned reader task.");
     Ok((join_handle, reader_tx))
 }
