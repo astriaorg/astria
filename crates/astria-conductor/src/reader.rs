@@ -134,7 +134,6 @@ impl Reader {
                         Err(e) => {
                             warn!(
                                 error.msg = %e,
-                                error.cause = ?e,
                                 "failed to get new blocks"
                             );
                             continue;
@@ -145,7 +144,6 @@ impl Reader {
                             if let Err(e) = self.process_block(block).await {
                                 warn!(
                                     error.msg = %e,
-                                    error.cause = ?e,
                                     "failed to process block"
                                 );
                             }
@@ -201,7 +199,6 @@ impl Reader {
                 Err(e) => {
                     warn!(
                         error.msg = %e,
-                        error.cause = ?e,
                         height,
                         "failed getting sequencer namespace data from data availability layer");
                     continue 'check_heights;
@@ -222,7 +219,6 @@ impl Reader {
                     // FIXME: provide more information here to identify the particular block?
                     warn!(
                         error.msg = %e,
-                        error.cause = ?e,
                         "failed to validate signed namespace data; skipping"
                     );
                     continue 'get_sequencer_blocks;
@@ -247,7 +243,6 @@ impl Reader {
                         // we can ignore it
                         warn!(
                             error.msg = %e,
-                            error.cause = ?e,
                             "failed to get sequencer block from namespace data"
                         );
                         continue 'get_sequencer_blocks;
@@ -262,7 +257,6 @@ impl Reader {
                     // we can ignore it
                     warn!(
                         error.msg = %e,
-                        error.cause = ?e,
                         "failed to validate sequencer block"
                     );
                     continue 'get_sequencer_blocks;

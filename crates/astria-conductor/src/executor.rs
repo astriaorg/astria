@@ -170,7 +170,6 @@ impl<C: ExecutionClient> Executor<C> {
                         error!(
                             height = height,
                             error.msg = %e,
-                            error.cause = ?e,
                             "failed to finalize block"
                         );
                     }
