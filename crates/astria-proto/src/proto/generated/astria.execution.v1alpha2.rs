@@ -1,5 +1,6 @@
 // @generated
-/// The set of information which deterministic driver of execution must know about a given executed Block
+/// The set of information which deterministic driver of block production
+/// mustknow about a given rollup Block
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Block {
@@ -41,7 +42,8 @@ pub struct GetBlockRequest {
     #[prost(message, optional, tag="1")]
     pub identifier: ::core::option::Option<BlockIdentifier>,
 }
-/// Used in BatchGetBlocks, will find all or none based on the list of identifiers.
+/// Used in BatchGetBlocks, will find all or none based on the list of
+/// identifiers.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BatchGetBlocksRequest {
@@ -55,12 +57,14 @@ pub struct BatchGetBlocksResponse {
     #[prost(message, repeated, tag="1")]
     pub blocks: ::prost::alloc::vec::Vec<Block>,
 }
-/// CreateBlockRequest contains all the information needed to create a new executed block.
+/// ExecuteBlockRequest contains all the information needed to create a new rollup
+/// block.
 ///
-/// This information comes from previous execution blocks, as well as from sequencer blocks.
+/// This information comes from previous rollup blocks, as well as from sequencer
+/// blocks.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CreateBlockRequest {
+pub struct ExecuteBlockRequest {
     /// The hash of previous block, which new block will be created on top of.
     #[prost(bytes="vec", tag="1")]
     pub prev_block_hash: ::prost::alloc::vec::Vec<u8>,
@@ -71,24 +75,22 @@ pub struct CreateBlockRequest {
     #[prost(message, optional, tag="3")]
     pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// The CommitmentState holds the block at each stage of sequencer commitment level
+/// The CommitmentState holds the block at each stage of sequencer commitment
+/// level
 ///
 /// A Valid CommitmentState:
-/// - Block numbers are such that head >= soft >= firm.
-/// - Head block may either be the same as soft, or have a height 1 higher than soft.
-/// - No blocks ever decrease in block number, only head may stay the same and have other changes
-/// - The chain defined by head is the canonical chain which always contains soft and firm blocks.
+/// - Block numbers are such that soft >= firm.
+/// - No blocks ever decrease in block number.
+/// - The chain defined by soft is the had of the canonical chain the firm block
+///    must belong to.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CommitmentState {
-    /// The head is the top of the executed chain
+    /// Soft commitment is the rollup block matching latest sequencer block.
     #[prost(message, optional, tag="1")]
-    pub head: ::core::option::Option<Block>,
-    /// Soft commitment is the executed block matching sequencer block with full consensus.
-    #[prost(message, optional, tag="2")]
     pub soft: ::core::option::Option<Block>,
     /// Firm commitment is achieved when data has been seen in DA.
-    #[prost(message, optional, tag="3")]
+    #[prost(message, optional, tag="2")]
     pub firm: ::core::option::Option<Block>,
 }
 /// There is only one CommitmentState object, so the request is empty.
