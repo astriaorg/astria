@@ -5,7 +5,7 @@ package astria.execution.v1alpha2;
 import "google/protobuf/timestamp.proto";
 
 // The set of information which deterministic driver of block production
-// mustknow about a given rollup Block
+// must know about a given rollup Block
 message Block {
   // The block number
   uint32 number = 1;
@@ -61,7 +61,7 @@ message ExecuteBlockRequest {
 // A Valid CommitmentState:
 // - Block numbers are such that soft >= firm.
 // - No blocks ever decrease in block number.
-// - The chain defined by soft is the had of the canonical chain the firm block
+// - The chain defined by soft is the head of the canonical chain the firm block
 //   must belong to.
 message CommitmentState {
   // Soft commitment is the rollup block matching latest sequencer block.

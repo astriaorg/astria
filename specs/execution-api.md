@@ -19,7 +19,7 @@ The Execution API is a resource based API with two resources: `Block` and
 `CommitmentState`. The API is designed to follow basic principles outlined by
 aip.dev as best practices for resource based APIs. gRPC has been chosen for the
 API due to the wide availability of language implementations which make it easy
-to generate client libraries, and server implementations.  
+to generate client libraries and server implementations.  
 
 ## Conductor Usage
 
@@ -45,7 +45,7 @@ executed in your rollup using the `execution_commitment_level` in the config
 file. If this is configured to a higher level of commitment, no action will be
 taken upon receiving lower commitments.
 
-`ExecuteBlock` is called to create a new rollup chain block when the
+`ExecuteBlock` is called to create a new rollup block when the
 `execution_commitment_level` has been reached for a given block. Upon receipt of
 a new block, the conductor calls `UpdateCommitmentState` to update the
 commitment at the level of the `execution_commitment_level` and any level above
@@ -57,12 +57,12 @@ it.
   - upon receiving a new sequencer block N from sequencer:
     - `ExecuteBlock` will be called with data from the sequencer block N, then
     - `UpdateCommitmentState` will be called again to update the `SAFE` to N
-  - upon reading new blocks from DA containing all of blocks K->N
+  - upon reading new blocks from DA containing all of blocks K->N, where K is some arbitrary ancestor of N
     - `UpdateCommitmentState` will be called to update `FIRM` to N
 - `FIRM`
   - conductor does not need to listen for new blocks from Sequencer
   - upon reading new blocks from DA containing all of blocks K->N
-    - For each block from K->N (M) :
+    - For each block M from K->N:
       - `ExecuteBlock` will be called with data from the sequencer block M
       - `UpdateCommitmentState` will be called to update `FIRM` and `SAFE` to M
 
