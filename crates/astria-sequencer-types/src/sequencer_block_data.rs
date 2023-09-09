@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use astria_sequencer_validation::{
     InclusionProof,
@@ -29,19 +29,24 @@ use tendermint::{
 use thiserror::Error;
 use tracing::debug;
 
-use crate::namespace::Namespace;
-
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("block has no data hash")]
     MissingDataHash,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ChainId(#[serde(with = "hex::serde")] Vec<u8>);
 
 impl ChainId {
-    pub fn as_slice(&self) -> &[u8] {
+    #[must_use]
+    pub fn new(inner: Vec<u8>) -> Self {
+        Self(inner)
+    }
+}
+
+impl AsRef<[u8]> for ChainId {
+    fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
@@ -57,7 +62,7 @@ pub struct SequencerBlockData {
     /// This field should be set for every block with height > 1.
     last_commit: Option<Commit>,
     /// chain ID -> rollup transactions
-    rollup_data: HashMap<ChainId, Vec<Vec<u8>>>,
+    rollup_data: BTreeMap<ChainId, Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
     action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included
@@ -120,7 +125,7 @@ impl SequencerBlockData {
     }
 
     #[must_use]
-    pub fn rollup_data(&self) -> &HashMap<ChainId, Vec<Vec<u8>>> {
+    pub fn rollup_data(&self) -> &BTreeMap<ChainId, Vec<Vec<u8>>> {
         &self.rollup_data
     }
 
@@ -206,7 +211,7 @@ impl SequencerBlockData {
 
         // we unwrap sequencer txs into rollup-specific data here,
         // and namespace them correspondingly
-        let mut rollup_data = HashMap::new();
+        let mut rollup_data = BTreeMap::new();
 
         // the first transaction is skipped as it's the action tree root,
         // not a user-submitted transaction.
@@ -227,15 +232,12 @@ impl SequencerBlockData {
                 if let Some(action) = action.as_sequence() {
                     // TODO(https://github.com/astriaorg/astria/issues/318): intern
                     // these namespaces so they don't get rebuild on every iteration.
-                    let namespace = Namespace::from_slice(&action.chain_id);
                     rollup_data
-                        .entry(ChainId(action.chain_id))
+                        .entry(ChainId(action.chain_id.clone()))
                         .and_modify(|data: &mut Vec<Vec<u8>>| {
                             data.push(action.data.clone());
                         })
-                        .or_insert_with(|| 
-                             vec![action.data.clone()]
-                        );
+                        .or_insert_with(|| vec![action.data.clone()]);
                 }
             });
         }
@@ -291,7 +293,7 @@ pub struct RawSequencerBlockData {
     /// This field should be set for every block with height > 1.
     pub last_commit: Option<Commit>,
     /// namespace -> rollup data (chain ID and transactions)
-    pub rollup_data: HashMap<ChainId, Vec<Vec<u8>>>,
+    pub rollup_data: BTreeMap<ChainId, Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
     pub action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included
@@ -315,7 +317,7 @@ impl From<SequencerBlockData> for RawSequencerBlockData {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     use astria_sequencer_validation::MerkleTree;
     use tendermint::Hash;
@@ -348,7 +350,7 @@ mod test {
             block_hash,
             header,
             last_commit: None,
-            rollup_data: HashMap::new(),
+            rollup_data: BTreeMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
         })
@@ -380,7 +382,7 @@ mod test {
             block_hash,
             header,
             last_commit: None,
-            rollup_data: HashMap::new(),
+            rollup_data: BTreeMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
         })

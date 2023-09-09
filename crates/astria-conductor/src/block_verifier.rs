@@ -118,7 +118,10 @@ impl BlockVerifier {
             action_tree_root,
             action_tree_root_inclusion_proof,
         } = block.clone().into_raw();
-        let rollup_namespaces = rollup_data.into_keys().collect::<Vec<Namespace>>();
+        let rollup_namespaces = rollup_data
+            .into_keys()
+            .map(|chain_id| Namespace::from_slice(chain_id.as_ref()))
+            .collect::<Vec<Namespace>>();
         let data = SequencerNamespaceData {
             block_hash,
             header,
