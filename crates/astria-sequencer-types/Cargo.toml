@@ -11,9 +11,11 @@ thiserror = "1.0"
 base64 = { workspace = true }
 eyre = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
+prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["raw_value"] }
 tendermint = { workspace = true, features = ["rust-crypto"] }
+tendermint-proto = { workspace = true }
 tracing = { workspace = true }
 
 astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client" }

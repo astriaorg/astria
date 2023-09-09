@@ -393,16 +393,6 @@ impl MockConductor {
     }
 }
 
-// This is necessary because the Deserialize impl for tendermint::block::Block
-// considers the default commit equivalent to being unset.
-fn create_non_default_last_commit() -> tendermint::block::Commit {
-    use tendermint::block::Commit;
-    Commit {
-        height: 2u32.into(),
-        ..Commit::default()
-    }
-}
-
 fn create_block_response(validator: &Validator, height: u32) -> endpoint::block::Response {
     use proto::Message as _;
     use tendermint::{
@@ -438,6 +428,8 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
         &data,
     )));
 
+    let (last_commit_hash, last_commit) = sequencer_types::test_utils::make_test_commit_and_hash();
+
     endpoint::block::Response {
         block_id: block::Id {
             hash: Hash::Sha256([0; 32]),
@@ -453,7 +445,7 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
                 height: block::Height::from(height),
                 time: Time::now(),
                 last_block_id: None,
-                last_commit_hash: None,
+                last_commit_hash: (height > 1).then_some(last_commit_hash),
                 data_hash,
                 validators_hash: Hash::Sha256([0; 32]),
                 next_validators_hash: Hash::Sha256([0; 32]),
@@ -465,8 +457,8 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
             },
             data,
             evidence::List::default(),
-            // The first height must not, every height after must contain a commit
-            (height != 1).then_some(create_non_default_last_commit()),
+            // The first height must not, every height after must contain a last commit
+            (height > 1).then_some(last_commit),
         )
         .unwrap(),
     }
