@@ -425,9 +425,17 @@ mod test {
     fn test_calculate_last_commit_hash() {
         use tendermint::block::Commit;
 
-        // these values were retrieved by running the sequencer node and requesting the following:
+        // these values were retrieved by running the cometbft v0.37 + the sequencer app and
+        // requesting the following:
+        //
         // curl http://localhost:26657/commit?height=79
         // curl http://localhost:26657/block?height=80 | grep last_commit_hash
+        //
+        // the heights are arbitrary; you just need to pick two successive blocks and take the
+        // commit of the first one, and the `last_commit_hash` of the second one.
+        //
+        // note: this will work with any ABCI app, not just the sequencer app, as commits are
+        // generated entirely within cometbft.
         let commit_str = r#"{"height":"79","round":0,"block_id":{"hash":"74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA","parts":{"total":1,"hash":"7632FFB5D84C3A64279BC9EA86992418ED23832C66E0C3504B7025A9AF42C8C4"}},"signatures":[{"block_id_flag":2,"validator_address":"D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9","timestamp":"2023-07-05T19:02:55.206600022Z","signature":"qy9vEjqSrF+8sD0K0IAXA398xN1s3QI2rBBDbBMWf0rw0L+B9Z92DZEptf6bPYWuKUFdEc0QFKhUMQA8HjBaAw=="}]}"#;
         let expected_last_commit_hash =
             "EF285154CDF29146FF423EB48BC7F88A0B57022C9B63455EC7AE876F4EA45B6F"
