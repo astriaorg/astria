@@ -37,12 +37,13 @@ pub enum Error {
     MissingDataHash,
 }
 
-/// Rollup data that relayer/conductor need to know.
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
-pub struct RollupData {
-    #[serde(with = "hex::serde")]
-    pub chain_id: Vec<u8>,
-    pub transactions: Vec<Vec<u8>>,
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ChainId(#[serde(with = "hex::serde")] Vec<u8>);
+
+impl ChainId {
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0
+    }
 }
 
 /// `SequencerBlockData` represents a sequencer block's data
@@ -55,8 +56,8 @@ pub struct SequencerBlockData {
     header: Header,
     /// This field should be set for every block with height > 1.
     last_commit: Option<Commit>,
-    /// namespace -> rollup data (chain ID and transactions)
-    rollup_data: HashMap<Namespace, RollupData>,
+    /// chain ID -> rollup transactions
+    rollup_data: HashMap<ChainId, Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
     action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included
@@ -119,7 +120,7 @@ impl SequencerBlockData {
     }
 
     #[must_use]
-    pub fn rollup_data(&self) -> &HashMap<Namespace, RollupData> {
+    pub fn rollup_data(&self) -> &HashMap<ChainId, Vec<Vec<u8>>> {
         &self.rollup_data
     }
 
@@ -228,14 +229,13 @@ impl SequencerBlockData {
                     // these namespaces so they don't get rebuild on every iteration.
                     let namespace = Namespace::from_slice(&action.chain_id);
                     rollup_data
-                        .entry(namespace)
-                        .and_modify(|data: &mut RollupData| {
-                            data.transactions.push(action.data.clone());
+                        .entry(ChainId(action.chain_id))
+                        .and_modify(|data: &mut Vec<Vec<u8>>| {
+                            data.push(action.data.clone());
                         })
-                        .or_insert_with(|| RollupData {
-                            chain_id: action.chain_id.clone(),
-                            transactions: vec![action.data.clone()],
-                        });
+                        .or_insert_with(|| 
+                             vec![action.data.clone()]
+                        );
                 }
             });
         }
@@ -291,7 +291,7 @@ pub struct RawSequencerBlockData {
     /// This field should be set for every block with height > 1.
     pub last_commit: Option<Commit>,
     /// namespace -> rollup data (chain ID and transactions)
-    pub rollup_data: HashMap<Namespace, RollupData>,
+    pub rollup_data: HashMap<ChainId, Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
     pub action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included

@@ -8,18 +8,17 @@ use serde::{
 };
 
 use crate::{
-    Namespace,
-    RollupData,
+    ChainId,
 };
 
 base64_serde_type!(pub Base64Standard, base64::engine::general_purpose::STANDARD);
 
-pub struct NamespaceToTxCount<'a>(pub(crate) &'a HashMap<Namespace, RollupData>);
+pub struct ChainIdToTxCount<'a>(pub(crate) &'a HashMap<ChainId, Vec<Vec<u8>>>);
 
-impl<'a> NamespaceToTxCount<'a> {
+impl<'a> ChainIdToTxCount<'a> {
     #[must_use]
-    pub fn new(rollup_data: &HashMap<Namespace, RollupData>) -> NamespaceToTxCount {
-        NamespaceToTxCount(rollup_data)
+    pub fn new(rollup_data: &HashMap<ChainId, Vec<Vec<u8>>>) -> ChainIdToTxCount {
+        ChainIdToTxCount(rollup_data)
     }
 }
 
