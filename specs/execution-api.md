@@ -3,7 +3,7 @@
 ## Overview
 
 The Execution API is the interface `Conductor` uses to drive deterministic
-derivation of sequenced blocks in rollup chains. Inspired by other APIs, such
+derivation of rollup chain from sequencer blocks. Inspired by other APIs, such
 as the Engine API and ABCI Consensus API, it is a chain agnostic mechanism
 intended to be very simple to implement. It is a gRPC API which any state
 machine can implement and use conductor with to drive their block creation to
@@ -57,7 +57,8 @@ it.
   - upon receiving a new sequencer block N from sequencer:
     - `ExecuteBlock` will be called with data from the sequencer block N, then
     - `UpdateCommitmentState` will be called again to update the `SAFE` to N
-  - upon reading new blocks from DA containing all of blocks K->N, where K is some arbitrary ancestor of N
+  - upon reading new blocks from DA containing all of blocks K->N, where K is
+    some arbitrary ancestor of N
     - `UpdateCommitmentState` will be called to update `FIRM` to N
 - `FIRM`
   - conductor does not need to listen for new blocks from Sequencer
@@ -75,8 +76,8 @@ Note: For our EVM rollup, we map the `CommitmentState` to the `ForkchoiceRule`:
 
 ### ExecuteBlock
 
-`ExecuteBlock` executes a set of given transactions on top of the chain indicated
-by `prev_block_hash`. The following should be respected:
+`ExecuteBlock` executes a set of given transactions on top of the chain
+indicated by `prev_block_hash`. The following should be respected:
 
 - `prev_block_hash` MUST match hash of the `SOFT` commitment state block, return
   `FAILED_PRECONDITION` otherwise.
@@ -99,8 +100,8 @@ block identifiers.
 
 ### GetCommitmentState
 
-Returns the commitment state with rollup `Block` information for each level
-of commitment.
+Returns the commitment state with rollup `Block` information for each level of
+commitment.
 
 ### UpdateCommitmentState
 
@@ -110,7 +111,7 @@ of commitment.
   attempted return a `FAILED_PRECONDITION` error.
 - `SOFT` and `FIRM` block MUST either increase in block number OR match current
   commitment state block.
-- `FIRM` blocks MUST be members of the block chain defined by `S
+- `FIRM` blocks MUST be members of the block chain defined by `SAFE`
 - Block numbers in state MUST be such that  `SOFT` >= `FIRM`, return a
   `FAILED_PRECONDITION` error if this is not true
 
