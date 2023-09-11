@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use astria_proto::generated::execution::v1alpha2::Block;
 use astria_sequencer_types::{
     Namespace,
     SequencerBlockData,
@@ -33,6 +34,7 @@ use crate::{
     config::Config,
     execution_client::{
         ExecutionClientV1Alpha1,
+        ExecutionClientV1Alpha2,
         ExecutionRpcClient,
     },
     types::SequencerBlockSubset,
@@ -115,11 +117,23 @@ struct Executor<C> {
     sequencer_hash_to_execution_hash: HashMap<Hash, Vec<u8>>,
 }
 
-impl<C: ExecutionClientV1Alpha1> Executor<C> {
+impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
     async fn new(mut execution_rpc_client: C, namespace: Namespace) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let init_state_response = execution_rpc_client.call_init_state().await?;
-        let execution_state = init_state_response.block_hash;
+
+        let commitment_state = execution_rpc_client.call_get_commitment_state().await?;
+        let soft: Block = commitment_state.soft.unwrap();
+        let firm: Block = commitment_state.firm.unwrap();
+
+        let execution_state: Vec<u8> = if soft.hash == firm.hash {
+            // soft and firm being the same means that the execution chain is empty
+            soft.hash
+        } else {
+            // FIXME - what do i actually want to set the execution_state to in this case?
+            //  do i need to immediately fetch some blocks with `call_batch_get_blocks`?
+            firm.hash
+        };
+
         Ok((
             Self {
                 cmd_rx,
@@ -226,21 +240,21 @@ impl<C: ExecutionClientV1Alpha1> Executor<C> {
 
         let response = self
             .execution_rpc_client
-            .call_do_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
+            .call_execute_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
             .await?;
-        self.execution_state = response.block_hash.clone();
+        self.execution_state = response.hash.clone();
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
             sequencer_block_hash = ?block.block_hash,
             sequencer_block_height = block.header.height.value(),
-            execution_block_hash = hex::encode(&response.block_hash),
+            execution_block_hash = hex::encode(&response.hash),
             "executed sequencer block",
         );
         self.sequencer_hash_to_execution_hash
-            .insert(block.block_hash, response.block_hash.clone());
+            .insert(block.block_hash, response.hash.clone());
 
-        Ok(Some(response.block_hash))
+        Ok(Some(response.hash))
     }
 
     async fn handle_block_received_from_data_availability(
@@ -252,9 +266,22 @@ impl<C: ExecutionClientV1Alpha1> Executor<C> {
             .sequencer_hash_to_execution_hash
             .get(&sequencer_block_hash)
             .cloned();
+        let sequencer_block_height = block.header.height.value();
         match maybe_execution_block_hash {
             Some(execution_block_hash) => {
-                self.finalize_block(execution_block_hash, sequencer_block_hash)
+                // we've executed, let's update firm commitment
+                self.execution_rpc_client
+                    .call_update_commitment_state(
+                        astria_proto::generated::execution::v1alpha2::CommitmentState {
+                            soft: None,
+                            firm: Some(Block {
+                                number: sequencer_block_height as u32,
+                                hash: execution_block_hash,
+                                parent_block_hash: self.execution_state.clone(),
+                                timestamp: None,
+                            }),
+                        },
+                    )
                     .await?;
             }
             None => {
@@ -273,44 +300,34 @@ impl<C: ExecutionClientV1Alpha1> Executor<C> {
                     .wrap_err("failed to execute block")?
                 else {
                     // no txs for our namespace, nothing to do
-                    debug!("execute_block returned None; skipping finalize_block");
+                    debug!("execute_block returned None; skipping call_update_commitment_state");
                     return Ok(());
                 };
 
-                // finalize the block after it's been executed
-                self.finalize_block(execution_block_hash, sequencer_block_hash)
+                // update commitment state after it's been executed
+                // FIXME - is firm correct here?
+                //  soft feels wrong, but where else would soft be set? or is this totally dependent
+                //  on the new commitment level setting?
+                self.execution_rpc_client
+                    .call_update_commitment_state(
+                        astria_proto::generated::execution::v1alpha2::CommitmentState {
+                            firm: Some(Block {
+                                number: sequencer_block_height as u32,
+                                hash: execution_block_hash.clone(),
+                                parent_block_hash: self.execution_state.clone(),
+                                timestamp: None,
+                            }),
+                            soft: None,
+                        },
+                    )
                     .await?;
+                // remove the sequencer block hash from the map, as it's been executed
+                self.sequencer_hash_to_execution_hash.remove(&sequencer_block_hash);
             }
         };
         Ok(())
     }
 
-    /// This function finalizes the given execution block on the execution layer by calling
-    /// the execution service's FinalizeBlock function.
-    /// note that this function clears the respective entry in the
-    /// `sequencer_hash_to_execution_hash` map.
-    ///
-    /// # Errors
-    ///
-    /// This function returns an error if:
-    /// - the call to the execution service's FinalizeBlock function fails
-    #[instrument(ret, err, skip_all, fields(
-        execution_block_hash = hex::encode(&execution_block_hash),
-        sequencer_block_hash = hex::encode(sequencer_block_hash),
-    ))]
-    async fn finalize_block(
-        &mut self,
-        execution_block_hash: Vec<u8>,
-        sequencer_block_hash: Hash,
-    ) -> Result<()> {
-        self.execution_rpc_client
-            .call_finalize_block(execution_block_hash)
-            .await
-            .wrap_err("failed to finalize block")?;
-        self.sequencer_hash_to_execution_hash
-            .remove(&sequencer_block_hash);
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -320,9 +337,16 @@ mod test {
         sync::Arc,
     };
 
-    use astria_proto::generated::execution::v1alpha1::{
-        DoBlockResponse,
-        InitStateResponse,
+    use astria_proto::generated::execution::{
+        v1alpha1::{
+            DoBlockResponse,
+            InitStateResponse,
+        },
+        v1alpha2::{
+            BatchGetBlocksResponse,
+            BlockIdentifier,
+            CommitmentState,
+        },
     };
     use prost_types::Timestamp;
     use sha2::Digest as _;
@@ -371,6 +395,40 @@ mod test {
             Ok(InitStateResponse {
                 block_hash: hasher.finalize().to_vec(),
             })
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ExecutionClientV1Alpha2 for MockExecutionClient {
+        async fn call_batch_get_blocks(
+            &mut self,
+            _identifiers: Vec<BlockIdentifier>,
+        ) -> Result<BatchGetBlocksResponse> {
+            unimplemented!()
+        }
+
+        async fn call_execute_block(
+            &mut self,
+            _prev_block_hash: Vec<u8>,
+            _transactions: Vec<Vec<u8>>,
+            _timestamp: Option<ProstTimestamp>,
+        ) -> Result<Block> {
+            unimplemented!()
+        }
+
+        async fn call_get_block(&mut self, _identifier: BlockIdentifier) -> Result<Block> {
+            unimplemented!()
+        }
+
+        async fn call_get_commitment_state(&mut self) -> Result<CommitmentState> {
+            unimplemented!()
+        }
+
+        async fn call_update_commitment_state(
+            &mut self,
+            _commitment_state: CommitmentState,
+        ) -> Result<CommitmentState> {
+            unimplemented!()
         }
     }
 
