@@ -497,7 +497,7 @@ mod test {
                 .get(&executor.execution_state)
                 .is_none()
         );
-        assert_eq!(previous_execution_state, executor.execution_state,);
+        assert_eq!(previous_execution_state, executor.execution_state);
         // should be empty because nothing was executed
         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
     }
@@ -532,7 +532,7 @@ mod test {
                 .get(&executor.execution_state)
                 .is_some()
         );
-        assert_eq!(expected_execution_state, executor.execution_state,);
+        assert_eq!(expected_execution_state, executor.execution_state);
         // should be empty because the block was executed AND finalized
         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
     }
