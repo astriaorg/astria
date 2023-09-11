@@ -1,13 +1,4 @@
-use std::{
-    sync::{
-        atomic::{
-            AtomicU32,
-            Ordering,
-        },
-        Arc,
-    },
-    time::Duration,
-};
+use std::time::Duration;
 
 use color_eyre::eyre::{
     self,
@@ -99,7 +90,7 @@ pub(super) struct Executor {
     // Private key used to sign sequencer transactions
     sequencer_key: SigningKey,
     // Nonce of the sequencer account we sign with
-    nonce: Arc<AtomicU32>,
+    nonce: Option<u32>,
     // The sequencer address associated with the private key
     address: Address,
 }
@@ -156,7 +147,7 @@ impl Executor {
             executor_rx,
             sequencer_client,
             sequencer_key,
-            nonce: Arc::new(AtomicU32::new(0)),
+            nonce: None,
             address: sequencer_address,
         })
     }
@@ -166,33 +157,27 @@ impl Executor {
         self.status.subscribe()
     }
 
-    /// Return the current nonce
-    fn nonce(&self) -> u32 {
-        self.nonce.load(Ordering::Relaxed)
+    // Fetch the latest nonce from the sequencer
+    async fn fetch_nonce(&mut self) -> eyre::Result<()> {
+        let nonce_response = self
+            .sequencer_client
+            .get_latest_nonce(self.address)
+            .await
+            .wrap_err("failed to retrieve nonce from sequencer")?;
+        self.nonce = Some(nonce_response.nonce);
+        Ok(())
     }
 
-    /// Gets the next nonce to sign over
-    fn get_next_nonce(&mut self) -> u32 {
-        // get current nonce and calculate next one
-        let curr_nonce = self.nonce();
-        let next_nonce = curr_nonce + 1;
-        // save next nonce
-        self.nonce.store(next_nonce, Ordering::Relaxed);
-        curr_nonce
+    /// Gets the next nonce to sign over if it exists and increments the stored nonce counter
+    fn get_and_increment_nonce(&mut self) -> Option<u32> {
+        self.nonce.map(|curr_nonce| {
+            self.nonce = Some(curr_nonce + 1);
+            curr_nonce
+        })
     }
 
-    /// Creates an `Unsigned` from `Vec<Action>` using the current nonce.
-    /// If the current nonce is not stored, fetches the latest nonce from the sequencer node.
-    fn make_unsigned_tx(&mut self, actions: Vec<Action>) -> UnsignedTransaction {
-        // get current nonce and increment nonce
-        let curr_nonce = self.get_next_nonce();
-        UnsignedTransaction {
-            nonce: curr_nonce,
-            actions,
-        }
-    }
-
-    /// TODO
+    /// Sugmits a signed transaction to the sequencer node.
+    /// TODO: handle failed tx submission due to nonce
     async fn submit_tx(&self, signed_tx: SignedTransaction) -> eyre::Result<()> {
         let rsp = self
             .sequencer_client
@@ -212,24 +197,49 @@ impl Executor {
         Ok(())
     }
 
+    async fn process_bundle(&mut self, bundle: Vec<Action>) -> eyre::Result<()> {
+        let nonce = self
+            .get_and_increment_nonce()
+            .ok_or(eyre!("no nonce stored; cannot process bundle"))?;
+
+        // create unsigned tx
+        let unsigned_tx = UnsignedTransaction {
+            nonce,
+            actions: bundle,
+        };
+
+        // sign tx
+        let signed_tx = unsigned_tx.into_signed(&self.sequencer_key);
+
+        // submit tx
+        self.submit_tx(signed_tx).await?;
+        Ok(())
+    }
+
     /// Run the Executor loop.
-    /// Vec<Action> -> Unsigned -> Signed -> Submit
+    /// Transforms a Vec<Action> -> `UnsignedTransaction` -> `SignedTransction` and then submits it
+    /// to the sequencer
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         // set up connection to sequencer
         self.wait_for_sequencer(5, Duration::from_secs(5), 2.0)
             .await
             .wrap_err("failed connecting to sequencer")?;
 
-        // for each bundle received, create unsigned tx, sign tx, then submit tx
-        // Vec<Action> -> Unsigned -> Signed -> Submit
         while let Some(bundle) = self.executor_rx.recv().await {
-            // create unsigned tx
-            let unsigned_tx = self.make_unsigned_tx(bundle);
-            // sign tx
-            let signed_tx = unsigned_tx.into_signed(&self.sequencer_key);
-            // submit tx
-            self.submit_tx(signed_tx).await?;
-            // FIXME: handle failed tx submission due to nonce
+            if let Err(e) = self.process_bundle(bundle.clone()).await {
+                // FIXME: currently this will fail both when there is an issue with the nonce and
+                // when unable to reach the sequencer
+                error!(
+                    error.message = %e,
+                    error.cause_chain = ?e,
+                    ?bundle,
+                    "processing bundle failed",
+                );
+                // refetch nonce and try processing the bundle again, failing the task if it fails
+                self.fetch_nonce().await?;
+                // TODO: how to handle this better?
+                self.process_bundle(bundle).await?;
+            }
         }
         Ok(())
     }
@@ -249,7 +259,7 @@ impl Executor {
         retries.exponential_factor = factor,
     ))]
     async fn wait_for_sequencer(
-        &self,
+        &mut self,
         n_retries: usize,
         delay: Duration,
         factor: f32,
@@ -263,11 +273,11 @@ impl Executor {
             .with_min_delay(delay)
             .with_factor(factor)
             .with_max_times(n_retries);
-
         let nonce_response = (|| {
             let client = self.sequencer_client.clone();
+            let address = self.address;
             async move {
-                client.get_latest_nonce(self.address).await
+                client.get_latest_nonce(address).await
             }
         })
         .retry(&backoff)
@@ -278,12 +288,14 @@ impl Executor {
             "failed to retrieve initial nonce from sequencer after several retries",
         )?;
 
+        // update stored nonce
+        self.nonce = Some(nonce_response.nonce);
         info!(
             nonce_response.nonce,
             "retrieved initial nonce from sequencer successfully"
         );
-        self.nonce.store(nonce_response.nonce, Ordering::Relaxed);
 
+        // update status to connected
         self.status.send_modify(|status| {
             status.is_connected = true;
         });
