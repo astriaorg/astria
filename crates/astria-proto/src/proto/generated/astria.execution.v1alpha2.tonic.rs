@@ -7,8 +7,9 @@ pub mod execution_service_client {
     use tonic::codegen::http::Uri;
     /** ExecutionService is used to drive deterministic production of blocks.
 
- The service can be implemented by any blockchain which wants to utilize the Astria Shared Sequencer,
- and will have execution driven via the Astria "Conductor".
+ The service can be implemented by any blockchain which wants to utilize the
+ Astria Shared Sequencer, and will have block production driven via the Astria
+ "Conductor".
 */
     #[derive(Debug, Clone)]
     pub struct ExecutionServiceClient<T> {
@@ -119,7 +120,8 @@ pub mod execution_service_client {
                 );
             self.inner.unary(req, path, codec).await
         }
-        /** BatchGetBlocks will return an array of Blocks given an array of block identifiers.
+        /** BatchGetBlocks will return an array of Blocks given an array of block
+ identifiers.
 */
         pub async fn batch_get_blocks(
             &mut self,
@@ -151,11 +153,12 @@ pub mod execution_service_client {
                 );
             self.inner.unary(req, path, codec).await
         }
-        /** CreateBlock is used to drive deterministic creation of an executed block from a sequenced block.
+        /** ExecuteBlock is called to deterministically derive a rollup block from
+ filtered sequencer block information.
 */
-        pub async fn create_block(
+        pub async fn execute_block(
             &mut self,
-            request: impl tonic::IntoRequest<super::CreateBlockRequest>,
+            request: impl tonic::IntoRequest<super::ExecuteBlockRequest>,
         ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status> {
             self.inner
                 .ready()
@@ -168,14 +171,14 @@ pub mod execution_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.execution.v1alpha2.ExecutionService/CreateBlock",
+                "/astria.execution.v1alpha2.ExecutionService/ExecuteBlock",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "astria.execution.v1alpha2.ExecutionService",
-                        "CreateBlock",
+                        "ExecuteBlock",
                     ),
                 );
             self.inner.unary(req, path, codec).await
@@ -212,7 +215,8 @@ pub mod execution_service_client {
                 );
             self.inner.unary(req, path, codec).await
         }
-        /** UpdateCommitmentState replaces the whole CommitmentState with a new CommitmentState.
+        /** UpdateCommitmentState replaces the whole CommitmentState with a new
+ CommitmentState.
 */
         pub async fn update_commitment_state(
             &mut self,
@@ -260,7 +264,8 @@ pub mod execution_service_server {
             &self,
             request: tonic::Request<super::GetBlockRequest>,
         ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status>;
-        /** BatchGetBlocks will return an array of Blocks given an array of block identifiers.
+        /** BatchGetBlocks will return an array of Blocks given an array of block
+ identifiers.
 */
         async fn batch_get_blocks(
             &self,
@@ -269,11 +274,12 @@ pub mod execution_service_server {
             tonic::Response<super::BatchGetBlocksResponse>,
             tonic::Status,
         >;
-        /** CreateBlock is used to drive deterministic creation of an executed block from a sequenced block.
+        /** ExecuteBlock is called to deterministically derive a rollup block from
+ filtered sequencer block information.
 */
-        async fn create_block(
+        async fn execute_block(
             &self,
-            request: tonic::Request<super::CreateBlockRequest>,
+            request: tonic::Request<super::ExecuteBlockRequest>,
         ) -> std::result::Result<tonic::Response<super::Block>, tonic::Status>;
         /** GetCommitmentState fetches the current CommitmentState of the chain.
 */
@@ -281,7 +287,8 @@ pub mod execution_service_server {
             &self,
             request: tonic::Request<super::GetCommitmentStateRequest>,
         ) -> std::result::Result<tonic::Response<super::CommitmentState>, tonic::Status>;
-        /** UpdateCommitmentState replaces the whole CommitmentState with a new CommitmentState.
+        /** UpdateCommitmentState replaces the whole CommitmentState with a new
+ CommitmentState.
 */
         async fn update_commitment_state(
             &self,
@@ -290,8 +297,9 @@ pub mod execution_service_server {
     }
     /** ExecutionService is used to drive deterministic production of blocks.
 
- The service can be implemented by any blockchain which wants to utilize the Astria Shared Sequencer,
- and will have execution driven via the Astria "Conductor".
+ The service can be implemented by any blockchain which wants to utilize the
+ Astria Shared Sequencer, and will have block production driven via the Astria
+ "Conductor".
 */
     #[derive(Debug)]
     pub struct ExecutionServiceServer<T: ExecutionService> {
@@ -462,13 +470,13 @@ pub mod execution_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.execution.v1alpha2.ExecutionService/CreateBlock" => {
+                "/astria.execution.v1alpha2.ExecutionService/ExecuteBlock" => {
                     #[allow(non_camel_case_types)]
-                    struct CreateBlockSvc<T: ExecutionService>(pub Arc<T>);
+                    struct ExecuteBlockSvc<T: ExecutionService>(pub Arc<T>);
                     impl<
                         T: ExecutionService,
-                    > tonic::server::UnaryService<super::CreateBlockRequest>
-                    for CreateBlockSvc<T> {
+                    > tonic::server::UnaryService<super::ExecuteBlockRequest>
+                    for ExecuteBlockSvc<T> {
                         type Response = super::Block;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
@@ -476,11 +484,11 @@ pub mod execution_service_server {
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::CreateBlockRequest>,
+                            request: tonic::Request<super::ExecuteBlockRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                (*inner).create_block(request).await
+                                (*inner).execute_block(request).await
                             };
                             Box::pin(fut)
                         }
@@ -492,7 +500,7 @@ pub mod execution_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = CreateBlockSvc(inner);
+                        let method = ExecuteBlockSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
