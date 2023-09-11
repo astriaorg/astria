@@ -1,6 +1,6 @@
 // @generated
 /// The set of information which deterministic driver of block production
-/// mustknow about a given rollup Block
+/// must know about a given rollup Block
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Block {
@@ -81,7 +81,7 @@ pub struct ExecuteBlockRequest {
 /// A Valid CommitmentState:
 /// - Block numbers are such that soft >= firm.
 /// - No blocks ever decrease in block number.
-/// - The chain defined by soft is the had of the canonical chain the firm block
+/// - The chain defined by soft is the head of the canonical chain the firm block
 ///    must belong to.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
