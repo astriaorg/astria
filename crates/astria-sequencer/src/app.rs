@@ -88,7 +88,7 @@ impl App {
 
         // call init_chain on all components
         AccountsComponent::init_chain(&mut state_tx, &genesis_state).await?;
-        state_tx.apply();
+        let _ = state_tx.apply();
 
         // TODO: call commit and return the app hash?
         Ok(())
@@ -160,7 +160,7 @@ impl App {
         transaction::execute(&signed_tx, &mut state_tx)
             .await
             .context("failed executing transaction")?;
-        state_tx.apply();
+        let _ = state_tx.apply();
 
         let height = self.state.get_block_height().await.expect(
             "block height must be set, as `begin_block` is always called before `deliver_tx`",
