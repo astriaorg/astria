@@ -37,7 +37,7 @@ impl Service<MempoolRequest> for Mempool {
     }
 
     fn call(&mut self, req: MempoolRequest) -> Self::Future {
-        use penumbra_tower_trace::RequestExt as _;
+        use tower_trace::RequestExt as _;
         let span = req.create_span();
         async move {
             let rsp = match req {

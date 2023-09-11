@@ -10,7 +10,6 @@ use futures::{
     Future,
     FutureExt,
 };
-use penumbra_tower_trace::RequestExt as _;
 use tendermint::abci::{
     response::{
         ApplySnapshotChunk,
@@ -23,6 +22,7 @@ use tendermint::abci::{
 };
 use tower::Service;
 use tower_abci::BoxError;
+use tower_trace::RequestExt as _;
 use tracing::Instrument as _;
 
 #[derive(Clone, Default)]

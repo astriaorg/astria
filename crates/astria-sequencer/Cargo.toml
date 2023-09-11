@@ -9,9 +9,9 @@ proto = { package = "astria-proto", path = "../astria-proto" }
 sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 storage = { package = "astria-storage", path = "../astria-storage" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
+tower-trace = { package = "astria-tower-trace", path = "../astria-tower-trace" }
 
 matchit = "0.7.2"
-penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.56.0" }
 tower-abci = "0.8.0"
 tower-actor = "0.1.0"
 

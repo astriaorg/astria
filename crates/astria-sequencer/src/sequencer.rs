@@ -3,12 +3,12 @@ use anyhow::{
     Context as _,
     Result,
 };
-use penumbra_tower_trace::{
+use tendermint::abci::ConsensusRequest;
+use tower_abci::v037::Server;
+use tower_trace::{
     trace::request_span,
     RequestExt as _,
 };
-use tendermint::abci::ConsensusRequest;
-use tower_abci::v037::Server;
 use tracing::{
     info,
     instrument,

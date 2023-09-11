@@ -11,7 +11,6 @@ use futures::{
     Future,
     FutureExt,
 };
-use penumbra_tower_trace::RequestExt as _;
 use storage::Storage;
 use tendermint::{
     abci::{
@@ -30,6 +29,7 @@ use tendermint::{
 };
 use tower::Service;
 use tower_abci::BoxError;
+use tower_trace::RequestExt as _;
 use tracing::{
     instrument,
     Instrument,
