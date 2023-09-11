@@ -14,6 +14,7 @@
 pub(crate) use metrics::*;
 
 /// Registers all metrics used by this crate.
+#[allow(clippy::module_name_repetitions)]
 pub fn register_metrics() {
     register_histogram!(STORAGE_GET_RAW_DURATION);
     describe_histogram!(
