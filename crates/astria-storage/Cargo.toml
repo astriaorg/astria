@@ -11,7 +11,7 @@ jmt = "0.6"
 metrics = { version = "0.19.0", optional = true }
 parking_lot = "0.12"
 rocksdb = "0.21.0"
-smallvec = { version = "1.10" , features = ["union" , "const_generics"] }
+smallvec = { version = "1.10", features = ["union", "const_generics"] }
 
 anyhow = { workspace = true }
 async-trait = { workspace = true }
