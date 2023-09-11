@@ -320,9 +320,17 @@ mod test {
         sync::Arc,
     };
 
-    use astria_proto::generated::execution::v1alpha1::{
-        DoBlockResponse,
-        InitStateResponse,
+    use astria_proto::generated::execution::{
+        v1alpha1::{
+            DoBlockResponse,
+            InitStateResponse,
+        },
+        v1alpha2::{
+            BatchGetBlocksResponse,
+            Block,
+            BlockIdentifier,
+            CommitmentState,
+        },
     };
     use prost_types::Timestamp;
     use sha2::Digest as _;
@@ -371,6 +379,39 @@ mod test {
             Ok(InitStateResponse {
                 block_hash: hasher.finalize().to_vec(),
             })
+        }
+
+        // v1alpha2
+
+        async fn call_batch_get_blocks(
+            &mut self,
+            _identifiers: Vec<BlockIdentifier>,
+        ) -> Result<BatchGetBlocksResponse> {
+            unimplemented!()
+        }
+
+        async fn call_execute_block(
+            &mut self,
+            _prev_block_hash: Vec<u8>,
+            _transactions: Vec<Vec<u8>>,
+            _timestamp: Option<Timestamp>,
+        ) -> Result<Block> {
+            unimplemented!()
+        }
+
+        async fn call_get_block(&mut self, _identifier: BlockIdentifier) -> Result<Block> {
+            unimplemented!()
+        }
+
+        async fn call_get_commitment_state(&mut self) -> Result<CommitmentState> {
+            unimplemented!()
+        }
+
+        async fn call_update_commitment_state(
+            &mut self,
+            _commitment_state: CommitmentState,
+        ) -> Result<CommitmentState> {
+            unimplemented!()
         }
     }
 
