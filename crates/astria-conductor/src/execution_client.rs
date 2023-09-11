@@ -1,6 +1,6 @@
 use astria_proto::generated::execution::{
     v1alpha1::{
-        execution_service_client::ExecutionServiceClient,
+        execution_service_client::ExecutionServiceClient as ExecutionServiceClient_v1alpha1,
         DoBlockRequest,
         DoBlockResponse,
         FinalizeBlockRequest,
@@ -8,7 +8,7 @@ use astria_proto::generated::execution::{
         InitStateResponse,
     },
     v1alpha2::{
-        execution_service_client::ExecutionServiceClient as ExecutionServiceClient_alpha2,
+        execution_service_client::ExecutionServiceClient as ExecutionServiceClient_v1alpha2,
         BatchGetBlocksRequest,
         BatchGetBlocksResponse,
         Block,
@@ -26,7 +26,7 @@ use tonic::transport::Channel;
 use tracing::info;
 
 #[async_trait::async_trait]
-pub(crate) trait ExecutionClient: crate::private::Sealed {
+pub(crate) trait ExecutionClientV1Alpha1: crate::private::Sealed {
     async fn call_do_block(
         &mut self,
         prev_block_hash: Vec<u8>,
@@ -37,8 +37,10 @@ pub(crate) trait ExecutionClient: crate::private::Sealed {
     async fn call_finalize_block(&mut self, block_hash: Vec<u8>) -> Result<()>;
 
     async fn call_init_state(&mut self) -> Result<InitStateResponse>;
+}
 
-    // v1alpha2
+#[async_trait::async_trait]
+pub(crate) trait ExecutionClientV1Alpha2: crate::private::Sealed {
     async fn call_batch_get_blocks(
         &mut self,
         identifiers: Vec<BlockIdentifier>,
@@ -64,10 +66,9 @@ pub(crate) trait ExecutionClient: crate::private::Sealed {
 /// Represents an RpcClient. Wrapping the auto generated client here.
 pub(crate) struct ExecutionRpcClient {
     /// The actual rpc client
-    client: ExecutionServiceClient<Channel>,
+    client_v1alpha1: ExecutionServiceClient_v1alpha1<Channel>,
 
-    /// NOTE - will be renamed to client and the above client will be removed
-    client_alpha2: ExecutionServiceClient_alpha2<Channel>,
+    client_v1alpha2: ExecutionServiceClient_v1alpha2<Channel>,
 }
 
 impl ExecutionRpcClient {
@@ -77,12 +78,12 @@ impl ExecutionRpcClient {
     ///
     /// * `address` - The address of the RPC server that we want to communicate with.
     pub(crate) async fn new(address: &str) -> Result<Self> {
-        let client = ExecutionServiceClient::connect(address.to_owned()).await?;
-        let client_alpha2 = ExecutionServiceClient_alpha2::connect(address.to_owned()).await?;
+        let client_v1alpha1 = ExecutionServiceClient_v1alpha1::connect(address.to_owned()).await?;
+        let client_v1alpha2 = ExecutionServiceClient_v1alpha2::connect(address.to_owned()).await?;
         info!("Connected to execution service at {}", address);
         Ok(ExecutionRpcClient {
-            client,
-            client_alpha2,
+            client_v1alpha1,
+            client_v1alpha2,
         })
     }
 }
@@ -90,7 +91,7 @@ impl ExecutionRpcClient {
 impl crate::private::Sealed for ExecutionRpcClient {}
 
 #[async_trait::async_trait]
-impl ExecutionClient for ExecutionRpcClient {
+impl ExecutionClientV1Alpha1 for ExecutionRpcClient {
     /// Calls remote procedure DoBlock
     ///
     /// # Arguments
@@ -109,7 +110,7 @@ impl ExecutionClient for ExecutionRpcClient {
             transactions,
             timestamp,
         };
-        let response = self.client.do_block(request).await?.into_inner();
+        let response = self.client_v1alpha1.do_block(request).await?.into_inner();
         Ok(response)
     }
 
@@ -118,19 +119,20 @@ impl ExecutionClient for ExecutionRpcClient {
         let request = FinalizeBlockRequest {
             block_hash,
         };
-        self.client.finalize_block(request).await?;
+        self.client_v1alpha1.finalize_block(request).await?;
         Ok(())
     }
 
     /// Calls remote procedure InitState
     async fn call_init_state(&mut self) -> Result<InitStateResponse> {
         let request = InitStateRequest {};
-        let response = self.client.init_state(request).await?.into_inner();
+        let response = self.client_v1alpha1.init_state(request).await?.into_inner();
         Ok(response)
     }
+}
 
-    // v1alpha2
-
+#[async_trait::async_trait]
+impl ExecutionClientV1Alpha2 for ExecutionRpcClient {
     /// Calls remote procedure BatchGetBlocks
     ///
     /// # Arguments
@@ -144,7 +146,7 @@ impl ExecutionClient for ExecutionRpcClient {
             identifiers,
         };
         let response = self
-            .client_alpha2
+            .client_v1alpha2
             .batch_get_blocks(request)
             .await?
             .into_inner();
@@ -170,7 +172,7 @@ impl ExecutionClient for ExecutionRpcClient {
             timestamp,
         };
         let response = self
-            .client_alpha2
+            .client_v1alpha2
             .execute_block(request)
             .await?
             .into_inner();
@@ -186,7 +188,7 @@ impl ExecutionClient for ExecutionRpcClient {
         let request = GetBlockRequest {
             identifier: Some(identifier),
         };
-        let response = self.client_alpha2.get_block(request).await?.into_inner();
+        let response = self.client_v1alpha2.get_block(request).await?.into_inner();
         Ok(response)
     }
 
@@ -194,7 +196,7 @@ impl ExecutionClient for ExecutionRpcClient {
     async fn call_get_commitment_state(&mut self) -> Result<CommitmentState> {
         let request = GetCommitmentStateRequest {};
         let response = self
-            .client_alpha2
+            .client_v1alpha2
             .get_commitment_state(request)
             .await?
             .into_inner();
@@ -214,7 +216,7 @@ impl ExecutionClient for ExecutionRpcClient {
             commitment_state: Some(commitment_state),
         };
         let response = self
-            .client_alpha2
+            .client_v1alpha2
             .update_commitment_state(request)
             .await?
             .into_inner();
