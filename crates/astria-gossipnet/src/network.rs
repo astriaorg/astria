@@ -237,8 +237,6 @@ impl NetworkBuilder {
 
                 match maybe_peer_id {
                     Protocol::P2p(peer_id) => {
-                        let peer_id = PeerId::from_multihash(peer_id)
-                            .map_err(|e| eyre!("failed to parse peer id from addr: {:?}", e))?;
                         if let Some(kademlia) = swarm.behaviour_mut().kademlia.as_mut() {
                             kademlia.add_address(&peer_id, maddr);
                         }
