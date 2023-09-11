@@ -29,6 +29,7 @@ use crate::Cache;
 
 /// Future representing a read from a state snapshot.
 #[pin_project]
+#[allow(clippy::module_name_repetitions)]
 pub struct SnapshotFuture(#[pin] pub(crate) tokio::task::JoinHandle<Result<Option<Vec<u8>>>>);
 
 impl Future for SnapshotFuture {
@@ -44,6 +45,7 @@ impl Future for SnapshotFuture {
 }
 
 /// Future representing a read from an in-memory cache over an underlying state.
+#[allow(clippy::module_name_repetitions)]
 #[pin_project]
 pub struct CacheFuture<F> {
     #[pin]
@@ -96,6 +98,8 @@ where
     type Item = Result<(Vec<u8>, Vec<u8>)>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        #[rustfmt::skip]
+        const _: () = {
         // This implementation interleaves items from the underlying stream with
         // items in cache layers.  To do this, it tracks the last key it
         // returned, then, for each item in the underlying stream, searches for
@@ -103,23 +107,24 @@ where
         // checking whether the cached key represents a deletion requiring further
         // scanning.  This process is illustrated as follows:
         //
-        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲
-        // yield         │                      │                │                │
-        // │         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick
-        // ─────────▶ █ pick         ▲                      ▲                ▲
-        // ▲                 ▲      ▲  │                 ▲    │          ▲     │         ▲
-        // │        ▲        │ write│  │                 │    │          │     │         │
-        // │        │        │ layer│  │   █             │    │ █        │     │█        │
-        // █        │      █ │      │  │ ░               │    ░          │    ░│         │
-        // ░          │    ░   │      │  ░                 │  ░            │  ░  │         │
-        // ░            │  ░     │      │    █               │    █          │    █│
-        // │    █          │    █   │      │  █     █           │  █     █      │  █  │  █
-        // │  █     █      │  █     █      │     █              │     █         │     █
-        // │     █         │     █     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶
-        // ─┼─────(]────▶  ─┼──────(──]─▶      │   ▲  █  █          │      █  █     │      █
-        // █     │      █  █     │      █  █          │
+        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲ yield
+        //         │                      │                │                │                 │
+        //         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick ─────────▶ █ pick
+        //         ▲                      ▲                ▲                ▲                 ▲
+        //      ▲  │                 ▲    │          ▲     │         ▲      │        ▲        │
+        // write│  │                 │    │          │     │         │      │        │        │
+        // layer│  │   █             │    │ █        │     │█        │      █        │      █ │
+        //      │  │ ░               │    ░          │    ░│         │    ░          │    ░   │
+        //      │  ░                 │  ░            │  ░  │         │  ░            │  ░     │
+        //      │    █               │    █          │    █│         │    █          │    █   │
+        //      │  █     █           │  █     █      │  █  │  █      │  █     █      │  █     █
+        //      │     █              │     █         │     █         │     █         │     █
+        //     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶  ─┼─────(]────▶  ─┼──────(──]─▶
+        //      │   ▲  █  █          │      █  █     │      █  █     │      █  █     │      █  █
+        //          │
         //          │search range of key-value pairs in cache layers that could
         //          │affect whether to yield the next item in the underlying stream
+        };
 
         // Optimization: ensure we have a peekable item in the underlying stream before continuing.
         let mut this = self.project();
@@ -129,7 +134,7 @@ where
         // cache layers, lock them all for the duration of the method, using a
         // SmallVec to (hopefully) store all the guards on the stack.
         let mut layer_guards = SmallVec::<[_; 8]>::new();
-        for layer in this.layers.iter() {
+        for layer in this.layers {
             layer_guards.push(layer.read());
         }
         // Tacking the leaf cache onto the list is important to not miss any values.
@@ -154,11 +159,8 @@ where
             let search_range = (
                 this.last_key
                     .as_ref()
-                    .map(Bound::Excluded)
-                    .unwrap_or(Bound::Included(this.prefix)),
-                peeked
-                    .map(|(k, _)| Bound::Included(k))
-                    .unwrap_or(Bound::Unbounded),
+                    .map_or(Bound::Included(&*this.prefix), Bound::Excluded),
+                peeked.map_or(Bound::Unbounded, |(k, _)| Bound::Included(k)),
             );
 
             // It'd be slightly cleaner to initialize `leftmost_pair` with the
@@ -167,7 +169,7 @@ where
             // later.  Instead, initialize it with `None` to only search the
             // cache layers, and compare at the end.
             let mut leftmost_pair = None;
-            for layer in layer_guards.iter() {
+            for layer in &layer_guards {
                 // Find this layer's leftmost key-value pair in the search range.
                 let found_pair = layer
                     .as_ref()
@@ -215,11 +217,9 @@ where
                     if let Some(v) = v {
                         // If the value is Some, we have a key-value pair to yield.
                         return Poll::Ready(Some(Ok((k.clone(), v.clone()))));
-                    } else {
-                        // If the value is None, this pair represents a deletion,
-                        // so continue looping until we find a non-deleted pair.
-                        continue;
                     }
+                    // If the value is None, this pair represents a deletion,
+                    // so continue looping until we find a non-deleted pair.
                 }
                 (None, Some(_)) => {
                     // There's no cache hit before the peeked pair, so we want
@@ -264,6 +264,8 @@ where
     type Item = Result<(String, Vec<u8>)>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        #[rustfmt::skip]
+        const _: () = {
         // This implementation interleaves items from the underlying stream with
         // items in cache layers.  To do this, it tracks the last key it
         // returned, then, for each item in the underlying stream, searches for
@@ -271,23 +273,24 @@ where
         // checking whether the cached key represents a deletion requiring further
         // scanning.  This process is illustrated as follows:
         //
-        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲
-        // yield         │                      │                │                │
-        // │         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick
-        // ─────────▶ █ pick         ▲                      ▲                ▲
-        // ▲                 ▲      ▲  │                 ▲    │          ▲     │         ▲
-        // │        ▲        │ write│  │                 │    │          │     │         │
-        // │        │        │ layer│  │   █             │    │ █        │     │█        │
-        // █        │      █ │      │  │ ░               │    ░          │    ░│         │
-        // ░          │    ░   │      │  ░                 │  ░            │  ░  │         │
-        // ░            │  ░     │      │    █               │    █          │    █│
-        // │    █          │    █   │      │  █     █           │  █     █      │  █  │  █
-        // │  █     █      │  █     █      │     █              │     █         │     █
-        // │     █         │     █     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶
-        // ─┼─────(]────▶  ─┼──────(──]─▶      │   ▲  █  █          │      █  █     │      █
-        // █     │      █  █     │      █  █          │
+        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲ yield
+        //         │                      │                │                │                 │
+        //         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick ─────────▶ █ pick
+        //         ▲                      ▲                ▲                ▲                 ▲
+        //      ▲  │                 ▲    │          ▲     │         ▲      │        ▲        │
+        // write│  │                 │    │          │     │         │      │        │        │
+        // layer│  │   █             │    │ █        │     │█        │      █        │      █ │
+        //      │  │ ░               │    ░          │    ░│         │    ░          │    ░   │
+        //      │  ░                 │  ░            │  ░  │         │  ░            │  ░     │
+        //      │    █               │    █          │    █│         │    █          │    █   │
+        //      │  █     █           │  █     █      │  █  │  █      │  █     █      │  █     █
+        //      │     █              │     █         │     █         │     █         │     █
+        //     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶  ─┼─────(]────▶  ─┼──────(──]─▶
+        //      │   ▲  █  █          │      █  █     │      █  █     │      █  █     │      █  █
+        //          │
         //          │search range of key-value pairs in cache layers that could
         //          │affect whether to yield the next item in the underlying stream
+        };
 
         // Optimization: ensure we have a peekable item in the underlying stream before continuing.
         let mut this = self.project();
@@ -297,7 +300,7 @@ where
         // cache layers, lock them all for the duration of the method, using a
         // SmallVec to (hopefully) store all the guards on the stack.
         let mut layer_guards = SmallVec::<[_; 8]>::new();
-        for layer in this.layers.iter() {
+        for layer in this.layers {
             layer_guards.push(layer.read());
         }
         // Tacking the leaf cache onto the list is important to not miss any values.
@@ -322,11 +325,8 @@ where
             let search_range = (
                 this.last_key
                     .as_ref()
-                    .map(Bound::Excluded)
-                    .unwrap_or(Bound::Included(this.prefix)),
-                peeked
-                    .map(|(k, _)| Bound::Included(k))
-                    .unwrap_or(Bound::Unbounded),
+                    .map_or(Bound::Included(&*this.prefix), Bound::Excluded),
+                peeked.map_or(Bound::Unbounded, |(k, _)| Bound::Included(k)),
             );
 
             // It'd be slightly cleaner to initialize `leftmost_pair` with the
@@ -335,7 +335,7 @@ where
             // later.  Instead, initialize it with `None` to only search the
             // cache layers, and compare at the end.
             let mut leftmost_pair = None;
-            for layer in layer_guards.iter() {
+            for layer in &layer_guards {
                 // Find this layer's leftmost key-value pair in the search range.
                 let found_pair = layer
                     .as_ref()
@@ -383,11 +383,9 @@ where
                     if let Some(v) = v {
                         // If the value is Some, we have a key-value pair to yield.
                         return Poll::Ready(Some(Ok((k.clone(), v.clone()))));
-                    } else {
-                        // If the value is None, this pair represents a deletion,
-                        // so continue looping until we find a non-deleted pair.
-                        continue;
                     }
+                    // If the value is None, this pair represents a deletion,
+                    // so continue looping until we find a non-deleted pair.
                 }
                 (None, Some(_)) => {
                     // There's no cache hit before the peeked pair, so we want
@@ -432,6 +430,8 @@ where
     type Item = Result<String>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        #[rustfmt::skip]
+        const _: () = {
         // This implementation interleaves items from the underlying stream with
         // items in cache layers.  To do this, it tracks the last key it
         // returned, then, for each item in the underlying stream, searches for
@@ -439,23 +439,24 @@ where
         // checking whether the cached key represents a deletion requiring further
         // scanning.  This process is illustrated as follows:
         //
-        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲
-        // yield         │                      │                │                │
-        // │         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick
-        // ─────────▶ █ pick         ▲                      ▲                ▲
-        // ▲                 ▲      ▲  │                 ▲    │          ▲     │         ▲
-        // │        ▲        │ write│  │                 │    │          │     │         │
-        // │        │        │ layer│  │   █             │    │ █        │     │█        │
-        // █        │      █ │      │  │ ░               │    ░          │    ░│         │
-        // ░          │    ░   │      │  ░                 │  ░            │  ░  │         │
-        // ░            │  ░     │      │    █               │    █          │    █│
-        // │    █          │    █   │      │  █     █           │  █     █      │  █  │  █
-        // │  █     █      │  █     █      │     █              │     █         │     █
-        // │     █         │     █     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶
-        // ─┼─────(]────▶  ─┼──────(──]─▶      │   ▲  █  █          │      █  █     │      █
-        // █     │      █  █     │      █  █          │
+        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲ yield
+        //         │                      │                │                │                 │
+        //         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick ─────────▶ █ pick
+        //         ▲                      ▲                ▲                ▲                 ▲
+        //      ▲  │                 ▲    │          ▲     │         ▲      │        ▲        │
+        // write│  │                 │    │          │     │         │      │        │        │
+        // layer│  │   █             │    │ █        │     │█        │      █        │      █ │
+        //      │  │ ░               │    ░          │    ░│         │    ░          │    ░   │
+        //      │  ░                 │  ░            │  ░  │         │  ░            │  ░     │
+        //      │    █               │    █          │    █│         │    █          │    █   │
+        //      │  █     █           │  █     █      │  █  │  █      │  █     █      │  █     █
+        //      │     █              │     █         │     █         │     █         │     █
+        //     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶  ─┼─────(]────▶  ─┼──────(──]─▶
+        //      │   ▲  █  █          │      █  █     │      █  █     │      █  █     │      █  █
+        //          │
         //          │search range of key-value pairs in cache layers that could
         //          │affect whether to yield the next item in the underlying stream
+        };
 
         // Optimization: ensure we have a peekable item in the underlying stream before continuing.
         let mut this = self.project();
@@ -465,7 +466,7 @@ where
         // cache layers, lock them all for the duration of the method, using a
         // SmallVec to (hopefully) store all the guards on the stack.
         let mut layer_guards = SmallVec::<[_; 8]>::new();
-        for layer in this.layers.iter() {
+        for layer in this.layers {
             layer_guards.push(layer.read());
         }
         // Tacking the leaf cache onto the list is important to not miss any values.
@@ -490,9 +491,8 @@ where
             let search_range = (
                 this.last_key
                     .as_ref()
-                    .map(Bound::Excluded)
-                    .unwrap_or(Bound::Included(this.prefix)),
-                peeked.map(Bound::Included).unwrap_or(Bound::Unbounded),
+                    .map_or(Bound::Included(&*this.prefix), Bound::Excluded),
+                peeked.map_or(Bound::Unbounded, Bound::Included),
             );
 
             // It'd be slightly cleaner to initialize `leftmost_pair` with the
@@ -501,7 +501,7 @@ where
             // later.  Instead, initialize it with `None` to only search the
             // cache layers, and compare at the end.
             let mut leftmost_pair = None;
-            for layer in layer_guards.iter() {
+            for layer in &layer_guards {
                 // Find this layer's leftmost key-value pair in the search range.
                 let found_pair = layer
                     .as_ref()
@@ -549,11 +549,9 @@ where
                     if v.is_some() {
                         // If the value is Some, we have a key-value pair to yield.
                         return Poll::Ready(Some(Ok(k.clone())));
-                    } else {
-                        // If the value is None, this pair represents a deletion,
-                        // so continue looping until we find a non-deleted pair.
-                        continue;
                     }
+                    // If the value is None, this pair represents a deletion,
+                    // so continue looping until we find a non-deleted pair.
                 }
                 (None, Some(_)) => {
                     // There's no cache hit before the peeked pair, so we want
@@ -596,7 +594,10 @@ where
 {
     type Item = Result<(Vec<u8>, Vec<u8>)>;
 
+    #[allow(clippy::too_many_lines)]
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        #[rustfmt::skip]
+        const _: () = {
         // This implementation interleaves items from the underlying stream with
         // items in cache layers.  To do this, it tracks the last key it
         // returned, then, for each item in the underlying stream, searches for
@@ -604,23 +605,25 @@ where
         // checking whether the cached key represents a deletion requiring further
         // scanning.  This process is illustrated as follows:
         //
-        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲
-        // yield         │                      │                │                │
-        // │         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick
-        // ─────────▶ █ pick         ▲                      ▲                ▲
-        // ▲                 ▲      ▲  │                 ▲    │          ▲     │         ▲
-        // │        ▲        │ write│  │                 │    │          │     │         │
-        // │        │        │ layer│  │   █             │    │ █        │     │█        │
-        // █        │      █ │      │  │ ░               │    ░          │    ░│         │
-        // ░          │    ░   │      │  ░                 │  ░            │  ░  │         │
-        // ░            │  ░     │      │    █               │    █          │    █│
-        // │    █          │    █   │      │  █     █           │  █     █      │  █  │  █
-        // │  █     █      │  █     █      │     █              │     █         │     █
-        // │     █         │     █     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶
-        // ─┼─────(]────▶  ─┼──────(──]─▶      │   ▲  █  █          │      █  █     │      █
-        // █     │      █  █     │      █  █          │
+        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲ yield
+        //         │                      │                │                │                 │
+        //         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick ─────────▶ █ pick
+        //         ▲                      ▲                ▲                ▲                 ▲
+        //      ▲  │                 ▲    │          ▲     │         ▲      │        ▲        │
+        // write│  │                 │    │          │     │         │      │        │        │
+        // layer│  │   █             │    │ █        │     │█        │      █        │      █ │
+        //      │  │ ░               │    ░          │    ░│         │    ░          │    ░   │
+        //      │  ░                 │  ░            │  ░  │         │  ░            │  ░     │
+        //      │    █               │    █          │    █│         │    █          │    █   │
+        //      │  █     █           │  █     █      │  █  │  █      │  █     █      │  █     █
+        //      │     █              │     █         │     █         │     █         │     █
+        //     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶  ─┼─────(]────▶  ─┼──────(──]─▶
+        //      │   ▲  █  █          │      █  █     │      █  █     │      █  █     │      █  █
+        //          │
         //          │search range of key-value pairs in cache layers that could
         //          │affect whether to yield the next item in the underlying stream
+
+        };
 
         // Optimization: ensure we have a peekable item in the underlying stream before continuing.
         let mut this = self.project();
@@ -629,7 +632,7 @@ where
         // cache layers, lock them all for the duration of the method, using a
         // SmallVec to (hopefully) store all the guards on the stack.
         let mut layer_guards = SmallVec::<[_; 8]>::new();
-        for layer in this.layers.iter() {
+        for layer in this.layers {
             layer_guards.push(layer.read());
         }
         // Tacking the leaf cache onto the list is important to not miss any values.
@@ -689,7 +692,7 @@ where
             // later.  Instead, initialize it with `None` to only search the
             // cache layers, and compare at the end.
             let mut leftmost_pair = None;
-            for layer in layer_guards.iter() {
+            for layer in &layer_guards {
                 // Find this layer's leftmost key-value pair in the search range.
                 let found_pair = layer
                     .as_ref()
@@ -745,11 +748,9 @@ where
                     if let Some(v) = v {
                         // If the value is Some, we have a key-value pair to yield.
                         return Poll::Ready(Some(Ok((k.clone(), v.clone()))));
-                    } else {
-                        // If the value is None, this pair represents a deletion,
-                        // so continue looping until we find a non-deleted pair.
-                        continue;
                     }
+                    // If the value is None, this pair represents a deletion,
+                    // so continue looping until we find a non-deleted pair.
                 }
                 (None, Some(_)) => {
                     // There's no cache hit before the peeked pair, so we want

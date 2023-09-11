@@ -73,6 +73,7 @@ impl Snapshot {
         }))
     }
 
+    #[must_use]
     pub fn version(&self) -> jmt::Version {
         self.0.version
     }
@@ -80,6 +81,10 @@ impl Snapshot {
     /// Returns some value corresponding to the key, along with an ICS23 existence proof
     /// up to the current JMT root hash. If the key is not present, returns `None` and a
     /// non-existence proof.
+    ///
+    /// # Errors
+    /// Returns an error if the ics23 proof could not be returned given `key` and the
+    /// snapshot's (self) version. Or if the underlying task panicked.
     pub async fn get_with_proof(
         &self,
         key: Vec<u8>,
@@ -104,6 +109,10 @@ impl Snapshot {
     ///
     /// This method may only be used on a clean [`State`] fork, and will error
     /// if [`is_dirty`] returns `true`.
+    ///
+    /// # Errors
+    /// Return an error if the root hash optoin could not be return given the snapshot (self)
+    /// version, or if the underlying task panicked.
     pub async fn root_hash(&self) -> Result<crate::RootHash> {
         let span = Span::current();
         let snapshot = self.clone();
@@ -178,6 +187,7 @@ impl StateRead for Snapshot {
                     span.in_scope(|| {
                         #[cfg(feature = "metrics")]
                         let start = std::time::Instant::now();
+                        #[allow(clippy::let_and_return)]
                         let rsp = self2.get_jmt(key_hash);
                         #[cfg(feature = "metrics")]
                         metrics::histogram!(metrics::STORAGE_GET_RAW_DURATION, start.elapsed());
@@ -203,6 +213,7 @@ impl StateRead for Snapshot {
                             .db
                             .cf_handle("nonverifiable")
                             .expect("nonverifiable column family not found");
+                        #[allow(clippy::let_and_return)]
                         let rsp = inner
                             .snapshot
                             .get_cf(nonverifiable_cf, key)
@@ -440,7 +451,7 @@ impl StateRead for Snapshot {
 }
 
 /// A reader interface for rocksdb. NOTE: it is up to the caller to ensure consistency between the
-/// rocksdb::DB handle and any write batches that may be applied through the writer interface.
+/// [`rocksdb::DB`] handle and any write batches that may be applied through the writer interface.
 impl TreeReader for Inner {
     /// Gets a value by identifier, returning the newest value whose version is *less than or
     /// equal to* the specified version.  Returns `None` if the value does not exist.
@@ -542,6 +553,6 @@ impl HasPreimage for Inner {
             .cf_handle("jmt_keys_by_keyhash")
             .expect("jmt_keys_by_keyhash column family not found");
 
-        Ok(self.snapshot.get_cf(jmt_keys_by_keyhash_cf, &key_hash.0)?)
+        Ok(self.snapshot.get_cf(jmt_keys_by_keyhash_cf, key_hash.0)?)
     }
 }

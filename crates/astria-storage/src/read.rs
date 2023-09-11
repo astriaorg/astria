@@ -9,6 +9,7 @@ use anyhow::Result;
 use futures::Stream;
 
 /// Read access to chain state.
+#[allow(clippy::module_name_repetitions)]
 pub trait StateRead: Send + Sync {
     type GetRawFut: Future<Output = Result<Option<Vec<u8>>>> + Send + 'static;
     type PrefixRawStream: Stream<Item = Result<(String, Vec<u8>)>> + Send + 'static;
@@ -70,6 +71,9 @@ pub trait StateRead: Send + Sync {
     /// one.
     ///
     /// Users should generally prefer to use wrapper methods in an extension trait.
+    ///
+    /// # Errors
+    /// This should return an error if passed an inclusive range.
     fn nonverifiable_range_raw(
         &self,
         prefix: Option<&[u8]>,

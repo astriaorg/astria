@@ -51,6 +51,7 @@ use crate::{
 /// practice: the API is intended to explore a tree of possible execution paths;
 /// once one has been selected, the others should be discarded.
 #[derive(Debug)]
+#[allow(clippy::module_name_repetitions)]
 pub struct StateDelta<S: StateRead> {
     /// The underlying state instance.
     ///
@@ -83,6 +84,10 @@ impl<S: StateRead> StateDelta<S> {
     }
 
     /// Fork execution, returning a new child state that includes all previous changes.
+    ///
+    /// # Panics
+    /// Panics if the leaf cache failed to be read.
+    #[must_use]
     pub fn fork(&mut self) -> Self {
         // If we have writes in the leaf cache, we'll move them to a new layer,
         // ensuring that the new child only sees writes made to this state
@@ -111,6 +116,10 @@ impl<S: StateRead> StateDelta<S> {
     ///
     /// The [`apply`](Self::apply) method is a convenience wrapper around this
     /// that applies the changes to the underlying state.
+    ///
+    /// # Panics
+    /// Panics if the intermediate layers of this branch are applied more than once
+    /// (that would be a bug).
     pub fn flatten(self) -> (S, Cache) {
         tracing::trace!("flattening branch");
         // Take ownership of the underlying state, immediately invalidating all
@@ -142,6 +151,7 @@ impl<S: StateRead + StateWrite> StateDelta<S> {
     /// Apply all changes in this branch of the tree to the underlying state,
     /// releasing it back to the caller and invalidating all other branches of
     /// the tree.
+    #[must_use]
     pub fn apply(self) -> (S, Vec<abci::Event>) {
         let (mut state, mut changes) = self.flatten();
         let events = changes.take_events();
@@ -155,6 +165,11 @@ impl<S: StateRead + StateWrite> StateDelta<S> {
 }
 
 impl<S: StateRead + StateWrite> StateDelta<Arc<S>> {
+    /// Try applying the state delta to its underlying state.
+    ///
+    /// # Errors
+    /// Returns an error if the `Arc<S>` contained in the state delta did
+    /// not have unique ownership.
     pub fn try_apply(self) -> anyhow::Result<(S, Vec<abci::Event>)> {
         let (arc_state, mut changes) = self.flatten();
         let events = std::mem::take(&mut changes.events);
@@ -417,7 +432,7 @@ impl<S: StateRead> StateRead for StateDelta<S> {
             layers: self.layers.clone(),
             leaf_cache: self.leaf_cache.clone(),
             last_key: None,
-            prefix: prefix.map(|p| p.to_vec()),
+            prefix: prefix.map(<[u8]>::to_vec),
             range: (start, end),
         })
     }
@@ -464,13 +479,13 @@ impl<S: StateRead> StateWrite for StateDelta<S> {
 
     fn object_put<T: Clone + Any + Send + Sync>(&mut self, key: &'static str, value: T) {
         if let Some(previous_type) = self.object_type(key) {
-            if std::any::TypeId::of::<T>() != previous_type {
-                panic!(
-                    "unexpected type for key \"{key}\" in `StateDelta::object_put`: expected type \
-                     {expected}",
-                    expected = std::any::type_name::<T>(),
-                );
-            }
+            assert_eq!(
+                std::any::TypeId::of::<T>(),
+                previous_type,
+                "unexpected type for key \"{key}\" in `StateDelta::object_put`: expected type \
+                 {expected}",
+                expected = std::any::type_name::<T>(),
+            );
         }
         self.leaf_cache
             .write()
@@ -502,7 +517,7 @@ impl<S: StateRead> StateWrite for StateDelta<S> {
     }
 
     fn record(&mut self, event: abci::Event) {
-        self.leaf_cache.write().as_mut().unwrap().events.push(event)
+        self.leaf_cache.write().as_mut().unwrap().events.push(event);
     }
 }
 

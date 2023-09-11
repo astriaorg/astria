@@ -3,7 +3,7 @@
 //! This crate provides a versioned, verifiable key-value store that also
 //! supports lightweight, copy-on-write snapshots and transactional semantics.
 //! The [`Storage`] type is a handle for an instance of a backing store,
-//! implemented using RocksDB.  The storage records a sequence of versioned
+//! implemented using `RocksDB`.  The storage records a sequence of versioned
 //! [`State`]s.  The [`State`] type is a lightweight snapshot of a particular
 //! version of the chain state.
 //!
@@ -27,7 +27,7 @@
 //! part of the verifiable consensus state.
 //!
 //! * A secondary, non-verifiable key-value store with byte keys and byte
-//! values, backed directly by RocksDB.  This is intended for use building
+//! values, backed directly by `RocksDB`.  This is intended for use building
 //! application-specific indexes of the verifiable consensus state.
 //!
 //! While the primary key-value store records byte values, it is intended for

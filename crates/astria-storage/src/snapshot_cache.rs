@@ -79,7 +79,10 @@ impl SnapshotCache {
         let latest_version = self.latest().version();
         // We compute the offset assuming that snapshot entries are cached
         // such that the delta between entries is always 1.
-        let offset = latest_version.wrapping_sub(version) as usize;
+        let offset = latest_version.wrapping_sub(version).try_into().expect(
+            "casting u64 to usize should work on all 64 bit architectures; this is not run on a \
+             32 bit machine?",
+        );
         self.cache
             .get(offset)
             .map(Clone::clone)
@@ -194,7 +197,7 @@ mod test {
         // Saturate the cache by inserting 9 more entries.
         for i in 1..10 {
             let snapshot = Snapshot::new(db_handle.clone(), i);
-            cache.try_push(snapshot).unwrap()
+            cache.try_push(snapshot).unwrap();
         }
 
         // Check that the oldest value is still present:

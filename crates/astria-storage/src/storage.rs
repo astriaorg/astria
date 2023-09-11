@@ -4,7 +4,10 @@ use std::{
 };
 
 // use tokio_stream::wrappers::WatchStream;
-use anyhow::Result;
+use anyhow::{
+    ensure,
+    Result,
+};
 use borsh::{
     BorshDeserialize,
     BorshSerialize,
@@ -37,9 +40,10 @@ use crate::{
 };
 
 mod temp;
+#[allow(clippy::module_name_repetitions)]
 pub use temp::TempStorage;
 
-/// A handle for a storage instance, backed by RocksDB.
+/// A handle for a storage instance, backed by `RocksDB`.
 ///
 /// The handle is cheaply clonable; all clones share the same backing data store.
 #[derive(Clone)]
@@ -64,6 +68,12 @@ struct Inner {
 }
 
 impl Storage {
+    /// Load `Storage` from `path`.
+    ///
+    /// # Errors
+    /// Returns errors if rocksdb could not be created or opened at the given `path`,
+    /// if the latest version could not be read, or if the task running the operations
+    /// panicked.
     pub async fn load(path: PathBuf) -> Result<Self> {
         let span = Span::current();
         tokio::task::Builder::new()
@@ -137,7 +147,7 @@ impl Storage {
                             // receivers, so we can safely ignore the result here.
                             let _ = tx_state2.send(snapshot);
                         }
-                        tracing::info!("dispatcher task has terminated")
+                        tracing::info!("dispatcher task has terminated");
                     });
 
                     Ok(Self(Arc::new(Inner {
@@ -159,11 +169,13 @@ impl Storage {
     /// `Storage`.
     ///
     /// If the tree is empty and has not been initialized, returns `u64::MAX`.
+    #[must_use]
     pub fn latest_version(&self) -> jmt::Version {
         self.latest_snapshot().version()
     }
 
     /// Returns a [`watch::Receiver`] that can be used to subscribe to new state versions.
+    #[must_use]
     pub fn subscribe(&self) -> watch::Receiver<Snapshot> {
         // Calling subscribe() here to create a new receiver ensures
         // that all previous values are marked as seen, and the user
@@ -172,12 +184,14 @@ impl Storage {
     }
 
     /// Returns a new [`State`] on top of the latest version of the tree.
+    #[must_use]
     pub fn latest_snapshot(&self) -> Snapshot {
         self.0.snapshots.read().latest()
     }
 
     /// Fetches the [`State`] snapshot corresponding to the supplied `jmt::Version`
     /// from [`SnapshotCache`], or returns `None` if no match was found (cache-miss).
+    #[must_use]
     pub fn snapshot(&self, version: jmt::Version) -> Option<Snapshot> {
         self.0.snapshots.read().get(version)
     }
@@ -218,19 +232,19 @@ impl Storage {
                         .cf_handle("jmt_keys_by_keyhash")
                         .expect("jmt_keys_by_keyhash family not found");
 
-                    for (keyhash, key_preimage, v) in unwritten_changes.iter() {
+                    for (keyhash, key_preimage, v) in &unwritten_changes {
                         match v {
                             // Key still exists so update the key preimage and keyhash index.
                             Some(_) => {
                                 inner.db.put_cf(jmt_keys_cf, key_preimage, keyhash.0)?;
                                 inner
                                     .db
-                                    .put_cf(jmt_keys_by_keyhash_cf, keyhash.0, key_preimage)?
+                                    .put_cf(jmt_keys_by_keyhash_cf, keyhash.0, key_preimage)?;
                             }
                             // Key was deleted, so delete the key preimage, and its keyhash index.
                             None => {
                                 inner.db.delete_cf(jmt_keys_cf, key_preimage)?;
-                                inner.db.delete_cf(jmt_keys_by_keyhash_cf, &keyhash.0)?;
+                                inner.db.delete_cf(jmt_keys_by_keyhash_cf, keyhash.0)?;
                             }
                         };
                     }
@@ -246,7 +260,7 @@ impl Storage {
                     tracing::trace!(?root_hash, "wrote node batch to backing store");
 
                     // Write the unwritten changes from the nonverifiable to RocksDB.
-                    for (k, v) in cache.nonverifiable_changes.into_iter() {
+                    for (k, v) in cache.nonverifiable_changes {
                         let nonverifiable_cf = inner
                             .db
                             .cf_handle("nonverifiable")
@@ -284,6 +298,10 @@ impl Storage {
 
     /// Commits the provided [`StateDelta`] to persistent storage as the latest
     /// version of the chain state.
+    ///
+    /// # Errors
+    /// Returns an errror if the latest version of the storage does not match the version
+    /// of the snapshot.
     pub async fn commit(&self, delta: StateDelta<Snapshot>) -> Result<crate::RootHash> {
         // Extract the snapshot and the changes from the state delta
         let (snapshot, changes) = delta.flatten();
@@ -305,7 +323,7 @@ impl Storage {
         self.commit_inner(changes, new_version).await
     }
 
-    /// Returns the internal handle to RocksDB, this is useful to test adjacent storage crates.
+    /// Returns the internal handle to `RocksDB`, this is useful to test adjacent storage crates.
     #[cfg(test)]
     pub(crate) fn db(&self) -> Arc<DB> {
         self.0.db.clone()
@@ -396,7 +414,7 @@ impl Inner {
 }
 
 /// Represent a JMT key hash at a specific `jmt::Version`
-/// This is used to index the JMT values in RocksDB.
+/// This is used to index the JMT values in `RocksDB`.
 #[derive(Clone, Debug)]
 pub(crate) struct VersionedKeyHash {
     pub(crate) key_hash: KeyHash,
@@ -406,8 +424,8 @@ pub(crate) struct VersionedKeyHash {
 impl VersionedKeyHash {
     pub(crate) fn new(version: jmt::Version, key_hash: KeyHash) -> Self {
         Self {
-            version,
             key_hash,
+            version,
         }
     }
 
@@ -417,27 +435,26 @@ impl VersionedKeyHash {
         buf
     }
 
-    pub(crate) fn _decode(buf: Vec<u8>) -> Result<Self> {
-        if buf.len() != 40 {
-            Err(anyhow::anyhow!(
-                "could not decode buffer into VersionedKey (invalid size)"
-            ))
-        } else {
-            let raw_key_hash: [u8; 32] = buf[0..32]
-                .try_into()
-                .expect("buffer is at least 40 bytes wide");
-            let key_hash = KeyHash(raw_key_hash);
+    pub(crate) fn _decode(buf: &[u8]) -> Result<Self> {
+        ensure!(
+            buf.len() == 40,
+            "could not decode buffer into VersionedKey (invalid size)",
+        );
 
-            let raw_version: [u8; 8] = buf[32..40]
-                .try_into()
-                .expect("buffer is at least 40 bytes wide");
-            let version: u64 = u64::from_be_bytes(raw_version);
+        let raw_key_hash: [u8; 32] = buf[0..32]
+            .try_into()
+            .expect("buffer is at least 40 bytes wide");
+        let key_hash = KeyHash(raw_key_hash);
 
-            Ok(VersionedKeyHash {
-                version,
-                key_hash,
-            })
-        }
+        let raw_version: [u8; 8] = buf[32..40]
+            .try_into()
+            .expect("buffer is at least 40 bytes wide");
+        let version: u64 = u64::from_be_bytes(raw_version);
+
+        Ok(VersionedKeyHash {
+            key_hash,
+            version,
+        })
     }
 }
 

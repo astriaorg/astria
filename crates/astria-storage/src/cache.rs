@@ -65,6 +65,7 @@ impl Cache {
     }
 
     /// Returns `true` if there are cached writes on top of the snapshot, and `false` otherwise.
+    #[must_use]
     pub fn is_dirty(&self) -> bool {
         !(self.unwritten_changes.is_empty()
             && self.nonverifiable_changes.is_empty()

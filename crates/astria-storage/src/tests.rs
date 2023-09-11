@@ -8,7 +8,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
         tracing_subscriber::fmt::fmt()
             .with_env_filter(EnvFilter::from_default_env())
-            .init()
+            .init();
     }
 });
 
@@ -55,6 +55,7 @@ async fn db_lock_is_released() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)]
 async fn simple_flow() -> anyhow::Result<()> {
     Lazy::force(&TELEMETRY);
     let tmpdir = tempfile::tempdir()?;
@@ -139,7 +140,7 @@ async fn simple_flow() -> anyhow::Result<()> {
     std::mem::drop(range);
 
     // Now apply the transaction to state_init
-    tx00.apply();
+    let _ = tx00.apply();
     assert_eq!(state_init.get_raw("test").await?, Some(b"test".to_vec()));
     assert_eq!(state_init.get_raw("a/aa").await?, None);
     //     Present in state_init object store
@@ -226,7 +227,7 @@ async fn simple_flow() -> anyhow::Result<()> {
     std::mem::drop(range_keys);
 
     // Now apply the transaction to state_init
-    tx01.apply();
+    let _ = tx01.apply();
 
     // Check reads against state_init:
     //    This is present in state_init
@@ -392,7 +393,7 @@ async fn simple_flow() -> anyhow::Result<()> {
     std::mem::drop(range);
 
     // Apply tx10 to state0
-    tx10.apply();
+    let _ = tx10.apply();
 
     // Check reads against state0
     //    This is deleted in state0, present in JMT
@@ -481,7 +482,7 @@ async fn simple_flow() -> anyhow::Result<()> {
     std::mem::drop(range);
 
     // Apply tx11 to state0
-    tx11.apply();
+    let _ = tx11.apply();
 
     // Check reads against state0
     //    This is deleted in state0, present in JMT
@@ -813,6 +814,7 @@ async fn simple_flow() -> anyhow::Result<()> {
 /// - queries with a prefix, no start key, and no end key
 /// - queries with a prefix, a start key, and no end key
 /// - queries with a prefix, no start key, and an end key
+#[allow(clippy::too_many_lines)]
 async fn range_queries_basic() -> anyhow::Result<()> {
     Lazy::force(&TELEMETRY);
     let tmpdir = tempfile::tempdir()?;
@@ -875,7 +877,7 @@ async fn range_queries_basic() -> anyhow::Result<()> {
     assert_eq!(range.next().await.transpose()?, None);
     std::mem::drop(range);
 
-    tx00.apply();
+    let _ = tx00.apply();
     // Check that the new entry is included in the results.
     let mut range = state_init.nonverifiable_range_raw(Some(b"i"), ..)?;
     assert_eq!(
@@ -970,7 +972,7 @@ async fn range_queries_basic() -> anyhow::Result<()> {
     );
     assert_eq!(range.next().await.transpose()?, None);
     std::mem::drop(range);
-    tx01.apply();
+    let _ = tx01.apply();
 
     // Check that all entries are included in the results.
     let mut range = state_init.nonverifiable_range_raw(None, ..)?;
@@ -1000,8 +1002,8 @@ async fn range_queries_basic() -> anyhow::Result<()> {
 
     for i in 0..=100 {
         tx02.nonverifiable_put_raw(
-            format!("compact_block/{:020}", i).as_bytes().to_vec(),
-            format!("{}", i).as_bytes().to_vec(),
+            format!("compact_block/{i:020}").as_bytes().to_vec(),
+            format!("{i}").as_bytes().to_vec(),
         );
     }
 
@@ -1011,8 +1013,8 @@ async fn range_queries_basic() -> anyhow::Result<()> {
         assert_eq!(
             range.next().await.transpose()?,
             Some((
-                format!("compact_block/{:020}", i).as_bytes().to_vec(),
-                format!("{}", i).as_bytes().to_vec()
+                format!("compact_block/{i:020}").as_bytes().to_vec(),
+                format!("{i}").as_bytes().to_vec()
             ))
         );
     }
@@ -1026,11 +1028,10 @@ async fn range_queries_basic() -> anyhow::Result<()> {
         assert_eq!(
             range.next().await.transpose()?,
             Some((
-                format!("compact_block/{:020}", i).as_bytes().to_vec(),
-                format!("{}", i).as_bytes().to_vec()
+                format!("compact_block/{i:020}").as_bytes().to_vec(),
+                format!("{i}").as_bytes().to_vec()
             )),
-            "i={}",
-            i
+            "i={i}",
         );
     }
     assert_eq!(range.next().await.transpose()?, None);
@@ -1045,8 +1046,8 @@ async fn range_queries_basic() -> anyhow::Result<()> {
         assert_eq!(
             range.next().await.transpose()?,
             Some((
-                format!("compact_block/{:020}", i).as_bytes().to_vec(),
-                format!("{}", i).as_bytes().to_vec()
+                format!("compact_block/{i:020}").as_bytes().to_vec(),
+                format!("{i}").as_bytes().to_vec()
             ))
         );
     }
@@ -1058,8 +1059,8 @@ async fn range_queries_basic() -> anyhow::Result<()> {
         assert_eq!(
             range.next().await.transpose()?,
             Some((
-                format!("compact_block/{:020}", i).as_bytes().to_vec(),
-                format!("{}", i).as_bytes().to_vec()
+                format!("compact_block/{i:020}").as_bytes().to_vec(),
+                format!("{i}").as_bytes().to_vec()
             ))
         );
     }
@@ -1067,26 +1068,25 @@ async fn range_queries_basic() -> anyhow::Result<()> {
 
     // Delete compact blocks [9;21]
     let deleted_keys = (9..=21)
-        .map(|i| format!("compact_block/{:020}", i).as_bytes().to_vec())
+        .map(|i| format!("compact_block/{i:020}").as_bytes().to_vec())
         .collect::<Vec<_>>();
-    for key in deleted_keys.iter() {
+    for key in &deleted_keys {
         tx02.nonverifiable_delete(key.clone());
     }
 
     // Check that the deleted compact blocks are not included in the results.
     let mut range = tx02.nonverifiable_range_raw(Some(b"compact_block/"), ..)?;
     for i in 0..=100 {
-        if i >= 9 && i <= 21 {
+        if (9..=21).contains(&i) {
             continue;
         }
         assert_eq!(
             range.next().await.transpose()?,
             Some((
-                format!("compact_block/{:020}", i).as_bytes().to_vec(),
-                format!("{}", i).as_bytes().to_vec()
+                format!("compact_block/{i:020}").as_bytes().to_vec(),
+                format!("{i}").as_bytes().to_vec()
             )),
-            "i={}",
-            i
+            "i={i}",
         );
     }
     assert_eq!(range.next().await.transpose()?, None);
@@ -1104,12 +1104,12 @@ async fn range_queries_basic() -> anyhow::Result<()> {
     for i in 22..=100 {
         let found = range.next().await.transpose()?;
         let foundstr = String::from_utf8(found.clone().unwrap().0).unwrap();
-        println!("{i}: foundstr={}", foundstr);
+        println!("{i}: foundstr={foundstr}");
         assert_eq!(
             found,
             Some((
-                format!("compact_block/{:020}", i).as_bytes().to_vec(),
-                format!("{}", i).as_bytes().to_vec()
+                format!("compact_block/{i:020}").as_bytes().to_vec(),
+                format!("{i}").as_bytes().to_vec()
             ))
         );
     }
@@ -1344,24 +1344,24 @@ async fn range_query_storage_basic() -> anyhow::Result<()> {
 
     for height in 0..100 {
         delta.nonverifiable_put_raw(
-            format!("compact_block/{:020}", height).as_bytes().to_vec(),
-            format!("compact_block/{:020}", height).as_bytes().to_vec(),
+            format!("compact_block/{height:020}").as_bytes().to_vec(),
+            format!("compact_block/{height:020}").as_bytes().to_vec(),
         );
     }
 
     // We insert keys before the compact block keys.
     for key in 0..10 {
         delta.nonverifiable_put_raw(
-            format!("ante/{:020}", key).as_bytes().to_vec(),
-            format!("ante/{:020}", key).as_bytes().to_vec(),
+            format!("ante/{key:020}").as_bytes().to_vec(),
+            format!("ante/{key:020}").as_bytes().to_vec(),
         );
     }
 
     // We insert keys after the compact block keys.
     for key in 0..10 {
         delta.nonverifiable_put_raw(
-            format!("post/{:020}", key).as_bytes().to_vec(),
-            format!("postƒ/{:020}", key).as_bytes().to_vec(),
+            format!("post/{key:020}").as_bytes().to_vec(),
+            format!("postƒ/{key:020}").as_bytes().to_vec(),
         );
     }
 
@@ -1373,11 +1373,10 @@ async fn range_query_storage_basic() -> anyhow::Result<()> {
         assert_eq!(
             range.next().await.transpose()?,
             Some((
-                format!("compact_block/{:020}", height).as_bytes().to_vec(),
-                format!("compact_block/{:020}", height).as_bytes().to_vec()
+                format!("compact_block/{height:020}").as_bytes().to_vec(),
+                format!("compact_block/{height:020}").as_bytes().to_vec()
             )),
-            "height: {}",
-            height
+            "height: {height}",
         );
     }
     assert_eq!(range.next().await.transpose()?, None);
@@ -1390,11 +1389,10 @@ async fn range_query_storage_basic() -> anyhow::Result<()> {
         assert_eq!(
             range.next().await.transpose()?,
             Some((
-                format!("compact_block/{:020}", height).as_bytes().to_vec(),
-                format!("compact_block/{:020}", height).as_bytes().to_vec()
+                format!("compact_block/{height:020}").as_bytes().to_vec(),
+                format!("compact_block/{height:020}").as_bytes().to_vec()
             )),
-            "height: {}",
-            height
+            "height: {height}",
         );
     }
     assert_eq!(range.next().await.transpose()?, None);
@@ -1405,11 +1403,10 @@ async fn range_query_storage_basic() -> anyhow::Result<()> {
         assert_eq!(
             range.next().await.transpose()?,
             Some((
-                format!("compact_block/{:020}", height).as_bytes().to_vec(),
-                format!("compact_block/{:020}", height).as_bytes().to_vec()
+                format!("compact_block/{height:020}").as_bytes().to_vec(),
+                format!("compact_block/{height:020}").as_bytes().to_vec()
             )),
-            "height: {}",
-            height
+            "height: {height}",
         );
     }
     assert_eq!(range.next().await.transpose()?, None);

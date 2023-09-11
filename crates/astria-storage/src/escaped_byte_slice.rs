@@ -25,7 +25,7 @@ impl<'a> std::fmt::Debug for EscapedByteSlice<'a> {
             } else if b >= 0x20 && b < 0x7f {
                 write!(f, "{}", b as char)?;
             } else {
-                write!(f, "\\x{:02x}", b)?;
+                write!(f, "\\x{b:02x}")?;
             }
         }
         write!(f, "\"")?;
