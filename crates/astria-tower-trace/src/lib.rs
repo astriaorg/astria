@@ -16,5 +16,5 @@ pub fn remote_addr(req: &http::Request<()>) -> Option<SocketAddr> {
     // NOTE: needs to also check TlsConnectInfo if we use TLS
     req.extensions()
         .get::<TcpConnectInfo>()
-        .and_then(|i| i.remote_addr())
+        .and_then(TcpConnectInfo::remote_addr)
 }

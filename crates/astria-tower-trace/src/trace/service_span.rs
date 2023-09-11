@@ -24,7 +24,11 @@ pub use self::{
 };
 
 mod layer {
-    use super::*;
+    use super::{
+        GetSpan,
+        PhantomData,
+        Service,
+    };
 
     #[derive(Debug)]
     pub struct Layer<S, R, G = fn(&S) -> tracing::Span>
@@ -82,9 +86,18 @@ mod layer {
 pub mod make {
     use pin_project_lite::pin_project;
 
-    use super::*;
+    use super::{
+        Context,
+        Future,
+        GetSpan,
+        PhantomData,
+        Pin,
+        Poll,
+        Service,
+    };
 
     #[derive(Debug)]
+    #[allow(clippy::module_name_repetitions)]
     pub struct MakeService<M, T, R, G = fn(&T) -> tracing::Span>
     where
         G: GetSpan<T>,
@@ -104,6 +117,7 @@ pub mod make {
     }
 
     #[derive(Debug)]
+    #[allow(clippy::module_name_repetitions)]
     pub struct MakeLayer<T, R, G = fn(&T) -> tracing::Span>
     where
         G: GetSpan<T> + Clone,
