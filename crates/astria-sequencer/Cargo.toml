@@ -12,7 +12,6 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 matchit = "0.7.2"
 penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.56.0" }
-tower = "0.4"
 tower-abci = "0.8.0"
 tower-actor = "0.1.0"
 
@@ -32,4 +31,5 @@ sha2 = { workspace = true }
 tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
+tower = { workspace = true }
 tracing = { workspace = true }

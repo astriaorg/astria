@@ -10,20 +10,20 @@ ics23 = "0.10.1"
 jmt = "0.6"
 metrics = { version = "0.19.0", optional = true }
 parking_lot = "0.12"
-pin-project = "1.0.12"
 rocksdb = "0.21.0"
 smallvec = { version = "1.10" , features = ["union" , "const_generics"] }
-tokio-stream = { version = "0.1.11" }
 
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 borsh = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
+pin-project = { workspace = true }
 sha2 = { workspace = true }
 tempfile = { workspace = true }
 tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
+tokio-stream = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]

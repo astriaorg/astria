@@ -1,0 +1,20 @@
+[package]
+# A vendored copy of the unpublished `tracing-tower` crate.
+name = "astria-tower-trace"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+pin-project-lite = "0.2.9"
+tower-service = "0.3.2"
+
+futures = { workspace = true }
+hex = { workspace = true }
+http = { workspace = true }
+sha2 = { workspace = true }
+tendermint = { workspace = true }
+tonic = { workspace = true }
+tower = { workspace = true }
+tracing = { workspace = true }
