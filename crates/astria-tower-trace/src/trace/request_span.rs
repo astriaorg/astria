@@ -1,10 +1,17 @@
 //! Middleware which instruments each request passing through a service with a new span.
-use super::GetSpan;
+use std::{
+    marker::PhantomData,
+    pin::Pin,
+    task::{
+        Context,
+        Poll,
+    },
+};
+
 use futures::future::Future;
-use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use tracing::Instrument;
+
+use super::GetSpan;
 
 #[derive(Debug)]
 pub struct Service<S, R, G = fn(&R) -> tracing::Span>
@@ -70,8 +77,9 @@ mod layer {
 pub use self::make::MakeService;
 
 pub mod make {
-    use super::*;
     use pin_project_lite::pin_project;
+
+    use super::*;
 
     #[derive(Debug)]
     pub struct MakeService<S, R, G = fn(&R) -> tracing::Span> {
@@ -142,9 +150,9 @@ pub mod make {
         S: tower::make::MakeService<T, R>,
         G: GetSpan<R> + Clone,
     {
-        type Response = Service<S::Service, R, G>;
         type Error = S::MakeError;
         type Future = MakeFuture<S::Future, R, G>;
+        type Response = Service<S::Service, R, G>;
 
         fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             self.inner.poll_ready(cx)
@@ -219,9 +227,9 @@ where
     S: tower_service::Service<R>,
     G: GetSpan<R> + Clone,
 {
-    type Response = S::Response;
     type Error = S::Error;
     type Future = tracing::instrument::Instrumented<S::Future>;
+    type Response = S::Response;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)

@@ -1,4 +1,7 @@
-use std::{any::Any, collections::BTreeMap};
+use std::{
+    any::Any,
+    collections::BTreeMap,
+};
 
 use tendermint::abci;
 

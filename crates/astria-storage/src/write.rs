@@ -1,6 +1,11 @@
-use crate::StateRead;
-use std::{any::Any, collections::BTreeMap};
+use std::{
+    any::Any,
+    collections::BTreeMap,
+};
+
 use tendermint::abci;
+
+use crate::StateRead;
 
 /// Write access to chain state.
 pub trait StateWrite: StateRead + Send + Sync {

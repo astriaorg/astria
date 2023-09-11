@@ -1,4 +1,9 @@
-use std::{any::Any, future::Future, ops::RangeBounds, sync::Arc};
+use std::{
+    any::Any,
+    future::Future,
+    ops::RangeBounds,
+    sync::Arc,
+};
 
 use anyhow::Result;
 use futures::Stream;
@@ -33,7 +38,8 @@ pub trait StateRead: Send + Sync {
     /// # Returns
     ///
     /// - `Some(&T)` if a value of type `T` was present at `key`.
-    /// - `None` if `key` was not present, or if `key` was present but the value was not of type `T`.
+    /// - `None` if `key` was not present, or if `key` was present but the value was not of type
+    ///   `T`.
     ///
     /// # Panics
     ///
@@ -44,7 +50,8 @@ pub trait StateRead: Send + Sync {
     /// is present.
     fn object_type(&self, key: &'static str) -> Option<std::any::TypeId>;
 
-    /// Retrieve all values for keys matching a prefix from the verifiable key-value store, as raw bytes.
+    /// Retrieve all values for keys matching a prefix from the verifiable key-value store, as raw
+    /// bytes.
     ///
     /// Users should generally prefer to use `prefix` or `prefix_proto` from an extension trait.
     fn prefix_raw(&self, prefix: &str) -> Self::PrefixRawStream;
@@ -52,13 +59,15 @@ pub trait StateRead: Send + Sync {
     /// Retrieve all keys (but not values) matching a prefix from the verifiable key-value store.
     fn prefix_keys(&self, prefix: &str) -> Self::PrefixKeysStream;
 
-    /// Retrieve all values for keys matching a prefix from the non-verifiable key-value store, as raw bytes.
+    /// Retrieve all values for keys matching a prefix from the non-verifiable key-value store, as
+    /// raw bytes.
     ///
     /// Users should generally prefer to use wrapper methods in an extension trait.
     fn nonverifiable_prefix_raw(&self, prefix: &[u8]) -> Self::NonconsensusPrefixRawStream;
 
-    /// Retrieve all values for keys in a range from the non-verifiable key-value store, as raw bytes.
-    /// This method does not support inclusive ranges, and will return an error if passed one.
+    /// Retrieve all values for keys in a range from the non-verifiable key-value store, as raw
+    /// bytes. This method does not support inclusive ranges, and will return an error if passed
+    /// one.
     ///
     /// Users should generally prefer to use wrapper methods in an extension trait.
     fn nonverifiable_range_raw(
@@ -70,10 +79,10 @@ pub trait StateRead: Send + Sync {
 
 impl<'a, S: StateRead + Send + Sync> StateRead for &'a S {
     type GetRawFut = S::GetRawFut;
-    type PrefixRawStream = S::PrefixRawStream;
-    type PrefixKeysStream = S::PrefixKeysStream;
     type NonconsensusPrefixRawStream = S::NonconsensusPrefixRawStream;
     type NonconsensusRangeRawStream = S::NonconsensusRangeRawStream;
+    type PrefixKeysStream = S::PrefixKeysStream;
+    type PrefixRawStream = S::PrefixRawStream;
 
     fn get_raw(&self, key: &str) -> Self::GetRawFut {
         (**self).get_raw(key)
@@ -114,10 +123,10 @@ impl<'a, S: StateRead + Send + Sync> StateRead for &'a S {
 
 impl<'a, S: StateRead + Send + Sync> StateRead for &'a mut S {
     type GetRawFut = S::GetRawFut;
-    type PrefixRawStream = S::PrefixRawStream;
-    type PrefixKeysStream = S::PrefixKeysStream;
     type NonconsensusPrefixRawStream = S::NonconsensusPrefixRawStream;
     type NonconsensusRangeRawStream = S::NonconsensusRangeRawStream;
+    type PrefixKeysStream = S::PrefixKeysStream;
+    type PrefixRawStream = S::PrefixRawStream;
 
     fn get_raw(&self, key: &str) -> Self::GetRawFut {
         (**self).get_raw(key)
@@ -158,10 +167,10 @@ impl<'a, S: StateRead + Send + Sync> StateRead for &'a mut S {
 
 impl<S: StateRead + Send + Sync> StateRead for Arc<S> {
     type GetRawFut = S::GetRawFut;
-    type PrefixRawStream = S::PrefixRawStream;
-    type PrefixKeysStream = S::PrefixKeysStream;
     type NonconsensusPrefixRawStream = S::NonconsensusPrefixRawStream;
     type NonconsensusRangeRawStream = S::NonconsensusRangeRawStream;
+    type PrefixKeysStream = S::PrefixKeysStream;
+    type PrefixRawStream = S::PrefixRawStream;
 
     fn get_raw(&self, key: &str) -> Self::GetRawFut {
         (**self).get_raw(key)
@@ -202,12 +211,12 @@ impl<S: StateRead + Send + Sync> StateRead for Arc<S> {
 
 impl StateRead for () {
     type GetRawFut = futures::future::Ready<Result<Option<Vec<u8>>>>;
-    type PrefixRawStream = futures::stream::Iter<std::iter::Empty<Result<(String, Vec<u8>)>>>;
-    type PrefixKeysStream = futures::stream::Iter<std::iter::Empty<Result<String>>>;
     type NonconsensusPrefixRawStream =
         futures::stream::Iter<std::iter::Empty<Result<(Vec<u8>, Vec<u8>)>>>;
     type NonconsensusRangeRawStream =
         futures::stream::Iter<std::iter::Empty<Result<(Vec<u8>, Vec<u8>)>>>;
+    type PrefixKeysStream = futures::stream::Iter<std::iter::Empty<Result<String>>>;
+    type PrefixRawStream = futures::stream::Iter<std::iter::Empty<Result<(String, Vec<u8>)>>>;
 
     fn get_raw(&self, _key: &str) -> Self::GetRawFut {
         futures::future::ready(Ok(None))

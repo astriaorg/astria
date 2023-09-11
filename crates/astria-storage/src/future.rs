@@ -1,21 +1,29 @@
 //! Concrete futures types used by the storage crate.
 
+use std::{
+    future::Future,
+    ops::Bound,
+    pin::Pin,
+    sync::Arc,
+    task::{
+        ready,
+        Context,
+        Poll,
+    },
+};
+
 use anyhow::Result;
 use futures::{
-    future::{Either, Ready},
+    future::{
+        Either,
+        Ready,
+    },
     stream::Peekable,
     Stream,
 };
 use parking_lot::RwLock;
 use pin_project::pin_project;
 use smallvec::SmallVec;
-use std::{
-    future::Future,
-    ops::Bound,
-    pin::Pin,
-    sync::Arc,
-    task::{ready, Context, Poll},
-};
 
 use crate::Cache;
 
@@ -25,6 +33,7 @@ pub struct SnapshotFuture(#[pin] pub(crate) tokio::task::JoinHandle<Result<Optio
 
 impl Future for SnapshotFuture {
     type Output = Result<Option<Vec<u8>>>;
+
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         match this.0.poll(cx) {
@@ -60,6 +69,7 @@ where
     F: Future<Output = Result<Option<Vec<u8>>>>,
 {
     type Output = Result<Option<Vec<u8>>>;
+
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
         this.inner.poll(cx)
@@ -93,21 +103,21 @@ where
         // checking whether the cached key represents a deletion requiring further
         // scanning.  This process is illustrated as follows:
         //
-        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲ yield
-        //         │                      │                │                │                 │
-        //         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick ─────────▶ █ pick
-        //         ▲                      ▲                ▲                ▲                 ▲
-        //      ▲  │                 ▲    │          ▲     │         ▲      │        ▲        │
-        // write│  │                 │    │          │     │         │      │        │        │
-        // layer│  │   █             │    │ █        │     │█        │      █        │      █ │
-        //      │  │ ░               │    ░          │    ░│         │    ░          │    ░   │
-        //      │  ░                 │  ░            │  ░  │         │  ░            │  ░     │
-        //      │    █               │    █          │    █│         │    █          │    █   │
-        //      │  █     █           │  █     █      │  █  │  █      │  █     █      │  █     █
-        //      │     █              │     █         │     █         │     █         │     █
-        //     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶  ─┼─────(]────▶  ─┼──────(──]─▶
-        //      │   ▲  █  █          │      █  █     │      █  █     │      █  █     │      █  █
-        //          │
+        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲
+        // yield         │                      │                │                │
+        // │         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick
+        // ─────────▶ █ pick         ▲                      ▲                ▲
+        // ▲                 ▲      ▲  │                 ▲    │          ▲     │         ▲
+        // │        ▲        │ write│  │                 │    │          │     │         │
+        // │        │        │ layer│  │   █             │    │ █        │     │█        │
+        // █        │      █ │      │  │ ░               │    ░          │    ░│         │
+        // ░          │    ░   │      │  ░                 │  ░            │  ░  │         │
+        // ░            │  ░     │      │    █               │    █          │    █│
+        // │    █          │    █   │      │  █     █           │  █     █      │  █  │  █
+        // │  █     █      │  █     █      │     █              │     █         │     █
+        // │     █         │     █     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶
+        // ─┼─────(]────▶  ─┼──────(──]─▶      │   ▲  █  █          │      █  █     │      █
+        // █     │      █  █     │      █  █          │
         //          │search range of key-value pairs in cache layers that could
         //          │affect whether to yield the next item in the underlying stream
 
@@ -261,21 +271,21 @@ where
         // checking whether the cached key represents a deletion requiring further
         // scanning.  This process is illustrated as follows:
         //
-        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲ yield
-        //         │                      │                │                │                 │
-        //         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick ─────────▶ █ pick
-        //         ▲                      ▲                ▲                ▲                 ▲
-        //      ▲  │                 ▲    │          ▲     │         ▲      │        ▲        │
-        // write│  │                 │    │          │     │         │      │        │        │
-        // layer│  │   █             │    │ █        │     │█        │      █        │      █ │
-        //      │  │ ░               │    ░          │    ░│         │    ░          │    ░   │
-        //      │  ░                 │  ░            │  ░  │         │  ░            │  ░     │
-        //      │    █               │    █          │    █│         │    █          │    █   │
-        //      │  █     █           │  █     █      │  █  │  █      │  █     █      │  █     █
-        //      │     █              │     █         │     █         │     █         │     █
-        //     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶  ─┼─────(]────▶  ─┼──────(──]─▶
-        //      │   ▲  █  █          │      █  █     │      █  █     │      █  █     │      █  █
-        //          │
+        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲
+        // yield         │                      │                │                │
+        // │         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick
+        // ─────────▶ █ pick         ▲                      ▲                ▲
+        // ▲                 ▲      ▲  │                 ▲    │          ▲     │         ▲
+        // │        ▲        │ write│  │                 │    │          │     │         │
+        // │        │        │ layer│  │   █             │    │ █        │     │█        │
+        // █        │      █ │      │  │ ░               │    ░          │    ░│         │
+        // ░          │    ░   │      │  ░                 │  ░            │  ░  │         │
+        // ░            │  ░     │      │    █               │    █          │    █│
+        // │    █          │    █   │      │  █     █           │  █     █      │  █  │  █
+        // │  █     █      │  █     █      │     █              │     █         │     █
+        // │     █         │     █     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶
+        // ─┼─────(]────▶  ─┼──────(──]─▶      │   ▲  █  █          │      █  █     │      █
+        // █     │      █  █     │      █  █          │
         //          │search range of key-value pairs in cache layers that could
         //          │affect whether to yield the next item in the underlying stream
 
@@ -429,21 +439,21 @@ where
         // checking whether the cached key represents a deletion requiring further
         // scanning.  This process is illustrated as follows:
         //
-        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲ yield
-        //         │                      │                │                │                 │
-        //         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick ─────────▶ █ pick
-        //         ▲                      ▲                ▲                ▲                 ▲
-        //      ▲  │                 ▲    │          ▲     │         ▲      │        ▲        │
-        // write│  │                 │    │          │     │         │      │        │        │
-        // layer│  │   █             │    │ █        │     │█        │      █        │      █ │
-        //      │  │ ░               │    ░          │    ░│         │    ░          │    ░   │
-        //      │  ░                 │  ░            │  ░  │         │  ░            │  ░     │
-        //      │    █               │    █          │    █│         │    █          │    █   │
-        //      │  █     █           │  █     █      │  █  │  █      │  █     █      │  █     █
-        //      │     █              │     █         │     █         │     █         │     █
-        //     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶  ─┼─────(]────▶  ─┼──────(──]─▶
-        //      │   ▲  █  █          │      █  █     │      █  █     │      █  █     │      █  █
-        //          │
+        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲
+        // yield         │                      │                │                │
+        // │         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick
+        // ─────────▶ █ pick         ▲                      ▲                ▲
+        // ▲                 ▲      ▲  │                 ▲    │          ▲     │         ▲
+        // │        ▲        │ write│  │                 │    │          │     │         │
+        // │        │        │ layer│  │   █             │    │ █        │     │█        │
+        // █        │      █ │      │  │ ░               │    ░          │    ░│         │
+        // ░          │    ░   │      │  ░                 │  ░            │  ░  │         │
+        // ░            │  ░     │      │    █               │    █          │    █│
+        // │    █          │    █   │      │  █     █           │  █     █      │  █  │  █
+        // │  █     █      │  █     █      │     █              │     █         │     █
+        // │     █         │     █     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶
+        // ─┼─────(]────▶  ─┼──────(──]─▶      │   ▲  █  █          │      █  █     │      █
+        // █     │      █  █     │      █  █          │
         //          │search range of key-value pairs in cache layers that could
         //          │affect whether to yield the next item in the underlying stream
 
@@ -594,21 +604,21 @@ where
         // checking whether the cached key represents a deletion requiring further
         // scanning.  This process is illustrated as follows:
         //
-        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲ yield
-        //         │                      │                │                │                 │
-        //         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick ─────────▶ █ pick
-        //         ▲                      ▲                ▲                ▲                 ▲
-        //      ▲  │                 ▲    │          ▲     │         ▲      │        ▲        │
-        // write│  │                 │    │          │     │         │      │        │        │
-        // layer│  │   █             │    │ █        │     │█        │      █        │      █ │
-        //      │  │ ░               │    ░          │    ░│         │    ░          │    ░   │
-        //      │  ░                 │  ░            │  ░  │         │  ░            │  ░     │
-        //      │    █               │    █          │    █│         │    █          │    █   │
-        //      │  █     █           │  █     █      │  █  │  █      │  █     █      │  █     █
-        //      │     █              │     █         │     █         │     █         │     █
-        //     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶  ─┼─────(]────▶  ─┼──────(──]─▶
-        //      │   ▲  █  █          │      █  █     │      █  █     │      █  █     │      █  █
-        //          │
+        //         ◇ skip                 ◇ skip           ▲ yield          ▲ yield           ▲
+        // yield         │                      │                │                │
+        // │         ░ pick ──────────────▶ ░ pick ────────▶ █ pick ────────▶ █ pick
+        // ─────────▶ █ pick         ▲                      ▲                ▲
+        // ▲                 ▲      ▲  │                 ▲    │          ▲     │         ▲
+        // │        ▲        │ write│  │                 │    │          │     │         │
+        // │        │        │ layer│  │   █             │    │ █        │     │█        │
+        // █        │      █ │      │  │ ░               │    ░          │    ░│         │
+        // ░          │    ░   │      │  ░                 │  ░            │  ░  │         │
+        // ░            │  ░     │      │    █               │    █          │    █│
+        // │    █          │    █   │      │  █     █           │  █     █      │  █  │  █
+        // │  █     █      │  █     █      │     █              │     █         │     █
+        // │     █         │     █     ─┼(─────]────keys─▶  ─┼──(───]────▶  ─┼────(─]────▶
+        // ─┼─────(]────▶  ─┼──────(──]─▶      │   ▲  █  █          │      █  █     │      █
+        // █     │      █  █     │      █  █          │
         //          │search range of key-value pairs in cache layers that could
         //          │affect whether to yield the next item in the underlying stream
 
@@ -650,8 +660,8 @@ where
             };
 
             // We want to decide which key to return next, so we have to inspect the cache layers.
-            // To do this, we have to define a search space so that we cover updates and new insertions
-            // that could affect the next key to return.
+            // To do this, we have to define a search space so that we cover updates and new
+            // insertions that could affect the next key to return.
             let lower_bound = match this.last_key.as_ref() {
                 Some(k) => Bound::Excluded(k),
                 None => Bound::Included(prefix_start.as_ref()),

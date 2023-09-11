@@ -1,4 +1,7 @@
-use std::{any::Any, sync::Arc};
+use std::{
+    any::Any,
+    sync::Arc,
+};
 
 use futures::StreamExt;
 use parking_lot::RwLock;
@@ -6,10 +9,17 @@ use tendermint::abci;
 
 use crate::{
     future::{
-        CacheFuture, StateDeltaNonconsensusPrefixRawStream, StateDeltaNonconsensusRangeRawStream,
-        StateDeltaPrefixKeysStream, StateDeltaPrefixRawStream,
+        CacheFuture,
+        StateDeltaNonconsensusPrefixRawStream,
+        StateDeltaNonconsensusRangeRawStream,
+        StateDeltaPrefixKeysStream,
+        StateDeltaPrefixRawStream,
     },
-    utils, Cache, EscapedByteSlice, StateRead, StateWrite,
+    utils,
+    Cache,
+    EscapedByteSlice,
+    StateRead,
+    StateWrite,
 };
 
 /// An arbitrarily-deeply nested stack of delta updates to an underlying state.
@@ -163,12 +173,12 @@ impl<S: StateRead + StateWrite> StateDelta<Arc<S>> {
 
 impl<S: StateRead> StateRead for StateDelta<S> {
     type GetRawFut = CacheFuture<S::GetRawFut>;
-    type PrefixRawStream = StateDeltaPrefixRawStream<S::PrefixRawStream>;
-    type PrefixKeysStream = StateDeltaPrefixKeysStream<S::PrefixKeysStream>;
     type NonconsensusPrefixRawStream =
         StateDeltaNonconsensusPrefixRawStream<S::NonconsensusPrefixRawStream>;
     type NonconsensusRangeRawStream =
         StateDeltaNonconsensusRangeRawStream<S::NonconsensusRangeRawStream>;
+    type PrefixKeysStream = StateDeltaPrefixKeysStream<S::PrefixKeysStream>;
+    type PrefixRawStream = StateDeltaPrefixRawStream<S::PrefixRawStream>;
 
     fn get_raw(&self, key: &str) -> Self::GetRawFut {
         // Check if we have a cache hit in the leaf cache.
@@ -267,9 +277,9 @@ impl<S: StateRead> StateRead for StateDelta<S> {
                 .ephemeral_objects
                 .get(key)
             {
-                // We have to explicitly call `Any::type_id(&**v)` here because this ensures that we are
-                // asking for the type of the `Any` *inside* the `Box<dyn Any>`, rather than the type of
-                // `Box<dyn Any>` itself.
+                // We have to explicitly call `Any::type_id(&**v)` here because this ensures that we
+                // are asking for the type of the `Any` *inside* the `Box<dyn Any>`,
+                // rather than the type of `Box<dyn Any>` itself.
                 return entry.as_ref().map(|v| std::any::Any::type_id(&**v));
             }
         }
@@ -295,7 +305,13 @@ impl<S: StateRead> StateRead for StateDelta<S> {
             return entry
                 .as_ref()
                 .map(|v| {
-                    v.downcast_ref().unwrap_or_else(|| panic!("unexpected type for key \"{key}\" in `StateDelta::object_get`: expected type {}", std::any::type_name::<T>()))
+                    v.downcast_ref().unwrap_or_else(|| {
+                        panic!(
+                            "unexpected type for key \"{key}\" in `StateDelta::object_get`: \
+                             expected type {}",
+                            std::any::type_name::<T>()
+                        )
+                    })
                 })
                 .cloned();
         }
@@ -312,8 +328,15 @@ impl<S: StateRead> StateRead for StateDelta<S> {
                 return entry
                     .as_ref()
                     .map(|v| {
-                    v.downcast_ref().unwrap_or_else(|| panic!("unexpected type for key \"{key}\" in `StateDelta::object_get`: expected type {}", std::any::type_name::<T>()))
-                }).cloned();
+                        v.downcast_ref().unwrap_or_else(|| {
+                            panic!(
+                                "unexpected type for key \"{key}\" in `StateDelta::object_get`: \
+                                 expected type {}",
+                                std::any::type_name::<T>()
+                            )
+                        })
+                    })
+                    .cloned();
             }
         }
 
@@ -443,7 +466,8 @@ impl<S: StateRead> StateWrite for StateDelta<S> {
         if let Some(previous_type) = self.object_type(key) {
             if std::any::TypeId::of::<T>() != previous_type {
                 panic!(
-                    "unexpected type for key \"{key}\" in `StateDelta::object_put`: expected type {expected}",
+                    "unexpected type for key \"{key}\" in `StateDelta::object_put`: expected type \
+                     {expected}",
                     expected = std::any::type_name::<T>(),
                 );
             }
@@ -485,12 +509,14 @@ impl<S: StateRead> StateWrite for StateDelta<S> {
 /// Extension trait providing `try_begin_transaction()` on `Arc<StateDelta<S>>`.
 pub trait ArcStateDeltaExt: Sized {
     type S: StateRead;
-    /// Attempts to begin a transaction on this `Arc<State>`, returning `None` if the `Arc` is shared.
+    /// Attempts to begin a transaction on this `Arc<State>`, returning `None` if the `Arc` is
+    /// shared.
     fn try_begin_transaction(&'_ mut self) -> Option<StateDelta<&'_ mut StateDelta<Self::S>>>;
 }
 
 impl<S: StateRead> ArcStateDeltaExt for Arc<StateDelta<S>> {
     type S = S;
+
     fn try_begin_transaction(&'_ mut self) -> Option<StateDelta<&'_ mut StateDelta<S>>> {
         Arc::get_mut(self).map(StateDelta::new)
     }

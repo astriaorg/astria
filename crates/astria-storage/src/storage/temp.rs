@@ -1,6 +1,8 @@
-use crate::Storage;
 use std::ops::Deref;
+
 use tempfile::TempDir;
+
+use crate::Storage;
 
 /// A [`Storage`] instance backed by a [`tempfile::TempDir`] for testing.
 ///
@@ -13,6 +15,7 @@ pub struct TempStorage {
 
 impl Deref for TempStorage {
     type Target = Storage;
+
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
@@ -24,6 +27,9 @@ impl TempStorage {
         let db_filepath = dir.path().join("storage.db");
         let inner = Storage::load(db_filepath.clone()).await?;
 
-        Ok(TempStorage { inner, _dir: dir })
+        Ok(TempStorage {
+            inner,
+            _dir: dir,
+        })
     }
 }

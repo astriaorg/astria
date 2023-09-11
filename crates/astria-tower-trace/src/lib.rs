@@ -2,9 +2,9 @@
 pub mod trace;
 
 mod request_ext;
-pub use request_ext::RequestExt;
-
 use std::net::SocketAddr;
+
+pub use request_ext::RequestExt;
 
 // Extracted from tonic's remote_addr implementation; we'd like to instrument
 // spans with the remote addr at the server level rather than at the individual
