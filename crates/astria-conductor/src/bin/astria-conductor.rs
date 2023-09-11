@@ -32,6 +32,7 @@ use tokio::{
 use tracing::{
     error,
     info,
+    instrument,
 };
 
 #[tokio::main]
@@ -40,6 +41,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+#[instrument(name = "astria_conductor::run")]
 async fn run() -> Result<()> {
     let args = Cli::parse();
     // hierarchical config. cli args override Envars which override toml config values
@@ -118,7 +120,11 @@ async fn run() -> Result<()> {
             _ = stop_rx.changed() => {
                 info!("shutting down conductor");
                 if let Some(e) = driver_tx.send(DriverCommand::Shutdown).err() {
-                    error!("error sending Shutdown command to driver: {}", e);
+                    error!(
+                        error.msg = %e,
+                        error.cause = ?e,
+                        "error sending Shutdown command to driver"
+                    );
                 }
                 break;
             }
@@ -131,7 +137,11 @@ async fn run() -> Result<()> {
                 if let Some(e) = driver_tx.send(DriverCommand::GetNewBlocks).err() {
                     // the only error that can happen here is SendError which occurs
                     // if the driver's receiver channel is dropped
-                    error!("error sending GetNewBlocks command to driver: {}", e);
+                    error!(
+                        error.msg = %e,
+                        error.cause = ?e,
+                        "error sending GetNewBlocks command to driver"
+                    );
                     break;
                 }
             }
