@@ -7,16 +7,16 @@ rust-version = "1.70.0"
 [dependencies]
 proto = { package = "astria-proto", path = "../astria-proto" }
 sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
+storage = { package = "astria-storage", path = "../astria-storage" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
-anyhow = "1"
 matchit = "0.7.2"
-penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.56.0" }
 penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.56.0" }
 tower = "0.4"
 tower-abci = "0.8.0"
 tower-actor = "0.1.0"
 
+anyhow = { workspace = true }
 async-trait = { workspace = true }
 borsh = { workspace = true }
 bytes = { workspace = true }

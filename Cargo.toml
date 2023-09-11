@@ -5,18 +5,20 @@ members = [
   "crates/astria-conductor",
   "crates/astria-gossipnet",
   "crates/astria-proto",
-  "crates/astria-sequencer",
+  # "crates/astria-sequencer",
   "crates/astria-sequencer-client",
   "crates/astria-sequencer-relayer",
   "crates/astria-sequencer-types",
   "crates/astria-sequencer-utils",
   "crates/astria-sequencer-validation",
+  "crates/astria-storage",
   "crates/astria-telemetry",
   "crates/astria-test-utils",
 ]
 resolver = "2"
 
 [workspace.dependencies]
+anyhow = "1"
 async-trait = "0.1.52"
 axum = "0.6.16"
 backon = "0.4.1"

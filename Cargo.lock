@@ -390,7 +390,7 @@ dependencies = [
  "tendermint-rpc",
  "tokio",
  "tokio-test",
- "tokio-util 0.7.8",
+ "tokio-util",
  "tracing",
  "wiremock",
 ]
@@ -427,7 +427,7 @@ dependencies = [
  "tendermint-proto",
  "tendermint-rpc",
  "tokio",
- "tonic 0.9.2",
+ "tonic",
  "tracing",
 ]
 
@@ -456,41 +456,9 @@ dependencies = [
  "sha2 0.10.7",
  "tempfile",
  "tendermint-proto",
- "tonic 0.9.2",
+ "tonic",
  "tracing",
  "which",
-]
-
-[[package]]
-name = "astria-sequencer"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "astria-proto",
- "astria-sequencer-validation",
- "astria-telemetry",
- "async-trait",
- "borsh",
- "bytes",
- "clap",
- "ed25519-consensus",
- "futures",
- "hex",
- "matchit",
- "penumbra-storage",
- "penumbra-tower-trace",
- "prost",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "sha2 0.10.7",
- "tendermint",
- "tendermint-proto",
- "tokio",
- "tower",
- "tower-abci",
- "tower-actor",
- "tracing",
 ]
 
 [[package]]
@@ -601,6 +569,32 @@ dependencies = [
  "serde_json",
  "sha2 0.10.7",
  "tendermint",
+]
+
+[[package]]
+name = "astria-storage"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "borsh",
+ "futures",
+ "hex",
+ "ics23",
+ "jmt",
+ "metrics",
+ "once_cell",
+ "parking_lot 0.12.1",
+ "pin-project",
+ "rocksdb",
+ "sha2 0.10.7",
+ "smallvec",
+ "tempfile",
+ "tendermint",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -928,9 +922,9 @@ dependencies = [
 
 [[package]]
 name = "bindgen"
-version = "0.64.0"
+version = "0.65.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4243e6031260db77ede97ad86c27e501d646a27ab57b59a574f725d98ab1fb4"
+checksum = "cfdf7b466f9a4903edc73f95d6d2bcd5baf8ae620638762244d3f60143643cc5"
 dependencies = [
  "bitflags 1.3.2",
  "cexpr",
@@ -938,12 +932,13 @@ dependencies = [
  "lazy_static",
  "lazycell",
  "peeking_take_while",
+ "prettyplease",
  "proc-macro2",
  "quote",
  "regex",
  "rustc-hash",
  "shlex",
- "syn 1.0.109",
+ "syn 2.0.28",
 ]
 
 [[package]]
@@ -2932,7 +2927,7 @@ dependencies = [
  "indexmap 1.9.3",
  "slab",
  "tokio",
- "tokio-util 0.7.8",
+ "tokio-util",
  "tracing",
 ]
 
@@ -2967,16 +2962,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2bca93b15ea5a746f220e56587f71e73c6165eab783df9e26590069953e3c30"
 dependencies = [
  "fxhash",
-]
-
-[[package]]
-name = "hdrhistogram"
-version = "7.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f19b9f54f7c7f55e31401bb647626ce0cf0f67b0004982ce815b3ee72a02aa8"
-dependencies = [
- "byteorder",
- "num-traits",
 ]
 
 [[package]]
@@ -3601,7 +3586,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-rustls 0.24.1",
- "tokio-util 0.7.8",
+ "tokio-util",
  "tracing",
  "webpki-roots 0.24.0",
 ]
@@ -3681,7 +3666,7 @@ dependencies = [
  "soketto",
  "tokio",
  "tokio-stream",
- "tokio-util 0.7.8",
+ "tokio-util",
  "tower",
  "tracing",
 ]
@@ -3807,7 +3792,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-tungstenite 0.18.0",
- "tokio-util 0.7.8",
+ "tokio-util",
  "tower",
  "tower-http",
  "tracing",
@@ -3851,7 +3836,7 @@ dependencies = [
  "smallvec",
  "thiserror",
  "tokio",
- "tokio-util 0.7.8",
+ "tokio-util",
  "tracing",
 ]
 
@@ -4307,7 +4292,7 @@ dependencies = [
  "thiserror",
  "tinytemplate",
  "tokio",
- "tokio-util 0.7.8",
+ "tokio-util",
  "webrtc",
 ]
 
@@ -4326,9 +4311,9 @@ dependencies = [
 
 [[package]]
 name = "librocksdb-sys"
-version = "0.8.3+7.4.4"
+version = "0.11.0+8.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "557b255ff04123fcc176162f56ed0c9cd42d8f357cf55b3fabeb60f7413741b3"
+checksum = "d3386f101bcb4bd252d8e9d2fb41ec3b0862a15a62b478c355b2982efa469e3e"
 dependencies = [
  "bindgen",
  "bzip2-sys",
@@ -4336,6 +4321,7 @@ dependencies = [
  "glob",
  "libc",
  "libz-sys",
+ "lz4-sys",
  "zstd-sys",
 ]
 
@@ -4400,6 +4386,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31e24f1ad8321ca0e8a1e0ac13f23cb668e6f5466c2c57319f6a5cf1cc8e3b1c"
 dependencies = [
  "linked-hash-map",
+]
+
+[[package]]
+name = "lz4-sys"
+version = "1.9.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57d27b317e207b10f69f5e75494119e391a96f48861ae870d1da6edac98ca900"
+dependencies = [
+ "cc",
+ "libc",
 ]
 
 [[package]]
@@ -5110,53 +5106,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24d159833a9105500e0398934e205e0773f0b27529557134ecfc51c27646adac"
 dependencies = [
  "base64ct",
-]
-
-[[package]]
-name = "penumbra-storage"
-version = "0.56.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.56.0#a43b5944dfac702fd76fee6aab81de05f97de898"
-dependencies = [
- "anyhow",
- "async-trait",
- "borsh",
- "futures",
- "hex",
- "ics23",
- "jmt",
- "metrics",
- "parking_lot 0.12.1",
- "pin-project",
- "rocksdb",
- "sha2 0.10.7",
- "smallvec",
- "tempfile",
- "tendermint",
- "tokio",
- "tokio-stream",
- "tracing",
-]
-
-[[package]]
-name = "penumbra-tower-trace"
-version = "0.56.0"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.56.0#a43b5944dfac702fd76fee6aab81de05f97de898"
-dependencies = [
- "futures",
- "hex",
- "http",
- "pin-project",
- "pin-project-lite",
- "sha2 0.9.9",
- "tendermint",
- "tendermint-proto",
- "tokio",
- "tokio-stream",
- "tokio-util 0.7.8",
- "tonic 0.8.3",
- "tower",
- "tower-service",
- "tracing",
 ]
 
 [[package]]
@@ -5889,9 +5838,9 @@ dependencies = [
 
 [[package]]
 name = "rocksdb"
-version = "0.19.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e9562ea1d70c0cc63a34a22d977753b50cca91cc6b6527750463bd5dd8697bc"
+checksum = "bb6f170a4041d50a0ce04b0d2e14916d6ca863ea2e422689a5b694395d299ffe"
 dependencies = [
  "libc",
  "librocksdb-sys",
@@ -7173,20 +7122,6 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.6.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36943ee01a6d67977dd3f84a5a1d2efeb4ada3a1ae771cadfaa535d9d9fc6507"
-dependencies = [
- "bytes",
- "futures-core",
- "futures-sink",
- "log",
- "pin-project-lite",
- "tokio",
-]
-
-[[package]]
-name = "tokio-util"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "806fe8c2c87eccc8b3267cbae29ed3ab2d0bd37fca70ab622e46aaa9375ddb7d"
@@ -7248,38 +7183,6 @@ dependencies = [
 
 [[package]]
 name = "tonic"
-version = "0.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f219fad3b929bef19b1f86fbc0358d35daed8f2cac972037ac0dc10bbb8d5fb"
-dependencies = [
- "async-stream",
- "async-trait",
- "axum",
- "base64 0.13.1",
- "bytes",
- "futures-core",
- "futures-util",
- "h2",
- "http",
- "http-body",
- "hyper",
- "hyper-timeout",
- "percent-encoding",
- "pin-project",
- "prost",
- "prost-derive",
- "tokio",
- "tokio-stream",
- "tokio-util 0.7.8",
- "tower",
- "tower-layer",
- "tower-service",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
-name = "tonic"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3082666a3a6433f7f511c7192923fa1fe07c69332d3c6a2e6bb040b569199d5a"
@@ -7314,50 +7217,15 @@ checksum = "b8fa9be0de6cf49e536ce1851f987bd21a43b771b09473c3549a6c853db37c1c"
 dependencies = [
  "futures-core",
  "futures-util",
- "hdrhistogram",
  "indexmap 1.9.3",
  "pin-project",
  "pin-project-lite",
  "rand 0.8.5",
  "slab",
  "tokio",
- "tokio-util 0.7.8",
+ "tokio-util",
  "tower-layer",
  "tower-service",
- "tracing",
-]
-
-[[package]]
-name = "tower-abci"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e1ae4967b2fa1d153c226dd9ca5d42b36749a35c6b57f0fe03e342390664d82"
-dependencies = [
- "bytes",
- "futures",
- "pin-project",
- "prost",
- "tendermint",
- "tendermint-proto",
- "tokio",
- "tokio-stream",
- "tokio-util 0.6.10",
- "tower",
- "tracing",
-]
-
-[[package]]
-name = "tower-actor"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b882e5e82ee7440a08335f4d5a2edd9f7678b2cba73eac4826b53c22fd76fdd3"
-dependencies = [
- "futures",
- "pin-project",
- "thiserror",
- "tokio",
- "tokio-util 0.7.8",
- "tower",
  "tracing",
 ]
 
