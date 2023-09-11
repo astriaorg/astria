@@ -7,7 +7,7 @@ use anyhow::{
     Context,
 };
 use bytes::Bytes;
-use penumbra_storage::Storage;
+use storage::Storage;
 use tendermint::abci::{
     request,
     response,
@@ -440,7 +440,7 @@ mod test {
     }
 
     async fn new_consensus_service() -> Consensus {
-        let storage = penumbra_storage::TempStorage::new().await.unwrap();
+        let storage = storage::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let app = App::new(snapshot);
 

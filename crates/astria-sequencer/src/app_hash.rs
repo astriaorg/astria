@@ -3,11 +3,11 @@
 //! Modelled after [`penumbra_chain::component::AppHash`].
 //!
 //! [`penumbra_chain::component::AppHash`]: https://github.com/penumbra-zone/penumbra/blob/22cbaffe5843f3e1be86ac1a27591db01d0368b4/crates/core/component/chain/src/component.rs
-use penumbra_storage::RootHash;
 use sha2::{
     Digest as _,
     Sha256,
 };
+use storage::RootHash;
 
 const APPHASH_DOMSEP: &str = "AstriaAppHash";
 

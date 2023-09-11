@@ -11,8 +11,8 @@ use futures::{
     Future,
     FutureExt,
 };
-use penumbra_storage::Storage;
 use penumbra_tower_trace::RequestExt as _;
+use storage::Storage;
 use tendermint::{
     abci::{
         request,
@@ -141,8 +141,8 @@ impl Service<InfoRequest> for Info {
 
 #[cfg(test)]
 mod test {
-    use penumbra_storage::StateDelta;
     use proto::native::sequencer::v1alpha1::Address;
+    use storage::StateDelta;
     use tendermint::abci::{
         request,
         InfoRequest,
@@ -157,7 +157,7 @@ mod test {
 
     #[tokio::test]
     async fn handle_query() {
-        let storage = penumbra_storage::TempStorage::new()
+        let storage = storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let height = 99;

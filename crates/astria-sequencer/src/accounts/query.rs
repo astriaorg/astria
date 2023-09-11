@@ -1,9 +1,9 @@
 use anyhow::Context as _;
-use penumbra_storage::{
+use proto::native::sequencer::v1alpha1::Address;
+use storage::{
     Snapshot,
     Storage,
 };
-use proto::native::sequencer::v1alpha1::Address;
 use tendermint::{
     abci::{
         request,

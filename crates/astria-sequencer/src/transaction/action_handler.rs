@@ -1,10 +1,10 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use penumbra_storage::{
+use proto::native::sequencer::v1alpha1::Address;
+use storage::{
     StateRead,
     StateWrite,
 };
-use proto::native::sequencer::v1alpha1::Address;
 
 #[async_trait]
 pub(crate) trait ActionHandler {

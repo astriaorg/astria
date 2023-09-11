@@ -43,7 +43,7 @@ impl Sequencer {
                 "creating storage db"
             );
         }
-        let storage = penumbra_storage::Storage::load(config.db_filepath.clone())
+        let storage = storage::Storage::load(config.db_filepath.clone())
             .await
             .context("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();

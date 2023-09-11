@@ -16,7 +16,7 @@ pub struct Config {
     /// The path to the json encoded genesis file with a list of accounts.
     #[arg(long)]
     pub genesis_file: String,
-    /// The path to penumbra storage db.
+    /// The path to the rocksdb file backing the local storage.
     #[arg(long)]
     pub db_filepath: PathBuf,
     /// Filter directives for emitting events

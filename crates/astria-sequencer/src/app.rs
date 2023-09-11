@@ -5,13 +5,13 @@ use anyhow::{
     Context,
     Result,
 };
-use penumbra_storage::{
+use proto::native::sequencer::v1alpha1::Address;
+use storage::{
     ArcStateDeltaExt,
     Snapshot,
     StateDelta,
     Storage,
 };
-use proto::native::sequencer::v1alpha1::Address;
 use tendermint::abci::{
     self,
     Event,
@@ -34,7 +34,9 @@ use crate::{
 };
 
 /// The application hash, used to verify the application state.
-pub(crate) type AppHash = penumbra_storage::RootHash;
+/// FIXME(https://github.com/astriaorg/astria/issues/348): `AppHash` exists as a type alias
+/// here and as a proper type [`crate::app_hash::AppHash`]. That's confusing.
+pub(crate) type AppHash = storage::RootHash;
 
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
@@ -335,7 +337,7 @@ mod test {
 
     #[tokio::test]
     async fn app_genesis_and_init_chain() {
-        let storage = penumbra_storage::TempStorage::new()
+        let storage = storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();
@@ -359,7 +361,7 @@ mod test {
 
     #[tokio::test]
     async fn app_begin_block() {
-        let storage = penumbra_storage::TempStorage::new()
+        let storage = storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();
@@ -390,7 +392,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_transfer() {
-        let storage = penumbra_storage::TempStorage::new()
+        let storage = storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();
@@ -442,7 +444,7 @@ mod test {
     async fn app_deliver_tx_transfer_balance_too_low_for_fee() {
         use rand::rngs::OsRng;
 
-        let storage = penumbra_storage::TempStorage::new()
+        let storage = storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();
@@ -480,7 +482,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_sequence() {
-        let storage = penumbra_storage::TempStorage::new()
+        let storage = storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();
@@ -527,7 +529,7 @@ mod test {
 
     #[tokio::test]
     async fn app_commit() {
-        let storage = penumbra_storage::TempStorage::new()
+        let storage = storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();

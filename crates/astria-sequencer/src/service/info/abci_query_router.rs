@@ -43,7 +43,7 @@ use matchit::{
     Match,
     MatchError,
 };
-use penumbra_storage::Storage;
+use storage::Storage;
 use tendermint::abci::{
     request,
     response,

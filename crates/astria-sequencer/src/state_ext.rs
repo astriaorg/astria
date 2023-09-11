@@ -4,7 +4,7 @@ use anyhow::{
     Result,
 };
 use async_trait::async_trait;
-use penumbra_storage::{
+use storage::{
     StateRead,
     StateWrite,
 };
@@ -50,7 +50,7 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_storage_version_by_height(&self, height: u64) -> Result<u64> {
         let key = storage_version_by_height_key(height);
         let Some(bytes) = self
-            .nonconsensus_get_raw(&key)
+            .nonverifiable_get_raw(&key)
             .await
             .context("failed to read raw storage_version from state")?
         else {
@@ -79,7 +79,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip(self))]
     fn put_storage_version_by_height(&mut self, height: u64, version: u64) {
-        self.nonconsensus_put_raw(
+        self.nonverifiable_put_raw(
             storage_version_by_height_key(height),
             version.to_be_bytes().to_vec(),
         );

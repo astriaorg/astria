@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use penumbra_storage::StateWrite;
+use storage::StateWrite;
 use tendermint::abci;
 
 /// A component of the Sequencer application.
