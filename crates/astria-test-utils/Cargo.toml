@@ -7,6 +7,11 @@ edition = "2021"
 
 [dependencies]
 k8s-openapi = { version = "0.20.0", features = ["v1_26"] }
-kube = { version = "0.86", default-features = false, features = ["client", "runtime", "ws", "rustls-tls"] }
+kube = { version = "0.86", default-features = false, features = [
+  "client",
+  "runtime",
+  "ws",
+  "rustls-tls",
+] }
 
 tokio = { workspace = true, features = ["io-util"] }
