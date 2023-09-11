@@ -320,17 +320,9 @@ mod test {
         sync::Arc,
     };
 
-    use astria_proto::generated::execution::{
-        v1alpha1::{
-            DoBlockResponse,
-            InitStateResponse,
-        },
-        v1alpha2::{
-            BatchGetBlocksResponse,
-            Block,
-            BlockIdentifier,
-            CommitmentState,
-        },
+    use astria_proto::generated::execution::v1alpha1::{
+        DoBlockResponse,
+        InitStateResponse,
     };
     use prost_types::Timestamp;
     use sha2::Digest as _;
