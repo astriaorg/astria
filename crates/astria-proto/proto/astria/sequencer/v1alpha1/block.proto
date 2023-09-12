@@ -3,21 +3,36 @@ syntax = "proto3";
 package astria.sequencer.v1alpha1;
 
 import "tendermint/types/types.proto";
-import "astria/sequencer/v1alpha1/data.proto";
+import "astria/sequencer/v1alpha1/validation.proto";
 
-// helper type - these should get parsed into a map from namespace to
-// a vector of `IndexedTransactions`
-message NamespacedIndexedTransactions {
-    bytes namespace = 1;
-    repeated IndexedTransaction txs = 2;
+// `RollupTransactions` are a sequence of opaque bytes together with the human
+// readable `chain_id` of the rollup they belong to.
+//
+// The binary encoding is understood as an implementation detail of the
+// services sending and receiving the transactions.
+message RollupTransactions {
+    // Opaque bytes identifying the rollup that these transactions belong to. Must be 32 bytes.
+    bytes chain_id = 1;
+    // The serialized opaque bytes of the rollup transactions.
+    repeated bytes transactions = 2;
 }
 
-// `SequencerBlock`
+// `SequencerBlock` is constructed from a tendermint/cometbft block by
+// converting its opaque `data` bytes into sequencer specific types.
 message SequencerBlock {
+    // The hash of the sequencer block. Must be 32 bytes.
     bytes block_hash = 1;
+    // The original cometbft header that was the input to this sequencer block.
     tendermint.types.Header header = 2;
-    repeated IndexedTransaction sequencer_transactions = 3;
-    // FIXME: the current nested array layout results in bad allocation behavior on deserialization
-    // see https://github.com/astriaorg/astria/issues/31
-    repeated NamespacedIndexedTransactions rollup_transactions = 4;
+    // The commit/set of signatures that commited this block.
+    tendermint.types.Commit last_commit = 3;
+    // The collection of rollup transactions that were included in this block.
+    repeated RollupTransactions rollup_transactions = 4;
+    // The root of the action tree of this block. Must be 32 bytes.
+    bytes action_tree_root = 5;
+    // The proof that the action tree root was included in `header.data_hash`.
+    astria.sequencer.v1alpha1.InclusionProof action_tree_inclusion_proof = 6;
+    // The root of the merkle tree constructed form the chain IDs of the rollup
+    // transactions in this block. Must be 32 bytes.
+    bytes chain_ids_commitment = 7;
 }

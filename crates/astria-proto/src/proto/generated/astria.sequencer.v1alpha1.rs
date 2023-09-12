@@ -17,6 +17,119 @@ pub struct NonceResponse {
     #[prost(uint32, tag="3")]
     pub nonce: u32,
 }
+/// A merkle proof of inclusion of a leaf at `index` in a tree
+/// of size `num_leaves`.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct InclusionProof {
+    /// leaf index of value to be proven
+    #[prost(uint64, tag="1")]
+    pub index: u64,
+    /// total number of leaves in the tree
+    #[prost(uint64, tag="2")]
+    pub num_leaves: u64,
+    /// the merkle proof itself. This proof is derived from a RFC 6962 compliant Merkle tree.
+    /// must be a multiple of 32 bytes.
+    #[prost(bytes="vec", tag="3")]
+    pub inclusion_proof: ::prost::alloc::vec::Vec<u8>,
+}
+/// `RollupTransactions` are a sequence of opaque bytes together with the human
+/// readable `chain_id` of the rollup they belong to.
+///
+/// The binary encoding is understood as an implementation detail of the
+/// services sending and receiving the transactions.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RollupTransactions {
+    /// Opaque bytes identifying the rollup that these transactions belong to. Must be 32 bytes.
+    #[prost(bytes="vec", tag="1")]
+    pub chain_id: ::prost::alloc::vec::Vec<u8>,
+    /// The serialized opaque bytes of the rollup transactions.
+    #[prost(bytes="vec", repeated, tag="2")]
+    pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+}
+/// `SequencerBlock` is constructed from a tendermint/cometbft block by
+/// converting its opaque `data` bytes into sequencer specific types.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SequencerBlock {
+    /// The hash of the sequencer block. Must be 32 bytes.
+    #[prost(bytes="vec", tag="1")]
+    pub block_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The original cometbft header that was the input to this sequencer block.
+    #[prost(message, optional, tag="2")]
+    pub header: ::core::option::Option<::tendermint_proto::types::Header>,
+    /// The commit/set of signatures that commited this block.
+    #[prost(message, optional, tag="3")]
+    pub last_commit: ::core::option::Option<::tendermint_proto::types::Commit>,
+    /// The collection of rollup transactions that were included in this block.
+    #[prost(message, repeated, tag="4")]
+    pub rollup_transactions: ::prost::alloc::vec::Vec<RollupTransactions>,
+    /// The root of the action tree of this block. Must be 32 bytes.
+    #[prost(bytes="vec", tag="5")]
+    pub action_tree_root: ::prost::alloc::vec::Vec<u8>,
+    /// The proof that the action tree root was included in `header.data_hash`.
+    #[prost(message, optional, tag="6")]
+    pub action_tree_inclusion_proof: ::core::option::Option<InclusionProof>,
+    /// The root of the merkle tree constructed form the chain IDs of the rollup
+    /// transactions in this block. Must be 32 bytes.
+    #[prost(bytes="vec", tag="7")]
+    pub chain_ids_commitment: ::prost::alloc::vec::Vec<u8>,
+}
+/// A collection of transactions belonging to a specific rollup that are submitted to celestia.
+///
+/// The transactions contained in the item belong to a rollup identified
+/// by `chain_id`, and were included in the sequencer block identified
+/// by `sequencer_block_hash`.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CelestiaRollupData {
+    /// The hash of the sequencer block. Must be 32 bytes.
+    #[prost(bytes="vec", tag="1")]
+    pub sequencer_block_hash: ::prost::alloc::vec::Vec<u8>,
+    /// Opaque bytes identifying the rollup that these transactions belong to. Must be 32 bytes.
+    #[prost(bytes="vec", tag="2")]
+    pub chain_id: ::prost::alloc::vec::Vec<u8>,
+    /// A list of opaque bytes that are serialized rollup transactions.
+    #[prost(bytes="vec", repeated, tag="3")]
+    pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    /// The proof that the action tree root was included in
+    /// `sequencer_block_header.data_hash` (to be found in `CelestiaSequencerData`).
+    /// The inclusion of these transactions in the original sequencer block
+    /// can be verified using the action tree root stored in `CelestiaHeader`.
+    #[prost(message, optional, tag="4")]
+    pub action_tree_inclusion_proof: ::core::option::Option<InclusionProof>,
+}
+/// The metadata of a sequencer block that is submitted to celestia.
+///
+/// It is created by splitting up a `SequencerBlockData` into a "header"
+/// (this `CelestiaSequencerData`), and a list of `CelestiaRollupData` items.
+///
+/// The original sequencer block is identified by its `block_hash`.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CelestiaSequencerData {
+    /// The hash of the sequencer block. Must be 32 bytes.
+    #[prost(bytes="vec", tag="1")]
+    pub sequencer_block_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The original cometbft header that was the input to this sequencer block.
+    #[prost(message, optional, tag="2")]
+    pub sequencer_block_header: ::core::option::Option<::tendermint_proto::types::Header>,
+    /// The commit/set of signatures that commited this block.
+    #[prost(message, optional, tag="3")]
+    pub sequencer_block_last_commit: ::core::option::Option<::tendermint_proto::types::Commit>,
+    /// The namespaces under which rollup transactions belonging to the sequencer
+    /// block identified by `sequencer_block_hash` where submitted to celestia.
+    /// The bytes must convert to a celestia v0 namespace.
+    #[prost(bytes="vec", repeated, tag="4")]
+    pub rollup_namespaces: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    /// The root of the action tree of this block. Must be 32 bytes.
+    #[prost(bytes="vec", tag="5")]
+    pub action_tree_root: ::prost::alloc::vec::Vec<u8>,
+    /// The proof that the action tree root was included in `header.data_hash`.
+    #[prost(message, optional, tag="6")]
+    pub action_tree_inclusion_proof: ::core::option::Option<InclusionProof>,
+}
 /// `IndexedTransaction` represents a sequencer transaction along with the index
 /// it was originally in the sequencer block.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -68,31 +181,6 @@ pub struct SignedNamespaceData {
     pub public_key: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes="vec", tag="3")]
     pub signature: ::prost::alloc::vec::Vec<u8>,
-}
-/// helper type - these should get parsed into a map from namespace to
-/// a vector of `IndexedTransactions`
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct NamespacedIndexedTransactions {
-    #[prost(bytes="vec", tag="1")]
-    pub namespace: ::prost::alloc::vec::Vec<u8>,
-    #[prost(message, repeated, tag="2")]
-    pub txs: ::prost::alloc::vec::Vec<IndexedTransaction>,
-}
-/// `SequencerBlock`
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SequencerBlock {
-    #[prost(bytes="vec", tag="1")]
-    pub block_hash: ::prost::alloc::vec::Vec<u8>,
-    #[prost(message, optional, tag="2")]
-    pub header: ::core::option::Option<::tendermint_proto::types::Header>,
-    #[prost(message, repeated, tag="3")]
-    pub sequencer_transactions: ::prost::alloc::vec::Vec<IndexedTransaction>,
-    /// FIXME: the current nested array layout results in bad allocation behavior on deserialization
-    /// see <https://github.com/astriaorg/astria/issues/31>
-    #[prost(message, repeated, tag="4")]
-    pub rollup_transactions: ::prost::alloc::vec::Vec<NamespacedIndexedTransactions>,
 }
 /// `SignedTransaction` is a transaction that has
 /// been signed by the given public key.
@@ -158,6 +246,7 @@ pub struct TransferAction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SequenceAction {
+    /// Opaque bytes identifying the rollup that this transaction belong to. Must be 32 bytes.
     #[prost(bytes="vec", tag="1")]
     pub chain_id: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes="vec", tag="2")]
