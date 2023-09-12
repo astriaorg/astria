@@ -25,7 +25,7 @@ struct ValidatorSet(Vec<Validator>);
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Validator {
     public_key: [u8; 32],
-    voting_power: u64, // set to 0 to remove validator
+    voting_power: u64,
 }
 
 const SUDO_STORAGE_KEY: &str = "sudo";
