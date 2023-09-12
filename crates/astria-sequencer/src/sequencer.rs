@@ -26,8 +26,11 @@ pub struct Sequencer;
 impl Sequencer {
     #[instrument(skip_all)]
     pub async fn run_until_stopped(config: Config) -> Result<()> {
-        let genesis_state =
-            GenesisState::from_path(config.genesis_file).context("failed reading genesis state")?;
+        let genesis_state = GenesisState::from_path(config.genesis_file).context(
+            "failed reading genesis
+        state",
+        )?;
+
         if config
             .db_filepath
             .try_exists()
@@ -48,7 +51,9 @@ impl Sequencer {
             .context("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
-        app.init_chain(genesis_state)
+
+        // TODO(https://github.com/astriaorg/astria/issues/227): don't call init_chain here
+        app.init_chain(genesis_state, vec![])
             .await
             .context("failed initializing app with genesis state")?;
 

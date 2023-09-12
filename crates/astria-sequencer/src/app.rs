@@ -24,6 +24,7 @@ use tracing::{
 
 use crate::{
     accounts::component::AccountsComponent,
+    authority::component::AuthorityComponent,
     component::Component,
     genesis::GenesisState,
     state_ext::{
@@ -76,7 +77,11 @@ impl App {
     }
 
     #[instrument(name = "App:init_chain", skip(self))]
-    pub(crate) async fn init_chain(&mut self, genesis_state: GenesisState) -> Result<()> {
+    pub(crate) async fn init_chain(
+        &mut self,
+        genesis_state: GenesisState,
+        genesis_validators: Vec<tendermint::validator::Update>,
+    ) -> Result<()> {
         let mut state_tx = self
             .state
             .try_begin_transaction()
@@ -86,9 +91,8 @@ impl App {
 
         // call init_chain on all components
         AccountsComponent::init_chain(&mut state_tx, &genesis_state).await?;
+        AuthorityComponent::init_chain(&mut state_tx, &(genesis_state, genesis_validators)).await?;
         state_tx.apply();
-
-        // TODO: call commit and return the app hash?
         Ok(())
     }
 
@@ -342,8 +346,9 @@ mod test {
         let mut app = App::new(snapshot);
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
+            authority_sudo_key: Address::from([0; 20]),
         };
-        app.init_chain(genesis_state).await.unwrap();
+        app.init_chain(genesis_state, vec![]).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
         for Account {
             address,
@@ -366,8 +371,9 @@ mod test {
         let mut app = App::new(snapshot);
         let genesis_state = GenesisState {
             accounts: vec![],
+            authority_sudo_key: Address::from([0; 20]),
         };
-        app.init_chain(genesis_state).await.unwrap();
+        app.init_chain(genesis_state, vec![]).await.unwrap();
 
         let mut begin_block = abci::request::BeginBlock {
             header: default_header(),
@@ -397,8 +403,9 @@ mod test {
         let mut app = App::new(snapshot);
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
+            authority_sudo_key: Address::from([0; 20]),
         };
-        app.init_chain(genesis_state).await.unwrap();
+        app.init_chain(genesis_state, vec![]).await.unwrap();
 
         // transfer funds from Alice to Bob
         // this secret key corresponds to ALICE_ADDRESS
@@ -449,8 +456,9 @@ mod test {
         let mut app = App::new(snapshot);
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
+            authority_sudo_key: Address::from([0; 20]),
         };
-        app.init_chain(genesis_state).await.unwrap();
+        app.init_chain(genesis_state, vec![]).await.unwrap();
 
         // create a new key; will have 0 balance
         let keypair = SigningKey::new(OsRng);
@@ -487,8 +495,9 @@ mod test {
         let mut app = App::new(snapshot);
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
+            authority_sudo_key: Address::from([0; 20]),
         };
-        app.init_chain(genesis_state).await.unwrap();
+        app.init_chain(genesis_state, vec![]).await.unwrap();
 
         // this secret key corresponds to ALICE_ADDRESS
         let alice_secret_bytes: [u8; 32] =
@@ -534,9 +543,10 @@ mod test {
         let mut app = App::new(snapshot);
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
+            authority_sudo_key: Address::from([0; 20]),
         };
 
-        app.init_chain(genesis_state).await.unwrap();
+        app.init_chain(genesis_state, vec![]).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
         for Account {
             address,

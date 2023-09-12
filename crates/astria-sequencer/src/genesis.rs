@@ -11,9 +11,20 @@ use serde::{
 };
 
 /// The genesis state for the application.
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct GenesisState {
     pub(crate) accounts: Vec<Account>,
+    #[serde(deserialize_with = "deserialize_address")]
+    pub(crate) authority_sudo_key: Address,
+}
+
+impl Default for GenesisState {
+    fn default() -> Self {
+        Self {
+            accounts: vec![],
+            authority_sudo_key: Address::from([0; 20]),
+        }
+    }
 }
 
 impl GenesisState {
