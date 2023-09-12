@@ -332,7 +332,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.into_raw().encode_to_vec();
 
-        let txs = vec![tx_bytes.clone().into()];
+        let txs = vec![tx_bytes.into()];
         let res = generate_sequence_actions_commitment(txs.clone());
         assert_eq!(txs, res.txs_to_include);
 
@@ -355,7 +355,7 @@ mod test {
         let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.into_raw().encode_to_vec();
-        let txs = vec![tx_bytes.clone().into()];
+        let txs = vec![tx_bytes.into()];
         let res = generate_sequence_actions_commitment(txs.clone());
         assert_eq!(txs, res.txs_to_include);
 
