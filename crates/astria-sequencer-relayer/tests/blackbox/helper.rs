@@ -16,10 +16,10 @@ use ed25519_consensus::SigningKey;
 use once_cell::sync::Lazy;
 use proto::native::sequencer::v1alpha1::{
     asset::default_native_asset_id,
+    ChainId,
     SequenceAction,
     UnsignedTransaction,
 };
-use sequencer_types::ChainId;
 use serde_json::json;
 use tempfile::NamedTempFile;
 use tendermint_config::PrivValidatorKey;
@@ -349,8 +349,8 @@ fn create_block_response(
         Time,
     };
     let suffix = height.to_string().into_bytes();
-    let chain_id = ChainId::with_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
-    let signed_tx_bytes = UnsignedTransaction {
+    let chain_id = ChainId::from_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
+    let signed_tx = UnsignedTransaction {
         nonce: 1,
         actions: vec![
             SequenceAction {
@@ -361,15 +361,18 @@ fn create_block_response(
         ],
         fee_asset_id: default_native_asset_id(),
     }
-    .into_signed(signing_key)
-    .into_raw()
-    .encode_to_vec();
-    let action_tree_root = merkle::Tree::from_leaves(std::iter::once(&signed_tx_bytes)).root();
+    .into_signed(signing_key);
+    let rollup_txs = proto::native::sequencer::v1alpha1::group_sequence_actions_in_signed_transaction_transactions_by_chain_id(
+        &[signed_tx.clone()]
+    );
+    let action_tree_root =
+        proto::native::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(&rollup_txs).root();
+
     let chain_ids_commitment = merkle::Tree::from_leaves(std::iter::once(chain_id)).root();
     let data = vec![
         action_tree_root.to_vec(),
         chain_ids_commitment.to_vec(),
-        signed_tx_bytes,
+        signed_tx.into_raw().encode_to_vec(),
     ];
     let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
         &data.iter().map(sha2::Sha256::digest).collect::<Vec<_>>(),

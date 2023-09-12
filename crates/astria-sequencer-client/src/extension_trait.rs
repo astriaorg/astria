@@ -32,9 +32,10 @@ pub use proto::native::sequencer::v1alpha1::{
     Address,
     BalanceResponse,
     NonceResponse,
+    SequencerBlock,
+    SequencerBlockError,
     SignedTransaction,
 };
-use sequencer_types::SequencerBlockData;
 #[cfg(feature = "http")]
 use tendermint_rpc::HttpClient;
 #[cfg(feature = "websocket")]
@@ -65,7 +66,7 @@ const _: () = {
 /// 2. the returned bytes contained in an `abci_query` RPC response cannot be deserialized as a
 ///    sequencer query response.
 /// 3. the sequencer query response is not the expected one.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Error {
     inner: ErrorKind,
 }
@@ -80,8 +81,8 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.inner {
             ErrorKind::AbciQueryDeserialization(e) => Some(e),
+            ErrorKind::CometBftConversion(e) => Some(e),
             ErrorKind::TendermintRpc(e) => Some(e),
-            ErrorKind::Deserialization(e) => Some(e),
         }
     }
 }
@@ -112,12 +113,9 @@ impl Error {
         }
     }
 
-    fn deserialization<T: std::error::Error + Send + Sync + 'static>(
-        target: &'static str,
-        inner: T,
-    ) -> Self {
+    fn cometbft_conversion(e: SequencerBlockError) -> Self {
         Self {
-            inner: ErrorKind::deserialization(target, inner),
+            inner: ErrorKind::CometBftConversion(e),
         }
     }
 
@@ -242,10 +240,10 @@ impl std::error::Error for DeserializationError {
 /// The collection of different errors that can occur when using the extension trait.
 ///
 /// Note that none of the errors contained herein are constructable outside this crate.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum ErrorKind {
     AbciQueryDeserialization(AbciQueryDeserializationError),
-    Deserialization(DeserializationError),
+    CometBftConversion(SequencerBlockError),
     TendermintRpc(TendermintRpcError),
 }
 
@@ -263,16 +261,6 @@ impl ErrorKind {
         })
     }
 
-    fn deserialization<T: std::error::Error + Send + Sync + 'static>(
-        target: &'static str,
-        inner: T,
-    ) -> Self {
-        Self::Deserialization(DeserializationError {
-            inner: Arc::new(inner),
-            target,
-        })
-    }
-
     /// Convenience method to construct a `TendermintRpc` variant.
     fn tendermint_rpc(rpc: &'static str, inner: tendermint_rpc::error::Error) -> Self {
         Self::TendermintRpc(TendermintRpcError {
@@ -285,7 +273,7 @@ impl ErrorKind {
 #[derive(Debug, thiserror::Error)]
 pub enum NewBlockStreamError {
     #[error("failed converting new block received from CometBft to sequencer block")]
-    CometBftConversion(#[source] sequencer_types::sequencer_block_data::Error),
+    CometBftConversion(#[source] SequencerBlockError),
     #[error("expected a `new-block` event, but got `{received}`")]
     UnexpectedEvent { received: &'static str },
     #[error("received a `new-block` event, but block field was not set")]
@@ -324,11 +312,11 @@ impl NewBlockStreamError {
 }
 
 pub struct NewBlocksStream {
-    inner: Pin<Box<dyn Stream<Item = Result<SequencerBlockData, NewBlockStreamError>> + Send>>,
+    inner: Pin<Box<dyn Stream<Item = Result<SequencerBlock, NewBlockStreamError>> + Send>>,
 }
 
 impl Stream for NewBlocksStream {
-    type Item = Result<SequencerBlockData, NewBlockStreamError>;
+    type Item = Result<SequencerBlock, NewBlockStreamError>;
 
     fn poll_next(
         mut self: Pin<&mut Self>,
@@ -344,7 +332,7 @@ pub trait SequencerSubscriptionClientExt: SubscriptionClient {
     ///
     /// This trait method calls the cometbft `/subscribe` endpoint with a
     /// `tm.event = 'NewBlock'` argument, and then attempts to convert each
-    /// cometbft block to a `SequencerBlockData` type.
+    /// cometbft block to a [`SequencerBlock`] type.
     async fn subscribe_new_block_data(&self) -> Result<NewBlocksStream, SubscriptionFailed> {
         use futures::stream::{
             StreamExt as _,
@@ -363,7 +351,7 @@ pub trait SequencerSubscriptionClientExt: SubscriptionClient {
                     EventData::LegacyNewBlock {
                         block: Some(block),
                         ..
-                    } => SequencerBlockData::from_tendermint_block(*block)
+                    } => SequencerBlock::try_from_cometbft(*block)
                         .map_err(NewBlockStreamError::CometBftConversion),
 
                     EventData::LegacyNewBlock {
@@ -490,21 +478,20 @@ pub trait SequencerClientExt: Client {
     /// Get the latest sequencer block.
     ///
     /// This is a convenience method that converts the result [`Client::latest_block`]
-    /// to `SequencerBlockData`.
-    async fn latest_sequencer_block(&self) -> Result<SequencerBlockData, Error> {
+    /// to [`SequencerBlock`].
+    async fn latest_sequencer_block(&self) -> Result<SequencerBlock, Error> {
         let rsp = self
             .latest_block()
             .await
             .map_err(|e| Error::tendermint_rpc("latest_block", e))?;
-        SequencerBlockData::from_tendermint_block(rsp.block)
-            .map_err(|e| Error::deserialization("SequencerBlockData", e))
+        SequencerBlock::try_from_cometbft(rsp.block).map_err(Error::cometbft_conversion)
     }
 
     /// Get the sequencer block at the provided height.
     ///
-    /// This is a convenience method that converts the result [`Client::block`]
-    /// to `SequencerBlockData`.
-    async fn sequencer_block<HeightT>(&self, height: HeightT) -> Result<SequencerBlockData, Error>
+    /// This is a convenience method that converts the result of calling [`Client::block`]
+    /// to an Astria [`SequencerBlock`].
+    async fn sequencer_block<HeightT>(&self, height: HeightT) -> Result<SequencerBlock, Error>
     where
         HeightT: Into<tendermint::block::Height> + Send,
     {
@@ -512,8 +499,7 @@ pub trait SequencerClientExt: Client {
             .block(height.into())
             .await
             .map_err(|e| Error::tendermint_rpc("block", e))?;
-        SequencerBlockData::from_tendermint_block(rsp.block)
-            .map_err(|e| Error::deserialization("SequencerBlockData", e))
+        SequencerBlock::try_from_cometbft(rsp.block).map_err(Error::cometbft_conversion)
     }
 
     /// Submits the given transaction to the Sequencer node.

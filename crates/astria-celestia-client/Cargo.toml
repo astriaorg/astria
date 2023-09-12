@@ -15,9 +15,10 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 tendermint = { workspace = true }
 thiserror = { workspace = true }
+tracing={workspace = true}
 
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
-sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }
+proto = { package = "astria-proto", path = "../astria-proto" }
 
 ### Celestia specific imports
 #
@@ -26,6 +27,7 @@ sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequen
 # As none of them are reexported it is important to keep these in sync
 # when updating.
 jsonrpsee = { version = "0.20", features = ["client-core", "macros"] }
+hex.workspace = true
 
 [dependencies.celestia-rpc]
 git = "https://github.com/eigerco/celestia-node-rs"

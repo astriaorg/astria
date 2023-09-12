@@ -8,13 +8,21 @@ use ed25519_consensus::{
     SigningKey,
     VerificationKey,
 };
+use indexmap::IndexMap;
 use penumbra_ibc::IbcRelay;
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 use tracing::info;
 
 pub use super::asset;
 use crate::{
     generated::sequencer::v1alpha1 as raw,
-    native::sequencer::v1alpha1::asset::IncorrectAssetIdLength,
+    native::{
+        sequencer::v1alpha1::asset::IncorrectAssetIdLength,
+        Protobuf,
+    },
 };
 
 pub const ADDRESS_LEN: usize = 20;
@@ -563,7 +571,7 @@ pub struct SequenceActionError {
 }
 
 impl SequenceActionError {
-    fn chain_id(inner: IncorrectChainIdLength) -> Self {
+    fn chain_id(inner: IncorrectRollupIdLength) -> Self {
         Self {
             kind: SequenceActionErrorKind::ChainId(inner),
         }
@@ -590,21 +598,21 @@ impl Error for SequenceActionError {
 
 #[derive(Debug)]
 enum SequenceActionErrorKind {
-    ChainId(IncorrectChainIdLength),
+    ChainId(IncorrectRollupIdLength),
 }
 
 #[derive(Debug)]
-pub struct IncorrectChainIdLength {
+pub struct IncorrectRollupIdLength {
     received: usize,
 }
 
-impl Display for IncorrectChainIdLength {
+impl Display for IncorrectRollupIdLength {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "expected 32 bytes, got {}", self.received)
     }
 }
 
-impl Error for IncorrectChainIdLength {}
+impl Error for IncorrectRollupIdLength {}
 
 #[derive(Clone, Debug)]
 pub struct SequenceAction {
@@ -949,10 +957,6 @@ impl Address {
     // cannot happen.
     #[allow(clippy::missing_panics_doc)]
     pub fn from_verification_key(public_key: ed25519_consensus::VerificationKey) -> Self {
-        use sha2::{
-            Digest as _,
-            Sha256,
-        };
         /// this ensures that `ADDRESS_LEN` is never accidentally changed to a value
         /// that would violate this assumption.
         #[allow(clippy::assertions_on_constants)]
@@ -1001,7 +1005,7 @@ impl Display for Address {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub struct ChainId {
@@ -1013,7 +1017,7 @@ impl ChainId {
     /// Creates a new `ChainId` from a 32 byte array.
     ///
     /// Use this if you already have a 32 byte array. Prefer
-    /// [`ChainId::with_unhashed_bytes`] if you have a clear text
+    /// [`ChainId::from_unhashed_bytes`] if you have a clear text
     /// name what you want to use to identify your rollup.
     ///
     /// # Examples
@@ -1040,7 +1044,7 @@ impl ChainId {
     /// assert_eq!(bytes, chain_id.get());
     /// ```
     #[must_use]
-    pub fn get(self) -> [u8; 32] {
+    pub const fn get(self) -> [u8; 32] {
         self.inner
     }
 
@@ -1055,15 +1059,11 @@ impl ChainId {
     /// };
     /// let name = "MyRollup-1";
     /// let hashed = Sha256::digest(name);
-    /// let chain_id = ChainId::with_unhashed_bytes(name);
+    /// let chain_id = ChainId::from_unhashed_bytes(name);
     /// assert_eq!(chain_id, ChainId::new(hashed.into()));
     /// ```
     #[must_use]
-    pub fn with_unhashed_bytes<T: AsRef<[u8]>>(bytes: T) -> Self {
-        use sha2::{
-            Digest as _,
-            Sha256,
-        };
+    pub fn from_unhashed_bytes<T: AsRef<[u8]>>(bytes: T) -> Self {
         Self {
             inner: Sha256::digest(bytes).into(),
         }
@@ -1078,7 +1078,7 @@ impl ChainId {
     /// assert_eq!(vec![42u8; 32], chain_id.to_vec());
     /// ```
     #[must_use]
-    pub fn to_vec(&self) -> Vec<u8> {
+    pub fn to_vec(self) -> Vec<u8> {
         self.inner.to_vec()
     }
 
@@ -1087,10 +1087,23 @@ impl ChainId {
     /// # Errors
     ///
     /// Returns an error if the byte slice was not 32 bytes long.
-    pub fn try_from_slice(bytes: &[u8]) -> Result<Self, IncorrectChainIdLength> {
-        let inner = <[u8; CHAIN_ID_LEN]>::try_from(bytes).map_err(|_| IncorrectChainIdLength {
+    pub fn try_from_slice(bytes: &[u8]) -> Result<Self, IncorrectRollupIdLength> {
+        let inner = <[u8; CHAIN_ID_LEN]>::try_from(bytes).map_err(|_| IncorrectRollupIdLength {
             received: bytes.len(),
         })?;
+        Ok(Self::new(inner))
+    }
+
+    /// Convert a byte vector to a chain ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the byte slice was not 32 bytes long.
+    pub fn try_from_vec(bytes: Vec<u8>) -> Result<Self, IncorrectRollupIdLength> {
+        let inner =
+            <[u8; CHAIN_ID_LEN]>::try_from(bytes).map_err(|bytes| IncorrectRollupIdLength {
+                received: bytes.len(),
+            })?;
         Ok(Self::new(inner))
     }
 }
@@ -1250,6 +1263,972 @@ impl Display for IncorrectAddressLength {
 }
 
 impl Error for IncorrectAddressLength {}
+
+impl Protobuf for merkle::Proof {
+    type Error = merkle::audit::InvalidProof;
+    type Raw = raw::Proof;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        // XXX: Implementing this by cloning is ok because `audit_path`
+        //      has to be cloned always due to `UncheckedProof`'s constructor.
+        Self::try_from_raw(raw.clone())
+    }
+
+    fn try_from_raw(raw: Self::Raw) -> Result<Self, Self::Error> {
+        let Self::Raw {
+            audit_path,
+            leaf_index,
+            tree_size,
+        } = raw;
+        let leaf_index = leaf_index.try_into().expect(
+            "running on a machine with at least 64 bit pointer width and can convert from u64 to \
+             usize",
+        );
+        let tree_size = tree_size.try_into().expect(
+            "running on a machine with at least 64 bit pointer width and can convert from u64 to \
+             usize",
+        );
+        Self::unchecked()
+            .audit_path(audit_path)
+            .leaf_index(leaf_index)
+            .tree_size(tree_size)
+            .try_into_proof()
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        // XXX: Implementing in terms of clone is ok because the fields would need to be cloned
+        // anyway.
+        self.clone().into_raw()
+    }
+
+    fn into_raw(self) -> Self::Raw {
+        let merkle::audit::UncheckedProof {
+            audit_path,
+            leaf_index,
+            tree_size,
+        } = self.into_unchecked();
+        Self::Raw {
+            audit_path,
+            leaf_index: leaf_index.try_into().expect(
+                "running on a machine with at most 64 bit pointer width and can convert from \
+                 usize to u64",
+            ),
+            tree_size: tree_size.try_into().expect(
+                "running on a machine with at most 64 bit pointer width and can convert from \
+                 usize to u64",
+            ),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum RollupTransactionsError {
+    ChainId(IncorrectRollupIdLength),
+}
+
+#[derive(Clone)]
+pub struct RollupTransactions {
+    /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
+    id: ChainId,
+    /// The serialized opaque bytes of the rollup transactions.
+    transactions: Vec<Vec<u8>>,
+}
+
+impl RollupTransactions {
+    pub fn id(&self) -> ChainId {
+        self.id
+    }
+
+    pub fn transactions(&self) -> &[Vec<u8>] {
+        &self.transactions
+    }
+
+    pub fn into_raw(self) -> raw::RollupTransactions {
+        let Self {
+            id,
+            transactions,
+        } = self;
+        raw::RollupTransactions {
+            id: id.get().to_vec(),
+            transactions,
+        }
+    }
+
+    pub fn try_from_raw(raw: raw::RollupTransactions) -> Result<Self, RollupTransactionsError> {
+        let raw::RollupTransactions {
+            id,
+            transactions,
+        } = raw;
+        let id = ChainId::try_from_slice(&id).map_err(RollupTransactionsError::ChainId)?;
+        Ok(Self {
+            id,
+            transactions,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SequencerBlockError {
+    #[error(
+        "the CometBFT block.header.data_hash does not match the Merkle Tree Hash derived from \
+         block.data"
+    )]
+    CometBftDataHashDoesNotMatchReconstructed,
+    #[error("hashing the CometBFT block.header returned an empty hash which is not permitted")]
+    CometBftBlockHashIsNone,
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("failed creating a native cometbft Header from the raw protobuf header")]
+    Header(#[source] tendermint::Error),
+    #[error(
+        "failed parsing a raw protobuf rollup transaction because it contained an invalid rollup \
+         ID"
+    )]
+    ParseRollupTransactions(#[source] IncorrectRollupIdLength),
+    #[error("failed constructing a transaction proof from the raw protobuf transaction proof")]
+    TransactionProofInvalid(#[source] merkle::audit::InvalidProof),
+    #[error("failed constructing a rollup ID proof from the raw protobuf rollup ID proof")]
+    IdProofInvalid(#[source] merkle::audit::InvalidProof),
+    #[error(
+        "the cometbft block.data field was too short and did not contain the rollup transaction \
+         root"
+    )]
+    NoRollupTransactionsRoot,
+    #[error(
+        "the rollup transaction root in the cometbft block.data field was expected to be 32 bytes \
+         long, but was actually `{0}`"
+    )]
+    IncorrectRollupTransactionsRootLength(usize),
+    #[error("the cometbft block.data field was too short and did not contain the rollup ID root")]
+    NoRollupIdsRoot,
+    #[error(
+        "the rollup ID root in the cometbft block.data field was expected to be 32 bytes long, \
+         but was actually `{0}`"
+    )]
+    IncorrectRollupIdsRootLength(usize),
+    #[error(
+        "the Merkle Tree Hash derived from the rollup transactions recorded in the raw protobuf \
+         sequencer block could not be verified against their proof and the block's data hash"
+    )]
+    RollupTransactionsNotInSequencerBlock,
+    #[error(
+        "the Merkle Tree Hash derived from the rollup IDs recorded in the raw protobuf sequencer \
+         block could not be verified against their proof and the block's data hash"
+    )]
+    RollupIdsNotInSequencerBlock,
+    #[error(
+        "failed decoding an entry in the cometbft block.data field as a protobuf signed astria \
+         transaction"
+    )]
+    SignedTransactionProtobufDecode(#[source] prost::DecodeError),
+    #[error(
+        "failed converting a raw protobuf signed transaction decoded from the cometbft block.data
+        field to a native astria signed transaction"
+    )]
+    RawSignedTransactionConversion(#[source] SignedTransactionError),
+    #[error(
+        "the root derived from the rollup transactions in the cometbft block.data field did not \
+         match the root stored in the same block.data field"
+    )]
+    RollupTransactionsRootDoesNotMatchReconstructed,
+    #[error(
+        "the root derived from the rollup IDs in the cometbft block.data field did not match the \
+         root stored in the same block.data field"
+    )]
+    RollupIdsRootDoesNotMatchReconstructed,
+}
+
+/// A shadow of [`SequencerBlock`] with full public access to its fields.
+///
+/// This type does not guarantee any invariants and is mainly useful to get
+/// access the sequencer block's internal types.
+#[derive(Clone, Debug)]
+pub struct UncheckedSequencerBlock {
+    /// The original CometBFT header that was the input to this sequencer block.
+    pub header: tendermint::block::header::Header,
+    /// The collection of rollup transactions that were included in this block.
+    pub rollup_transactions: IndexMap<ChainId, Vec<Vec<u8>>>,
+    // The proof that the rollup transactions are included in the CometBFT block this
+    // sequencer block is derived form. This proof together with
+    // `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
+    // `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
+    // rollup transactions.
+    pub rollup_transactions_proof: merkle::Proof,
+    // The proof that the chain IDs listed in `rollup_transactions` are included
+    // in the CometBFT block this sequencer block is derived form. This proof together
+    // with `Sha256(MTH(chain_ids))` must match `header.data_hash`.
+    // `MTH(chain_ids)` is the Merkle Tree Hash derived from the chain IDs listed in
+    // the rollup transactions.
+    pub rollup_ids_proof: merkle::Proof,
+}
+
+/// `SequencerBlock` is constructed from a tendermint/cometbft block by
+/// converting its opaque `data` bytes into sequencer specific types.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SequencerBlock {
+    /// The result of hashing `header`. Guaranteed to not be `None` as compared to
+    /// the cometbft/tendermint-rs return type.
+    block_hash: [u8; 32],
+    /// The original CometBFT header that was the input to this sequencer block.
+    header: tendermint::block::header::Header,
+    /// The collection of rollup transactions that were included in this block.
+    rollup_transactions: IndexMap<ChainId, Vec<Vec<u8>>>,
+    // The proof that the rollup transactions are included in the CometBFT block this
+    // sequencer block is derived form. This proof together with
+    // `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
+    // `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
+    // rollup transactions.
+    rollup_transactions_proof: merkle::Proof,
+    // The proof that the chain IDs listed in `rollup_transactions` are included
+    // in the CometBFT block this sequencer block is derived form. This proof together
+    // with `Sha256(MTH(chain_ids))` must match `header.data_hash`.
+    // `MTH(chain_ids)` is the Merkle Tree Hash derived from the chain IDs listed in
+    // the rollup transactions.
+    rollup_ids_proof: merkle::Proof,
+}
+
+impl SequencerBlock {
+    /// Returns the hash of the CometBFT block this sequencer block is derived from.
+    ///
+    /// This is done by hashing the CometBFT header stored in this block.
+    pub fn block_hash(&self) -> [u8; 32] {
+        self.block_hash
+    }
+
+    pub fn header(&self) -> &tendermint::block::header::Header {
+        &self.header
+    }
+
+    pub fn rollup_transactions(&self) -> &IndexMap<ChainId, Vec<Vec<u8>>> {
+        &self.rollup_transactions
+    }
+
+    pub fn into_raw(self) -> raw::SequencerBlock {
+        fn tuple_to_rollup_txs(
+            (chain_id, transactions): (ChainId, Vec<Vec<u8>>),
+        ) -> raw::RollupTransactions {
+            raw::RollupTransactions {
+                id: chain_id.to_vec(),
+                transactions,
+            }
+        }
+
+        let Self {
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+            ..
+        } = self;
+        raw::SequencerBlock {
+            header: Some(header.into()),
+            rollup_transactions: rollup_transactions
+                .into_iter()
+                .map(tuple_to_rollup_txs)
+                .collect(),
+            rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
+            rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
+        }
+    }
+
+    pub fn into_unchecked(self) -> UncheckedSequencerBlock {
+        let Self {
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+            ..
+        } = self;
+        UncheckedSequencerBlock {
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        }
+    }
+
+    pub fn to_celestia_blobs(&self) -> (CelestiaSequencerBlob, Vec<CelestiaRollupBlob>) {
+        let SequencerBlock {
+            block_hash,
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        } = self;
+
+        let tree = derive_merkle_tree_from_rollup_txs(rollup_transactions);
+
+        let head = CelestiaSequencerBlob {
+            block_hash: *block_hash,
+            header: header.clone(),
+            rollup_ids: rollup_transactions.keys().copied().collect(),
+            rollup_transactions_root: tree.root(),
+            rollup_transactions_proof: rollup_transactions_proof.clone(),
+            rollup_ids_proof: rollup_ids_proof.clone(),
+        };
+
+        let mut tail = Vec::with_capacity(self.rollup_transactions.len());
+        for (i, (rollup_id, transactions)) in self.rollup_transactions.iter().enumerate() {
+            let proof = tree
+                .construct_proof(i)
+                .expect("the proof must exist because the tree was derived with the same leaf");
+            tail.push(CelestiaRollupBlob {
+                sequencer_block_hash: self.block_hash(),
+                rollup_id: *rollup_id,
+                transactions: transactions.clone(),
+                proof,
+            })
+        }
+        (head, tail)
+    }
+
+    pub fn try_from_cometbft(block: tendermint::Block) -> Result<Self, SequencerBlockError> {
+        use prost::Message as _;
+
+        let tendermint::Block {
+            header,
+            data,
+            ..
+        } = block;
+
+        let Some(tendermint::Hash::Sha256(data_hash)) = header.data_hash else {
+            // header.data_hash is Option<Hash> and Hash itself has
+            // variants Sha256([u8; 32]) or None.
+            return Err(SequencerBlockError::FieldNotSet("header.data_hash"));
+        };
+
+        let tendermint::Hash::Sha256(block_hash) = header.hash() else {
+            return Err(SequencerBlockError::CometBftBlockHashIsNone);
+        };
+
+        let tree = merkle_tree_from_data(&data);
+        if tree.root() != data_hash {
+            return Err(SequencerBlockError::CometBftDataHashDoesNotMatchReconstructed);
+        }
+
+        let mut data_list = data.into_iter();
+        let rollup_transactions_root: [u8; 32] = data_list
+            .next()
+            .ok_or(SequencerBlockError::NoRollupTransactionsRoot)?
+            .try_into()
+            .map_err(|e: Vec<_>| {
+                SequencerBlockError::IncorrectRollupTransactionsRootLength(e.len())
+            })?;
+
+        let rollup_ids_root: [u8; 32] = data_list
+            .next()
+            .ok_or(SequencerBlockError::NoRollupIdsRoot)?
+            .try_into()
+            .map_err(|e: Vec<_>| SequencerBlockError::IncorrectRollupIdsRootLength(e.len()))?;
+
+        let mut rollup_transactions = IndexMap::new();
+        for elem in data_list {
+            let raw_tx = raw::SignedTransaction::decode(&*elem)
+                .map_err(SequencerBlockError::SignedTransactionProtobufDecode)?;
+            let signed_tx = SignedTransaction::try_from_raw(raw_tx)
+                .map_err(SequencerBlockError::RawSignedTransactionConversion)?;
+            for action in signed_tx.transaction.actions {
+                if let Action::Sequence(SequenceAction {
+                    chain_id,
+                    data,
+                }) = action
+                {
+                    let elem = rollup_transactions.entry(chain_id).or_insert(vec![]);
+                    elem.push(data);
+                }
+            }
+        }
+        rollup_transactions.sort_unstable_keys();
+
+        if rollup_transactions_root
+            != derive_merkle_tree_from_rollup_txs(&rollup_transactions).root()
+        {
+            return Err(SequencerBlockError::RollupTransactionsRootDoesNotMatchReconstructed);
+        }
+
+        // ensure the chain IDs commitment matches the one calculated from the rollup data
+        if rollup_ids_root != merkle::Tree::from_leaves(rollup_transactions.keys()).root() {
+            return Err(SequencerBlockError::RollupIdsRootDoesNotMatchReconstructed);
+        }
+
+        // action tree root is always the first tx in a block
+        let rollup_transactions_proof = tree.construct_proof(0).expect(
+            "the tree has at least one leaf; if this line is reached and `construct_proof` \
+             returns None it means that the short circuiting checks above it have been removed",
+        );
+
+        let rollup_ids_proof = tree.construct_proof(1).expect(
+            "the tree has at least two leaves; if this line is reached and `construct_proof` \
+             returns None it means that the short circuiting checks above it have been removed",
+        );
+
+        Ok(Self {
+            block_hash,
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        })
+    }
+
+    pub fn try_from_raw(raw: raw::SequencerBlock) -> Result<Self, SequencerBlockError> {
+        fn rollup_txs_to_tuple(
+            raw: raw::RollupTransactions,
+        ) -> Result<(ChainId, Vec<Vec<u8>>), IncorrectRollupIdLength> {
+            let id = ChainId::try_from_slice(&raw.id)?;
+            Ok((id, raw.transactions))
+        }
+
+        let raw::SequencerBlock {
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        } = raw;
+
+        let rollup_transactions_proof = 'proof: {
+            let Some(rollup_transactions_proof) = rollup_transactions_proof else {
+                break 'proof Err(SequencerBlockError::FieldNotSet(
+                    "rollup_transactions_proof",
+                ));
+            };
+            merkle::Proof::try_from_raw(rollup_transactions_proof)
+                .map_err(SequencerBlockError::TransactionProofInvalid)
+        }?;
+        let rollup_ids_proof = 'proof: {
+            let Some(rollup_ids_proof) = rollup_ids_proof else {
+                break 'proof Err(SequencerBlockError::FieldNotSet("rollup_ids_proof"));
+            };
+            merkle::Proof::try_from_raw(rollup_ids_proof)
+                .map_err(SequencerBlockError::IdProofInvalid)
+        }?;
+        let header = 'header: {
+            let Some(header) = header else {
+                break 'header Err(SequencerBlockError::FieldNotSet("header"));
+            };
+            tendermint::block::Header::try_from(header).map_err(SequencerBlockError::Header)
+        }?;
+        let tendermint::Hash::Sha256(block_hash) = header.hash() else {
+            return Err(SequencerBlockError::CometBftBlockHashIsNone);
+        };
+
+        // header.data_hash is Option<Hash> and Hash itself has
+        // variants Sha256([u8; 32]) or None.
+        let Some(tendermint::Hash::Sha256(data_hash)) = header.data_hash else {
+            return Err(SequencerBlockError::FieldNotSet("header.data_hash"));
+        };
+
+        let rollup_transactions = rollup_transactions
+            .into_iter()
+            .map(rollup_txs_to_tuple)
+            .collect::<Result<_, _>>()
+            .map_err(SequencerBlockError::ParseRollupTransactions)?;
+
+        if !are_rollup_txs_included(&rollup_transactions, &rollup_transactions_proof, data_hash) {
+            return Err(SequencerBlockError::RollupTransactionsNotInSequencerBlock);
+        }
+        if !are_rollup_ids_included(
+            rollup_transactions.keys().copied(),
+            &rollup_ids_proof,
+            data_hash,
+        ) {
+            return Err(SequencerBlockError::RollupIdsNotInSequencerBlock);
+        }
+
+        Ok(Self {
+            block_hash,
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("failed constructing a celestia rollup blob")]
+pub struct CelestiaRollupBlobError {
+    #[source]
+    kind: CelestiaRollupBlobErrorKind,
+}
+
+impl CelestiaRollupBlobError {
+    fn field_not_set(field: &'static str) -> Self {
+        Self {
+            kind: CelestiaRollupBlobErrorKind::FieldNotSet {
+                field,
+            },
+        }
+    }
+
+    fn rollup_id(source: IncorrectRollupIdLength) -> Self {
+        Self {
+            kind: CelestiaRollupBlobErrorKind::RollupId {
+                source,
+            },
+        }
+    }
+
+    fn proof(source: <merkle::Proof as Protobuf>::Error) -> Self {
+        Self {
+            kind: CelestiaRollupBlobErrorKind::Proof {
+                source,
+            },
+        }
+    }
+
+    fn sequencer_block_hash(actual_len: usize) -> Self {
+        Self {
+            kind: CelestiaRollupBlobErrorKind::SequencerBlockHash(actual_len),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum CelestiaRollupBlobErrorKind {
+    #[error("the expected field in the raw source type was not set: `{field}`")]
+    FieldNotSet { field: &'static str },
+    #[error("failed converting the provided bytes to Rollup ID")]
+    RollupId { source: IncorrectRollupIdLength },
+    #[error("failed constructing a Merkle Hash Tree Proof from the provided raw protobf type")]
+    Proof {
+        source: <merkle::Proof as Protobuf>::Error,
+    },
+    #[error(
+        "the provided bytes were too short for a sequencer block hash. Expected: 32 bytes, \
+         provided: {0}"
+    )]
+    SequencerBlockHash(usize),
+}
+
+/// A shadow of [`CelestiaRollupBlob`] with public access to all its fields.
+///
+/// Useful when unwrapping all its fields but is not guaranteed to uphold any invariants.
+pub struct UncheckedRollupBlob {
+    /// The hash of the sequencer block. Must be 32 bytes.
+    pub sequencer_block_hash: [u8; 32],
+    /// The 32 bytes identifying the rollup this blob belongs to. Matches
+    /// `astria.sequencer.v1alpha1.RollupTransactions.chain_id`
+    pub rollup_id: ChainId,
+    /// A list of opaque bytes that are serialized rollup transactions.
+    pub transactions: Vec<Vec<u8>>,
+    /// The proof that these rollup transactions are included in sequencer block.
+    pub proof: merkle::Proof,
+}
+
+#[derive(Clone, Debug)]
+pub struct CelestiaRollupBlob {
+    /// The hash of the sequencer block. Must be 32 bytes.
+    sequencer_block_hash: [u8; 32],
+    /// The 32 bytes identifying the rollup this blob belongs to. Matches
+    /// `astria.sequencer.v1alpha1.RollupTransactions.chain_id`
+    rollup_id: ChainId,
+    /// A list of opaque bytes that are serialized rollup transactions.
+    transactions: Vec<Vec<u8>>,
+    /// The proof that these rollup transactions are included in sequencer block.
+    proof: merkle::Proof,
+}
+
+impl CelestiaRollupBlob {
+    pub fn proof(&self) -> &merkle::Proof {
+        &self.proof
+    }
+
+    pub fn transactions(&self) -> &[Vec<u8>] {
+        &self.transactions
+    }
+
+    pub fn rollup_id(&self) -> ChainId {
+        self.rollup_id
+    }
+
+    pub fn sequencer_block_hash(&self) -> [u8; 32] {
+        self.sequencer_block_hash
+    }
+
+    pub fn into_unchecked(self) -> UncheckedRollupBlob {
+        let Self {
+            sequencer_block_hash,
+            rollup_id,
+            transactions,
+            proof,
+        } = self;
+        UncheckedRollupBlob {
+            sequencer_block_hash,
+            rollup_id,
+            transactions,
+            proof,
+        }
+    }
+
+    pub fn into_raw(self) -> raw::CelestiaRollupBlob {
+        let Self {
+            sequencer_block_hash,
+            rollup_id,
+            transactions,
+            proof,
+        } = self;
+        raw::CelestiaRollupBlob {
+            sequencer_block_hash: sequencer_block_hash.to_vec(),
+            rollup_id: rollup_id.to_vec(),
+            transactions,
+            proof: Some(proof.into_raw()),
+        }
+    }
+
+    pub fn try_from_raw(raw: raw::CelestiaRollupBlob) -> Result<Self, CelestiaRollupBlobError> {
+        let raw::CelestiaRollupBlob {
+            sequencer_block_hash,
+            rollup_id,
+            transactions,
+            proof,
+        } = raw;
+        let rollup_id =
+            ChainId::try_from_vec(rollup_id).map_err(CelestiaRollupBlobError::rollup_id)?;
+        let sequencer_block_hash = sequencer_block_hash
+            .try_into()
+            .map_err(|bytes: Vec<u8>| CelestiaRollupBlobError::sequencer_block_hash(bytes.len()))?;
+        let proof = 'proof: {
+            let Some(proof) = proof else {
+                break 'proof Err(CelestiaRollupBlobError::field_not_set("proof"));
+            };
+            merkle::Proof::try_from_raw(proof).map_err(CelestiaRollupBlobError::proof)
+        }?;
+        Ok(Self {
+            sequencer_block_hash,
+            rollup_id,
+            transactions,
+            proof,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("failed constructing a celestia sequencer blob")]
+pub struct CelestiaSequencerBlobError {
+    #[source]
+    kind: CelestiaSequencerBlobErrorKind,
+}
+
+impl CelestiaSequencerBlobError {
+    fn empty_cometbft_block_hash() -> Self {
+        Self {
+            kind: CelestiaSequencerBlobErrorKind::EmptyCometBftBlockHash,
+        }
+    }
+
+    fn cometbft_header(source: tendermint::Error) -> Self {
+        Self {
+            kind: CelestiaSequencerBlobErrorKind::CometBftHeader {
+                source,
+            },
+        }
+    }
+
+    fn field_not_set(field: &'static str) -> Self {
+        Self {
+            kind: CelestiaSequencerBlobErrorKind::FieldNotSet(field),
+        }
+    }
+
+    fn rollup_ids(source: IncorrectRollupIdLength) -> Self {
+        Self {
+            kind: CelestiaSequencerBlobErrorKind::RollupIds {
+                source,
+            },
+        }
+    }
+
+    fn rollup_transactions_root(actual_len: usize) -> Self {
+        Self {
+            kind: CelestiaSequencerBlobErrorKind::RollupTransactionsRoot(actual_len),
+        }
+    }
+
+    fn rollup_transactions_proof(source: <merkle::Proof as Protobuf>::Error) -> Self {
+        Self {
+            kind: CelestiaSequencerBlobErrorKind::RollupTransactionsProof {
+                source,
+            },
+        }
+    }
+
+    fn rollup_ids_proof(source: <merkle::Proof as Protobuf>::Error) -> Self {
+        Self {
+            kind: CelestiaSequencerBlobErrorKind::RollupIdsProof {
+                source,
+            },
+        }
+    }
+
+    fn rollup_transactions_not_in_cometbft_block() -> Self {
+        Self {
+            kind: CelestiaSequencerBlobErrorKind::RollupTransactiosnNotInCometBftBlock,
+        }
+    }
+
+    fn rollup_ids_not_in_cometbft_block() -> Self {
+        Self {
+            kind: CelestiaSequencerBlobErrorKind::RollupIdsNotInCometBftBlock,
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum CelestiaSequencerBlobErrorKind {
+    #[error("the hash derived from the cometbft header was empty where it should be 32 bytes")]
+    EmptyCometBftBlockHash,
+    #[error("failed constructing the cometbft header from its raw source value")]
+    CometBftHeader { source: tendermint::Error },
+    #[error("the field of the raw source value was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("one of the rollup IDs in the raw source value was invalid")]
+    RollupIds { source: IncorrectRollupIdLength },
+    #[error(
+        "the provided bytes were too short for a rollup transactions Merkle Tree Hash; expected: \
+         32 bytes, actual: {0} bytes"
+    )]
+    RollupTransactionsRoot(usize),
+    #[error(
+        "failed constructing a Merkle Hash Tree Proof for the rollup transactions from the raw \
+         raw source type"
+    )]
+    RollupTransactionsProof {
+        source: <merkle::Proof as Protobuf>::Error,
+    },
+    #[error(
+        "failed constructing a Merkle Hash Tree Proof for the rollup IDs from the raw raw source \
+         type"
+    )]
+    RollupIdsProof {
+        source: <merkle::Proof as Protobuf>::Error,
+    },
+    #[error(
+        "the Merkle Tree Hash of the rollup transactions was not a leaf in the sequencer block \
+         data"
+    )]
+    RollupTransactiosnNotInCometBftBlock,
+    #[error("the Merkle Tree Hash of the rollup IDs was not a leaf in the sequencer block data")]
+    RollupIdsNotInCometBftBlock,
+}
+
+#[derive(Clone, Debug)]
+pub struct CelestiaSequencerBlob {
+    /// The block hash obtained from hashing `.header`.
+    block_hash: [u8; 32],
+    /// The original CometBFT header that is the input to this blob's original sequencer block.
+    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
+    header: tendermint::block::header::Header,
+    /// The rollup chain IDs for which `CelestiaRollupBlob`s were submitted to celestia.
+    /// Corresponds to the `astria.sequencer.v1alpha1.RollupTransactions.id` field
+    /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
+    rollup_ids: Vec<ChainId>,
+    /// The Merkle Tree Hash of the rollup transactions. Corresponds to
+    /// `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`, the Merkle
+    /// Tree Hash deriveed from the rollup transactions.
+    /// Always 32 bytes.
+    rollup_transactions_root: [u8; 32],
+    /// The proof that the rollup transactions are included in sequencer block.
+    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    rollup_transactions_proof: merkle::Proof,
+    /// The proof that this sequencer blob includes all rollup IDs of the original sequencer
+    /// block it was derived from. This proof together with `Sha256(MHT(rollup_ids))` (Sha256
+    /// applied to the Merkle Tree Hash of the rollup ID sequence) must be equal to
+    /// `header.data_hash` which itself must match
+    /// `astria.sequencer.v1alpha.SequencerBlock.header.data_hash`. This field corresponds to
+    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
+    rollup_ids_proof: merkle::Proof,
+}
+
+impl CelestiaSequencerBlob {
+    pub fn block_hash(&self) -> [u8; 32] {
+        self.block_hash
+    }
+
+    pub fn cometbft_chain_id(&self) -> &tendermint::chain::Id {
+        &self.header.chain_id
+    }
+
+    pub fn height(&self) -> tendermint::block::Height {
+        self.header.height
+    }
+
+    pub fn header(&self) -> &tendermint::block::Header {
+        &self.header
+    }
+
+    pub fn rollup_transactions_root(&self) -> [u8; 32] {
+        self.rollup_transactions_root
+    }
+
+    pub fn into_raw(self) -> raw::CelestiaSequencerBlob {
+        let Self {
+            header,
+            rollup_ids,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+            ..
+        } = self;
+        raw::CelestiaSequencerBlob {
+            header: Some(header.into()),
+            rollup_chain_ids: rollup_ids.into_iter().map(ChainId::to_vec).collect(),
+            rollup_transactions_root: rollup_transactions_root.to_vec(),
+            rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
+            rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
+        }
+    }
+
+    pub fn try_from_raw(
+        raw: raw::CelestiaSequencerBlob,
+    ) -> Result<Self, CelestiaSequencerBlobError> {
+        let raw::CelestiaSequencerBlob {
+            header,
+            rollup_chain_ids,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        } = raw;
+        let header = 'cometbft_header: {
+            let Some(header) = header else {
+                break 'cometbft_header Err(CelestiaSequencerBlobError::field_not_set("header"));
+            };
+            tendermint::block::Header::try_from(header)
+                .map_err(CelestiaSequencerBlobError::cometbft_header)
+        }?;
+        let tendermint::Hash::Sha256(block_hash) = header.hash() else {
+            return Err(CelestiaSequencerBlobError::empty_cometbft_block_hash());
+        };
+        // header.data_hash is Option<Hash> and Hash itself has
+        // variants Sha256([u8; 32]) or None.
+        let Some(tendermint::Hash::Sha256(data_hash)) = header.data_hash else {
+            return Err(CelestiaSequencerBlobError::field_not_set(
+                "header.data_hash",
+            ));
+        };
+
+        let rollup_ids: Vec<_> = rollup_chain_ids
+            .into_iter()
+            .map(ChainId::try_from_vec)
+            .collect::<Result<_, _>>()
+            .map_err(CelestiaSequencerBlobError::rollup_ids)?;
+
+        let rollup_transactions_root =
+            rollup_transactions_root
+                .try_into()
+                .map_err(|bytes: Vec<_>| {
+                    CelestiaSequencerBlobError::rollup_transactions_root(bytes.len())
+                })?;
+
+        let rollup_transactions_proof = 'transactions_proof: {
+            let Some(rollup_transactions_proof) = rollup_transactions_proof else {
+                break 'transactions_proof Err(CelestiaSequencerBlobError::field_not_set(
+                    "rollup_transactions_root",
+                ));
+            };
+            merkle::Proof::try_from_raw(rollup_transactions_proof)
+                .map_err(CelestiaSequencerBlobError::rollup_transactions_proof)
+        }?;
+
+        let rollup_ids_proof = 'ids_proof: {
+            let Some(rollup_ids_proof) = rollup_ids_proof else {
+                break 'ids_proof Err(CelestiaSequencerBlobError::field_not_set(
+                    "rollup_ids_proof",
+                ));
+            };
+            merkle::Proof::try_from_raw(rollup_ids_proof)
+                .map_err(CelestiaSequencerBlobError::rollup_ids_proof)
+        }?;
+
+        if !rollup_transactions_proof.verify(&Sha256::digest(rollup_transactions_root), data_hash) {
+            return Err(CelestiaSequencerBlobError::rollup_transactions_not_in_cometbft_block());
+        }
+
+        if !are_rollup_ids_included(rollup_ids.iter().copied(), &rollup_ids_proof, data_hash) {
+            return Err(CelestiaSequencerBlobError::rollup_ids_not_in_cometbft_block());
+        }
+
+        Ok(Self {
+            block_hash,
+            header,
+            rollup_ids,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        })
+    }
+}
+
+fn are_rollup_ids_included<'a, TChainIds: 'a>(
+    ids: TChainIds,
+    proof: &merkle::Proof,
+    data_hash: [u8; 32],
+) -> bool
+where
+    TChainIds: IntoIterator<Item = ChainId>,
+{
+    let tree = merkle::Tree::from_leaves(ids);
+    let hash_of_root = Sha256::digest(tree.root());
+    proof.verify(&hash_of_root, data_hash)
+}
+
+fn are_rollup_txs_included(
+    rollup_txs: &IndexMap<ChainId, Vec<Vec<u8>>>,
+    rollup_proof: &merkle::Proof,
+    data_hash: [u8; 32],
+) -> bool {
+    let rollup_tree = derive_merkle_tree_from_rollup_txs(rollup_txs);
+    let hash_of_rollup_root = Sha256::digest(rollup_tree.root());
+    rollup_proof.verify(&hash_of_rollup_root, data_hash)
+}
+
+/// Derive a [`merkle::Tree`] from an iterable.
+///
+/// It is the responsbility if the caller to ensure that the iterable is
+/// deterministic. Prefer types like `Vec`, `BTreeMap` or `IndexMap` over
+/// `HashMap`.
+pub fn derive_merkle_tree_from_rollup_txs<'a, T: 'a>(rollup_ids_to_txs: T) -> merkle::Tree
+where
+    T: IntoIterator<Item = (&'a ChainId, &'a Vec<Vec<u8>>)>,
+{
+    let mut tree = merkle::Tree::new();
+    for (chain_id, txs) in rollup_ids_to_txs {
+        let root = merkle::Tree::from_leaves(txs).root();
+        tree.build_leaf().write(chain_id.as_ref()).write(&root);
+    }
+    tree
+}
+
+// TODO: This can all be done in-place once https://github.com/rust-lang/rust/issues/80552 is stabilized.
+pub fn group_sequence_actions_in_signed_transaction_transactions_by_chain_id(
+    signed_transactions: &[SignedTransaction],
+) -> IndexMap<ChainId, Vec<Vec<u8>>> {
+    let mut map = IndexMap::new();
+    for action in signed_transactions
+        .into_iter()
+        .flat_map(SignedTransaction::actions)
+    {
+        if let Some(action) = action.as_sequence() {
+            let txs_for_rollup: &mut Vec<Vec<u8>> = map.entry(action.chain_id).or_insert(vec![]);
+            txs_for_rollup.push(action.data.clone());
+        }
+    }
+    map.sort_unstable_keys();
+    map
+}
+
+/// Constructs a `[merkle::Tree]` from an iterator yielding byte slices.
+///
+/// This hashes each item before pushing it into the Merkle Tree, which
+/// effectively causes a double hashing. The leaf hash of an item `d_i`
+/// is then `MTH(d_i) = SHA256(0x00 || SHA256(d_i))`.
+fn merkle_tree_from_data<I, B>(iter: I) -> merkle::Tree
+where
+    I: IntoIterator<Item = B>,
+    B: AsRef<[u8]>,
+{
+    merkle::Tree::from_leaves(iter.into_iter().map(|item| Sha256::digest(&item)))
+}
 
 #[cfg(test)]
 mod tests {

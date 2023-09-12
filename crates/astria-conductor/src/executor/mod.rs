@@ -8,15 +8,15 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use prost_types::Timestamp as ProstTimestamp;
-use proto::generated::execution::v1alpha2::{
-    execution_service_client::ExecutionServiceClient,
-    Block,
-    CommitmentState,
+use proto::{
+    generated::execution::v1alpha2::{
+        execution_service_client::ExecutionServiceClient,
+        Block,
+        CommitmentState,
+    },
+    native::sequencer::v1alpha1::ChainId,
 };
-use sequencer_types::{
-    ChainId,
-    SequencerBlockData,
-};
+use sequencer_client::SequencerBlock;
 use tendermint::{
     Hash,
     Time,
@@ -100,13 +100,13 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> ProstTimestamp {
 #[derive(Debug)]
 pub(crate) enum ExecutorCommand {
     /// used when a block is received from the subscription stream to sequencer
-    FromSequencer { block: Box<SequencerBlockData> },
+    FromSequencer { block: Box<SequencerBlock> },
     /// used when a block is received from the reader (Celestia)
     FromCelestia(Vec<SequencerBlockSubset>),
 }
 
-impl From<SequencerBlockData> for ExecutorCommand {
-    fn from(block: SequencerBlockData) -> Self {
+impl From<SequencerBlock> for ExecutorCommand {
+    fn from(block: SequencerBlock) -> Self {
         Self::FromSequencer {
             block: Box::new(block),
         }
@@ -115,52 +115,52 @@ impl From<SequencerBlockData> for ExecutorCommand {
 
 pub(crate) struct NoRollupAddress;
 pub(crate) struct WithRollupAddress(String);
-pub(crate) struct NoChainId;
-pub(crate) struct WithChainId(ChainId);
+pub(crate) struct NoRollupId;
+pub(crate) struct WithRollupId(ChainId);
 pub(crate) struct NoBlockChannel;
 pub(crate) struct WithBlockChannel(Receiver);
 pub(crate) struct NoShutdown;
 pub(crate) struct WithShutdown(oneshot::Receiver<()>);
 
 pub(crate) struct ExecutorBuilder<
-    TChainId = NoChainId,
     TBlockChannel = NoBlockChannel,
     TRollupAddress = NoRollupAddress,
+    TRollupId = NoRollupId,
     TShutdown = NoShutdown,
 > {
-    chain_id: TChainId,
     block_channel: TBlockChannel,
     optimism_hook: Option<optimism::Handler>,
-    sequencer_height_with_first_rollup_block: u32,
     rollup_address: TRollupAddress,
+    rollup_id: TRollupId,
+    sequencer_height_with_first_rollup_block: u32,
     shutdown: TShutdown,
 }
 
 impl ExecutorBuilder {
     fn new() -> Self {
         Self {
-            chain_id: NoChainId,
             block_channel: NoBlockChannel,
             optimism_hook: None,
-            sequencer_height_with_first_rollup_block: 0,
             rollup_address: NoRollupAddress,
+            rollup_id: NoRollupId,
+            sequencer_height_with_first_rollup_block: 0,
             shutdown: NoShutdown,
         }
     }
 }
 
-impl ExecutorBuilder<WithChainId, WithBlockChannel, WithRollupAddress, WithShutdown> {
+impl ExecutorBuilder<WithBlockChannel, WithRollupAddress, WithRollupId, WithShutdown> {
     pub(crate) async fn build(self) -> eyre::Result<Executor> {
         let Self {
-            chain_id,
+            rollup_id,
             block_channel,
             optimism_hook: pre_execution_hook,
-            sequencer_height_with_first_rollup_block,
             rollup_address,
+            sequencer_height_with_first_rollup_block,
             shutdown,
         } = self;
         let WithRollupAddress(rollup_address) = rollup_address;
-        let WithChainId(chain_id) = chain_id;
+        let WithRollupId(rollup_id) = rollup_id;
         let WithBlockChannel(block_channel) = block_channel;
         let WithShutdown(shutdown) = shutdown;
 
@@ -194,7 +194,7 @@ impl ExecutorBuilder<WithChainId, WithBlockChannel, WithRollupAddress, WithShutd
             block_channel,
             shutdown,
             execution_rpc_client,
-            chain_id,
+            rollup_id,
             commitment_state,
             executable_block_height,
             sequencer_hash_to_execution_block: HashMap::new(),
@@ -203,27 +203,27 @@ impl ExecutorBuilder<WithChainId, WithBlockChannel, WithRollupAddress, WithShutd
     }
 }
 
-impl<TChainId, TBlockChannel, TRollupAddress, TShutdown>
-    ExecutorBuilder<TChainId, TBlockChannel, TRollupAddress, TShutdown>
+impl<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
+    ExecutorBuilder<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
 {
-    pub(crate) fn chain_id(
+    pub(crate) fn rollup_id(
         self,
-        chain_id: &str,
-    ) -> ExecutorBuilder<WithChainId, TBlockChannel, TRollupAddress, TShutdown> {
+        rollup_id: ChainId,
+    ) -> ExecutorBuilder<TBlockChannel, TRollupAddress, WithRollupId, TShutdown> {
         let Self {
             block_channel,
             optimism_hook,
-            sequencer_height_with_first_rollup_block,
             rollup_address,
+            sequencer_height_with_first_rollup_block,
             shutdown,
             ..
         } = self;
         ExecutorBuilder {
-            chain_id: WithChainId(ChainId::with_unhashed_bytes(chain_id)),
             block_channel,
             optimism_hook,
-            sequencer_height_with_first_rollup_block,
             rollup_address,
+            rollup_id: WithRollupId(rollup_id),
+            sequencer_height_with_first_rollup_block,
             shutdown,
         }
     }
@@ -231,21 +231,21 @@ impl<TChainId, TBlockChannel, TRollupAddress, TShutdown>
     pub(crate) fn block_channel(
         self,
         block_channel: Receiver,
-    ) -> ExecutorBuilder<TChainId, WithBlockChannel, TRollupAddress, TShutdown> {
+    ) -> ExecutorBuilder<WithBlockChannel, TRollupAddress, TRollupId, TShutdown> {
         let Self {
-            chain_id,
             optimism_hook,
-            sequencer_height_with_first_rollup_block,
             rollup_address,
+            rollup_id,
+            sequencer_height_with_first_rollup_block,
             shutdown,
             ..
         } = self;
         ExecutorBuilder {
-            chain_id,
             block_channel: WithBlockChannel(block_channel),
             optimism_hook,
-            sequencer_height_with_first_rollup_block,
             rollup_address,
+            rollup_id,
+            sequencer_height_with_first_rollup_block,
             shutdown,
         }
     }
@@ -266,9 +266,9 @@ impl<TChainId, TBlockChannel, TRollupAddress, TShutdown>
     pub(crate) fn rollup_address(
         self,
         rollup_address: &str,
-    ) -> ExecutorBuilder<TChainId, TBlockChannel, WithRollupAddress, TShutdown> {
+    ) -> ExecutorBuilder<TBlockChannel, WithRollupAddress, TRollupId, TShutdown> {
         let Self {
-            chain_id,
+            rollup_id,
             block_channel,
             optimism_hook,
             sequencer_height_with_first_rollup_block,
@@ -276,11 +276,11 @@ impl<TChainId, TBlockChannel, TRollupAddress, TShutdown>
             ..
         } = self;
         ExecutorBuilder {
-            chain_id,
             block_channel,
-            sequencer_height_with_first_rollup_block,
             optimism_hook,
             rollup_address: WithRollupAddress(rollup_address.to_string()),
+            rollup_id,
+            sequencer_height_with_first_rollup_block,
             shutdown,
         }
     }
@@ -288,21 +288,21 @@ impl<TChainId, TBlockChannel, TRollupAddress, TShutdown>
     pub(crate) fn shutdown(
         self,
         shutdown: oneshot::Receiver<()>,
-    ) -> ExecutorBuilder<TChainId, TBlockChannel, TRollupAddress, WithShutdown> {
+    ) -> ExecutorBuilder<TBlockChannel, TRollupAddress, TRollupId, WithShutdown> {
         let Self {
-            chain_id,
             block_channel,
             optimism_hook,
             sequencer_height_with_first_rollup_block,
             rollup_address,
+            rollup_id,
             ..
         } = self;
         ExecutorBuilder {
-            chain_id,
             block_channel,
             optimism_hook,
             sequencer_height_with_first_rollup_block,
             rollup_address,
+            rollup_id,
             shutdown: WithShutdown(shutdown),
         }
     }
@@ -318,7 +318,7 @@ pub(crate) struct Executor {
     execution_rpc_client: ExecutionServiceClient<Channel>,
 
     /// Chain ID
-    chain_id: ChainId,
+    rollup_id: ChainId,
 
     /// Tracks SOFT and FIRM on the execution chain
     commitment_state: ExecutorCommitmentState,
@@ -394,7 +394,7 @@ impl Executor {
             } => {
                 let height = block.header().height.value();
                 let block_subset =
-                    SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id);
+                    SequencerBlockSubset::from_sequencer_block(*block, self.rollup_id);
 
                 match self.execute_block(block_subset).await {
                     Ok(executed_block) => {
@@ -458,11 +458,11 @@ impl Executor {
         let timestamp = convert_tendermint_to_prost_timestamp(block.header.time);
 
         let rollup_transactions = if let Some(hook) = self.pre_execution_hook.as_mut() {
-            hook.populate_rollup_transactions(block.rollup_transactions)
+            hook.populate_rollup_transactions(block.transactions)
                 .await
                 .wrap_err("failed to populate rollup transactions before execution")?
         } else {
-            block.rollup_transactions
+            block.transactions
         };
 
         let tx_count = rollup_transactions.len();

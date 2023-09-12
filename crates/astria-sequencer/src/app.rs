@@ -895,7 +895,7 @@ mod test {
             nonce: 0,
             actions: vec![
                 SequenceAction {
-                    chain_id: ChainId::with_unhashed_bytes(b"testchainid"),
+                    chain_id: ChainId::from_unhashed_bytes(b"testchainid"),
                     data,
                 }
                 .into(),
@@ -1135,7 +1135,7 @@ mod test {
             nonce: 1,
             actions: vec![
                 SequenceAction {
-                    chain_id: ChainId::with_unhashed_bytes(b"testchainid"),
+                    chain_id: ChainId::from_unhashed_bytes(b"testchainid"),
                     data,
                 }
                 .into(),

@@ -26,6 +26,123 @@ pub struct Denom {
     #[prost(string, tag = "2")]
     pub base_denom: ::prost::alloc::string::String,
 }
+/// A proof for a tree of the given size containing the audit path from a leaf to the root.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Proof {
+    /// A sequence of 32 byte hashes used to reconstruct a Merkle Tree Hash.
+    #[prost(bytes = "vec", tag = "1")]
+    pub audit_path: ::prost::alloc::vec::Vec<u8>,
+    /// The index of the leaf this proof applies to.
+    #[prost(uint64, tag = "2")]
+    pub leaf_index: u64,
+    /// The total size of the tree this proof was derived from.
+    #[prost(uint64, tag = "3")]
+    pub tree_size: u64,
+}
+/// `RollupTransactions` are a sequence of opaque bytes together with a 32 byte
+/// identifier of that rollup.
+///
+/// The binary encoding is understood as an implementation detail of the
+/// services sending and receiving the transactions.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RollupTransactions {
+    /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
+    #[prost(bytes = "vec", tag = "1")]
+    pub id: ::prost::alloc::vec::Vec<u8>,
+    /// The serialized opaque bytes of the rollup transactions.
+    #[prost(bytes = "vec", repeated, tag = "2")]
+    pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+}
+/// `SequencerBlock` is constructed from a tendermint/cometbft block by
+/// converting its opaque `data` bytes into sequencer specific types.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SequencerBlock {
+    /// The original CometBFT header that was the input to this sequencer block.
+    #[prost(message, optional, tag = "1")]
+    pub header: ::core::option::Option<::tendermint_proto::types::Header>,
+    /// The collection of rollup transactions that were included in this block.
+    #[prost(message, repeated, tag = "2")]
+    pub rollup_transactions: ::prost::alloc::vec::Vec<RollupTransactions>,
+    /// The proof that the rollup transactions are included in the CometBFT block this
+    /// sequencer block is derived form. This proof together with
+    /// `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
+    /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
+    /// rollup transactions.
+    #[prost(message, optional, tag = "3")]
+    pub rollup_transactions_proof: ::core::option::Option<Proof>,
+    /// The proof that the chain IDs listed in `rollup_transactions` are included
+    /// in the CometBFT block this sequencer block is derived form.
+    ///
+    /// This proof is used to verify that the relayer that posts to celestia
+    /// includes all rollup IDs and does not censor any.
+    ///
+    /// This proof together with `Sha256(MTH(chain_ids))` must match `header.data_hash`.
+    /// `MTH(chain_ids)` is the Merkle Tree Hash derived from the chain IDs listed in
+    /// the rollup transactions.
+    #[prost(message, optional, tag = "4")]
+    pub rollup_ids_proof: ::core::option::Option<Proof>,
+}
+/// A collection of transactions belonging to a specific rollup that are submitted to celestia.
+///
+/// The transactions contained in the item belong to a rollup identified
+/// by `chain_id`, and were included in the sequencer block identified
+/// by `sequencer_block_hash`.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CelestiaRollupBlob {
+    /// The hash of the sequencer block. Must be 32 bytes.
+    #[prost(bytes = "vec", tag = "1")]
+    pub sequencer_block_hash: ::prost::alloc::vec::Vec<u8>,
+    /// The 32 bytes identifying the rollup this blob belongs to. Matches
+    /// `astria.sequencer.v1alpha1.RollupTransactions.chain_id`
+    #[prost(bytes = "vec", tag = "2")]
+    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    /// A list of opaque bytes that are serialized rollup transactions.
+    #[prost(bytes = "vec", repeated, tag = "3")]
+    pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    /// The proof that these rollup transactions are included in sequencer block.
+    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    #[prost(message, optional, tag = "4")]
+    pub proof: ::core::option::Option<Proof>,
+}
+/// The metadata of a sequencer block that is submitted to celestia.
+///
+/// It is created by splitting a `astria.sequencer.v1alpha.SequencerBlock` into a
+/// `CelestiaSequencerBlob` (which can be thought of as a header), and a sequence ofj
+/// `CelestiaRollupBlob`s.
+///
+/// The original sequencer block (and in turn CometBFT block) can be identified by the
+/// block hash calculated from `header`.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CelestiaSequencerBlob {
+    /// The original CometBFT header that is the input to this blob's original sequencer block.
+    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
+    #[prost(message, optional, tag = "1")]
+    pub header: ::core::option::Option<::tendermint_proto::types::Header>,
+    /// The rollup chain IDs for which `CelestiaRollupBlob`s were submitted to celestia.
+    /// Corresponds to the `astria.sequencer.v1alpha1.RollupTransactions.chain_id` field
+    /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
+    #[prost(bytes = "vec", repeated, tag = "2")]
+    pub rollup_chain_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    /// The Merkle Tree Hash of the rollup transactions. Corresponds to
+    /// `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`, the Merkle
+    /// Tree Hash deriveed from the rollup transactions.
+    /// Always 32 bytes.
+    #[prost(bytes = "vec", tag = "3")]
+    pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
+    /// The proof that the rollup transactions are included in sequencer block.
+    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    #[prost(message, optional, tag = "4")]
+    pub rollup_transactions_proof: ::core::option::Option<Proof>,
+    /// The proof that the rollup chain IDs are included in sequencer block.
+    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
+    #[prost(message, optional, tag = "5")]
+    pub rollup_ids_proof: ::core::option::Option<Proof>,
+}
 /// `IndexedTransaction` represents a sequencer transaction along with the index
 /// it was originally in the sequencer block.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -66,31 +183,6 @@ pub struct SequencerNamespaceData {
     pub sequencer_txs: ::prost::alloc::vec::Vec<IndexedTransaction>,
     #[prost(message, repeated, tag = "4")]
     pub rollup_namespaces: ::prost::alloc::vec::Vec<RollupNamespace>,
-}
-/// helper type - these should get parsed into a map from namespace to
-/// a vector of `IndexedTransactions`
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct NamespacedIndexedTransactions {
-    #[prost(bytes = "vec", tag = "1")]
-    pub namespace: ::prost::alloc::vec::Vec<u8>,
-    #[prost(message, repeated, tag = "2")]
-    pub txs: ::prost::alloc::vec::Vec<IndexedTransaction>,
-}
-/// `SequencerBlock`
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SequencerBlock {
-    #[prost(bytes = "vec", tag = "1")]
-    pub block_hash: ::prost::alloc::vec::Vec<u8>,
-    #[prost(message, optional, tag = "2")]
-    pub header: ::core::option::Option<::tendermint_proto::types::Header>,
-    #[prost(message, repeated, tag = "3")]
-    pub sequencer_transactions: ::prost::alloc::vec::Vec<IndexedTransaction>,
-    /// FIXME: the current nested array layout results in bad allocation behavior on deserialization
-    /// see <https://github.com/astriaorg/astria/issues/31>
-    #[prost(message, repeated, tag = "4")]
-    pub rollup_transactions: ::prost::alloc::vec::Vec<NamespacedIndexedTransactions>,
 }
 /// `SignedTransaction` is a transaction that has
 /// been signed by the given public key.

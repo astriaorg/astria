@@ -365,7 +365,7 @@ mod tests {
     use std::collections::HashMap;
 
     use ethers::types::Transaction;
-    use sequencer_types::ChainId;
+    use proto::native::sequencer::v1alpha1::ChainId;
     use tokio_util::task::JoinMap;
 
     use crate::searcher::collector::{
@@ -396,7 +396,7 @@ mod tests {
         let collector_tx = rx.recv().await.unwrap();
 
         assert_eq!(
-            ChainId::with_unhashed_bytes(&rollup_name),
+            ChainId::from_unhashed_bytes(&rollup_name),
             collector_tx.chain_id
         );
         assert_eq!(expected_transaction, collector_tx.inner);
@@ -432,7 +432,7 @@ mod tests {
         let collector_tx = rx.recv().await.unwrap();
 
         assert_eq!(
-            ChainId::with_unhashed_bytes(&rollup_name),
+            ChainId::from_unhashed_bytes(&rollup_name),
             collector_tx.chain_id
         );
         assert_eq!(expected_transaction, collector_tx.inner);

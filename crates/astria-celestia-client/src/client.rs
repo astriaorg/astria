@@ -1,4 +1,8 @@
 use async_trait::async_trait;
+use base64::{
+    display::Base64Display,
+    engine::general_purpose::STANDARD,
+};
 use celestia_rpc::BlobClient;
 use celestia_types::{
     blob::SubmitOptions,
@@ -6,18 +10,24 @@ use celestia_types::{
     Blob,
     Commitment,
 };
-use sequencer_types::{
-    RawSequencerBlockData,
-    SequencerBlockData,
+use proto::{
+    native::sequencer::v1alpha1::{
+        CelestiaRollupBlob,
+        CelestiaSequencerBlob,
+        CelestiaSequencerBlobError,
+        SequencerBlock,
+    },
+    DecodeError,
+    Message as _,
+};
+use tracing::{
+    instrument,
+    warn,
 };
 
 use crate::{
-    blob_space::{
-        celestia_namespace_v0_from_hashed_bytes,
-        RawSequencerNamespaceData,
-        SequencerNamespaceData,
-    },
-    RollupNamespaceData,
+    celestia_namespace_v0_from_cometbft_header,
+    celestia_namespace_v0_from_rollup_id,
 };
 
 impl CelestiaClientExt for jsonrpsee::http_client::HttpClient {}
@@ -39,47 +49,41 @@ pub struct BadBlob {
 }
 
 pub enum BadBlobReason {
-    Deserialization(serde_json::Error),
+    Conversion(CelestiaSequencerBlobError),
+    Deserialization(DecodeError),
     WrongNamespace(Namespace),
 }
 
-pub struct GetSequencerDataResponse {
+pub struct GetSequencerBlobsResponse {
     pub height: u64,
     pub namespace: Namespace,
-    pub datas: Vec<SequencerNamespaceData>,
-    pub bad_blobs: Vec<BadBlob>,
-}
-
-pub struct GetRollupDataResponse {
-    pub height: u64,
-    pub namespace: Namespace,
-    pub datas: Vec<RollupNamespaceData>,
+    pub sequencer_blobs: Vec<CelestiaSequencerBlob>,
     pub bad_blobs: Vec<BadBlob>,
 }
 
 #[async_trait]
 pub trait CelestiaClientExt: BlobClient {
-    /// Fetch sequencer data at the given height with the provided namespace.
+    /// Fetch sequencer blobs at the given height and namespace.
     ///
-    /// Returns successfully deserialized blobs in the `.datas` field. The
+    /// Returns successfully deserialized blobs in the `.sequencer_blobs` field. The
     /// `.bad_blobs` field contains the celestia commitment for each blob
     /// that could not be turned into sequencer data and the reason for it.
     ///
     /// # Errors
     ///
     /// Fails if the underlying `blob.GetAll` JSONRPC failed.
-    async fn get_sequencer_data<T>(
+    async fn get_sequencer_blobs<T>(
         &self,
         height: T,
         namespace: Namespace,
-    ) -> Result<GetSequencerDataResponse, jsonrpsee::core::Error>
+    ) -> Result<GetSequencerBlobsResponse, jsonrpsee::core::Error>
     where
         T: Into<u64> + Send,
     {
         let height = height.into();
         let blobs = self.blob_get_all(height, &[namespace]).await?;
 
-        let mut datas = Vec::new();
+        let mut sequencer_blobs = Vec::new();
         let mut bad_blobs = Vec::new();
         for blob in blobs {
             if blob.namespace != namespace {
@@ -88,38 +92,54 @@ pub trait CelestiaClientExt: BlobClient {
                     commitment: blob.commitment,
                 });
             }
-            match serde_json::from_slice(&blob.data) {
-                Ok(data) => datas.push(data),
-                Err(err) => bad_blobs.push(BadBlob {
-                    reason: BadBlobReason::Deserialization(err),
-                    commitment: blob.commitment,
-                }),
+            'blob: {
+                let raw_blob =
+                    match proto::generated::sequencer::v1alpha1::CelestiaSequencerBlob::decode(
+                        &*blob.data,
+                    ) {
+                        Ok(blob) => blob,
+                        Err(err) => {
+                            bad_blobs.push(BadBlob {
+                                reason: BadBlobReason::Deserialization(err),
+                                commitment: blob.commitment,
+                            });
+                            break 'blob;
+                        }
+                    };
+                match CelestiaSequencerBlob::try_from_raw(raw_blob) {
+                    Ok(blob) => sequencer_blobs.push(blob),
+                    Err(err) => bad_blobs.push(BadBlob {
+                        reason: BadBlobReason::Conversion(err),
+                        commitment: blob.commitment,
+                    }),
+                }
             }
         }
 
-        Ok(GetSequencerDataResponse {
+        Ok(GetSequencerBlobsResponse {
             height,
             namespace,
-            datas,
+            sequencer_blobs,
             bad_blobs,
         })
     }
 
-    /// Returns the rollup data for a given rollup namespace at a given height, if it exists.
+    /// Returns the rollup blob for a given rollup namespace at a given height, if it exists.
     ///
     /// # Errors
     ///
     /// Returns an error if:
     /// + the verification key could not be constructed from the data stored in `namespace_data`;
     /// + the RPC to fetch the blobs failed.
-    async fn get_rollup_data_matching_sequencer_data<T>(
+    #[instrument(skip(self, height), fields(height = height.into()))]
+    async fn get_rollup_blobs_matching_sequencer_blob<T>(
         &self,
         height: T,
         namespace: Namespace,
-        sequencer_data: &SequencerNamespaceData,
-    ) -> Result<Vec<RollupNamespaceData>, jsonrpsee::core::Error>
+        sequencer_blob: &CelestiaSequencerBlob,
+    ) -> Result<Vec<CelestiaRollupBlob>, jsonrpsee::core::Error>
     where
-        T: Into<u64> + Send,
+        T: Into<u64> + Copy + Send,
     {
         #[must_use]
         fn is_blob_not_found(err: &jsonrpsee::core::Error) -> bool {
@@ -141,7 +161,7 @@ pub trait CelestiaClientExt: BlobClient {
                 return Err(err);
             }
         };
-        let rollup_datas = filter_and_convert_rollup_data_blobs(&blobs, namespace, sequencer_data);
+        let rollup_datas = convert_and_filter_rollup_blobs(blobs, namespace, sequencer_blob);
         Ok(rollup_datas)
     }
 
@@ -161,7 +181,7 @@ pub trait CelestiaClientExt: BlobClient {
     ///     - SubmitSequencerBlocksError::JsonRpc when Celestia `blob.Submit` fails
     async fn submit_sequencer_blocks(
         &self,
-        blocks: Vec<SequencerBlockData>,
+        blocks: Vec<SequencerBlock>,
         submit_options: SubmitOptions,
     ) -> Result<u64, SubmitSequencerBlocksError> {
         // The number of total expected blobs is:
@@ -170,11 +190,11 @@ pub trait CelestiaClientExt: BlobClient {
         // + one sequencer namespaced data blob per block.
         let num_expected_blobs = blocks
             .iter()
-            .fold(0, |acc, block| acc + block.rollup_data().len() + 1);
+            .fold(0, |acc, block| acc + block.rollup_transactions().len() + 1);
 
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
         for (i, block) in blocks.into_iter().enumerate() {
-            let mut blobs = assemble_blobs_from_sequencer_block_data(block).map_err(|source| {
+            let mut blobs = assemble_blobs_from_sequencer_block(block).map_err(|source| {
                 SubmitSequencerBlocksError::AssembleBlobs {
                     source,
                     index: i,
@@ -213,95 +233,111 @@ pub enum BlobAssemblyError {
     ConstructProof { index: usize },
 }
 
-fn assemble_blobs_from_sequencer_block_data(
-    block_data: SequencerBlockData,
+fn assemble_blobs_from_sequencer_block(
+    block: SequencerBlock,
 ) -> Result<Vec<Blob>, BlobAssemblyError> {
-    let mut blobs = Vec::with_capacity(block_data.rollup_data().len() + 1);
-    let mut chain_ids = Vec::with_capacity(block_data.rollup_data().len());
+    let (sequencer_blob, rollup_blobs) = block.to_celestia_blobs();
 
-    let RawSequencerBlockData {
-        block_hash,
-        header,
-        rollup_data,
-        action_tree_root,
-        action_tree_root_inclusion_proof,
-        chain_ids_commitment,
-        chain_ids_commitment_inclusion_proof,
-    } = block_data.into_raw();
+    let mut blobs = Vec::with_capacity(rollup_blobs.len() + 1);
 
-    let action_tree =
-        sequencer_types::sequencer_block_data::generate_merkle_tree_from_grouped_txs(&rollup_data);
-
-    for (i, (chain_id, transactions)) in rollup_data.into_iter().enumerate() {
-        let inclusion_proof =
-            action_tree
-                .construct_proof(i)
-                .ok_or(BlobAssemblyError::ConstructProof {
-                    index: i,
-                })?;
-
-        let rollup_namespace_data = RollupNamespaceData {
-            block_hash,
-            chain_id,
-            rollup_txs: transactions,
-            inclusion_proof,
-        };
-
-        let data = serde_json::to_vec(&rollup_namespace_data).expect(
-            "should not fail because RollupNamespaceData does not contain maps and hence \
-             non-unicode keys that would trigger to_vec()'s only error case",
-        );
-
-        let namespace = celestia_namespace_v0_from_hashed_bytes(chain_id.as_ref());
-        blobs.push(Blob::new(namespace, data).map_err(|source| {
-            BlobAssemblyError::ConstructBlobFromRollupData {
-                source,
-                index: i,
-            }
-        })?);
-        chain_ids.push(chain_id);
-    }
-
-    let sequencer_namespace = celestia_namespace_v0_from_hashed_bytes(header.chain_id.as_bytes());
-
-    let raw_data = RawSequencerNamespaceData {
-        block_hash,
-        header,
-        rollup_chain_ids: chain_ids,
-        action_tree_root,
-        action_tree_root_inclusion_proof,
-        chain_ids_commitment,
-        chain_ids_commitment_inclusion_proof,
-    };
-
-    let data = serde_json::to_vec(&raw_data).expect(
-        "should not fail because SequencerNamespaceData does not contain maps and hence \
-         non-unicode keys that would trigger to_vec()'s only error case",
-    );
+    let sequencer_namespace = celestia_namespace_v0_from_cometbft_header(sequencer_blob.header());
 
     blobs.push(
-        Blob::new(sequencer_namespace, data)
-            .map_err(BlobAssemblyError::ConstructBlobFromSequencerData)?,
+        Blob::new(
+            sequencer_namespace,
+            sequencer_blob.into_raw().encode_to_vec(),
+        )
+        .map_err(BlobAssemblyError::ConstructBlobFromSequencerData)?,
     );
+    for (i, blob) in rollup_blobs.into_iter().enumerate() {
+        let namespace = celestia_namespace_v0_from_rollup_id(blob.rollup_id());
+        blobs.push(
+            Blob::new(namespace, blob.into_raw().encode_to_vec()).map_err(|source| {
+                BlobAssemblyError::ConstructBlobFromRollupData {
+                    source,
+                    index: i,
+                }
+            })?,
+        );
+    }
     Ok(blobs)
 }
 
-/// Filters out blobs that cannot be deserialized to `RollupNamespaceData`,
-/// whose block hash does not match that of `sequencer_data` or that
-/// have the wrong namespace.
-fn filter_and_convert_rollup_data_blobs(
-    blobs: &[Blob],
+/// Attempts to convert the bytes stored in the celestia blobs to [`CelestiaRollupBlob`].
+///
+/// Drops a blob under the following conditions:
+/// + the blob's namespace does not match the provided [`Namespace`]
+/// + cannot be decode/convert to [`CelestiaRollupBlob`]
+/// + block hash does not match that of [`CcelestiaSequencerBlob`]
+/// + the proof, ID, and transactions recorded in the blob cannot be verified against the seuencer
+///   blob's `rollup_transaction_root`.
+fn convert_and_filter_rollup_blobs(
+    blobs: Vec<Blob>,
     namespace: Namespace,
-    sequencer_data: &SequencerNamespaceData,
-) -> Vec<RollupNamespaceData> {
+    sequencer_blob: &CelestiaSequencerBlob,
+) -> Vec<CelestiaRollupBlob> {
     let mut rollups = Vec::with_capacity(blobs.len());
     for blob in blobs {
-        let Ok(data) = serde_json::from_slice::<RollupNamespaceData>(&blob.data) else {
+        if blob.namespace != namespace {
+            warn!("blob does not belong to expected namespace; skipping");
             continue;
-        };
-        if blob.namespace == namespace && data.block_hash == sequencer_data.block_hash() {
-            rollups.push(data);
         }
+        let proto_blob =
+            match proto::generated::sequencer::v1alpha1::CelestiaRollupBlob::decode(&*blob.data) {
+                Err(e) => {
+                    warn!(
+                        error = &e as &dyn std::error::Error,
+                        target = "astria.sequencer.v1alpha.CelestiaRollupBlob",
+                        blob.commitment = %Base64Display::new(&blob.commitment.0, &STANDARD),
+                        "failed decoding blob as protobuf; skipping"
+                    );
+                    continue;
+                }
+                Ok(proto_blob) => proto_blob,
+            };
+        let rollup_blob = match CelestiaRollupBlob::try_from_raw(proto_blob) {
+            Err(e) => {
+                warn!(
+                    error = &e as &dyn std::error::Error,
+                    blob.commitment = %Base64Display::new(&blob.commitment.0, &STANDARD),
+                    "failed converting raw protobuf blob to native type; skipping"
+                );
+                continue;
+            }
+            Ok(rollup_blob) => rollup_blob,
+        };
+        if rollup_blob.sequencer_block_hash() != sequencer_blob.block_hash() {
+            warn!(
+                block_hash.rollup = hex::encode(rollup_blob.sequencer_block_hash()),
+                block_hash.sequencer = hex::encode(sequencer_blob.block_hash()),
+                "block hash in rollup blob does not match block hash in sequencer blob; dropping \
+                 blob"
+            );
+            continue;
+        }
+        if !does_rollup_blob_verify_against_sequencer_blob(&rollup_blob, sequencer_blob) {
+            warn!(
+                "the rollup blob proof applied to its chain ID and transactions did not match the \
+                 rollup transactions root in the sequencer blob; dropping the blob"
+            );
+            continue;
+        }
+        rollups.push(rollup_blob);
     }
     rollups
+}
+
+fn does_rollup_blob_verify_against_sequencer_blob(
+    rollup_blob: &CelestiaRollupBlob,
+    sequencer_blob: &CelestiaSequencerBlob,
+) -> bool {
+    rollup_blob
+        .proof()
+        .audit()
+        .with_root(sequencer_blob.rollup_transactions_root())
+        .with_leaf_builder()
+        .write(&rollup_blob.rollup_id().get())
+        .write(&merkle::Tree::from_leaves(rollup_blob.transactions()).root())
+        .finish_leaf()
+        .perform()
 }

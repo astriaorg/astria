@@ -1,8 +1,5 @@
-use std::collections::BTreeMap;
-
 use bytes::Bytes;
 use proto::native::sequencer::v1alpha1::SignedTransaction;
-use sequencer_types::ChainId;
 
 /// Wrapper for values returned by [`generate_sequence_actions_commitment`].
 pub(crate) struct GeneratedCommitments {
@@ -43,41 +40,19 @@ impl GeneratedCommitments {
 pub(crate) fn generate_sequence_actions_commitment(
     signed_txs: &[SignedTransaction],
 ) -> GeneratedCommitments {
-    let chain_id_to_txs = group_sequence_actions_by_chain_id(signed_txs);
-    let chain_ids_commitment = merkle::Tree::from_leaves(chain_id_to_txs.keys()).root();
+    let chain_ids_to_txs = proto::native::sequencer::v1alpha1::group_sequence_actions_in_signed_transaction_transactions_by_chain_id(signed_txs);
+    let chain_ids_commitment = merkle::Tree::from_leaves(chain_ids_to_txs.keys()).root();
 
     // each leaf of the action tree is the root of a merkle tree of the `sequence::Action`s
     // with the same `chain_id`, prepended with `chain_id`.
     // the leaves are sorted in ascending order by `chain_id`.
     let sequence_actions_commitment =
-        sequencer_types::sequencer_block_data::generate_merkle_tree_from_grouped_txs(
-            &chain_id_to_txs,
-        )
-        .root();
+        proto::native::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(&chain_ids_to_txs)
+            .root();
     GeneratedCommitments {
         sequence_actions_commitment,
         chain_ids_commitment,
     }
-}
-
-/// Groups the `sequence::Action`s within the transactions by their `chain_id`.
-/// Other types of actions are ignored.
-///
-/// Within an entry, actions are ordered by their transaction index within a block.
-fn group_sequence_actions_by_chain_id(
-    txs: &[SignedTransaction],
-) -> BTreeMap<ChainId, Vec<Vec<u8>>> {
-    let mut rollup_txs_map = BTreeMap::new();
-
-    for action in txs.iter().flat_map(SignedTransaction::actions) {
-        if let Some(action) = action.as_sequence() {
-            let txs_for_rollup: &mut Vec<Vec<u8>> =
-                rollup_txs_map.entry(action.chain_id).or_insert(vec![]);
-            txs_for_rollup.push(action.data.clone());
-        }
-    }
-
-    rollup_txs_map
 }
 
 #[cfg(test)]
@@ -107,7 +82,7 @@ mod test {
         let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
 
         let sequence_action = SequenceAction {
-            chain_id: ChainId::with_unhashed_bytes(b"testchainid"),
+            chain_id: ChainId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
         };
         let transfer_action = TransferAction {
@@ -156,7 +131,7 @@ mod test {
         let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
 
         let sequence_action = SequenceAction {
-            chain_id: ChainId::with_unhashed_bytes(b"testchainid"),
+            chain_id: ChainId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
         };
         let transfer_action = TransferAction {

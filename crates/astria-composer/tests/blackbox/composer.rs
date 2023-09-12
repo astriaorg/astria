@@ -1,12 +1,14 @@
 use std::time::Duration;
 
 use ethers::types::Transaction;
-use proto::generated::sequencer::v1alpha1::NonceResponse;
-use sequencer_client::SignedTransaction;
-use sequencer_types::{
-    AbciCode,
-    ChainId,
+use proto::{
+    generated::sequencer::v1alpha1::NonceResponse,
+    native::sequencer::v1alpha1::{
+        ChainId,
+        SignedTransaction,
+    },
 };
+use sequencer_types::AbciCode;
 use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
     request,
@@ -34,7 +36,7 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
     .await
     .expect("setup guard failed");
 
-    let expected_chain_ids = vec![ChainId::with_unhashed_bytes("test1")];
+    let expected_chain_ids = vec![ChainId::from_unhashed_bytes("test1")];
     let mock_guard =
         mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_chain_ids, vec![0]).await;
     test_composer.rollup_nodes["test1"]
@@ -59,8 +61,8 @@ async fn tx_from_two_rollups_are_received_by_sequencer() {
     .expect("setup guard failed");
 
     let expected_chain_ids = vec![
-        ChainId::with_unhashed_bytes("test1"),
-        ChainId::with_unhashed_bytes("test2"),
+        ChainId::from_unhashed_bytes("test1"),
+        ChainId::from_unhashed_bytes("test2"),
     ];
     let test_guard =
         mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_chain_ids, vec![0, 1])
@@ -115,7 +117,7 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
     // Reject the first transaction for invalid nonce
     let invalid_nonce_guard = mount_broadcast_tx_sync_invalid_nonce_mock(
         &test_composer.sequencer,
-        ChainId::with_unhashed_bytes("test1"),
+        ChainId::from_unhashed_bytes("test1"),
     )
     .await;
 
@@ -130,7 +132,7 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
     )
     .await;
 
-    let expected_chain_ids = vec![ChainId::with_unhashed_bytes("test1")];
+    let expected_chain_ids = vec![ChainId::from_unhashed_bytes("test1")];
     // Expect nonce 1 again so that the resubmitted tx is accepted
     let valid_nonce_guard =
         mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_chain_ids, vec![1]).await;

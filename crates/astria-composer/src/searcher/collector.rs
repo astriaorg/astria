@@ -7,7 +7,7 @@ use ethers::providers::{
     ProviderError,
     Ws,
 };
-use sequencer_types::ChainId;
+use proto::native::sequencer::v1alpha1::ChainId;
 use tokio::sync::{
     mpsc::{
         error::SendTimeoutError,
@@ -74,7 +74,7 @@ impl Collector {
     pub(super) fn new(chain_name: String, url: String, new_bundles: Sender<Transaction>) -> Self {
         let (status, _) = watch::channel(Status::new());
         Self {
-            chain_id: ChainId::with_unhashed_bytes(&chain_name),
+            chain_id: ChainId::from_unhashed_bytes(&chain_name),
             chain_name,
             new_bundles,
             status,

@@ -1,5 +1,7 @@
 //! Proving that a leaf is part of a tree.
 
+use std::num::NonZeroUsize;
+
 use sha2::{
     Digest as _,
     Sha256,
@@ -226,6 +228,190 @@ impl<'a> Audit<'a, WithLeafHash, WithRoot> {
     }
 }
 
+#[derive(Debug)]
+pub struct InvalidProof {
+    kind: InvalidProofKind,
+}
+
+impl InvalidProof {
+    fn audit_path_not_multiple_of_32(len: usize) -> Self {
+        Self {
+            kind: InvalidProofKind::AuditPathNotMultipleOf32 {
+                len,
+            },
+        }
+    }
+
+    fn leaf_index_outside_tree(leaf_index: usize, tree_size: NonZeroUsize) -> Self {
+        Self {
+            kind: InvalidProofKind::LeafIndexOutsideTree {
+                leaf_index,
+                tree_size,
+            },
+        }
+    }
+
+    fn zero_tree_size() -> Self {
+        Self {
+            kind: InvalidProofKind::ZeroTreeSize,
+        }
+    }
+}
+
+impl std::fmt::Display for InvalidProof {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.pad("the unchecked proof is not a valid proof")
+    }
+}
+
+impl std::error::Error for InvalidProof {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.kind)
+    }
+}
+
+#[derive(Debug)]
+enum InvalidProofKind {
+    AuditPathNotMultipleOf32 {
+        len: usize,
+    },
+    LeafIndexOutsideTree {
+        leaf_index: usize,
+        tree_size: NonZeroUsize,
+    },
+    ZeroTreeSize,
+}
+
+impl std::fmt::Display for InvalidProofKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InvalidProofKind::AuditPathNotMultipleOf32 {
+                len,
+            } => f.write_fmt(format_args!(
+                "audit path byte buffer length must be a multiple of 32 bytes, but was {len} bytes"
+            )),
+            InvalidProofKind::LeafIndexOutsideTree {
+                leaf_index,
+                tree_size,
+            } => {
+                let tree_index = crate::leaf_index_to_tree_index(*leaf_index);
+                f.write_fmt(format_args!(
+                    "leaf index {leaf_index} corresponding to tree index {tree_index} exceeds \
+                     tree of size {tree_size}"
+                ))
+            }
+            InvalidProofKind::ZeroTreeSize => f.pad("proof is undefined for trees of size zero"),
+        }
+    }
+}
+
+impl std::error::Error for InvalidProofKind {}
+
+/// A builder pattern shadowing [`Proof`] with unchecked fields.
+///
+/// Mainly useful when serializing a [`Proof`].
+///
+/// # Examples
+/// ```rust
+/// use astria_merkle::Proof;
+/// let proof = Proof::unchecked()
+///     .audit_path(vec![42u8; 128])
+///     .leaf_index(3)
+///     .tree_size(15)
+///     .try_into_proof()
+///     .expect("is a valid proof");
+/// ```
+#[derive(Debug, Default)]
+pub struct UncheckedProof {
+    pub audit_path: Vec<u8>,
+    pub leaf_index: usize,
+    pub tree_size: usize,
+}
+
+impl UncheckedProof {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the audit path the proof will use to reconstruct
+    /// the Merkle Tree Hash.
+    ///
+    /// The `audit_path` byte buffer's length must be a multiple of 32.
+    ///
+    /// The builder does not currently verify that the length of the audit path
+    /// is plausible, i.e. that it has exactly the right number of segments
+    /// for walking the path from the leaf index to the root for a tree of
+    /// the given size.
+    ///
+    /// This will simply result in an incorrect Merkle Tree Hash being reconstructed
+    /// from the proof.
+    pub fn audit_path(self, audit_path: Vec<u8>) -> Self {
+        Self {
+            audit_path,
+            ..self
+        }
+    }
+
+    /// Sets the index of the leaf that this proof is for.
+    ///
+    /// The leaf index must fall inside the tree size set by
+    /// [`ProofBuilder::tree_size`]. The leaf index `i` maps
+    /// to a tree index `j = 2 * i`.
+    pub fn leaf_index(self, leaf_index: usize) -> Self {
+        Self {
+            leaf_index,
+            ..self
+        }
+    }
+
+    /// Sets the tree size of the proof.
+    ///
+    /// The tree size must be `tree_size > 0` because proves are
+    /// not defined for empty trees.
+    pub fn tree_size(self, tree_size: usize) -> Self {
+        Self {
+            tree_size,
+            ..self
+        }
+    }
+
+    /// Constructs the [`Proof`] from the builder inputs.
+    ///
+    /// # Errors
+    ///
+    /// Returns the following errors conditions:
+    /// + if the tree size is zero, see [`ProofBuilder::tree_size`];
+    /// + if the leaf index falls outside the tree, see [`ProofBuilder::leaf_index`];
+    /// + if the audit path length is not a multiple of 32, see [`ProofBuilder::audit_path`].
+    pub fn try_into_proof(self) -> Result<Proof, InvalidProof> {
+        let Self {
+            audit_path,
+            leaf_index,
+            tree_size,
+        } = self;
+
+        let Some(tree_size) = NonZeroUsize::new(tree_size) else {
+            return Err(InvalidProof::zero_tree_size());
+        };
+
+        if !crate::is_leaf_index_in_tree(leaf_index, tree_size.get()) {
+            return Err(InvalidProof::leaf_index_outside_tree(leaf_index, tree_size));
+        }
+
+        if audit_path.len() % 32 != 0 {
+            return Err(InvalidProof::audit_path_not_multiple_of_32(
+                audit_path.len(),
+            ));
+        }
+
+        Ok(Proof {
+            audit_path,
+            leaf_index,
+            tree_size,
+        })
+    }
+}
+
 /// The proof that a node is included in a Merkle tree.
 ///
 /// The proof is the concatenation of all sibling hashes required to reconstruct
@@ -235,10 +421,27 @@ impl<'a> Audit<'a, WithLeafHash, WithRoot> {
 pub struct Proof {
     pub(super) audit_path: Vec<u8>,
     pub(super) leaf_index: usize,
-    pub(super) tree_size: usize,
+    pub(super) tree_size: NonZeroUsize,
 }
 
 impl Proof {
+    pub fn unchecked() -> UncheckedProof {
+        UncheckedProof::new()
+    }
+
+    pub fn into_unchecked(self) -> UncheckedProof {
+        let Self {
+            audit_path,
+            leaf_index,
+            tree_size,
+        } = self;
+        UncheckedProof {
+            audit_path,
+            leaf_index,
+            tree_size: tree_size.get(),
+        }
+    }
+
     /// Returns the audit path of the proof.
     ///
     /// This is the concatenation of all hashes to reconstruct merkle tree root
@@ -276,7 +479,7 @@ impl Proof {
     /// Returns the size of the tree this proof was derived from.
     #[must_use]
     #[inline]
-    pub fn tree_size(&self) -> usize {
+    pub fn tree_size(&self) -> NonZeroUsize {
         self.tree_size
     }
 
@@ -355,7 +558,7 @@ impl Proof {
         let mut i = crate::leaf_index_to_tree_index(*leaf_index);
         let mut acc = leaf_hash;
         for sibling in audit_path.chunks(32) {
-            let parent = crate::complete_parent(i, *tree_size);
+            let parent = crate::complete_parent(i, tree_size.get());
             if parent > i {
                 acc = crate::combine(&acc, sibling);
             } else {

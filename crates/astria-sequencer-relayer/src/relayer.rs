@@ -5,10 +5,10 @@ use eyre::{
     WrapErr as _,
 };
 use humantime::format_duration;
-use sequencer_types::SequencerBlockData;
-use tendermint_rpc::{
-    endpoint::block,
+use sequencer_client::{
     HttpClient,
+    SequencerBlock,
+    SequencerClientExt as _,
 };
 use tokio::{
     select,
@@ -45,11 +45,7 @@ pub(crate) struct Relayer {
 
     // Sequencer blocks that have been received but not yet submitted to the data availability
     // layer (for example, because a submit RPC was currently in flight) .
-    queued_blocks: Vec<SequencerBlockData>,
-
-    // A collection of workers to convert a raw cometbft/tendermint block response to
-    // the sequencer block data type.
-    conversion_workers: task::JoinSet<eyre::Result<Option<SequencerBlockData>>>,
+    queued_blocks: Vec<SequencerBlock>,
 
     // Task to submit blocks to the data availability layer. If this is set it means that
     // an RPC is currently in flight and new blocks are queued up. They will be submitted
@@ -58,7 +54,7 @@ pub(crate) struct Relayer {
 
     // Task to query the sequencer for new blocks. A new request will be sent once this
     // task returns.
-    sequencer_task: Option<task::JoinHandle<eyre::Result<block::Response>>>,
+    sequencer_task: Option<task::JoinHandle<eyre::Result<SequencerBlock>>>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -121,7 +117,6 @@ impl Relayer {
             validator,
             state_tx,
             queued_blocks: Vec::new(),
-            conversion_workers: task::JoinSet::new(),
             submission_task: None,
             sequencer_task: None,
         })
@@ -133,7 +128,6 @@ impl Relayer {
 
     #[instrument(skip_all)]
     fn handle_sequencer_tick(&mut self) {
-        use tendermint_rpc::Client as _;
         if self.sequencer_task.is_some() {
             debug!("task polling sequencer is currently in flight; not scheduling a new task");
             return;
@@ -144,91 +138,11 @@ impl Relayer {
              by 2 causes it to overflow",
         );
         self.sequencer_task = Some(tokio::spawn(async move {
-            let block = tokio::time::timeout(timeout, client.latest_block())
+            let block = tokio::time::timeout(timeout, client.latest_sequencer_block())
                 .await
                 .wrap_err("timed out getting latest block from sequencer")??;
             Ok(block)
         }));
-    }
-
-    #[instrument(skip_all)]
-    fn handle_sequencer_response(
-        &mut self,
-        join_result: Result<eyre::Result<block::Response>, task::JoinError>,
-    ) {
-        // First check if the join task panicked
-        let request_result = match join_result {
-            Ok(request_result) => request_result,
-            // Report if the task failed, i.e. panicked
-            Err(e) => {
-                // TODO: inject the correct tracing span
-                report_err!(e, "sequencer poll task failed");
-                return;
-            }
-        };
-        match request_result {
-            Ok(rsp) => {
-                info!(
-                    height = %rsp.block.header.height,
-                    tx.count = rsp.block.data.len(),
-                    "received block from sequencer"
-                );
-                let current_height = self.state_tx.borrow().current_sequencer_height;
-                let validator = self.validator.clone();
-                // Start the costly conversion; note that the current height at
-                // the time of receipt matters. The internal state might have advanced
-                // past the height recorded in the block while it was converting, but
-                // that's ok.
-                self.conversion_workers.spawn_blocking(move || {
-                    convert_block_response_to_sequencer_block_data(rsp, current_height, validator)
-                });
-            }
-
-            Err(e) => report_err!(e, "failed getting latest block from sequencer"),
-        }
-    }
-
-    /// Handle the result
-    #[instrument(skip_all)]
-    fn handle_conversion_completed(
-        &mut self,
-        join_result: Result<eyre::Result<Option<SequencerBlockData>>, task::JoinError>,
-    ) {
-        // First check if the join task panicked
-        let conversion_result = match join_result {
-            Ok(conversion_result) => conversion_result,
-            // Report if the task failed, i.e. panicked
-            Err(e) => {
-                // TODO: inject the correct tracing span
-                report_err!(e, "conversion task failed");
-                return;
-            }
-        };
-        // Then handle the actual result of the computation
-        match conversion_result {
-            // Collect successfully converted sequencer responses
-            Ok(Some(sequencer_block_data)) => {
-                // Update the internal state if the block was admitted
-                let height = sequencer_block_data.header().height.value();
-                self.state_tx.send_if_modified(|state| {
-                    if Some(height) > state.current_sequencer_height {
-                        state.current_sequencer_height = Some(height);
-                        return true;
-                    }
-                    false
-                });
-                // Store the converted data
-                self.queued_blocks.push(sequencer_block_data);
-            }
-            // Ignore sequencer responses that were filtered out
-            Ok(None) => (),
-            // Report if the conversion failed
-            // TODO: inject the correct tracing span
-            Err(e) => report_err!(
-                e,
-                "failed converting sequencer block response to block data"
-            ),
-        }
     }
 
     #[instrument(skip_all)]
@@ -394,11 +308,36 @@ impl Relayer {
                 //       + `unwrap`ping can't fail because this branch is disabled if `None`
                 res = async { self.sequencer_task.as_mut().unwrap().await }, if self.sequencer_task.is_some() => {
                     self.sequencer_task = None;
-                    self.handle_sequencer_response(res);
-                }
+                    match res {
+                        Ok(Ok(block)) if
+                            self.validator
+                                .as_ref()
+                                .map(|v| v.address != block.header().proposer_address)
+                                .unwrap_or(false) =>
+                        {
+                            debug!("proposer of sequencer block does not match internal validator; ignoring");
+                        }
+                        Ok(Ok(block)) => {
+                            let height = block.header().height.value();
+                            self.state_tx.send_if_modified(|state| {
+                                if Some(height) > state.current_sequencer_height {
+                                    state.current_sequencer_height = Some(height);
+                                    return true;
+                                }
+                                false
+                            });
+                            self.queued_blocks.push(block);
+                        }
 
-                // Distribute and store converted/admitted blocks
-                Some(res) = self.conversion_workers.join_next() => self.handle_conversion_completed(res),
+                        Ok(Err(e)) => {
+                            let error: &dyn std::error::Error = e.as_ref();
+                            warn!(error, "failed getting the latest block from sequencer");
+                        }
+                        Err(e) => {
+                            warn!(error = &e as &dyn std::error::Error, "task panicked getting the latest block from sequencer");
+                        }
+                    }
+                }
 
                 // Record the current height of the data availability layer if a submission
                 // was in flight.
@@ -428,7 +367,6 @@ impl Relayer {
         // like that.
         #[allow(unreachable_code)]
         {
-            self.conversion_workers.abort_all();
             if let Some(task) = self.submission_task.as_mut() {
                 task.abort();
             }
@@ -438,35 +376,9 @@ impl Relayer {
 }
 
 #[instrument(skip_all)]
-fn convert_block_response_to_sequencer_block_data(
-    res: block::Response,
-    current_height: Option<u64>,
-    validator: Option<Validator>,
-) -> eyre::Result<Option<SequencerBlockData>> {
-    if Some(res.block.header.height.value()) <= current_height {
-        debug!(
-            "sequencer block response contained height at or below the current height tracked in \
-             relayer"
-        );
-        return Ok(None);
-    }
-
-    if let Some(validator) = validator {
-        if res.block.header.proposer_address != validator.address {
-            debug!("proposer of sequencer block does not match internal validator; ignoring");
-            return Ok(None);
-        }
-    }
-
-    let sequencer_block_data = SequencerBlockData::from_tendermint_block(res.block)
-        .wrap_err("failed converting sequencer block response to sequencer block data")?;
-    Ok(Some(sequencer_block_data))
-}
-
-#[instrument(skip_all)]
 async fn submit_blocks_to_celestia(
     client: celestia_client::jsonrpsee::http_client::HttpClient,
-    sequencer_block_data: Vec<SequencerBlockData>,
+    sequencer_blocks: Vec<SequencerBlock>,
 ) -> eyre::Result<u64> {
     use celestia_client::{
         celestia_types::blob::SubmitOptions,
@@ -474,13 +386,13 @@ async fn submit_blocks_to_celestia(
     };
 
     info!(
-        num_blocks = sequencer_block_data.len(),
+        num_blocks = sequencer_blocks.len(),
         "submitting collected sequencer blocks to data availability layer",
     );
 
     let height = client
         .submit_sequencer_blocks(
-            sequencer_block_data,
+            sequencer_blocks,
             SubmitOptions {
                 fee: None,
                 gas_limit: None,

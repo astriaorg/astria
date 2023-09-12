@@ -142,7 +142,7 @@ fn get_test_block_subset() -> SequencerBlockSubset {
     SequencerBlockSubset {
         block_hash: hash(b"block1").try_into().unwrap(),
         header: sequencer_types::test_utils::default_header(),
-        rollup_transactions: vec![],
+        transactions: vec![],
     }
 }
 
@@ -162,7 +162,7 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
 
     let executor = Executor::builder()
         .rollup_address(&server_url)
-        .chain_id("test")
+        .rollup_id(ChainId::from_unhashed_bytes(b"test"))
         .sequencer_height_with_first_rollup_block(1)
         .block_channel(block_rx)
         .shutdown(shutdown_rx)
@@ -222,11 +222,11 @@ async fn execute_sequencer_block_with_txs() {
     let mut mock = start_mock(None).await;
 
     let mut block = get_test_block_subset();
-    block.rollup_transactions.push(b"test_transaction".to_vec());
+    block.transactions.push(b"test_transaction".to_vec());
 
     let expected_exection_hash = get_expected_execution_hash(
         &mock.executor.commitment_state.soft.hash,
-        &block.rollup_transactions,
+        &block.transactions,
     );
     let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash;
     assert_eq!(expected_exection_hash, execution_block_hash);
@@ -237,12 +237,12 @@ async fn execute_unexecuted_da_block_with_transactions() {
     let mut mock = start_mock(None).await;
 
     let mut block = get_test_block_subset();
-    block.rollup_transactions.push(b"test_transaction".to_vec());
+    block.transactions.push(b"test_transaction".to_vec());
 
     // using firm hash here as da blocks are executed on top of the firm commitment
     let expected_exection_hash = get_expected_execution_hash(
         &mock.executor.commitment_state.firm.hash,
-        &block.rollup_transactions,
+        &block.transactions,
     );
 
     mock.executor

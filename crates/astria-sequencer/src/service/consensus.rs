@@ -263,7 +263,7 @@ mod test {
             nonce: 0,
             actions: vec![
                 SequenceAction {
-                    chain_id: ChainId::with_unhashed_bytes(b"testchainid"),
+                    chain_id: ChainId::from_unhashed_bytes(b"testchainid"),
                     data: b"helloworld".to_vec(),
                 }
                 .into(),
