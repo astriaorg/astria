@@ -421,11 +421,18 @@ mod test {
 
         async fn call_execute_block(
             &mut self,
-            _prev_block_hash: Vec<u8>,
+            prev_block_hash: Vec<u8>,
             _transactions: Vec<Vec<u8>>,
-            _timestamp: Option<ProstTimestamp>,
+            timestamp: Option<ProstTimestamp>,
         ) -> Result<Block> {
-            unimplemented!()
+            // returns the sha256 of the prev_block_hash
+            let fake_next_hash = hash(&prev_block_hash);
+            Ok(Block {
+                number: 1,
+                hash: fake_next_hash.clone(),
+                parent_block_hash: prev_block_hash,
+                timestamp,
+            })
         }
 
         async fn call_get_block(&mut self, _identifier: BlockIdentifier) -> Result<Block> {
@@ -433,14 +440,34 @@ mod test {
         }
 
         async fn call_get_commitment_state(&mut self) -> Result<CommitmentState> {
-            unimplemented!()
+            let timestamp = convert_tendermint_to_prost_timestamp(Time::now())
+                .wrap_err("failed parsing str as protobuf timestamp")?;
+            let block = Block {
+                number: 1,
+                hash: hash(b"block1").try_into().unwrap(),
+                parent_block_hash: hash(b"block0").try_into().unwrap(),
+                timestamp: Some(timestamp),
+            };
+            Ok(CommitmentState {
+                soft: Some(block.clone()),
+                firm: Some(block),
+            })
         }
 
         async fn call_update_commitment_state(
             &mut self,
-            _commitment_state: CommitmentState,
+            commitment_state: CommitmentState,
         ) -> Result<CommitmentState> {
-            unimplemented!()
+            // using `finalized_blocks` as a proxy for the execution state
+            // so that we can more easily make assertions in our tests
+            self.finalized_blocks
+                .lock()
+                .await
+                .insert(commitment_state.firm.clone().unwrap().hash);
+            Ok(CommitmentState {
+                soft: commitment_state.soft,
+                firm: commitment_state.firm,
+            })
         }
     }
 
@@ -501,7 +528,7 @@ mod test {
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
 
-        let expected_exection_hash = hash(&executor.execution_state);
+        let expected_execution_hash = hash(&executor.execution_state);
 
         executor
             .handle_block_received_from_data_availability(block)
@@ -509,7 +536,7 @@ mod test {
             .unwrap();
 
         // should have executed and finalized the block
-        assert!(finalized_blocks.lock().await.len() == 1);
+        assert_eq!(finalized_blocks.lock().await.len(), 1);
         assert!(
             finalized_blocks
                 .lock()
@@ -517,7 +544,7 @@ mod test {
                 .get(&executor.execution_state)
                 .is_some()
         );
-        assert_eq!(expected_exection_hash, executor.execution_state);
+        assert_eq!(expected_execution_hash, executor.execution_state);
         // should be empty because 1 block was executed and finalized, which deletes it from the map
         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
     }
