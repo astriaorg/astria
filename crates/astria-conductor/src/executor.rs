@@ -273,6 +273,8 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
             .get(&sequencer_block_hash)
             .cloned();
         let sequencer_block_height = block.header.height.value();
+        let sequencer_block_timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
+            .wrap_err("failed parsing str as protobuf timestamp")?;
         match maybe_execution_block_hash {
             Some(execution_block_hash) => {
                 // TODO - move this into function for reuse
@@ -286,8 +288,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                                 number: sequencer_block_height as u32,
                                 hash: execution_block_hash,
                                 parent_block_hash: self.execution_state.clone(),
-                                // TODO - get timestamp from sequencer
-                                timestamp: None,
+                                timestamp: Some(sequencer_block_timestamp),
                             }),
                         },
                     )
@@ -326,7 +327,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                                 number: sequencer_block_height as u32,
                                 hash: execution_block_hash.clone(),
                                 parent_block_hash: self.execution_state.clone(),
-                                timestamp: None,
+                                timestamp: Some(sequencer_block_timestamp),
                             }),
                             soft: None,
                         },
