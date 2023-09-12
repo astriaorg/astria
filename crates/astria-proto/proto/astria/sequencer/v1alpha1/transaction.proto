@@ -44,6 +44,7 @@ message TransferAction {
 // It contains the chain ID of the destination chain, and the
 // opaque transaction data.
 message SequenceAction {
+    // Opaque bytes identifying the rollup that this transaction belong to. Must be 32 bytes.
     bytes chain_id = 1;
     bytes data = 2;
 }

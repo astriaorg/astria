@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package astria.sequencer.v1alpha1;
+
+// A merkle proof of inclusion of a leaf at `index` in a tree
+// of size `num_leaves`.
+message InclusionProof {
+    // leaf index of value to be proven
+    uint64 index = 1;
+    // total number of leaves in the tree
+    uint64 num_leaves = 2;
+    // the merkle proof itself. This proof is derived from a RFC 6962 compliant Merkle tree.
+    // must be a multiple of 32 bytes.
+    bytes inclusion_proof = 3;
+}
