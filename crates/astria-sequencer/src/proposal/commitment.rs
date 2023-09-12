@@ -3,6 +3,24 @@ use std::collections::BTreeMap;
 use bytes::Bytes;
 use proto::native::sequencer::v1alpha1::SignedTransaction;
 
+/// Wrapper for values returned by [`generate_sequence_actions_commitment`].
+pub(crate) struct GenerateCommitmentsResult {
+    pub(crate) sequence_actions_commitment: [u8; 32],
+    pub(crate) chain_ids_commitment: [u8; 32],
+    pub(crate) txs_to_include: Vec<Bytes>,
+}
+
+impl GenerateCommitmentsResult {
+    #[must_use]
+    pub(crate) fn into_transactions(mut self) -> Vec<Bytes> {
+        let mut txs = Vec::with_capacity(self.txs_to_include.len() + 2);
+        txs.push(self.sequence_actions_commitment.to_vec().into());
+        txs.push(self.chain_ids_commitment.to_vec().into());
+        txs.append(&mut self.txs_to_include);
+        txs
+    }
+}
+
 /// Called when we receive a `PrepareProposal` or `ProcessProposal` consensus message.
 ///
 /// In the case of `PrepareProposal`, we use this function to generate the `commitment_tx`
@@ -22,7 +40,7 @@ use proto::native::sequencer::v1alpha1::SignedTransaction;
 /// This is somewhat arbitrary, but could be useful for proof of an action within the action tree.
 pub(crate) fn generate_sequence_actions_commitment(
     txs_bytes: Vec<Bytes>,
-) -> ([u8; 32], [u8; 32], Vec<Bytes>) {
+) -> GenerateCommitmentsResult {
     use proto::{
         generated::sequencer::v1alpha1 as raw,
         Message as _,
@@ -62,11 +80,11 @@ pub(crate) fn generate_sequence_actions_commitment(
     // with the same `chain_id`, prepended with `chain_id`.
     // the leaves are sorted in ascending order by `chain_id`.
     let leaves = generate_action_tree_leaves(chain_id_to_txs);
-    (
-        simple_hash_from_byte_vectors::<Sha256>(&leaves),
-        simple_hash_from_byte_vectors::<Sha256>(&chain_ids),
+    GenerateCommitmentsResult {
+        sequence_actions_commitment: simple_hash_from_byte_vectors::<Sha256>(&leaves),
+        chain_ids_commitment: simple_hash_from_byte_vectors::<Sha256>(&chain_ids),
         txs_to_include,
-    )
+    }
 }
 
 /// Groups the `sequence::Action`s within the transactions by their `chain_id`.
@@ -127,7 +145,10 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let (action_commitment_0, ..) = generate_sequence_actions_commitment(txs);
+        let GenerateCommitmentsResult {
+            sequence_actions_commitment: commitment_0,
+            ..
+        } = generate_sequence_actions_commitment(txs);
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
@@ -138,8 +159,11 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let (action_commitment_1, ..) = generate_sequence_actions_commitment(txs);
-        assert_eq!(action_commitment_0, action_commitment_1);
+        let GenerateCommitmentsResult {
+            sequence_actions_commitment: commitment_1,
+            ..
+        } = generate_sequence_actions_commitment(txs);
+        assert_eq!(commitment_0, commitment_1);
     }
 
     #[test]
@@ -222,7 +246,10 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let (actual, ..) = generate_sequence_actions_commitment(txs);
+        let GenerateCommitmentsResult {
+            sequence_actions_commitment: actual,
+            ..
+        } = generate_sequence_actions_commitment(txs);
 
         let expected: [u8; 32] = [
             97, 82, 159, 138, 201, 12, 241, 95, 99, 19, 162, 205, 37, 38, 130, 165, 78, 185, 141,

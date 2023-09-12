@@ -6,7 +6,6 @@ use anyhow::{
     ensure,
     Context,
 };
-use bytes::Bytes;
 use penumbra_storage::Storage;
 use tendermint::abci::{
     request,
@@ -26,7 +25,10 @@ use tracing::{
 use crate::{
     app::App,
     genesis::GenesisState,
-    proposal::commitment::generate_sequence_actions_commitment,
+    proposal::commitment::{
+        generate_sequence_actions_commitment,
+        GenerateCommitmentsResult,
+    },
 };
 
 pub(crate) struct Consensus {
@@ -209,16 +211,10 @@ fn handle_prepare_proposal(
 ) -> response::PrepareProposal {
     // generate commitment to sequence::Actions and commitment to the chain IDs included in the
     // sequence::Actions
-    let (action_commitment, chain_ids_commitment, mut txs_to_be_included) =
-        generate_sequence_actions_commitment(prepare_proposal.txs);
+    let res = generate_sequence_actions_commitment(prepare_proposal.txs);
 
-    let mut txs: Vec<Bytes> = vec![
-        action_commitment.to_vec().into(),
-        chain_ids_commitment.to_vec().into(),
-    ];
-    txs.append(&mut txs_to_be_included);
     response::PrepareProposal {
-        txs,
+        txs: res.into_transactions(),
     }
 }
 
@@ -244,8 +240,11 @@ fn handle_process_proposal(process_proposal: request::ProcessProposal) -> anyhow
 
     let expected_txs_len = txs.len();
 
-    let (expected_action_commitment, expected_chain_ids_commitment, txs_to_be_included) =
-        generate_sequence_actions_commitment(txs.into());
+    let GenerateCommitmentsResult {
+        sequence_actions_commitment: expected_action_commitment,
+        chain_ids_commitment: expected_chain_ids_commitment,
+        txs_to_include,
+    } = generate_sequence_actions_commitment(txs.into());
     ensure!(
         received_action_commitment == expected_action_commitment,
         "transaction commitment does not match expected",
@@ -258,7 +257,7 @@ fn handle_process_proposal(process_proposal: request::ProcessProposal) -> anyhow
 
     // all txs in the proposal should be deserializable
     ensure!(
-        txs_to_be_included.len() == expected_txs_len,
+        txs_to_include.len() == expected_txs_len,
         "transactions to be included do not match expected",
     );
 
@@ -269,6 +268,7 @@ fn handle_process_proposal(process_proposal: request::ProcessProposal) -> anyhow
 mod test {
     use std::str::FromStr;
 
+    use bytes::Bytes;
     use ed25519_consensus::SigningKey;
     use proto::{
         native::sequencer::v1alpha1::{
@@ -333,20 +333,15 @@ mod test {
         let tx_bytes = signed_tx.into_raw().encode_to_vec();
 
         let txs = vec![tx_bytes.clone().into()];
-        let (action_commitment, chain_ids_commitment, txs_included) =
-            generate_sequence_actions_commitment(txs.clone());
-        assert_eq!(txs, txs_included);
+        let res = generate_sequence_actions_commitment(txs.clone());
+        assert_eq!(txs, res.txs_to_include);
 
-        let prepare_proposal = new_prepare_proposal_request(txs_included);
+        let prepare_proposal = new_prepare_proposal_request(res.txs_to_include.clone());
         let prepare_proposal_response = handle_prepare_proposal(prepare_proposal);
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
-                txs: vec![
-                    action_commitment.to_vec().into(),
-                    chain_ids_commitment.to_vec().into(),
-                    tx_bytes.into()
-                ],
+                txs: res.into_transactions()
             }
         );
 
@@ -361,15 +356,10 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
-        let (action_commitment, chain_ids_commitment, txs_included) =
-            generate_sequence_actions_commitment(txs.clone());
-        assert_eq!(txs, txs_included);
+        let res = generate_sequence_actions_commitment(txs.clone());
+        assert_eq!(txs, res.txs_to_include);
 
-        let process_proposal = new_process_proposal_request(vec![
-            action_commitment.to_vec().into(),
-            chain_ids_commitment.to_vec().into(),
-            tx_bytes.into(),
-        ]);
+        let process_proposal = new_process_proposal_request(res.into_transactions());
         handle_process_proposal(process_proposal).unwrap();
     }
 
@@ -415,19 +405,15 @@ mod test {
     #[test]
     fn prepare_proposal_empty_block() {
         let txs = vec![];
-        let (action_commitment, chain_ids_commitment, txs_included) =
-            generate_sequence_actions_commitment(txs.clone());
-        assert_eq!(txs, txs_included);
-        let prepare_proposal = new_prepare_proposal_request(txs_included);
+        let res = generate_sequence_actions_commitment(txs.clone());
+        assert_eq!(txs, res.txs_to_include);
+        let prepare_proposal = new_prepare_proposal_request(res.txs_to_include.clone());
 
         let prepare_proposal_response = handle_prepare_proposal(prepare_proposal);
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
-                txs: vec![
-                    action_commitment.to_vec().into(),
-                    chain_ids_commitment.to_vec().into()
-                ],
+                txs: res.into_transactions(),
             }
         );
     }
@@ -435,12 +421,8 @@ mod test {
     #[test]
     fn process_proposal_ok_empty_block() {
         let txs = vec![];
-        let (action_commitment, chain_ids_commitment, ..) =
-            generate_sequence_actions_commitment(txs);
-        let process_proposal = new_process_proposal_request(vec![
-            action_commitment.to_vec().into(),
-            chain_ids_commitment.to_vec().into(),
-        ]);
+        let res = generate_sequence_actions_commitment(txs);
+        let process_proposal = new_process_proposal_request(res.into_transactions());
         handle_process_proposal(process_proposal).unwrap();
     }
 
@@ -495,15 +477,10 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
-        let (action_commitment, chain_ids_commitment, txs_included) =
-            generate_sequence_actions_commitment(txs.clone());
-        assert_eq!(txs, txs_included);
+        let res = generate_sequence_actions_commitment(txs.clone());
+        assert_eq!(txs, res.txs_to_include);
 
-        let txs = vec![
-            action_commitment.to_vec().into(),
-            chain_ids_commitment.to_vec().into(),
-            tx_bytes.into(),
-        ];
+        let txs = res.into_transactions();
         let process_proposal = new_process_proposal_request(txs.clone());
         consensus_service
             .handle_request(ConsensusRequest::ProcessProposal(process_proposal))
