@@ -27,11 +27,15 @@ use tracing::{
     instrument,
 };
 
+const EXIT_CONFIG_CODE: i32 = 78;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     if let Err(e) = run().await {
         eprintln!("Exited with error: {e}");
-        std::process::exit(2);
+        // FIXME: might have to bubble up exit codes, since we might need 
+        //        to exit with other exit codes if something else fails
+        std::process::exit(EXIT_CONFIG_CODE);
     };
     Ok(())
 }
