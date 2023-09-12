@@ -135,7 +135,7 @@ pub mod action {
         #[prost(message, tag="2")]
         SequenceAction(super::SequenceAction),
         #[prost(message, tag="3")]
-        ValidatorUpdateAction(super::super::super::super::tendermint::abci::ValidatorUpdate),
+        ValidatorUpdateAction(::tendermint_proto::abci::ValidatorUpdate),
     }
 }
 /// `TransferAction` represents a value transfer transaction.
