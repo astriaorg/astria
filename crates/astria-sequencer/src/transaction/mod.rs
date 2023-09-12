@@ -55,6 +55,9 @@ impl ActionHandler for UnsignedTransaction {
                 Action::Sequence(act) => act
                     .check_stateless()
                     .context("stateless check failed for SequenceAction")?,
+                Action::ValidatorUpdate(act) => act
+                    .check_stateless()
+                    .context("stateless check failed for ValidatorUpdateAction")?,
             }
         }
         Ok(())
@@ -83,6 +86,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for SequenceAction")?,
+                Action::ValidatorUpdate(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for ValidatorUpdateAction")?,
             }
         }
 
@@ -119,6 +126,11 @@ impl ActionHandler for UnsignedTransaction {
                     act.execute(state, from)
                         .await
                         .context("execution failed for SequenceAction")?;
+                }
+                Action::ValidatorUpdate(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for ValidatorUpdateAction")?;
                 }
             }
         }
