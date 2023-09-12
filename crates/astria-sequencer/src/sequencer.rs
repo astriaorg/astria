@@ -26,10 +26,8 @@ pub struct Sequencer;
 impl Sequencer {
     #[instrument(skip_all)]
     pub async fn run_until_stopped(config: Config) -> Result<()> {
-        let genesis_state = GenesisState::from_path(config.genesis_file).context(
-            "failed reading genesis
-        state",
-        )?;
+        let genesis_state =
+            GenesisState::from_path(config.genesis_file).context("failed reading genesis state")?;
 
         if config
             .db_filepath

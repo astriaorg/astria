@@ -47,6 +47,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed reading raw sudo key from state")?
         else {
+            // return error because sudo key must be set
             return Err(anyhow!("sudo key not found"));
         };
         let SudoAddress(address) =
@@ -61,6 +62,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed reading raw validator set from state")?
         else {
+            // return error because validator set must be set
             return Err(anyhow!("validator set not found"));
         };
 
@@ -76,6 +78,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed reading raw validator updates from state")?
         else {
+            // return empty set because validator updates are optional
             return Ok(ValidatorSet(vec![]));
         };
 
