@@ -11,7 +11,7 @@ async-trait = { workspace = true }
 base64 = { workspace = true }
 color-eyre = { workspace = true }
 ed25519-consensus = { workspace = true }
-figment = { workspace = true, features = ["test", "env"] }
+figment = { workspace = true, features = ["env"] }
 futures = { workspace = true }
 hex = { workspace = true }
 prost = { workspace = true }
@@ -41,3 +41,4 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 base64 = { workspace = true }
 once_cell = { workspace = true }
 astria-sequencer-validation = { path = "../astria-sequencer-validation" }
+figment = { features = ["test"] }

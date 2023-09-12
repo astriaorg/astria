@@ -8,7 +8,7 @@ use astria_conductor::{
     },
     telemetry,
 };
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Result, Context};
 use tokio::{
     select,
     signal::unix::{
@@ -26,22 +26,20 @@ use tracing::{
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    run().await?;
+    if let Err(e) = run().await {
+            eprintln!("Exited with error: {e}");
+            std::process::exit(2);
+    };
     Ok(())
 }
 
 #[instrument(name = "astria_conductor::run")]
 async fn run() -> Result<()> {
-    let conf = match config::get() {
-        Ok(cfg) => cfg,
-        Err(e) => {
-            eprintln!("failed to read configuration: {e}");
-            std::process::exit(2);
-        }
-    };
+    let conf = config::get().wrap_err("failed to read config")?;
+
 
     // hierarchical config. cli args override Envars which override toml config values
-    telemetry::init(std::io::stdout, &conf.log).expect("failed to initialize telemetry");
+    telemetry::init(std::io::stdout, &conf.log).wrap_err("failed to initialize telemetry")?;
 
     info!("Using chain ID {}", conf.chain_id);
     info!("Using Celestia node at {}", conf.celestia_node_url);

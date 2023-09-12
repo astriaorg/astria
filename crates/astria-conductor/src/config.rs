@@ -8,13 +8,6 @@ use serde::{
     Serialize,
 };
 
-const DEFAULT_CELESTIA_NODE_URL: &str = "http://localhost:26658";
-const DEFAULT_TENDERMINT_URL: &str = "http://localhost:26657";
-const DEFAULT_CHAIN_ID: &str = "ethereum";
-const DEFAULT_EXECUTION_RPC_URL: &str = "http://localhost:50051";
-const DEFAULT_LOG_LEVEL: &str = "info";
-const DEFAULT_LIBP2P_PORT: u16 = 2451;
-
 pub fn get() -> Result<Config, figment::Error> {
     Config::from_environment()
 }
@@ -24,7 +17,6 @@ pub fn get() -> Result<Config, figment::Error> {
 #[serde(deny_unknown_fields)]
 pub struct Config {
     /// URL of the Celestia Node
-    #[serde(default = "default_celestia_node_url")]
     pub celestia_node_url: String,
 
     /// The JWT bearer token supplied with each jsonrpc call
@@ -32,15 +24,12 @@ pub struct Config {
     pub celestia_bearer_token: String,
 
     /// URL of the Tendermint node (sequencer/metro)
-    #[serde(default = "default_tendermint_url")]
     pub tendermint_url: String,
 
     /// Chain ID that we want to work in
-    #[serde(default = "default_chain_id")]
     pub chain_id: String,
 
     /// Address of the RPC server for execution
-    #[serde(default = "default_execution_rpc_url")]
     pub execution_rpc_url: String,
 
     /// Disable reading from the DA layer and block finalization
@@ -57,11 +46,9 @@ pub struct Config {
     pub libp2p_private_key: Option<String>,
 
     /// Port to listen on for libp2p
-    #[serde(default = "default_libp2p_port")]
     pub libp2p_port: u16,
 
     /// log directive to use for telemetry.
-    #[serde(default = "default_log_level")]
     pub log: String,
 }
 
@@ -80,30 +67,6 @@ where
             .map(|item| item.to_owned())
             .collect(),
     ))
-}
-
-fn default_celestia_node_url() -> String {
-    DEFAULT_CELESTIA_NODE_URL.to_string()
-}
-
-fn default_tendermint_url() -> String {
-    DEFAULT_TENDERMINT_URL.to_string()
-}
-
-fn default_chain_id() -> String {
-    DEFAULT_CHAIN_ID.to_string()
-}
-
-fn default_execution_rpc_url() -> String {
-    DEFAULT_EXECUTION_RPC_URL.to_string()
-}
-
-fn default_libp2p_port() -> u16 {
-    DEFAULT_LIBP2P_PORT
-}
-
-fn default_log_level() -> String {
-    DEFAULT_LOG_LEVEL.to_string()
 }
 
 impl Config {
@@ -126,7 +89,7 @@ mod tests {
     fn populate_environment_from_example(jail: &mut Jail) {
         for line in EXAMPLE_ENV.lines() {
             if let Some((key, val)) = line.trim().split_once('=') {
-                jail.set_env(dbg!(key), dbg!(val));
+                jail.set_env(key, val);
             }
         }
     }
