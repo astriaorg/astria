@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use eyre::{
-    bail,
     Result,
     WrapErr as _,
 };
@@ -16,10 +15,7 @@ use tendermint_rpc::{
 };
 use tokio::{
     select,
-    sync::{
-        mpsc::UnboundedSender,
-        watch,
-    },
+    sync::watch,
     task,
     time::interval,
 };
@@ -43,15 +39,11 @@ pub struct Relayer {
     sequencer_poll_period: Duration,
 
     // The client for submitting sequencer blocks to the data availability layer.
-    data_availability: Option<CelestiaClient>,
+    data_availability: CelestiaClient,
 
     // Carries the signing key to sign sequencer blocks before they are submitted to the data
-    // availability layer or gossiped over the p2p network.
+    // availability layer.
     validator: Validator,
-
-    // The sending half of the channel to the gossip-net worker that gossips soft-commited
-    // sequencer blocks to nodes subscribed to the `blocks` topic.
-    gossip_block_tx: UnboundedSender<SequencerBlockData>,
 
     // A watch channel to track the state of the relayer. Used by the API service.
     state_tx: watch::Sender<State>,
@@ -71,12 +63,12 @@ pub struct Relayer {
 
     // Task to query the sequencer for new blocks. A new request will be sent once this
     // task returns.
-    sequencer_task: Option<task::JoinHandle<Result<block::Response, tendermint_rpc::Error>>>,
+    sequencer_task: Option<task::JoinHandle<eyre::Result<block::Response>>>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct State {
-    pub(crate) data_availability_connected: Option<bool>,
+    pub(crate) data_availability_connected: bool,
     pub(crate) sequencer_connected: bool,
     pub(crate) current_sequencer_height: Option<u64>,
     pub(crate) current_data_availability_height: Option<u64>,
@@ -84,7 +76,7 @@ pub struct State {
 
 impl State {
     pub fn is_ready(&self) -> bool {
-        self.data_availability_connected.unwrap_or(true) && self.sequencer_connected
+        self.data_availability_connected && self.sequencer_connected
     }
 }
 
@@ -97,40 +89,27 @@ impl Relayer {
     /// + failed to read the validator keys from the path in cfg;
     /// + failed to construct a client to the data availability layer (unless `cfg.disable_writing`
     ///   is set).
-    pub fn new(
-        cfg: &crate::config::Config,
-        gossip_block_tx: UnboundedSender<SequencerBlockData>,
-    ) -> Result<Self> {
+    pub fn new(cfg: &crate::config::Config) -> Result<Self> {
         let sequencer = HttpClient::new(&*cfg.sequencer_endpoint)
             .wrap_err("failed to create sequencer client")?;
 
         let validator = Validator::from_path(&cfg.validator_key_file)
             .wrap_err("failed to get validator info from file")?;
 
-        let data_availability = if cfg.disable_writing {
-            debug!("disabling writing to data availability layer requested; disabling");
-            None
-        } else {
-            let client = CelestiaClient::builder()
-                .endpoint(&cfg.celestia_endpoint)
-                .bearer_token(&cfg.celestia_bearer_token)
-                .gas_limit(cfg.gas_limit)
-                .build()
-                .wrap_err("failed to create data availability client")?;
-            Some(client)
-        };
+        let data_availability = CelestiaClient::builder()
+            .endpoint(&cfg.celestia_endpoint)
+            .bearer_token(&cfg.celestia_bearer_token)
+            .gas_limit(cfg.gas_limit)
+            .build()
+            .wrap_err("failed to create data availability client")?;
 
-        let (state_tx, _) = watch::channel(State {
-            data_availability_connected: data_availability.is_some().then_some(false),
-            ..State::default()
-        });
+        let (state_tx, _) = watch::channel(State::default());
 
         Ok(Self {
             sequencer,
             sequencer_poll_period: Duration::from_millis(cfg.block_time),
             data_availability,
             validator,
-            gossip_block_tx,
             state_tx,
             queued_blocks: Vec::new(),
             conversion_workers: task::JoinSet::new(),
@@ -146,18 +125,27 @@ impl Relayer {
     #[instrument(skip_all)]
     fn handle_sequencer_tick(&mut self) {
         use tendermint_rpc::Client as _;
-        if self.sequencer_task.is_none() {
-            let client = self.sequencer.clone();
-            self.sequencer_task = Some(tokio::spawn(async move { client.latest_block().await }));
-        } else {
+        if self.sequencer_task.is_some() {
             debug!("task polling sequencer is currently in flight; not scheduling a new task");
+            return;
         }
+        let client = self.sequencer.clone();
+        let timeout = self.sequencer_poll_period.checked_mul(2).expect(
+            "the sequencer block time should never be set to a value so high that multiplying it \
+             by 2 causes it to overflow",
+        );
+        self.sequencer_task = Some(tokio::spawn(async move {
+            let block = tokio::time::timeout(timeout, client.latest_block())
+                .await
+                .wrap_err("timed out getting latest block from sequencer")??;
+            Ok(block)
+        }))
     }
 
     #[instrument(skip_all)]
     fn handle_sequencer_response(
         &mut self,
-        join_result: Result<Result<block::Response, tendermint_rpc::Error>, task::JoinError>,
+        join_result: Result<eyre::Result<block::Response>, task::JoinError>,
     ) {
         // First check if the join task panicked
         let request_result = match join_result {
@@ -196,7 +184,7 @@ impl Relayer {
     fn handle_conversion_completed(
         &mut self,
         join_result: Result<Result<Option<SequencerBlockData>>, task::JoinError>,
-    ) -> HandleConversionCompletedResult {
+    ) {
         // First check if the join task panicked
         let conversion_result = match join_result {
             Ok(conversion_result) => conversion_result,
@@ -204,12 +192,12 @@ impl Relayer {
             Err(e) => {
                 // TODO: inject the correct tracing span
                 report_err!(e, "conversion task failed");
-                return HandleConversionCompletedResult::Handled;
+                return;
             }
         };
         // Then handle the actual result of the computation
         match conversion_result {
-            // Gossip and collect successfully converted sequencer responses
+            // Collect successfully converted sequencer responses
             Ok(Some(sequencer_block_data)) => {
                 info!(
                     height = %sequencer_block_data.header().height,
@@ -219,13 +207,7 @@ impl Relayer {
                     chain_id_to_tx_count = %ChainIdToTxCount::new(sequencer_block_data.rollup_data()),
                     "gossiping sequencer block",
                 );
-                if self
-                    .gossip_block_tx
-                    .send(sequencer_block_data.clone())
-                    .is_err()
-                {
-                    return HandleConversionCompletedResult::GossipChannelClosed;
-                }
+
                 // Update the internal state if the block was admitted
                 let height = sequencer_block_data.header().height.value();
                 self.state_tx.send_if_modified(|state| {
@@ -247,7 +229,6 @@ impl Relayer {
                 "failed converting sequencer block response to block data"
             ),
         }
-        HandleConversionCompletedResult::Handled
     }
 
     #[instrument(skip_all)]
@@ -300,29 +281,25 @@ impl Relayer {
             ExponentialBuilder,
             Retryable as _,
         };
-        if let Some(client) = self.data_availability.clone() {
-            debug!("attempting to connect to data availability layer",);
-            let backoff = ExponentialBuilder::default()
-                .with_min_delay(delay)
-                .with_factor(factor)
-                .with_max_times(n_retries);
-            let height = (|| {
-                let client = client.clone();
-                async move { client.get_latest_height().await }
-            })
-            .retry(&backoff)
-            .await
-            .wrap_err(
-                "failed to retrieve latest height from data availability layer after several \
-                 retries",
-            )?;
-            self.state_tx.send_modify(|state| {
-                state.data_availability_connected.replace(true);
-                state.current_data_availability_height.replace(height);
-            });
-        } else {
-            debug!("writing to data availability disabled");
-        }
+        let client = self.data_availability.clone();
+        debug!("attempting to connect to data availability layer",);
+        let backoff = ExponentialBuilder::default()
+            .with_min_delay(delay)
+            .with_factor(factor)
+            .with_max_times(n_retries);
+        let height = (|| {
+            let client = client.clone();
+            async move { client.get_latest_height().await }
+        })
+        .retry(&backoff)
+        .await
+        .wrap_err(
+            "failed to retrieve latest height from data availability layer after several retries",
+        )?;
+        self.state_tx.send_modify(|state| {
+            state.data_availability_connected = true;
+            state.current_data_availability_height.replace(height);
+        });
         Ok(())
     }
 
@@ -395,7 +372,7 @@ impl Relayer {
 
         let mut sequencer_interval = interval(self.sequencer_poll_period);
 
-        let stop_msg = loop {
+        loop {
             select!(
                 // Query sequencer for the latest block if no task is in flight
                 _ = sequencer_interval.tick() => self.handle_sequencer_tick(),
@@ -410,13 +387,7 @@ impl Relayer {
                 }
 
                 // Distribute and store converted/admitted blocks
-                Some(res) = self.conversion_workers.join_next() => {
-                    if self.handle_conversion_completed(res)
-                           .is_gossip_channel_closed()
-                    {
-                        break "gossip block channel closed unexpectedly";
-                    }
-                }
+                Some(res) = self.conversion_workers.join_next() => self.handle_conversion_completed(res),
 
                 // Record the current height of the data availability layer if a submission
                 // was in flight.
@@ -431,14 +402,8 @@ impl Relayer {
             //
             // This will immediately and eagerly try to submit to the data availability
             // layer if no submission is in flight.
-            if self.data_availability.is_some()
-                && !self.queued_blocks.is_empty()
-                && self.submission_task.is_none()
-            {
-                let client = self.data_availability.clone().expect(
-                    "this should not fail because the if condition of this block checked that a \
-                     client is present",
-                );
+            if !self.queued_blocks.is_empty() && self.submission_task.is_none() {
+                let client = self.data_availability.clone();
                 self.submission_task = Some(task::spawn(submit_blocks_to_data_availability_layer(
                     client,
                     self.queued_blocks.clone(),
@@ -446,12 +411,19 @@ impl Relayer {
                 )));
                 self.queued_blocks.clear();
             }
-        };
-        self.conversion_workers.abort_all();
-        if let Some(task) = self.submission_task.as_mut() {
-            task.abort()
         }
-        bail!(stop_msg);
+        // FIXME(https://github.com/astriaorg/astria/issues/357):
+        // Currently relayer's event loop never stops so this code cannot be reached.
+        // This should be fixed by shutting it down when receiving a SIGKILL or something
+        // like that.
+        #[allow(unreachable_code)]
+        {
+            self.conversion_workers.abort_all();
+            if let Some(task) = self.submission_task.as_mut() {
+                task.abort()
+            }
+            Ok(())
+        }
     }
 }
 
@@ -491,15 +463,4 @@ async fn submit_blocks_to_data_availability_layer(
         .submit_all_blocks(sequencer_block_data, &validator.signing_key)
         .await?;
     Ok(rsp.height)
-}
-
-enum HandleConversionCompletedResult {
-    Handled,
-    GossipChannelClosed,
-}
-
-impl HandleConversionCompletedResult {
-    fn is_gossip_channel_closed(&self) -> bool {
-        matches!(self, Self::GossipChannelClosed)
-    }
 }

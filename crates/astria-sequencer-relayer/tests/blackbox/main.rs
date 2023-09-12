@@ -1,32 +1,37 @@
 pub mod helper;
 
+use std::time::Duration;
+
 use helper::{
     spawn_sequencer_relayer,
     CelestiaMode,
 };
-use tokio::sync::mpsc::error::TryRecvError;
+use tokio::{
+    sync::mpsc::error::TryRecvError,
+    time::{
+        self,
+        timeout,
+    },
+};
 
-#[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn one_block_is_relayed_to_celestia_and_conductor() {
-    // TODO: Hack to inhibit tokio auto-advance in tests;
-    // Replace once a follow-up to https://github.com/tokio-rs/tokio/pull/5200 lands
-    let (inhibit_tx, inhibit_rx) = tokio::sync::oneshot::channel();
-    tokio::task::spawn_blocking(move || inhibit_rx.blocking_recv());
-
+#[tokio::test(flavor = "current_thread")]
+async fn one_block_is_relayed_to_celestia() {
     let mut sequencer_relayer = spawn_sequencer_relayer(CelestiaMode::Immediate).await;
-    let expected_block_response = helper::mount_constant_block_response(&sequencer_relayer).await;
-
-    // Advance by the configured sequencer block time to get one block
-    // from the sequencer.
-    sequencer_relayer.advance_by_block_time().await;
-
-    let Some(block_seen_by_conductor) = sequencer_relayer.conductor.block_rx.recv().await else {
-        panic!("conductor must have seen one block")
-    };
-    assert_eq!(
-        expected_block_response.block.header.data_hash,
-        block_seen_by_conductor.header().data_hash,
-    );
+    'first_latest_block: {
+        let guard = sequencer_relayer.mount_block_response(1).await;
+        if timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+            .await
+            .is_ok()
+        {
+            break 'first_latest_block;
+        }
+        time::pause();
+        sequencer_relayer.advance_by_block_time().await;
+        time::resume();
+        timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+            .await
+            .unwrap();
+    }
 
     let Some(blobs_seen_by_celestia) = sequencer_relayer
         .celestia
@@ -42,33 +47,28 @@ async fn one_block_is_relayed_to_celestia_and_conductor() {
     assert_eq!(blobs_seen_by_celestia.len(), 2);
 
     // TODO: we should shut down and join all outstanding tasks here.
-
-    // gracefully exit the inhibited task
-    inhibit_tx.send(()).unwrap();
 }
 
-#[tokio::test(flavor = "current_thread", start_paused = true)]
+#[tokio::test(flavor = "current_thread")]
 async fn same_block_is_dropped() {
-    // TODO: Hack to inhibit tokio auto-advance in tests;
-    // Replace once a follow-up to https://github.com/tokio-rs/tokio/pull/5200 lands
-    let (inhibit_tx, inhibit_rx) = tokio::sync::oneshot::channel();
-    tokio::task::spawn_blocking(move || inhibit_rx.blocking_recv());
-
     let mut sequencer_relayer = spawn_sequencer_relayer(CelestiaMode::Immediate).await;
-    let expected_block_response = helper::mount_constant_block_response(&sequencer_relayer).await;
+    'latest_block: {
+        let guard = sequencer_relayer.mount_block_response(1).await;
+        if timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+            .await
+            .is_ok()
+        {
+            break 'latest_block;
+        }
+        time::pause();
+        sequencer_relayer.advance_by_block_time().await;
+        time::resume();
+        timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+            .await
+            .unwrap();
+    }
 
-    // Advance by the configured sequencer block time to get one block
-    // from the sequencer.
-    sequencer_relayer.advance_by_block_time().await;
-
-    let Some(block_seen_by_conductor) = sequencer_relayer.conductor.block_rx.recv().await else {
-        panic!("conductor must have seen one block")
-    };
-    assert_eq!(
-        expected_block_response.block.header.data_hash,
-        block_seen_by_conductor.header().data_hash,
-    );
-
+    // The first block should be received immediately
     let Some(blobs_seen_by_celestia) = sequencer_relayer
         .celestia
         .state_rpc_confirmed_rx
@@ -77,56 +77,100 @@ async fn same_block_is_dropped() {
     else {
         panic!("celestia must have seen blobs")
     };
-    // We can reconstruct the individual blobs here, but let's just assert that it's
-    // two blobs for now: one transaction in the original block + sequencer namespace
-    // data.
     assert_eq!(blobs_seen_by_celestia.len(), 2);
-    sequencer_relayer.advance_by_block_time().await;
-    match sequencer_relayer.conductor.block_rx.try_recv() {
-        Err(TryRecvError::Empty) => {}
-        other => panic!("conductor should have not seen a block, but returned {other:?}"),
+
+    // Mount the same block again and advance by the block time to ensure its picked up.
+    'latest_block: {
+        let guard = sequencer_relayer.mount_block_response(1).await;
+        if timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+            .await
+            .is_ok()
+        {
+            break 'latest_block;
+        }
+        time::pause();
+        sequencer_relayer.advance_by_block_time().await;
+        time::resume();
+        timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+            .await
+            .unwrap();
     }
+
     match sequencer_relayer.celestia.state_rpc_confirmed_rx.try_recv() {
         Err(TryRecvError::Empty) => {}
         other => panic!("celestia should have not seen a blob, but returned {other:?}"),
     }
-
-    // TODO: we should shut down and join all outstanding tasks here.
-
-    // gracefully exit the inhibited task
-    inhibit_tx.send(()).unwrap();
 }
 
-#[tokio::test(flavor = "current_thread", start_paused = true)]
+#[tokio::test(flavor = "current_thread")]
 async fn slow_celestia_leads_to_bundled_blobs() {
-    // TODO: Hack to inhibit tokio auto-advance in tests;
-    // Replace once a follow-up to https://github.com/tokio-rs/tokio/pull/5200 lands
-    let (inhibit_tx, inhibit_rx) = tokio::sync::oneshot::channel();
-    tokio::task::spawn_blocking(move || inhibit_rx.blocking_recv());
+    // Start the environment with celestia delaying responses by 4 times the sequencer block time
+    // (it takes 4000 ms to respond if the sequencer block time is 1000 ms).
+    let mut sequencer_relayer = spawn_sequencer_relayer(CelestiaMode::Delayed(4)).await;
 
-    // Start the environment with celestia delaying responses by 5 times the sequencer block time
-    // (it takes 5000 ms to respond if the sequencer block time is 1000 ms).
-    let mut sequencer_relayer = spawn_sequencer_relayer(CelestiaMode::Delayed(5)).await;
-    let all_blocks = helper::mount_4_changing_block_responses(&sequencer_relayer).await;
-
-    // Advance the block 8 times and observe that conductor sees all events immediately
-    for mounted_block in all_blocks.iter().take(4) {
+    'latest_block: {
+        let guard = sequencer_relayer.mount_block_response(1).await;
+        if timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+            .await
+            .is_ok()
+        {
+            break 'latest_block;
+        }
+        time::pause();
         sequencer_relayer.advance_by_block_time().await;
-        let block_seen_by_conductor = sequencer_relayer.conductor.block_rx.recv().await.unwrap();
-        assert_eq!(
-            mounted_block.block.header.data_hash,
-            block_seen_by_conductor.header().data_hash,
-        );
+        time::resume();
+        timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+            .await
+            .unwrap();
     }
-    // Advancing the time one more will not be observed because the block response
-    // is at the same height.
-    sequencer_relayer.advance_by_block_time().await;
-    let Err(TryRecvError::Empty) = sequencer_relayer.conductor.block_rx.try_recv() else {
-        panic!("conductor observered another block although it shouldn't have");
-    };
 
-    // Advance once more to trigger the celestia response.
-    sequencer_relayer.advance_by_block_time().await;
+    'latest_block: {
+        let guard = sequencer_relayer.mount_block_response(2).await;
+        if timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+            .await
+            .is_ok()
+        {
+            break 'latest_block;
+        }
+        time::pause();
+        sequencer_relayer.advance_by_block_time().await;
+        time::resume();
+        timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+            .await
+            .unwrap();
+    }
+
+    'latest_block: {
+        let guard = sequencer_relayer.mount_block_response(3).await;
+        if timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+            .await
+            .is_ok()
+        {
+            break 'latest_block;
+        }
+        time::pause();
+        sequencer_relayer.advance_by_block_time().await;
+        time::resume();
+        timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+            .await
+            .unwrap();
+    }
+
+    'latest_block: {
+        let guard = sequencer_relayer.mount_block_response(4).await;
+        if timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+            .await
+            .is_ok()
+        {
+            break 'latest_block;
+        }
+        time::pause();
+        sequencer_relayer.advance_by_block_time().await;
+        time::resume();
+        timeout(Duration::from_millis(100), guard.wait_until_satisfied())
+            .await
+            .unwrap();
+    }
 
     // But celestia sees a pair of blobs (1 block + sequencer namespace data)
     if let Some(blobs_seen_by_celestia) = sequencer_relayer
@@ -137,6 +181,7 @@ async fn slow_celestia_leads_to_bundled_blobs() {
     {
         assert_eq!(2, blobs_seen_by_celestia.len());
     }
+
     // And then all the remaining blobs arrive
     if let Some(blobs_seen_by_celestia) = sequencer_relayer
         .celestia
@@ -148,7 +193,4 @@ async fn slow_celestia_leads_to_bundled_blobs() {
     }
 
     // TODO: we should shut down and join all outstanding tasks here.
-
-    // gracefully exit the inhibited task
-    inhibit_tx.send(()).unwrap();
 }

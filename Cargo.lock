@@ -527,7 +527,6 @@ name = "astria-sequencer-relayer"
 version = "0.4.0"
 dependencies = [
  "astria-celestia-jsonrpc-client",
- "astria-gossipnet",
  "astria-proto",
  "astria-sequencer-types",
  "astria-sequencer-validation",
@@ -546,7 +545,6 @@ dependencies = [
  "humantime",
  "hyper",
  "jsonrpsee",
- "multiaddr",
  "once_cell",
  "prost",
  "rand_core 0.6.4",
