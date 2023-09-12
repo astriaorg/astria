@@ -1,7 +1,12 @@
-use std::collections::HashMap;
+use std::{
+    cmp::Ordering,
+    collections::HashMap,
+};
 
 use astria_proto::generated::execution::v1alpha2::{
+    block_identifier::Identifier,
     Block,
+    BlockIdentifier,
     CommitmentState,
 };
 use astria_sequencer_types::{
@@ -128,19 +133,45 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
         let soft: Block = commitment_state.soft.unwrap();
         let firm: Block = commitment_state.firm.unwrap();
 
-        let execution_state: Vec<u8> = if soft.hash == firm.hash {
-            // soft and firm being the same means that the execution chain is empty
-            soft.hash
-        } else {
-            // TODO - get blocks from firm + 1 to soft
+        let execution_state = match firm.number.cmp(&soft.number) {
+            Ordering::Equal => {
+                // soft and firm being the same means that the execution chain was just created
+                soft.hash
+            }
+            Ordering::Less => {
+                // get blocks from firm + 1 to soft
+                let identifiers: Vec<BlockIdentifier> = (firm.number + 1..=soft.number)
+                    .map(|block_height| BlockIdentifier {
+                        identifier: Some(Identifier::BlockNumber(block_height)),
+                    })
+                    .collect();
+                let batch_get_blocks_response = execution_rpc_client
+                    .call_batch_get_blocks(identifiers)
+                    .await?;
+                debug!(
+                    "batch_get_blocks_response: {:#?}",
+                    batch_get_blocks_response
+                );
 
-            // TODO - get sequencer hashes for these blocks
+                // TODO - get sequencer hashes for these blocks
 
-            // TODO - rebuild the hash that tracks sequencer hashes to execution hashes
+                // TODO - rebuild the hash that tracks sequencer hashes to execution hashes
 
-            // FIXME - what do i actually want to set the execution_state to in this case?
-            //  do i need to immediately fetch some blocks with `call_batch_get_blocks`?
-            firm.hash
+                // FIXME - what do i actually want to set the execution_state to in this case?
+                //  do i need to immediately fetch some blocks with `call_batch_get_blocks`?
+                firm.hash
+            }
+            Ordering::Greater => {
+                // FIXME - what should we do in this case?
+                error!(
+                    soft_hash = hex::encode(&soft.hash),
+                    firm_hash = hex::encode(&firm.hash),
+                    soft_number = soft.number,
+                    firm_number = firm.number,
+                    "soft is less than firm, which shouldn't happen."
+                );
+                soft.hash
+            }
         };
 
         Ok((
@@ -429,7 +460,7 @@ mod test {
             let fake_next_hash = hash(&prev_block_hash);
             Ok(Block {
                 number: 1,
-                hash: fake_next_hash.clone(),
+                hash: fake_next_hash,
                 parent_block_hash: prev_block_hash,
                 timestamp,
             })
