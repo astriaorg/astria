@@ -24,7 +24,10 @@ use tracing::{
 
 use crate::{
     accounts::component::AccountsComponent,
-    authority::component::AuthorityComponent,
+    authority::{
+        component::AuthorityComponent,
+        state_ext::StateReadExt as _,
+    },
     component::Component,
     genesis::GenesisState,
     state_ext::{
@@ -180,15 +183,29 @@ impl App {
     pub(crate) async fn end_block(
         &mut self,
         end_block: &abci::request::EndBlock,
-    ) -> Vec<abci::Event> {
+    ) -> abci::response::EndBlock {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
         // call end_block on all components
         AccountsComponent::end_block(&mut arc_state_tx, end_block).await;
+        AuthorityComponent::end_block(&mut arc_state_tx, end_block).await;
+
+        // gather and return validator updates
+        let validator_updates = self
+            .state
+            .get_validator_updates()
+            .await
+            .expect("failed getting validator updates");
+
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
-        self.apply(state_tx)
+        let events = self.apply(state_tx);
+        abci::response::EndBlock {
+            validator_updates: validator_updates.0,
+            events,
+            ..Default::default()
+        }
     }
 
     #[instrument(name = "App:commit", skip(self))]

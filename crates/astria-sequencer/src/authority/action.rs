@@ -3,7 +3,6 @@ use anyhow::{
     Context as _,
     Result,
 };
-use ed25519_consensus::VerificationKey;
 use proto::native::sequencer::v1alpha1::Address;
 use tracing::instrument;
 
@@ -11,19 +10,12 @@ use crate::{
     authority::state_ext::{
         StateReadExt,
         StateWriteExt,
-        Validator,
     },
     transaction::action_handler::ActionHandler,
 };
 
-// TODO: move to astria-proto
-pub(crate) struct ValidatorUpdate {
-    public_key: VerificationKey,
-    voting_power: u64, // set to 0 to remove validator
-}
-
 #[async_trait::async_trait]
-impl ActionHandler for ValidatorUpdate {
+impl ActionHandler for tendermint::validator::Update {
     async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,
@@ -36,10 +28,7 @@ impl ActionHandler for ValidatorUpdate {
         // ensure validator to be updated is in the set
         let validator_set = state.get_validator_set().await?;
         ensure!(
-            validator_set
-                .0
-                .iter()
-                .any(|v| v.public_key == self.public_key.to_bytes()),
+            validator_set.0.iter().any(|v| v.pub_key == self.pub_key),
             "validator to be updated is not in the set"
         );
         Ok(())
@@ -47,19 +36,13 @@ impl ActionHandler for ValidatorUpdate {
 
     #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
-        // add validator update in non-consensus state
-        // to be used in end_block
+        // add validator update in non-consensus state to be used in end_block
         let mut validator_updates = state
             .get_validator_updates()
             .await
             .context("failed getting validator updates")?;
-        validator_updates.0.push(Validator {
-            public_key: self.public_key.to_bytes(),
-            voting_power: self.voting_power,
-        });
-
+        validator_updates.0.push(self.clone());
         state.put_validator_updates(validator_updates)?;
-
         Ok(())
     }
 }

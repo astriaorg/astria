@@ -13,7 +13,10 @@ use tendermint::{
 };
 use tracing::instrument;
 
-use super::state_ext::StateWriteExt;
+use super::state_ext::{
+    StateWriteExt,
+    ValidatorSet,
+};
 use crate::{
     component::Component,
     genesis::GenesisState,
@@ -33,7 +36,7 @@ impl Component for AuthorityComponent {
             .put_sudo_address(app_state.0.authority_sudo_key)
             .context("failed to set sudo key")?;
         state
-            .put_validator_set(app_state.1.clone().try_into()?)
+            .put_validator_set(ValidatorSet(app_state.1.clone()))
             .context("failed to set validator set")?;
         Ok(())
     }

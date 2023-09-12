@@ -153,14 +153,6 @@ impl Consensus {
         &mut self,
         begin_block: request::BeginBlock,
     ) -> anyhow::Result<response::BeginBlock> {
-        // if self.storage.latest_version() == u64::MAX {
-        //     // TODO: why isn't tendermint calling init_chain before the first block?
-        //     self.app
-        //         .init_chain(GenesisState::default())
-        //         .await
-        //         .expect("init_chain must succeed");
-        // }
-
         let events = self.app.begin_block(&begin_block).await;
         Ok(response::BeginBlock {
             events,
@@ -189,11 +181,7 @@ impl Consensus {
         &mut self,
         end_block: request::EndBlock,
     ) -> anyhow::Result<response::EndBlock> {
-        let events = self.app.end_block(&end_block).await;
-        Ok(response::EndBlock {
-            events,
-            ..Default::default()
-        })
+        Ok(self.app.end_block(&end_block).await)
     }
 
     #[instrument(skip(self))]

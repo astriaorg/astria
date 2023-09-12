@@ -16,6 +16,10 @@ use proto::native::sequencer::v1alpha1::{
     Address,
     ADDRESS_LEN,
 };
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use tracing::instrument;
 
 /// Newtype wrapper to read and write an address from rocksdb.
@@ -23,41 +27,12 @@ use tracing::instrument;
 struct SudoAddress([u8; ADDRESS_LEN]);
 
 /// Newtype wrapper to read and write a validator set from rocksdb.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-pub(crate) struct ValidatorSet(pub(crate) Vec<Validator>);
-
-impl TryFrom<Vec<tendermint::validator::Update>> for ValidatorSet {
-    type Error = anyhow::Error;
-
-    fn try_from(updates: Vec<tendermint::validator::Update>) -> Result<Self> {
-        Ok(ValidatorSet(
-            updates
-                .into_iter()
-                .map(|update| {
-                    let public_key = update
-                        .pub_key
-                        .to_bytes()
-                        .try_into()
-                        .map_err(|_| anyhow!("public key must be 32 bytes"))?;
-                    Ok(Validator {
-                        public_key,
-                        voting_power: update.power.into(),
-                    })
-                })
-                .collect::<Result<Vec<Validator>>>()?,
-        ))
-    }
-}
-
-/// Newtype wrapper to read and write a validator update from rocksdb.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-pub(crate) struct ValidatorUpdates(pub(crate) Vec<Validator>);
-
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-pub(crate) struct Validator {
-    pub(crate) public_key: [u8; 32],
-    pub(crate) voting_power: u64,
-}
+///
+/// Note: this is stored only in the nonconsensus state, thus is not part
+/// of the application state, so it's fine for it to be serialized/deserialized
+/// in a non-deterministic way (ie. with serde-json).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub(crate) struct ValidatorSet(pub(crate) Vec<tendermint::validator::Update>);
 
 const SUDO_STORAGE_KEY: &str = "sudo";
 const VALIDATOR_SET_STORAGE_KEY: &str = "valset";
@@ -90,12 +65,12 @@ pub(crate) trait StateReadExt: StateRead {
         };
 
         let ValidatorSet(validator_set) =
-            ValidatorSet::try_from_slice(&bytes).context("invalid validator set bytes")?;
+            serde_json::from_slice(&bytes).context("invalid validator set bytes")?;
         Ok(ValidatorSet(validator_set))
     }
 
     #[instrument(skip(self))]
-    async fn get_validator_updates(&self) -> Result<ValidatorUpdates> {
+    async fn get_validator_updates(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
             .nonconsensus_get_raw(VALIDATOR_UPDATES_KEY)
             .await
@@ -104,8 +79,8 @@ pub(crate) trait StateReadExt: StateRead {
             return Err(anyhow!("validator updates not found"));
         };
 
-        let validator_updates: ValidatorUpdates =
-            ValidatorUpdates::try_from_slice(&bytes).context("invalid validator updates bytes")?;
+        let validator_updates: ValidatorSet =
+            serde_json::from_slice(&bytes).context("invalid validator updates bytes")?;
         Ok(validator_updates)
     }
 }
@@ -127,16 +102,16 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_validator_set(&mut self, validator_set: ValidatorSet) -> Result<()> {
         self.put_raw(
             VALIDATOR_SET_STORAGE_KEY.to_string(),
-            validator_set.try_to_vec()?,
+            serde_json::to_vec(&validator_set)?,
         );
         Ok(())
     }
 
     #[instrument(skip(self))]
-    fn put_validator_updates(&mut self, validator_updates: ValidatorUpdates) -> Result<()> {
+    fn put_validator_updates(&mut self, validator_updates: ValidatorSet) -> Result<()> {
         self.nonconsensus_put_raw(
             VALIDATOR_UPDATES_KEY.to_vec(),
-            validator_updates.try_to_vec()?,
+            serde_json::to_vec(&validator_updates)?,
         );
         Ok(())
     }
