@@ -129,6 +129,12 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
             // soft and firm being the same means that the execution chain is empty
             soft.hash
         } else {
+            // TODO - get blocks from firm + 1 to soft
+
+            // TODO - get sequencer hashes for these blocks
+
+            // TODO - rebuild the hash that tracks sequencer hashes to execution hashes
+
             // FIXME - what do i actually want to set the execution_state to in this case?
             //  do i need to immediately fetch some blocks with `call_batch_get_blocks`?
             firm.hash
