@@ -37,8 +37,6 @@ async fn main() -> Result<()> {
 async fn run() -> Result<()> {
     let conf = config::get().wrap_err("failed to read config")?;
 
-
-    // hierarchical config. cli args override Envars which override toml config values
     telemetry::init(std::io::stdout, &conf.log).wrap_err("failed to initialize telemetry")?;
 
     info!("Using chain ID {}", conf.chain_id);
