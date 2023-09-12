@@ -76,7 +76,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed reading raw validator updates from state")?
         else {
-            return Err(anyhow!("validator updates not found"));
+            return Ok(ValidatorSet(vec![]));
         };
 
         let validator_updates: ValidatorSet =
