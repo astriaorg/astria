@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use astria_proto::generated::execution::v1alpha2::Block;
+use astria_proto::generated::execution::v1alpha2::{
+    Block,
+    CommitmentState,
+};
 use astria_sequencer_types::{
     Namespace,
     SequencerBlockData,
@@ -263,6 +266,38 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
         Ok(Some(response.hash))
     }
 
+    /// Updates the block's commitment state to firm
+    ///
+    /// # Arguments
+    ///
+    /// * `block` - the sequencer block that we know is firm
+    /// * `execution_block_hash` - the execution block hash corresponding to the sequencer block
+    async fn update_commitment_state_firm(
+        &mut self,
+        block: SequencerBlockSubset,
+        execution_block_hash: Vec<u8>,
+    ) -> Result<()> {
+        let sequencer_block_height = block.header.height.value();
+        let sequencer_block_timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
+            .wrap_err("failed parsing str as protobuf timestamp")?;
+        self.execution_rpc_client
+            .call_update_commitment_state(CommitmentState {
+                soft: None,
+                firm: Some(Block {
+                    number: sequencer_block_height as u32,
+                    hash: execution_block_hash,
+                    parent_block_hash: self.execution_state.clone(),
+                    timestamp: Some(sequencer_block_timestamp),
+                }),
+            })
+            .await?;
+        // remove the sequencer block hash from the map, as it's been executed
+        self.sequencer_hash_to_execution_hash
+            .remove(&block.block_hash);
+
+        Ok(())
+    }
+
     async fn handle_block_received_from_data_availability(
         &mut self,
         block: SequencerBlockSubset,
@@ -272,30 +307,12 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
             .sequencer_hash_to_execution_hash
             .get(&sequencer_block_hash)
             .cloned();
-        let sequencer_block_height = block.header.height.value();
-        let sequencer_block_timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
-            .wrap_err("failed parsing str as protobuf timestamp")?;
         match maybe_execution_block_hash {
             Some(execution_block_hash) => {
-                // TODO - move this into function for reuse
-                // this block has been executed, let's update firm commitment
-                self.execution_rpc_client
-                    .call_update_commitment_state(
-                        astria_proto::generated::execution::v1alpha2::CommitmentState {
-                            soft: None,
-                            // FIXME - am i using the right values for this call?
-                            firm: Some(Block {
-                                number: sequencer_block_height as u32,
-                                hash: execution_block_hash,
-                                parent_block_hash: self.execution_state.clone(),
-                                timestamp: Some(sequencer_block_timestamp),
-                            }),
-                        },
-                    )
+                // this means we've already executed the block,
+                // so we just need to update its commitment state
+                self.update_commitment_state_firm(block, execution_block_hash)
                     .await?;
-                // remove the sequencer block hash from the map, as it's been executed
-                self.sequencer_hash_to_execution_hash
-                    .remove(&sequencer_block_hash);
             }
             None => {
                 // this means either:
@@ -308,7 +325,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                 // execute_block will check if our namespace has txs; if so, it'll return the
                 // resulting execution block hash, otherwise None
                 let Some(execution_block_hash) = self
-                    .execute_block(block)
+                    .execute_block(block.clone())
                     .await
                     .wrap_err("failed to execute block")?
                 else {
@@ -317,25 +334,8 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     return Ok(());
                 };
 
-                // TODO - move this into function for reuse
-                // update commitment state after it's been executed
-                self.execution_rpc_client
-                    .call_update_commitment_state(
-                        astria_proto::generated::execution::v1alpha2::CommitmentState {
-                            // FIXME - am i using the right values for this call?
-                            firm: Some(Block {
-                                number: sequencer_block_height as u32,
-                                hash: execution_block_hash.clone(),
-                                parent_block_hash: self.execution_state.clone(),
-                                timestamp: Some(sequencer_block_timestamp),
-                            }),
-                            soft: None,
-                        },
-                    )
+                self.update_commitment_state_firm(block, execution_block_hash)
                     .await?;
-                // remove the sequencer block hash from the map, as it's been executed
-                self.sequencer_hash_to_execution_hash
-                    .remove(&sequencer_block_hash);
             }
         };
         Ok(())
