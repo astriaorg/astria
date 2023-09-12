@@ -27,5 +27,8 @@ pub mod generated {
     pub mod sequencer {
         #[path = "astria.sequencer.v1alpha1.rs"]
         pub mod v1alpha1;
+
+        #[path = "astria.sequencer.v1alpha2.rs"]
+        pub mod v1alpha2;
     }
 }

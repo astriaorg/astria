@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package astria.sequencer.v1alpha2;
+
+import "tendermint/types/types.proto";
+import "astria/sequencer/v1alpha2/validation.proto";
+
+// An "item blob" of rollup transactions submitted to celestia.
+//
+// The transactions contained in the item belong to a rollup identified
+// by `chain_id`, and were included in the sequencer block identified
+// by `sequencer_block_hash`.
+message CelestiaItem {
+    // The hash of the sequencer block. Must be 32 bytes.
+    bytes sequencer_block_hash = 1;
+    // The human readable chain ID identifiying the rollup these transactions belong to.
+    string chain_id = 2;
+    // A list of opaque bytes that are serialized rollup transactions.
+    repeated bytes transactions = 3;
+    // The proof that the action tree root was included in
+    // `sequencer_block_header.data_hash` (to be found in `CelestiaHeader`).
+    // The inclusion of these transactions in the original sequencer block
+    // can be verified using the action tree root stored in `CelestiaHeader`.
+    astria.sequencer.v1alpha2.InclusionProof action_tree_inclusion_proof = 4;
+}
+
+// The "header blob" that is submitted to celestia under a sequencer-specific
+// celestia namespace.
+//
+// It is created by splitting up `SequencerBlockData` into a header
+// and a list of rollup blobs, where one blob contains a sequence of
+// rollup transactions for one specific rollup.
+//
+// The original sequencer block is identified by its `block_hash`.
+message CelestiaHeader {
+    // The hash of the sequencer block. Must be 32 bytes.
+    bytes sequencer_block_hash = 1;
+    // The original cometbft header that was the input to this sequencer block.
+    tendermint.types.Header sequencer_block_header = 2;
+    // The commit/set of signatures that commited this block.
+    tendermint.types.Commit sequencer_bock_last_commit = 3;
+    // The namespaces under which rollup transactions belonging to the sequencer
+    // block identified by `sequencer_block_hash` where submitted to celestia.
+    // The bytes must convert to a celestia v0 namespace.
+    repeated bytes rollup_namespaces = 4;
+    // The root of the action tree of this block. Must be 32 bytes.
+    bytes action_tree_root = 5;
+    // The proof that the action tree root was included in `header.data_hash`.
+    astria.sequencer.v1alpha2.InclusionProof action_tree_inclusion_proof = 6;
+}
