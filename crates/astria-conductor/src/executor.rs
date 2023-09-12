@@ -444,8 +444,8 @@ mod test {
                 .wrap_err("failed parsing str as protobuf timestamp")?;
             let block = Block {
                 number: 1,
-                hash: hash(b"block1").try_into().unwrap(),
-                parent_block_hash: hash(b"block0").try_into().unwrap(),
+                hash: hash(b"block1"),
+                parent_block_hash: hash(b"block0"),
                 timestamp: Some(timestamp),
             };
             Ok(CommitmentState {
