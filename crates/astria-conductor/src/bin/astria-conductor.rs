@@ -8,7 +8,10 @@ use astria_conductor::{
     },
     telemetry,
 };
-use color_eyre::eyre::{Result, Context};
+use color_eyre::eyre::{
+    Context,
+    Result,
+};
 use tokio::{
     select,
     signal::unix::{
@@ -27,8 +30,8 @@ use tracing::{
 #[tokio::main]
 async fn main() -> Result<()> {
     if let Err(e) = run().await {
-            eprintln!("Exited with error: {e}");
-            std::process::exit(2);
+        eprintln!("Exited with error: {e}");
+        std::process::exit(2);
     };
     Ok(())
 }
