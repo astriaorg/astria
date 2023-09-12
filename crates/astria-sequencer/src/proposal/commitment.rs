@@ -4,13 +4,13 @@ use bytes::Bytes;
 use proto::native::sequencer::v1alpha1::SignedTransaction;
 
 /// Wrapper for values returned by [`generate_sequence_actions_commitment`].
-pub(crate) struct GenerateCommitmentsResult {
+pub(crate) struct GeneratedCommitments {
     pub(crate) sequence_actions_commitment: [u8; 32],
     pub(crate) chain_ids_commitment: [u8; 32],
     pub(crate) txs_to_include: Vec<Bytes>,
 }
 
-impl GenerateCommitmentsResult {
+impl GeneratedCommitments {
     #[must_use]
     pub(crate) fn into_transactions(mut self) -> Vec<Bytes> {
         let mut txs = Vec::with_capacity(self.txs_to_include.len() + 2);
@@ -38,9 +38,7 @@ impl GenerateCommitmentsResult {
 /// The leaf, which contains a commitment to every action with the same `chain_id`, is currently
 /// implemented as ( `chain_id` || root of merkle tree of the `sequence::Action`s ).
 /// This is somewhat arbitrary, but could be useful for proof of an action within the action tree.
-pub(crate) fn generate_sequence_actions_commitment(
-    txs_bytes: Vec<Bytes>,
-) -> GenerateCommitmentsResult {
+pub(crate) fn generate_sequence_actions_commitment(txs_bytes: Vec<Bytes>) -> GeneratedCommitments {
     use proto::{
         generated::sequencer::v1alpha1 as raw,
         Message as _,
@@ -80,7 +78,7 @@ pub(crate) fn generate_sequence_actions_commitment(
     // with the same `chain_id`, prepended with `chain_id`.
     // the leaves are sorted in ascending order by `chain_id`.
     let leaves = generate_action_tree_leaves(chain_id_to_txs);
-    GenerateCommitmentsResult {
+    GeneratedCommitments {
         sequence_actions_commitment: simple_hash_from_byte_vectors::<Sha256>(&leaves),
         chain_ids_commitment: simple_hash_from_byte_vectors::<Sha256>(&chain_ids),
         txs_to_include,
@@ -145,7 +143,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let GenerateCommitmentsResult {
+        let GeneratedCommitments {
             sequence_actions_commitment: commitment_0,
             ..
         } = generate_sequence_actions_commitment(txs);
@@ -159,7 +157,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let GenerateCommitmentsResult {
+        let GeneratedCommitments {
             sequence_actions_commitment: commitment_1,
             ..
         } = generate_sequence_actions_commitment(txs);
@@ -246,7 +244,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let tx_bytes = signed_tx.into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let GenerateCommitmentsResult {
+        let GeneratedCommitments {
             sequence_actions_commitment: actual,
             ..
         } = generate_sequence_actions_commitment(txs);

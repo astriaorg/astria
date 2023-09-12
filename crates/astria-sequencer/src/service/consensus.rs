@@ -27,7 +27,7 @@ use crate::{
     genesis::GenesisState,
     proposal::commitment::{
         generate_sequence_actions_commitment,
-        GenerateCommitmentsResult,
+        GeneratedCommitments,
     },
 };
 
@@ -240,7 +240,7 @@ fn handle_process_proposal(process_proposal: request::ProcessProposal) -> anyhow
 
     let expected_txs_len = txs.len();
 
-    let GenerateCommitmentsResult {
+    let GeneratedCommitments {
         sequence_actions_commitment: expected_action_commitment,
         chain_ids_commitment: expected_chain_ids_commitment,
         txs_to_include,
