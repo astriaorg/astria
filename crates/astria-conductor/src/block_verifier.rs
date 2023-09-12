@@ -37,10 +37,7 @@ use tendermint_rpc::{
     Client,
     HttpClient,
 };
-use tracing::{
-    instrument,
-    warn,
-};
+use tracing::instrument;
 
 /// `BlockVerifier` is responsible for verifying the correctness of a block
 /// before executing it.
@@ -49,6 +46,7 @@ use tracing::{
 /// `validate_signed_namespace_data` is used to validate the data received from the data
 /// availability layer. `validate_sequencer_block` is used to validate the blocks received from
 /// either the data availability layer or the gossip network.
+#[derive(Debug)]
 pub(crate) struct BlockVerifier {
     sequencer_client: HttpClient,
 }

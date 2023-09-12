@@ -27,6 +27,7 @@ use tracing::{
     error,
     info,
     instrument,
+    Instrument,
 };
 
 use crate::{
@@ -48,14 +49,18 @@ type Receiver = UnboundedReceiver<ExecutorCommand>;
 /// spawns a executor task and returns a tuple with the task's join handle
 /// and the channel for sending commands to this executor
 pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
-    info!("Spawning executor task.");
+    info!(
+        chain_id = %conf.chain_id,
+        execution_rpc_url = %conf.execution_rpc_url,
+        "Spawning executor task."
+    );
     let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url).await?;
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
         ChainId::new(conf.chain_id.as_bytes().to_vec()),
     )
     .await?;
-    let join_handle = task::spawn(async move { executor.run().await });
+    let join_handle = task::spawn(async move { executor.run().in_current_span().await });
     info!("Spawned executor task.");
     Ok((join_handle, executor_tx))
 }
@@ -132,6 +137,7 @@ impl<C: ExecutionClient> Executor<C> {
         ))
     }
 
+    #[instrument(skip_all)]
     async fn run(&mut self) -> Result<()> {
         info!("Starting executor event loop.");
 
@@ -140,30 +146,46 @@ impl<C: ExecutionClient> Executor<C> {
                 ExecutorCommand::BlockReceivedFromGossipNetwork {
                     block,
                 } => {
+                    let height = block.header().height.value();
                     let Some(block_subset) =
                         SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id)
                     else {
-                        info!(namespace = %self.namespace, "block did not contain data for namespace; skipping");
+                        info!(
+                            namespace = %self.namespace,
+                            "block did not contain data for namespace; skipping"
+                        );
                         continue;
                     };
                     if let Err(e) = self.execute_block(block_subset).await {
-                        error!("failed to execute block: {e:?}");
+                        error!(
+                            height = height,
+                            error = ?e,
+                            "failed to execute block"
+                        );
                     }
                 }
 
                 ExecutorCommand::BlockReceivedFromDataAvailability {
                     block,
                 } => {
+                    let height = block.header.height.value();
                     if let Err(e) = self
                         .handle_block_received_from_data_availability(*block)
                         .await
                     {
-                        error!("failed to finalize block: {}", e);
+                        error!(
+                            height = height,
+                            error = ?e,
+                            "failed to finalize block"
+                        );
                     }
                 }
 
                 ExecutorCommand::Shutdown => {
-                    info!("Shutting down executor event loop.");
+                    info!(
+                        namespace = %self.namespace,
+                        "Shutting down executor event loop."
+                    );
                     break;
                 }
             }
