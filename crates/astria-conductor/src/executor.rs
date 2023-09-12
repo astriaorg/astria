@@ -269,15 +269,17 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
         let sequencer_block_height = block.header.height.value();
         match maybe_execution_block_hash {
             Some(execution_block_hash) => {
-                // we've executed, let's update firm commitment
+                // this block has been executed, let's update firm commitment
                 self.execution_rpc_client
                     .call_update_commitment_state(
                         astria_proto::generated::execution::v1alpha2::CommitmentState {
                             soft: None,
+                            // FIXME - am i using the right values for this call?
                             firm: Some(Block {
                                 number: sequencer_block_height as u32,
                                 hash: execution_block_hash,
                                 parent_block_hash: self.execution_state.clone(),
+                                // TODO - get timestamp from sequencer
                                 timestamp: None,
                             }),
                         },
@@ -305,12 +307,10 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                 };
 
                 // update commitment state after it's been executed
-                // FIXME - is firm correct here?
-                //  soft feels wrong, but where else would soft be set? or is this totally dependent
-                //  on the new commitment level setting?
                 self.execution_rpc_client
                     .call_update_commitment_state(
                         astria_proto::generated::execution::v1alpha2::CommitmentState {
+                            // FIXME - am i using the right values for this call?
                             firm: Some(Block {
                                 number: sequencer_block_height as u32,
                                 hash: execution_block_hash.clone(),
