@@ -269,6 +269,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
         let sequencer_block_height = block.header.height.value();
         match maybe_execution_block_hash {
             Some(execution_block_hash) => {
+                // TODO - move this into function for reuse
                 // this block has been executed, let's update firm commitment
                 self.execution_rpc_client
                     .call_update_commitment_state(
@@ -285,6 +286,9 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                         },
                     )
                     .await?;
+                // remove the sequencer block hash from the map, as it's been executed
+                self.sequencer_hash_to_execution_hash
+                    .remove(&sequencer_block_hash);
             }
             None => {
                 // this means either:
@@ -306,6 +310,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     return Ok(());
                 };
 
+                // TODO - move this into function for reuse
                 // update commitment state after it's been executed
                 self.execution_rpc_client
                     .call_update_commitment_state(
@@ -322,12 +327,12 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     )
                     .await?;
                 // remove the sequencer block hash from the map, as it's been executed
-                self.sequencer_hash_to_execution_hash.remove(&sequencer_block_hash);
+                self.sequencer_hash_to_execution_hash
+                    .remove(&sequencer_block_hash);
             }
         };
         Ok(())
     }
-
 }
 
 #[cfg(test)]
