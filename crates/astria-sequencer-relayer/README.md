@@ -1,59 +1,37 @@
-# sequencer-relayer
+# Astria Sequencer-Relayer
 
-This repo contains a functionality for relaying blocks from the Astria shared
-sequencer to a DA layer (ie. Celestia).
+Sequencer-Relayer reads new blocks from [Astria Sequencer](../astria-sequencer)
+(run as a proxy app of cometBFT), submits them to celestia (which is used as a
+data availability layer), and gossips them over P2P, where they are usually read
+by [Astria Conductor](../astria-conductor).
 
-Components:
+## Running Sequencer-Relayer
 
-- sequencer RPC client which polls for latest blocks from a sequencer node
-- Celestia RPC client which writes sequencer blocks to Celestia
-- command-line interface for running the relayer
+### Dependencies
 
-## Requirements
+We use [just](https://just.systems/man/en/chapter_4.html) for convenient project
+specific commands.
 
-- Rust 1.66
-- kind 0.18.0 (for tests)
-- kubectl 1.26.3 (for tests)
+### Configuration
 
-## Building
+Sequencer-Relayer is configured via environment variables. An example
+configuration can be seen in `local.env.example`.
 
-```sh
-cargo build --bin relayer --release
+To copy a configuration to your `.env` file run:
+
+```bash
+# Can specify an environment
+just copy-env <ENVIRONMENT>
+
+# By default will copy `local.env.example`
+just copy-env
 ```
 
-## Testing
+### Running locally
 
-See [`TESTING.md`](./TESTING.md).
+After creating a `.env` file either manually or by copying as above, `just` will
+load it and run locally:
 
-## Run
-
-With astria-sequencer/cometbft and Celestia running locally (see below), start
-the relayer with While running the sequencer and Celestia, start the relayer:
-
-```sh
-cargo run --release
-# Or after having built it
-./target/release/astria-sequencer-relayer \
-    --validator-key-file=$HOME/.cometbft/config/priv_validator_key.json
+```bash
+just run
 ```
-
-The celestia cluster can be started by running the following from the root of
-the monorepo:
-
-```sh
-just create-cluster
-just deploy-ingress-controller
-just wait-for-ingress-controller
-just start-celestia-jsonrpc-test-deployment
-just wait-for-celestia-jsonrpc-test-deployment
-```
-
-Alternatively, you can disable writing to Celestia and only publish blocks via
-gossip:
-
-```sh
-./target/release/relayer --disable-writing
-```
-
-The relayer automatically listens on `/ip4/127.0.0.1/tcp/33900` and is also able
-to discover local peers via mDNS.
