@@ -111,7 +111,7 @@ struct Executor<C> {
     namespace: Namespace,
 
     /// Tracks the state of the execution chain
-    execution_state: Vec<u8>,
+    execution_state: Block,
 
     /// map of sequencer block hash to execution block hash
     ///
@@ -136,7 +136,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
         let execution_state = match firm.number.cmp(&soft.number) {
             Ordering::Equal => {
                 // soft and firm being the same means that the execution chain was just created
-                soft.hash
+                firm
             }
             Ordering::Less => {
                 // get blocks from firm + 1 to soft
@@ -158,7 +158,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                 // TODO - rebuild the hash that tracks sequencer hashes to execution hashes
 
                 // FIXME - what do i actually want to set the execution_state to in this case?
-                firm.hash
+                soft
             }
             Ordering::Greater => {
                 // FIXME - what should we do in this case?
@@ -169,7 +169,8 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     firm_number = firm.number,
                     "soft is less than firm, which shouldn't happen."
                 );
-                soft.hash
+                // FIXME - this branch should panic
+                soft
             }
         };
 
@@ -267,7 +268,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
             return Ok(Some(execution_hash.clone()));
         }
 
-        let prev_block_hash = self.execution_state.clone();
+        let prev_block_hash = self.execution_state.hash.clone();
         info!(
             height = block.header.height.value(),
             parent_block_hash = hex::encode(&prev_block_hash),
@@ -281,7 +282,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
             .execution_rpc_client
             .call_execute_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
             .await?;
-        self.execution_state = response.hash.clone();
+        self.execution_state = response.clone();
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
@@ -316,7 +317,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                 firm: Some(Block {
                     number: sequencer_block_height as u32,
                     hash: execution_block_hash,
-                    parent_block_hash: self.execution_state.clone(),
+                    parent_block_hash: self.execution_state.hash.clone(),
                     timestamp: Some(sequencer_block_timestamp),
                 }),
             })
@@ -522,7 +523,7 @@ mod test {
             .await
             .unwrap();
 
-        let expected_exection_hash = hash(&executor.execution_state);
+        let expected_exection_hash = hash(&executor.execution_state.hash);
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
 
@@ -558,7 +559,7 @@ mod test {
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
 
-        let expected_execution_hash = hash(&executor.execution_state);
+        let expected_execution_hash = hash(&executor.execution_state.hash);
 
         executor
             .handle_block_received_from_data_availability(block)
@@ -571,10 +572,10 @@ mod test {
             finalized_blocks
                 .lock()
                 .await
-                .get(&executor.execution_state)
+                .get(&executor.execution_state.hash)
                 .is_some()
         );
-        assert_eq!(expected_execution_hash, executor.execution_state);
+        assert_eq!(expected_execution_hash, executor.execution_state.hash);
         // should be empty because 1 block was executed and finalized, which deletes it from the map
         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
     }
@@ -602,10 +603,10 @@ mod test {
             finalized_blocks
                 .lock()
                 .await
-                .get(&executor.execution_state)
+                .get(&executor.execution_state.hash)
                 .is_none()
         );
-        assert_eq!(previous_execution_state, executor.execution_state,);
+        assert_eq!(previous_execution_state, executor.execution_state);
         // should be empty because nothing was executed
         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
     }
