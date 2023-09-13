@@ -153,12 +153,11 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     batch_get_blocks_response
                 );
 
-                // TODO - get sequencer hashes for these blocks
+                // TODO - get sequencer hashes for these blocks. best way to do this?
 
                 // TODO - rebuild the hash that tracks sequencer hashes to execution hashes
 
                 // FIXME - what do i actually want to set the execution_state to in this case?
-                //  do i need to immediately fetch some blocks with `call_batch_get_blocks`?
                 firm.hash
             }
             Ordering::Greater => {
