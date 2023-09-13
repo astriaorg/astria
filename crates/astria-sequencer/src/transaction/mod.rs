@@ -45,9 +45,9 @@ pub(crate) async fn execute<S: StateWriteExt>(
 }
 
 #[derive(Debug)]
-pub(crate) struct NonceError(pub(crate) u32);
+pub(crate) struct InvalidNonce(pub(crate) u32);
 
-impl Display for NonceError {
+impl Display for InvalidNonce {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -83,7 +83,7 @@ impl ActionHandler for UnsignedTransaction {
         // Nonce should be equal to the number of executed transactions before this tx.
         // First tx has nonce 0.
         let curr_nonce = state.get_account_nonce(from).await?;
-        ensure!(curr_nonce == self.nonce, NonceError(self.nonce));
+        ensure!(curr_nonce == self.nonce, InvalidNonce(self.nonce));
 
         // do we need to make a StateDelta here so we can check the actions on the successive state?
         for action in &self.actions {

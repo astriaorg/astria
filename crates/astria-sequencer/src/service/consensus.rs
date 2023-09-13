@@ -160,13 +160,13 @@ impl Consensus {
 
     #[instrument(skip(self))]
     async fn deliver_tx(&mut self, deliver_tx: request::DeliverTx) -> response::DeliverTx {
-        use crate::transaction::NonceError;
+        use crate::transaction::InvalidNonce;
         match self.app.deliver_tx(&deliver_tx.tx).await {
             Ok(_events) => response::DeliverTx::default(),
             Err(e) => {
                 // we don't want to panic on failing to deliver_tx as that would crash the entire
                 // node
-                let code = match e.downcast_ref::<NonceError>() {
+                let code = match e.downcast_ref::<InvalidNonce>() {
                     Some(_e) => {
                         tracing::warn!("{}", e);
                         AbciCode::INVALID_NONCE

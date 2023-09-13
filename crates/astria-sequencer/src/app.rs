@@ -3,7 +3,6 @@ use std::sync::Arc;
 use anyhow::{
     ensure,
     Context,
-    Result,
 };
 use penumbra_storage::{
     ArcStateDeltaExt,
@@ -76,7 +75,7 @@ impl App {
     }
 
     #[instrument(name = "App:init_chain", skip(self))]
-    pub(crate) async fn init_chain(&mut self, genesis_state: GenesisState) -> Result<()> {
+    pub(crate) async fn init_chain(&mut self, genesis_state: GenesisState) -> anyhow::Result<()> {
         let mut state_tx = self
             .state
             .try_begin_transaction()
@@ -116,7 +115,7 @@ impl App {
     }
 
     #[instrument(name = "App:deliver_tx", skip(self))]
-    pub(crate) async fn deliver_tx(&mut self, tx: &[u8]) -> Result<Vec<abci::Event>> {
+    pub(crate) async fn deliver_tx(&mut self, tx: &[u8]) -> anyhow::Result<Vec<abci::Event>> {
         use proto::{
             generated::sequencer::v1alpha1 as raw,
             native::sequencer::v1alpha1::SignedTransaction,
@@ -280,6 +279,7 @@ mod test {
         },
         genesis::Account,
         sequence::calculate_fee,
+        transaction::InvalidNonce,
     };
 
     /// attempts to decode the given hex string into an address.
@@ -527,6 +527,9 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_invalid_nonce() {
+        // Arrange
+        // initialize app from genesis state with default_genesis_accounts
+        // (balances are 10u128.pow(19))
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -537,6 +540,7 @@ mod test {
         };
         app.init_chain(genesis_state).await.unwrap();
 
+        // initialize tx signer
         // this secret key corresponds to ALICE_ADDRESS
         let alice_secret_bytes: [u8; 32] =
             hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
@@ -546,10 +550,8 @@ mod test {
         let alice_signing_key = SigningKey::from(alice_secret_bytes);
         let alice = Address::from_verification_key(alice_signing_key.verification_key());
 
+        // create tx with invalid nonce 1
         let data = b"hello world".to_vec();
-        let fee = calculate_fee(&data).unwrap();
-
-        // TODO: invalid nonce
         let tx = UnsignedTransaction {
             nonce: 1,
             actions: vec![
@@ -561,16 +563,30 @@ mod test {
             ],
         };
 
+        // sign tx
         let signed_tx = tx.into_signed(&alice_signing_key);
         let bytes = signed_tx.into_raw().encode_to_vec();
 
-        app.deliver_tx(&bytes).await.unwrap();
-        assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 1);
+        // Act
+        // pass tx to deliver_tx
+        let response = app.deliver_tx(&bytes).await;
 
+        // Assert
+        // check that tx was not executed by checking nonce and balance are unchanged
+        assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 0);
         assert_eq!(
             app.state.get_account_balance(alice).await.unwrap(),
-            10u128.pow(19) - fee,
+            10u128.pow(19),
         );
+
+        assert_eq!(
+            response
+                .unwrap_err()
+                .downcast_ref::<InvalidNonce>()
+                .map(|nonce_err| nonce_err.0)
+                .unwrap(),
+            1
+        )
     }
 
     #[tokio::test]
