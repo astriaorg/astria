@@ -1,5 +1,5 @@
 use astria_sequencer_types::{
-    Namespace,
+    ChainId,
     RawSequencerBlockData,
     SequencerBlockData,
 };
@@ -21,7 +21,7 @@ pub struct SequencerBlockSubset {
 impl SequencerBlockSubset {
     pub(crate) fn from_sequencer_block_data(
         data: SequencerBlockData,
-        namespace: Namespace,
+        chain_id: &ChainId,
     ) -> Option<Self> {
         // we don't need to verify the action tree root here,
         // as [`SequencerBlockData`] would not be constructable
@@ -34,11 +34,11 @@ impl SequencerBlockSubset {
             ..
         } = data.into_raw();
 
-        let our_rollup_data = rollup_data.remove(&namespace)?;
+        let rollup_transactions = rollup_data.remove(chain_id)?;
         Some(Self {
             block_hash,
             header,
-            rollup_transactions: our_rollup_data.transactions,
+            rollup_transactions,
         })
     }
 }
