@@ -328,7 +328,8 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     parent_block_hash: self.execution_state.hash.clone(),
                     timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
                 };
-                self.update_commitment_state(executor_block.clone(), executor_block).await?;
+                self.update_commitment_state(executor_block.clone(), executor_block)
+                    .await?;
 
                 // remove the sequencer block hash from the map, as it's been executed
                 self.sequencer_hash_to_execution_hash
@@ -360,7 +361,8 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     parent_block_hash: self.execution_state.hash.clone(),
                     timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
                 };
-                self.update_commitment_state(executor_block.clone(), executor_block).await?;
+                self.update_commitment_state(executor_block.clone(), executor_block)
+                    .await?;
 
                 // remove the sequencer block hash from the map, as it's been executed
                 self.sequencer_hash_to_execution_hash
