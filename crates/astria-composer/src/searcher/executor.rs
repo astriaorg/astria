@@ -35,15 +35,17 @@ use tracing::{
     warn,
 };
 
+const CHANNEL_SIZE: usize = 256;
+
 use crate::Config;
 
 pub(super) type StatusReceiver = watch::Receiver<Status>;
 pub(super) type Sender = mpsc::Sender<Vec<Action>>;
 
 pub(super) fn spawn(cfg: &Config) -> eyre::Result<(Sender, StatusReceiver)> {
-    info!("Spawning Executor subtask for Searcher");
+    info!("spawning executor subtask for searcher");
     // create channel for sending bundles to executor
-    let (executor_tx, executor_rx) = mpsc::channel(256);
+    let (executor_tx, executor_rx) = mpsc::channel(CHANNEL_SIZE);
     let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx)?;
 
     // create channel for receiving executor status
@@ -197,6 +199,8 @@ impl Executor {
         Ok(())
     }
 
+    /// Transforms a Vec<Action> -> `UnsignedTransaction` -> `SignedTransction` and then submits it
+    /// to the sequencer
     async fn process_bundle(&mut self, bundle: Vec<Action>) -> eyre::Result<()> {
         let nonce = self
             .get_and_increment_nonce()
@@ -216,9 +220,10 @@ impl Executor {
         Ok(())
     }
 
-    /// Run the Executor loop.
-    /// Transforms a Vec<Action> -> `UnsignedTransaction` -> `SignedTransction` and then submits it
-    /// to the sequencer
+    /// Run the Executor loop, calling `process_bundle` on each bundle received from the channel.
+    ///
+    /// # Errors
+    /// An error is returned if connecting to the sequencer fails.
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         // set up connection to sequencer
         self.wait_for_sequencer(5, Duration::from_secs(5), 2.0)
@@ -228,17 +233,15 @@ impl Executor {
         while let Some(bundle) = self.executor_rx.recv().await {
             if let Err(e) = self.process_bundle(bundle.clone()).await {
                 // FIXME: currently this will fail both when there is an issue with the nonce and
-                // when unable to reach the sequencer
+                // when unable to reach the sequencer. As there is currently no error returned by
+                // the sequencer for invalid nonces, there is nothing to handle. This should be
+                // changed after #364 is merged in a followup PR to handle nonce failues.
                 error!(
                     error.message = %e,
                     error.cause_chain = ?e,
                     ?bundle,
                     "processing bundle failed",
                 );
-                // refetch nonce and try processing the bundle again, failing the task if it fails
-                self.fetch_nonce().await?;
-                // TODO: how to handle this better?
-                self.process_bundle(bundle).await?;
             }
         }
         Ok(())
