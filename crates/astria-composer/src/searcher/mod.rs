@@ -46,9 +46,9 @@ pub(super) struct Searcher {
     // transactions.
     conversion_tasks: JoinSet<Vec<Action>>,
     // A channel on which to send the `Executor` bundles for attaching a nonce to, sign and submit
-    executor_tx: executor::Sender,
+    executor_tx: mpsc::Sender<Vec<Action>>,
     // Channel from which to read the internal status of the executor.
-    executor_status: executor::StatusReceiver,
+    executor_status: watch::Receiver<executor::Status>,
     // Set of in-flight RPCs submitting signed transactions to the sequencer.
     submission_tasks: JoinSet<eyre::Result<()>>,
 }

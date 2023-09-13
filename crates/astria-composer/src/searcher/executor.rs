@@ -19,6 +19,7 @@ use secrecy::{
     Zeroize as _,
 };
 use sequencer_client::{
+    tx_sync,
     Address,
     NonceResponse,
     SequencerClientExt,
@@ -39,14 +40,14 @@ const CHANNEL_SIZE: usize = 256;
 
 use crate::Config;
 
-pub(super) type StatusReceiver = watch::Receiver<Status>;
-pub(super) type Sender = mpsc::Sender<Vec<Action>>;
-
-pub(super) fn spawn(cfg: &Config) -> eyre::Result<(Sender, StatusReceiver)> {
+pub(super) fn spawn(
+    cfg: &Config,
+) -> eyre::Result<(mpsc::Sender<Vec<Action>>, watch::Receiver<Status>)> {
     info!("spawning executor subtask for searcher");
     // create channel for sending bundles to executor
     let (executor_tx, executor_rx) = mpsc::channel(CHANNEL_SIZE);
-    let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx)?;
+    let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx)
+        .context("executor construction from config failed")?;
 
     // create channel for receiving executor status
     let status_rx = executor.subscribe();
@@ -183,10 +184,9 @@ impl Executor {
     async fn submit_tx(&self, signed_tx: SignedTransaction) -> eyre::Result<()> {
         let rsp = self
             .sequencer_client
-            .inner
             .submit_transaction_sync(signed_tx)
             .await
-            .wrap_err("failed to submit transaction to sequencer")?;
+            .wrap_err("failed submitting transaction to sequencer")?;
         if rsp.code.is_err() {
             bail!(
                 "submitting transaction to sequencer returned with error code; code: `{code}`; \
@@ -226,9 +226,9 @@ impl Executor {
     /// An error is returned if connecting to the sequencer fails.
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         // set up connection to sequencer
-        self.wait_for_sequencer(5, Duration::from_secs(5), 2.0)
+        self.init_nonce_from_sequencer(5, Duration::from_secs(5), 2.0)
             .await
-            .wrap_err("failed connecting to sequencer")?;
+            .wrap_err("failed retrieving initial nonce from sequencer")?;
 
         while let Some(bundle) = self.executor_rx.recv().await {
             if let Err(e) = self.process_bundle(bundle.clone()).await {
@@ -261,7 +261,7 @@ impl Executor {
         retries.initial_delay = %format_duration(delay),
         retries.exponential_factor = factor,
     ))]
-    async fn wait_for_sequencer(
+    async fn init_nonce_from_sequencer(
         &mut self,
         n_retries: usize,
         delay: Duration,
@@ -328,6 +328,20 @@ impl SequencerClient {
         tokio::time::timeout(
             Duration::from_secs(1),
             self.inner.get_latest_nonce(address.0),
+        )
+        .await
+        .wrap_err("request timed out")?
+        .wrap_err("RPC returned with error")
+    }
+
+    /// Wrapper around [`Client::submit_transaction_sync`] with a 1s timeout.
+    async fn submit_transaction_sync(
+        &self,
+        signed_tx: SignedTransaction,
+    ) -> eyre::Result<tx_sync::Response> {
+        tokio::time::timeout(
+            Duration::from_secs(1),
+            self.inner.submit_transaction_sync(signed_tx),
         )
         .await
         .wrap_err("request timed out")?
