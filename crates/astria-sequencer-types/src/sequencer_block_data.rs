@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use astria_sequencer_validation::{
     InclusionProof,
@@ -29,10 +29,7 @@ use tendermint::{
 use thiserror::Error;
 use tracing::debug;
 
-use crate::{
-    namespace::Namespace,
-    tendermint::calculate_last_commit_hash,
-};
+use crate::tendermint::calculate_last_commit_hash;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -42,12 +39,20 @@ pub enum Error {
     MissingLastCommitHash,
 }
 
-/// Rollup data that relayer/conductor need to know.
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
-pub struct RollupData {
-    #[serde(with = "hex::serde")]
-    pub chain_id: Vec<u8>,
-    pub transactions: Vec<Vec<u8>>,
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ChainId(#[serde(with = "hex::serde")] Vec<u8>);
+
+impl ChainId {
+    #[must_use]
+    pub fn new(inner: Vec<u8>) -> Self {
+        Self(inner)
+    }
+}
+
+impl AsRef<[u8]> for ChainId {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
 }
 
 /// `SequencerBlockData` represents a sequencer block's data
@@ -60,8 +65,8 @@ pub struct SequencerBlockData {
     header: Header,
     /// This field should be set for every block with height > 1.
     last_commit: Option<Commit>,
-    /// namespace -> rollup data (chain ID and transactions)
-    rollup_data: HashMap<Namespace, RollupData>,
+    /// chain ID -> rollup transactions
+    rollup_data: BTreeMap<ChainId, Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
     action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included
@@ -165,7 +170,7 @@ impl SequencerBlockData {
     }
 
     #[must_use]
-    pub fn rollup_data(&self) -> &HashMap<Namespace, RollupData> {
+    pub fn rollup_data(&self) -> &BTreeMap<ChainId, Vec<Vec<u8>>> {
         &self.rollup_data
     }
 
@@ -251,7 +256,7 @@ impl SequencerBlockData {
 
         // we unwrap sequencer txs into rollup-specific data here,
         // and namespace them correspondingly
-        let mut rollup_data = HashMap::new();
+        let mut rollup_data = BTreeMap::new();
 
         // the first transaction is skipped as it's the action tree root,
         // not a user-submitted transaction.
@@ -272,16 +277,12 @@ impl SequencerBlockData {
                 if let Some(action) = action.as_sequence() {
                     // TODO(https://github.com/astriaorg/astria/issues/318): intern
                     // these namespaces so they don't get rebuild on every iteration.
-                    let namespace = Namespace::from_slice(&action.chain_id);
                     rollup_data
-                        .entry(namespace)
-                        .and_modify(|data: &mut RollupData| {
-                            data.transactions.push(action.data.clone());
+                        .entry(ChainId(action.chain_id.clone()))
+                        .and_modify(|data: &mut Vec<Vec<u8>>| {
+                            data.push(action.data.clone());
                         })
-                        .or_insert_with(|| RollupData {
-                            chain_id: action.chain_id.clone(),
-                            transactions: vec![action.data.clone()],
-                        });
+                        .or_insert_with(|| vec![action.data.clone()]);
                 }
             });
         }
@@ -320,7 +321,7 @@ pub struct RawSequencerBlockData {
     /// This field should be set for every block with height > 1.
     pub last_commit: Option<Commit>,
     /// namespace -> rollup data (chain ID and transactions)
-    pub rollup_data: HashMap<Namespace, RollupData>,
+    pub rollup_data: BTreeMap<ChainId, Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
     pub action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included
@@ -347,7 +348,7 @@ impl From<SequencerBlockData> for RawSequencerBlockData {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     use astria_sequencer_validation::MerkleTree;
     use tendermint::Hash;
@@ -386,7 +387,7 @@ mod test {
             block_hash,
             header,
             last_commit: Some(last_commit),
-            rollup_data: HashMap::new(),
+            rollup_data: BTreeMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
         })
@@ -421,7 +422,7 @@ mod test {
             block_hash,
             header,
             last_commit: Some(last_commit),
-            rollup_data: HashMap::new(),
+            rollup_data: BTreeMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
         })
