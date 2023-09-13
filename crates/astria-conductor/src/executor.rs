@@ -322,18 +322,8 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
             .cloned();
         match maybe_execution_block_hash {
             Some(execution_block_hash) => {
-                let executor_block = Block {
-                    number: block.header.height.value() as u32,
-                    hash: execution_block_hash,
-                    parent_block_hash: self.execution_state.hash.clone(),
-                    timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
-                };
-                self.update_commitment_state(executor_block.clone(), executor_block)
+                self.process_sequencer_block(block, execution_block_hash)
                     .await?;
-
-                // remove the sequencer block hash from the map, as it's been executed
-                self.sequencer_hash_to_execution_hash
-                    .remove(&block.block_hash);
             }
             None => {
                 // this means either:
@@ -355,20 +345,32 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     return Ok(());
                 };
 
-                let executor_block = Block {
-                    number: block.header.height.value() as u32,
-                    hash: execution_block_hash,
-                    parent_block_hash: self.execution_state.hash.clone(),
-                    timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
-                };
-                self.update_commitment_state(executor_block.clone(), executor_block)
+                self.process_sequencer_block(block, execution_block_hash)
                     .await?;
-
-                // remove the sequencer block hash from the map, as it's been executed
-                self.sequencer_hash_to_execution_hash
-                    .remove(&block.block_hash);
             }
         };
+        Ok(())
+    }
+
+    /// Processes a sequencer block that has already been executed
+    async fn process_sequencer_block(
+        &mut self,
+        block: SequencerBlockSubset,
+        execution_block_hash: Vec<u8>,
+    ) -> Result<()> {
+        let executor_block = Block {
+            number: block.header.height.value() as u32,
+            hash: execution_block_hash,
+            parent_block_hash: self.execution_state.hash.clone(),
+            timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
+        };
+        self.update_commitment_state(executor_block.clone(), executor_block)
+            .await?;
+
+        // remove the sequencer block hash from the map, as it's been executed
+        self.sequencer_hash_to_execution_hash
+            .remove(&block.block_hash);
+
         Ok(())
     }
 }
