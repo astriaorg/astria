@@ -136,7 +136,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
         let execution_state = match firm.number.cmp(&soft.number) {
             Ordering::Equal => {
                 // soft and firm being the same means that the execution chain was just created
-                firm
+                soft
             }
             Ordering::Less => {
                 // get blocks from firm + 1 to soft
@@ -523,7 +523,7 @@ mod test {
             .await
             .unwrap();
 
-        let expected_exection_hash = hash(&executor.execution_state.hash);
+        let expected_execution_hash = hash(&executor.execution_state.hash);
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
 
@@ -532,7 +532,7 @@ mod test {
             .await
             .unwrap()
             .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash, execution_block_hash);
+        assert_eq!(expected_execution_hash, execution_block_hash);
     }
 
     #[tokio::test]
