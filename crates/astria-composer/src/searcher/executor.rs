@@ -35,15 +35,17 @@ use tracing::{
     warn,
 };
 
+const CHANNEL_SIZE: usize = 256;
+
 use crate::Config;
 
 pub(super) type StatusReceiver = watch::Receiver<Status>;
 pub(super) type Sender = mpsc::Sender<Vec<Action>>;
 
 pub(super) fn spawn(cfg: &Config) -> eyre::Result<(Sender, StatusReceiver)> {
-    info!("Spawning Executor subtask for Searcher");
+    info!("spawning executor subtask for searcher");
     // create channel for sending bundles to executor
-    let (executor_tx, executor_rx) = mpsc::channel(256);
+    let (executor_tx, executor_rx) = mpsc::channel(CHANNEL_SIZE);
     let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx)?;
 
     // create channel for receiving executor status
