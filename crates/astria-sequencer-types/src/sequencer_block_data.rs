@@ -245,8 +245,11 @@ impl SequencerBlockData {
             bail!(Error::MissingDataHash);
         };
 
-        if b.data.is_empty() {
-            bail!("block has no transactions; ie action tree root is missing");
+        if b.data.len() < 2 {
+            bail!(
+                "block has less than two transactions; ie action tree root and chain IDs \
+                 commitment are missing"
+            );
         }
 
         let action_tree_root: [u8; 32] = b.data[0]
@@ -254,13 +257,18 @@ impl SequencerBlockData {
             .try_into()
             .map_err(|_| eyre!("action tree root must be 32 bytes"))?;
 
+        let chain_ids_commitment: [u8; 32] = b.data[1]
+            .clone()
+            .try_into()
+            .map_err(|_| eyre!("chain IDs commitment must be 32 bytes"))?;
+
         // we unwrap sequencer txs into rollup-specific data here,
         // and namespace them correspondingly
         let mut rollup_data = BTreeMap::new();
 
-        // the first transaction is skipped as it's the action tree root,
+        // the first two transactions is skipped as it's the action tree root,
         // not a user-submitted transaction.
-        for (index, tx) in b.data[1..].iter().enumerate() {
+        for (index, tx) in b.data[2..].iter().enumerate() {
             debug!(
                 index,
                 bytes = general_purpose::STANDARD.encode(tx.as_slice()),
@@ -299,6 +307,18 @@ impl SequencerBlockData {
             .prove_inclusion(0) // action tree root is always the first tx in a block
             .wrap_err("failed to generate inclusion proof for action tree root")?;
 
+        // ensure the chain IDs commitment matches the one calculated from the rollup data
+        let chain_ids = rollup_data
+            .keys()
+            .cloned()
+            .map(|chain_id| chain_id.0)
+            .collect::<Vec<_>>();
+        let calculated_chain_ids_commitment = MerkleTree::from_leaves(chain_ids).root();
+        ensure!(
+            calculated_chain_ids_commitment == chain_ids_commitment,
+            "chain IDs commitment does not match the one calculated from the rollup data",
+        );
+
         let data = Self {
             block_hash: b.header.hash(),
             header: b.header,
@@ -306,6 +326,7 @@ impl SequencerBlockData {
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
+            chain_ids_commitment,
         };
         Ok(data)
     }
@@ -383,6 +404,8 @@ mod test {
 
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
         let block_hash = header.hash();
+
+        let chain_ids_commitment = MerkleTree::from_leaves(vec![]).root();
         SequencerBlockData::try_from_raw(RawSequencerBlockData {
             block_hash,
             header,
@@ -390,6 +413,7 @@ mod test {
             rollup_data: BTreeMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
+            chain_ids_commitment,
         })
         .unwrap();
     }
@@ -418,6 +442,8 @@ mod test {
 
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
         let block_hash = header.hash();
+
+        let chain_ids_commitment = MerkleTree::from_leaves(vec![]).root();
         let data = SequencerBlockData::try_from_raw(RawSequencerBlockData {
             block_hash,
             header,
@@ -425,6 +451,7 @@ mod test {
             rollup_data: BTreeMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
+            chain_ids_commitment,
         })
         .unwrap();
 
