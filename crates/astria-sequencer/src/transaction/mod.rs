@@ -1,5 +1,7 @@
 pub(crate) mod action_handler;
 
+use std::fmt::Display;
+
 pub(crate) use action_handler::ActionHandler;
 use anyhow::{
     ensure,
@@ -42,6 +44,19 @@ pub(crate) async fn execute<S: StateWriteExt>(
         .await
 }
 
+#[derive(Debug)]
+pub(crate) struct NonceError(pub(crate) u32);
+
+impl Display for NonceError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "provided nonce {} does not match expected next nonce",
+            self.0,
+        )
+    }
+}
+
 #[async_trait::async_trait]
 impl ActionHandler for UnsignedTransaction {
     fn check_stateless(&self) -> anyhow::Result<()> {
@@ -68,11 +83,9 @@ impl ActionHandler for UnsignedTransaction {
         // Nonce should be equal to the number of executed transactions before this tx.
         // First tx has nonce 0.
         let curr_nonce = state.get_account_nonce(from).await?;
-        ensure!(
-            curr_nonce == self.nonce,
-            "invalid nonce, tx nonce must match account nonce"
-        );
+        ensure!(curr_nonce == self.nonce, NonceError(self.nonce));
 
+        // do we need to make a StateDelta here so we can check the actions on the successive state?
         for action in &self.actions {
             match action {
                 Action::Transfer(act) => act

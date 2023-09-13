@@ -29,6 +29,7 @@ use crate::{
         generate_sequence_actions_commitment,
         GeneratedCommitments,
     },
+    service::AbciCode,
 };
 
 pub(crate) struct Consensus {
@@ -105,11 +106,9 @@ impl Consensus {
                     .await
                     .context("failed to begin block")?,
             ),
-            ConsensusRequest::DeliverTx(deliver_tx) => ConsensusResponse::DeliverTx(
-                self.deliver_tx(deliver_tx)
-                    .await
-                    .context("failed to deliver transaction")?,
-            ),
+            ConsensusRequest::DeliverTx(deliver_tx) => {
+                ConsensusResponse::DeliverTx(self.deliver_tx(deliver_tx).await)
+            }
             ConsensusRequest::EndBlock(end_block) => ConsensusResponse::EndBlock(
                 self.end_block(end_block)
                     .await
@@ -160,20 +159,34 @@ impl Consensus {
     }
 
     #[instrument(skip(self))]
-    async fn deliver_tx(
-        &mut self,
-        deliver_tx: request::DeliverTx,
-    ) -> anyhow::Result<response::DeliverTx> {
-        self.app
-            .deliver_tx(&deliver_tx.tx)
-            .await
-            .unwrap_or_else(|e| {
+    async fn deliver_tx(&mut self, deliver_tx: request::DeliverTx) -> response::DeliverTx {
+        use crate::transaction::NonceError;
+        match self.app.deliver_tx(&deliver_tx.tx).await {
+            Ok(_events) => response::DeliverTx::default(),
+            Err(e) => {
                 // we don't want to panic on failing to deliver_tx as that would crash the entire
                 // node
-                tracing::error!(error = ?e, "deliver_tx failed");
-                vec![]
-            });
-        Ok(response::DeliverTx::default())
+                let code = match e.downcast_ref::<NonceError>() {
+                    Some(_e) => {
+                        tracing::warn!("{}", e);
+                        AbciCode::INVALID_NONCE
+                    }
+                    None => {
+                        tracing::warn!(error = ?e, "deliver_tx failed");
+                        AbciCode::INTERNAL_ERROR
+                    }
+                };
+                response::DeliverTx {
+                    code: code.into(),
+                    info: code
+                        .info()
+                        .unwrap_or_else(|| "invalid ABCI code")
+                        .to_string(),
+                    log: format!("{:?}", e),
+                    ..Default::default()
+                }
+            }
+        }
     }
 
     #[instrument(skip(self))]
