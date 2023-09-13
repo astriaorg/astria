@@ -295,36 +295,20 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
         Ok(Some(response.hash))
     }
 
-    /// Updates the block's commitment state to firm
-    ///
-    /// # Arguments
-    ///
-    /// * `block` - the sequencer block that we know is firm
-    /// * `execution_block_hash` - the execution block hash corresponding to the sequencer block
-    async fn update_commitment_state_firm(
+    /// Updates the soft and firm blocks on the execution layer
+    async fn update_commitment_state(
         &mut self,
-        block: SequencerBlockSubset,
-        execution_block_hash: Vec<u8>,
-    ) -> Result<()> {
-        let sequencer_block_height = block.header.height.value();
-        let sequencer_block_timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
-            .wrap_err("failed parsing str as protobuf timestamp")?;
-        self.execution_rpc_client
+        soft: Block,
+        firm: Block,
+    ) -> Result<CommitmentState> {
+        let commitment_state = self
+            .execution_rpc_client
             .call_update_commitment_state(CommitmentState {
-                soft: None,
-                firm: Some(Block {
-                    number: sequencer_block_height as u32,
-                    hash: execution_block_hash,
-                    parent_block_hash: self.execution_state.hash.clone(),
-                    timestamp: Some(sequencer_block_timestamp),
-                }),
+                soft: Some(soft),
+                firm: Some(firm),
             })
             .await?;
-        // remove the sequencer block hash from the map, as it's been executed
-        self.sequencer_hash_to_execution_hash
-            .remove(&block.block_hash);
-
-        Ok(())
+        Ok(commitment_state)
     }
 
     async fn handle_block_received_from_data_availability(
@@ -338,10 +322,17 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
             .cloned();
         match maybe_execution_block_hash {
             Some(execution_block_hash) => {
-                // this means we've already executed the block,
-                // so we just need to update its commitment state
-                self.update_commitment_state_firm(block, execution_block_hash)
-                    .await?;
+                let executor_block = Block {
+                    number: block.header.height.value() as u32,
+                    hash: execution_block_hash,
+                    parent_block_hash: self.execution_state.hash.clone(),
+                    timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
+                };
+                self.update_commitment_state(executor_block.clone(), executor_block).await?;
+
+                // remove the sequencer block hash from the map, as it's been executed
+                self.sequencer_hash_to_execution_hash
+                    .remove(&block.block_hash);
             }
             None => {
                 // this means either:
@@ -363,8 +354,17 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     return Ok(());
                 };
 
-                self.update_commitment_state_firm(block, execution_block_hash)
-                    .await?;
+                let executor_block = Block {
+                    number: block.header.height.value() as u32,
+                    hash: execution_block_hash,
+                    parent_block_hash: self.execution_state.hash.clone(),
+                    timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
+                };
+                self.update_commitment_state(executor_block.clone(), executor_block).await?;
+
+                // remove the sequencer block hash from the map, as it's been executed
+                self.sequencer_hash_to_execution_hash
+                    .remove(&block.block_hash);
             }
         };
         Ok(())
