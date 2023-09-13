@@ -1,3 +1,8 @@
+/// ! The `Executor` is responsible for:
+/// - Nonce management
+/// - Transaction signing
+/// - Managing the connection to the sequencer
+/// - Submitting transactions to the sequencer
 use std::time::Duration;
 
 use color_eyre::eyre::{
@@ -36,7 +41,7 @@ use tracing::{
     warn,
 };
 
-const CHANNEL_SIZE: usize = 256;
+const BUNDLE_CHANNEL_SIZE: usize = 256;
 
 use crate::Config;
 
@@ -45,7 +50,7 @@ pub(super) fn spawn(
 ) -> eyre::Result<(mpsc::Sender<Vec<Action>>, watch::Receiver<Status>)> {
     info!("spawning executor subtask for searcher");
     // create channel for sending bundles to executor
-    let (executor_tx, executor_rx) = mpsc::channel(CHANNEL_SIZE);
+    let (executor_tx, executor_rx) = mpsc::channel(BUNDLE_CHANNEL_SIZE);
     let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx)
         .context("executor construction from config failed")?;
 
@@ -56,6 +61,7 @@ pub(super) fn spawn(
     let join_handle = tokio::spawn(executor.run_until_stopped());
 
     // handle executor failure by logging
+    // FIXME: this should happen inside the `Searcher`
     tokio::task::spawn(async move {
         match join_handle.await {
             Ok(Ok(())) => {
@@ -81,6 +87,11 @@ pub(super) fn spawn(
     Ok((executor_tx, status_rx))
 }
 
+/// The `Executor` interfaces with the sequencer. It handles account nonces, transaction signing,
+/// and transaction submission.
+/// The `Executor` receives `Vec<Action>` from the bundling logic, packages them with a nonce into
+/// an `Unsigned`, then signs them with the sequencer key and submits to the sequencer.
+/// Its `status` field indicates that connection to the sequencer node has been established.
 #[derive(Debug)]
 pub(super) struct Executor {
     // The status of this executor
@@ -115,11 +126,6 @@ impl Status {
     }
 }
 
-/// The `Executor` interfaces with the sequencer. It handles account nonces, transaction signing,
-/// and transaction submission.
-/// The `Executor` receives `Vec<Action>` from the bundling logic, packages them with a nonce into
-/// an `Unsigned`, then signs them with the sequencer key and submits to the sequencer.
-/// Its `status` field indicates that connection to the sequencer node has been established.
 impl Executor {
     pub(super) fn new(
         sequencer_url: &str,
@@ -158,17 +164,6 @@ impl Executor {
     /// Return a reader to the status reporting channel
     pub(super) fn subscribe(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
-    }
-
-    // Fetch the latest nonce from the sequencer
-    async fn fetch_nonce(&mut self) -> eyre::Result<()> {
-        let nonce_response = self
-            .sequencer_client
-            .get_latest_nonce(self.address)
-            .await
-            .wrap_err("failed to retrieve nonce from sequencer")?;
-        self.nonce = Some(nonce_response.nonce);
-        Ok(())
     }
 
     /// Gets the next nonce to sign over if it exists and increments the stored nonce counter
