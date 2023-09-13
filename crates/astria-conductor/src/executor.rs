@@ -161,7 +161,6 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                 soft
             }
             Ordering::Greater => {
-                // FIXME - what should we do in this case?
                 error!(
                     soft_hash = hex::encode(&soft.hash),
                     firm_hash = hex::encode(&firm.hash),
@@ -169,8 +168,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     firm_number = firm.number,
                     "soft is less than firm, which shouldn't happen."
                 );
-                // FIXME - this branch should panic
-                soft
+                panic!("Executor: soft is less than firm");
             }
         };
 
