@@ -105,12 +105,11 @@ pub enum CelestiaMode {
 
 pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequencerRelayer {
     Lazy::force(&TELEMETRY);
-    let mut config = Config::default();
-
+    let block_time = 1000;
     let mut conductor = MockConductor::start();
     let conductor_bootnode = (&mut conductor.bootnode_rx).await.unwrap();
 
-    let mut celestia = MockCelestia::start(config.block_time, celestia_mode).await;
+    let mut celestia = MockCelestia::start(block_time, celestia_mode).await;
     let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
 
     let (keyfile, validator) = tokio::task::spawn_blocking(|| {
@@ -128,12 +127,20 @@ pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequenc
 
     let sequencer = start_mocked_sequencer().await;
 
-    config.bootnodes = Some(vec![conductor_bootnode.to_string()]);
-    config.celestia_endpoint = format!("http://{celestia_addr}");
-    config.sequencer_endpoint = sequencer.uri();
-    config.rpc_port = 0;
-    config.p2p_port = 0;
-    config.validator_key_file = keyfile.path().to_string_lossy().to_string();
+    let config = Config {
+        sequencer_endpoint: sequencer.uri(),
+        celestia_endpoint: format!("http://{celestia_addr}"),
+        celestia_bearer_token: "".into(),
+        gas_limit: 100000,
+        disable_writing: false,
+        block_time: 1000,
+        validator_key_file: keyfile.path().to_string_lossy().to_string(),
+        rpc_port: 0,
+        p2p_port: 0,
+        bootnodes: Some(vec![conductor_bootnode.to_string()]),
+        libp2p_private_key: None,
+        log: "".into(),
+    };
 
     info!(config = serde_json::to_string(&config).unwrap());
     let config_clone = config.clone();
@@ -393,16 +400,6 @@ impl MockConductor {
     }
 }
 
-// This is necessary because the Deserialize impl for tendermint::block::Block
-// considers the default commit equivalent to being unset.
-fn create_non_default_last_commit() -> tendermint::block::Commit {
-    use tendermint::block::Commit;
-    Commit {
-        height: 2u32.into(),
-        ..Commit::default()
-    }
-}
-
 fn create_block_response(validator: &Validator, height: u32) -> endpoint::block::Response {
     use proto::Message as _;
     use tendermint::{
@@ -438,6 +435,8 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
         &data,
     )));
 
+    let (last_commit_hash, last_commit) = sequencer_types::test_utils::make_test_commit_and_hash();
+
     endpoint::block::Response {
         block_id: block::Id {
             hash: Hash::Sha256([0; 32]),
@@ -453,7 +452,7 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
                 height: block::Height::from(height),
                 time: Time::now(),
                 last_block_id: None,
-                last_commit_hash: None,
+                last_commit_hash: (height > 1).then_some(last_commit_hash),
                 data_hash,
                 validators_hash: Hash::Sha256([0; 32]),
                 next_validators_hash: Hash::Sha256([0; 32]),
@@ -465,8 +464,8 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
             },
             data,
             evidence::List::default(),
-            // The first height must not, every height after must contain a commit
-            (height != 1).then_some(create_non_default_last_commit()),
+            // The first height must not, every height after must contain a last commit
+            (height > 1).then_some(last_commit),
         )
         .unwrap(),
     }

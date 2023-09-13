@@ -36,3 +36,13 @@ pub fn default_header() -> Header {
         proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
     }
 }
+
+// Returns a tendermint commit and hash for testing purposes.
+#[must_use]
+pub fn make_test_commit_and_hash() -> (tendermint::Hash, tendermint::block::Commit) {
+    let commit = tendermint::block::Commit {
+        height: 1u32.into(),
+        ..Default::default()
+    };
+    (crate::calculate_last_commit_hash(&commit), commit)
+}
