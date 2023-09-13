@@ -585,7 +585,9 @@ mod test {
             block_hash,
             header,
             last_commit: None,
-            rollup_chain_ids: vec![astria_sequencer_types::ChainId::new(test_chain_id.to_vec())],
+            rollup_chain_ids: vec![
+                astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
+            ],
             action_tree_root,
             action_tree_root_inclusion_proof,
             chain_ids_commitment: astria_sequencer_validation::MerkleTree::from_leaves(vec![
@@ -596,7 +598,7 @@ mod test {
 
         let rollup_namespace_data = RollupNamespaceData::new(
             block_hash,
-            astria_sequencer_types::ChainId::new(test_chain_id.to_vec()),
+            astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
             vec![test_tx],
             action_tree.prove_inclusion(0).unwrap(),
         );

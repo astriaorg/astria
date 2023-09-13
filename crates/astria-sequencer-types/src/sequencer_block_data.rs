@@ -43,9 +43,17 @@ pub enum Error {
 pub struct ChainId(#[serde(with = "hex::serde")] Vec<u8>);
 
 impl ChainId {
-    #[must_use]
-    pub fn new(inner: Vec<u8>) -> Self {
-        Self(inner)
+    /// Creates a new `ChainId` from the given bytes.
+    ///
+    /// # Errors
+    ///
+    /// - if the given bytes are longer than 32 bytes
+    pub fn new(inner: Vec<u8>) -> eyre::Result<Self> {
+        if inner.len() > 32 {
+            bail!("chain ID must be 32 bytes or less");
+        }
+
+        Ok(Self(inner))
     }
 }
 
