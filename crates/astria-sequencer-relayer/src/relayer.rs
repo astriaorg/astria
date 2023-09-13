@@ -146,12 +146,12 @@ impl Relayer {
     #[instrument(skip_all)]
     fn handle_sequencer_tick(&mut self) {
         use tendermint_rpc::Client as _;
-        if self.sequencer_task.is_none() {
-            let client = self.sequencer.clone();
-            self.sequencer_task = Some(tokio::spawn(async move { client.latest_block().await }));
-        } else {
-            debug!("task polling sequencer is currently in flight; not scheduling a new task");
+        if let Some(task) = self.sequencer_task.take() {
+            warn!("task to fetch new blocks was still in flight at next tick; aborting");
+            task.abort();
         }
+        let client = self.sequencer.clone();
+        self.sequencer_task = Some(tokio::spawn(async move { client.latest_block().await }));
     }
 
     #[instrument(skip_all)]
