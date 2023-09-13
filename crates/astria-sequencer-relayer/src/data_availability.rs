@@ -152,6 +152,7 @@ pub struct SequencerNamespaceData {
     pub rollup_namespaces: Vec<Namespace>,
     pub action_tree_root: [u8; 32],
     pub action_tree_root_inclusion_proof: InclusionProof,
+    pub chain_ids_commitment: [u8; 32],
 }
 
 impl NamespaceData for SequencerNamespaceData {}

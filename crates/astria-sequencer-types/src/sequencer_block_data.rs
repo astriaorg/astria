@@ -67,6 +67,9 @@ pub struct SequencerBlockData {
     /// The inclusion proof that the action tree root is included
     /// in `Header::data_hash`.
     action_tree_root_inclusion_proof: InclusionProof,
+    /// The commitment to the chain IDs of the rollup data.
+    /// The merkle root of the tree where the leaves are the chain IDs.
+    chain_ids_commitment: [u8; 32],
 }
 
 impl SequencerBlockData {
@@ -90,6 +93,7 @@ impl SequencerBlockData {
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
+            chain_ids_commitment,
         } = raw;
 
         let calculated_block_hash = header.hash();
@@ -115,6 +119,7 @@ impl SequencerBlockData {
                 rollup_data,
                 action_tree_root,
                 action_tree_root_inclusion_proof,
+                chain_ids_commitment,
             });
         }
 
@@ -140,6 +145,7 @@ impl SequencerBlockData {
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
+            chain_ids_commitment,
         })
     }
 
@@ -173,6 +179,7 @@ impl SequencerBlockData {
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
+            chain_ids_commitment,
         } = self;
 
         RawSequencerBlockData {
@@ -182,6 +189,7 @@ impl SequencerBlockData {
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
+            chain_ids_commitment,
         }
     }
 
@@ -318,6 +326,9 @@ pub struct RawSequencerBlockData {
     /// The inclusion proof that the action tree root is included
     /// in `Header::data_hash`.
     pub action_tree_root_inclusion_proof: InclusionProof,
+    /// The commitment to the chain IDs of the rollup data.
+    /// The merkle root of the tree where the leaves are the chain IDs.
+    pub chain_ids_commitment: [u8; 32],
 }
 
 impl TryFrom<RawSequencerBlockData> for SequencerBlockData {
