@@ -1,7 +1,4 @@
-use std::collections::{
-    BTreeMap,
-    HashMap,
-};
+use std::collections::HashMap;
 
 use astria_celestia_jsonrpc_client::{
     blob::{
@@ -28,9 +25,9 @@ use eyre::{
 };
 use sequencer_types::{
     serde::Base64Standard,
+    ChainId,
     Namespace,
     RawSequencerBlockData,
-    RollupData,
     SequencerBlockData,
     DEFAULT_NAMESPACE,
 };
@@ -492,14 +489,11 @@ impl CelestiaClient {
 
         // finally, extract the rollup txs from the rollup datas
         let rollup_data = rollup_datas
-            .into_iter()
-            .map(|(namespace, rollup_datas)| {
+            .into_values()
+            .map(|rollup_datas| {
                 (
-                    namespace,
-                    RollupData {
-                        chain_id: rollup_datas.data.chain_id,
-                        transactions: rollup_datas.data.rollup_txs,
-                    },
+                    ChainId::new(rollup_datas.data.chain_id),
+                    rollup_datas.data.rollup_txs,
                 )
             })
             .collect();
@@ -578,16 +572,6 @@ fn filter_and_convert_rollup_data_blobs(
     rollup_datas
 }
 
-fn btree_from_rollup_data(
-    rollup_data: HashMap<Namespace, RollupData>,
-) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
-    let mut btree = BTreeMap::new();
-    for (_, data) in rollup_data {
-        btree.insert(data.chain_id, data.transactions);
-    }
-    btree
-}
-
 fn assemble_blobs_from_sequencer_block_data(
     block_data: SequencerBlockData,
     signing_key: &SigningKey,
@@ -604,20 +588,19 @@ fn assemble_blobs_from_sequencer_block_data(
         action_tree_root_inclusion_proof,
     } = block_data.into_raw();
 
-    let chain_id_to_txs = btree_from_rollup_data(rollup_data);
-    let action_tree_leaves = generate_action_tree_leaves(chain_id_to_txs.clone());
+    let action_tree_leaves = generate_action_tree_leaves(rollup_data.clone());
     let action_tree = MerkleTree::from_leaves(action_tree_leaves);
 
-    for (i, (chain_id, transactions)) in chain_id_to_txs.into_iter().enumerate() {
+    for (i, (chain_id, transactions)) in rollup_data.into_iter().enumerate() {
         let inclusion_proof = action_tree
             .prove_inclusion(i)
             .map_err(|e| eyre::eyre!(e))
             .context("failed to generate inclusion proof")?;
 
-        let namespace = Namespace::from_slice(&chain_id);
+        let namespace = Namespace::from_slice(chain_id.as_ref());
         let rollup_namespace_data = RollupNamespaceData {
             block_hash,
-            chain_id,
+            chain_id: chain_id.as_ref().to_vec(),
             rollup_txs: transactions,
             inclusion_proof,
         };
