@@ -10,6 +10,7 @@ use astria_proto::generated::execution::v1alpha2::{
     CommitmentState,
 };
 use astria_sequencer_types::{
+    ChainId,
     Namespace,
     SequencerBlockData,
 };
@@ -66,7 +67,7 @@ pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
     let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url).await?;
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
-        Namespace::from_slice(conf.chain_id.as_bytes()),
+        ChainId::new(conf.chain_id.as_bytes().to_vec()),
     )
     .await?;
     let join_handle = task::spawn(async move { executor.run().in_current_span().await });
@@ -107,7 +108,10 @@ struct Executor<C> {
     /// The execution rpc client that we use to send messages to the execution service
     execution_rpc_client: C,
 
-    /// Namespace ID
+    /// Chain ID
+    chain_id: ChainId,
+
+    /// Namespace ID, derived from chain ID
     namespace: Namespace,
 
     /// Tracks the state of the execution chain
@@ -126,7 +130,7 @@ struct Executor<C> {
 }
 
 impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
-    async fn new(mut execution_rpc_client: C, namespace: Namespace) -> Result<(Self, Sender)> {
+    async fn new(mut execution_rpc_client: C, chain_id: ChainId) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
 
         let commitment_state = execution_rpc_client.call_get_commitment_state().await?;
@@ -175,7 +179,8 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
             Self {
                 cmd_rx,
                 execution_rpc_client,
-                namespace,
+                chain_id: chain_id.clone(),
+                namespace: Namespace::from_slice(chain_id.as_ref()),
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
             },
@@ -194,7 +199,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                 } => {
                     let height = block.header().height.value();
                     let Some(block_subset) =
-                        SequencerBlockSubset::from_sequencer_block_data(*block, self.namespace)
+                        SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id)
                     else {
                         info!(
                             namespace = %self.namespace,
@@ -519,8 +524,8 @@ mod test {
 
     #[tokio::test]
     async fn execute_block_with_relevant_txs() {
-        let namespace = Namespace::from_slice(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace)
+        let chain_id = ChainId::new(b"test".to_vec());
+        let (mut executor, _) = Executor::new(MockExecutionClient::new(), chain_id)
             .await
             .unwrap();
 
@@ -538,8 +543,8 @@ mod test {
 
     #[tokio::test]
     async fn execute_block_without_relevant_txs() {
-        let namespace = Namespace::from_slice(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace)
+        let chain_id = ChainId::new(b"test".to_vec());
+        let (mut executor, _) = Executor::new(MockExecutionClient::new(), chain_id)
             .await
             .unwrap();
 
@@ -550,12 +555,12 @@ mod test {
 
     #[tokio::test]
     async fn handle_block_received_from_data_availability_not_yet_executed() {
-        let namespace = Namespace::from_slice(b"test");
+        let chain_id = ChainId::new(b"test".to_vec());
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace).await.unwrap();
+        let (mut executor, _) = Executor::new(execution_client, chain_id).await.unwrap();
 
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
@@ -583,12 +588,12 @@ mod test {
 
     #[tokio::test]
     async fn handle_block_received_from_data_availability_no_relevant_transactions() {
-        let namespace = Namespace::from_slice(b"test");
+        let chain_id = ChainId::new(b"test".to_vec());
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace).await.unwrap();
+        let (mut executor, _) = Executor::new(execution_client, chain_id).await.unwrap();
 
         let block: SequencerBlockSubset = get_test_block_subset();
         let previous_execution_state = executor.execution_state.clone();
