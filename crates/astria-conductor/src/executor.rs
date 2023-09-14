@@ -256,8 +256,6 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
             .call_execute_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
             .await?;
 
-        self.commitment_state.firm = Some(response.clone());
-
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
             sequencer_block_hash = ?block.block_hash,
@@ -560,7 +558,7 @@ mod test {
         );
         assert_eq!(
             expected_execution_hash,
-            executor.commitment_state.firm.unwrap().hash
+            executor.commitment_state.soft.unwrap().hash
         );
         // should be empty because 1 block was executed and finalized, which deletes it from the map
         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
