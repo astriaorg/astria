@@ -167,14 +167,17 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                             // after execution, set SOFT as this block. FIRM stays the same.
                             let timestamp =
                                 convert_tendermint_to_prost_timestamp(block_subset.header.time)?;
-                            let firm = self.commitment_state.firm.clone().unwrap();
                             let soft = Block {
                                 number: height as u32,
                                 hash: execution_block_hash.clone(),
-                                parent_block_hash: firm.hash.clone(),
+                                parent_block_hash: self.commitment_state.soft.clone().unwrap().hash,
                                 timestamp: Some(timestamp),
                             };
-                            self.update_commitment_state(firm, soft).await?;
+                            self.update_commitment_state(
+                                self.commitment_state.firm.clone().unwrap(),
+                                soft,
+                            )
+                            .await?;
                         }
                         Err(e) => {
                             error!(
@@ -241,7 +244,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
             return Ok(Some(execution_hash.clone()));
         }
 
-        let prev_block_hash = self.commitment_state.firm.clone().unwrap().hash;
+        let prev_block_hash = self.commitment_state.soft.clone().unwrap().hash;
         info!(
             height = block.header.height.value(),
             parent_block_hash = hex::encode(&prev_block_hash),
@@ -307,8 +310,11 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     parent_block_hash: self.commitment_state.firm.clone().unwrap().hash,
                     timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
                 };
-                self.update_commitment_state(executed_block.clone(), executed_block)
-                    .await?;
+                self.update_commitment_state(
+                    executed_block.clone(),
+                    self.commitment_state.soft.clone().unwrap(),
+                )
+                .await?;
                 // remove the sequencer block hash from the map, as it's been executed
                 self.sequencer_hash_to_execution_hash
                     .remove(&block.block_hash);
@@ -333,16 +339,16 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     return Ok(());
                 };
 
-                // after execution, set SOFT as this block. FIRM stays the same.
+                // after execution, set FIRM as this block. SOFT stays the same.
                 let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)?;
-                let firm = self.commitment_state.firm.clone().unwrap();
-                let soft = Block {
+                let firm = Block {
                     number: block.header.height.value() as u32,
                     hash: execution_block_hash.clone(),
-                    parent_block_hash: firm.hash.clone(),
+                    parent_block_hash: self.commitment_state.firm.clone().unwrap().hash,
                     timestamp: Some(timestamp),
                 };
-                self.update_commitment_state(firm, soft).await?;
+                self.update_commitment_state(firm, self.commitment_state.soft.clone().unwrap())
+                    .await?;
                 // remove the sequencer block hash from the map, as it's been executed
                 self.sequencer_hash_to_execution_hash
                     .remove(&block.block_hash);
@@ -504,7 +510,7 @@ mod test {
             .await
             .unwrap();
 
-        let expected_execution_hash = hash(&executor.commitment_state.firm.clone().unwrap().hash);
+        let expected_execution_hash = hash(&executor.commitment_state.soft.clone().unwrap().hash);
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
 
@@ -558,7 +564,7 @@ mod test {
         );
         assert_eq!(
             expected_execution_hash,
-            executor.commitment_state.soft.unwrap().hash
+            executor.commitment_state.firm.unwrap().hash
         );
         // should be empty because 1 block was executed and finalized, which deletes it from the map
         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
