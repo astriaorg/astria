@@ -164,20 +164,8 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     };
                     match self.execute_block(block_subset.clone()).await {
                         Ok(Some(execution_block_hash)) => {
-                            // after execution, set SOFT as this block. FIRM stays the same.
-                            let timestamp =
-                                convert_tendermint_to_prost_timestamp(block_subset.header.time)?;
-                            let soft = Block {
-                                number: height as u32,
-                                hash: execution_block_hash.clone(),
-                                parent_block_hash: self.commitment_state.soft.clone().unwrap().hash,
-                                timestamp: Some(timestamp),
-                            };
-                            self.update_commitment_state(
-                                self.commitment_state.firm.clone().unwrap(),
-                                soft,
-                            )
-                            .await?;
+                            self.handle_executed_gossip_block(block_subset, execution_block_hash)
+                                .await?
                         }
                         Err(e) => {
                             error!(
@@ -272,12 +260,9 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
         Ok(Some(response.hash))
     }
 
-    /// Updates the soft and firm blocks on the execution layer
-    async fn update_commitment_state(
-        &mut self,
-        firm: Block,
-        soft: Block,
-    ) -> Result<CommitmentState> {
+    /// Updates the soft and firm blocks on the execution layer.
+    /// Updates the local commitment_state with the new values.
+    async fn update_commitment_state(&mut self, firm: Block, soft: Block) -> Result<()> {
         let commitment_state = self
             .execution_rpc_client
             .call_update_commitment_state(CommitmentState {
@@ -285,10 +270,8 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                 soft: Some(soft),
             })
             .await?;
-
-        // update our local commitment_state
-        self.commitment_state = commitment_state.clone();
-        Ok(commitment_state)
+        self.commitment_state = commitment_state;
+        Ok(())
     }
 
     async fn handle_block_received_from_data_availability(
@@ -303,21 +286,9 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
         match maybe_execution_block_hash {
             Some(execution_block_hash) => {
                 // this case means block has already been executed.
-                // setting execution chain's FIRM and SOFT as this block
-                let executed_block = Block {
-                    number: block.header.height.value() as u32,
-                    hash: execution_block_hash.clone(),
-                    parent_block_hash: self.commitment_state.firm.clone().unwrap().hash,
-                    timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
-                };
-                self.update_commitment_state(
-                    executed_block.clone(),
-                    self.commitment_state.soft.clone().unwrap(),
-                )
-                .await?;
-                // remove the sequencer block hash from the map, as it's been executed
-                self.sequencer_hash_to_execution_hash
-                    .remove(&block.block_hash);
+                // setting execution chain's FIRM as this block. SAFE stays the same.
+                self.handle_executed_da_block(block, execution_block_hash)
+                    .await?
             }
             None => {
                 // this means either:
@@ -339,21 +310,47 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     return Ok(());
                 };
 
-                // after execution, set FIRM as this block. SOFT stays the same.
-                let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)?;
-                let firm = Block {
-                    number: block.header.height.value() as u32,
-                    hash: execution_block_hash.clone(),
-                    parent_block_hash: self.commitment_state.firm.clone().unwrap().hash,
-                    timestamp: Some(timestamp),
-                };
-                self.update_commitment_state(firm, self.commitment_state.soft.clone().unwrap())
-                    .await?;
-                // remove the sequencer block hash from the map, as it's been executed
-                self.sequencer_hash_to_execution_hash
-                    .remove(&block.block_hash);
+                self.handle_executed_da_block(block, execution_block_hash)
+                    .await?
             }
         };
+        Ok(())
+    }
+
+    /// Sets FIRM on execution chain to executed block.
+    /// Removes the sequencer block hash from the map, as it's been executed and finalized.
+    async fn handle_executed_da_block(
+        &mut self,
+        block: SequencerBlockSubset,
+        execution_block_hash: Vec<u8>,
+    ) -> Result<()> {
+        let firm = Block {
+            number: block.header.height.value() as u32,
+            hash: execution_block_hash,
+            parent_block_hash: self.commitment_state.firm.clone().unwrap().hash,
+            timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
+        };
+        self.update_commitment_state(firm, self.commitment_state.soft.clone().unwrap())
+            .await?;
+        self.sequencer_hash_to_execution_hash
+            .remove(&block.block_hash);
+        Ok(())
+    }
+
+    /// Sets SOFT on execution chain to executed block.
+    async fn handle_executed_gossip_block(
+        &mut self,
+        block: SequencerBlockSubset,
+        execution_block_hash: Vec<u8>,
+    ) -> Result<()> {
+        let soft = Block {
+            number: block.header.height.value() as u32,
+            hash: execution_block_hash,
+            parent_block_hash: self.commitment_state.soft.clone().unwrap().hash,
+            timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
+        };
+        self.update_commitment_state(self.commitment_state.firm.clone().unwrap(), soft)
+            .await?;
         Ok(())
     }
 }
