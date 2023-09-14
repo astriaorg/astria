@@ -41,52 +41,6 @@ use tracing::{
     warn,
 };
 
-const BUNDLE_CHANNEL_SIZE: usize = 256;
-
-use crate::Config;
-
-pub(super) fn spawn(
-    cfg: &Config,
-) -> eyre::Result<(mpsc::Sender<Vec<Action>>, watch::Receiver<Status>)> {
-    info!("spawning executor subtask for searcher");
-    // create channel for sending bundles to executor
-    let (executor_tx, executor_rx) = mpsc::channel(BUNDLE_CHANNEL_SIZE);
-    let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx)
-        .context("executor construction from config failed")?;
-
-    // create channel for receiving executor status
-    let status_rx = executor.subscribe();
-
-    // spawn executor task
-    let join_handle = tokio::spawn(executor.run_until_stopped());
-
-    // handle executor failure by logging
-    // FIXME: this should happen inside the `Searcher`
-    tokio::task::spawn(async move {
-        match join_handle.await {
-            Ok(Ok(())) => {
-                error!("executor task exited unexpectedly");
-            }
-            Ok(Err(e)) => {
-                error!(
-                    error.message = %e,
-                    error.cause_chain = ?e,
-                    "executor task failed unexpectedly with error",
-                );
-            }
-            Err(e) => {
-                error!(
-                    error.message = %e,
-                    error.cause_chain = ?e,
-                    "executor task panicked",
-                );
-            }
-        }
-    });
-
-    Ok((executor_tx, status_rx))
-}
-
 /// The `Executor` interfaces with the sequencer. It handles account nonces, transaction signing,
 /// and transaction submission.
 /// The `Executor` receives `Vec<Action>` from the bundling logic, packages them with a nonce into

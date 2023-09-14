@@ -19,15 +19,23 @@ use tokio::{
     },
     task::JoinSet,
 };
-use tracing::warn;
+use tracing::{
+    error,
+    warn,
+};
 
-use crate::Config;
+use crate::{
+    searcher::executor::Executor,
+    Config,
+};
 
 mod collector;
 mod executor;
 mod rollup;
 
 use collector::Collector;
+
+const BUNDLE_CHANNEL_SIZE: usize = 256;
 
 /// A Searcher collates transactions from multiple rollups and bundles them into
 /// Astria sequencer transactions that are then passed on to the
@@ -45,6 +53,8 @@ pub(super) struct Searcher {
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
     conversion_tasks: JoinSet<Vec<Action>>,
+    // The Executor object that is responsible for signing and submitting sequencer transactions.
+    executor: Option<Executor>,
     // A channel on which to send the `Executor` bundles for attaching a nonce to, sign and submit
     executor_tx: mpsc::Sender<Vec<Action>>,
     // Channel from which to read the internal status of the executor.
@@ -125,8 +135,13 @@ impl Searcher {
 
         let (status, _) = watch::channel(Status::default());
 
-        let (executor_tx, executor_status) =
-            executor::spawn(cfg).wrap_err("failed to construct Executor")?;
+        // create channel for sending bundles to executor
+        let (executor_tx, executor_rx) = mpsc::channel(BUNDLE_CHANNEL_SIZE);
+        let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx)
+            .context("executor construction from config failed")?;
+
+        // create channel for receiving executor status
+        let executor_status = executor.subscribe();
 
         Ok(Searcher {
             status,
@@ -137,6 +152,7 @@ impl Searcher {
             conversion_tasks: JoinSet::new(),
             executor_tx,
             executor_status,
+            executor: Some(executor),
             submission_tasks: JoinSet::new(),
         })
     }
@@ -171,6 +187,7 @@ impl Searcher {
     /// Starts the searcher and runs it until failure
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         self.spawn_collectors();
+        let mut exectuor_handle = self.spawn_executor();
         let wait_for_collectors = self.wait_for_collectors();
         let wait_for_executor = self.wait_for_executor();
         match tokio::try_join!(wait_for_collectors, wait_for_executor) {
@@ -210,6 +227,8 @@ impl Searcher {
                         ),
                     }
                 }
+
+                _ = &mut exectuor_handle => { todo!("handle executor failure"); }
             );
         }
 
@@ -224,6 +243,39 @@ impl Searcher {
             self.collector_tasks
                 .spawn(chain_id, collector.run_until_stopped());
         }
+    }
+
+    fn spawn_executor(&mut self) -> tokio::task::JoinHandle<()> {
+        // spawn executor task
+        let handle = tokio::task::spawn(
+            self.executor
+                .take()
+                .expect("executor should only be run once")
+                .run_until_stopped(),
+        );
+
+        // return handle to task that logs why executor exits
+        tokio::task::spawn(async move {
+            match handle.await {
+                Ok(Ok(())) => {
+                    error!("executor task exited unexpectedly");
+                }
+                Ok(Err(e)) => {
+                    error!(
+                        error.message = %e,
+                        error.cause_chain = ?e,
+                        "executor task failed unexpectedly with error",
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        error.message = %e,
+                        error.cause_chain = ?e,
+                        "executor task panicked",
+                    );
+                }
+            }
+        })
     }
 
     /// Waits for all collectors to come online.
