@@ -136,7 +136,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
         let execution_state = match firm.number.cmp(&soft.number) {
             Ordering::Equal => {
                 // soft and firm being the same means that the execution chain was just created
-                soft
+                firm
             }
             Ordering::Less => {
                 // get blocks from firm + 1 to soft
@@ -157,8 +157,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
 
                 // TODO - rebuild the hash that tracks sequencer hashes to execution hashes
 
-                // FIXME - what do i actually want to set the execution_state to in this case?
-                soft
+                firm
             }
             Ordering::Greater => {
                 error!(
