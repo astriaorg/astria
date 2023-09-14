@@ -42,5 +42,5 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 base64 = { workspace = true }
 once_cell = { workspace = true }
 astria-sequencer-validation = { path = "../astria-sequencer-validation" }
-figment = { features = ["test"] }
+figment = { workspace = true, features = ["test"] }
 regex = { workspace = true }
