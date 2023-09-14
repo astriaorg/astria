@@ -23,6 +23,7 @@ use tracing::{
 
 use crate::{
     accounts::component::AccountsComponent,
+    app_hash::AppHash,
     component::Component,
     genesis::GenesisState,
     state_ext::{
@@ -31,9 +32,6 @@ use crate::{
     },
     transaction,
 };
-
-/// The application hash, used to verify the application state.
-pub(crate) type AppHash = penumbra_storage::RootHash;
 
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
@@ -213,7 +211,7 @@ impl App {
             .await
             .expect("must be able to successfully commit to storage");
 
-        let app_hash: AppHash = jmt_root;
+        let app_hash = AppHash::from(jmt_root);
         tracing::debug!(?app_hash, "finished committing state");
 
         // Get the latest version of the state, now that we've committed it.
