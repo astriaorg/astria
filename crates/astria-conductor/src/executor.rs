@@ -207,12 +207,19 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                         );
                         continue;
                     };
-                    if let Err(e) = self.execute_block(block_subset).await {
-                        error!(
-                            height = height,
-                            error = ?e,
-                            "failed to execute block"
-                        );
+                    match self.execute_block(block_subset.clone()).await {
+                        Ok(Some(execution_block_hash)) => {
+                            self.process_executed_block(block_subset, execution_block_hash)
+                                .await?;
+                        }
+                        Err(e) => {
+                            error!(
+                                height = height,
+                                error = ?e,
+                                "failed to execute block"
+                            );
+                        }
+                        _ => {}
                     }
                 }
 
@@ -326,7 +333,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
             .cloned();
         match maybe_execution_block_hash {
             Some(execution_block_hash) => {
-                self.process_sequencer_block(block, execution_block_hash)
+                self.process_executed_block(block, execution_block_hash)
                     .await?;
             }
             None => {
@@ -349,7 +356,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     return Ok(());
                 };
 
-                self.process_sequencer_block(block, execution_block_hash)
+                self.process_executed_block(block, execution_block_hash)
                     .await?;
             }
         };
@@ -357,7 +364,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
     }
 
     /// Processes a sequencer block that has already been executed
-    async fn process_sequencer_block(
+    async fn process_executed_block(
         &mut self,
         block: SequencerBlockSubset,
         execution_block_hash: Vec<u8>,
@@ -368,6 +375,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
             parent_block_hash: self.execution_state.hash.clone(),
             timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
         };
+        // FIXME - when will soft and firm be different?
         self.update_commitment_state(executor_block.clone(), executor_block)
             .await?;
 
