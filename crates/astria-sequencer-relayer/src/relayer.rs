@@ -16,10 +16,7 @@ use tendermint_rpc::{
 };
 use tokio::{
     select,
-    sync::{
-        mpsc::UnboundedSender,
-        watch,
-    },
+    sync::watch,
     task,
     time::interval,
 };
@@ -48,10 +45,6 @@ pub struct Relayer {
     // Carries the signing key to sign sequencer blocks before they are submitted to the data
     // availability layer or gossiped over the p2p network.
     validator: Validator,
-
-    // The sending half of the channel to the gossip-net worker that gossips soft-commited
-    // sequencer blocks to nodes subscribed to the `blocks` topic.
-    gossip_block_tx: UnboundedSender<SequencerBlockData>,
 
     // A watch channel to track the state of the relayer. Used by the API service.
     state_tx: watch::Sender<State>,
@@ -97,10 +90,7 @@ impl Relayer {
     /// + failed to read the validator keys from the path in cfg;
     /// + failed to construct a client to the data availability layer (unless `cfg.disable_writing`
     ///   is set).
-    pub fn new(
-        cfg: &crate::config::Config,
-        gossip_block_tx: UnboundedSender<SequencerBlockData>,
-    ) -> Result<Self> {
+    pub fn new(cfg: &crate::config::Config) -> Result<Self> {
         let sequencer = HttpClient::new(&*cfg.sequencer_endpoint)
             .wrap_err("failed to create sequencer client")?;
 
@@ -130,7 +120,6 @@ impl Relayer {
             sequencer_poll_period: Duration::from_millis(cfg.block_time),
             data_availability,
             validator,
-            gossip_block_tx,
             state_tx,
             queued_blocks: Vec::new(),
             conversion_workers: task::JoinSet::new(),
@@ -196,17 +185,13 @@ impl Relayer {
     fn handle_conversion_completed(
         &mut self,
         join_result: Result<Result<Option<SequencerBlockData>>, task::JoinError>,
-    ) -> HandleConversionCompletedResult {
+    ) -> Result<(), task::JoinError> {
         // First check if the join task panicked
-        let conversion_result = match join_result {
-            Ok(conversion_result) => conversion_result,
-            // Report if the task failed, i.e. panicked
-            Err(e) => {
-                // TODO: inject the correct tracing span
-                report_err!(e, "conversion task failed");
-                return HandleConversionCompletedResult::Handled;
-            }
-        };
+        let conversion_result = join_result.map_err(|e| {
+            // TODO: inject the correct tracing span
+            report_err!(e, "conversion task failed");
+            e
+        })?;
         // Then handle the actual result of the computation
         match conversion_result {
             // Gossip and collect successfully converted sequencer responses
@@ -217,15 +202,8 @@ impl Relayer {
                     proposer = %sequencer_block_data.header().proposer_address,
                     num_contained_namespaces = sequencer_block_data.rollup_data().len(),
                     chain_id_to_tx_count = %ChainIdToTxCount::new(sequencer_block_data.rollup_data()),
-                    "gossiping sequencer block",
+                    "new sequencer block",
                 );
-                if self
-                    .gossip_block_tx
-                    .send(sequencer_block_data.clone())
-                    .is_err()
-                {
-                    return HandleConversionCompletedResult::GossipChannelClosed;
-                }
                 // Update the internal state if the block was admitted
                 let height = sequencer_block_data.header().height.value();
                 self.state_tx.send_if_modified(|state| {
@@ -247,7 +225,7 @@ impl Relayer {
                 "failed converting sequencer block response to block data"
             ),
         }
-        HandleConversionCompletedResult::Handled
+        Ok(())
     }
 
     #[instrument(skip_all)]
@@ -266,6 +244,7 @@ impl Relayer {
                 return;
             }
         };
+        println!("submission res {:?}", submission_result);
         // Then report update the internal state or report if submission failed
         match submission_result {
             Ok(height) => self.state_tx.send_modify(|state| {
@@ -411,10 +390,8 @@ impl Relayer {
 
                 // Distribute and store converted/admitted blocks
                 Some(res) = self.conversion_workers.join_next() => {
-                    if self.handle_conversion_completed(res)
-                           .is_gossip_channel_closed()
-                    {
-                        break "gossip block channel closed unexpectedly";
+                    if self.handle_conversion_completed(res).is_err() {
+                        break "conversion from tendermint block failed";
                     }
                 }
 
@@ -491,15 +468,4 @@ async fn submit_blocks_to_data_availability_layer(
         .submit_all_blocks(sequencer_block_data, &validator.signing_key)
         .await?;
     Ok(rsp.height)
-}
-
-enum HandleConversionCompletedResult {
-    Handled,
-    GossipChannelClosed,
-}
-
-impl HandleConversionCompletedResult {
-    fn is_gossip_channel_closed(&self) -> bool {
-        matches!(self, Self::GossipChannelClosed)
-    }
 }
