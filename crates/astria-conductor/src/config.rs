@@ -81,14 +81,21 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use figment::Jail;
+    use once_cell::sync::Lazy;
+    use regex::Regex;
 
     use super::Config;
 
     const EXAMPLE_ENV: &str = include_str!("../local.env.example");
 
     fn populate_environment_from_example(jail: &mut Jail) {
+        static RE_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[[:space:]]+").unwrap());
+        static RE_END: Lazy<Regex> = Lazy::new(|| Regex::new(r"[[:space:]]+$").unwrap());
         for line in EXAMPLE_ENV.lines() {
             if let Some((key, val)) = line.trim().split_once('=') {
+                if RE_END.is_match(key) || RE_START.is_match(val) {
+                    panic!("env vars must not contain spaces in assignment\n{line}");
+                }
                 jail.set_env(key, val);
             }
         }

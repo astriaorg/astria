@@ -27,15 +27,17 @@ use tracing::{
     instrument,
 };
 
-const EXIT_CONFIG_CODE: i32 = 78;
+// Following the BSD convention for failing to read config
+// See here: https://freedesktop.org/software/systemd/man/systemd.exec.html#Process%20Exit%20Codes
+const EX_CONFIG: i32 = 78;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     if let Err(e) = run().await {
-        eprintln!("Exited with error: {e}");
-        // FIXME: might have to bubble up exit codes, since we might need 
+        eprintln!("Exited with error:\n{e:?}");
+        // FIXME (https://github.com/astriaorg/astria/issues/368): might have to bubble up exit codes, since we might need
         //        to exit with other exit codes if something else fails
-        std::process::exit(EXIT_CONFIG_CODE);
+        std::process::exit(EX_CONFIG);
     };
     Ok(())
 }
@@ -46,10 +48,10 @@ async fn run() -> Result<()> {
 
     telemetry::init(std::io::stdout, &conf.log).wrap_err("failed to initialize telemetry")?;
 
-    info!("Using chain ID {}", conf.chain_id);
-    info!("Using Celestia node at {}", conf.celestia_node_url);
-    info!("Using execution node at {}", conf.execution_rpc_url);
-    info!("Using Tendermint node at {}", conf.tendermint_url);
+    info!(
+        config = serde_json::to_string(&conf).expect("serializing to a string cannot fail"),
+        "initializing conductor"
+    );
 
     let SignalReceiver {
         mut reload_rx,
