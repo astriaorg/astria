@@ -586,7 +586,7 @@ mod test {
                 .map(|nonce_err| nonce_err.0)
                 .unwrap(),
             1
-        )
+        );
     }
 
     #[tokio::test]

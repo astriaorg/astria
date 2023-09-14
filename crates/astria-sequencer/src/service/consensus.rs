@@ -166,23 +166,17 @@ impl Consensus {
             Err(e) => {
                 // we don't want to panic on failing to deliver_tx as that would crash the entire
                 // node
-                let code = match e.downcast_ref::<InvalidNonce>() {
-                    Some(_e) => {
-                        tracing::warn!("{}", e);
-                        AbciCode::INVALID_NONCE
-                    }
-                    None => {
-                        tracing::warn!(error = ?e, "deliver_tx failed");
-                        AbciCode::INTERNAL_ERROR
-                    }
+                let code = if let Some(_e) = e.downcast_ref::<InvalidNonce>() {
+                    tracing::warn!("{}", e);
+                    AbciCode::INVALID_NONCE
+                } else {
+                    tracing::warn!(error = ?e, "deliver_tx failed");
+                    AbciCode::INTERNAL_ERROR
                 };
                 response::DeliverTx {
                     code: code.into(),
-                    info: code
-                        .info()
-                        .unwrap_or_else(|| "invalid ABCI code")
-                        .to_string(),
-                    log: format!("{:?}", e),
+                    info: code.info().unwrap_or("invalid ABCI code").to_string(),
+                    log: format!("{e:?}"),
                     ..Default::default()
                 }
             }
