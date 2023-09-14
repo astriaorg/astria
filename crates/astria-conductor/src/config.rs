@@ -4,7 +4,6 @@ use figment::{
 };
 use serde::{
     Deserialize,
-    Deserializer,
     Serialize,
 };
 
@@ -25,6 +24,9 @@ pub struct Config {
     /// URL of the Tendermint node (sequencer/metro)
     pub tendermint_url: String,
 
+    /// URL of the sequencer cometbft websocket
+    pub sequencer_url: String,
+
     /// Chain ID that we want to work in
     pub chain_id: String,
 
@@ -34,35 +36,8 @@ pub struct Config {
     /// Disable reading from the DA layer and block finalization
     pub disable_finalization: bool,
 
-    /// Bootnodes for the P2P network
-    #[serde(deserialize_with = "bootnodes_deserialize")]
-    pub bootnodes: Option<Vec<String>>,
-
-    /// Path to the libp2p private key file
-    pub libp2p_private_key: Option<String>,
-
-    /// Port to listen on for libp2p
-    pub libp2p_port: u16,
-
     /// log directive to use for telemetry.
     pub log: String,
-}
-
-fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let maybe_bootnodes: Option<String> = Option::deserialize(deserializer)?;
-    if maybe_bootnodes.is_none() {
-        return Ok(None);
-    }
-    Ok(Some(
-        maybe_bootnodes
-            .unwrap()
-            .split(',')
-            .map(|item| item.to_owned())
-            .collect(),
-    ))
 }
 
 impl Config {
