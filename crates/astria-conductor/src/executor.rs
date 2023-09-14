@@ -1,12 +1,7 @@
-use std::{
-    cmp::Ordering,
-    collections::HashMap,
-};
+use std::collections::HashMap;
 
 use astria_proto::generated::execution::v1alpha2::{
-    block_identifier::Identifier,
     Block,
-    BlockIdentifier,
     CommitmentState,
 };
 use astria_sequencer_types::{
@@ -114,8 +109,8 @@ struct Executor<C> {
     /// Namespace ID, derived from chain ID
     namespace: Namespace,
 
-    /// Tracks the state of the execution chain
-    execution_state: Block,
+    /// Tracks SOFT and FIRM on the execution chain
+    commitment_state: CommitmentState,
 
     /// map of sequencer block hash to execution block hash
     ///
@@ -134,46 +129,6 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
 
         let commitment_state = execution_rpc_client.call_get_commitment_state().await?;
-        let soft: Block = commitment_state.soft.unwrap();
-        let firm: Block = commitment_state.firm.unwrap();
-
-        let execution_state = match firm.number.cmp(&soft.number) {
-            Ordering::Equal => {
-                // soft and firm being the same means that the execution chain was just created
-                firm
-            }
-            Ordering::Less => {
-                // get blocks from firm + 1 to soft
-                let identifiers: Vec<BlockIdentifier> = (firm.number + 1..=soft.number)
-                    .map(|block_height| BlockIdentifier {
-                        identifier: Some(Identifier::BlockNumber(block_height)),
-                    })
-                    .collect();
-                let batch_get_blocks_response = execution_rpc_client
-                    .call_batch_get_blocks(identifiers)
-                    .await?;
-                debug!(
-                    "batch_get_blocks_response: {:#?}",
-                    batch_get_blocks_response
-                );
-
-                // TODO - get sequencer hashes for these blocks. best way to do this?
-
-                // TODO - rebuild the hash that tracks sequencer hashes to execution hashes
-
-                firm
-            }
-            Ordering::Greater => {
-                error!(
-                    soft_hash = hex::encode(&soft.hash),
-                    firm_hash = hex::encode(&firm.hash),
-                    soft_number = soft.number,
-                    firm_number = firm.number,
-                    "soft is less than firm, which shouldn't happen."
-                );
-                panic!("Executor: soft is less than firm");
-            }
-        };
 
         Ok((
             Self {
@@ -181,7 +136,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                 execution_rpc_client,
                 chain_id: chain_id.clone(),
                 namespace: Namespace::from_slice(chain_id.as_ref()),
-                execution_state,
+                commitment_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
             },
             cmd_tx,
@@ -209,8 +164,17 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     };
                     match self.execute_block(block_subset.clone()).await {
                         Ok(Some(execution_block_hash)) => {
-                            self.process_executed_block(block_subset, execution_block_hash)
-                                .await?;
+                            // after execution, set SOFT as this block. FIRM stays the same.
+                            let timestamp =
+                                convert_tendermint_to_prost_timestamp(block_subset.header.time)?;
+                            let firm = self.commitment_state.firm.clone().unwrap();
+                            let soft = Block {
+                                number: height as u32,
+                                hash: execution_block_hash.clone(),
+                                parent_block_hash: firm.hash.clone(),
+                                timestamp: Some(timestamp),
+                            };
+                            self.update_commitment_state(firm, soft).await?;
                         }
                         Err(e) => {
                             error!(
@@ -277,7 +241,7 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
             return Ok(Some(execution_hash.clone()));
         }
 
-        let prev_block_hash = self.execution_state.hash.clone();
+        let prev_block_hash = self.commitment_state.firm.clone().unwrap().hash;
         info!(
             height = block.header.height.value(),
             parent_block_hash = hex::encode(&prev_block_hash),
@@ -291,7 +255,8 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
             .execution_rpc_client
             .call_execute_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
             .await?;
-        self.execution_state = response.clone();
+
+        self.commitment_state.firm = Some(response.clone());
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
@@ -309,16 +274,19 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
     /// Updates the soft and firm blocks on the execution layer
     async fn update_commitment_state(
         &mut self,
-        soft: Block,
         firm: Block,
+        soft: Block,
     ) -> Result<CommitmentState> {
         let commitment_state = self
             .execution_rpc_client
             .call_update_commitment_state(CommitmentState {
-                soft: Some(soft),
                 firm: Some(firm),
+                soft: Some(soft),
             })
             .await?;
+
+        // update our local commitment_state
+        self.commitment_state = commitment_state.clone();
         Ok(commitment_state)
     }
 
@@ -333,8 +301,19 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
             .cloned();
         match maybe_execution_block_hash {
             Some(execution_block_hash) => {
-                self.process_executed_block(block, execution_block_hash)
+                // this case means block has already been executed.
+                // setting execution chain's FIRM and SOFT as this block
+                let executed_block = Block {
+                    number: block.header.height.value() as u32,
+                    hash: execution_block_hash.clone(),
+                    parent_block_hash: self.commitment_state.firm.clone().unwrap().hash,
+                    timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
+                };
+                self.update_commitment_state(executed_block.clone(), executed_block)
                     .await?;
+                // remove the sequencer block hash from the map, as it's been executed
+                self.sequencer_hash_to_execution_hash
+                    .remove(&block.block_hash);
             }
             None => {
                 // this means either:
@@ -356,33 +335,21 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     return Ok(());
                 };
 
-                self.process_executed_block(block, execution_block_hash)
-                    .await?;
+                // after execution, set SOFT as this block. FIRM stays the same.
+                let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)?;
+                let firm = self.commitment_state.firm.clone().unwrap();
+                let soft = Block {
+                    number: block.header.height.value() as u32,
+                    hash: execution_block_hash.clone(),
+                    parent_block_hash: firm.hash.clone(),
+                    timestamp: Some(timestamp),
+                };
+                self.update_commitment_state(firm, soft).await?;
+                // remove the sequencer block hash from the map, as it's been executed
+                self.sequencer_hash_to_execution_hash
+                    .remove(&block.block_hash);
             }
         };
-        Ok(())
-    }
-
-    /// Processes a sequencer block that has already been executed
-    async fn process_executed_block(
-        &mut self,
-        block: SequencerBlockSubset,
-        execution_block_hash: Vec<u8>,
-    ) -> Result<()> {
-        let executor_block = Block {
-            number: block.header.height.value() as u32,
-            hash: execution_block_hash,
-            parent_block_hash: self.execution_state.hash.clone(),
-            timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
-        };
-        // FIXME - when will soft and firm be different?
-        self.update_commitment_state(executor_block.clone(), executor_block)
-            .await?;
-
-        // remove the sequencer block hash from the map, as it's been executed
-        self.sequencer_hash_to_execution_hash
-            .remove(&block.block_hash);
-
         Ok(())
     }
 }
@@ -487,6 +454,8 @@ mod test {
         async fn call_get_commitment_state(&mut self) -> Result<CommitmentState> {
             let timestamp = convert_tendermint_to_prost_timestamp(Time::now())
                 .wrap_err("failed parsing str as protobuf timestamp")?;
+            // NOTE - these are the same right now. we can change this if we want to test
+            //  startup on a chain that already has blocks
             let block = Block {
                 number: 1,
                 hash: hash(b"block1"),
@@ -537,7 +506,7 @@ mod test {
             .await
             .unwrap();
 
-        let expected_execution_hash = hash(&executor.execution_state.hash);
+        let expected_execution_hash = hash(&executor.commitment_state.firm.clone().unwrap().hash);
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
 
@@ -573,7 +542,7 @@ mod test {
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
 
-        let expected_execution_hash = hash(&executor.execution_state.hash);
+        let expected_execution_hash = hash(&executor.commitment_state.firm.clone().unwrap().hash);
 
         executor
             .handle_block_received_from_data_availability(block)
@@ -586,10 +555,13 @@ mod test {
             finalized_blocks
                 .lock()
                 .await
-                .get(&executor.execution_state.hash)
+                .get(&executor.commitment_state.firm.clone().unwrap().hash)
                 .is_some()
         );
-        assert_eq!(expected_execution_hash, executor.execution_state.hash);
+        assert_eq!(
+            expected_execution_hash,
+            executor.commitment_state.firm.unwrap().hash
+        );
         // should be empty because 1 block was executed and finalized, which deletes it from the map
         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
     }
@@ -604,7 +576,8 @@ mod test {
         let (mut executor, _) = Executor::new(execution_client, chain_id).await.unwrap();
 
         let block: SequencerBlockSubset = get_test_block_subset();
-        let previous_execution_state = executor.execution_state.clone();
+        let firm = executor.commitment_state.firm.clone().unwrap();
+        let previous_execution_state = firm.hash.clone();
 
         executor
             .handle_block_received_from_data_availability(block)
@@ -613,14 +586,11 @@ mod test {
 
         // should not have executed or finalized the block
         assert!(finalized_blocks.lock().await.is_empty());
-        assert!(
-            finalized_blocks
-                .lock()
-                .await
-                .get(&executor.execution_state.hash)
-                .is_none()
+        assert!(finalized_blocks.lock().await.get(&firm.hash).is_none());
+        assert_eq!(
+            previous_execution_state,
+            executor.commitment_state.firm.unwrap().hash
         );
-        assert_eq!(previous_execution_state, executor.execution_state);
         // should be empty because nothing was executed
         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
     }
