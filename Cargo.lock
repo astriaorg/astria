@@ -595,7 +595,6 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "ct-merkle",
- "eyre",
  "hex",
  "serde",
  "serde_json",
