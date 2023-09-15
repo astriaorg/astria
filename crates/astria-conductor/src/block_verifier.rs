@@ -24,8 +24,8 @@ use ed25519_consensus::{
 use prost::Message;
 use tendermint::{
     account,
-    block::Id as BlockId,
-    chain::Id as ChainId,
+    block,
+    chain,
     validator::Info as Validator,
     vote::{
         self,
@@ -418,12 +418,12 @@ fn verify_vote_signature(
         vote_type: vote::Type::Precommit,
         height: commit.height,
         round: commit.round,
-        block_id: Some(BlockId {
+        block_id: Some(block::Id {
             hash: commit.block_id.hash,
             part_set_header: commit.block_id.part_set_header,
         }),
         timestamp: Some(timestamp),
-        chain_id: ChainId::try_from(chain_id).wrap_err("failed to parse commit chain ID")?,
+        chain_id: chain::Id::try_from(chain_id).wrap_err("failed to parse commit chain ID")?,
     };
 
     public_key
@@ -649,7 +649,7 @@ mod test {
         let commit = Commit {
             height: 79u32.into(),
             round: 0u16.into(),
-            block_id: BlockId {
+            block_id: block::Id {
                 hash: Hash::from_str(
                     "74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA",
                 )
