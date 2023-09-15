@@ -50,6 +50,9 @@ pub struct Config {
 
     /// log directive to use for telemetry.
     pub log: String,
+
+    /// Choose to execute empty blocks or not
+    pub execute_empty_blocks: bool,
 }
 
 fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
