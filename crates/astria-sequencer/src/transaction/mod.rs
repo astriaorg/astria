@@ -1,6 +1,6 @@
 pub(crate) mod action_handler;
 
-use std::fmt::Display;
+use std::fmt;
 
 pub(crate) use action_handler::ActionHandler;
 use anyhow::{
@@ -47,7 +47,7 @@ pub(crate) async fn execute<S: StateWriteExt>(
 #[derive(Debug)]
 pub(crate) struct InvalidNonce(pub(crate) u32);
 
-impl Display for InvalidNonce {
+impl fmt::Display for InvalidNonce {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -56,6 +56,8 @@ impl Display for InvalidNonce {
         )
     }
 }
+
+impl std::error::Error for InvalidNonce {}
 
 #[async_trait::async_trait]
 impl ActionHandler for UnsignedTransaction {

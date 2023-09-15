@@ -175,7 +175,7 @@ impl Consensus {
                 };
                 response::DeliverTx {
                     code: code.into(),
-                    info: code.info().unwrap_or("invalid ABCI code").to_string(),
+                    info: code.to_string(),
                     log: format!("{e:?}"),
                     ..Default::default()
                 }
