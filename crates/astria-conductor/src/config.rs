@@ -12,6 +12,13 @@ pub fn get() -> Result<Config, figment::Error> {
     Config::from_environment()
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub enum CommitLevel {
+    SoftOnly,
+    FirmOnly,
+    SoftAndFirm,
+}
+
 /// The global configuration for the driver and its components.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -50,6 +57,10 @@ pub struct Config {
 
     /// log directive to use for telemetry.
     pub log: String,
+
+    /// The execution commit level used for controlling how blocks are sent to
+    /// the execution layer.
+    pub execution_commit_level: CommitLevel,
 }
 
 fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
