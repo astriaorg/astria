@@ -476,7 +476,8 @@ mod test {
     }
 
     #[tokio::test]
-    async fn handle_block_received_from_data_availability_no_relevant_transactions_skip_block() {
+    async fn handle_block_received_from_data_availability_not_yet_executed_no_relevant_transactions_skip_block()
+     {
         let mut conf = test_config();
         conf.execute_empty_blocks = false; // empty block will be executed
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
@@ -508,7 +509,8 @@ mod test {
     }
 
     #[tokio::test]
-    async fn handle_block_received_from_data_availability_no_relevant_transactions_execute_block() {
+    async fn handle_block_received_from_data_availability_not_yet_executed_no_relevant_transactions_execute_block()
+     {
         let mut conf = test_config();
         conf.execute_empty_blocks = true; // empty block will be executed
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
