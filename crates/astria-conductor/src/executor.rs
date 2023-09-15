@@ -334,6 +334,7 @@ mod test {
     use tokio::sync::Mutex;
 
     use super::*;
+    use crate::config;
 
     // a mock ExecutionClient used for testing the Executor
     struct MockExecutionClient {
@@ -406,6 +407,7 @@ mod test {
             celestia_node_url: "test".to_string(),
             celestia_bearer_token: "test".to_string(),
             tendermint_url: "test".to_string(),
+            execution_commit_level: config::CommitLevel::SoftAndFirm,
         }
     }
 
