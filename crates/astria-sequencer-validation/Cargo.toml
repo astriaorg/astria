@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ct-merkle = { version = "0.1", features = ["serde"] }
+ct-merkle = { git = "https://github.com/rozbb/ct-merkle", rev = "a3f3965c368946944425d59370783b3381a1fb4d", features = ["serde"] }
 
 bytes = { workspace = true }
 eyre = { workspace = true }
