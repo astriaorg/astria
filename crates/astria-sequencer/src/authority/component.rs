@@ -14,6 +14,7 @@ use tendermint::{
 use tracing::instrument;
 
 use super::state_ext::{
+    StateReadExt,
     StateWriteExt,
     ValidatorSet,
 };
@@ -48,6 +49,26 @@ impl Component for AuthorityComponent {
     ) {
     }
 
-    #[instrument(name = "AuthorityComponent:end_block", skip(_state))]
-    async fn end_block<S: StateWriteExt + 'static>(_state: &mut Arc<S>, _end_block: &EndBlock) {}
+    #[instrument(name = "AuthorityComponent:end_block", skip(state))]
+    async fn end_block<S: StateWriteExt + StateReadExt + 'static>(
+        state: &mut Arc<S>,
+        _end_block: &EndBlock,
+    ) {
+        // update validator set
+        let validator_updates = state
+            .get_validator_updates()
+            .await
+            .expect("failed getting validator updates");
+        let mut current_set = state
+            .get_validator_set()
+            .await
+            .expect("failed getting validator set");
+        current_set.apply_updates(&validator_updates);
+
+        // this is safe because we are the only ones with a reference to the state
+        let state = Arc::get_mut(state).unwrap();
+        state
+            .put_validator_set(current_set)
+            .expect("failed putting validator set");
+    }
 }

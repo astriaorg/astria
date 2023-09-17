@@ -34,6 +34,18 @@ struct SudoAddress([u8; ADDRESS_LEN]);
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct ValidatorSet(pub(crate) Vec<tendermint::validator::Update>);
 
+impl ValidatorSet {
+    pub(crate) fn apply_updates(&mut self, validator_updates: &ValidatorSet) {
+        for curr in &mut self.0 {
+            for update in &validator_updates.0 {
+                if curr.pub_key == update.pub_key {
+                    curr.power = update.power;
+                }
+            }
+        }
+    }
+}
+
 const SUDO_STORAGE_KEY: &str = "sudo";
 const VALIDATOR_SET_STORAGE_KEY: &str = "valset";
 const VALIDATOR_UPDATES_KEY: &[u8] = b"valupdates";

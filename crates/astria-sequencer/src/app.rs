@@ -24,6 +24,7 @@ use tracing::{
 
 use crate::{
     accounts::component::AccountsComponent,
+    app_hash::AppHash,
     authority::{
         component::AuthorityComponent,
         state_ext::StateReadExt as _,
@@ -36,9 +37,6 @@ use crate::{
     },
     transaction,
 };
-
-/// The application hash, used to verify the application state.
-pub(crate) type AppHash = penumbra_storage::RootHash;
 
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
@@ -198,6 +196,8 @@ impl App {
             .await
             .expect("failed getting validator updates");
 
+        // clear validator updates
+
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
         let events = self.apply(state_tx);
@@ -235,7 +235,7 @@ impl App {
             .await
             .expect("must be able to successfully commit to storage");
 
-        let app_hash: AppHash = jmt_root;
+        let app_hash = AppHash::from(jmt_root);
         tracing::debug!(?app_hash, "finished committing state");
 
         // Get the latest version of the state, now that we've committed it.

@@ -408,7 +408,6 @@ dependencies = [
  "astria-telemetry",
  "async-trait",
  "base64 0.21.2",
- "clap",
  "color-eyre",
  "ed25519-consensus",
  "figment",
@@ -418,6 +417,7 @@ dependencies = [
  "prost",
  "prost-types",
  "rand 0.8.5",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
@@ -2550,7 +2550,6 @@ dependencies = [
  "pear",
  "serde",
  "tempfile",
- "toml 0.7.6",
  "uncased",
  "version_check",
 ]
