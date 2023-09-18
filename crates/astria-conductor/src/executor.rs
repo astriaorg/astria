@@ -286,9 +286,18 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
         match maybe_execution_block_hash {
             Some(execution_block_hash) => {
                 // this case means block has already been executed.
-                // setting execution chain's FIRM as this block. SAFE stays the same.
-                self.handle_executed_da_block(block, execution_block_hash)
-                    .await?
+                // setting execution chain's FIRM and SOFT as this block
+                let executed_block = Block {
+                    number: block.header.height.value() as u32,
+                    hash: execution_block_hash.clone(),
+                    parent_block_hash: self.commitment_state.firm.clone().unwrap().hash,
+                    timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
+                };
+                self.update_commitment_state(executed_block.clone(), executed_block)
+                    .await?;
+                // remove the sequencer block hash from the map, as it's been executed
+                self.sequencer_hash_to_execution_hash
+                    .remove(&block.block_hash);
             }
             None => {
                 // this means either:
@@ -309,31 +318,21 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     debug!("execute_block returned None; skipping call_update_commitment_state");
                     return Ok(());
                 };
-
-                self.handle_executed_da_block(block, execution_block_hash)
-                    .await?
+                let executed_block = Block {
+                    number: block.header.height.value() as u32,
+                    hash: execution_block_hash,
+                    parent_block_hash: self.commitment_state.firm.clone().unwrap().hash,
+                    timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
+                };
+                self.update_commitment_state(
+                    executed_block,
+                    self.commitment_state.soft.clone().unwrap(),
+                )
+                .await?;
+                self.sequencer_hash_to_execution_hash
+                    .remove(&block.block_hash);
             }
         };
-        Ok(())
-    }
-
-    /// Sets FIRM on execution chain to executed block.
-    /// Removes the sequencer block hash from the map, as it's been executed and finalized.
-    async fn handle_executed_da_block(
-        &mut self,
-        block: SequencerBlockSubset,
-        execution_block_hash: Vec<u8>,
-    ) -> Result<()> {
-        let firm = Block {
-            number: block.header.height.value() as u32,
-            hash: execution_block_hash,
-            parent_block_hash: self.commitment_state.firm.clone().unwrap().hash,
-            timestamp: Some(convert_tendermint_to_prost_timestamp(block.header.time)?),
-        };
-        self.update_commitment_state(firm, self.commitment_state.soft.clone().unwrap())
-            .await?;
-        self.sequencer_hash_to_execution_hash
-            .remove(&block.block_hash);
         Ok(())
     }
 
@@ -543,28 +542,58 @@ mod test {
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
 
-        let expected_execution_hash = hash(&executor.commitment_state.firm.clone().unwrap().hash);
+        // `hash(b"block1")` is the hash defined in the block from
+        // `get_test_block_subset`, so we're hashing it again here
+        // to mimic the mocked execute_block functionality
+        let expected_execution_hash = hash(&hash(b"block1"));
 
         executor
             .handle_block_received_from_data_availability(block)
             .await
             .unwrap();
 
+        let firm_hash = executor.commitment_state.firm.clone().unwrap().hash;
         // should have executed and finalized the block
         assert_eq!(finalized_blocks.lock().await.len(), 1);
-        assert!(
-            finalized_blocks
-                .lock()
-                .await
-                .get(&executor.commitment_state.firm.clone().unwrap().hash)
-                .is_some()
-        );
-        assert_eq!(
-            expected_execution_hash,
-            executor.commitment_state.firm.unwrap().hash
-        );
+        assert!(finalized_blocks.lock().await.get(&firm_hash).is_some());
+        assert_eq!(expected_execution_hash, firm_hash);
         // should be empty because 1 block was executed and finalized, which deletes it from the map
         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
+        // should have updated self.commitment_state.firm, but soft stayed the same
+        assert_ne!(firm_hash, executor.commitment_state.soft.unwrap().hash);
+    }
+
+    #[tokio::test]
+    async fn handle_block_received_from_data_availability_already_executed() {
+        let chain_id = ChainId::new(b"test".to_vec());
+        let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
+        let execution_client = MockExecutionClient {
+            finalized_blocks: finalized_blocks.clone(),
+        };
+        let (mut executor, _) = Executor::new(execution_client, chain_id).await.unwrap();
+
+        let block = get_test_block_subset();
+
+        // this insertion simulates the block being executed on a previous run loop
+        let initial_block_hash = hash(b"block1");
+        let next_hash = hash(&initial_block_hash);
+        executor
+            .sequencer_hash_to_execution_hash
+            .insert(initial_block_hash.try_into().unwrap(), next_hash);
+
+        executor
+            .handle_block_received_from_data_availability(block)
+            .await
+            .unwrap();
+
+        // should be empty because 1 block was finalized, which deletes it from the map
+        assert!(executor.sequencer_hash_to_execution_hash.is_empty());
+        // should have updated self.commitment_state.firm and self.commitment_state.soft to the
+        // executed block
+        assert_eq!(
+            executor.commitment_state.firm.unwrap().hash,
+            executor.commitment_state.soft.unwrap().hash
+        );
     }
 
     #[tokio::test]
