@@ -60,20 +60,11 @@ Conductor is written in Rust and utilizes the Tokio runtime to achieve this.
   sequencer
 -  Passes validate sequencer blocks to the Executor for execution on the rollup
 
-The Driver receives either `Events` ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-gossipnet/src/network_stream.rs#L39))
-from the network, or `DriverCommand`s ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-conductor/src/driver.rs#L54))
-from the Conductor's internal event loop on a timer. The variants for `Event`
-and `DriverCommand` that are relevant to the processing of blocks within the
+The Driver receives either `SequencerBlockData` blocks directly from the
+Sequencer via websocket connection, or `DriverCommand`s ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-conductor/src/driver.rs#L54))
+from the Conductor's internal event loop on a timer. The variant for  `DriverCommand` that is relevant to the processing of blocks within the
 Conductor are:
 
-- `Event::GossipsubMessage(Message)` ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-gossipnet/src/network_stream.rs#L50))
-  - The `Message` value within the `GossipsubMessage` contains the Sequencer
-    block data from the Astria Sequencer. The `Message` is then parsed to a `SequencerBlockData` ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-sequencer-types/src/sequencer_block_data.rs#L39)).
-  - Once transformed, the block data is validated to   make sure that the
-    proposer for the block is the one expected. It also checks the commit of the
-    parent block by verifying that >2/3 staking power of the sequencer chain
-    voted for it. The block is then passed to the Executor actor as a
-    `ExecutorCommand::BlockReceivedFromGossipNetwork` message which will ultimately process and filter the block.
 - `DriverCommand::GetNewBlocks`([link](https://github.com/astriaorg/astria/blob/3c4e47dbe1818e4228691d6bfd2b2143a06f1a6e/crates/astria-conductor/src/driver.rs#L54))
   - This message triggers the sending of a `ReaderCommand::GetNewBlocks` to
     the Reader actor to initiate the pulling of data from the DA layer.
@@ -159,9 +150,8 @@ api](https://github.com/astriaorg/astria/blob/main/specs/execution-api.md) for m
 Data is validated before being sent to the rollup for execution. Validation
 occurs in two places:
 
-- When blocks are received directly from the sequencer, the data is validated in the
-  Driver's `handle_network_event` using
-  `BlockVerifier::validate_sequencer_block_data`
+- When blocks are received directly from the sequencer, the data is passed to
+  `handle_block()` and validated with `BlockVerifier::validate_sequencer_block_data`
 - When blocks are fetched from the DA layer, the data is validated in the Reader's
   `get_new_blocks` using `BlockVerifier::validate_signed_namespace_data` and
   `BlockVerifier::validate_rollup_data`
@@ -169,7 +159,7 @@ occurs in two places:
 ### Soft Commitments
 
 When a block is received by the Conductor directly from the sequencer, it
-is assumed to be valid based on CometBTF consensus and immediately set as a `soft` commitment.
+is immediately set as a `soft` commitment.
 
 As mentioned in the [Transaction Filtering](#transaction-filtering) section
 above, the only information sent to the rollup is the list of ordered
