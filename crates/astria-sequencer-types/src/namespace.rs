@@ -3,7 +3,7 @@ use std::{
     ops::Deref,
 };
 
-use astria_celestia_jsonrpc_client::blob::NAMESPACE_ID_AVAILABLE_LEN;
+use celestia_jsonrpc_client::blob::NAMESPACE_ID_AVAILABLE_LEN;
 use serde::{
     de::{self,},
     Deserialize,
