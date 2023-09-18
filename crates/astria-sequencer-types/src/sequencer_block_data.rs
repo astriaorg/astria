@@ -1,18 +1,16 @@
-use std::collections::HashMap;
-
-use astria_sequencer_validation::{
-    InclusionProof,
-    MerkleTree,
+use std::{
+    array::TryFromSliceError,
+    collections::BTreeMap,
 };
+
 use base64::{
     engine::general_purpose,
     Engine as _,
 };
-use eyre::{
-    bail,
-    ensure,
-    eyre,
-    WrapErr as _,
+use proto::DecodeError;
+use sequencer_validation::{
+    InclusionProof,
+    MerkleTree,
 };
 use serde::{
     Deserialize,
@@ -29,25 +27,65 @@ use tendermint::{
 use thiserror::Error;
 use tracing::debug;
 
-use crate::{
-    namespace::Namespace,
-    tendermint::calculate_last_commit_hash,
-};
+use crate::tendermint::calculate_last_commit_hash;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("failed converting bytes to action tree root: expected 32 bytes")]
+    ActionTreeRootConversion(#[source] TryFromSliceError),
+    #[error(
+        "data hash stored tendermint header does not match action tree root reconstructed from \
+         data"
+    )]
+    CometBftDataHashReconstructedHashMismatch,
+    #[error(
+        "block hash calculated from tendermint header does not match block hash stored in \
+         sequencer block"
+    )]
+    HashOfHeaderBlockHashMismatach,
+    #[error("failed to generate inclusion proof for action tree root")]
+    InclusionProof(sequencer_validation::IndexOutOfBounds),
+    #[error(
+        "last commit hash does not match the one calculated from the block's commit signatures"
+    )]
+    LastCommitHashMismatch,
+    #[error("the sequencer block contained neither action tree root nor transaction data")]
+    NoData,
     #[error("block has no data hash")]
     MissingDataHash,
     #[error("block has no last commit hash")]
     MissingLastCommitHash,
+    #[error("failed decoding bytes to protobuf signed transaction")]
+    SignedTransactionProtobufDecode(#[source] DecodeError),
+    #[error("failed constructing native signed transaction from raw protobuf signed transaction")]
+    RawSignedTransactionConversion(
+        #[source] proto::native::sequencer::v1alpha1::SignedTransactionError,
+    ),
+    #[error("failed deserializing sequencer block data from json bytes")]
+    ReadingJson(#[source] serde_json::Error),
+    #[error(
+        "failed to verify data hash in cometbft header against inclusion proof and action tree \
+         root in sequencer block body"
+    )]
+    Verification(#[source] sequencer_validation::VerificationFailure),
+    #[error("failed writing sequencer block data as json")]
+    WritingJson(#[source] serde_json::Error),
 }
 
-/// Rollup data that relayer/conductor need to know.
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
-pub struct RollupData {
-    #[serde(with = "hex::serde")]
-    pub chain_id: Vec<u8>,
-    pub transactions: Vec<Vec<u8>>,
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ChainId(#[serde(with = "hex::serde")] Vec<u8>);
+
+impl ChainId {
+    #[must_use]
+    pub fn new(inner: Vec<u8>) -> Self {
+        Self(inner)
+    }
+}
+
+impl AsRef<[u8]> for ChainId {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
 }
 
 /// `SequencerBlockData` represents a sequencer block's data
@@ -60,8 +98,8 @@ pub struct SequencerBlockData {
     header: Header,
     /// This field should be set for every block with height > 1.
     last_commit: Option<Commit>,
-    /// namespace -> rollup data (chain ID and transactions)
-    rollup_data: HashMap<Namespace, RollupData>,
+    /// chain ID -> rollup transactions
+    rollup_data: BTreeMap<ChainId, Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
     action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included
@@ -82,7 +120,7 @@ impl SequencerBlockData {
     /// - if the block's action tree root inclusion proof cannot be verified
     /// - if the block's height is >1 and it does not contain a last commit or last commit hash
     /// - if the block's last commit hash does not match the one calculated from the block's commit
-    pub fn try_from_raw(raw: RawSequencerBlockData) -> eyre::Result<Self> {
+    pub fn try_from_raw(raw: RawSequencerBlockData) -> Result<Self, Error> {
         let RawSequencerBlockData {
             block_hash,
             header,
@@ -93,18 +131,14 @@ impl SequencerBlockData {
         } = raw;
 
         let calculated_block_hash = header.hash();
-        ensure!(
-            block_hash == calculated_block_hash,
-            "block hash calculated from tendermint header does not match block hash stored in \
-             sequencer block",
-        );
+        if block_hash != calculated_block_hash {
+            return Err(Error::HashOfHeaderBlockHashMismatach);
+        }
 
-        let Some(data_hash) = header.data_hash else {
-            bail!(Error::MissingDataHash);
-        };
+        let data_hash = header.data_hash.ok_or(Error::MissingDataHash)?;
         action_tree_root_inclusion_proof
             .verify(&action_tree_root, data_hash)
-            .wrap_err("failed to verify action tree root inclusion proof")?;
+            .map_err(Error::Verification)?;
 
         // genesis and height 1 do not have a last commit
         if header.height.value() <= 1 {
@@ -119,20 +153,18 @@ impl SequencerBlockData {
         }
 
         // calculate and verify last_commit_hash
-        let Some(last_commit_hash) = header.last_commit_hash else {
-            bail!(Error::MissingLastCommitHash);
-        };
+        let last_commit_hash = header
+            .last_commit_hash
+            .ok_or(Error::MissingLastCommitHash)?;
 
         let calculated_last_commit_hash = calculate_last_commit_hash(
             last_commit
                 .as_ref()
                 .expect("last_commit must be set if last_commit_hash is set"),
         );
-        ensure!(
-            calculated_last_commit_hash == last_commit_hash,
-            "last commit hash does not match the one calculated from the block's commit signatures",
-        );
-
+        if calculated_last_commit_hash != last_commit_hash {
+            return Err(Error::LastCommitHashMismatch)?;
+        }
         Ok(Self {
             block_hash,
             header,
@@ -159,7 +191,7 @@ impl SequencerBlockData {
     }
 
     #[must_use]
-    pub fn rollup_data(&self) -> &HashMap<Namespace, RollupData> {
+    pub fn rollup_data(&self) -> &BTreeMap<ChainId, Vec<Vec<u8>>> {
         &self.rollup_data
     }
 
@@ -190,9 +222,8 @@ impl SequencerBlockData {
     /// # Errors
     ///
     /// - if the data cannot be serialized into json
-    pub fn to_bytes(&self) -> eyre::Result<Vec<u8>> {
-        // TODO: don't use json, use our own serializer (or protobuf for now?)
-        serde_json::to_vec(self).wrap_err("failed serializing signed namespace data to json")
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+        serde_json::to_vec(self).map_err(Error::WritingJson)
     }
 
     /// Converts json-encoded bytes into a `SequencerBlockData`.
@@ -200,11 +231,8 @@ impl SequencerBlockData {
     /// # Errors
     ///
     /// - if the data cannot be deserialized from json
-    /// - if the block hash cannot be verified
-    pub fn from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
-        let data: Self = serde_json::from_slice(bytes)
-            .wrap_err("failed deserializing signed namespace data from bytes")?;
-        Ok(data)
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        serde_json::from_slice(bytes).map_err(Error::ReadingJson)
     }
 
     /// Converts a Tendermint block into a `SequencerBlockData`.
@@ -222,32 +250,30 @@ impl SequencerBlockData {
     ///
     /// See `specs/sequencer-inclusion-proofs.md` for most details on the action tree root
     /// and inclusion proof purpose.
-    pub fn from_tendermint_block(b: Block) -> eyre::Result<Self> {
+    pub fn from_tendermint_block(b: Block) -> Result<Self, Error> {
         use proto::{
             generated::sequencer::v1alpha1 as raw,
             native::sequencer::v1alpha1::SignedTransaction,
             Message as _,
         };
-        let Some(data_hash) = b.header.data_hash else {
-            bail!(Error::MissingDataHash);
-        };
+        let data_hash = b.header.data_hash.ok_or(Error::MissingDataHash)?;
 
-        if b.data.is_empty() {
-            bail!("block has no transactions; ie action tree root is missing");
-        }
+        let mut datas = b.data.iter();
 
-        let action_tree_root: [u8; 32] = b.data[0]
-            .clone()
+        let action_tree_root: [u8; 32] = datas
+            .next()
+            .map(Vec::as_slice)
+            .ok_or(Error::NoData)?
             .try_into()
-            .map_err(|_| eyre!("action tree root must be 32 bytes"))?;
+            .map_err(Error::ActionTreeRootConversion)?;
 
         // we unwrap sequencer txs into rollup-specific data here,
         // and namespace them correspondingly
-        let mut rollup_data = HashMap::new();
+        let mut rollup_data = BTreeMap::new();
 
         // the first transaction is skipped as it's the action tree root,
         // not a user-submitted transaction.
-        for (index, tx) in b.data[1..].iter().enumerate() {
+        for (index, tx) in datas.enumerate() {
             debug!(
                 index,
                 bytes = general_purpose::STANDARD.encode(tx.as_slice()),
@@ -255,25 +281,19 @@ impl SequencerBlockData {
             );
 
             let raw_tx = raw::SignedTransaction::decode(&**tx)
-                .wrap_err("failed decoding bytes to protobuf signed transaction")?;
-            let tx = SignedTransaction::try_from_raw(raw_tx).wrap_err(
-                "failed constructing native signed transaction from raw protobuf signed \
-                 transaction",
-            )?;
+                .map_err(Error::SignedTransactionProtobufDecode)?;
+            let tx = SignedTransaction::try_from_raw(raw_tx)
+                .map_err(Error::RawSignedTransactionConversion)?;
             tx.actions().iter().for_each(|action| {
                 if let Some(action) = action.as_sequence() {
                     // TODO(https://github.com/astriaorg/astria/issues/318): intern
                     // these namespaces so they don't get rebuild on every iteration.
-                    let namespace = Namespace::from_slice(&action.chain_id);
                     rollup_data
-                        .entry(namespace)
-                        .and_modify(|data: &mut RollupData| {
-                            data.transactions.push(action.data.clone());
+                        .entry(ChainId(action.chain_id.clone()))
+                        .and_modify(|data: &mut Vec<Vec<u8>>| {
+                            data.push(action.data.clone());
                         })
-                        .or_insert_with(|| RollupData {
-                            chain_id: action.chain_id.clone(),
-                            transactions: vec![action.data.clone()],
-                        });
+                        .or_insert_with(|| vec![action.data.clone()]);
                 }
             });
         }
@@ -281,14 +301,12 @@ impl SequencerBlockData {
         // generate the action tree root proof of inclusion in `Header::data_hash`
         let tx_tree = MerkleTree::from_leaves(b.data);
         let calculated_data_hash = tx_tree.root();
-        ensure!(
-            // this should never happen for a correctly-constructed block
-            calculated_data_hash == data_hash.as_bytes(),
-            "action tree root does not match the first transaction in the block",
-        );
+        if calculated_data_hash != data_hash.as_bytes() {
+            return Err(Error::CometBftDataHashReconstructedHashMismatch);
+        }
         let action_tree_root_inclusion_proof = tx_tree
             .prove_inclusion(0) // action tree root is always the first tx in a block
-            .wrap_err("failed to generate inclusion proof for action tree root")?;
+            .map_err(Error::InclusionProof)?;
 
         let data = Self {
             block_hash: b.header.hash(),
@@ -312,7 +330,7 @@ pub struct RawSequencerBlockData {
     /// This field should be set for every block with height > 1.
     pub last_commit: Option<Commit>,
     /// namespace -> rollup data (chain ID and transactions)
-    pub rollup_data: HashMap<Namespace, RollupData>,
+    pub rollup_data: BTreeMap<ChainId, Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
     pub action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included
@@ -321,9 +339,9 @@ pub struct RawSequencerBlockData {
 }
 
 impl TryFrom<RawSequencerBlockData> for SequencerBlockData {
-    type Error = eyre::Error;
+    type Error = Error;
 
-    fn try_from(raw: RawSequencerBlockData) -> eyre::Result<Self> {
+    fn try_from(raw: RawSequencerBlockData) -> Result<Self, Self::Error> {
         Self::try_from_raw(raw)
     }
 }
@@ -336,9 +354,9 @@ impl From<SequencerBlockData> for RawSequencerBlockData {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
-    use astria_sequencer_validation::MerkleTree;
+    use sequencer_validation::MerkleTree;
     use tendermint::Hash;
 
     use super::SequencerBlockData;
@@ -375,7 +393,7 @@ mod test {
             block_hash,
             header,
             last_commit: Some(last_commit),
-            rollup_data: HashMap::new(),
+            rollup_data: BTreeMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
         })
@@ -410,7 +428,7 @@ mod test {
             block_hash,
             header,
             last_commit: Some(last_commit),
-            rollup_data: HashMap::new(),
+            rollup_data: BTreeMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
         })

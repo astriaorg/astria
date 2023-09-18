@@ -9,7 +9,6 @@ sha2 = "0.10"
 thiserror = "1.0"
 
 base64 = { workspace = true }
-eyre = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 prost = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -18,9 +17,9 @@ tendermint = { workspace = true, features = ["rust-crypto"] }
 tendermint-proto = { workspace = true }
 tracing = { workspace = true }
 
-astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client" }
-astria-sequencer-validation = { path = "../astria-sequencer-validation" }
+celestia-jsonrpc-client = { package = "astria-celestia-jsonrpc-client", path = "../astria-celestia-jsonrpc-client" }
 proto = { package = "astria-proto", path = "../astria-proto" }
+sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 
 [dev-dependencies]
 ct-merkle = { version = "0.1", features = ["serde"] }
