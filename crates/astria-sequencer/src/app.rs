@@ -557,6 +557,52 @@ mod test {
     }
 
     #[tokio::test]
+    async fn app_deliver_tx_validator_update() {
+        // this secret key corresponds to ALICE_ADDRESS
+        let alice_secret_bytes: [u8; 32] =
+            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let alice_signing_key = SigningKey::from(alice_secret_bytes);
+        let alice = Address::from_verification_key(alice_signing_key.verification_key());
+
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut app = App::new(snapshot);
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_key: alice,
+        };
+        app.init_chain(genesis_state, vec![]).await.unwrap();
+
+        let update = tendermint::validator::Update {
+            pub_key: tendermint::public_key::PublicKey::from_raw_ed25519(&[1; 32]).unwrap(),
+            power: 100u32.into(),
+        };
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![proto::native::sequencer::v1alpha1::Action::ValidatorUpdate(
+                update.clone(),
+            )],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        let bytes = signed_tx.into_raw().encode_to_vec();
+
+        app.deliver_tx(&bytes).await.unwrap();
+        assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 1);
+
+        let validator_updates = app.state.get_validator_updates().await.unwrap();
+        assert_eq!(validator_updates.0.len(), 1);
+        assert_eq!(validator_updates.0[0], update);
+    }
+
+    #[tokio::test]
     async fn app_end_block_validator_updates() {
         use tendermint::validator;
 

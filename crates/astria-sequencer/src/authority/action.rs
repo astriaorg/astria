@@ -24,13 +24,6 @@ impl ActionHandler for tendermint::validator::Update {
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state.get_sudo_address().await?;
         ensure!(sudo_address == from, "signer is not the sudo key");
-
-        // ensure validator to be updated is in the set
-        let validator_set = state.get_validator_set().await?;
-        ensure!(
-            validator_set.0.iter().any(|v| v.pub_key == self.pub_key),
-            "validator to be updated is not in the set"
-        );
         Ok(())
     }
 
