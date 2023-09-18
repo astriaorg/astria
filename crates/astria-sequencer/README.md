@@ -45,10 +45,6 @@ make install_abci
 
 ### Build and start the application
 
-In astria-sequencer-utils:
-```sh
-```
-
 In astria-sequencer/:
 
 ```sh
