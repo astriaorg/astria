@@ -16,7 +16,12 @@ file.
 In astria-sequencer-utils/:
 
 ```sh
-cargo build
 cargo run -- --source-genesis-file=<source json path> \
   --destination-genesis-file=<destination json path>
+```
+
+For example:
+```sh
+cargo run -- --source-genesis-file=../astria-sequencer/test-genesis.json \
+ --destination-genesis-file=$HOME/.cometbft/config/genesis.json
 ```
