@@ -558,7 +558,6 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_validator_update() {
-        // this secret key corresponds to ALICE_ADDRESS
         let alice_secret_bytes: [u8; 32] =
             hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
                 .unwrap()
