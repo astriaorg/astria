@@ -20,7 +20,6 @@ pub struct Config {
     pub celestia_node_url: String,
 
     /// The JWT bearer token supplied with each jsonrpc call
-    #[serde(default)]
     pub celestia_bearer_token: String,
 
     /// URL of the Tendermint node (sequencer/metro)
@@ -33,16 +32,13 @@ pub struct Config {
     pub execution_rpc_url: String,
 
     /// Disable reading from the DA layer and block finalization
-    #[serde(default)]
     pub disable_finalization: bool,
 
     /// Bootnodes for the P2P network
     #[serde(deserialize_with = "bootnodes_deserialize")]
-    #[serde(default)]
     pub bootnodes: Option<Vec<String>>,
 
     /// Path to the libp2p private key file
-    #[serde(default)]
     pub libp2p_private_key: Option<String>,
 
     /// Port to listen on for libp2p
