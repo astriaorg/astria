@@ -9,7 +9,7 @@ use serde::{
 };
 
 pub fn get() -> Result<Config, figment::Error> {
-    Config::from_environment()
+    Config::from_environment(None)
 }
 
 /// The global configuration for the driver and its components.
@@ -66,10 +66,14 @@ where
 }
 
 impl Config {
-    fn from_environment() -> Result<Config, figment::Error> {
+    fn from_environment(prefix: Option<&str>) -> Result<Config, figment::Error> {
+        let env_prefix = match prefix {
+            Some(prefix) => format!("{}_ASTRIA_CONDUCTOR_", prefix),
+            None => "ASTRIA_CONDUCTOR_".to_string(),
+        };
         Figment::new()
             .merge(Env::prefixed("RUST_").split("_").only(&["log"]))
-            .merge(Env::prefixed("ASTRIA_CONDUCTOR_"))
+            .merge(Env::prefixed(env_prefix.as_str()))
             .extract()
     }
 }
@@ -84,7 +88,7 @@ mod tests {
 
     const EXAMPLE_ENV: &str = include_str!("../local.env.example");
 
-    fn populate_environment_from_example(jail: &mut Jail) {
+    fn populate_environment_from_example(jail: &mut Jail, env_prefix: Option<&str>) {
         static RE_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[[:space:]]+").unwrap());
         static RE_END: Lazy<Regex> = Lazy::new(|| Regex::new(r"[[:space:]]+$").unwrap());
         for line in EXAMPLE_ENV.lines() {
@@ -92,16 +96,18 @@ mod tests {
                 if RE_END.is_match(key) || RE_START.is_match(val) {
                     panic!("env vars must not contain spaces in assignment\n{line}");
                 }
-                jail.set_env(key, val);
+                let prefixed_key = format!("{}_{}", env_prefix.unwrap_or(""), key);
+                jail.set_env(prefixed_key, val);
             }
         }
     }
 
     #[test]
     fn ensure_example_env_is_in_sync() {
+        let env_prefix = "TESTTEST";
         Jail::expect_with(|jail| {
-            populate_environment_from_example(jail);
-            Config::from_environment().unwrap();
+            populate_environment_from_example(jail, Some(env_prefix));
+            Config::from_environment(Some(env_prefix)).unwrap();
             Ok(())
         });
     }
@@ -109,10 +115,11 @@ mod tests {
     #[test]
     #[should_panic]
     fn extra_env_vars_are_rejected() {
+        let env_prefix = "TESTTEST";
         Jail::expect_with(|jail| {
-            populate_environment_from_example(jail);
-            jail.set_env("ASTRIA_CONDUCTOR_FOOBAR", "BAZ");
-            Config::from_environment().unwrap();
+            populate_environment_from_example(jail, Some(env_prefix));
+            jail.set_env("TESTTEST_ASTRIA_CONDUCTOR_FOOBAR", "BAZ");
+            Config::from_environment(Some(env_prefix)).unwrap();
             Ok(())
         });
     }
