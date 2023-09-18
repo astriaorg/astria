@@ -9,7 +9,6 @@ ct-merkle = { git = "https://github.com/rozbb/ct-merkle", rev = "a3f3965c3689469
 ] }
 
 bytes = { workspace = true }
-eyre = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 sha2 = { workspace = true }

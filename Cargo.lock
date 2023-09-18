@@ -567,7 +567,6 @@ dependencies = [
  "base64 0.21.2",
  "base64-serde",
  "ct-merkle 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "eyre",
  "hex",
  "prost",
  "serde",
@@ -595,7 +594,6 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "ct-merkle 0.1.0 (git+https://github.com/rozbb/ct-merkle?rev=a3f3965c368946944425d59370783b3381a1fb4d)",
- "eyre",
  "hex",
  "serde",
  "serde_json",
