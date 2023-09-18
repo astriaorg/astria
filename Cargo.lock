@@ -567,7 +567,6 @@ dependencies = [
  "base64 0.21.2",
  "base64-serde",
  "ct-merkle",
- "eyre",
  "hex",
  "prost",
  "serde",
@@ -595,7 +594,6 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "ct-merkle",
- "eyre",
  "hex",
  "serde",
  "serde_json",
