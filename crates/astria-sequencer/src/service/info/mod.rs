@@ -84,7 +84,9 @@ impl Info {
                 let response = InfoResponse::Info(response::Info {
                     version: "0.1.0".to_string(),
                     app_version: 1,
-                    last_block_height: (block_height as u32).into(),
+                    last_block_height: u32::try_from(block_height)
+                        .expect("block height must fit into u32")
+                        .into(),
                     last_block_app_hash: app_hash.0.to_vec().try_into()?,
                     data: "astria_sequencer".to_string(),
                 });
