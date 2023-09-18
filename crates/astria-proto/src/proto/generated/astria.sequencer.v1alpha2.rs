@@ -46,7 +46,7 @@ pub struct SequencerBlock {
     /// The collection of rollup transactions that were included in this block.
     #[prost(message, optional, tag="4")]
     pub rollup_transactions: ::core::option::Option<RollupTransactions>,
-    /// The root of the action tree of this block. Must be 32 bytes.
+    /// The root of the action tree of this block.
     #[prost(bytes="vec", tag="5")]
     pub action_tree_root: ::prost::alloc::vec::Vec<u8>,
     /// The proof that the action tree root was included in `header.data_hash`.
