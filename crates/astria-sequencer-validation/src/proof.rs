@@ -1,3 +1,5 @@
+use std::fmt;
+
 use ct_merkle::{
     inclusion::InclusionProof as CtInclusionProof,
     CtMerkleTree,
@@ -8,6 +10,27 @@ use serde::{
     Serialize,
 };
 use sha2::Sha256;
+
+#[derive(Debug)]
+pub struct IndexOutOfBounds {
+    index: usize,
+    len: usize,
+}
+
+impl fmt::Display for IndexOutOfBounds {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            index,
+            len,
+        } = self;
+        write!(
+            f,
+            "requested to prove inclusion at index `{index}`, but merkle tree has length `{len}`"
+        )
+    }
+}
+
+impl std::error::Error for IndexOutOfBounds {}
 
 /// A wrapper around [`ct_merkle::CtMerkleTree`], which uses sha256 as the hashing algorithm
 /// and Vec<u8> as the leaf type.
@@ -52,14 +75,34 @@ impl MerkleTree {
     /// # Errors
     ///
     /// - if the index is out of bounds
-    pub fn prove_inclusion(&self, idx: usize) -> eyre::Result<InclusionProof> {
+    pub fn prove_inclusion(&self, index: usize) -> Result<InclusionProof, IndexOutOfBounds> {
+        if index >= self.0.len() {
+            return Err(IndexOutOfBounds {
+                index,
+                len: self.0.len(),
+            });
+        }
         Ok(InclusionProof {
-            idx,
+            index,
             num_leaves: self.0.len(),
-            inclusion_proof: self.0.prove_inclusion(idx),
+            inclusion_proof: self.0.prove_inclusion(index),
         })
     }
 }
+
+#[derive(Debug)]
+pub struct VerificationFailure(ct_merkle::error::InclusionVerifError);
+
+impl std::fmt::Display for VerificationFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Just transparently delegate to the inner error
+        self.0.fmt(f)
+    }
+}
+
+// FIXME(https://github.com/astriaorg/astria/issues/374): implement std::error::Error for the
+// errors inside ct-merkle so that `Error::source` can be implemented.
+impl std::error::Error for VerificationFailure {}
 
 /// A merkle proof of inclusion.
 ///
@@ -68,22 +111,12 @@ impl MerkleTree {
 #[allow(clippy::module_name_repetitions)]
 pub struct InclusionProof {
     // leaf index of value to be proven
-    idx: usize,
+    index: usize,
     // total number of leaves in the tree
     num_leaves: usize,
     // the merkle proof itself
     inclusion_proof: CtInclusionProof<Sha256>,
 }
-
-impl PartialEq for InclusionProof {
-    fn eq(&self, other: &Self) -> bool {
-        self.idx == other.idx
-            && self.num_leaves == other.num_leaves
-            && self.inclusion_proof.as_bytes() == other.inclusion_proof.as_bytes()
-    }
-}
-
-impl Eq for InclusionProof {}
 
 impl InclusionProof {
     /// Verify that the merkle proof is valid for the given root hash and leaf value.
@@ -91,14 +124,28 @@ impl InclusionProof {
     /// # Errors
     ///
     /// - if the proof is invalid
-    pub fn verify<T: AsRef<[u8]>>(&self, value: &[u8], root_hash: T) -> eyre::Result<()> {
+    pub fn verify<T: AsRef<[u8]>>(
+        &self,
+        value: &[u8],
+        root_hash: T,
+    ) -> Result<(), VerificationFailure> {
         let digest = *sha2::digest::Output::<Sha256>::from_slice(root_hash.as_ref());
         let ct_root = RootHash::<Sha256>::new(digest, self.num_leaves);
         ct_root
-            .verify_inclusion(&value, self.idx, &self.inclusion_proof)
-            .map_err(|e| eyre::eyre!("failed to verify inclusion: {}", e))
+            .verify_inclusion(&value, self.index, &self.inclusion_proof)
+            .map_err(VerificationFailure)
     }
 }
+
+impl PartialEq for InclusionProof {
+    fn eq(&self, other: &Self) -> bool {
+        self.index == other.index
+            && self.num_leaves == other.num_leaves
+            && self.inclusion_proof.as_bytes() == other.inclusion_proof.as_bytes()
+    }
+}
+
+impl Eq for InclusionProof {}
 
 #[cfg(test)]
 mod test {
@@ -173,12 +220,12 @@ mod test {
         }
         let ct_root = ct_tree.root();
 
-        let idx = 0;
-        let value = data[idx].clone();
+        let index = 0;
+        let value = data[index].clone();
         let proof = InclusionProof {
-            idx,
+            index,
             num_leaves: data.len(),
-            inclusion_proof: ct_tree.prove_inclusion(idx),
+            inclusion_proof: ct_tree.prove_inclusion(index),
         };
 
         let json = serde_json::to_string(&proof).unwrap();
@@ -187,5 +234,22 @@ mod test {
             tendermint::Hash::from_bytes(tendermint::hash::Algorithm::Sha256, ct_root.as_bytes())
                 .unwrap();
         proof.verify(&value, tm_hash).unwrap();
+    }
+
+    #[test]
+    fn out_of_bounds_prove_inclusion_returns_error() {
+        let data: Vec<Vec<u8>> = vec![
+            vec![1, 2, 3],
+            vec![4, 5, 6],
+            vec![7, 8, 9],
+            vec![10, 11, 12],
+            vec![13, 14, 15],
+            vec![16, 17, 18],
+            vec![19, 20, 21],
+        ];
+        let tree = MerkleTree::from_leaves(data);
+        let err = tree.prove_inclusion(8).unwrap_err();
+        assert_eq!(8, err.index);
+        assert_eq!(7, err.len);
     }
 }
