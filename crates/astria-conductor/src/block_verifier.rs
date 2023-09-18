@@ -291,7 +291,7 @@ async fn validate_sequencer_namespace_data(
         .map(|chain_id| chain_id.as_ref().to_vec())
         .collect::<Vec<_>>();
     let expected_chain_ids_commitment =
-        astria_sequencer_validation::MerkleTree::from_leaves(leaves).root();
+        sequencer_validation::MerkleTree::from_leaves(leaves).root();
     ensure!(
         expected_chain_ids_commitment == *chain_ids_commitment,
         "chain IDs commitment mismatch: expected {}, got {}",
@@ -484,7 +484,7 @@ mod test {
         str::FromStr,
     };
 
-    use astria_sequencer_validation::{
+    use sequencer_validation::{
         generate_action_tree_leaves,
         MerkleTree,
     };
@@ -545,8 +545,7 @@ mod test {
             rollup_chain_ids: vec![],
             action_tree_root,
             action_tree_root_inclusion_proof,
-            chain_ids_commitment: astria_sequencer_validation::MerkleTree::from_leaves(vec![])
-                .root(),
+            chain_ids_commitment: MerkleTree::from_leaves(vec![]).root(),
         };
 
         validate_sequencer_namespace_data(
@@ -590,10 +589,7 @@ mod test {
             ],
             action_tree_root,
             action_tree_root_inclusion_proof,
-            chain_ids_commitment: astria_sequencer_validation::MerkleTree::from_leaves(vec![
-                test_chain_id.to_vec(),
-            ])
-            .root(),
+            chain_ids_commitment: MerkleTree::from_leaves(vec![test_chain_id.to_vec()]).root(),
         };
 
         let rollup_namespace_data = RollupNamespaceData::new(
