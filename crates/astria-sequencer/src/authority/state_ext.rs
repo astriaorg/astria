@@ -35,14 +35,29 @@ struct SudoAddress([u8; ADDRESS_LEN]);
 pub(crate) struct ValidatorSet(pub(crate) Vec<tendermint::validator::Update>);
 
 impl ValidatorSet {
-    pub(crate) fn apply_updates(&mut self, validator_updates: &ValidatorSet) {
-        for curr in &mut self.0 {
-            for update in &validator_updates.0 {
-                if curr.pub_key == update.pub_key {
-                    curr.power = update.power;
-                }
+    pub(crate) fn apply_updates(&mut self, validator_updates: ValidatorSet) {
+        for update in validator_updates.0 {
+            if self
+                .0
+                .iter()
+                .map(|val| val.pub_key)
+                .collect::<Vec<tendermint::public_key::PublicKey>>()
+                .contains(&update.pub_key)
+            {
+                // update existing validator
+                self.0
+                    .iter_mut()
+                    .find(|val| val.pub_key == update.pub_key)
+                    .expect("validator must exist")
+                    .power = update.power;
+            } else {
+                // add new validator
+                self.0.push(update);
             }
         }
+
+        // delete validators with power 0
+        self.0.retain(|v| v.power.value() != 0);
     }
 }
 
@@ -129,6 +144,11 @@ pub(crate) trait StateWriteExt: StateWrite {
             serde_json::to_vec(&validator_updates)?,
         );
         Ok(())
+    }
+
+    #[instrument(skip(self))]
+    fn clear_validator_updates(&mut self) {
+        self.nonconsensus_delete(VALIDATOR_UPDATES_KEY.to_vec());
     }
 }
 

@@ -59,11 +59,12 @@ impl Component for AuthorityComponent {
             .get_validator_updates()
             .await
             .expect("failed getting validator updates");
+
         let mut current_set = state
             .get_validator_set()
             .await
             .expect("failed getting validator set");
-        current_set.apply_updates(&validator_updates);
+        current_set.apply_updates(validator_updates);
 
         // this is safe because we are the only ones with a reference to the state
         let state = Arc::get_mut(state).unwrap();

@@ -27,7 +27,10 @@ use crate::{
     app_hash::AppHash,
     authority::{
         component::AuthorityComponent,
-        state_ext::StateReadExt as _,
+        state_ext::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
     },
     component::Component,
     genesis::GenesisState,
@@ -196,10 +199,12 @@ impl App {
             .await
             .expect("failed getting validator updates");
 
-        // clear validator updates
-
-        let state_tx = Arc::try_unwrap(arc_state_tx)
+        let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
+
+        // clear validator updates
+        state_tx.clear_validator_updates();
+
         let events = self.apply(state_tx);
         abci::response::EndBlock {
             validator_updates: validator_updates.0,
@@ -299,6 +304,7 @@ mod test {
             action::TRANSFER_FEE,
             state_ext::StateReadExt as _,
         },
+        authority::state_ext::ValidatorSet,
         genesis::Account,
         sequence::calculate_fee,
     };
@@ -548,6 +554,75 @@ mod test {
             app.state.get_account_balance(alice).await.unwrap(),
             10u128.pow(19) - fee,
         );
+    }
+
+    #[tokio::test]
+    async fn app_end_block_validator_updates() {
+        use tendermint::validator;
+
+        let storage = penumbra_storage::TempStorage::new()
+            .await
+            .expect("failed to create temp storage backing chain state");
+        let snapshot = storage.latest_snapshot();
+        let mut app = App::new(snapshot);
+
+        let pubkey_a = tendermint::public_key::PublicKey::from_raw_ed25519(&[1; 32]).unwrap();
+        let pubkey_b = tendermint::public_key::PublicKey::from_raw_ed25519(&[2; 32]).unwrap();
+        let pubkey_c = tendermint::public_key::PublicKey::from_raw_ed25519(&[3; 32]).unwrap();
+
+        let initial_validator_set = vec![
+            validator::Update {
+                pub_key: pubkey_a,
+                power: 100u32.into(),
+            },
+            validator::Update {
+                pub_key: pubkey_b,
+                power: 1u32.into(),
+            },
+        ];
+
+        app.init_chain(GenesisState::default(), initial_validator_set)
+            .await
+            .unwrap();
+
+        let validator_updates = vec![
+            validator::Update {
+                pub_key: pubkey_a,
+                power: 0u32.into(),
+            },
+            validator::Update {
+                pub_key: pubkey_b,
+                power: 100u32.into(),
+            },
+            validator::Update {
+                pub_key: pubkey_c,
+                power: 100u32.into(),
+            },
+        ];
+
+        let mut state_tx = StateDelta::new(app.state.clone());
+        state_tx
+            .put_validator_updates(ValidatorSet(validator_updates.clone()))
+            .unwrap();
+        app.apply(state_tx);
+
+        let resp = app
+            .end_block(&abci::request::EndBlock {
+                height: 1u32.into(),
+            })
+            .await;
+        assert_eq!(resp.validator_updates, validator_updates);
+
+        // validator with pubkey_a should be removed (power set to 0)
+        // validator with pubkey_b should be updated
+        // validator with pubkey_c should be added
+        let validator_set = app.state.get_validator_set().await.unwrap();
+        assert_eq!(validator_set.0.len(), 2);
+        assert_eq!(validator_set.0[0].pub_key, pubkey_b);
+        assert_eq!(validator_set.0[0].power, 100u32.into());
+        assert_eq!(validator_set.0[1].pub_key, pubkey_c);
+        assert_eq!(validator_set.0[1].power, 100u32.into());
+        assert_eq!(app.state.get_validator_updates().await.unwrap().0.len(), 0);
     }
 
     #[tokio::test]
