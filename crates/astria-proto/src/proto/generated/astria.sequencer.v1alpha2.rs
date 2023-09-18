@@ -53,14 +53,14 @@ pub struct SequencerBlock {
     #[prost(message, optional, tag="6")]
     pub action_tree_inclusion_proof: ::core::option::Option<InclusionProof>,
 }
-/// An "item blob" of rollup transactions submitted to celestia.
+/// A collection of transactions belonging to a specific rollup that are submitted to celestia.
 ///
 /// The transactions contained in the item belong to a rollup identified
 /// by `chain_id`, and were included in the sequencer block identified
 /// by `sequencer_block_hash`.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CelestiaItem {
+pub struct CelestiaRollupData {
     /// The hash of the sequencer block. Must be 32 bytes.
     #[prost(bytes="vec", tag="1")]
     pub sequencer_block_hash: ::prost::alloc::vec::Vec<u8>,
@@ -77,17 +77,15 @@ pub struct CelestiaItem {
     #[prost(message, optional, tag="4")]
     pub action_tree_inclusion_proof: ::core::option::Option<InclusionProof>,
 }
-/// The "header blob" that is submitted to celestia under a sequencer-specific
-/// celestia namespace.
+/// The metadata of a sequencer block that is submitted to celestia.
 ///
-/// It is created by splitting up `SequencerBlockData` into a header
-/// and a list of rollup blobs, where one blob contains a sequence of
-/// rollup transactions for one specific rollup.
+/// It is created by splitting up a `SequencerBlockData` into a "header"
+/// (this `CelestiaSequencerData`), and a list of `CelestiaRollupData` items.
 ///
 /// The original sequencer block is identified by its `block_hash`.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CelestiaHeader {
+pub struct CelestiaSequencerData {
     /// The hash of the sequencer block. Must be 32 bytes.
     #[prost(bytes="vec", tag="1")]
     pub sequencer_block_hash: ::prost::alloc::vec::Vec<u8>,
