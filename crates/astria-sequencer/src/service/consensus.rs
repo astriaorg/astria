@@ -460,7 +460,10 @@ mod test {
     async fn new_consensus_service() -> Consensus {
         let storage = penumbra_storage::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let app = App::new(snapshot);
+        let mut app = App::new(snapshot);
+        app.init_chain(GenesisState::default(), vec![])
+            .await
+            .unwrap();
 
         let (_tx, rx) = mpsc::channel(1);
         Consensus::new(storage.clone(), app, rx)
