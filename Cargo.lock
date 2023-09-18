@@ -567,7 +567,6 @@ dependencies = [
  "base64 0.21.2",
  "base64-serde",
  "ct-merkle",
- "eyre",
  "hex",
  "prost",
  "serde",
