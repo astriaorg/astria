@@ -115,7 +115,7 @@ struct Executor<C> {
     sequencer_hash_to_execution_hash: HashMap<Hash, Vec<u8>>,
 
     /// Chose to execute empty blocks or not
-    execute_empty_blocks: bool,
+    disable_empty_block_execution: bool,
 }
 
 impl<C: ExecutionClient> Executor<C> {
@@ -131,7 +131,7 @@ impl<C: ExecutionClient> Executor<C> {
                 namespace: Namespace::from_slice(conf.chain_id.as_ref()),
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
-                execute_empty_blocks: conf.execute_empty_blocks,
+                disable_empty_block_execution: conf.disable_empty_block_execution,
             },
             cmd_tx,
         ))
@@ -202,7 +202,7 @@ impl<C: ExecutionClient> Executor<C> {
     /// execution block hash.
     /// if there are no relevant transactions in the SequencerBlock, it returns None.
     async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Vec<u8>>> {
-        if !self.execute_empty_blocks && block.rollup_transactions.is_empty() {
+        if self.disable_empty_block_execution && block.rollup_transactions.is_empty() {
             debug!(
                 height = block.header.height.value(),
                 "no transactions in block, skipping execution"
@@ -393,7 +393,7 @@ mod test {
         }
     }
 
-    fn test_config() -> Config {
+    fn get_test_config() -> Config {
         Config {
             chain_id: "test".to_string(),
             execution_rpc_url: "test".to_string(),
@@ -402,7 +402,7 @@ mod test {
             libp2p_private_key: None,
             libp2p_port: 0,
             log: "test".to_string(),
-            execute_empty_blocks: true,
+            disable_empty_block_execution: false,
             celestia_node_url: "test".to_string(),
             celestia_bearer_token: "test".to_string(),
             tendermint_url: "test".to_string(),
@@ -411,8 +411,7 @@ mod test {
 
     #[tokio::test]
     async fn execute_block_without_relevant_txs() {
-        let mut conf = test_config();
-        conf.execute_empty_blocks = true; // empty block will be executed
+        let conf = get_test_config();
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), &conf)
             .await
             .unwrap();
@@ -430,8 +429,8 @@ mod test {
 
     #[tokio::test]
     async fn skip_block_without_relevant_txs() {
-        let mut conf = test_config();
-        conf.execute_empty_blocks = false; // empty block will be executed
+        let mut conf = get_test_config();
+        conf.disable_empty_block_execution = true;
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), &conf)
             .await
             .unwrap();
@@ -443,8 +442,7 @@ mod test {
 
     #[tokio::test]
     async fn handle_block_received_from_data_availability_not_yet_executed() {
-        let mut conf = test_config();
-        conf.execute_empty_blocks = true;
+        let conf = get_test_config();
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
@@ -478,8 +476,8 @@ mod test {
     #[tokio::test]
     async fn handle_block_received_from_data_availability_not_yet_executed_no_relevant_transactions_skip_block()
      {
-        let mut conf = test_config();
-        conf.execute_empty_blocks = false; // empty block will be executed
+        let mut conf = get_test_config();
+        conf.disable_empty_block_execution = true;
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
@@ -511,8 +509,7 @@ mod test {
     #[tokio::test]
     async fn handle_block_received_from_data_availability_not_yet_executed_no_relevant_transactions_execute_block()
      {
-        let mut conf = test_config();
-        conf.execute_empty_blocks = true; // empty block will be executed
+        let conf = get_test_config();
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
@@ -527,8 +524,6 @@ mod test {
             .await
             .unwrap();
 
-        // should not have executed or finalized the block
-        assert!(!finalized_blocks.lock().await.is_empty());
         assert!(
             finalized_blocks
                 .lock()

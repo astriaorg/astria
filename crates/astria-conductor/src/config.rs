@@ -52,7 +52,7 @@ pub struct Config {
     pub log: String,
 
     /// Choose to execute empty blocks or not
-    pub execute_empty_blocks: bool,
+    pub disable_empty_block_execution: bool,
 }
 
 fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
