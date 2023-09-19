@@ -293,9 +293,12 @@ impl<C: ExecutionClient> Executor<C> {
         match maybe_execution_block_hash {
             Some(executed_block) => {
                 // this case means block has already been executed.
-                // setting execution chain's FIRM and SOFT as this block
-                self.update_commitment_state(executed_block.clone(), executed_block)
-                    .await?;
+                // setting execution chain's FIRM.
+                self.update_commitment_state(
+                    executed_block,
+                    self.commitment_state.soft.clone().unwrap(),
+                )
+                .await?;
                 // remove the sequencer block hash from the map, as it's been executed
                 self.sequencer_hash_to_execution_block
                     .remove(&block.block_hash);
@@ -319,11 +322,10 @@ impl<C: ExecutionClient> Executor<C> {
                     debug!("execute_block returned None; skipping call_update_commitment_state");
                     return Ok(());
                 };
-                self.update_commitment_state(
-                    executed_block,
-                    self.commitment_state.soft.clone().unwrap(),
-                )
-                .await?;
+                // when we execute a block received from da, nothing else has been executed on top
+                // of it, so we set FIRM and SOFT to this executed block
+                self.update_commitment_state(executed_block.clone(), executed_block)
+                    .await?;
                 self.sequencer_hash_to_execution_block
                     .remove(&block.block_hash);
             }
@@ -501,8 +503,12 @@ mod test {
         assert_eq!(expected_execution_hash, firm_hash);
         // should be empty because 1 block was executed and finalized, which deletes it from the map
         assert!(executor.sequencer_hash_to_execution_block.is_empty());
-        // should have updated self.commitment_state.firm, but soft stayed the same
-        assert_ne!(firm_hash, executor.commitment_state.soft.unwrap().hash);
+        // should have updated self.commitment_state.firm and self.commitment_state.soft to the
+        // executed block
+        assert_eq!(
+            executor.commitment_state.firm.unwrap().hash,
+            executor.commitment_state.soft.unwrap().hash
+        );
     }
 
     #[tokio::test]
@@ -535,9 +541,8 @@ mod test {
 
         // should be empty because 1 block was finalized, which deletes it from the map
         assert!(executor.sequencer_hash_to_execution_block.is_empty());
-        // should have updated self.commitment_state.firm and self.commitment_state.soft to the
-        // executed block
-        assert_eq!(
+        // should have updated self.commitment_state.firm but soft stayed the same
+        assert_ne!(
             executor.commitment_state.firm.unwrap().hash,
             executor.commitment_state.soft.unwrap().hash
         );
