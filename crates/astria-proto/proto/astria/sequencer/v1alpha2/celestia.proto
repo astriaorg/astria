@@ -36,7 +36,7 @@ message CelestiaSequencerData {
     // The original cometbft header that was the input to this sequencer block.
     tendermint.types.Header sequencer_block_header = 2;
     // The commit/set of signatures that commited this block.
-    tendermint.types.Commit sequencer_bock_last_commit = 3;
+    tendermint.types.Commit sequencer_block_last_commit = 3;
     // The namespaces under which rollup transactions belonging to the sequencer
     // block identified by `sequencer_block_hash` where submitted to celestia.
     // The bytes must convert to a celestia v0 namespace.
