@@ -9,7 +9,7 @@ use serde::{
 };
 
 pub fn get() -> Result<Config, figment::Error> {
-    Config::from_environment()
+    Config::from_environment("ASTRIA_CONDUCTOR_")
 }
 
 /// The global configuration for the driver and its components.
@@ -66,10 +66,10 @@ where
 }
 
 impl Config {
-    fn from_environment() -> Result<Config, figment::Error> {
+    fn from_environment(envar_prefix: &str) -> Result<Config, figment::Error> {
         Figment::new()
             .merge(Env::prefixed("RUST_").split("_").only(&["log"]))
-            .merge(Env::prefixed("ASTRIA_CONDUCTOR_"))
+            .merge(Env::prefixed(envar_prefix))
             .extract()
     }
 }
@@ -84,7 +84,7 @@ mod tests {
 
     const EXAMPLE_ENV: &str = include_str!("../local.env.example");
 
-    fn populate_environment_from_example(jail: &mut Jail) {
+    fn populate_environment_from_example(jail: &mut Jail, test_envar_prefix: &str) {
         static RE_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[[:space:]]+").unwrap());
         static RE_END: Lazy<Regex> = Lazy::new(|| Regex::new(r"[[:space:]]+$").unwrap());
         for line in EXAMPLE_ENV.lines() {
@@ -92,16 +92,19 @@ mod tests {
                 if RE_END.is_match(key) || RE_START.is_match(val) {
                     panic!("env vars must not contain spaces in assignment\n{line}");
                 }
-                jail.set_env(key, val);
+                let prefixed_key = format!("{}_{}", test_envar_prefix, key);
+                jail.set_env(prefixed_key, val);
             }
         }
     }
 
     #[test]
     fn ensure_example_env_is_in_sync() {
+        let test_envar_prefix = "TESTTEST";
+        let full_envar_prefix = format!("{}_{}", test_envar_prefix, "ASTRIA_CONDUCTOR_");
         Jail::expect_with(|jail| {
-            populate_environment_from_example(jail);
-            Config::from_environment().unwrap();
+            populate_environment_from_example(jail, test_envar_prefix);
+            Config::from_environment(full_envar_prefix.as_str()).unwrap();
             Ok(())
         });
     }
@@ -109,10 +112,12 @@ mod tests {
     #[test]
     #[should_panic]
     fn extra_env_vars_are_rejected() {
+        let test_envar_prefix = "TESTTEST";
+        let full_envar_prefix = format!("{}_{}", test_envar_prefix, "ASTRIA_CONDUCTOR_");
         Jail::expect_with(|jail| {
-            populate_environment_from_example(jail);
-            jail.set_env("ASTRIA_CONDUCTOR_FOOBAR", "BAZ");
-            Config::from_environment().unwrap();
+            populate_environment_from_example(jail, test_envar_prefix);
+            jail.set_env("TESTTEST_ASTRIA_CONDUCTOR_FOOBAR", "BAZ");
+            Config::from_environment(full_envar_prefix.as_str()).unwrap();
             Ok(())
         });
     }
