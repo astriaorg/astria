@@ -8,6 +8,8 @@ mod utils;
 
 pub use proof::{
     InclusionProof,
+    IndexOutOfBounds,
     MerkleTree,
+    VerificationFailure,
 };
 pub use utils::generate_action_tree_leaves;
