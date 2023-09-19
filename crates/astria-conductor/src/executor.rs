@@ -33,7 +33,7 @@ use tracing::{
 use crate::{
     config::Config,
     execution_client::{
-        ExecutionClient,
+        ExecutionClientV1Alpha1,
         ExecutionRpcClient,
     },
     types::SequencerBlockSubset,
@@ -119,7 +119,7 @@ struct Executor<C> {
     sequencer_hash_to_execution_hash: HashMap<Hash, Vec<u8>>,
 }
 
-impl<C: ExecutionClient> Executor<C> {
+impl<C: ExecutionClientV1Alpha1> Executor<C> {
     async fn new(mut execution_rpc_client: C, chain_id: ChainId) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let init_state_response = execution_rpc_client.call_init_state().await?;
@@ -351,7 +351,7 @@ mod test {
     impl crate::private::Sealed for MockExecutionClient {}
 
     #[async_trait::async_trait]
-    impl ExecutionClient for MockExecutionClient {
+    impl ExecutionClientV1Alpha1 for MockExecutionClient {
         // returns the sha256 hash of the prev_block_hash
         // the Executor passes self.execution_state as prev_block_hash
         async fn call_do_block(
