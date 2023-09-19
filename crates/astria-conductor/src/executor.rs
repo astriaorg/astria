@@ -348,8 +348,6 @@ mod test {
         }
     }
 
-    impl crate::private::Sealed for MockExecutionClient {}
-
     #[async_trait::async_trait]
     impl ExecutionClient for MockExecutionClient {
         // returns the sha256 hash of the prev_block_hash

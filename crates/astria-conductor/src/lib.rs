@@ -8,20 +8,14 @@
 //! blockchain. It's marked as a soft commitment; the block is not regarded as finalized on the
 //! execution layer until it's received from the data availability layer. In the second case, the
 //! execution layer is notified to mark the block as finalized.
-pub mod block_verifier;
+pub(crate) mod block_verifier;
 pub mod conductor;
 pub mod config;
-pub mod driver;
+pub(crate) mod driver;
 pub(crate) mod execution_client;
 pub(crate) mod executor;
-pub mod reader;
+pub(crate) mod reader;
 pub(crate) mod types;
 
 pub use config::Config;
 pub(crate) use driver::Driver;
-pub use telemetry;
-
-mod private {
-    #[allow(unreachable_pub)]
-    pub trait Sealed {}
-}

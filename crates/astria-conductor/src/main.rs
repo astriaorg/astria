@@ -3,7 +3,6 @@ use std::process::ExitCode;
 use astria_conductor::{
     conductor::Conductor,
     config,
-    telemetry,
 };
 use tracing::{
     error,
