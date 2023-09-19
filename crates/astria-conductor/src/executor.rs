@@ -539,8 +539,12 @@ mod test {
         assert_eq!(expected_execution_hash, firm_hash);
         // should be empty because 1 block was executed and finalized, which deletes it from the map
         assert!(executor.sequencer_hash_to_execution_block.is_empty());
-        // should have updated self.commitment_state.firm, but soft stayed the same
-        assert_ne!(firm_hash, executor.commitment_state.soft.unwrap().hash);
+        // should have updated self.commitment_state.firm and self.commitment_state.soft to the
+        // executed block
+        assert_eq!(
+            executor.commitment_state.firm.unwrap().hash,
+            executor.commitment_state.soft.unwrap().hash
+        );
     }
 
     #[tokio::test]
@@ -573,9 +577,8 @@ mod test {
 
         // should be empty because 1 block was finalized, which deletes it from the map
         assert!(executor.sequencer_hash_to_execution_block.is_empty());
-        // should have updated self.commitment_state.firm and self.commitment_state.soft to the
-        // executed block
-        assert_eq!(
+        // should have updated self.commitment_state.firm but soft stayed the same
+        assert_ne!(
             executor.commitment_state.firm.unwrap().hash,
             executor.commitment_state.soft.unwrap().hash
         );
