@@ -13,7 +13,6 @@ pub mod config;
 pub mod driver;
 pub(crate) mod execution_client;
 pub(crate) mod executor;
-pub mod network;
 pub mod reader;
 pub(crate) mod types;
 
