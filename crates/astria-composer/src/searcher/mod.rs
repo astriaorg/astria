@@ -24,16 +24,14 @@ use tracing::{
     warn,
 };
 
-use crate::{
-    searcher::executor::Executor,
-    Config,
-};
+use crate::Config;
 
 mod collector;
 mod executor;
 mod rollup;
 
 use collector::Collector;
+use executor::Executor;
 
 /// A Searcher collates transactions from multiple rollups and bundles them into
 /// Astria sequencer transactions that are then passed on to the
