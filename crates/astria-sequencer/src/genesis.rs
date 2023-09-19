@@ -1,9 +1,3 @@
-use std::{
-    fs::File,
-    path::Path,
-};
-
-use anyhow::Context;
 use proto::native::sequencer::v1alpha1::Address;
 use serde::{
     Deserialize,
@@ -24,13 +18,6 @@ impl Default for GenesisState {
             accounts: vec![],
             authority_sudo_key: Address::from([0; 20]),
         }
-    }
-}
-
-impl GenesisState {
-    pub(crate) fn from_path<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        let file = File::open(path).context("failed to open file with genesis state")?;
-        serde_json::from_reader(&file).context("failed deserializing genesis state from file")
     }
 }
 

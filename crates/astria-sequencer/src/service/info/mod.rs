@@ -13,20 +13,16 @@ use futures::{
 };
 use penumbra_storage::Storage;
 use penumbra_tower_trace::RequestExt as _;
-use tendermint::{
-    abci::{
-        request,
-        response::{
-            self,
-            Echo,
-            SetOption,
-        },
-        Code,
-        InfoRequest,
-        InfoResponse,
+use tendermint::abci::{
+    request,
+    response::{
+        self,
+        Echo,
+        SetOption,
     },
-    block::Height,
-    AppHash,
+    Code,
+    InfoRequest,
+    InfoResponse,
 };
 use tower::Service;
 use tower_abci::BoxError;
@@ -38,6 +34,7 @@ use tracing::{
 mod abci_query_router;
 
 use super::AbciCode;
+use crate::state_ext::StateReadExt;
 
 #[derive(Clone)]
 pub(crate) struct Info {
@@ -70,11 +67,27 @@ impl Info {
     async fn handle_info_request(self, request: InfoRequest) -> Result<InfoResponse, BoxError> {
         match request {
             InfoRequest::Info(_) => {
+                let block_height = self
+                    .storage
+                    .latest_snapshot()
+                    .get_block_height()
+                    .await
+                    .unwrap_or(0);
+                let app_hash = crate::app_hash::AppHash::from(
+                    self.storage
+                        .latest_snapshot()
+                        .root_hash()
+                        .await
+                        .context("failed to get app hash")?,
+                );
+
                 let response = InfoResponse::Info(response::Info {
-                    version: "0.1.0".to_string(),
+                    version: env!("CARGO_PKG_VERSION").to_string(),
                     app_version: 1,
-                    last_block_height: Height::default(),
-                    last_block_app_hash: AppHash::default(),
+                    last_block_height: u32::try_from(block_height)
+                        .expect("block height must fit into u32")
+                        .into(),
+                    last_block_app_hash: app_hash.0.to_vec().try_into()?,
                     data: "astria_sequencer".to_string(),
                 });
                 Ok(response)

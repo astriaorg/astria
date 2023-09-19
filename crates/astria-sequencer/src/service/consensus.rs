@@ -132,10 +132,9 @@ impl Consensus {
         }
 
         let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
-            .expect("can parse app_state in genesis file");
-
+            .context("failed to parse app_state in genesis file")?;
         self.app
-            .init_chain(genesis_state, init_chain.validators)
+            .init_chain(genesis_state, init_chain.validators.clone())
             .await?;
 
         // commit the state and return the app hash
@@ -146,7 +145,8 @@ impl Consensus {
                 .to_vec()
                 .try_into()
                 .context("failed to convert app hash")?,
-            ..Default::default()
+            consensus_params: Some(init_chain.consensus_params),
+            validators: init_chain.validators,
         })
     }
 

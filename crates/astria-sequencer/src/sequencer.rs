@@ -17,7 +17,6 @@ use tracing::{
 use crate::{
     app::App,
     config::Config,
-    genesis::GenesisState,
     service,
 };
 
@@ -26,9 +25,6 @@ pub struct Sequencer;
 impl Sequencer {
     #[instrument(skip_all)]
     pub async fn run_until_stopped(config: Config) -> Result<()> {
-        let genesis_state =
-            GenesisState::from_path(config.genesis_file).context("failed reading genesis state")?;
-
         if config
             .db_filepath
             .try_exists()
@@ -48,12 +44,7 @@ impl Sequencer {
             .await
             .context("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
-
-        // TODO(https://github.com/astriaorg/astria/issues/227): don't call init_chain here
-        app.init_chain(genesis_state, vec![])
-            .await
-            .context("failed initializing app with genesis state")?;
+        let app = App::new(snapshot);
 
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {

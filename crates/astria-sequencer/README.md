@@ -49,7 +49,7 @@ In astria-sequencer/:
 
 ```sh
 cargo build
-../../target/debug/astria-sequencer --genesis-file=test-genesis.json
+../../target/debug/astria-sequencer --db-filepath=/tmp/astria_db
 ```
 
 ### Query the app for info
@@ -69,10 +69,12 @@ I[2023-05-16|16:53:56.786] service start    module=abci-client
 ```sh
 # initialize the node
 cometbft init
+# inside astria-sequencer, update the genesis file to include genesis application state
+../../target/debug/astria-sequencer-utils --genesis-app-state-file=test-genesis-app-state.json  --destination-genesis-file=$HOME/.cometbft/config/genesis.json
 # set the block time to 15s
 sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "15s"/g' ~/.cometbft/config/config.toml
 # start the node
-cometbft node
+cometbft start
 ```
 
 You should see blocks being produced.
