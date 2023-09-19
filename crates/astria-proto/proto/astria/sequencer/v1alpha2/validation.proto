@@ -9,6 +9,6 @@ message InclusionProof {
     uint64 index = 1;
     // total number of leaves in the tree
     uint64 num_leaves = 2;
-    // the merkle proof itself; must be 32 bytes.
+    // the merkle proof itself. This proof is derived from a RFC 6962 compliant Merkle tree.
     bytes inclusion_proof = 3;
 }

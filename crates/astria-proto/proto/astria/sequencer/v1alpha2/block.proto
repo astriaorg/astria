@@ -28,7 +28,7 @@ message SequencerBlock {
     tendermint.types.Commit last_commit = 3;
     // The collection of rollup transactions that were included in this block.
     RollupTransactions rollup_transactions = 4;
-    // The root of the action tree of this block.
+    // The root of the action tree of this block. Must be 32 bytes.
     bytes action_tree_root = 5;
     // The proof that the action tree root was included in `header.data_hash`.
     astria.sequencer.v1alpha2.InclusionProof action_tree_inclusion_proof = 6;

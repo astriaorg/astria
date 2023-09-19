@@ -10,7 +10,7 @@ pub struct InclusionProof {
     /// total number of leaves in the tree
     #[prost(uint64, tag="2")]
     pub num_leaves: u64,
-    /// the merkle proof itself; must be 32 bytes.
+    /// the merkle proof itself. This proof is derived from a RFC 6962 compliant Merkle tree.
     #[prost(bytes="vec", tag="3")]
     pub inclusion_proof: ::prost::alloc::vec::Vec<u8>,
 }
@@ -46,7 +46,7 @@ pub struct SequencerBlock {
     /// The collection of rollup transactions that were included in this block.
     #[prost(message, optional, tag="4")]
     pub rollup_transactions: ::core::option::Option<RollupTransactions>,
-    /// The root of the action tree of this block.
+    /// The root of the action tree of this block. Must be 32 bytes.
     #[prost(bytes="vec", tag="5")]
     pub action_tree_root: ::prost::alloc::vec::Vec<u8>,
     /// The proof that the action tree root was included in `header.data_hash`.
