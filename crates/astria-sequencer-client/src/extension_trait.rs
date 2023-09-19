@@ -269,7 +269,7 @@ pub trait SequencerSubscriptionClientExt: SubscriptionClient {
     /// This trait method calls the cometbft `/subscribe` endpoint with a
     /// `tm.event = 'NewBlock'` argument, and then attempts to convert each
     /// cometbft block to a `SequencerBlockData` type.
-    async fn subscribe_new_blocks(&self) -> Result<NewBlocksStream, SubscriptionFailed> {
+    async fn subscribe_new_block_data(&self) -> Result<NewBlocksStream, SubscriptionFailed> {
         use futures::stream::{
             StreamExt as _,
             TryStreamExt as _,
