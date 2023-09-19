@@ -63,6 +63,16 @@ jobs:
           --all-features \
           --all-targets \
           --exclude astria-celestia-jsonrpc-client
+      - name: Add COMETBFT and COMETBFT_DIR vars to environment
+        run: |
+          echo "COMETBFT_DIR=$HOME/cometbft" >> "$GITHUB_ENV"
+          echo "COMETBFT=$HOME/cometbft/cometbft" >> "$GITHUB_ENV"
+      - name: Download and install cometbft
+        run: |
+          mkdir $COMETBFT_DIR
+          wget https://github.com/cometbft/cometbft/releases/download/v0.37.2/cometbft_0.37.2_linux_amd64.tar.gz
+          tar -C $COMETBFT_DIR -xvzf cometbft_0.37.2_linux_amd64.tar.gz
+          chmod +x $COMETBFT
       - name: Run tests (excluding RPC client, which needs kubernetes)
         timeout-minutes: 20
         run: |
