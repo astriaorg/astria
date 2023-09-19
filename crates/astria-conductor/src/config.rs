@@ -84,7 +84,7 @@ mod tests {
 
     const EXAMPLE_ENV: &str = include_str!("../local.env.example");
 
-    fn populate_environment_from_example(jail: &mut Jail, envar_prefix: &str) {
+    fn populate_environment_from_example(jail: &mut Jail, test_envar_prefix: &str) {
         static RE_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[[:space:]]+").unwrap());
         static RE_END: Lazy<Regex> = Lazy::new(|| Regex::new(r"[[:space:]]+$").unwrap());
         for line in EXAMPLE_ENV.lines() {
@@ -92,7 +92,7 @@ mod tests {
                 if RE_END.is_match(key) || RE_START.is_match(val) {
                     panic!("env vars must not contain spaces in assignment\n{line}");
                 }
-                let prefixed_key = format!("{}_{}", envar_prefix, key);
+                let prefixed_key = format!("{}_{}", test_envar_prefix, key);
                 jail.set_env(prefixed_key, val);
             }
         }
