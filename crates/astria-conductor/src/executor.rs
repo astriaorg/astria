@@ -323,7 +323,8 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     debug!("execute_block returned None; skipping call_update_commitment_state");
                     return Ok(());
                 };
-                //
+                // when we execute a block received from da, nothing else has been executed on top
+                // of it, so we set FIRM and SOFT to this executed block
                 self.update_commitment_state(executed_block.clone(), executed_block)
                     .await?;
                 self.sequencer_hash_to_execution_block
