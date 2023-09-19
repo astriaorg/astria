@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use astria_sequencer_types::{
+    ChainId,
     Namespace,
     SequencerBlockData,
 };
@@ -26,6 +27,7 @@ use tracing::{
     error,
     info,
     instrument,
+    Instrument,
 };
 
 use crate::{
@@ -47,14 +49,18 @@ type Receiver = UnboundedReceiver<ExecutorCommand>;
 /// spawns a executor task and returns a tuple with the task's join handle
 /// and the channel for sending commands to this executor
 pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
-    info!("Spawning executor task.");
+    info!(
+        chain_id = %conf.chain_id,
+        execution_rpc_url = %conf.execution_rpc_url,
+        "Spawning executor task."
+    );
     let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url).await?;
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
-        Namespace::from_slice(conf.chain_id.as_bytes()),
+        ChainId::new(conf.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
     )
     .await?;
-    let join_handle = task::spawn(async move { executor.run().await });
+    let join_handle = task::spawn(async move { executor.run().in_current_span().await });
     info!("Spawned executor task.");
     Ok((join_handle, executor_tx))
 }
@@ -92,7 +98,10 @@ struct Executor<C> {
     /// The execution rpc client that we use to send messages to the execution service
     execution_rpc_client: C,
 
-    /// Namespace ID
+    /// Chain ID
+    chain_id: ChainId,
+
+    /// Namespace ID, derived from chain ID
     namespace: Namespace,
 
     /// Tracks the state of the execution chain
@@ -111,7 +120,7 @@ struct Executor<C> {
 }
 
 impl<C: ExecutionClient> Executor<C> {
-    async fn new(mut execution_rpc_client: C, namespace: Namespace) -> Result<(Self, Sender)> {
+    async fn new(mut execution_rpc_client: C, chain_id: ChainId) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let init_state_response = execution_rpc_client.call_init_state().await?;
         let execution_state = init_state_response.block_hash;
@@ -119,7 +128,8 @@ impl<C: ExecutionClient> Executor<C> {
             Self {
                 cmd_rx,
                 execution_rpc_client,
-                namespace,
+                chain_id: chain_id.clone(),
+                namespace: Namespace::from_slice(chain_id.as_ref()),
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
             },
@@ -127,6 +137,7 @@ impl<C: ExecutionClient> Executor<C> {
         ))
     }
 
+    #[instrument(skip_all)]
     async fn run(&mut self) -> Result<()> {
         info!("Starting executor event loop.");
 
@@ -135,30 +146,46 @@ impl<C: ExecutionClient> Executor<C> {
                 ExecutorCommand::BlockReceivedFromGossipNetwork {
                     block,
                 } => {
+                    let height = block.header().height.value();
                     let Some(block_subset) =
-                        SequencerBlockSubset::from_sequencer_block_data(*block, self.namespace)
+                        SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id)
                     else {
-                        info!(namespace = %self.namespace, "block did not contain data for namespace; skipping");
+                        info!(
+                            namespace = %self.namespace,
+                            "block did not contain data for namespace; skipping"
+                        );
                         continue;
                     };
                     if let Err(e) = self.execute_block(block_subset).await {
-                        error!("failed to execute block: {e:?}");
+                        error!(
+                            height = height,
+                            error = ?e,
+                            "failed to execute block"
+                        );
                     }
                 }
 
                 ExecutorCommand::BlockReceivedFromDataAvailability {
                     block,
                 } => {
+                    let height = block.header.height.value();
                     if let Err(e) = self
                         .handle_block_received_from_data_availability(*block)
                         .await
                     {
-                        error!("failed to finalize block: {}", e);
+                        error!(
+                            height = height,
+                            error = ?e,
+                            "failed to finalize block"
+                        );
                     }
                 }
 
                 ExecutorCommand::Shutdown => {
-                    info!("Shutting down executor event loop.");
+                    info!(
+                        namespace = %self.namespace,
+                        "Shutting down executor event loop."
+                    );
                     break;
                 }
             }
@@ -368,8 +395,8 @@ mod test {
 
     #[tokio::test]
     async fn execute_block_with_relevant_txs() {
-        let namespace = Namespace::from_slice(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace)
+        let chain_id = ChainId::new(b"test".to_vec()).unwrap();
+        let (mut executor, _) = Executor::new(MockExecutionClient::new(), chain_id)
             .await
             .unwrap();
 
@@ -387,8 +414,8 @@ mod test {
 
     #[tokio::test]
     async fn execute_block_without_relevant_txs() {
-        let namespace = Namespace::from_slice(b"test");
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), namespace)
+        let chain_id = ChainId::new(b"test".to_vec()).unwrap();
+        let (mut executor, _) = Executor::new(MockExecutionClient::new(), chain_id)
             .await
             .unwrap();
 
@@ -399,12 +426,12 @@ mod test {
 
     #[tokio::test]
     async fn handle_block_received_from_data_availability_not_yet_executed() {
-        let namespace = Namespace::from_slice(b"test");
+        let chain_id = ChainId::new(b"test".to_vec()).unwrap();
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace).await.unwrap();
+        let (mut executor, _) = Executor::new(execution_client, chain_id).await.unwrap();
 
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
@@ -432,12 +459,12 @@ mod test {
 
     #[tokio::test]
     async fn handle_block_received_from_data_availability_no_relevant_transactions() {
-        let namespace = Namespace::from_slice(b"test");
+        let chain_id = ChainId::new(b"test".to_vec()).unwrap();
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, namespace).await.unwrap();
+        let (mut executor, _) = Executor::new(execution_client, chain_id).await.unwrap();
 
         let block: SequencerBlockSubset = get_test_block_subset();
         let previous_execution_state = executor.execution_state.clone();

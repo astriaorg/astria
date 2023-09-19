@@ -7,7 +7,6 @@ use astria_sequencer_relayer::data_availability::{
 };
 use astria_sequencer_types::{
     calculate_last_commit_hash,
-    Namespace,
     RawSequencerBlockData,
     SequencerBlockData,
 };
@@ -37,10 +36,7 @@ use tendermint_rpc::{
     Client,
     HttpClient,
 };
-use tracing::{
-    instrument,
-    warn,
-};
+use tracing::instrument;
 
 /// `BlockVerifier` is responsible for verifying the correctness of a block
 /// before executing it.
@@ -49,6 +45,7 @@ use tracing::{
 /// `validate_signed_namespace_data` is used to validate the data received from the data
 /// availability layer. `validate_sequencer_block` is used to validate the blocks received from
 /// either the data availability layer or the gossip network.
+#[derive(Debug)]
 pub(crate) struct BlockVerifier {
     sequencer_client: HttpClient,
 }
@@ -114,15 +111,19 @@ impl BlockVerifier {
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
+            chain_ids_commitment,
         } = block.clone().into_raw();
-        let rollup_namespaces = rollup_data.into_keys().collect::<Vec<Namespace>>();
+        let rollup_chain_ids = rollup_data
+            .into_keys()
+            .collect::<Vec<astria_sequencer_types::ChainId>>();
         let data = SequencerNamespaceData {
             block_hash,
             header,
             last_commit,
-            rollup_namespaces,
+            rollup_chain_ids,
             action_tree_root,
             action_tree_root_inclusion_proof,
+            chain_ids_commitment,
         };
 
         self.validate_sequencer_namespace_data(&data).await?;
@@ -212,9 +213,10 @@ async fn validate_sequencer_namespace_data(
         block_hash,
         header,
         last_commit,
-        rollup_namespaces: _,
+        rollup_chain_ids: _,
         action_tree_root,
         action_tree_root_inclusion_proof,
+        chain_ids_commitment,
     } = data;
 
     // find proposer address for this height
@@ -281,6 +283,21 @@ async fn validate_sequencer_namespace_data(
     action_tree_root_inclusion_proof
         .verify(action_tree_root, data_hash)
         .wrap_err("failed to verify action tree root inclusion proof")?;
+
+    // validate the chain IDs commitment
+    let leaves = data
+        .rollup_chain_ids
+        .iter()
+        .map(|chain_id| chain_id.as_ref().to_vec())
+        .collect::<Vec<_>>();
+    let expected_chain_ids_commitment =
+        sequencer_validation::MerkleTree::from_leaves(leaves).root();
+    ensure!(
+        expected_chain_ids_commitment == *chain_ids_commitment,
+        "chain IDs commitment mismatch: expected {}, got {}",
+        hex::encode(expected_chain_ids_commitment),
+        hex::encode(chain_ids_commitment),
+    );
 
     Ok(())
 }
@@ -467,7 +484,7 @@ mod test {
         str::FromStr,
     };
 
-    use astria_sequencer_validation::{
+    use sequencer_validation::{
         generate_action_tree_leaves,
         MerkleTree,
     };
@@ -525,9 +542,10 @@ mod test {
             block_hash,
             header,
             last_commit: None,
-            rollup_namespaces: vec![],
+            rollup_chain_ids: vec![],
             action_tree_root,
             action_tree_root_inclusion_proof,
+            chain_ids_commitment: MerkleTree::from_leaves(vec![]).root(),
         };
 
         validate_sequencer_namespace_data(
@@ -566,14 +584,17 @@ mod test {
             block_hash,
             header,
             last_commit: None,
-            rollup_namespaces: vec![],
+            rollup_chain_ids: vec![
+                astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
+            ],
             action_tree_root,
             action_tree_root_inclusion_proof,
+            chain_ids_commitment: MerkleTree::from_leaves(vec![test_chain_id.to_vec()]).root(),
         };
 
         let rollup_namespace_data = RollupNamespaceData::new(
             block_hash,
-            test_chain_id.to_vec(),
+            astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
             vec![test_tx],
             action_tree.prove_inclusion(0).unwrap(),
         );

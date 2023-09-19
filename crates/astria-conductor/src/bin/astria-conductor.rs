@@ -1,24 +1,16 @@
 use std::time::Duration;
 
 use astria_conductor::{
-    cli::Cli,
-    config::Config,
+    config,
     driver::{
         Driver,
         DriverCommand,
     },
     telemetry,
 };
-use clap::Parser;
-use color_eyre::eyre::Result;
-use figment::{
-    providers::{
-        Env,
-        Format,
-        Serialized,
-        Toml,
-    },
-    Figment,
+use color_eyre::eyre::{
+    Context,
+    Result,
 };
 use tokio::{
     select,
@@ -32,31 +24,34 @@ use tokio::{
 use tracing::{
     error,
     info,
+    instrument,
 };
+
+// Following the BSD convention for failing to read config
+// See here: https://freedesktop.org/software/systemd/man/systemd.exec.html#Process%20Exit%20Codes
+const EX_CONFIG: i32 = 78;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    run().await?;
+    if let Err(e) = run().await {
+        eprintln!("Exited with error:\n{e:?}");
+        // FIXME (https://github.com/astriaorg/astria/issues/368): might have to bubble up exit codes, since we might need
+        //        to exit with other exit codes if something else fails
+        std::process::exit(EX_CONFIG);
+    };
     Ok(())
 }
 
+#[instrument(name = "astria_conductor::run")]
 async fn run() -> Result<()> {
-    let args = Cli::parse();
-    // hierarchical config. cli args override Envars which override toml config values
-    let conf: Config = Figment::new()
-        .merge(Toml::file("ConductorConfig.toml"))
-        .merge(Env::prefixed("RUST_").split("_").only(&["log"]))
-        .merge(Env::prefixed("ASTRIA_"))
-        .merge(Serialized::defaults(args))
-        .extract()?;
+    let conf = config::get().wrap_err("failed to read config")?;
 
-    telemetry::init(std::io::stdout, conf.log.as_deref().unwrap_or("info"))
-        .expect("failed to initialize telemetry");
+    telemetry::init(std::io::stdout, &conf.log).wrap_err("failed to initialize telemetry")?;
 
-    info!("Using chain ID {}", conf.chain_id);
-    info!("Using Celestia node at {}", conf.celestia_node_url);
-    info!("Using execution node at {}", conf.execution_rpc_url);
-    info!("Using Tendermint node at {}", conf.tendermint_url);
+    info!(
+        config = serde_json::to_string(&conf).expect("serializing to a string cannot fail"),
+        "initializing conductor"
+    );
 
     let SignalReceiver {
         mut reload_rx,
@@ -118,7 +113,11 @@ async fn run() -> Result<()> {
             _ = stop_rx.changed() => {
                 info!("shutting down conductor");
                 if let Some(e) = driver_tx.send(DriverCommand::Shutdown).err() {
-                    error!("error sending Shutdown command to driver: {}", e);
+                    error!(
+                        error.msg = %e,
+                        error.cause = ?e,
+                        "error sending Shutdown command to driver"
+                    );
                 }
                 break;
             }
@@ -131,7 +130,11 @@ async fn run() -> Result<()> {
                 if let Some(e) = driver_tx.send(DriverCommand::GetNewBlocks).err() {
                     // the only error that can happen here is SendError which occurs
                     // if the driver's receiver channel is dropped
-                    error!("error sending GetNewBlocks command to driver: {}", e);
+                    error!(
+                        error.msg = %e,
+                        error.cause = ?e,
+                        "error sending GetNewBlocks command to driver"
+                    );
                     break;
                 }
             }

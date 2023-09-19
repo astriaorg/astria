@@ -24,6 +24,7 @@ use tracing::{
 
 use crate::{
     accounts::component::AccountsComponent,
+    app_hash::AppHash,
     component::Component,
     genesis::GenesisState,
     state_ext::{
@@ -32,9 +33,6 @@ use crate::{
     },
     transaction,
 };
-
-/// The application hash, used to verify the application state.
-pub(crate) type AppHash = penumbra_storage::RootHash;
 
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
@@ -51,14 +49,15 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 pub(crate) struct App {
     state: InterBlockState,
 
-    /// set to `true` when `begin_block` is called, and set to `false` when
-    /// `deliver_tx` is called for the first time.
-    /// this is a hack to allow the `action_tree_root` to pass `deliver_tx`,
-    /// as it's the first "tx" delivered.
+    /// set to `0` when `begin_block` is called, and set to `1` or `2` when
+    /// `deliver_tx` is called for the first two times.
+    /// this is a hack to allow the `sequence_actions_commitment` and `chain_ids_commitment`
+    /// to pass `deliver_tx`, as they're the first two "tx"s delivered.
+    ///
     /// when the app is fully updated to ABCI++, `begin_block`, `deliver_tx`,
     /// and `end_block` will all become one function `finalize_block`, so
     /// this will not be needed.
-    has_block_just_begun: bool,
+    processed_txs: u32,
 }
 
 impl App {
@@ -71,7 +70,7 @@ impl App {
 
         Self {
             state,
-            has_block_just_begun: false,
+            processed_txs: 0,
         }
     }
 
@@ -111,7 +110,7 @@ impl App {
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
 
-        self.has_block_just_begun = true;
+        self.processed_txs = 0;
         self.apply(state_tx)
     }
 
@@ -122,9 +121,9 @@ impl App {
             native::sequencer::v1alpha1::SignedTransaction,
             Message as _,
         };
-        if self.has_block_just_begun {
+        if self.processed_txs < 2 {
             ensure!(tx.len() == 32);
-            self.has_block_just_begun = false;
+            self.processed_txs += 1;
             return Ok(vec![]);
         }
 
@@ -214,7 +213,7 @@ impl App {
             .await
             .expect("must be able to successfully commit to storage");
 
-        let app_hash: AppHash = jmt_root;
+        let app_hash = AppHash::from(jmt_root);
         tracing::debug!(?app_hash, "finished committing state");
 
         // Get the latest version of the state, now that we've committed it.
@@ -399,6 +398,7 @@ mod test {
             accounts: default_genesis_accounts(),
         };
         app.init_chain(genesis_state).await.unwrap();
+        app.processed_txs = 2;
 
         // transfer funds from Alice to Bob
         // this secret key corresponds to ALICE_ADDRESS
@@ -451,6 +451,7 @@ mod test {
             accounts: default_genesis_accounts(),
         };
         app.init_chain(genesis_state).await.unwrap();
+        app.processed_txs = 2;
 
         // create a new key; will have 0 balance
         let keypair = SigningKey::new(OsRng);
@@ -489,6 +490,7 @@ mod test {
             accounts: default_genesis_accounts(),
         };
         app.init_chain(genesis_state).await.unwrap();
+        app.processed_txs = 2;
 
         // this secret key corresponds to ALICE_ADDRESS
         let alice_secret_bytes: [u8; 32] =

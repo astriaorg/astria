@@ -9,6 +9,7 @@ use astria_sequencer_relayer::{
     validator::Validator,
     SequencerRelayer,
 };
+use astria_sequencer_validation::MerkleTree;
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
 use proto::native::sequencer::v1alpha1::{
@@ -105,12 +106,11 @@ pub enum CelestiaMode {
 
 pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequencerRelayer {
     Lazy::force(&TELEMETRY);
-    let mut config = Config::default();
-
+    let block_time = 1000;
     let mut conductor = MockConductor::start();
     let conductor_bootnode = (&mut conductor.bootnode_rx).await.unwrap();
 
-    let mut celestia = MockCelestia::start(config.block_time, celestia_mode).await;
+    let mut celestia = MockCelestia::start(block_time, celestia_mode).await;
     let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
 
     let (keyfile, validator) = tokio::task::spawn_blocking(|| {
@@ -128,12 +128,20 @@ pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequenc
 
     let sequencer = start_mocked_sequencer().await;
 
-    config.bootnodes = Some(vec![conductor_bootnode.to_string()]);
-    config.celestia_endpoint = format!("http://{celestia_addr}");
-    config.sequencer_endpoint = sequencer.uri();
-    config.rpc_port = 0;
-    config.p2p_port = 0;
-    config.validator_key_file = keyfile.path().to_string_lossy().to_string();
+    let config = Config {
+        sequencer_endpoint: sequencer.uri(),
+        celestia_endpoint: format!("http://{celestia_addr}"),
+        celestia_bearer_token: "".into(),
+        gas_limit: 100000,
+        disable_writing: false,
+        block_time: 1000,
+        validator_key_file: keyfile.path().to_string_lossy().to_string(),
+        rpc_port: 0,
+        p2p_port: 0,
+        bootnodes: Some(vec![conductor_bootnode.to_string()]),
+        libp2p_private_key: None,
+        log: "".into(),
+    };
 
     info!(config = serde_json::to_string(&config).unwrap());
     let config_clone = config.clone();
@@ -408,11 +416,12 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
     let signing_key = validator.signing_key();
 
     let suffix = height.to_string().into_bytes();
+    let chain_id = [b"test_chain_id_", &*suffix].concat();
     let signed_tx_bytes = UnsignedTransaction {
         nonce: 1,
         actions: vec![
             SequenceAction {
-                chain_id: [b"test_chain_id_", &*suffix].concat(),
+                chain_id: chain_id.clone(),
                 data: [b"hello_world_id_", &*suffix].concat(),
             }
             .into(),
@@ -423,7 +432,12 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
     .encode_to_vec();
     let action_tree =
         astria_sequencer_validation::MerkleTree::from_leaves(vec![signed_tx_bytes.clone()]);
-    let data = vec![action_tree.root().to_vec(), signed_tx_bytes];
+    let chain_ids_commitment = MerkleTree::from_leaves(vec![chain_id]).root();
+    let data = vec![
+        action_tree.root().to_vec(),
+        chain_ids_commitment.to_vec(),
+        signed_tx_bytes,
+    ];
     let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
         &data,
     )));
