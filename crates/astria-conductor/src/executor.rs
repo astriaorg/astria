@@ -294,9 +294,12 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
         match maybe_execution_block_hash {
             Some(executed_block) => {
                 // this case means block has already been executed.
-                // setting execution chain's FIRM and SOFT as this block
-                self.update_commitment_state(executed_block.clone(), executed_block)
-                    .await?;
+                // setting execution chain's FIRM.
+                self.update_commitment_state(
+                    executed_block,
+                    self.commitment_state.soft.clone().unwrap(),
+                )
+                .await?;
                 // remove the sequencer block hash from the map, as it's been executed
                 self.sequencer_hash_to_execution_block
                     .remove(&block.block_hash);
@@ -320,11 +323,9 @@ impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
                     debug!("execute_block returned None; skipping call_update_commitment_state");
                     return Ok(());
                 };
-                self.update_commitment_state(
-                    executed_block,
-                    self.commitment_state.soft.clone().unwrap(),
-                )
-                .await?;
+                //
+                self.update_commitment_state(executed_block.clone(), executed_block)
+                    .await?;
                 self.sequencer_hash_to_execution_block
                     .remove(&block.block_hash);
             }
