@@ -37,8 +37,7 @@ use tracing::{
 use crate::{
     config::Config,
     execution_client::{
-        ExecutionClientV1Alpha1,
-        ExecutionClientV1Alpha2,
+        ExecutionClient,
         ExecutionRpcClient,
     },
     types::SequencerBlockSubset,
@@ -124,7 +123,7 @@ struct Executor<C> {
     sequencer_hash_to_execution_block: HashMap<Hash, Block>,
 }
 
-impl<C: ExecutionClientV1Alpha1 + ExecutionClientV1Alpha2> Executor<C> {
+impl<C: ExecutionClient> Executor<C> {
     async fn new(mut execution_rpc_client: C, chain_id: ChainId) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
 
@@ -340,18 +339,11 @@ mod test {
         sync::Arc,
     };
 
-    use astria_proto::generated::execution::{
-        v1alpha1::{
-            DoBlockResponse,
-            InitStateResponse,
-        },
-        v1alpha2::{
-            BatchGetBlocksResponse,
-            BlockIdentifier,
-            CommitmentState,
-        },
+    use astria_proto::generated::execution::v1alpha2::{
+        BatchGetBlocksResponse,
+        BlockIdentifier,
+        CommitmentState,
     };
-    use prost_types::Timestamp;
     use sha2::Digest as _;
     use tokio::sync::Mutex;
 
@@ -373,36 +365,7 @@ mod test {
     impl crate::private::Sealed for MockExecutionClient {}
 
     #[async_trait::async_trait]
-    impl ExecutionClientV1Alpha1 for MockExecutionClient {
-        // returns the sha256 hash of the prev_block_hash
-        // the Executor passes self.execution_state as prev_block_hash
-        async fn call_do_block(
-            &mut self,
-            prev_block_hash: Vec<u8>,
-            _transactions: Vec<Vec<u8>>,
-            _timestamp: Option<Timestamp>,
-        ) -> Result<DoBlockResponse> {
-            let res = hash(&prev_block_hash);
-            Ok(DoBlockResponse {
-                block_hash: res.to_vec(),
-            })
-        }
-
-        async fn call_finalize_block(&mut self, block_hash: Vec<u8>) -> Result<()> {
-            self.finalized_blocks.lock().await.insert(block_hash);
-            Ok(())
-        }
-
-        async fn call_init_state(&mut self) -> Result<InitStateResponse> {
-            let hasher = sha2::Sha256::new();
-            Ok(InitStateResponse {
-                block_hash: hasher.finalize().to_vec(),
-            })
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl ExecutionClientV1Alpha2 for MockExecutionClient {
+    impl ExecutionClient for MockExecutionClient {
         async fn call_batch_get_blocks(
             &mut self,
             _identifiers: Vec<BlockIdentifier>,
