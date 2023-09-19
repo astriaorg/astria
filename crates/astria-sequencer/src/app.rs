@@ -581,6 +581,7 @@ mod test {
             authority_sudo_key: alice,
         };
         app.init_chain(genesis_state, vec![]).await.unwrap();
+        app.processed_txs = 2;
 
         let update = tendermint::validator::Update {
             pub_key: tendermint::public_key::PublicKey::from_raw_ed25519(&[1; 32]).unwrap(),
