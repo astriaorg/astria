@@ -149,9 +149,10 @@ impl Driver {
 
     /// Runs the Driver event loop.
     #[instrument(name = "driver", skip_all)]
-    pub async fn run(&mut self) -> Result<()> {
+    pub async fn run(mut self) -> Result<()> {
         use futures::StreamExt as _;
         use sequencer_client::SequencerSubscriptionClientExt as _;
+
         info!("Starting driver event loop.");
         let mut new_blocks = self
             .sequencer_client
