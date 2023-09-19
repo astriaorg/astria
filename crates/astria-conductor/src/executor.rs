@@ -550,7 +550,7 @@ mod test {
 
     #[tokio::test]
     async fn handle_block_received_from_data_availability_already_executed() {
-        let chain_id = ChainId::new(b"test".to_vec());
+        let chain_id = ChainId::new(b"test".to_vec()).unwrap();
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
