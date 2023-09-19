@@ -13,9 +13,6 @@ pub struct Config {
     /// The endpoint on which Sequencer will listen for ABCI requests
     #[arg(long, default_value_t = String::from(DEFAULT_ABCI_LISTEN_ADDR))]
     pub listen_addr: String,
-    /// The path to the json encoded genesis file with a list of accounts.
-    #[arg(long)]
-    pub genesis_file: String,
     /// The path to penumbra storage db.
     #[arg(long)]
     pub db_filepath: PathBuf,

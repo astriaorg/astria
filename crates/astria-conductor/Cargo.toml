@@ -35,11 +35,11 @@ astria-sequencer-client = { path = "../astria-sequencer-client", features = [
 ] }
 astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 astria-sequencer-types = { path = "../astria-sequencer-types" }
+sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
 base64 = { workspace = true }
 once_cell = { workspace = true }
-astria-sequencer-validation = { path = "../astria-sequencer-validation" }
 figment = { workspace = true, features = ["test"] }
 regex = { workspace = true }
