@@ -136,7 +136,7 @@ impl Searcher {
         // create channel for sending bundles to executor
         let (executor_tx, executor_rx) = mpsc::channel(256);
         let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx)
-            .context("executor construction from config failed")?;
+            .wrap_err("executor construction from config failed")?;
 
         // create channel for receiving executor status
         let executor_status = executor.subscribe();
