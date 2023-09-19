@@ -94,7 +94,7 @@ pub struct CelestiaSequencerData {
     pub sequencer_block_header: ::core::option::Option<::tendermint_proto::types::Header>,
     /// The commit/set of signatures that commited this block.
     #[prost(message, optional, tag="3")]
-    pub sequencer_bock_last_commit: ::core::option::Option<::tendermint_proto::types::Commit>,
+    pub sequencer_block_last_commit: ::core::option::Option<::tendermint_proto::types::Commit>,
     /// The namespaces under which rollup transactions belonging to the sequencer
     /// block identified by `sequencer_block_hash` where submitted to celestia.
     /// The bytes must convert to a celestia v0 namespace.
