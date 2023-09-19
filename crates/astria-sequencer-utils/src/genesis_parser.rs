@@ -60,15 +60,11 @@ impl GenesisParser {
     }
 }
 
-/// Merges a source JSON Value into a destination JSON Value context:
-// https://stackoverflow.com/questions/47070876/how-can-i-merge-two-json-objects-with-rust
 fn insert_app_state(dst: &mut Value, app_state: &Value) {
-    match dst {
-        Value::Object(dst) => {
-            dst.insert("app_state".to_string(), app_state.clone());
-        }
-        _ => panic!("dst is not an object"),
-    }
+    let Value::Object(dst) = dst else {
+        panic!("dst is not an object");
+    };
+    dst.insert("app_state".to_string(), app_state.clone());
 }
 
 #[cfg(test)]

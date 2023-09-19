@@ -82,7 +82,7 @@ impl Info {
                 );
 
                 let response = InfoResponse::Info(response::Info {
-                    version: "0.1.0".to_string(),
+                    version: env!("CARGO_PKG_VERSION").to_string(),
                     app_version: 1,
                     last_block_height: u32::try_from(block_height)
                         .expect("block height must fit into u32")
