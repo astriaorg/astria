@@ -35,8 +35,6 @@ mod rollup;
 
 use collector::Collector;
 
-const BUNDLE_CHANNEL_SIZE: usize = 256;
-
 /// A Searcher collates transactions from multiple rollups and bundles them into
 /// Astria sequencer transactions that are then passed on to the
 /// Shared Sequencer. The rollup transactions that make up these sequencer transactions
@@ -136,7 +134,7 @@ impl Searcher {
         let (status, _) = watch::channel(Status::default());
 
         // create channel for sending bundles to executor
-        let (executor_tx, executor_rx) = mpsc::channel(BUNDLE_CHANNEL_SIZE);
+        let (executor_tx, executor_rx) = mpsc::channel(256);
         let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx)
             .context("executor construction from config failed")?;
 
