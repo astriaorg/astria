@@ -16,7 +16,6 @@ zeroize = { version = "1.6.0", features = ["zeroize_derive"] }
 axum = { workspace = true }
 backon = { workspace = true }
 base64 = { workspace = true }
-clap = { workspace = true, features = ["derive"] }
 figment = { workspace = true, features = ["env"] }
 ed25519-consensus = { workspace = true }
 eyre = { workspace = true }
@@ -51,6 +50,7 @@ figment = { workspace = true, features = ["test"] }
 jsonrpsee = { workspace = true, features = ["server"] }
 multiaddr = { workspace = true }
 once_cell = { workspace = true }
+regex = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 wiremock = { workspace = true }

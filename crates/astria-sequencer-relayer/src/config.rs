@@ -8,44 +8,44 @@ use serde::{
     Serialize,
 };
 
+/// Utility function to read the application's config in one go.
+///
+/// # Errors
+///
+/// An error is returned if the config could not be read.
 pub fn get() -> Result<Config, figment::Error> {
     Config::from_environment()
 }
 
-/// The global configuration for the driver and its components.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+/// The single config for creating an astria-sequencer-relayer service.
 #[serde(deny_unknown_fields)]
 pub struct Config {
-    /// URL of the Celestia Node
-    pub celestia_node_url: String,
-
-    /// The JWT bearer token supplied with each jsonrpc call
+    pub sequencer_endpoint: String,
+    pub celestia_endpoint: String,
     pub celestia_bearer_token: String,
-
-    /// URL of the Tendermint node (sequencer/metro)
-    pub tendermint_url: String,
-
-    /// Chain ID that we want to work in
-    pub chain_id: String,
-
-    /// Address of the RPC server for execution
-    pub execution_rpc_url: String,
-
-    /// Disable reading from the DA layer and block finalization
-    pub disable_finalization: bool,
-
-    /// Bootnodes for the P2P network
+    pub gas_limit: u64,
+    pub disable_writing: bool,
+    pub block_time: u64,
+    pub validator_key_file: String,
+    pub rpc_port: u16,
+    pub p2p_port: u16,
     #[serde(deserialize_with = "bootnodes_deserialize")]
     pub bootnodes: Option<Vec<String>>,
-
-    /// Path to the libp2p private key file
     pub libp2p_private_key: Option<String>,
-
-    /// Port to listen on for libp2p
-    pub libp2p_port: u16,
-
-    /// log directive to use for telemetry.
     pub log: String,
+}
+
+impl Config {
+    /// Constructs [`Config`] with command line arguments.
+    fn from_environment() -> Result<Config, figment::Error> {
+        let rust_log = Env::prefixed("RUST_").split("_").only(&["log"]);
+
+        Figment::new()
+            .merge(rust_log)
+            .merge(Env::prefixed("ASTRIA_SEQUENCER_RELAYER_"))
+            .extract()
+    }
 }
 
 fn bootnodes_deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
@@ -65,15 +65,6 @@ where
     ))
 }
 
-impl Config {
-    fn from_environment() -> Result<Config, figment::Error> {
-        Figment::new()
-            .merge(Env::prefixed("RUST_").split("_").only(&["log"]))
-            .merge(Env::prefixed("ASTRIA_CONDUCTOR_"))
-            .extract()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use figment::Jail;
@@ -81,8 +72,8 @@ mod tests {
     use regex::Regex;
 
     use super::Config;
-
-    const EXAMPLE_ENV: &str = include_str!("../local.env.example");
+    const EXAMPLE_ENV: &str =
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/local.env.example"));
 
     fn populate_environment_from_example(jail: &mut Jail) {
         static RE_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[[:space:]]+").unwrap());
@@ -111,7 +102,7 @@ mod tests {
     fn extra_env_vars_are_rejected() {
         Jail::expect_with(|jail| {
             populate_environment_from_example(jail);
-            jail.set_env("ASTRIA_CONDUCTOR_FOOBAR", "BAZ");
+            jail.set_env("ASTRIA_SEQUENCER_RELAYER_FOOBAR", "BAZ");
             Config::from_environment().unwrap();
             Ok(())
         });

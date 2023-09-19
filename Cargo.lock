@@ -404,10 +404,10 @@ dependencies = [
  "astria-sequencer-client",
  "astria-sequencer-relayer",
  "astria-sequencer-types",
+ "astria-sequencer-validation",
  "astria-telemetry",
  "async-trait",
  "base64 0.21.2",
- "clap",
  "color-eyre",
  "ed25519-consensus",
  "figment",
@@ -416,6 +416,8 @@ dependencies = [
  "once_cell",
  "prost",
  "prost-types",
+ "rand 0.8.5",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
@@ -525,7 +527,6 @@ dependencies = [
  "backon",
  "base64 0.21.2",
  "base64-serde",
- "clap",
  "dirs",
  "ed25519-consensus",
  "eyre",
@@ -540,6 +541,7 @@ dependencies = [
  "once_cell",
  "prost",
  "rand_core 0.6.4",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
@@ -564,13 +566,14 @@ dependencies = [
  "astria-sequencer-validation",
  "base64 0.21.2",
  "base64-serde",
- "ct-merkle",
- "eyre",
+ "ct-merkle 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex",
+ "prost",
  "serde",
  "serde_json",
  "sha2 0.10.7",
  "tendermint",
+ "tendermint-proto",
  "thiserror",
  "tracing",
 ]
@@ -590,8 +593,7 @@ name = "astria-sequencer-validation"
 version = "0.1.0"
 dependencies = [
  "bytes",
- "ct-merkle",
- "eyre",
+ "ct-merkle 0.1.0 (git+https://github.com/rozbb/ct-merkle?rev=a3f3965c368946944425d59370783b3381a1fb4d)",
  "hex",
  "serde",
  "serde_json",
@@ -1605,7 +1607,19 @@ dependencies = [
 [[package]]
 name = "ct-merkle"
 version = "0.1.0"
-source = "git+https://github.com/astriaorg/ct-merkle.git?rev=58f692640be65ef42bc14f69e52a9e836f407a33#58f692640be65ef42bc14f69e52a9e836f407a33"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6920781f1a0d2f2f8bfb3a5023b2095430efb29b86074fe7f5ee86912b1f6d6"
+dependencies = [
+ "digest 0.10.7",
+ "generic-array",
+ "serde",
+ "subtle",
+]
+
+[[package]]
+name = "ct-merkle"
+version = "0.1.0"
+source = "git+https://github.com/rozbb/ct-merkle?rev=a3f3965c368946944425d59370783b3381a1fb4d#a3f3965c368946944425d59370783b3381a1fb4d"
 dependencies = [
  "digest 0.10.7",
  "generic-array",
@@ -2545,7 +2559,6 @@ dependencies = [
  "pear",
  "serde",
  "tempfile",
- "toml 0.7.6",
  "uncased",
  "version_check",
 ]

@@ -73,7 +73,6 @@ impl ActionHandler for UnsignedTransaction {
             "invalid nonce, tx nonce must match account nonce"
         );
 
-        // do we need to make a StateDelta here so we can check the actions on the successive state?
         for action in &self.actions {
             match action {
                 Action::Transfer(act) => act
@@ -98,8 +97,6 @@ impl ActionHandler for UnsignedTransaction {
         )
     )]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> anyhow::Result<()> {
-        // TODO(https://github.com/astriaorg/astria/issues/317): make a new StateDelta so this is atomic / can be rolled back in case of error
-
         let from_nonce = state
             .get_account_nonce(from)
             .await

@@ -19,6 +19,7 @@ use tracing::{
     info,
     instrument,
     warn,
+    Instrument,
 };
 
 use crate::{
@@ -42,7 +43,10 @@ pub(crate) async fn spawn(
     executor_tx: executor::Sender,
     block_verifier: Arc<BlockVerifier>,
 ) -> eyre::Result<(JoinHandle, Sender)> {
-    info!("Spawning reader task.");
+    info!(
+        celestia_node_url = %conf.celestia_node_url,
+        "Spawning reader task."
+    );
     let (mut reader, reader_tx) = Reader::new(
         &conf.celestia_node_url,
         &conf.celestia_bearer_token,
@@ -52,7 +56,7 @@ pub(crate) async fn spawn(
     )
     .await
     .wrap_err("failed to create Reader")?;
-    let join_handle = task::spawn(async move { reader.run().await });
+    let join_handle = task::spawn(async move { reader.run().in_current_span().await });
     info!("Spawned reader task.");
     Ok((join_handle, reader_tx))
 }
@@ -65,6 +69,7 @@ pub enum ReaderCommand {
     Shutdown,
 }
 
+#[derive(Debug)]
 pub struct Reader {
     /// Channel on which reader commands are received.
     cmd_rx: Receiver,
@@ -85,8 +90,8 @@ pub struct Reader {
 }
 
 impl Reader {
-    /// Creates a new Reader instance and returns a command sender and an alert receiver.
-    pub async fn new(
+    /// Creates a new Reader instance and returns a command sender.
+    pub(crate) async fn new(
         celestia_node_url: &str,
         celestia_bearer_token: &str,
         executor_tx: executor::Sender,
@@ -118,6 +123,7 @@ impl Reader {
         ))
     }
 
+    #[instrument(name = "reader", skip_all)]
     async fn run(&mut self) -> eyre::Result<()> {
         info!("Starting reader event loop.");
 
@@ -127,14 +133,20 @@ impl Reader {
                     let blocks = match self.get_new_blocks().await {
                         Ok(blocks) => blocks,
                         Err(e) => {
-                            warn!(error = ?e, "failed to get new blocks");
+                            warn!(
+                                error = ?e,
+                                "failed to get new blocks"
+                            );
                             continue;
                         }
                     };
                     if let Some(blocks) = blocks {
                         for block in blocks {
                             if let Err(e) = self.process_block(block).await {
-                                warn!(err.message = %e, err.cause_chain = ?e, "failed to process block");
+                                warn!(
+                                    error = ?e,
+                                    "failed to process block"
+                                );
                             }
                         }
                     }
@@ -150,7 +162,6 @@ impl Reader {
     }
 
     /// get_new_blocks fetches any new sequencer blocks from Celestia.
-    #[instrument(name = "Reader::get_new_blocks", skip_all)]
     pub async fn get_new_blocks(&mut self) -> eyre::Result<Option<Vec<SequencerBlockSubset>>> {
         // get the latest celestia block height
         let first_new_height = self.curr_block_height + 1;
@@ -187,7 +198,10 @@ impl Reader {
             {
                 Ok(datas) => datas,
                 Err(e) => {
-                    warn!(error.msg = %e, error.cause_chain = ?e, height, "failed getting sequencer namespace data from data availability layer");
+                    warn!(
+                        error = ?e,
+                        height,
+                        "failed getting sequencer namespace data from data availability layer");
                     continue 'check_heights;
                 }
             };
@@ -204,7 +218,10 @@ impl Reader {
                     .await
                 {
                     // FIXME: provide more information here to identify the particular block?
-                    warn!(error.msg = %e, error.cause_chain = ?e, "failed to validate signed namespace data; skipping");
+                    warn!(
+                        error = ?e,
+                        "failed to validate signed namespace data; skipping"
+                    );
                     continue 'get_sequencer_blocks;
                 }
 
@@ -225,23 +242,24 @@ impl Reader {
                     Err(e) => {
                         // this means someone submitted an invalid block to celestia;
                         // we can ignore it
-                        warn!(error.msg = %e, error.cause_chain = ?e, "failed to get sequencer block from namespace data");
+                        warn!(
+                            error = ?e,
+                            "failed to get sequencer block from namespace data"
+                        );
                         continue 'get_sequencer_blocks;
                     }
                 };
                 if let Err(e) = self
                     .block_verifier
-                    .validate_rollup_data(
-                        data.data.block_hash,
-                        &data.data.header,
-                        &data.data.last_commit,
-                        &rollup_data,
-                    )
+                    .validate_rollup_data(&data.data, &rollup_data)
                     .await
                 {
                     // this means someone submitted an invalid block to celestia;
                     // we can ignore it
-                    warn!(error.msg = %e, error.cause_chain = ?e, "failed to validate sequencer block");
+                    warn!(
+                        error = ?e,
+                        "failed to validate sequencer block"
+                    );
                     continue 'get_sequencer_blocks;
                 }
                 blocks.push(SequencerBlockSubset {
@@ -261,6 +279,10 @@ impl Reader {
 
     /// Processes an individual block
     async fn process_block(&self, block: SequencerBlockSubset) -> eyre::Result<()> {
+        info!(
+            height = block.header.height.value(),
+            "sequencer block received from DA layer"
+        );
         self.executor_tx.send(
             executor::ExecutorCommand::BlockReceivedFromDataAvailability {
                 block: Box::new(block),
