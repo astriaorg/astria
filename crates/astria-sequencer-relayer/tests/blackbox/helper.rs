@@ -9,6 +9,7 @@ use astria_sequencer_relayer::{
     validator::Validator,
     SequencerRelayer,
 };
+use astria_sequencer_validation::MerkleTree;
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
 use proto::native::sequencer::v1alpha1::{
@@ -415,11 +416,12 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
     let signing_key = validator.signing_key();
 
     let suffix = height.to_string().into_bytes();
+    let chain_id = [b"test_chain_id_", &*suffix].concat();
     let signed_tx_bytes = UnsignedTransaction {
         nonce: 1,
         actions: vec![
             SequenceAction {
-                chain_id: [b"test_chain_id_", &*suffix].concat(),
+                chain_id: chain_id.clone(),
                 data: [b"hello_world_id_", &*suffix].concat(),
             }
             .into(),
@@ -430,7 +432,12 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
     .encode_to_vec();
     let action_tree =
         astria_sequencer_validation::MerkleTree::from_leaves(vec![signed_tx_bytes.clone()]);
-    let data = vec![action_tree.root().to_vec(), signed_tx_bytes];
+    let chain_ids_commitment = MerkleTree::from_leaves(vec![chain_id]).root();
+    let data = vec![
+        action_tree.root().to_vec(),
+        chain_ids_commitment.to_vec(),
+        signed_tx_bytes,
+    ];
     let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
         &data,
     )));
