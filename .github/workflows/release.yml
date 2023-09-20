@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: BUF
     needs: run_checker
-    if: ${{ needs.run_checker.outputs.run_release_proto && github.repository_owner == 'astriaorg' }}
+    if: false
     steps:
       - uses: actions/checkout@v3
       - uses: bufbuild/buf-setup-action@v1
