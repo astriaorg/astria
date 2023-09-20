@@ -56,7 +56,7 @@ pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
     );
     let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url)
         .await
-        .context("failed to create execution rpc client")?;
+        .wrap_err("failed to create execution rpc client")?;
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
         ChainId::new(conf.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
@@ -133,7 +133,10 @@ impl<C: ExecutionClient> Executor<C> {
         disable_empty_block_execution: bool,
     ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let init_state_response = execution_rpc_client.call_init_state().await?;
+        let init_state_response = execution_rpc_client
+            .call_init_state()
+            .await
+            .wrap_err("could not initialize execution rpc client state")?;
         let execution_state = init_state_response.block_hash;
         Ok((
             Self {
