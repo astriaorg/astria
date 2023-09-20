@@ -199,15 +199,6 @@ impl Relayer {
         match conversion_result {
             // Collect successfully converted sequencer responses
             Ok(Some(sequencer_block_data)) => {
-                info!(
-                    height = %sequencer_block_data.header().height,
-                    block_hash = hex::encode(sequencer_block_data.block_hash()),
-                    proposer = %sequencer_block_data.header().proposer_address,
-                    num_contained_namespaces = sequencer_block_data.rollup_data().len(),
-                    chain_id_to_tx_count = %ChainIdToTxCount::new(sequencer_block_data.rollup_data()),
-                    "gossiping sequencer block",
-                );
-
                 // Update the internal state if the block was admitted
                 let height = sequencer_block_data.header().height.value();
                 self.state_tx.send_if_modified(|state| {
