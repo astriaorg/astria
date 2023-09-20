@@ -148,24 +148,21 @@ impl Executor {
         Ok(())
     }
 
-    /// Transforms a Vec<Action> -> `UnsignedTransaction` -> `SignedTransction` and then submits it
-    /// to the sequencer
-    async fn process_bundle(&mut self, bundle: Vec<Action>) -> eyre::Result<()> {
+    /// Signs and submits the bundle of actions to the sequencer.
+    async fn sign_and_submit(&mut self, actions: Vec<Action>) -> eyre::Result<()> {
         let nonce = self
             .get_and_increment_nonce()
             .ok_or(eyre!("no nonce stored; cannot process bundle"))?;
 
-        // create unsigned tx
-        let unsigned_tx = UnsignedTransaction {
+        let tx = UnsignedTransaction {
             nonce,
-            actions: bundle,
-        };
+            actions,
+        }
+        .into_signed(&self.sequencer_key);
 
-        // sign tx
-        let signed_tx = unsigned_tx.into_signed(&self.sequencer_key);
-
-        // submit tx
-        self.submit_tx(signed_tx).await?;
+        self.submit_tx(tx)
+            .await
+            .wrap_err("failed submitting signed actions to sequencer")?;
         Ok(())
     }
 
@@ -180,7 +177,7 @@ impl Executor {
             .wrap_err("failed retrieving initial nonce from sequencer")?;
 
         while let Some(bundle) = self.executor_rx.recv().await {
-            if let Err(e) = self.process_bundle(bundle.clone()).await {
+            if let Err(e) = self.sign_and_submit(bundle).await {
                 // FIXME: currently this will fail both when there is an issue with the nonce and
                 // when unable to reach the sequencer. As there is currently no error returned by
                 // the sequencer for invalid nonces, there is nothing to handle. This should be
