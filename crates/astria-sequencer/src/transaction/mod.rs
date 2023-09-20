@@ -18,6 +18,19 @@ use crate::accounts::state_ext::{
     StateWriteExt,
 };
 
+pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
+    tx: &SignedTransaction,
+    state: &S,
+) -> anyhow::Result<()> {
+    let signer_address = Address::from_verification_key(tx.verification_key());
+    let curr_nonce = state.get_account_nonce(signer_address).await?;
+    ensure!(
+        tx.unsigned_transaction().nonce < curr_nonce,
+        "nonce already used by account"
+    );
+    Ok(())
+}
+
 pub(crate) fn check_stateless(tx: &SignedTransaction) -> anyhow::Result<()> {
     tx.unsigned_transaction().check_stateless()
 }

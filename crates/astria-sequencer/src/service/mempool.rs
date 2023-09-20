@@ -10,6 +10,7 @@ use futures::{
     Future,
     FutureExt,
 };
+use penumbra_storage::Storage;
 use tendermint::abci::{
     request,
     response,
@@ -20,12 +21,24 @@ use tower::Service;
 use tower_abci::BoxError;
 use tracing::Instrument;
 
+use crate::accounts::state_ext::StateReadExt;
+
 /// Mempool handles [`request::CheckTx`] abci requests.
 //
 /// It performs a stateless check of the given transaction,
 /// returning a [`tendermint::abci::response::CheckTx`].
-#[derive(Clone, Default)]
-pub(crate) struct Mempool;
+#[derive(Clone)]
+pub(crate) struct Mempool {
+    storage: Storage,
+}
+
+impl Mempool {
+    pub(crate) fn new(storage: Storage) -> Self {
+        Self {
+            storage,
+        }
+    }
+}
 
 impl Service<MempoolRequest> for Mempool {
     type Error = BoxError;
@@ -39,9 +52,12 @@ impl Service<MempoolRequest> for Mempool {
     fn call(&mut self, req: MempoolRequest) -> Self::Future {
         use penumbra_tower_trace::RequestExt as _;
         let span = req.create_span();
+        let storage = self.storage.clone();
         async move {
             let rsp = match req {
-                MempoolRequest::CheckTx(req) => MempoolResponse::CheckTx(handle_check_tx(req)),
+                MempoolRequest::CheckTx(req) => {
+                    MempoolResponse::CheckTx(handle_check_tx(req, storage.latest_snapshot()).await)
+                }
             };
             Ok(rsp)
         }
@@ -50,7 +66,10 @@ impl Service<MempoolRequest> for Mempool {
     }
 }
 
-fn handle_check_tx(req: request::CheckTx) -> response::CheckTx {
+async fn handle_check_tx<S: StateReadExt + 'static>(
+    req: request::CheckTx,
+    state: S,
+) -> response::CheckTx {
     use proto::{
         generated::sequencer::v1alpha1 as raw,
         native::sequencer::v1alpha1::SignedTransaction,
@@ -79,6 +98,18 @@ fn handle_check_tx(req: request::CheckTx) -> response::CheckTx {
     // TODO(https://github.com/astriaorg/astria/issues/228): status codes for various errors
     // TODO(https://github.com/astriaorg/astria/issues/319): offload `check_stateless` using `deliver_tx_bytes` mechanism
     //       and a worker task similar to penumbra
+    match transaction::check_nonce_mempool(&signed_tx, &state).await {
+        Ok(_) => (),
+        Err(e) => {
+            return response::CheckTx {
+                code: AbciCode::INVALID_PARAMETER.into(),
+                info: "failed verifying nonce of SignedTransaction".into(),
+                log: format!("{e:?}"),
+                ..response::CheckTx::default()
+            };
+        }
+    }
+
     match transaction::check_stateless(&signed_tx) {
         Ok(_) => response::CheckTx::default(),
         Err(e) => response::CheckTx {
