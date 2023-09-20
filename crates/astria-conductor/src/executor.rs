@@ -276,6 +276,13 @@ impl<C: ExecutionClient> Executor<C> {
         Ok(())
     }
 
+    /// Updates both firm and soft commitments.
+    async fn update_commitments(&mut self, block: Block) -> Result<()> {
+        self.update_commitment_state(block.clone(), block)
+            .await?;
+        Ok(())
+    }
+
     /// Updates only firm commitment and leaves soft commitment the same.
     async fn update_firm_commitment(&mut self, firm: Block) -> Result<()> {
         self.update_commitment_state(firm, self.commitment_state.soft.clone().unwrap())
@@ -328,8 +335,8 @@ impl<C: ExecutionClient> Executor<C> {
                 };
                 // when we execute a block received from da, nothing else has been executed on top
                 // of it, so we set FIRM and SOFT to this executed block
-                self.update_commitment_state(executed_block.clone(), executed_block)
-                    .await?;
+                self.update_commitments(executed_block).await?;
+                // remove the sequencer block hash from the map, as it's been firmly committed
                 self.sequencer_hash_to_execution_block
                     .remove(&block.block_hash);
             }
