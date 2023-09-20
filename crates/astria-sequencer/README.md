@@ -69,7 +69,7 @@ In astria-sequencer/:
 
 ```sh
 cargo build
-../../target/debug/astria-sequencer --db-filepath=/tmp/astria_db
+../../target/debug/astria-sequencer
 ```
 
 
@@ -111,4 +111,4 @@ just run-cometbft
 
 ## Testnet
 
-Check out the `TESTNET.md` file for details on how to run the astria testnet
+Check out the `TESTNET.md` file for details on how to run a multi-node sequencer testnet.
