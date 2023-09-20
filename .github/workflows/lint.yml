@@ -71,4 +71,5 @@ jobs:
 
   lint:
     needs: [proto, rust, toml, markdown]
+    if: ${{ always() && !cancelled() }}
     uses: ./.github/workflows/reusable-success.yml

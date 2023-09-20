@@ -151,5 +151,6 @@ jobs:
           -- --deny warnings
 
   test:
+    if: ${{ always() && !cancelled() }}
     needs: [compiles, rust, rpc_client, doctest, clippy, lockfile]
     uses: ./.github/workflows/reusable-success.yml

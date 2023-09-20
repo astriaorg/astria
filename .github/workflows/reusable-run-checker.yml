@@ -49,7 +49,7 @@ jobs:
           list-files: json
           filters: |
             release_workflow:
-              - '.github/workflows/proto.yml'
+              - '.github/workflows/release.yml'
             test_workflow:
               - '.github/workflows/test.yml'
             docker_workflow:

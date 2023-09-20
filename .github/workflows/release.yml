@@ -28,4 +28,5 @@ jobs:
 
   release:
     needs: [proto]
+    if: ${{ always() && !cancelled() }}
     uses: ./.github/workflows/reusable-success.yml

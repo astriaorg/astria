@@ -57,5 +57,6 @@ jobs:
     secrets: inherit
 
   docker:
+    if: ${{ always() && !cancelled() }}
     needs: [composer, conductor, sequencer, sequencer-relayer]
     uses: ./.github/workflows/reusable-success.yml
