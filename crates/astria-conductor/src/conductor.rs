@@ -140,13 +140,13 @@ fn spawn_signal_handler() -> SignalReceiver {
     let (reload_tx, reload_rx) = watch::channel(());
     tokio::spawn(async move {
         let mut sighup = signal(SignalKind::hangup()).expect(
-            "setting a SIGHUP listener should always work on linux; is this running on linux?",
+            "setting a SIGHUP listener should always work on unix; is this running on unix?",
         );
         let mut sigint = signal(SignalKind::interrupt()).expect(
-            "setting a SIGINT listener should always work on linux; is this running on linux?",
+            "setting a SIGINT listener should always work on unix; is this running on unix?",
         );
         let mut sigterm = signal(SignalKind::terminate()).expect(
-            "setting a SIGTERM listener should always work on linux; is this running on linux?",
+            "setting a SIGTERM listener should always work on unix; is this running on unix?",
         );
         loop {
             select! {
