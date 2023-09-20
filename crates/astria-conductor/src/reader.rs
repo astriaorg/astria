@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use astria_sequencer_relayer::data_availability::CelestiaClient;
 use astria_sequencer_types::Namespace;
 use color_eyre::eyre::{
@@ -32,7 +30,7 @@ use crate::{
 pub(crate) type JoinHandle = task::JoinHandle<eyre::Result<()>>;
 
 /// The channel for sending commands to the reader task.
-pub type Sender = UnboundedSender<ReaderCommand>;
+pub(crate) type Sender = UnboundedSender<ReaderCommand>;
 /// The channel the reader task uses to listen for commands.
 type Receiver = UnboundedReceiver<ReaderCommand>;
 
@@ -41,7 +39,7 @@ type Receiver = UnboundedReceiver<ReaderCommand>;
 pub(crate) async fn spawn(
     conf: &Config,
     executor_tx: executor::Sender,
-    block_verifier: Arc<BlockVerifier>,
+    block_verifier: BlockVerifier,
 ) -> eyre::Result<(JoinHandle, Sender)> {
     info!(
         celestia_node_url = %conf.celestia_node_url,
@@ -62,7 +60,7 @@ pub(crate) async fn spawn(
 }
 
 #[derive(Debug)]
-pub enum ReaderCommand {
+pub(crate) enum ReaderCommand {
     /// Get new blocks
     GetNewBlocks,
 
@@ -70,7 +68,7 @@ pub enum ReaderCommand {
 }
 
 #[derive(Debug)]
-pub struct Reader {
+pub(crate) struct Reader {
     /// Channel on which reader commands are received.
     cmd_rx: Receiver,
 
@@ -83,7 +81,7 @@ pub struct Reader {
     /// the last block height fetched from Celestia
     curr_block_height: u64,
 
-    block_verifier: Arc<BlockVerifier>,
+    block_verifier: BlockVerifier,
 
     /// Namespace ID
     namespace: Namespace,
@@ -95,7 +93,7 @@ impl Reader {
         celestia_node_url: &str,
         celestia_bearer_token: &str,
         executor_tx: executor::Sender,
-        block_verifier: Arc<BlockVerifier>,
+        block_verifier: BlockVerifier,
         namespace: Namespace,
     ) -> eyre::Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
@@ -162,7 +160,9 @@ impl Reader {
     }
 
     /// get_new_blocks fetches any new sequencer blocks from Celestia.
-    pub async fn get_new_blocks(&mut self) -> eyre::Result<Option<Vec<SequencerBlockSubset>>> {
+    pub(crate) async fn get_new_blocks(
+        &mut self,
+    ) -> eyre::Result<Option<Vec<SequencerBlockSubset>>> {
         // get the latest celestia block height
         let first_new_height = self.curr_block_height + 1;
         let curr_block_height = self
