@@ -185,9 +185,9 @@ impl Executor {
                 error!(
                     error.message = %e,
                     error.cause_chain = ?e,
-                    ?bundle,
-                    "processing bundle failed",
+                    "failed submitting the bundle to the sequencer; bailing",
                 );
+                break;
             }
         }
         Ok(())
