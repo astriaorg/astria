@@ -50,17 +50,11 @@ mod tests {
         static RE_END: Lazy<Regex> = Lazy::new(|| Regex::new(r"[[:space:]]+$").unwrap());
         for line in EXAMPLE_ENV.lines() {
             if let Some((key, val)) = line.trim().split_once('=') {
-                assert!(
-                    !(RE_END.is_match(key) || RE_START.is_match(val)),
-                    "env vars must not contain spaces in assignment\n{line}"
-                );
+                 if RE_END.is_match(key) || RE_START.is_match(val) {
+                    panic!("env vars must not contain spaces in assignment\n{line}");
+                }
                 let prefixed_key = format!("{test_envar_prefix}_{key}");
                 jail.set_env(prefixed_key, val);
-            }
-        }
-        for line in EXAMPLE_ENV.lines() {
-            if let Some((key, val)) = line.trim().split_once('=') {
-                jail.set_env(key, val);
             }
         }
     }
