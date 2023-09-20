@@ -46,6 +46,7 @@ jobs:
       - uses: dorny/paths-filter@v2
         id: filters
         with:
+          list-files: json
           filters: |
             release_workflow:
               - '.github/workflows/proto.yml'
