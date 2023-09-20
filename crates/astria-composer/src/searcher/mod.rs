@@ -55,8 +55,6 @@ pub(super) struct Searcher {
     executor_tx: mpsc::Sender<Vec<Action>>,
     // Channel from which to read the internal status of the executor.
     executor_status: watch::Receiver<executor::Status>,
-    // Set of in-flight RPCs submitting signed transactions to the sequencer.
-    submission_tasks: JoinSet<eyre::Result<()>>,
 }
 
 /// Announces the current status of the Searcher for other modules in the crate to use
@@ -149,7 +147,6 @@ impl Searcher {
             executor_tx,
             executor_status,
             executor: Some(executor),
-            submission_tasks: JoinSet::new(),
         })
     }
 
@@ -168,7 +165,6 @@ impl Searcher {
         // rollup transaction data serialization is a heavy compute task, so it is spawned
         // on tokio's blocking threadpool
         self.conversion_tasks.spawn_blocking(move || {
-            // Pack into a vector of sequencer actions
             let data = rollup_tx.rlp().to_vec();
             let chain_id = chain_id.into_bytes();
             let seq_action = Action::Sequence(SequenceAction {
@@ -178,6 +174,17 @@ impl Searcher {
 
             vec![seq_action]
         });
+    }
+
+    async fn handle_bundle_execution(&self, bundle: Vec<Action>) {
+        // send bundle to executor
+        if let Err(e) = self.executor_tx.send(bundle).await {
+            error!(
+                error.message = %e,
+                error.cause_chain = ?e,
+                "failed to send bundle to executor",
+            );
+        }
     }
 
     /// Starts the searcher and runs it until failure
@@ -205,27 +212,11 @@ impl Searcher {
                 // submit signed sequencer txs to sequencer
                 Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
                     match join_result {
-                        Ok(actions) => self.executor_tx.send(actions).await?,
+                        Ok(bundle) => self.handle_bundle_execution(bundle).await,
                         Err(e) => warn!(
                             error.message = %e,
                             error.cause_chain = ?e,
-                            "conversion task failed while trying to convert pending eth transaction to signed sequencer transaction",
-                        ),
-                    }
-                }
-
-                // handle failed sequencer tx submissions
-                Some(join_result) = self.submission_tasks.join_next(), if !self.submission_tasks.is_empty() => {
-                    match join_result {
-                        Ok(Ok(())) => {}
-                        Ok(Err(e)) =>
-                            // TODO(https://github.com/astriaorg/astria/issues/246): What to do if
-                            // submitting fails. Resubmit?
-                            warn!(error.message = %e, error.cause_chain = ?e, "failed to submit signed sequencer transaction to sequencer"),
-                        Err(e) => warn!(
-                            error.message = %e,
-                            error.cause_chain = ?e,
-                            "submission task failed while trying to submit signed sequencer transaction to sequencer",
+                            "conversion task failed while trying to convert pending rollup transaction to signed sequencer transaction",
                         ),
                     }
                 }
