@@ -1,9 +1,10 @@
+use std::process::ExitCode;
+
 use astria_sequencer::{
     config,
     Sequencer,
 };
 use tracing::info;
-use std::process::ExitCode;
 
 // Following the BSD convention for failing to read config
 // See here: https://freedesktop.org/software/systemd/man/systemd.exec.html#Process%20Exit%20Codes
@@ -14,7 +15,7 @@ async fn main() -> ExitCode {
     let config = match config::get() {
         Ok(cfg) => cfg,
         Err(e) => {
-            eprintln!("failed to read configuration: {e:?}");
+            eprintln!("failed to read configuration:\n{e:?}");
             return ExitCode::from(EX_CONFIG);
         }
     };

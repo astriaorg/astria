@@ -49,6 +49,7 @@ Ensure `~/go` is in your `PATH`, or `GOPATH` is set to some other place in your
 `PATH`.
 
 ```sh
+git clone https://github.com/astriaorg/cometbft
 cd cometbft
 export GOPATH=~/go
 make install
