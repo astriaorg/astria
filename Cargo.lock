@@ -506,9 +506,10 @@ name = "astria-sequencer-client"
 version = "0.1.0"
 dependencies = [
  "astria-proto",
+ "astria-sequencer-types",
  "async-trait",
  "ed25519-consensus",
- "eyre",
+ "futures",
  "hex",
  "hex-literal",
  "regex",
@@ -516,8 +517,10 @@ dependencies = [
  "serde_json",
  "tendermint",
  "tendermint-rpc",
+ "thiserror",
  "tokio",
  "tokio-test",
+ "tracing",
  "wiremock",
 ]
 
