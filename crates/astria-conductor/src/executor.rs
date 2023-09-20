@@ -31,6 +31,7 @@ use tracing::{
     error,
     info,
     instrument,
+    warn,
     Instrument,
 };
 
@@ -161,18 +162,26 @@ impl<C: ExecutionClient> Executor<C> {
                         );
                         continue;
                     };
-                    match self.execute_block(block_subset).await {
-                        Ok(Some(executed_block)) => {
-                            self.update_soft_commitment(executed_block.clone()).await?;
-                        }
-                        Err(e) => {
+
+                    let executed_block_result = self.execute_block(block_subset).await;
+                    if let Err(e) = executed_block_result {
+                        error!(
+                            height = height,
+                            error = ?e,
+                            "failed to execute block"
+                        );
+                        continue;
+                    }
+
+                    if let Ok(Some(executed_block)) = executed_block_result {
+                        if let Err(e) = self.update_soft_commitment(executed_block.clone()).await {
                             error!(
                                 height = height,
                                 error = ?e,
-                                "failed to execute block"
+                                "failed to update soft commitment"
                             );
                         }
-                        Ok(None) => {}
+                        continue;
                     }
                 }
 
@@ -236,7 +245,7 @@ impl<C: ExecutionClient> Executor<C> {
         let prev_block_hash = if let Some(soft_commitment) = self.commitment_state.soft.clone() {
             soft_commitment.hash
         } else {
-            debug!("could not get previous block. soft commitment is None");
+            warn!("could not get previous block. soft commitment is None");
             return Ok(None);
         };
 
@@ -321,7 +330,9 @@ impl<C: ExecutionClient> Executor<C> {
         match maybe_execution_block_hash {
             Some(executed_block) => {
                 // this case means block has already been executed.
-                self.update_firm_commitment(executed_block.clone()).await?;
+                self.update_firm_commitment(executed_block.clone())
+                    .await
+                    .wrap_err("failed to update firm commitment")?;
                 // remove the sequencer block hash from the map, as it's been firmly committed
                 self.sequencer_hash_to_execution_block
                     .remove(&block.block_hash);
@@ -347,7 +358,9 @@ impl<C: ExecutionClient> Executor<C> {
                 };
                 // when we execute a block received from da, nothing else has been executed on top
                 // of it, so we set FIRM and SOFT to this executed block
-                self.update_commitments(executed_block).await?;
+                self.update_commitments(executed_block)
+                    .await
+                    .wrap_err("failed to update commitments")?;
                 // remove the sequencer block hash from the map, as it's been firmly committed
                 self.sequencer_hash_to_execution_block
                     .remove(&block.block_hash);
