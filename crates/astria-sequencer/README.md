@@ -69,7 +69,7 @@ In astria-sequencer/:
 
 ```sh
 cargo build
-../../target/debug/astria-sequencer --db-filepath=/tmp/astria_db
+../../target/debug/astria-sequencer
 ```
 
 
