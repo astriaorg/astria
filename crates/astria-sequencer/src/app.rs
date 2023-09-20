@@ -539,6 +539,7 @@ mod test {
             accounts: default_genesis_accounts(),
         };
         app.init_chain(genesis_state).await.unwrap();
+        app.processed_txs = 2;
 
         // initialize tx signer
         // this secret key corresponds to ALICE_ADDRESS

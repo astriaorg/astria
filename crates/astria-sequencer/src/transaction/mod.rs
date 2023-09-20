@@ -87,7 +87,6 @@ impl ActionHandler for UnsignedTransaction {
         let curr_nonce = state.get_account_nonce(from).await?;
         ensure!(curr_nonce == self.nonce, InvalidNonce(self.nonce));
 
-        // do we need to make a StateDelta here so we can check the actions on the successive state?
         for action in &self.actions {
             match action {
                 Action::Transfer(act) => act
