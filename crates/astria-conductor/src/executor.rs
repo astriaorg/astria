@@ -127,7 +127,8 @@ impl<C: ExecutionClient> Executor<C> {
             Self {
                 cmd_rx,
                 execution_rpc_client,
-                chain_id: ChainId::new(conf.chain_id.as_bytes().to_vec()),
+                chain_id: ChainId::new(conf.chain_id.as_bytes().to_vec())
+                    .expect("failed to create ChainId"),
                 namespace: Namespace::from_slice(conf.chain_id.as_ref()),
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
@@ -396,14 +397,12 @@ mod test {
             chain_id: "test".to_string(),
             execution_rpc_url: "test".to_string(),
             disable_finalization: false,
-            bootnodes: None,
-            libp2p_private_key: None,
-            libp2p_port: 0,
             log: "test".to_string(),
             disable_empty_block_execution: false,
             celestia_node_url: "test".to_string(),
             celestia_bearer_token: "test".to_string(),
             tendermint_url: "test".to_string(),
+            sequencer_url: "test".to_string(),
         }
     }
 
