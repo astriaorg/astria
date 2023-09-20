@@ -5,12 +5,7 @@ use astria_sequencer_relayer::data_availability::{
     SequencerNamespaceData,
     SignedNamespaceData,
 };
-use astria_sequencer_types::{
-    calculate_last_commit_hash,
-    Namespace,
-    RawSequencerBlockData,
-    SequencerBlockData,
-};
+use astria_sequencer_types::calculate_last_commit_hash;
 use color_eyre::eyre::{
     self,
     bail,
@@ -22,6 +17,11 @@ use ed25519_consensus::{
     VerificationKey,
 };
 use prost::Message;
+use sequencer_client::{
+    tendermint::endpoint::validators,
+    Client as _,
+    HttpClient,
+};
 use tendermint::{
     account,
     block,
@@ -31,11 +31,6 @@ use tendermint::{
         self,
         CanonicalVote,
     },
-};
-use tendermint_rpc::{
-    endpoint::validators::Response as ValidatorSet,
-    Client,
-    HttpClient,
 };
 use tracing::instrument;
 
@@ -72,11 +67,11 @@ impl BlockVerifier {
         );
         let validator_set = self
             .sequencer_client
-            .validators(height, tendermint_rpc::Paging::Default)
+            .validators(height, sequencer_client::tendermint::Paging::Default)
             .await
             .wrap_err("failed to get validator set")?;
 
-        validate_signed_namespace_data(validator_set, data).await
+        validate_signed_namespace_data(validator_set, data)
     }
 
     /// validates `RollupNamespaceData` received from Celestia.
@@ -90,51 +85,12 @@ impl BlockVerifier {
     ) -> eyre::Result<()> {
         self.validate_sequencer_namespace_data(sequencer_namespace_data)
             .await
-            .context("failed to validate sequencer block header and last commit")?;
+            .wrap_err("failed to validate sequencer block header and last commit")?;
 
         // validate that rollup data was included in the sequencer block
         rollup_data
             .verify_inclusion_proof(sequencer_namespace_data.action_tree_root)
             .wrap_err("failed to verify rollup data inclusion proof")?;
-        Ok(())
-    }
-
-    /// validates [`SequencerBlockData`] received from the gossip network.
-    pub(crate) async fn validate_sequencer_block_data(
-        &self,
-        block: &SequencerBlockData,
-    ) -> eyre::Result<()> {
-        // TODO(https://github.com/astriaorg/astria/issues/309): remove this clone by not gossiping the entire [`SequencerBlockData`]
-        let RawSequencerBlockData {
-            block_hash,
-            header,
-            last_commit,
-            rollup_data,
-            action_tree_root,
-            action_tree_root_inclusion_proof,
-        } = block.clone().into_raw();
-        let rollup_namespaces = rollup_data
-            .into_keys()
-            .map(|chain_id| Namespace::from_slice(chain_id.as_ref()))
-            .collect::<Vec<Namespace>>();
-        let data = SequencerNamespaceData {
-            block_hash,
-            header,
-            last_commit,
-            rollup_namespaces,
-            action_tree_root,
-            action_tree_root_inclusion_proof,
-        };
-
-        self.validate_sequencer_namespace_data(&data).await?;
-
-        // TODO(https://github.com/astriaorg/astria/issues/309): validate that the transactions in
-        // the block result in the correct data_hash
-        // however this requires updating [`SequencerBlockData`] to contain inclusion proofs for
-        // each of its rollup datas; we can instead update the gossip network to *not*
-        // gossip entire [`SequencerBlockData`] but instead gossip headers, while each
-        // conductor subscribes only to rollup data for its own namespace. then, we can
-        // simply use [`validate_rollup_data`] the same way we use it for data pulled from DA.
         Ok(())
     }
 
@@ -162,7 +118,7 @@ impl BlockVerifier {
         // get the validator set for this height
         let current_validator_set = self
             .sequencer_client
-            .validators(height, tendermint_rpc::Paging::Default)
+            .validators(height, sequencer_client::tendermint::Paging::Default)
             .await
             .wrap_err("failed to get validator set")?;
 
@@ -170,16 +126,16 @@ impl BlockVerifier {
         // in the block is for the previous height
         let parent_validator_set = self
             .sequencer_client
-            .validators(height - 1, tendermint_rpc::Paging::Default)
+            .validators(height - 1, sequencer_client::tendermint::Paging::Default)
             .await
             .wrap_err("failed to get validator set")?;
 
-        validate_sequencer_namespace_data(current_validator_set, parent_validator_set, data).await
+        validate_sequencer_namespace_data(current_validator_set, parent_validator_set, data)
     }
 }
 
-async fn validate_signed_namespace_data(
-    validator_set: ValidatorSet,
+fn validate_signed_namespace_data(
+    validator_set: validators::Response,
     data: &SignedNamespaceData<SequencerNamespaceData>,
 ) -> eyre::Result<()> {
     // verify the block signature
@@ -204,18 +160,19 @@ async fn validate_signed_namespace_data(
     Ok(())
 }
 
-async fn validate_sequencer_namespace_data(
-    current_validator_set: ValidatorSet,
-    parent_validator_set: ValidatorSet,
+fn validate_sequencer_namespace_data(
+    current_validator_set: validators::Response,
+    parent_validator_set: validators::Response,
     data: &SequencerNamespaceData,
 ) -> eyre::Result<()> {
     let SequencerNamespaceData {
         block_hash,
         header,
         last_commit,
-        rollup_namespaces: _,
+        rollup_chain_ids: _,
         action_tree_root,
         action_tree_root_inclusion_proof,
+        chain_ids_commitment,
     } = data;
 
     // find proposer address for this height
@@ -247,11 +204,8 @@ async fn validate_sequencer_namespace_data(
             // verify that the validator votes on the previous block have >2/3 voting power
             let last_commit = last_commit.clone();
             let chain_id = header.chain_id.clone();
-            tokio::task::spawn_blocking(move || -> eyre::Result<()> {
-                ensure_commit_has_quorum(&last_commit, &parent_validator_set, chain_id.as_ref())
-            })
-            .await?
-            .wrap_err("failed to ensure commit has quorum")?
+            ensure_commit_has_quorum(&last_commit, &parent_validator_set, chain_id.as_ref())
+                .wrap_err("failed to ensure commit has quorum")?
 
             // TODO: commit is for previous block; how do we handle this? (#50)
         }
@@ -281,6 +235,21 @@ async fn validate_sequencer_namespace_data(
         .verify(action_tree_root, data_hash)
         .wrap_err("failed to verify action tree root inclusion proof")?;
 
+    // validate the chain IDs commitment
+    let leaves = data
+        .rollup_chain_ids
+        .iter()
+        .map(|chain_id| chain_id.as_ref().to_vec())
+        .collect::<Vec<_>>();
+    let expected_chain_ids_commitment =
+        sequencer_validation::MerkleTree::from_leaves(leaves).root();
+    ensure!(
+        expected_chain_ids_commitment == *chain_ids_commitment,
+        "chain IDs commitment mismatch: expected {}, got {}",
+        hex::encode(expected_chain_ids_commitment),
+        hex::encode(chain_ids_commitment),
+    );
+
     Ok(())
 }
 
@@ -299,7 +268,7 @@ async fn validate_sequencer_namespace_data(
 #[instrument]
 fn ensure_commit_has_quorum(
     commit: &tendermint::block::Commit,
-    validator_set: &ValidatorSet,
+    validator_set: &validators::Response,
     chain_id: &str,
 ) -> eyre::Result<()> {
     if commit.height != validator_set.block_height {
@@ -443,7 +412,7 @@ fn verify_vote_signature(
 /// returns the proposer given the current set by ordering the validators by proposer priority.
 /// the validator with the highest proposer priority is the proposer.
 /// TODO: could there ever be two validators with the same priority?
-fn get_proposer(validator_set: &ValidatorSet) -> eyre::Result<Validator> {
+fn get_proposer(validator_set: &validators::Response) -> eyre::Result<Validator> {
     validator_set
         .validators
         .iter()
@@ -459,7 +428,7 @@ mod test {
         str::FromStr,
     };
 
-    use astria_sequencer_validation::{
+    use sequencer_validation::{
         generate_action_tree_leaves,
         MerkleTree,
     };
@@ -472,7 +441,7 @@ mod test {
 
     use super::*;
 
-    fn make_test_validator_set(height: u32) -> (ValidatorSet, account::Id) {
+    fn make_test_validator_set(height: u32) -> (validators::Response, account::Id) {
         use rand::rngs::OsRng;
 
         let signing_key = ed25519_consensus::SigningKey::new(OsRng);
@@ -491,13 +460,13 @@ mod test {
         };
 
         (
-            ValidatorSet::new(height.into(), vec![validator], 1),
+            validators::Response::new(height.into(), vec![validator], 1),
             address,
         )
     }
 
-    #[tokio::test]
-    async fn validate_sequencer_namespace_data_last_commit_none_ok() {
+    #[test]
+    fn validate_sequencer_namespace_data_last_commit_none_ok() {
         let action_tree = MerkleTree::from_leaves(vec![vec![1, 2, 3], vec![4, 5, 6]]);
         let action_tree_root = action_tree.root();
 
@@ -517,9 +486,10 @@ mod test {
             block_hash,
             header,
             last_commit: None,
-            rollup_namespaces: vec![],
+            rollup_chain_ids: vec![],
             action_tree_root,
             action_tree_root_inclusion_proof,
+            chain_ids_commitment: MerkleTree::from_leaves(vec![]).root(),
         };
 
         validate_sequencer_namespace_data(
@@ -527,7 +497,6 @@ mod test {
             make_test_validator_set(height - 1).0,
             &sequencer_namespace_data,
         )
-        .await
         .unwrap();
     }
 
@@ -558,14 +527,17 @@ mod test {
             block_hash,
             header,
             last_commit: None,
-            rollup_namespaces: vec![],
+            rollup_chain_ids: vec![
+                astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
+            ],
             action_tree_root,
             action_tree_root_inclusion_proof,
+            chain_ids_commitment: MerkleTree::from_leaves(vec![test_chain_id.to_vec()]).root(),
         };
 
         let rollup_namespace_data = RollupNamespaceData::new(
             block_hash,
-            test_chain_id.to_vec(),
+            astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
             vec![test_tx],
             action_tree.prove_inclusion(0).unwrap(),
         );
@@ -575,7 +547,6 @@ mod test {
             make_test_validator_set(height - 1).0,
             &sequencer_namespace_data,
         )
-        .await
         .unwrap();
         rollup_namespace_data
             .verify_inclusion_proof(sequencer_namespace_data.action_tree_root)
@@ -618,7 +589,8 @@ mod test {
         // curl http://localhost:26657/commit?height=79
         let validator_set_str = r#"{"block_height":"79","validators":[{"address":"D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9","pub_key":{"type":"tendermint/PubKeyEd25519","value":"tyPnz5GGblrx3PBjQRxZOHbzsPEI1E8lOh62QoPSWLw="},"voting_power":"10","proposer_priority":"0"}],"count":"1","total":"1"}"#;
         let commit_str = r#"{"height":"79","round":0,"block_id":{"hash":"74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA","parts":{"total":1,"hash":"7632FFB5D84C3A64279BC9EA86992418ED23832C66E0C3504B7025A9AF42C8C4"}},"signatures":[{"block_id_flag":2,"validator_address":"D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9","timestamp":"2023-07-05T19:02:55.206600022Z","signature":"qy9vEjqSrF+8sD0K0IAXA398xN1s3QI2rBBDbBMWf0rw0L+B9Z92DZEptf6bPYWuKUFdEc0QFKhUMQA8HjBaAw=="}]}"#;
-        let validator_set = serde_json::from_str::<ValidatorSet>(validator_set_str).unwrap();
+        let validator_set =
+            serde_json::from_str::<validators::Response>(validator_set_str).unwrap();
         let commit = serde_json::from_str::<Commit>(commit_str).unwrap();
         ensure_commit_has_quorum(&commit, &validator_set, "test-chain-g3ejvw").unwrap();
     }
@@ -629,7 +601,7 @@ mod test {
             general_purpose::STANDARD,
             Engine as _,
         };
-        let validator_set = ValidatorSet::new(
+        let validator_set = validators::Response::new(
             79u32.into(),
             vec![Validator {
                 name: None,

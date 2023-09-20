@@ -1,7 +1,7 @@
 //! The driver is the top-level coordinator that runs and manages all the components
 //! necessary for this reader.
 
-use std::sync::Arc;
+use std::fmt;
 
 use astria_sequencer_types::SequencerBlockData;
 use color_eyre::eyre::{
@@ -9,8 +9,11 @@ use color_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use futures::StreamExt;
-use sync_wrapper::SyncWrapper;
+use sequencer_client::{
+    tendermint,
+    NewBlockStreamError,
+    WebSocketClient,
+};
 use tokio::{
     select,
     sync::{
@@ -21,9 +24,9 @@ use tokio::{
         },
         Mutex,
     },
+    task::JoinHandle,
 };
 use tracing::{
-    debug,
     info,
     instrument,
     span,
@@ -37,10 +40,6 @@ use crate::{
     config::Config,
     executor,
     executor::ExecutorCommand,
-    network::{
-        Event as NetworkEvent,
-        GossipNetwork,
-    },
     reader::{
         self,
         ReaderCommand,
@@ -54,7 +53,7 @@ pub(crate) type Receiver = UnboundedReceiver<DriverCommand>;
 
 /// The type of commands that the driver can receive.
 #[derive(Debug)]
-pub enum DriverCommand {
+pub(crate) enum DriverCommand {
     /// Get new blocks
     GetNewBlocks,
     /// Gracefully shuts down the driver and its components.
@@ -62,8 +61,8 @@ pub enum DriverCommand {
 }
 
 #[derive(Debug)]
-pub struct Driver {
-    pub cmd_tx: Sender,
+pub(crate) struct Driver {
+    pub(crate) cmd_tx: Sender,
 
     /// The channel on which other components in the driver sends the driver messages.
     cmd_rx: Receiver,
@@ -74,19 +73,38 @@ pub struct Driver {
     /// The channel used to send messages to the executor task.
     executor_tx: executor::Sender,
 
-    /// The gossip network must be wrapped in a `SyncWrapper` for now, as the transport
-    /// within the gossip network is not `Send`.
-    /// See https://github.com/astriaorg/astria/issues/111 for more details.
-    network: SyncWrapper<GossipNetwork>,
-
-    block_verifier: Arc<BlockVerifier>,
+    /// A client that subscribes to new sequencer blocks from cometbft.
+    sequencer_client: SequencerClient,
 
     is_shutdown: Mutex<bool>,
 }
 
+struct SequencerClient {
+    client: WebSocketClient,
+    _driver: JoinHandle<Result<(), tendermint::Error>>,
+}
+
+impl SequencerClient {
+    async fn new(url: &str) -> Result<Self, tendermint::Error> {
+        let (client, driver) = WebSocketClient::new(url).await?;
+        Ok(Self {
+            client,
+            _driver: tokio::spawn(async move { driver.run().await }),
+        })
+    }
+}
+
+impl fmt::Debug for SequencerClient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SequencerClient")
+            .field("client", &self.client)
+            .finish_non_exhaustive()
+    }
+}
+
 impl Driver {
     #[instrument(name = "driver", skip_all)]
-    pub async fn new(
+    pub(crate) async fn new(
         conf: Config,
     ) -> Result<(Self, executor::JoinHandle, Option<reader::JoinHandle>)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
@@ -96,22 +114,24 @@ impl Driver {
             .await
             .wrap_err("failed to construct Executor")?;
 
-        let block_verifier = Arc::new(
-            BlockVerifier::new(&conf.tendermint_url)
-                .wrap_err("failed to construct block verifier")?,
-        );
+        let block_verifier = BlockVerifier::new(&conf.tendermint_url)
+            .wrap_err("failed to construct block verifier")?;
 
         let (reader_join_handle, reader_tx) = if conf.disable_finalization {
             (None, None)
         } else {
             let reader_span = span!(Level::ERROR, "reader::spawn");
             let (reader_join_handle, reader_tx) =
-                reader::spawn(&conf, executor_tx.clone(), block_verifier.clone())
+                reader::spawn(&conf, executor_tx.clone(), block_verifier)
                     .instrument(reader_span)
                     .await
                     .wrap_err("failed to construct data availability Reader")?;
             (Some(reader_join_handle), Some(reader_tx))
         };
+
+        let sequencer_client = SequencerClient::new(&conf.sequencer_url)
+            .await
+            .wrap_err("failed constructing a cometbft websocket client to read off sequencer")?;
 
         Ok((
             Self {
@@ -119,11 +139,7 @@ impl Driver {
                 cmd_rx,
                 reader_tx,
                 executor_tx,
-                network: SyncWrapper::new(
-                    GossipNetwork::new(conf.bootnodes, conf.libp2p_private_key, conf.libp2p_port)
-                        .wrap_err("failed to construct gossip network")?,
-                ),
-                block_verifier,
+                sequencer_client,
                 is_shutdown: Mutex::new(false),
             },
             executor_join_handle,
@@ -133,30 +149,29 @@ impl Driver {
 
     /// Runs the Driver event loop.
     #[instrument(name = "driver", skip_all)]
-    pub async fn run(&mut self) -> Result<()> {
+    pub(crate) async fn run(mut self) -> Result<()> {
+        use futures::StreamExt as _;
+        use sequencer_client::SequencerSubscriptionClientExt as _;
+
         info!("Starting driver event loop.");
+        let mut new_blocks = self
+            .sequencer_client
+            .client
+            .subscribe_new_block_data()
+            .await
+            .wrap_err("failed subscribing to sequencer to receive new blocks")?;
+        // FIXME(https://github.com/astriaorg/astria/issues/381): the event handlers
+        // here block the select loop because they `await` their return.
         loop {
             select! {
-                res = self.network.get_mut().0.next() => {
-                    if let Some(res) = res {
-                        match res {
-                            Ok(event) => {
-                                if let Err(e) = self.handle_network_event(event).await {
-                                    debug!(
-                                        error = ?e,
-                                        "failed to handle network event"
-                                    );
-                                }
-                            }
-                            Err(e) => {
-                                warn!(
-                                    error = ?e,
-                                    "encountered error while polling p2p network"
-                                );
-                            }
-                        }
+                new_block = new_blocks.next() => {
+                    if let Some(block) = new_block {
+                        self.handle_new_block(block).await
+                    } else {
+                        warn!("sequencer new-block subscription closed unexpectedly; shutting down driver");
+                        break;
                     }
-                },
+                }
                 cmd = self.cmd_rx.recv() => {
                     if let Some(cmd) = cmd {
                         self.handle_driver_command(cmd).await.wrap_err("failed to handle driver command")?;
@@ -170,36 +185,23 @@ impl Driver {
         Ok(())
     }
 
-    async fn handle_network_event(&self, event: NetworkEvent) -> Result<()> {
-        match event {
-            NetworkEvent::NewListenAddr(addr) => {
-                info!("listening on {}", addr);
+    async fn handle_new_block(&self, block: Result<SequencerBlockData, NewBlockStreamError>) {
+        let block = match block {
+            Err(err) => {
+                warn!(err.msg = %err, err.cause = ?err, "encountered an error while receiving a new block from sequencer");
+                return;
             }
-            NetworkEvent::GossipsubMessage(msg) => {
-                debug!("received gossip message");
-                let block = SequencerBlockData::from_bytes(&msg.data)
-                    .wrap_err("failed to deserialize SequencerBlockData received from network")?;
+            Ok(new_block) => new_block,
+        };
 
-                // validate block received from gossip network
-                self.block_verifier
-                    .validate_sequencer_block_data(&block)
-                    .await
-                    .wrap_err("invalid block received from gossip network")?;
-
-                info!(
-                    height = block.header().height.value(),
-                    "sequencer block received from p2p network",
-                );
-                self.executor_tx
-                    .send(ExecutorCommand::BlockReceivedFromGossipNetwork {
-                        block: Box::new(block),
-                    })
-                    .wrap_err("failed to send SequencerBlockData from network to executor")?;
-            }
-            _ => debug!("received network event"),
+        if let Err(err) = self
+            .executor_tx
+            .send(ExecutorCommand::BlockReceivedFromSequencer {
+                block: Box::new(block),
+            })
+        {
+            warn!(err.msg = %err, err.cause = ?err, "failed sending new block received from sequencer to executor");
         }
-
-        Ok(())
     }
 
     async fn handle_driver_command(&mut self, cmd: DriverCommand) -> Result<()> {

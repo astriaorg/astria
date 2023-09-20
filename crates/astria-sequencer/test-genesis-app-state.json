@@ -1,0 +1,16 @@
+{
+  "accounts": [
+    {
+      "address": "1c0c490f1b5528d8173c5de46d131160e4b2c0c3",
+      "balance": 1000000000000000000
+    },
+    {
+      "address": "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a",
+      "balance": 1000000000000000000
+    },
+    {
+      "address": "60709e2d391864b732b4f0f51e387abb76743871",
+      "balance": 1000000000000000000
+    }
+  ]
+}

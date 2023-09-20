@@ -89,9 +89,9 @@ markdown.
 
 ```sh
 # Install rustfmt
-rustup +nightly-2023-07-07 component add rustfmt
+rustup +nightly-2023-08-18 component add rustfmt
 # Run rustfmt
-cargo +nightly-2023-07-07 fmt --all
+just fmt-rust
 ```
 
 ### Toml
@@ -103,7 +103,7 @@ brew install taplo
 sudo pacman -S taplo
 
 # Run
-taplo format
+just fmt-toml
 ```
 
 ### Markdown
