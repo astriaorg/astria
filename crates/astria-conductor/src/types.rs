@@ -12,7 +12,7 @@ use tendermint::{
 /// information required for transaction data verification, and the transactions
 /// for one specific rollup.
 #[derive(Clone, Debug)]
-pub struct SequencerBlockSubset {
+pub(crate) struct SequencerBlockSubset {
     pub(crate) block_hash: Hash,
     pub(crate) header: Header,
     pub(crate) rollup_transactions: Vec<Vec<u8>>,
