@@ -183,7 +183,13 @@ impl Searcher {
     /// Starts the searcher and runs it until failure
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         self.spawn_collectors();
-        let mut executor_handle = self.spawn_executor();
+        let mut executor_handle = tokio::spawn(
+            self.executor
+                .take()
+                .expect("executor should only be run once")
+                .run_until_stopped(),
+        );
+
         let wait_for_collectors = self.wait_for_collectors();
         let wait_for_executor = self.wait_for_executor();
         match tokio::try_join!(wait_for_collectors, wait_for_executor) {
@@ -224,12 +230,31 @@ impl Searcher {
                     }
                 }
 
-                _ = &mut executor_handle => { todo!("handle executor failure"); }
+                ret = &mut executor_handle => {
+                    match ret {
+                        Ok(Ok(())) => {
+                            error!("executor task exited unexpectedly");
+                        }
+                        Ok(Err(e)) => {
+                            error!(
+                                error.message = %e,
+                                error.cause_chain = ?e,
+                                "executor returned with error",
+                            );
+                        }
+                        Err(e) => {
+                            error!(
+                                error.message = %e,
+                                error.cause_chain = ?e,
+                                "executor task panicked",
+                            );
+                        }
+                    }
+                    break;
+                }
             );
         }
 
-        // FIXME: ensure that we can get here
-        #[allow(unreachable_code)]
         Ok(())
     }
 
@@ -239,39 +264,6 @@ impl Searcher {
             self.collector_tasks
                 .spawn(chain_id, collector.run_until_stopped());
         }
-    }
-
-    fn spawn_executor(&mut self) -> tokio::task::JoinHandle<()> {
-        // spawn executor task
-        let handle = tokio::task::spawn(
-            self.executor
-                .take()
-                .expect("executor should only be run once")
-                .run_until_stopped(),
-        );
-
-        // return handle to task that logs why executor exits
-        tokio::task::spawn(async move {
-            match handle.await {
-                Ok(Ok(())) => {
-                    error!("executor task exited unexpectedly");
-                }
-                Ok(Err(e)) => {
-                    error!(
-                        error.message = %e,
-                        error.cause_chain = ?e,
-                        "executor task failed unexpectedly with error",
-                    );
-                }
-                Err(e) => {
-                    error!(
-                        error.message = %e,
-                        error.cause_chain = ?e,
-                        "executor task panicked",
-                    );
-                }
-            }
-        })
     }
 
     /// Waits for all collectors to come online.
