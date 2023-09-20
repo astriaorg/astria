@@ -227,7 +227,7 @@ impl<C: ExecutionClient> Executor<C> {
         {
             debug!(
                 height = block.header.height.value(),
-                execution_hash = hex::encode(execution_block.clone().hash),
+                execution_hash = hex::encode(execution_block.hash.clone()),
                 "block already executed"
             );
             return Ok(Some(execution_block.clone()));
