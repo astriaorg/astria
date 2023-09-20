@@ -5,11 +5,7 @@ use astria_sequencer_relayer::data_availability::{
     SequencerNamespaceData,
     SignedNamespaceData,
 };
-use astria_sequencer_types::{
-    calculate_last_commit_hash,
-    RawSequencerBlockData,
-    SequencerBlockData,
-};
+use astria_sequencer_types::calculate_last_commit_hash;
 use color_eyre::eyre::{
     self,
     bail,
@@ -95,46 +91,6 @@ impl BlockVerifier {
         rollup_data
             .verify_inclusion_proof(sequencer_namespace_data.action_tree_root)
             .wrap_err("failed to verify rollup data inclusion proof")?;
-        Ok(())
-    }
-
-    /// validates [`SequencerBlockData`] received from the gossip network.
-    pub(crate) async fn validate_sequencer_block_data(
-        &self,
-        block: &SequencerBlockData,
-    ) -> eyre::Result<()> {
-        // TODO(https://github.com/astriaorg/astria/issues/309): remove this clone by not gossiping the entire [`SequencerBlockData`]
-        let RawSequencerBlockData {
-            block_hash,
-            header,
-            last_commit,
-            rollup_data,
-            action_tree_root,
-            action_tree_root_inclusion_proof,
-            chain_ids_commitment,
-        } = block.clone().into_raw();
-        let rollup_chain_ids = rollup_data
-            .into_keys()
-            .collect::<Vec<astria_sequencer_types::ChainId>>();
-        let data = SequencerNamespaceData {
-            block_hash,
-            header,
-            last_commit,
-            rollup_chain_ids,
-            action_tree_root,
-            action_tree_root_inclusion_proof,
-            chain_ids_commitment,
-        };
-
-        self.validate_sequencer_namespace_data(&data).await?;
-
-        // TODO(https://github.com/astriaorg/astria/issues/309): validate that the transactions in
-        // the block result in the correct data_hash
-        // however this requires updating [`SequencerBlockData`] to contain inclusion proofs for
-        // each of its rollup datas; we can instead update the gossip network to *not*
-        // gossip entire [`SequencerBlockData`] but instead gossip headers, while each
-        // conductor subscribes only to rollup data for its own namespace. then, we can
-        // simply use [`validate_rollup_data`] the same way we use it for data pulled from DA.
         Ok(())
     }
 

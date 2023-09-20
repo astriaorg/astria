@@ -1,10 +1,7 @@
 //! The driver is the top-level coordinator that runs and manages all the components
 //! necessary for this reader.
 
-use std::{
-    fmt,
-    sync::Arc,
-};
+use std::fmt;
 
 use astria_sequencer_types::SequencerBlockData;
 use color_eyre::eyre::{
@@ -79,9 +76,6 @@ pub struct Driver {
     /// A client that subscribes to new sequencer blocks from cometbft.
     sequencer_client: SequencerClient,
 
-    // sequencer_client:
-    block_verifier: Arc<BlockVerifier>,
-
     is_shutdown: Mutex<bool>,
 }
 
@@ -120,17 +114,15 @@ impl Driver {
             .await
             .wrap_err("failed to construct Executor")?;
 
-        let block_verifier = Arc::new(
-            BlockVerifier::new(&conf.tendermint_url)
-                .wrap_err("failed to construct block verifier")?,
-        );
+        let block_verifier = BlockVerifier::new(&conf.tendermint_url)
+            .wrap_err("failed to construct block verifier")?;
 
         let (reader_join_handle, reader_tx) = if conf.disable_finalization {
             (None, None)
         } else {
             let reader_span = span!(Level::ERROR, "reader::spawn");
             let (reader_join_handle, reader_tx) =
-                reader::spawn(&conf, executor_tx.clone(), block_verifier.clone())
+                reader::spawn(&conf, executor_tx.clone(), block_verifier)
                     .instrument(reader_span)
                     .await
                     .wrap_err("failed to construct data availability Reader")?;
@@ -148,7 +140,6 @@ impl Driver {
                 reader_tx,
                 executor_tx,
                 sequencer_client,
-                block_verifier,
                 is_shutdown: Mutex::new(false),
             },
             executor_join_handle,
@@ -201,15 +192,6 @@ impl Driver {
             }
             Ok(new_block) => new_block,
         };
-
-        if let Err(err) = self
-            .block_verifier
-            .validate_sequencer_block_data(&block)
-            .await
-        {
-            warn!(err.msg = %err, err.cause = ?err, "could not validate block received from sequencer; dropping");
-            return;
-        }
 
         if let Err(err) = self
             .executor_tx

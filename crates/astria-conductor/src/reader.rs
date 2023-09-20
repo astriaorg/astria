@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use astria_sequencer_relayer::data_availability::CelestiaClient;
 use astria_sequencer_types::Namespace;
 use color_eyre::eyre::{
@@ -41,7 +39,7 @@ type Receiver = UnboundedReceiver<ReaderCommand>;
 pub(crate) async fn spawn(
     conf: &Config,
     executor_tx: executor::Sender,
-    block_verifier: Arc<BlockVerifier>,
+    block_verifier: BlockVerifier,
 ) -> eyre::Result<(JoinHandle, Sender)> {
     info!(
         celestia_node_url = %conf.celestia_node_url,
@@ -83,7 +81,7 @@ pub struct Reader {
     /// the last block height fetched from Celestia
     curr_block_height: u64,
 
-    block_verifier: Arc<BlockVerifier>,
+    block_verifier: BlockVerifier,
 
     /// Namespace ID
     namespace: Namespace,
@@ -95,7 +93,7 @@ impl Reader {
         celestia_node_url: &str,
         celestia_bearer_token: &str,
         executor_tx: executor::Sender,
-        block_verifier: Arc<BlockVerifier>,
+        block_verifier: BlockVerifier,
         namespace: Namespace,
     ) -> eyre::Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
