@@ -74,7 +74,7 @@ jobs:
   rpc_client:
     runs-on: ubuntu-22.04
     needs: run_checker
-    if: ${{ needs.run_checker.outputs.run_tests }}
+    if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.70.0
@@ -107,7 +107,7 @@ jobs:
   doctest:
     runs-on: ubuntu-22.04
     needs: run_checker
-    if: ${{ needs.run_checker.outputs.run_tests && needs.run_checker.outputs.run_lint_rust }}
+    if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.70.0
@@ -120,7 +120,7 @@ jobs:
   clippy:
     runs-on: buildjet-4vcpu-ubuntu-2204
     needs: run_checker
-    if: ${{ needs.run_checker.outputs.run_tests && needs.run_checker.outputs.run_lint_rust }}
+    if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.70.0

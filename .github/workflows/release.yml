@@ -15,7 +15,6 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_release_proto && github.repository_owner == 'astriaorg'
     steps:
-      - run: echo ${{ needs.run_checker.outputs.run_lint_proto == 'false' }}
       - uses: actions/checkout@v3
       - uses: bufbuild/buf-setup-action@v1
         with:
