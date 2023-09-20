@@ -85,7 +85,7 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> 
 #[derive(Debug)]
 pub(crate) enum ExecutorCommand {
     /// used when a block is received from the gossip network
-    BlockReceivedFromGossipNetwork {
+    BlockReceivedFromSequencer {
         block: Box<SequencerBlockData>,
     },
     /// used when a block is received from the reader (Celestia)
@@ -148,7 +148,7 @@ impl<C: ExecutionClient> Executor<C> {
 
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
-                ExecutorCommand::BlockReceivedFromGossipNetwork {
+                ExecutorCommand::BlockReceivedFromSequencer {
                     block,
                 } => {
                     let height = block.header().height.value();
@@ -363,8 +363,6 @@ mod test {
             }
         }
     }
-
-    impl crate::private::Sealed for MockExecutionClient {}
 
     #[async_trait::async_trait]
     impl ExecutionClient for MockExecutionClient {
