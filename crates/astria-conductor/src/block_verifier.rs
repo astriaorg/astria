@@ -34,13 +34,7 @@ use tendermint::{
 };
 use tracing::instrument;
 
-/// `BlockVerifier` is responsible for verifying the correctness of a block
-/// before executing it.
-/// It has two public functions: `validate_signed_namespace_data` and `validate_sequencer_block`.
-///
-/// `validate_signed_namespace_data` is used to validate the data received from the data
-/// availability layer. `validate_sequencer_block` is used to validate the blocks received from
-/// either the data availability layer or the gossip network.
+/// `BlockVerifier` is verifying blocks received from celestia.
 #[derive(Debug)]
 pub(crate) struct BlockVerifier {
     sequencer_client: HttpClient,
@@ -94,8 +88,7 @@ impl BlockVerifier {
         Ok(())
     }
 
-    /// performs various validation checks on the SequencerBlock received from either gossip or
-    /// Celestia.
+    /// performs various validation checks on the sequencer data received from Celestia.
     ///
     /// checks performed:
     /// - the proposer of the sequencer block matches the expected proposer for the block height
