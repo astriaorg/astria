@@ -237,14 +237,12 @@ impl Executor {
             "failed to retrieve initial nonce from sequencer after several retries",
         )?;
 
-        // update stored nonce
         self.nonce = Some(nonce_response.nonce);
         info!(
             nonce_response.nonce,
             "retrieved initial nonce from sequencer successfully"
         );
 
-        // update status to connected
         self.status.send_modify(|status| {
             status.is_connected = true;
         });

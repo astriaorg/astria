@@ -129,12 +129,10 @@ impl Searcher {
 
         let (status, _) = watch::channel(Status::default());
 
-        // create channel for sending bundles to executor
         let (executor_tx, executor_rx) = mpsc::channel(256);
         let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx)
             .wrap_err("executor construction from config failed")?;
 
-        // create channel for receiving executor status
         let executor_status = executor.subscribe();
 
         Ok(Searcher {
@@ -188,6 +186,10 @@ impl Searcher {
     }
 
     /// Starts the searcher and runs it until failure
+    ///
+    /// # Backpressure
+    /// The current implementation suffers from a backpressure problem. See issue #409 for an
+    /// in-depth explanation and suggested solution
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         self.spawn_collectors();
         let mut executor_handle = tokio::spawn(
@@ -304,19 +306,10 @@ impl Searcher {
     async fn wait_for_executor(&self) -> eyre::Result<()> {
         // wait to receive executor status
         let mut status = self.executor_status.clone();
-        async move {
-            match status.wait_for(executor::Status::is_connected).await {
-                // `wait_for` returns a reference to status; throw it
-                // away because this future cannot return a reference to
-                // a stack local object.
-                Ok(_) => Ok(()),
-                // if an collector fails while waiting for its status, this
-                // will return an error
-                Err(e) => Err(e),
-            }
-        }
-        .await
-        .wrap_err("executor failed while waiting for it to become ready")?;
+        status
+            .wait_for(executor::Status::is_connected)
+            .await
+            .wrap_err("executor failed while waiting for it to become ready")?;
 
         // update searcher status
         self.status
