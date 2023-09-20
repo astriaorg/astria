@@ -111,4 +111,4 @@ just run-cometbft
 
 ## Testnet
 
-Check out the `TESTNET.md` file for details on how to run the astria testnet
+Check out the `TESTNET.md` file for details on how to run a multi-node sequencer testnet.
