@@ -9,15 +9,16 @@ specific commands.
 - gcc-12, gcc-12-libs
 - go 1.18+
 
-### Penumbra
+### Building
 
 Because `penumbra-storage:0.54.1` depends on `rocksdb:0.19.0` compilation on gcc
 13 will not work.
 
 On arch linux:
 
-```bash
-just build-penumbra
+```sh
+sudo pacman -S gcc12 gcc12-libs
+CC=/usr/bin/gcc-12 CXX=/usr/bin/c++-12 cargo build
 ```
 
 <https://github.com/rust-rocksdb/rust-rocksdb/issues/713>
@@ -47,7 +48,7 @@ just copy-env
 Ensure `~/go` is in your `PATH`, or `GOPATH` is set to some other place in your
 `PATH`.
 
-```bash
+```sh
 just install-cometbft
 ```
 
@@ -55,7 +56,7 @@ just install-cometbft
 
 In the cometbft/ dir:
 
-```bash
+```sh
 make install_abci
 ```
 
@@ -101,56 +102,10 @@ You should see blocks being produced.
 
 You can also use `just` to run the above commands:
 
-```bash
+```sh
 just run-cometbft
 ```
 
 ## Testnet
 
-## Initialize and run the testnet
-
-This installs cometbft.
-
-This will create 3 cometbft validator configs and put the validator configs in
-`./sequencer_testnet` by default. It will then start the respective sequencer
-applications (one for each cometbft validator) and the cometbft validator nodes.
-
-```bash
-just run-testnet
-```
-
-you can also manually set the number of validators or the output dir
-
-```bash
-OUT_DIR=out_dir NUM_VALIDATORS=num_validators just run-testnet 
-```
-
-## Logs
-
-For example, to see the cometbft logs for node0:
-
-```sh
-just cometbft-logs-testnet node0
-```
-
-To see the sequencer app logs for node0:
-
-```sh
-just sequencer-logs-testnet node0
-```
-
-## Stopping the testnet
-
-```sh
-just stop-testnet
-```
-
-## Cleaning up the testnet
-
-Call it on the directory that the config files are in. By default looks at `sequencer_testnet`
-
-Automatically stops the testnet when this is called.
-
-```bash
-just clean-testnet
-```
+Check out the `TESTNET.md` file for details on how to run the astria testnet

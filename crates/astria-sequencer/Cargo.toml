@@ -32,4 +32,7 @@ tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
 tracing = { workspace = true }
-figment = { workspace = true, features = ["test", "env"] }
+figment = { workspace = true, features = ["env"] }
+
+[dev-dependencies]
+figment = { workspace = true, features = ["test"] }
