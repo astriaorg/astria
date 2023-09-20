@@ -140,7 +140,6 @@ jobs:
           --all-features \
           --exclude astria-conductor \
           --exclude astria-sequencer-relayer \
-          --exclude astria-gossipnet \
           -- --warn clippy::pedantic \
              --deny warnings
       - name: run default clippy

@@ -80,7 +80,7 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> 
 
 #[derive(Debug)]
 pub(crate) enum ExecutorCommand {
-    /// used when a block is received from the gossip network
+    /// used when a block is received from the subscription stream to sequencer
     BlockReceivedFromSequencer {
         block: Box<SequencerBlockData>,
     },
@@ -264,7 +264,7 @@ impl<C: ExecutionClient> Executor<C> {
             }
             None => {
                 // this means either:
-                // - we didn't receive the block from the gossip layer yet, or
+                // - we didn't receive the block from the sequencer stream, or
                 // - we received it, but the sequencer block didn't contain
                 // any transactions for this rollup namespace, thus nothing was executed
                 // on receiving this block.
