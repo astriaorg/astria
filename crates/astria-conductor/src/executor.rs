@@ -57,7 +57,7 @@ pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
     let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url).await?;
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
-        ChainId::new(conf.chain_id.as_bytes().to_vec()),
+        ChainId::new(conf.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
     )
     .await?;
     let join_handle = task::spawn(async move { executor.run().in_current_span().await });
@@ -81,7 +81,7 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> 
 #[derive(Debug)]
 pub(crate) enum ExecutorCommand {
     /// used when a block is received from the gossip network
-    BlockReceivedFromGossipNetwork {
+    BlockReceivedFromSequencer {
         block: Box<SequencerBlockData>,
     },
     /// used when a block is received from the reader (Celestia)
@@ -143,7 +143,7 @@ impl<C: ExecutionClient> Executor<C> {
 
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
-                ExecutorCommand::BlockReceivedFromGossipNetwork {
+                ExecutorCommand::BlockReceivedFromSequencer {
                     block,
                 } => {
                     let height = block.header().height.value();
@@ -348,8 +348,6 @@ mod test {
         }
     }
 
-    impl crate::private::Sealed for MockExecutionClient {}
-
     #[async_trait::async_trait]
     impl ExecutionClient for MockExecutionClient {
         // returns the sha256 hash of the prev_block_hash
@@ -395,7 +393,7 @@ mod test {
 
     #[tokio::test]
     async fn execute_block_with_relevant_txs() {
-        let chain_id = ChainId::new(b"test".to_vec());
+        let chain_id = ChainId::new(b"test".to_vec()).unwrap();
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), chain_id)
             .await
             .unwrap();
@@ -414,7 +412,7 @@ mod test {
 
     #[tokio::test]
     async fn execute_block_without_relevant_txs() {
-        let chain_id = ChainId::new(b"test".to_vec());
+        let chain_id = ChainId::new(b"test".to_vec()).unwrap();
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), chain_id)
             .await
             .unwrap();
@@ -426,7 +424,7 @@ mod test {
 
     #[tokio::test]
     async fn handle_block_received_from_data_availability_not_yet_executed() {
-        let chain_id = ChainId::new(b"test".to_vec());
+        let chain_id = ChainId::new(b"test".to_vec()).unwrap();
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
@@ -459,7 +457,7 @@ mod test {
 
     #[tokio::test]
     async fn handle_block_received_from_data_availability_no_relevant_transactions() {
-        let chain_id = ChainId::new(b"test".to_vec());
+        let chain_id = ChainId::new(b"test".to_vec()).unwrap();
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),

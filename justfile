@@ -23,3 +23,18 @@ default_docker_tag := 'local'
 
 docker-build crate tag=default_docker_tag:
   docker buildx build --load --build-arg TARGETBINARY={{crate}} -f containerfiles/Dockerfile -t {{crate}}:{{tag}} .
+
+fmt-rust:
+  cargo +nightly-2023-08-18 fmt --all 
+
+lint-rust:
+  cargo +nightly-2023-08-18 fmt --all -- --check
+
+fmt-toml:
+  taplo format
+
+lint-toml:
+  taplo format --check
+
+lint-yaml:
+  markdownlint-cli2 "**/*.md" "#target" "#.github"
