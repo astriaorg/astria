@@ -11,7 +11,7 @@ use serde::{
 
 /// # Errors:
 ///
-/// - if figment failed to read the config from the environment
+/// if figment failed to read the config from the environment
 pub fn get() -> Result<Config, figment::Error> {
     Config::from_environment("ASTRIA_SEQUENCER")
 }
@@ -50,11 +50,11 @@ mod tests {
         static RE_END: Lazy<Regex> = Lazy::new(|| Regex::new(r"[[:space:]]+$").unwrap());
         for line in EXAMPLE_ENV.lines() {
             if let Some((key, val)) = line.trim().split_once('=') {
-                 if RE_END.is_match(key) || RE_START.is_match(val) {
-                    panic!("env vars must not contain spaces in assignment\n{line}");
-                }
-                let prefixed_key = format!("{test_envar_prefix}_{key}");
-                dbg!(&prefixed_key);
+                assert!(
+                    !(RE_END.is_match(key) || RE_START.is_match(val)),
+                    "env vars must not contain spaces in assignment\n{line}"
+                );
+                let prefixed_key = format!("{}_{}", test_envar_prefix, key);
                 jail.set_env(prefixed_key, val);
             }
         }
