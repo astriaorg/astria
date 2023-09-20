@@ -8,8 +8,9 @@ Ensure `~/go` is in your `PATH`, or `GOPATH` is set to some other place in your
 `PATH`.
 
 ```sh
-git clone https://github.com/astriaorg/cometbft
+git clone https://github.com/cometbft/cometbft
 cd cometbft
+git checkout origin/v0.37.x
 export GOPATH=~/go
 make install
 ```
