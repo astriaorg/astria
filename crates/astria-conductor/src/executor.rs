@@ -54,8 +54,16 @@ pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
         execution_rpc_url = %conf.execution_rpc_url,
         "Spawning executor task."
     );
-    let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url).await?;
-    let (mut executor, executor_tx) = Executor::new(execution_rpc_client, conf).await?;
+    let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url)
+        .await
+        .context("failed to create execution rpc client")?;
+    let (mut executor, executor_tx) = Executor::new(
+        execution_rpc_client,
+        ChainId::new(conf.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
+        conf.disable_empty_block_execution,
+    )
+    .await
+    .context("failed to create Executor")?;
     let join_handle = task::spawn(async move { executor.run().in_current_span().await });
     info!("Spawned executor task.");
     Ok((join_handle, executor_tx))
@@ -119,7 +127,11 @@ struct Executor<C> {
 }
 
 impl<C: ExecutionClient> Executor<C> {
-    async fn new(mut execution_rpc_client: C, conf: &Config) -> Result<(Self, Sender)> {
+    async fn new(
+        mut execution_rpc_client: C,
+        chain_id: ChainId,
+        disable_empty_block_execution: bool,
+    ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let init_state_response = execution_rpc_client.call_init_state().await?;
         let execution_state = init_state_response.block_hash;
@@ -127,12 +139,11 @@ impl<C: ExecutionClient> Executor<C> {
             Self {
                 cmd_rx,
                 execution_rpc_client,
-                chain_id: ChainId::new(conf.chain_id.as_bytes().to_vec())
-                    .expect("failed to create ChainId"),
-                namespace: Namespace::from_slice(conf.chain_id.as_ref()),
+                chain_id: chain_id.clone(),
+                namespace: Namespace::from_slice(chain_id.as_ref()),
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
-                disable_empty_block_execution: conf.disable_empty_block_execution,
+                disable_empty_block_execution,
             },
             cmd_tx,
         ))
@@ -409,9 +420,14 @@ mod test {
     #[tokio::test]
     async fn execute_sequencer_block_without_txs() {
         let conf = get_test_config();
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), &conf)
-            .await
-            .unwrap();
+        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
+        let (mut executor, _) = Executor::new(
+            MockExecutionClient::new(),
+            chain_id,
+            conf.disable_empty_block_execution,
+        )
+        .await
+        .unwrap();
 
         let expected_exection_hash = hash(&executor.execution_state);
         let block = get_test_block_subset();
@@ -427,10 +443,15 @@ mod test {
     #[tokio::test]
     async fn skip_sequencer_block_without_txs() {
         let mut conf = get_test_config();
+        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
         conf.disable_empty_block_execution = true;
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), &conf)
-            .await
-            .unwrap();
+        let (mut executor, _) = Executor::new(
+            MockExecutionClient::new(),
+            chain_id,
+            conf.disable_empty_block_execution,
+        )
+        .await
+        .unwrap();
 
         let block = get_test_block_subset();
         let execution_block_hash = executor.execute_block(block).await.unwrap();
@@ -440,11 +461,18 @@ mod test {
     #[tokio::test]
     async fn execute_unexecuted_da_block_with_transactions() {
         let conf = get_test_config();
+        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, &conf).await.unwrap();
+        let (mut executor, _) = Executor::new(
+            execution_client,
+            chain_id,
+            conf.disable_empty_block_execution,
+        )
+        .await
+        .unwrap();
 
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
@@ -473,12 +501,19 @@ mod test {
     #[tokio::test]
     async fn skip_unexecuted_da_block_with_no_transactions() {
         let mut conf = get_test_config();
+        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
         conf.disable_empty_block_execution = true;
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, &conf).await.unwrap();
+        let (mut executor, _) = Executor::new(
+            execution_client,
+            chain_id,
+            conf.disable_empty_block_execution,
+        )
+        .await
+        .unwrap();
 
         let block: SequencerBlockSubset = get_test_block_subset();
         let previous_execution_state = executor.execution_state.clone();
@@ -505,11 +540,18 @@ mod test {
     #[tokio::test]
     async fn execute_unexecuted_da_block_with_no_transactions() {
         let conf = get_test_config();
+        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, &conf).await.unwrap();
+        let (mut executor, _) = Executor::new(
+            execution_client,
+            chain_id,
+            conf.disable_empty_block_execution,
+        )
+        .await
+        .unwrap();
 
         let block: SequencerBlockSubset = get_test_block_subset();
         let expected_execution_state = hash(&executor.execution_state);
