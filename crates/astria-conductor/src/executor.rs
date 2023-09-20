@@ -233,7 +233,13 @@ impl<C: ExecutionClient> Executor<C> {
             return Ok(Some(execution_block.clone()));
         }
 
-        let prev_block_hash = self.commitment_state.soft.clone().unwrap().hash;
+        let prev_block_hash = if let Some(soft_commitment) = self.commitment_state.soft.clone() {
+            soft_commitment.hash
+        } else {
+            debug!("could not get previous block. soft commitment is None");
+            return Ok(None);
+        };
+
         info!(
             height = block.header.height.value(),
             parent_block_hash = hex::encode(&prev_block_hash),
@@ -264,13 +270,10 @@ impl<C: ExecutionClient> Executor<C> {
 
     /// Updates the soft and firm blocks on the execution layer.
     /// Updates the local commitment_state with the new values.
-    async fn update_commitment_state(&mut self, firm: Block, soft: Block) -> Result<()> {
+    async fn update_commitment_state(&mut self, commitment_state: CommitmentState) -> Result<()> {
         let commitment_state = self
             .execution_rpc_client
-            .call_update_commitment_state(CommitmentState {
-                firm: Some(firm),
-                soft: Some(soft),
-            })
+            .call_update_commitment_state(commitment_state)
             .await?;
         self.commitment_state = commitment_state;
         Ok(())
@@ -278,22 +281,31 @@ impl<C: ExecutionClient> Executor<C> {
 
     /// Updates both firm and soft commitments.
     async fn update_commitments(&mut self, block: Block) -> Result<()> {
-        self.update_commitment_state(block.clone(), block)
-            .await?;
+        let commitment_state = CommitmentState {
+            soft: Some(block.clone()),
+            firm: Some(block),
+        };
+        self.update_commitment_state(commitment_state).await?;
         Ok(())
     }
 
     /// Updates only firm commitment and leaves soft commitment the same.
     async fn update_firm_commitment(&mut self, firm: Block) -> Result<()> {
-        self.update_commitment_state(firm, self.commitment_state.soft.clone().unwrap())
-            .await?;
+        let commitment_state = CommitmentState {
+            soft: self.commitment_state.soft.clone(),
+            firm: Some(firm),
+        };
+        self.update_commitment_state(commitment_state).await?;
         Ok(())
     }
 
     /// Updates only soft commitment and leaves firm commitment the same.
     async fn update_soft_commitment(&mut self, soft: Block) -> Result<()> {
-        self.update_commitment_state(self.commitment_state.firm.clone().unwrap(), soft)
-            .await?;
+        let commitment_state = CommitmentState {
+            soft: Some(soft),
+            firm: self.commitment_state.firm.clone(),
+        };
+        self.update_commitment_state(commitment_state).await?;
         Ok(())
     }
 
