@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 base64-serde = "0.7.0"
 sha2 = "0.10"
-thiserror = "1.0"
 
 base64 = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
@@ -15,6 +14,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["raw_value"] }
 tendermint = { workspace = true, features = ["rust-crypto"] }
 tendermint-proto = { workspace = true }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 
 celestia-jsonrpc-client = { package = "astria-celestia-jsonrpc-client", path = "../astria-celestia-jsonrpc-client" }

@@ -5,12 +5,15 @@ edition = "2021"
 
 [dependencies]
 proto = { package = "astria-proto", path = "../astria-proto" }
+sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }
 
 async-trait = { workspace = true }
-eyre = { workspace = true }
+futures = { workspace = true }
 hex = { workspace = true }
 tendermint = { workspace = true }
 tendermint-rpc = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
 
 [features]
 http = ["tendermint-rpc/http-client"]
