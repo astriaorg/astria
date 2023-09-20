@@ -42,7 +42,6 @@ jobs:
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v2
-      
       # Generate correct tabs and labels
       - name: Docker metadata
         id: metadata
