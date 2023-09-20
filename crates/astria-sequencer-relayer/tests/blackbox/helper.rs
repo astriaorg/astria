@@ -10,13 +10,11 @@ use astria_sequencer_relayer::{
     SequencerRelayer,
 };
 use astria_sequencer_validation::MerkleTree;
-use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
 use proto::native::sequencer::v1alpha1::{
     SequenceAction,
     UnsignedTransaction,
 };
-use sequencer_types::SequencerBlockData;
 use serde_json::json;
 use tempfile::NamedTempFile;
 use tendermint_rpc::{
@@ -32,13 +30,11 @@ use tokio::{
     task::JoinHandle,
     time,
 };
-use tracing::{
-    debug,
-    info,
-};
+use tracing::info;
 use wiremock::{
     matchers::body_partial_json,
     Mock,
+    MockGuard,
     MockServer,
     ResponseTemplate,
 };
@@ -78,9 +74,6 @@ pub struct TestSequencerRelayer {
     /// The mocked celestia node jsonrpc server
     pub celestia: MockCelestia,
 
-    /// The mocked astria conductor gossip node receiving gossiped messages
-    pub conductor: MockConductor,
-
     /// The mocked sequencer service (also serving as tendermint jsonrpc?)
     pub sequencer: MockServer,
 
@@ -95,7 +88,32 @@ pub struct TestSequencerRelayer {
 
 impl TestSequencerRelayer {
     pub async fn advance_by_block_time(&self) {
-        time::advance(Duration::from_millis(self.config.block_time + 10)).await;
+        time::advance(Duration::from_millis(self.config.block_time + 100)).await;
+    }
+
+    // Mount a block response on the mocks erver inside the test sequencer relayer env.
+    //
+    // Returns a MockGuard that can be used to verify that a block was picked up
+    // by sequencer-relayer.
+    pub async fn mount_initial_block_response(&self) -> MockGuard {
+        let block_response = create_block_response(&self.validator, 1);
+        let wrapped = Wrapper::new_with_id(Id::Num(1), Some(block_response.clone()), None);
+        Mock::given(body_partial_json(json!({"method": "block"})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(wrapped))
+            .expect(1)
+            .up_to_n_times(1)
+            .mount_as_scoped(&self.sequencer)
+            .await
+    }
+
+    pub async fn mount_block_response(&self, height: u32) -> MockGuard {
+        let block_response = create_block_response(&self.validator, height);
+        let wrapped = Wrapper::new_with_id(Id::Num(1), Some(block_response.clone()), None);
+        Mock::given(body_partial_json(json!({"method": "block"})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(wrapped))
+            .expect(1)
+            .mount_as_scoped(&self.sequencer)
+            .await
     }
 }
 
@@ -107,8 +125,6 @@ pub enum CelestiaMode {
 pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequencerRelayer {
     Lazy::force(&TELEMETRY);
     let block_time = 1000;
-    let mut conductor = MockConductor::start();
-    let conductor_bootnode = (&mut conductor.bootnode_rx).await.unwrap();
 
     let mut celestia = MockCelestia::start(block_time, celestia_mode).await;
     let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
@@ -133,13 +149,9 @@ pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequenc
         celestia_endpoint: format!("http://{celestia_addr}"),
         celestia_bearer_token: "".into(),
         gas_limit: 100000,
-        disable_writing: false,
         block_time: 1000,
         validator_key_file: keyfile.path().to_string_lossy().to_string(),
         rpc_port: 0,
-        p2p_port: 0,
-        bootnodes: Some(vec![conductor_bootnode.to_string()]),
-        libp2p_private_key: None,
         log: "".into(),
     };
 
@@ -157,7 +169,6 @@ pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequenc
     TestSequencerRelayer {
         api_address,
         celestia,
-        conductor,
         config,
         sequencer,
         sequencer_relayer,
@@ -179,21 +190,6 @@ pub async fn loop_until_sequencer_relayer_is_ready(addr: SocketAddr) {
             .await
             .unwrap();
         if readyz.status.to_lowercase() == "ok" {
-            break;
-        }
-    }
-    #[derive(Debug, serde::Deserialize)]
-    struct Status {
-        number_of_subscribed_peers: u64,
-    }
-    loop {
-        let status = reqwest::get(format!("http://{addr}/status"))
-            .await
-            .unwrap()
-            .json::<Status>()
-            .await
-            .unwrap();
-        if status.number_of_subscribed_peers > 0 {
             break;
         }
     }
@@ -312,95 +308,6 @@ impl StateServer for StateCelestiaImpl {
     }
 }
 
-pub struct MockConductor {
-    pub bootnode_rx: oneshot::Receiver<Multiaddr>,
-    pub block_rx: mpsc::UnboundedReceiver<SequencerBlockData>,
-    pub task: JoinHandle<()>,
-}
-
-impl MockConductor {
-    fn start() -> Self {
-        use astria_gossipnet::{
-            network::{
-                Keypair,
-                NetworkBuilder,
-                Sha256Topic,
-            },
-            network_stream::Event,
-        };
-        let mut conductor = NetworkBuilder::new()
-            .keypair(Keypair::generate_ed25519())
-            .with_mdns(false)
-            .build()
-            .unwrap();
-        let (bootnode_tx, bootnode_rx) = oneshot::channel();
-        let (block_tx, block_rx) = mpsc::unbounded_channel();
-        let task = tokio::task::spawn(async move {
-            use futures::StreamExt as _;
-            let event = conductor
-                .next()
-                .await
-                .expect("should have received an event from gossip network")
-                .expect("event should not have been an error");
-
-            // The first event should be that we start listening
-            match event {
-                Event::NewListenAddr(_) => {
-                    let multiaddr = conductor.multiaddrs()[0].clone();
-                    debug!(?multiaddr, "conductor is listening");
-                    bootnode_tx.send(multiaddr).unwrap();
-                }
-                other => panic!("event other than NewListerAddr received: {other:?}"),
-            };
-
-            // Wait until sequencer-relayer connects. We have to wait with subscribing to
-            // the "blocks" topic until after the connection is established because otherwise
-            // we have to wait until the next gossipsub heartbeat (which is configured to be
-            // 10 seconds and runs on a non-tokio timer, i.e. outside its ability to pause and
-            // advance time arbitrarily).
-            loop {
-                let Some(event) = conductor.next().await else {
-                    break;
-                };
-                if let Event::GossipsubPeerConnected(peer_id) = event.unwrap() {
-                    debug!(?peer_id, "conductor connected to peer");
-                    break;
-                }
-            }
-
-            let topic = Sha256Topic::new("blocks");
-            debug!(topic.hash = %topic.hash(), "subscribing to topic");
-            conductor.subscribe(&Sha256Topic::new("blocks"));
-
-            loop {
-                let Some(event) = conductor.next().await else {
-                    break;
-                };
-
-                match event.unwrap() {
-                    Event::GossipsubPeerConnected(peer_id) => {
-                        debug!(?peer_id, "conductor connected to peer");
-                    }
-                    Event::GossipsubPeerSubscribed(peer_id, topic_hash) => {
-                        debug!(?peer_id, ?topic_hash, "remote peer subscribed to topic");
-                    }
-                    Event::GossipsubMessage(msg) => {
-                        debug!(?msg, "conductor received message");
-                        let block = SequencerBlockData::from_bytes(&msg.data).unwrap();
-                        block_tx.send(block).unwrap();
-                    }
-                    _ => {}
-                }
-            }
-        });
-        Self {
-            task,
-            block_rx,
-            bootnode_rx,
-        }
-    }
-}
-
 fn create_block_response(validator: &Validator, height: u32) -> endpoint::block::Response {
     use proto::Message as _;
     use tendermint::{
@@ -501,18 +408,6 @@ async fn start_mocked_sequencer() -> MockServer {
         .mount(&server)
         .await;
     server
-}
-
-pub async fn mount_constant_block_response(
-    sequencer_relayer: &TestSequencerRelayer,
-) -> endpoint::block::Response {
-    let block_response = create_block_response(&sequencer_relayer.validator, 1);
-    let wrapped = Wrapper::new_with_id(Id::Num(1), Some(block_response.clone()), None);
-    Mock::given(body_partial_json(json!({"method": "block"})))
-        .respond_with(ResponseTemplate::new(200).set_body_json(wrapped))
-        .mount(&sequencer_relayer.sequencer)
-        .await;
-    block_response
 }
 
 /// Mounts 4 changing mock responses with the last one repeating
