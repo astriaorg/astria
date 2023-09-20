@@ -26,21 +26,21 @@ impl Sequencer {
     #[instrument(skip_all)]
     pub async fn run_until_stopped(config: Config) -> Result<()> {
         if config
-            .data_dir
+            .db_filepath
             .try_exists()
             .context("failed checking for existence of db storage file")?
         {
             info!(
-                path = %config.data_dir.display(),
+                path = %config.db_filepath.display(),
                 "opening storage db"
             );
         } else {
             info!(
-                path = %config.data_dir.display(),
+                path = %config.db_filepath.display(),
                 "creating storage db"
             );
         }
-        let storage = penumbra_storage::Storage::load(config.data_dir.clone())
+        let storage = penumbra_storage::Storage::load(config.db_filepath.clone())
             .await
             .context("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();

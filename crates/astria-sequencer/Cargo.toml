@@ -35,4 +35,6 @@ tracing = { workspace = true }
 figment = { workspace = true, features = ["env"] }
 
 [dev-dependencies]
+once_cell = { workspace = true }
 figment = { workspace = true, features = ["test"] }
+regex = { workspace = true }

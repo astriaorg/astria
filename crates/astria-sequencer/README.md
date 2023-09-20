@@ -49,7 +49,9 @@ Ensure `~/go` is in your `PATH`, or `GOPATH` is set to some other place in your
 `PATH`.
 
 ```sh
-just install-cometbft
+cd cometbft
+export GOPATH=~/go
+make install
 ```
 
 ### Optional: install abci-cli for a bit of CLI testing
