@@ -165,7 +165,7 @@ impl Driver {
         let mut new_blocks = self
             .sequencer_client
             .client
-            .subscribe_new_blocks()
+            .subscribe_new_block_data()
             .await
             .wrap_err("failed subscribing to sequencer to receive new blocks")?;
         // FIXME(https://github.com/astriaorg/astria/issues/381): the event handlers
