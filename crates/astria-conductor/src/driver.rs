@@ -53,7 +53,7 @@ pub(crate) type Receiver = UnboundedReceiver<DriverCommand>;
 
 /// The type of commands that the driver can receive.
 #[derive(Debug)]
-pub enum DriverCommand {
+pub(crate) enum DriverCommand {
     /// Get new blocks
     GetNewBlocks,
     /// Gracefully shuts down the driver and its components.
@@ -61,8 +61,8 @@ pub enum DriverCommand {
 }
 
 #[derive(Debug)]
-pub struct Driver {
-    pub cmd_tx: Sender,
+pub(crate) struct Driver {
+    pub(crate) cmd_tx: Sender,
 
     /// The channel on which other components in the driver sends the driver messages.
     cmd_rx: Receiver,
@@ -104,7 +104,7 @@ impl fmt::Debug for SequencerClient {
 
 impl Driver {
     #[instrument(name = "driver", skip_all)]
-    pub async fn new(
+    pub(crate) async fn new(
         conf: Config,
     ) -> Result<(Self, executor::JoinHandle, Option<reader::JoinHandle>)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
@@ -149,9 +149,10 @@ impl Driver {
 
     /// Runs the Driver event loop.
     #[instrument(name = "driver", skip_all)]
-    pub async fn run(&mut self) -> Result<()> {
+    pub(crate) async fn run(mut self) -> Result<()> {
         use futures::StreamExt as _;
         use sequencer_client::SequencerSubscriptionClientExt as _;
+
         info!("Starting driver event loop.");
         let mut new_blocks = self
             .sequencer_client

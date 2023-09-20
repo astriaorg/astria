@@ -12,7 +12,7 @@ use tonic::transport::Channel;
 use tracing::info;
 
 #[async_trait::async_trait]
-pub(crate) trait ExecutionClient: crate::private::Sealed {
+pub(crate) trait ExecutionClient {
     async fn call_do_block(
         &mut self,
         prev_block_hash: Vec<u8>,
@@ -45,8 +45,6 @@ impl ExecutionRpcClient {
         })
     }
 }
-
-impl crate::private::Sealed for ExecutionRpcClient {}
 
 #[async_trait::async_trait]
 impl ExecutionClient for ExecutionRpcClient {

@@ -30,7 +30,7 @@ use crate::{
 pub(crate) type JoinHandle = task::JoinHandle<eyre::Result<()>>;
 
 /// The channel for sending commands to the reader task.
-pub type Sender = UnboundedSender<ReaderCommand>;
+pub(crate) type Sender = UnboundedSender<ReaderCommand>;
 /// The channel the reader task uses to listen for commands.
 type Receiver = UnboundedReceiver<ReaderCommand>;
 
@@ -60,7 +60,7 @@ pub(crate) async fn spawn(
 }
 
 #[derive(Debug)]
-pub enum ReaderCommand {
+pub(crate) enum ReaderCommand {
     /// Get new blocks
     GetNewBlocks,
 
@@ -68,7 +68,7 @@ pub enum ReaderCommand {
 }
 
 #[derive(Debug)]
-pub struct Reader {
+pub(crate) struct Reader {
     /// Channel on which reader commands are received.
     cmd_rx: Receiver,
 
@@ -160,7 +160,9 @@ impl Reader {
     }
 
     /// get_new_blocks fetches any new sequencer blocks from Celestia.
-    pub async fn get_new_blocks(&mut self) -> eyre::Result<Option<Vec<SequencerBlockSubset>>> {
+    pub(crate) async fn get_new_blocks(
+        &mut self,
+    ) -> eyre::Result<Option<Vec<SequencerBlockSubset>>> {
         // get the latest celestia block height
         let first_new_height = self.curr_block_height + 1;
         let curr_block_height = self
