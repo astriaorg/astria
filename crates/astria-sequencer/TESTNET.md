@@ -75,4 +75,4 @@ Simply stop the testnet and run
 ```sh
 just clean-testnet sequencer_testnet
 ```
-where `sequencer_testnet` is the dir where the config exists
+where `sequencer_testnet` is the `OUT_DIR` where the testnet files are.
