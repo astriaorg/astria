@@ -161,7 +161,7 @@ impl<C: ExecutionClient> Executor<C> {
                         );
                         continue;
                     };
-                    match self.execute_block(block_subset.clone()).await {
+                    match self.execute_block(block_subset).await {
                         Ok(Some(executed_block)) => {
                             self.update_soft_commitment(executed_block.clone()).await?;
                         }
@@ -172,7 +172,7 @@ impl<C: ExecutionClient> Executor<C> {
                                 "failed to execute block"
                             );
                         }
-                        _ => {}
+                        Ok(None) => {}
                     }
                 }
 
