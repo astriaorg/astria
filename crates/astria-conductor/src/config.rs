@@ -38,6 +38,9 @@ pub struct Config {
 
     /// log directive to use for telemetry.
     pub log: String,
+
+    /// Choose to execute empty blocks or not
+    pub disable_empty_block_execution: bool,
 }
 
 impl Config {
