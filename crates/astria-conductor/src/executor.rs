@@ -278,13 +278,15 @@ impl<C: ExecutionClient> Executor<C> {
 
     /// Updates only firm commitment and leaves soft commitment the same.
     async fn update_firm_commitment(&mut self, firm: Block) -> Result<()> {
-        self.update_commitment_state(firm, self.commitment_state.soft.clone().unwrap()).await?;
+        self.update_commitment_state(firm, self.commitment_state.soft.clone().unwrap())
+            .await?;
         Ok(())
     }
 
     /// Updates only soft commitment and leaves firm commitment the same.
     async fn update_soft_commitment(&mut self, soft: Block) -> Result<()> {
-        self.update_commitment_state(self.commitment_state.firm.clone().unwrap(), soft).await?;
+        self.update_commitment_state(self.commitment_state.firm.clone().unwrap(), soft)
+            .await?;
         Ok(())
     }
 
@@ -302,7 +304,8 @@ impl<C: ExecutionClient> Executor<C> {
                 // this case means block has already been executed.
                 self.update_firm_commitment(executed_block.clone()).await?;
                 // remove the sequencer block hash from the map, as it's been firmly committed
-                self.sequencer_hash_to_execution_block.remove(&block.block_hash);
+                self.sequencer_hash_to_execution_block
+                    .remove(&block.block_hash);
             }
             None => {
                 // this means either:
