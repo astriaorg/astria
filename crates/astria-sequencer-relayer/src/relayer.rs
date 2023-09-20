@@ -5,10 +5,7 @@ use eyre::{
     WrapErr as _,
 };
 use humantime::format_duration;
-use sequencer_types::{
-    serde::ChainIdToTxCount,
-    SequencerBlockData,
-};
+use sequencer_types::SequencerBlockData;
 use tendermint_rpc::{
     endpoint::block,
     HttpClient,
