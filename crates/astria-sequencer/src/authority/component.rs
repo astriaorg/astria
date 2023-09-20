@@ -4,6 +4,7 @@ use anyhow::{
     Context,
     Result,
 };
+use proto::native::sequencer::v1alpha1::Address;
 use tendermint::{
     abci::request::{
         BeginBlock,
@@ -18,26 +19,29 @@ use super::state_ext::{
     StateWriteExt,
     ValidatorSet,
 };
-use crate::{
-    component::Component,
-    genesis::GenesisState,
-};
+use crate::component::Component;
 
 #[derive(Default)]
 pub(crate) struct AuthorityComponent;
 
+#[derive(Debug)]
+pub(crate) struct AuthorityComponentAppState {
+    pub(crate) authority_sudo_key: Address,
+    pub(crate) genesis_validators: Vec<validator::Update>,
+}
+
 #[async_trait::async_trait]
 impl Component for AuthorityComponent {
-    type AppState = (GenesisState, Vec<validator::Update>);
+    type AppState = AuthorityComponentAppState;
 
     #[instrument(name = "AuthorityComponent:init_chain", skip(state))]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         // set sudo key and initial validator set
         state
-            .put_sudo_address(app_state.0.authority_sudo_key)
+            .put_sudo_address(app_state.authority_sudo_key)
             .context("failed to set sudo key")?;
         state
-            .put_validator_set(ValidatorSet(app_state.1.clone()))
+            .put_validator_set(ValidatorSet(app_state.genesis_validators.clone()))
             .context("failed to set validator set")?;
         Ok(())
     }

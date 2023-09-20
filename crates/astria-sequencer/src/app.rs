@@ -26,7 +26,10 @@ use crate::{
     accounts::component::AccountsComponent,
     app_hash::AppHash,
     authority::{
-        component::AuthorityComponent,
+        component::{
+            AuthorityComponent,
+            AuthorityComponentAppState,
+        },
         state_ext::{
             StateReadExt as _,
             StateWriteExt as _,
@@ -96,7 +99,14 @@ impl App {
 
         // call init_chain on all components
         AccountsComponent::init_chain(&mut state_tx, &genesis_state).await?;
-        AuthorityComponent::init_chain(&mut state_tx, &(genesis_state, genesis_validators)).await?;
+        AuthorityComponent::init_chain(
+            &mut state_tx,
+            &AuthorityComponentAppState {
+                authority_sudo_key: genesis_state.authority_sudo_key,
+                genesis_validators,
+            },
+        )
+        .await?;
         state_tx.apply();
         Ok(())
     }
