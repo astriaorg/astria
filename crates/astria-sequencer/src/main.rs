@@ -13,7 +13,7 @@ async fn main() {
     let config = match config::get() {
         Ok(cfg) => cfg,
         Err(e) => {
-            eprintln!("failed to read configuration: {e:?}");
+            eprintln!("failed to read configuration:\n{e:?}");
             std::process::exit(EX_CONFIG);
         }
     };
