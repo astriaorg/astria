@@ -19,8 +19,6 @@ To learn more about Astria, please visit [astria.org](https://astria.org).
 
 * [conductor](https://github.com/astriaorg/astria/tree/main/crates/astria-conductor):
   conducts blocks from the data availability layer to the execution layer.
-* [gossipnet](https://github.com/astriaorg/astria/tree/main/crates/astria-gossipnet):
-  libp2p-based gossip network.
 * [proto](https://github.com/astriaorg/astria/tree/main/crates/astria-proto):
   relevant protobufs for Astria types.
 * [sequencer](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer):
