@@ -183,7 +183,7 @@ impl Searcher {
     /// Starts the searcher and runs it until failure
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         self.spawn_collectors();
-        let mut exectuor_handle = self.spawn_executor();
+        let mut executor_handle = self.spawn_executor();
         let wait_for_collectors = self.wait_for_collectors();
         let wait_for_executor = self.wait_for_executor();
         match tokio::try_join!(wait_for_collectors, wait_for_executor) {
@@ -224,7 +224,7 @@ impl Searcher {
                     }
                 }
 
-                _ = &mut exectuor_handle => { todo!("handle executor failure"); }
+                _ = &mut executor_handle => { todo!("handle executor failure"); }
             );
         }
 
