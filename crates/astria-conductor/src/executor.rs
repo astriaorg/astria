@@ -410,7 +410,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn execute_block_without_relevant_txs() {
+    async fn execute_sequencer_block_without_txs() {
         let conf = get_test_config();
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), &conf)
             .await
@@ -428,7 +428,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn skip_block_without_relevant_txs() {
+    async fn skip_sequencer_block_without_txs() {
         let mut conf = get_test_config();
         conf.disable_empty_block_execution = true;
         let (mut executor, _) = Executor::new(MockExecutionClient::new(), &conf)
@@ -441,7 +441,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn handle_block_received_from_data_availability_not_yet_executed() {
+    async fn execute_unexecuted_da_block_with_transactions() {
         let conf = get_test_config();
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
@@ -474,8 +474,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn handle_block_received_from_data_availability_not_yet_executed_no_relevant_transactions_skip_block()
-     {
+    async fn skip_unexecuted_da_block_with_no_transactions() {
         let mut conf = get_test_config();
         conf.disable_empty_block_execution = true;
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
@@ -507,8 +506,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn handle_block_received_from_data_availability_not_yet_executed_no_relevant_transactions_execute_block()
-     {
+    async fn execute_unexecuted_da_block_with_no_transactions() {
         let conf = get_test_config();
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
@@ -532,7 +530,7 @@ mod test {
                 .is_some()
         );
         assert_eq!(expected_execution_state, executor.execution_state);
-        // should be empty because nothing was executed
+        // should be empty because block was executed and finalized, which deletes it from the map
         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
     }
 }
