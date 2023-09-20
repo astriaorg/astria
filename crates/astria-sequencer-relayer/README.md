@@ -1,9 +1,9 @@
 # Astria Sequencer-Relayer
 
 Sequencer-Relayer reads new blocks from [Astria Sequencer](../astria-sequencer)
-(run as a proxy app of cometBFT), submits them to celestia (which is used as a
-data availability layer), and gossips them over P2P, where they are usually read
-by [Astria Conductor](../astria-conductor).
+(run as a proxy app of cometBFT) and submits them to celestia (which is used as a
+data availability layer), from which they are usually read by
+[Astria Conductor](../astria-conductor).
 
 ## Running Sequencer-Relayer
 
