@@ -163,12 +163,7 @@ impl<C: ExecutionClient> Executor<C> {
                     };
                     match self.execute_block(block_subset.clone()).await {
                         Ok(Some(executed_block)) => {
-                            // set soft but leave firm the same
-                            self.update_commitment_state(
-                                self.commitment_state.firm.clone().unwrap(),
-                                executed_block,
-                            )
-                            .await?;
+                            self.update_soft_commitment(executed_block.clone()).await?;
                         }
                         Err(e) => {
                             error!(
@@ -281,6 +276,18 @@ impl<C: ExecutionClient> Executor<C> {
         Ok(())
     }
 
+    /// Updates only firm commitment and leaves soft commitment the same.
+    async fn update_firm_commitment(&mut self, firm: Block) -> Result<()> {
+        self.update_commitment_state(firm, self.commitment_state.soft.clone().unwrap()).await?;
+        Ok(())
+    }
+
+    /// Updates only soft commitment and leaves firm commitment the same.
+    async fn update_soft_commitment(&mut self, soft: Block) -> Result<()> {
+        self.update_commitment_state(self.commitment_state.firm.clone().unwrap(), soft).await?;
+        Ok(())
+    }
+
     async fn handle_block_received_from_data_availability(
         &mut self,
         block: SequencerBlockSubset,
@@ -293,15 +300,9 @@ impl<C: ExecutionClient> Executor<C> {
         match maybe_execution_block_hash {
             Some(executed_block) => {
                 // this case means block has already been executed.
-                // setting execution chain's FIRM.
-                self.update_commitment_state(
-                    executed_block,
-                    self.commitment_state.soft.clone().unwrap(),
-                )
-                .await?;
-                // remove the sequencer block hash from the map, as it's been executed
-                self.sequencer_hash_to_execution_block
-                    .remove(&block.block_hash);
+                self.update_firm_commitment(executed_block.clone()).await?;
+                // remove the sequencer block hash from the map, as it's been firmly committed
+                self.sequencer_hash_to_execution_block.remove(&block.block_hash);
             }
             None => {
                 // this means either:
