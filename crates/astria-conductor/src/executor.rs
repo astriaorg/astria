@@ -268,14 +268,14 @@ impl<C: ExecutionClient> Executor<C> {
         Ok(Some(executed_block))
     }
 
-    /// Updates the soft and firm blocks on the execution layer.
+    /// Updates the commitment state on the execution layer.
     /// Updates the local commitment_state with the new values.
     async fn update_commitment_state(&mut self, commitment_state: CommitmentState) -> Result<()> {
-        let commitment_state = self
+        let new_commitment_state = self
             .execution_rpc_client
             .call_update_commitment_state(commitment_state)
             .await?;
-        self.commitment_state = commitment_state;
+        self.commitment_state = new_commitment_state;
         Ok(())
     }
 
