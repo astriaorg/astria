@@ -15,6 +15,17 @@ use prost_types::Timestamp;
 use tonic::transport::Channel;
 use tracing::info;
 
+/// Creates a new RPC Client for Execution
+///
+/// # Arguments
+///
+/// * `address` - The address of the RPC server that we want to communicate with.
+pub(crate) async fn new(address: &str) -> Result<ExecutionServiceClient<Channel>> {
+    let client = ExecutionServiceClient::connect(address.to_owned()).await?;
+    info!("Connected to execution service at {}", address);
+    Ok(client)
+}
+
 #[async_trait::async_trait]
 pub(crate) trait ExecutionClient {
     async fn call_batch_get_blocks(
@@ -39,29 +50,8 @@ pub(crate) trait ExecutionClient {
     ) -> Result<CommitmentState>;
 }
 
-/// Represents an RpcClient. Wrapping the auto generated client here.
-pub(crate) struct ExecutionRpcClient {
-    /// The actual rpc client
-    client: ExecutionServiceClient<Channel>,
-}
-
-impl ExecutionRpcClient {
-    /// Creates a new RPC Client
-    ///
-    /// # Arguments
-    ///
-    /// * `address` - The address of the RPC server that we want to communicate with.
-    pub(crate) async fn new(address: &str) -> Result<Self> {
-        let client = ExecutionServiceClient::connect(address.to_owned()).await?;
-        info!("Connected to execution service at {}", address);
-        Ok(ExecutionRpcClient {
-            client,
-        })
-    }
-}
-
 #[async_trait::async_trait]
-impl ExecutionClient for ExecutionRpcClient {
+impl ExecutionClient for ExecutionServiceClient<Channel> {
     /// Calls remote procedure BatchGetBlocks
     ///
     /// # Arguments
@@ -74,7 +64,7 @@ impl ExecutionClient for ExecutionRpcClient {
         let request = BatchGetBlocksRequest {
             identifiers,
         };
-        let response = self.client.batch_get_blocks(request).await?.into_inner();
+        let response = self.batch_get_blocks(request).await?.into_inner();
         Ok(response)
     }
 
@@ -96,7 +86,7 @@ impl ExecutionClient for ExecutionRpcClient {
             transactions,
             timestamp,
         };
-        let response = self.client.execute_block(request).await?.into_inner();
+        let response = self.execute_block(request).await?.into_inner();
         Ok(response)
     }
 
@@ -109,18 +99,14 @@ impl ExecutionClient for ExecutionRpcClient {
         let request = GetBlockRequest {
             identifier: Some(identifier),
         };
-        let response = self.client.get_block(request).await?.into_inner();
+        let response = self.get_block(request).await?.into_inner();
         Ok(response)
     }
 
     /// Calls remote procedure GetCommitmentState
     async fn call_get_commitment_state(&mut self) -> Result<CommitmentState> {
         let request = GetCommitmentStateRequest {};
-        let response = self
-            .client
-            .get_commitment_state(request)
-            .await?
-            .into_inner();
+        let response = self.get_commitment_state(request).await?.into_inner();
         Ok(response)
     }
 
@@ -136,11 +122,7 @@ impl ExecutionClient for ExecutionRpcClient {
         let request = UpdateCommitmentStateRequest {
             commitment_state: Some(commitment_state),
         };
-        let response = self
-            .client
-            .update_commitment_state(request)
-            .await?
-            .into_inner();
+        let response = self.update_commitment_state(request).await?.into_inner();
         Ok(response)
     }
 }

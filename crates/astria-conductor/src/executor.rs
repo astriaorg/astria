@@ -37,10 +37,8 @@ use tracing::{
 
 use crate::{
     config::Config,
-    execution_client::{
-        ExecutionClient,
-        ExecutionRpcClient,
-    },
+    execution_client,
+    execution_client::ExecutionClient,
     types::SequencerBlockSubset,
 };
 
@@ -59,7 +57,7 @@ pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
         execution_rpc_url = %conf.execution_rpc_url,
         "Spawning executor task."
     );
-    let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url).await?;
+    let execution_rpc_client = execution_client::new(&conf.execution_rpc_url).await?;
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
         ChainId::new(conf.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
