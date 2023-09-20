@@ -9,9 +9,9 @@ use serde::{
     Serialize,
 };
 
-/// # Errors:
+/// # Errors
 ///
-/// if figment failed to read the config from the environment
+/// If figment failed to read the config from the environment
 pub fn get() -> Result<Config, figment::Error> {
     Config::from_environment("ASTRIA_SEQUENCER")
 }
@@ -54,7 +54,7 @@ mod tests {
                     !(RE_END.is_match(key) || RE_START.is_match(val)),
                     "env vars must not contain spaces in assignment\n{line}"
                 );
-                let prefixed_key = format!("{}_{}", test_envar_prefix, key);
+                let prefixed_key = format!("{test_envar_prefix}_{key}");
                 jail.set_env(prefixed_key, val);
             }
         }
