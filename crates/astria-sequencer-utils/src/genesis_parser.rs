@@ -17,21 +17,25 @@ use crate::config::Config;
 pub struct GenesisParser;
 
 impl GenesisParser {
-    /// Propagates json data from one json file to another.
+    /// Copies JSON application state from a file to a genesis JSON file,
+    /// placing it at the key `app_state`.
     ///
     /// # Errors
     ///
-    /// An `eyre::Result` is returned if either source genesis files cannot be opened,
+    /// An `eyre::Result` is returned if either file cannot be opened,
     /// or if the destination genesis file cannot be saved.
-    pub fn propagate_data(data: Config) -> Result<()> {
-        println!("loading genesis json data for propigation:");
-        println!("\tsource genesis file: {}", data.source_genesis_file);
+    pub fn propagate_app_state(data: Config) -> Result<()> {
+        println!("loading genesis app state for propagation:");
+        println!(
+            "\tsource genesis app state: {}",
+            data.genesis_app_state_file
+        );
         println!(
             "\tdestination genesis file: {}",
             data.destination_genesis_file
         );
         // load sequencer genesis data
-        let source_genesis_file_path = File::open(data.source_genesis_file)
+        let source_genesis_file_path = File::open(data.genesis_app_state_file)
             .wrap_err("failed to open sequencer genesis file")?;
         let source_genesis_data: Value = serde_json::from_reader(&source_genesis_file_path)
             .wrap_err("failed deserializing sequencer genesis state from file")?;
@@ -43,8 +47,8 @@ impl GenesisParser {
             serde_json::from_reader(&destination_genesis_file_path)
                 .wrap_err("failed deserializing cometbft genesis state from file")?;
 
-        // merge sequencer genesis data into cometbft genesis data
-        merge_json(&mut destination_genesis_data, &source_genesis_data);
+        // insert sequencer app genesis data into cometbft genesis data
+        insert_app_state(&mut destination_genesis_data, &source_genesis_data);
 
         // write new state
         let dest_file = File::create(Path::new(data.destination_genesis_file.as_str()))
@@ -56,25 +60,17 @@ impl GenesisParser {
     }
 }
 
-/// Merges a source JSON Value into a destination JSON Value context:
-// https://stackoverflow.com/questions/47070876/how-can-i-merge-two-json-objects-with-rust
-fn merge_json(a: &mut Value, b: &Value) {
-    match (a, b) {
-        (Value::Object(a), Value::Object(b)) => {
-            for (k, v) in b {
-                merge_json(a.entry(k).or_insert(Value::Null), v);
-            }
-        }
-        (a, b) => *a = b.clone(),
-    }
+fn insert_app_state(dst: &mut Value, app_state: &Value) {
+    let Value::Object(dst) = dst else {
+        panic!("dst is not an object");
+    };
+    dst.insert("app_state".to_string(), app_state.clone());
 }
 
-// This is your test module
 #[cfg(test)]
 mod tests {
     use serde_json::json;
 
-    // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
 
     #[test]
@@ -118,24 +114,25 @@ mod tests {
                     ]
                   }
             },
-            "accounts": [
-              {
-                "address": "alice",
-                "balance": 1000
-              },
-              {
-                "address": "bob",
-                "balance": 1000
-              },
-              {
-                "address": "charlie",
-                "balance": 1000
-              }
-            ],
+            "app_state": {
+                "accounts": [
+                    {
+                        "address": "alice",
+                        "balance": 1000
+                    },
+                    {
+                        "address": "bob",
+                        "balance": 1000
+                    },
+                    {
+                        "address": "charlie",
+                        "balance": 1000
+                    }
+                ]
+            }
         });
 
-        merge_json(&mut a, &b);
-
+        insert_app_state(&mut a, &b);
         assert_eq!(a, output);
     }
 }

@@ -9,10 +9,9 @@ sync_wrapper = "0.1.2"
 
 async-trait = { workspace = true }
 base64 = { workspace = true }
-clap = { workspace = true, features = ["derive"] }
 color-eyre = { workspace = true }
 ed25519-consensus = { workspace = true }
-figment = { workspace = true, features = ["toml", "env"] }
+figment = { workspace = true, features = ["env"] }
 futures = { workspace = true }
 hex = { workspace = true }
 prost = { workspace = true }
@@ -24,21 +23,22 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 tendermint = { workspace = true }
 tendermint-proto = { workspace = true }
-tendermint-rpc = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
 
 astria-proto = { path = "../astria-proto", features = ["client"] }
-astria-gossipnet = { path = "../astria-gossipnet" }
-astria-sequencer-client = { path = "../astria-sequencer-client", features = [
+sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
   "http",
+  "websocket",
 ] }
 astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 astria-sequencer-types = { path = "../astria-sequencer-types" }
+sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
 base64 = { workspace = true }
 once_cell = { workspace = true }
-astria-sequencer-validation = { path = "../astria-sequencer-validation" }
+figment = { workspace = true, features = ["test"] }
+regex = { workspace = true }
