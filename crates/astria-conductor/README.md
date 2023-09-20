@@ -32,33 +32,6 @@ load it and run locally:
 just run
 ```
 
-### Additional env variables
-
-#### Bootnodes
-
-You can also connect directly to a node - just add a bootnode address to the .env file
-
-```bash
-ASTRIA_CONDUCTOR_BOOTNODES="/ip4/127.0.0.1/tcp/34471/p2p/12D3KooWDCHwgGetpJuHknJqv2dNbYpe3LqgH8BKrsYHV9ALpAj8"
-```
-
-#### libp2p options
-
-You can add a libp2p private key or port
-
-```bash
-ASTRIA_CONDUCTOR_LIBP2P_PRIVATE_KEY="{{your key}}"
-ASTRIA_CONDUCTOR_LIBP2P_PORT="{{your port}}"
-```
-
-#### Celestia JWT bearer token
-
-You can add a JWT token that's used in celestia jsonrpc calls
-
-```bash
-ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN="{{your token}}"
-```
-
 ### Running tests
 
 ```bash

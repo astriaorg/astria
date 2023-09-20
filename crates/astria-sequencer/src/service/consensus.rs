@@ -132,12 +132,20 @@ impl Consensus {
         }
 
         let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
-            .expect("can parse app_state in genesis file");
-
+            .context("failed to parse app_state in genesis file")?;
         self.app.init_chain(genesis_state).await?;
 
-        // TODO: return the genesis app hash
-        Ok(response::InitChain::default())
+        // commit the state and return the app hash
+        let app_hash = self.app.commit(self.storage.clone()).await;
+        Ok(response::InitChain {
+            app_hash: app_hash
+                .0
+                .to_vec()
+                .try_into()
+                .context("failed to convert app hash")?,
+            consensus_params: Some(init_chain.consensus_params),
+            validators: init_chain.validators,
+        })
     }
 
     #[instrument(skip(self))]
@@ -145,14 +153,6 @@ impl Consensus {
         &mut self,
         begin_block: request::BeginBlock,
     ) -> anyhow::Result<response::BeginBlock> {
-        if self.storage.latest_version() == u64::MAX {
-            // TODO: why isn't tendermint calling init_chain before the first block?
-            self.app
-                .init_chain(GenesisState::default())
-                .await
-                .expect("init_chain must succeed");
-        }
-
         let events = self.app.begin_block(&begin_block).await;
         Ok(response::BeginBlock {
             events,

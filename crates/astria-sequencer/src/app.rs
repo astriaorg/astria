@@ -86,8 +86,6 @@ impl App {
         // call init_chain on all components
         AccountsComponent::init_chain(&mut state_tx, &genesis_state).await?;
         state_tx.apply();
-
-        // TODO: call commit and return the app hash?
         Ok(())
     }
 

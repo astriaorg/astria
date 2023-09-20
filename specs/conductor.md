@@ -151,10 +151,34 @@ Data is validated before being sent to the rollup for execution. Validation
 occurs in two places:
 
 - When blocks are received directly from the sequencer, the data is passed to
-  `handle_block()` and validated with `BlockVerifier::validate_sequencer_block_data`
+  `handle_block()` and validated with
+  `BlockVerifier::validate_sequencer_block_data`
+  - `validate_sequencer_namespace_data` performs the following checks:
+    - the proposer of the sequencer block matches the expected proposer for
+      the block height from Tendermint
+    - the signer of the SignedNamespaceData matches the proposer
+    - the signature is valid
+    - the root of the merkle tree of all the header fields matches the
+      block's block_hash
+    - the root of the merkle tree of all transactions in the block matches
+      the block's data_hash
+    - the inclusion proof of the action tree root inside `data_hash` is
+      valid
+    - the block was actually finalized, i.e. >2/3 stake signed off on it
 - When blocks are fetched from the DA layer, the data is validated in the Reader's
   `get_new_blocks` using `BlockVerifier::validate_signed_namespace_data` and
   `BlockVerifier::validate_rollup_data`
+  - `BlockVerifier::validate_signed_namespace_data`
+    - verifies the block signature and checks that the data was signed by
+      the expected proposer for this block height
+  - `BlockVerifier::validate_rollup_data`
+    - calls `BlockVerifier::validate_sequencer_namespace_data` to perform
+      the same checks as when blocks are received from the gossip network,
+      described above
+    - validates the rollup data inclusion proof; it checks that the rollup
+      data received was actually what was included in the Sequencer block
+      (that no transactions were added or omitted incorrectly and the
+      ordering is correct)
 
 ### Soft Commitments
 
