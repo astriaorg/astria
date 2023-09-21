@@ -54,12 +54,16 @@ pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
         execution_rpc_url = %conf.execution_rpc_url,
         "Spawning executor task."
     );
-    let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url).await?;
+    let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url)
+        .await
+        .wrap_err("failed to create execution rpc client")?;
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
         ChainId::new(conf.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
+        conf.disable_empty_block_execution,
     )
-    .await?;
+    .await
+    .context("failed to create Executor")?;
     let join_handle = task::spawn(async move { executor.run().in_current_span().await });
     info!("Spawned executor task.");
     Ok((join_handle, executor_tx))
@@ -80,8 +84,8 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> 
 
 #[derive(Debug)]
 pub(crate) enum ExecutorCommand {
-    /// used when a block is received from the gossip network
-    BlockReceivedFromGossipNetwork {
+    /// used when a block is received from the subscription stream to sequencer
+    BlockReceivedFromSequencer {
         block: Box<SequencerBlockData>,
     },
     /// used when a block is received from the reader (Celestia)
@@ -117,12 +121,22 @@ struct Executor<C> {
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
     sequencer_hash_to_execution_hash: HashMap<Hash, Vec<u8>>,
+
+    /// Chose to execute empty blocks or not
+    disable_empty_block_execution: bool,
 }
 
 impl<C: ExecutionClient> Executor<C> {
-    async fn new(mut execution_rpc_client: C, chain_id: ChainId) -> Result<(Self, Sender)> {
+    async fn new(
+        mut execution_rpc_client: C,
+        chain_id: ChainId,
+        disable_empty_block_execution: bool,
+    ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let init_state_response = execution_rpc_client.call_init_state().await?;
+        let init_state_response = execution_rpc_client
+            .call_init_state()
+            .await
+            .wrap_err("could not initialize execution rpc client state")?;
         let execution_state = init_state_response.block_hash;
         Ok((
             Self {
@@ -132,6 +146,7 @@ impl<C: ExecutionClient> Executor<C> {
                 namespace: Namespace::from_slice(chain_id.as_ref()),
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
+                disable_empty_block_execution,
             },
             cmd_tx,
         ))
@@ -143,7 +158,7 @@ impl<C: ExecutionClient> Executor<C> {
 
         while let Some(cmd) = self.cmd_rx.recv().await {
             match cmd {
-                ExecutorCommand::BlockReceivedFromGossipNetwork {
+                ExecutorCommand::BlockReceivedFromSequencer {
                     block,
                 } => {
                     let height = block.header().height.value();
@@ -202,10 +217,10 @@ impl<C: ExecutionClient> Executor<C> {
     /// execution block hash.
     /// if there are no relevant transactions in the SequencerBlock, it returns None.
     async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Vec<u8>>> {
-        if block.rollup_transactions.is_empty() {
+        if self.disable_empty_block_execution && block.rollup_transactions.is_empty() {
             debug!(
                 height = block.header.height.value(),
-                "no transactions in block"
+                "no transactions in block, skipping execution"
             );
             return Ok(None);
         }
@@ -264,7 +279,7 @@ impl<C: ExecutionClient> Executor<C> {
             }
             None => {
                 // this means either:
-                // - we didn't receive the block from the gossip layer yet, or
+                // - we didn't receive the block from the sequencer stream, or
                 // - we received it, but the sequencer block didn't contain
                 // any transactions for this rollup namespace, thus nothing was executed
                 // on receiving this block.
@@ -348,8 +363,6 @@ mod test {
         }
     }
 
-    impl crate::private::Sealed for MockExecutionClient {}
-
     #[async_trait::async_trait]
     impl ExecutionClient for MockExecutionClient {
         // returns the sha256 hash of the prev_block_hash
@@ -393,16 +406,34 @@ mod test {
         }
     }
 
+    fn get_test_config() -> Config {
+        Config {
+            chain_id: "test".to_string(),
+            execution_rpc_url: "test".to_string(),
+            disable_finalization: false,
+            log: "test".to_string(),
+            disable_empty_block_execution: false,
+            celestia_node_url: "test".to_string(),
+            celestia_bearer_token: "test".to_string(),
+            tendermint_url: "test".to_string(),
+            sequencer_url: "test".to_string(),
+        }
+    }
+
     #[tokio::test]
-    async fn execute_block_with_relevant_txs() {
-        let chain_id = ChainId::new(b"test".to_vec()).unwrap();
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), chain_id)
-            .await
-            .unwrap();
+    async fn execute_sequencer_block_without_txs() {
+        let conf = get_test_config();
+        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
+        let (mut executor, _) = Executor::new(
+            MockExecutionClient::new(),
+            chain_id,
+            conf.disable_empty_block_execution,
+        )
+        .await
+        .unwrap();
 
         let expected_exection_hash = hash(&executor.execution_state);
-        let mut block = get_test_block_subset();
-        block.rollup_transactions.push(b"test_transaction".to_vec());
+        let block = get_test_block_subset();
 
         let execution_block_hash = executor
             .execute_block(block)
@@ -413,11 +444,17 @@ mod test {
     }
 
     #[tokio::test]
-    async fn execute_block_without_relevant_txs() {
-        let chain_id = ChainId::new(b"test".to_vec()).unwrap();
-        let (mut executor, _) = Executor::new(MockExecutionClient::new(), chain_id)
-            .await
-            .unwrap();
+    async fn skip_sequencer_block_without_txs() {
+        let mut conf = get_test_config();
+        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
+        conf.disable_empty_block_execution = true;
+        let (mut executor, _) = Executor::new(
+            MockExecutionClient::new(),
+            chain_id,
+            conf.disable_empty_block_execution,
+        )
+        .await
+        .unwrap();
 
         let block = get_test_block_subset();
         let execution_block_hash = executor.execute_block(block).await.unwrap();
@@ -425,13 +462,20 @@ mod test {
     }
 
     #[tokio::test]
-    async fn handle_block_received_from_data_availability_not_yet_executed() {
-        let chain_id = ChainId::new(b"test".to_vec()).unwrap();
+    async fn execute_unexecuted_da_block_with_transactions() {
+        let conf = get_test_config();
+        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, chain_id).await.unwrap();
+        let (mut executor, _) = Executor::new(
+            execution_client,
+            chain_id,
+            conf.disable_empty_block_execution,
+        )
+        .await
+        .unwrap();
 
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
@@ -458,13 +502,21 @@ mod test {
     }
 
     #[tokio::test]
-    async fn handle_block_received_from_data_availability_no_relevant_transactions() {
-        let chain_id = ChainId::new(b"test".to_vec()).unwrap();
+    async fn skip_unexecuted_da_block_with_no_transactions() {
+        let mut conf = get_test_config();
+        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
+        conf.disable_empty_block_execution = true;
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, chain_id).await.unwrap();
+        let (mut executor, _) = Executor::new(
+            execution_client,
+            chain_id,
+            conf.disable_empty_block_execution,
+        )
+        .await
+        .unwrap();
 
         let block: SequencerBlockSubset = get_test_block_subset();
         let previous_execution_state = executor.execution_state.clone();
@@ -485,6 +537,42 @@ mod test {
         );
         assert_eq!(previous_execution_state, executor.execution_state,);
         // should be empty because nothing was executed
+        assert!(executor.sequencer_hash_to_execution_hash.is_empty());
+    }
+
+    #[tokio::test]
+    async fn execute_unexecuted_da_block_with_no_transactions() {
+        let conf = get_test_config();
+        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
+        let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
+        let execution_client = MockExecutionClient {
+            finalized_blocks: finalized_blocks.clone(),
+        };
+        let (mut executor, _) = Executor::new(
+            execution_client,
+            chain_id,
+            conf.disable_empty_block_execution,
+        )
+        .await
+        .unwrap();
+
+        let block: SequencerBlockSubset = get_test_block_subset();
+        let expected_execution_state = hash(&executor.execution_state);
+
+        executor
+            .handle_block_received_from_data_availability(block)
+            .await
+            .unwrap();
+
+        assert!(
+            finalized_blocks
+                .lock()
+                .await
+                .get(&executor.execution_state)
+                .is_some()
+        );
+        assert_eq!(expected_execution_state, executor.execution_state);
+        // should be empty because block was executed and finalized, which deletes it from the map
         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
     }
 }

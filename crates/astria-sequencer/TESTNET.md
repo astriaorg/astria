@@ -29,14 +29,16 @@ This will create 3 cometbft validator configs and put the validator configs in
 `./sequencer_testnet` by default. It will then start the respective sequencer
 applications (one for each cometbft validator) and the cometbft validator nodes.
 
+(This requires cometbft to be installed)
+
 ```sh
-./scripts/testnet.sh
+just run-testnet
 ```
 
 To manually set the output directory or number of validators:
 
 ```sh
-OUT_DIR=out_dir NUM_VALIDATORS=num_validators ./scripts/testnet.sh
+OUT_DIR=out_dir NUM_VALIDATORS=num_validators just run-testnet 
 ```
 
 ## Logs
@@ -44,22 +46,34 @@ OUT_DIR=out_dir NUM_VALIDATORS=num_validators ./scripts/testnet.sh
 For example, to see the cometbft logs for node0:
 
 ```sh
-tail -f sequencer_testnet/node0/cometbft.log 
+just cometbft-logs-testnet node0
+```
+
+If you do not provide a node name, by default `node0` is chosen
+
+So the previous is equivalent to
+
+```sh
+just cometbft-logs-testnet
 ```
 
 To see the sequencer app logs for node0:
 
 ```sh
-tail -f sequencer_testnet/node0/sequencer.log 
+just sequencer-logs-testnet node0
 ```
 
 ## Stopping the testnet
 
 ```sh
-pkill cometbft && pkill astria-sequencer
+just stop-testnet
 ```
 
 ## Cleaning up the testnet
 
-Simply stop the testnet and `rm -r sequencer_testnet` or whichever directory the
-config files are in.
+Simply stop the testnet and run
+
+```sh
+just clean-testnet sequencer_testnet
+```
+where `sequencer_testnet` is the `OUT_DIR` where the testnet files are.
