@@ -281,7 +281,8 @@ impl<C: ExecutionClient> Executor<C> {
         let new_commitment_state = self
             .execution_rpc_client
             .call_update_commitment_state(commitment_state)
-            .await?;
+            .await
+            .wrap_err("failed to update commitment state")?;
         self.commitment_state = new_commitment_state;
         Ok(())
     }
