@@ -16,32 +16,21 @@ use axum::{
     Json,
     Router,
 };
-use eyre::WrapErr as _;
 use http::status::StatusCode;
 use hyper::server::conn::AddrIncoming;
 use serde::Serialize;
-use tokio::sync::{
-    mpsc::UnboundedSender,
-    oneshot,
-    watch,
-};
+use tokio::sync::watch;
 
-use crate::{
-    macros::report_err,
-    network,
-    relayer,
-};
+use crate::relayer;
 
 pub(crate) type ApiServer = axum::Server<AddrIncoming, IntoMakeService<Router>>;
 
 type RelayerState = watch::Receiver<relayer::State>;
-type GossipnetState = UnboundedSender<network::InfoQuery>;
 
 #[derive(Clone)]
 /// `AppState` is used for as an axum extractor in its method handlers.
 struct AppState {
     relayer_state: RelayerState,
-    gossipnet_state: GossipnetState,
 }
 
 impl FromRef<AppState> for RelayerState {
@@ -50,17 +39,7 @@ impl FromRef<AppState> for RelayerState {
     }
 }
 
-impl FromRef<AppState> for GossipnetState {
-    fn from_ref(app_state: &AppState) -> Self {
-        app_state.gossipnet_state.clone()
-    }
-}
-
-pub(crate) fn start(
-    port: u16,
-    relayer_state: RelayerState,
-    gossipnet_state: GossipnetState,
-) -> ApiServer {
+pub(crate) fn start(port: u16, relayer_state: RelayerState) -> ApiServer {
     let socket_addr = SocketAddr::from(([127, 0, 0, 1], port));
     let app = Router::new()
         .route("/healthz", get(get_healthz))
@@ -68,7 +47,6 @@ pub(crate) fn start(
         .route("/status", get(get_status))
         .with_state(AppState {
             relayer_state,
-            gossipnet_state,
         });
     axum::Server::bind(&socket_addr).serve(app.into_make_service())
 }
@@ -95,32 +73,18 @@ async fn get_readyz(State(relayer_status): State<RelayerState>) -> Readyz {
     }
 }
 
-async fn get_status(
-    State(relayer_status): State<RelayerState>,
-    State(gossipnet_query_tx): State<UnboundedSender<network::InfoQuery>>,
-) -> Json<serde_json::Value> {
+async fn get_status(State(relayer_status): State<RelayerState>) -> Json<serde_json::Value> {
     let relayer::State {
         data_availability_connected,
         sequencer_connected,
         current_sequencer_height,
         current_data_availability_height,
     } = *relayer_status.borrow();
-    let number_of_subscribed_peers = match get_number_of_subscribers(gossipnet_query_tx).await {
-        Ok(num) => Some(num),
-        Err(e) => {
-            report_err!(
-                e,
-                "failed querying gossipnet task for its number of subscribers"
-            );
-            None
-        }
-    };
     Json(serde_json::json!({
         "data_availability_connected": data_availability_connected,
         "sequencer_connected": sequencer_connected,
         "current_sequencer_height": current_sequencer_height,
         "current_data_availability_height": current_data_availability_height,
-        "number_of_subscribed_peers": number_of_subscribed_peers,
     }))
 }
 
@@ -170,21 +134,4 @@ impl IntoResponse for Readyz {
         *response.status_mut() = status;
         response
     }
-}
-
-async fn get_number_of_subscribers(tx: UnboundedSender<network::InfoQuery>) -> eyre::Result<u64> {
-    use eyre::Report;
-    use network::InfoQuery;
-    let (info_response_tx, info_response_rx) = oneshot::channel();
-    tx.send(InfoQuery::NumberOfPeers(info_response_tx))
-        .map_err(|e| {
-            Report::msg(e.to_string()).wrap_err("failed sending info query to gossipnet task")
-        })?;
-    info_response_rx
-        .await
-        .map(|num| {
-            num.try_into()
-                .expect("number of subscribed peers should never exceed u64::MAX")
-        })
-        .wrap_err("one shot channel sent to gossipnet dropped before value was returned")
 }

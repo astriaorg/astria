@@ -29,6 +29,7 @@ use crate::{
         generate_sequence_actions_commitment,
         GeneratedCommitments,
     },
+    service::AbciCode,
 };
 
 pub(crate) struct Consensus {
@@ -105,11 +106,9 @@ impl Consensus {
                     .await
                     .context("failed to begin block")?,
             ),
-            ConsensusRequest::DeliverTx(deliver_tx) => ConsensusResponse::DeliverTx(
-                self.deliver_tx(deliver_tx)
-                    .await
-                    .context("failed to deliver transaction")?,
-            ),
+            ConsensusRequest::DeliverTx(deliver_tx) => {
+                ConsensusResponse::DeliverTx(self.deliver_tx(deliver_tx).await)
+            }
             ConsensusRequest::EndBlock(end_block) => ConsensusResponse::EndBlock(
                 self.end_block(end_block)
                     .await
@@ -132,12 +131,20 @@ impl Consensus {
         }
 
         let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
-            .expect("can parse app_state in genesis file");
-
+            .context("failed to parse app_state in genesis file")?;
         self.app.init_chain(genesis_state).await?;
 
-        // TODO: return the genesis app hash
-        Ok(response::InitChain::default())
+        // commit the state and return the app hash
+        let app_hash = self.app.commit(self.storage.clone()).await;
+        Ok(response::InitChain {
+            app_hash: app_hash
+                .0
+                .to_vec()
+                .try_into()
+                .context("failed to convert app hash")?,
+            consensus_params: Some(init_chain.consensus_params),
+            validators: init_chain.validators,
+        })
     }
 
     #[instrument(skip(self))]
@@ -145,14 +152,6 @@ impl Consensus {
         &mut self,
         begin_block: request::BeginBlock,
     ) -> anyhow::Result<response::BeginBlock> {
-        if self.storage.latest_version() == u64::MAX {
-            // TODO: why isn't tendermint calling init_chain before the first block?
-            self.app
-                .init_chain(GenesisState::default())
-                .await
-                .expect("init_chain must succeed");
-        }
-
         let events = self.app.begin_block(&begin_block).await;
         Ok(response::BeginBlock {
             events,
@@ -160,20 +159,28 @@ impl Consensus {
     }
 
     #[instrument(skip(self))]
-    async fn deliver_tx(
-        &mut self,
-        deliver_tx: request::DeliverTx,
-    ) -> anyhow::Result<response::DeliverTx> {
-        self.app
-            .deliver_tx(&deliver_tx.tx)
-            .await
-            .unwrap_or_else(|e| {
+    async fn deliver_tx(&mut self, deliver_tx: request::DeliverTx) -> response::DeliverTx {
+        use crate::transaction::InvalidNonce;
+        match self.app.deliver_tx(&deliver_tx.tx).await {
+            Ok(_events) => response::DeliverTx::default(),
+            Err(e) => {
                 // we don't want to panic on failing to deliver_tx as that would crash the entire
                 // node
-                tracing::error!(error = ?e, "deliver_tx failed");
-                vec![]
-            });
-        Ok(response::DeliverTx::default())
+                let code = if let Some(_e) = e.downcast_ref::<InvalidNonce>() {
+                    tracing::warn!("{}", e);
+                    AbciCode::INVALID_NONCE
+                } else {
+                    tracing::warn!(error = ?e, "deliver_tx failed");
+                    AbciCode::INTERNAL_ERROR
+                };
+                response::DeliverTx {
+                    code: code.into(),
+                    info: code.to_string(),
+                    log: format!("{e:?}"),
+                    ..Default::default()
+                }
+            }
+        }
     }
 
     #[instrument(skip(self))]
