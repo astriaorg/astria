@@ -61,19 +61,12 @@ jobs:
         uses: taiki-e/install-action@nextest
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
-      - name: Build tests (excluding RPC client, which needs kubernetes)
-        run: |
-          cargo llvm-cov nextest --no-run --release --workspace \
-          --all-features \
-          --all-targets \
-          --exclude astria-celestia-jsonrpc-client
       - name: Run tests (excluding RPC client, which needs kubernetes)
-        timeout-minutes: 20
         run: |
           cargo llvm-cov nextest --release --workspace \
           --all-features \
           --all-targets \
-          --codecov --output-path codecov.json
+          --codecov --output-path codecov.json \
           --exclude astria-celestia-jsonrpc-client
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
@@ -114,7 +107,7 @@ jobs:
         run: sleep 5
       - name: Run the jsonrpc client tests
         run: |
-          cargo llvm-cov nextest --release \
+          cargo llvm-cov test --release \
           --package astria-celestia-jsonrpc-client \
           --all-features \
           --codecov --output-path codecov.json \
