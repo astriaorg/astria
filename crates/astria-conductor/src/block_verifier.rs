@@ -23,9 +23,9 @@ use sequencer_client::{
     HttpClient,
 };
 use tendermint::{
-    account::Id as AccountId,
-    block::Id as BlockId,
-    chain::Id as ChainId,
+    account,
+    block,
+    chain,
     validator::Info as Validator,
     vote::{
         self,
@@ -34,13 +34,7 @@ use tendermint::{
 };
 use tracing::instrument;
 
-/// `BlockVerifier` is responsible for verifying the correctness of a block
-/// before executing it.
-/// It has two public functions: `validate_signed_namespace_data` and `validate_sequencer_block`.
-///
-/// `validate_signed_namespace_data` is used to validate the data received from the data
-/// availability layer. `validate_sequencer_block` is used to validate the blocks received from
-/// either the data availability layer or the gossip network.
+/// `BlockVerifier` is verifying blocks received from celestia.
 #[derive(Debug)]
 pub(crate) struct BlockVerifier {
     sequencer_client: HttpClient,
@@ -94,8 +88,7 @@ impl BlockVerifier {
         Ok(())
     }
 
-    /// performs various validation checks on the SequencerBlock received from either gossip or
-    /// Celestia.
+    /// performs various validation checks on the sequencer data received from Celestia.
     ///
     /// checks performed:
     /// - the proposer of the sequencer block matches the expected proposer for the block height
@@ -176,13 +169,11 @@ fn validate_sequencer_namespace_data(
     } = data;
 
     // find proposer address for this height
-    let expected_proposer_address = public_key_bytes_to_address(
-        &get_proposer(&current_validator_set)
+    let expected_proposer_address = account::Id::from(
+        get_proposer(&current_validator_set)
             .wrap_err("failed to get proposer from validator set")?
             .pub_key,
-    )
-    .wrap_err("failed to convert proposer public key to address")?;
-
+    );
     // check if the proposer address matches the sequencer block's proposer
     let received_proposer_address = header.proposer_address;
     ensure!(
@@ -255,13 +246,6 @@ fn validate_sequencer_namespace_data(
     Ok(())
 }
 
-fn public_key_bytes_to_address(public_key: &tendermint::PublicKey) -> eyre::Result<AccountId> {
-    let public_key =
-        tendermint::crypto::ed25519::VerificationKey::try_from(public_key.to_bytes().as_slice())
-            .wrap_err("failed to convert proposer public key bytes")?;
-    Ok(AccountId::from(public_key))
-}
-
 /// This function ensures that the given Commit has quorum, ie that the Commit contains >2/3 voting
 /// power. It performs the following checks:
 /// - the height of the commit matches the block height of the validator set
@@ -299,9 +283,9 @@ fn ensure_commit_has_quorum(
     let validator_map = validator_set
         .validators
         .iter()
-        .filter_map(|v| {
-            let address = public_key_bytes_to_address(&v.pub_key).ok()?;
-            Some((address, v))
+        .map(|v| {
+            let address = account::Id::from(v.pub_key);
+            (address, v)
         })
         .collect::<HashMap<_, _>>();
 
@@ -331,8 +315,8 @@ fn ensure_commit_has_quorum(
         };
 
         // verify address in signature matches validator pubkey
-        let address_from_pubkey = public_key_bytes_to_address(&validator.pub_key)
-            .wrap_err("failed to convert validator public key to address")?;
+        let address_from_pubkey = account::Id::from(validator.pub_key);
+
         ensure!(
             &address_from_pubkey == validator_address,
             format!(
@@ -399,12 +383,12 @@ fn verify_vote_signature(
         vote_type: vote::Type::Precommit,
         height: commit.height,
         round: commit.round,
-        block_id: Some(BlockId {
+        block_id: Some(block::Id {
             hash: commit.block_id.hash,
             part_set_header: commit.block_id.part_set_header,
         }),
         timestamp: Some(timestamp),
-        chain_id: ChainId::try_from(chain_id).wrap_err("failed to parse commit chain ID")?,
+        chain_id: chain::Id::try_from(chain_id).wrap_err("failed to parse commit chain ID")?,
     };
 
     public_key
@@ -633,7 +617,7 @@ mod test {
         let commit = Commit {
             height: 79u32.into(),
             round: 0u16.into(),
-            block_id: BlockId {
+            block_id: block::Id {
                 hash: Hash::from_str(
                     "74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA",
                 )

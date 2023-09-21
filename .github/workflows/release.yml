@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: BUF
     needs: run_checker
-    if: ${{ needs.run_checker.outputs.run_release_proto }} && github.repository_owner == 'astriaorg'
+    if: needs.run_checker.outputs.run_release_proto == 'true' && github.repository_owner == 'astriaorg'
     steps:
       - uses: actions/checkout@v3
       - uses: bufbuild/buf-setup-action@v1
@@ -28,4 +28,5 @@ jobs:
 
   release:
     needs: [proto]
+    if: ${{ always() && !cancelled() }}
     uses: ./.github/workflows/reusable-success.yml
