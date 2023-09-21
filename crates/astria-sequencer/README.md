@@ -69,10 +69,8 @@ make install_abci
 In astria-sequencer/:
 
 ```sh
-cargo build
-../../target/debug/astria-sequencer
+just run
 ```
-
 
 ### Query the app for info
 
