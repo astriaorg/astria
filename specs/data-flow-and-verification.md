@@ -105,6 +105,8 @@ Let's go through these one-by-one.
 
 #### 1. block proposer
 
+The block header contains the proposer of the block. To verify the expected proposer for a block, we obtain the validator set for that height, which includes the proposer power for each validator. From this, we can calculate the expected proposer for the height, and ensure it matches the proposer of the block at that height.
+
 #### 2. block hash
 
 Tendermint votes contain the block hash of the block the vote is for. Thus, when verifying the votes for a block, we see what block hash was committed. The block hash is a commitment to the entire block data.
