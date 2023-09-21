@@ -142,8 +142,8 @@ impl<C: ExecutionClient> Executor<C> {
             Self {
                 cmd_rx,
                 execution_rpc_client,
-                chain_id: ChainId::new(conf.chain_id.as_bytes().to_vec()),
-                namespace: Namespace::from_slice(conf.chain_id.as_ref()),
+                chain_id: chain_id.clone(),
+                namespace: Namespace::from_slice(chain_id.as_ref()),
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
                 disable_empty_block_execution,
