@@ -78,8 +78,8 @@ fn handle_check_tx(req: request::CheckTx) -> response::CheckTx {
         Ok(tx) => tx,
         Err(e) => {
             return response::CheckTx {
-                code: AbciCode::INVALID_SIGNATURE.into(),
-                info: "failed to verify signed transaction".into(),
+                code: AbciCode::INVALID_SIGNED_TRANSACTION_PROTO.into(),
+                info: e.to_string(),
                 log: format!("{e:?}"),
                 ..response::CheckTx::default()
             };
@@ -94,7 +94,7 @@ fn handle_check_tx(req: request::CheckTx) -> response::CheckTx {
         Ok(_) => response::CheckTx::default(),
         Err(e) => response::CheckTx {
             code: AbciCode::INVALID_PARAMETER.into(),
-            info: "failed verifying decoded protobuf SignedTransaction".into(),
+            info: format!("transaction failed stateless check: {e:?}"),
             log: format!("{e:?}"),
             ..response::CheckTx::default()
         },

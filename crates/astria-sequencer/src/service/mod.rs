@@ -19,7 +19,7 @@ impl AbciCode {
     pub(crate) const INVALID_PARAMETER: Self = Self(2);
     pub(crate) const INTERNAL_ERROR: Self = Self(3);
     pub(crate) const INVALID_NONCE: Self = Self(4);
-    pub(crate) const INVALID_SIGNATURE: Self = Self(5);
+    pub(crate) const INVALID_SIGNED_TRANSACTION_PROTO: Self = Self(5);
 }
 
 impl AbciCode {
@@ -30,7 +30,10 @@ impl AbciCode {
             2 => Some("one or more path parameters were invalid"),
             3 => Some("an internal server error occured"),
             4 => Some("the provided nonce was invalid"),
-            5 => Some("the provided signature was invalid"),
+            5 => Some(
+                "the provided bytes was not a valid protobuf-encoded SignedTransaction, or the \
+                 signature was invalid",
+            ),
             _ => None,
         }
     }
