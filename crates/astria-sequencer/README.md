@@ -84,6 +84,16 @@ I[2023-05-16|16:53:56.786] service start    module=abci-client
 -> data.hex: 0x626173655F617070
 ```
 
+To query an address's balance:
+```sh
+$ abci-cli query --path=accounts/balance/<ADDRESS> 0x00
+```
+
+To query an address's nonce:
+```sh
+$ abci-cli query --path=accounts/nonce/<ADDRESS> 0x00
+```
+
 ### Start the cometbft node
 
 ```sh
