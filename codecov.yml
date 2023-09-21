@@ -1,0 +1,45 @@
+comment:
+  layout: "reach, diff, files, components"
+  require_changes: true
+
+coverage:
+  status:
+    patch: off
+    project:
+      default:
+        target: auto
+        threshold: 0%
+        informational: true
+
+component_management:
+  individual_components:
+    - component_id: conductor
+      name: conductor
+      paths:
+        - crates/astria-conductor/**
+    - component_id: composer
+      name: composer
+      paths:
+        - crates/astria-composer
+    - component_id: sequencer
+      name: sequencer
+      paths:
+        - crates/astria-sequencer/**
+        - crates/astria-sequencer-utils/**
+    - component_id: sequencer-relayer
+      name: sequencer-relayer
+      paths:
+        - crates/astria-sequencer-relayer/**
+    - component_id: celestia
+      name: celestia-client
+      paths:
+        - crates/astria-celestia-jsonrpc-client/**
+    - component_id: common
+      name: common
+      paths:
+        - crates/astria-proto/src/native/**
+        - crates/astria-sequencer-types/**
+        - crates/astria-sequencer-validation/**
+        - crates/astria-telemetry/**
+        - crates/astria-sequencer-client/**
+

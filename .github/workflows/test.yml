@@ -57,19 +57,30 @@ jobs:
         with:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install latest nextest release
+        uses: taiki-e/install-action@nextest
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
       - name: Build tests (excluding RPC client, which needs kubernetes)
         run: |
-          cargo test --no-run --release --workspace \
+          cargo llvm-cov nextest --no-run --release --workspace \
           --all-features \
           --all-targets \
           --exclude astria-celestia-jsonrpc-client
       - name: Run tests (excluding RPC client, which needs kubernetes)
         timeout-minutes: 20
         run: |
-          cargo test --release --workspace \
+          cargo llvm-cov nextest --release --workspace \
           --all-features \
           --all-targets \
+          --codecov --output-path codecov.json
           --exclude astria-celestia-jsonrpc-client
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
+          files: codecov.json
+          fail_ci_if_error: true
 
   rpc_client:
     runs-on: ubuntu-22.04
@@ -78,6 +89,10 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.70.0
+      - name: Install latest nextest release
+        uses: taiki-e/install-action@nextest
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "github"
@@ -99,10 +114,17 @@ jobs:
         run: sleep 5
       - name: Run the jsonrpc client tests
         run: |
-          cargo test --release \
+          cargo llvm-cov nextest --release \
           --package astria-celestia-jsonrpc-client \
           --all-features \
+          --codecov --output-path codecov.json \
           -- --ignored
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
+          files: codecov.json
+          fail_ci_if_error: true
 
   doctest:
     runs-on: ubuntu-22.04
