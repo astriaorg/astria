@@ -37,7 +37,10 @@ use tracing::{
 
 use crate::{
     block_verifier::BlockVerifier,
-    config::Config,
+    config::{
+        CommitLevel,
+        Config,
+    },
     executor,
     executor::ExecutorCommand,
     reader::{
@@ -117,16 +120,17 @@ impl Driver {
         let block_verifier = BlockVerifier::new(&conf.tendermint_url)
             .wrap_err("failed to construct block verifier")?;
 
-        let (reader_join_handle, reader_tx) = if conf.disable_finalization {
-            (None, None)
-        } else {
-            let reader_span = span!(Level::ERROR, "reader::spawn");
-            let (reader_join_handle, reader_tx) =
-                reader::spawn(&conf, executor_tx.clone(), block_verifier)
-                    .instrument(reader_span)
-                    .await
-                    .wrap_err("failed to construct data availability Reader")?;
-            (Some(reader_join_handle), Some(reader_tx))
+        let (reader_join_handle, reader_tx) = match conf.execution_commit_level {
+            CommitLevel::SoftOnly => (None, None),
+            CommitLevel::FirmOnly | CommitLevel::SoftAndFirm => {
+                let reader_span = span!(Level::ERROR, "reader::spawn");
+                let (reader_join_handle, reader_tx) =
+                    reader::spawn(&conf, executor_tx.clone(), block_verifier)
+                        .instrument(reader_span)
+                        .await
+                        .wrap_err("failed to construct data availability Reader")?;
+                (Some(reader_join_handle), Some(reader_tx))
+            }
         };
 
         let sequencer_client = SequencerClient::new(&conf.sequencer_url)

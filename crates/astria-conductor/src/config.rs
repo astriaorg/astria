@@ -40,9 +40,6 @@ pub struct Config {
     /// Address of the RPC server for execution
     pub execution_rpc_url: String,
 
-    /// Disable reading from the DA layer and block finalization
-    pub disable_finalization: bool,
-
     /// log directive to use for telemetry.
     pub log: String,
 

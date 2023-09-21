@@ -411,7 +411,6 @@ mod test {
         Config {
             chain_id: "test".to_string(),
             execution_rpc_url: "test".to_string(),
-            disable_finalization: false,
             log: "test".to_string(),
             disable_empty_block_execution: false,
             celestia_node_url: "test".to_string(),
