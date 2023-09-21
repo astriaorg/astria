@@ -21,7 +21,7 @@ use crate::helper::spawn_composer;
 #[tokio::test]
 async fn tx_from_one_rollup_is_received_by_sequencer() {
     let test_composer = spawn_composer(&["test1"]).await;
-    let mock_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1").await;
+    let mock_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1", 42).await;
     test_composer.rollup_nodes["test1"]
         .push_tx(Transaction::default())
         .unwrap();
@@ -38,8 +38,8 @@ async fn tx_from_two_rollups_are_received_by_sequencer() {
     use futures::future::join;
 
     let test_composer = spawn_composer(&["test1", "test2"]).await;
-    let test1_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1").await;
-    let test2_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test2").await;
+    let test1_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1", 42).await;
+    let test2_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test2", 43).await;
     test_composer.rollup_nodes["test1"]
         .push_tx(Transaction::default())
         .unwrap();
@@ -61,6 +61,7 @@ async fn tx_from_two_rollups_are_received_by_sequencer() {
 async fn mount_broadcast_tx_sync_mock(
     server: &MockServer,
     expected_chain_id: &'static str,
+    expected_nonce: u32,
 ) -> MockGuard {
     use proto::{
         generated::sequencer::v1alpha1 as raw,
@@ -83,6 +84,7 @@ async fn mount_broadcast_tx_sync_mock(
             panic!("mocked sequencer expected a sequence action");
         };
         sequence_action.chain_id == expected_chain_id.as_bytes()
+            && signed_tx.unsigned_transaction().nonce == expected_nonce
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
