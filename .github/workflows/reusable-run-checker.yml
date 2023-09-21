@@ -24,9 +24,6 @@ on:
       run_release_proto:
         description: If release for protos needs to be run, will be 'true'
         value: ${{ jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.proto == 'true' }}
-      run_release_services:
-        description: If release for services needs to be run, will be 'true'
-        value: ${{ jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.crates == 'true' }}
 
 jobs:
   changes:
