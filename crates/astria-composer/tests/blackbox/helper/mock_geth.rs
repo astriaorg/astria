@@ -158,6 +158,9 @@ pub struct MockGeth {
 }
 
 impl MockGeth {
+    /// Spawns a new mocked geth server.
+    /// # Panics
+    /// Panics if the server fails to start.
     pub async fn spawn() -> Self {
         use jsonrpsee::server::Server;
         let server = Server::builder()
