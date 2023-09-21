@@ -41,7 +41,7 @@ jobs:
         if: |
           steps.release_version.outputs.versionChanged == 'true' &&
           github.event_name == 'push' &&
-          github.base_ref == 'main'
+          github.ref == 'refs/heads/main'
         uses: actions/create-release@latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
