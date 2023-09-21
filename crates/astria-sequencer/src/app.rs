@@ -370,19 +370,44 @@ mod test {
         }
     }
 
-    #[tokio::test]
-    async fn app_genesis_and_init_chain() {
+    async fn initialize_app(
+        genesis_state: Option<GenesisState>,
+        genesis_validators: Vec<tendermint::validator::Update>,
+    ) -> App {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
-        let genesis_state = GenesisState {
+
+        let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: Address::from([0; 20]),
-        };
-        app.init_chain(genesis_state, vec![]).await.unwrap();
+        });
+
+        app.init_chain(genesis_state, genesis_validators)
+            .await
+            .unwrap();
+        app
+    }
+
+    fn get_alice_signing_key_and_address() -> (SigningKey, Address) {
+        // this secret key corresponds to ALICE_ADDRESS
+        let alice_secret_bytes: [u8; 32] =
+            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let alice_signing_key = SigningKey::from(alice_secret_bytes);
+        let alice = Address::from_verification_key(alice_signing_key.verification_key());
+        (alice_signing_key, alice)
+    }
+
+    #[tokio::test]
+    async fn app_genesis_and_init_chain() {
+        let app = initialize_app(None, vec![]).await;
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
+
         for Account {
             address,
             balance,
@@ -397,16 +422,7 @@ mod test {
 
     #[tokio::test]
     async fn app_begin_block() {
-        let storage = penumbra_storage::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
-        let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
-        let genesis_state = GenesisState {
-            accounts: vec![],
-            authority_sudo_key: Address::from([0; 20]),
-        };
-        app.init_chain(genesis_state, vec![]).await.unwrap();
+        let mut app = initialize_app(None, vec![]).await;
 
         let mut begin_block = abci::request::BeginBlock {
             header: default_header(),
@@ -429,70 +445,44 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_transfer() {
-        let storage = penumbra_storage::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
-        let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
-        let genesis_state = GenesisState {
-            accounts: default_genesis_accounts(),
-            authority_sudo_key: Address::from([0; 20]),
-        };
-        app.init_chain(genesis_state, vec![]).await.unwrap();
+        let mut app = initialize_app(None, vec![]).await;
         app.processed_txs = 2;
 
         // transfer funds from Alice to Bob
-        // this secret key corresponds to ALICE_ADDRESS
-        let alice_secret_bytes: [u8; 32] =
-            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let alice_keypair = SigningKey::from(alice_secret_bytes);
-
-        let alice = address_from_hex_string(ALICE_ADDRESS);
-        let bob = address_from_hex_string(BOB_ADDRESS);
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let bob_address = address_from_hex_string(BOB_ADDRESS);
         let value = 333_333;
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![
                 TransferAction {
-                    to: bob,
+                    to: bob_address,
                     amount: value,
                 }
                 .into(),
             ],
         };
-        let signed_tx = tx.into_signed(&alice_keypair);
+        let signed_tx = tx.into_signed(&alice_signing_key);
         let bytes = signed_tx.into_raw().encode_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(
-            app.state.get_account_balance(bob).await.unwrap(),
+            app.state.get_account_balance(bob_address).await.unwrap(),
             value + 10u128.pow(19)
         );
         assert_eq!(
-            app.state.get_account_balance(alice).await.unwrap(),
+            app.state.get_account_balance(alice_address).await.unwrap(),
             10u128.pow(19) - (value + TRANSFER_FEE),
         );
-        assert_eq!(app.state.get_account_nonce(bob).await.unwrap(), 0);
-        assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 1);
+        assert_eq!(app.state.get_account_nonce(bob_address).await.unwrap(), 0);
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
     }
 
     #[tokio::test]
     async fn app_deliver_tx_transfer_balance_too_low_for_fee() {
         use rand::rngs::OsRng;
 
-        let storage = penumbra_storage::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
-        let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
-        let genesis_state = GenesisState {
-            accounts: default_genesis_accounts(),
-            authority_sudo_key: Address::from([0; 20]),
-        };
-        app.init_chain(genesis_state, vec![]).await.unwrap();
+        let mut app = initialize_app(None, vec![]).await;
         app.processed_txs = 2;
 
         // create a new key; will have 0 balance
@@ -523,27 +513,10 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_sequence() {
-        let storage = penumbra_storage::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
-        let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
-        let genesis_state = GenesisState {
-            accounts: default_genesis_accounts(),
-            authority_sudo_key: Address::from([0; 20]),
-        };
-        app.init_chain(genesis_state, vec![]).await.unwrap();
+        let mut app = initialize_app(None, vec![]).await;
         app.processed_txs = 2;
 
-        // this secret key corresponds to ALICE_ADDRESS
-        let alice_secret_bytes: [u8; 32] =
-            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let alice_signing_key = SigningKey::from(alice_secret_bytes);
-        let alice = Address::from_verification_key(alice_signing_key.verification_key());
-
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let data = b"hello world".to_vec();
         let fee = calculate_fee(&data).unwrap();
 
@@ -562,35 +535,23 @@ mod test {
         let bytes = signed_tx.into_raw().encode_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
-        assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 1);
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         assert_eq!(
-            app.state.get_account_balance(alice).await.unwrap(),
+            app.state.get_account_balance(alice_address).await.unwrap(),
             10u128.pow(19) - fee,
         );
     }
 
     #[tokio::test]
     async fn app_deliver_tx_validator_update() {
-        let alice_secret_bytes: [u8; 32] =
-            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let alice_signing_key = SigningKey::from(alice_secret_bytes);
-        let alice = Address::from_verification_key(alice_signing_key.verification_key());
-
-        let storage = penumbra_storage::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
-        let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: alice,
+            authority_sudo_key: alice_address,
         };
-        app.init_chain(genesis_state, vec![]).await.unwrap();
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
         app.processed_txs = 2;
 
         let update = tendermint::validator::Update {
@@ -609,7 +570,7 @@ mod test {
         let bytes = signed_tx.into_raw().encode_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
-        assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 1);
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         let validator_updates = app.state.get_validator_updates().await.unwrap();
         assert_eq!(validator_updates.0.len(), 1);
@@ -619,12 +580,6 @@ mod test {
     #[tokio::test]
     async fn app_end_block_validator_updates() {
         use tendermint::validator;
-
-        let storage = penumbra_storage::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
-        let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
 
         let pubkey_a = tendermint::public_key::PublicKey::from_raw_ed25519(&[1; 32]).unwrap();
         let pubkey_b = tendermint::public_key::PublicKey::from_raw_ed25519(&[2; 32]).unwrap();
@@ -641,9 +596,7 @@ mod test {
             },
         ];
 
-        app.init_chain(GenesisState::default(), initial_validator_set)
-            .await
-            .unwrap();
+        let mut app = initialize_app(None, initial_validator_set).await;
 
         let validator_updates = vec![
             validator::Update {
@@ -687,30 +640,10 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_invalid_nonce() {
-        // Arrange
-        // initialize app from genesis state with default_genesis_accounts
-        // (balances are 10u128.pow(19))
-        let storage = penumbra_storage::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
-        let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
-        let genesis_state = GenesisState {
-            accounts: default_genesis_accounts(),
-            authority_sudo_key: Address::from([0; 20]),
-        };
-        app.init_chain(genesis_state, vec![]).await.unwrap();
+        let mut app = initialize_app(None, vec![]).await;
         app.processed_txs = 2;
 
-        // initialize tx signer
-        // this secret key corresponds to ALICE_ADDRESS
-        let alice_secret_bytes: [u8; 32] =
-            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let alice_signing_key = SigningKey::from(alice_secret_bytes);
-        let alice = Address::from_verification_key(alice_signing_key.verification_key());
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
         // create tx with invalid nonce 1
         let data = b"hello world".to_vec();
@@ -725,19 +658,14 @@ mod test {
             ],
         };
 
-        // sign tx
         let signed_tx = tx.into_signed(&alice_signing_key);
         let bytes = signed_tx.into_raw().encode_to_vec();
-
-        // Act
-        // pass tx to deliver_tx
         let response = app.deliver_tx(&bytes).await;
 
-        // Assert
         // check that tx was not executed by checking nonce and balance are unchanged
-        assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 0);
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 0);
         assert_eq!(
-            app.state.get_account_balance(alice).await.unwrap(),
+            app.state.get_account_balance(alice_address).await.unwrap(),
             10u128.pow(19),
         );
 
@@ -765,6 +693,7 @@ mod test {
 
         app.init_chain(genesis_state, vec![]).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
+
         for Account {
             address,
             balance,
