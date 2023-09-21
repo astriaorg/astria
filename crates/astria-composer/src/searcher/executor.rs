@@ -120,50 +120,46 @@ impl Executor {
         self.status.subscribe()
     }
 
-    /// Gets the next nonce to sign over if it exists and increments the stored nonce counter
-    fn get_and_increment_nonce(&mut self) -> Option<u32> {
-        self.nonce.map(|curr_nonce| {
-            self.nonce = Some(curr_nonce + 1);
-            curr_nonce
-        })
-    }
-
-    /// Sugmits a signed transaction to the sequencer node.
-    /// TODO: handle failed tx submission due to nonce
-    async fn submit_tx(&self, signed_tx: SignedTransaction) -> eyre::Result<()> {
-        let rsp = self
-            .sequencer_client
-            .submit_transaction_sync(signed_tx)
-            .await
-            .wrap_err("failed submitting transaction to sequencer")?;
-        if rsp.code.is_err() {
-            bail!(
-                "submitting transaction to sequencer returned with error code; code: `{code}`; \
-                 log: `{log}`; hash: `{hash}`",
-                code = rsp.code.value(),
-                log = rsp.log,
-                hash = rsp.hash,
-            );
+    /// Gets the next nonce to sign over and increments the internal counter.
+    /// If there is not a nonce currently stored, will fetch the latest nonce from the sequencer.
+    async fn get_and_increment_nonce(&mut self) -> eyre::Result<u32> {
+        match self.nonce {
+            Some(curr_nonce) => {
+                self.nonce = Some(curr_nonce + 1);
+                Ok(curr_nonce)
+            }
+            None => {
+                let rsp = self.sequencer_client.get_latest_nonce(self.address).await?;
+                self.nonce = Some(rsp.nonce + 1);
+                Ok(rsp.nonce)
+            }
         }
-        Ok(())
     }
 
-    /// Signs and submits the bundle of actions to the sequencer.
-    async fn sign_and_submit(&mut self, actions: Vec<Action>) -> eyre::Result<()> {
+    /// Populates nonce, signs and submits the bundle of actions to the sequencer.
+    async fn execute_bundle(&mut self, bundle: Vec<Action>) -> Result<(), ExeuctionError> {
         let nonce = self
             .get_and_increment_nonce()
-            .ok_or(eyre!("no nonce stored; cannot process bundle"))?;
+            .await
+            .map_err(|e| ExeuctionError::NonceRetrievalFailed(e))?;
 
         let tx = UnsignedTransaction {
             nonce,
-            actions,
+            actions: bundle,
         }
         .into_signed(&self.sequencer_key);
 
-        self.submit_tx(tx)
+        let submission_rsp = self
+            .sequencer_client
+            .submit_transaction_sync(tx)
             .await
-            .wrap_err("failed submitting signed actions to sequencer")?;
-        Ok(())
+            .map_err(|e| ExeuctionError::SubmissionFailed(e))?;
+
+        match submission_rsp.code {
+            AbciCode::Ok => Ok(()),
+            AbciCode::InvalidNonce => todo!("handle invalid nonce"),
+            _ => todo!("handle other submission errors"),
+        }
     }
 
     /// Run the Executor loop, calling `process_bundle` on each bundle received from the channel.
@@ -177,17 +173,10 @@ impl Executor {
             .wrap_err("failed retrieving initial nonce from sequencer")?;
 
         while let Some(bundle) = self.executor_rx.recv().await {
-            if let Err(e) = self.sign_and_submit(bundle).await {
-                // FIXME: currently this will fail both when there is an issue with the nonce and
-                // when unable to reach the sequencer. As there is currently no error returned by
-                // the sequencer for invalid nonces, there is nothing to handle. This should be
-                // changed after #364 is merged in a followup PR to handle nonce failues.
-                error!(
-                    error.message = %e,
-                    error.cause_chain = ?e,
-                    "failed submitting the bundle to the sequencer; bailing",
-                );
-                break;
+            if let Err(e) = self.execute_bundle(bundle).await {
+                match e {
+                    _ => todo!("handle bundle execution errors"),
+                }
             }
         }
         Ok(())
@@ -249,6 +238,16 @@ impl Executor {
         Ok(())
     }
 }
+
+enum ExeuctionError {
+    NonceRetrievalFailed(eyre::Report),
+    SubmissionFailed(eyre::Report),
+    DeliverTxError {
+        code: tendermint::abci::Code,
+        transaction: SignedTransaction,
+    },
+}
+
 /// A thin wrapper around [`sequencer_client::Client`] to add timeouts.
 ///
 /// Currently only provides a timeout for `abci_info`.
