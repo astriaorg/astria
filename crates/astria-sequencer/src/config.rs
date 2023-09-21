@@ -13,7 +13,7 @@ use serde::{
 ///
 /// If figment failed to read the config from the environment
 pub fn get() -> Result<Config, figment::Error> {
-    Config::from_environment("ASTRIA_SEQUENCER")
+    Config::from_environment("ASTRIA_SEQUENCER_")
 }
 
 #[derive(Debug, Deserialize, Serialize)]

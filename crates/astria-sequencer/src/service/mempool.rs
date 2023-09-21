@@ -93,7 +93,20 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
             };
         }
     };
-    let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx).unwrap();
+    let signed_tx = match SignedTransaction::try_from_raw(raw_signed_tx) {
+        Ok(tx) => tx,
+        Err(e) => {
+            return response::CheckTx {
+                code: AbciCode::INVALID_PARAMETER.into(),
+                info: "the provided bytes was not a valid protobuf-encoded SignedTransaction, or \
+                       the signature was invalid"
+                    .into(),
+                log: format!("{e:?}"),
+                ..response::CheckTx::default()
+            };
+        }
+    };
+
     // if the tx passes the check, status code 0 is returned.
     // TODO(https://github.com/astriaorg/astria/issues/228): status codes for various errors
     // TODO(https://github.com/astriaorg/astria/issues/319): offload `check_stateless` using `deliver_tx_bytes` mechanism
@@ -111,7 +124,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         Ok(_) => response::CheckTx::default(),
         Err(e) => response::CheckTx {
             code: AbciCode::INVALID_PARAMETER.into(),
-            info: "transaction failed stateless verification".into(),
+            info: "transaction failed stateless check".into(),
             log: format!("{e:?}"),
             ..response::CheckTx::default()
         },
