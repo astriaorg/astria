@@ -97,7 +97,9 @@ impl App {
         state_tx.put_block_height(0);
 
         // call init_chain on all components
-        AccountsComponent::init_chain(&mut state_tx, &genesis_state).await?;
+        AccountsComponent::init_chain(&mut state_tx, &genesis_state)
+            .await
+            .context("failed to call init_chain on AccountsComponent")?;
         AuthorityComponent::init_chain(
             &mut state_tx,
             &AuthorityComponentAppState {
@@ -105,7 +107,8 @@ impl App {
                 genesis_validators,
             },
         )
-        .await?;
+        .await
+        .context("failed to call init_chain on AuthorityComponent")?;
         state_tx.apply();
         Ok(())
     }
