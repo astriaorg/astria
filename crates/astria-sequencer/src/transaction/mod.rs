@@ -25,7 +25,10 @@ pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
     state: &S,
 ) -> anyhow::Result<()> {
     let signer_address = Address::from_verification_key(tx.verification_key());
-    let curr_nonce = state.get_account_nonce(signer_address).await?;
+    let curr_nonce = state
+        .get_account_nonce(signer_address)
+        .await
+        .context("failed to get account nonce")?;
     ensure!(
         tx.unsigned_transaction().nonce < curr_nonce,
         "nonce already used by account"
@@ -34,7 +37,9 @@ pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
 }
 
 pub(crate) fn check_stateless(tx: &SignedTransaction) -> anyhow::Result<()> {
-    tx.unsigned_transaction().check_stateless()
+    tx.unsigned_transaction()
+        .check_stateless()
+        .context("stateless check failed")
 }
 
 pub(crate) async fn check_stateful<S: StateReadExt + 'static>(

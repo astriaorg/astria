@@ -98,23 +98,20 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     // TODO(https://github.com/astriaorg/astria/issues/228): status codes for various errors
     // TODO(https://github.com/astriaorg/astria/issues/319): offload `check_stateless` using `deliver_tx_bytes` mechanism
     //       and a worker task similar to penumbra
-    match transaction::check_nonce_mempool(&signed_tx, &state).await {
-        Ok(_) => (),
-        Err(e) => {
-            return response::CheckTx {
-                code: AbciCode::INVALID_PARAMETER.into(),
-                info: "failed verifying nonce of SignedTransaction".into(),
-                log: format!("{e:?}"),
-                ..response::CheckTx::default()
-            };
-        }
-    }
+    if let Err(e) = transaction::check_nonce_mempool(&signed_tx, &state).await {
+        return response::CheckTx {
+            code: AbciCode::INVALID_NONCE.into(),
+            info: "failed verifying transaction nonce".into(),
+            log: format!("{e:?}"),
+            ..response::CheckTx::default()
+        };
+    };
 
     match transaction::check_stateless(&signed_tx) {
         Ok(_) => response::CheckTx::default(),
         Err(e) => response::CheckTx {
             code: AbciCode::INVALID_PARAMETER.into(),
-            info: "failed verifying decoded protobuf SignedTransaction".into(),
+            info: "transaction failed stateless verification".into(),
             log: format!("{e:?}"),
             ..response::CheckTx::default()
         },
