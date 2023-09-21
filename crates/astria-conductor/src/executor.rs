@@ -243,7 +243,8 @@ impl<C: ExecutionClient> Executor<C> {
         let prev_block_hash = if let Some(soft_commitment) = self.commitment_state.soft.clone() {
             soft_commitment.hash
         } else {
-            warn!("could not get previous block. soft commitment is None");
+            // TODO - return error here
+            error!("could not get previous block. soft commitment is None");
             return Ok(None);
         };
 
