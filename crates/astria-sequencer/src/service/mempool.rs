@@ -56,8 +56,8 @@ fn handle_check_tx(req: request::CheckTx) -> response::CheckTx {
         native::sequencer::v1alpha1::SignedTransaction,
         Message as _,
     };
+    use sequencer_types::abci_codes::AbciCode;
 
-    use super::AbciCode;
     use crate::transaction;
 
     let request::CheckTx {

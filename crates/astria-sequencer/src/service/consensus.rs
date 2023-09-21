@@ -7,6 +7,7 @@ use anyhow::{
     Context,
 };
 use penumbra_storage::Storage;
+use sequencer_types::abci_codes::AbciCode;
 use tendermint::abci::{
     request,
     response,
@@ -29,7 +30,6 @@ use crate::{
         generate_sequence_actions_commitment,
         GeneratedCommitments,
     },
-    service::AbciCode,
 };
 
 pub(crate) struct Consensus {

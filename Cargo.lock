@@ -280,6 +280,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "astria-proto",
+ "astria-sequencer-types",
  "astria-sequencer-validation",
  "astria-telemetry",
  "async-trait",

@@ -4,6 +4,7 @@ use penumbra_storage::{
     Storage,
 };
 use proto::native::sequencer::v1alpha1::Address;
+use sequencer_types::abci_codes::AbciCode;
 use tendermint::{
     abci::{
         request,
@@ -14,7 +15,6 @@ use tendermint::{
 
 use crate::{
     accounts::state_ext::StateReadExt as _,
-    service::AbciCode,
     state_ext::StateReadExt as _,
 };
 
