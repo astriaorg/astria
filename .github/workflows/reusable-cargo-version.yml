@@ -26,7 +26,7 @@ jobs:
       # Notice appears when the version has changed on a PR to main
       - name: Release Notice
         if: |
-          steps.release_version.outputs.versionChanged &&
+          steps.release_version.outputs.versionChanged == 'true' &&
           github.event_name == 'pull_request' &&
           github.base_ref == 'main' 
         run: |
