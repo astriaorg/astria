@@ -22,6 +22,7 @@ jobs:
         with:
           file: ${{ format('crates/astria-{0}/Cargo.toml', inputs.package-name) }}
           tagFormat: ${{ format('v${{version}}--{0}', inputs.package-name) }}
+          failBuild: false
       # Notice appears when the version has changed on a PR to main
       - name: Release Notice
         if: |
