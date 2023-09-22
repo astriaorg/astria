@@ -1,6 +1,5 @@
 comment:
   layout: "reach, diff, files, components"
-  require_changes: true
 
 coverage:
   status:
