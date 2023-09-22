@@ -39,8 +39,6 @@ The block data published is as follows:
 pub struct SequencerBlockData {
     block_hash: Hash,
     header: Header,
-    /// This field should be set for every block with height > 1.
-    last_commit: Option<Commit>,
     /// chain ID -> rollup transactions
     rollup_data: BTreeMap<ChainId, Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
@@ -65,7 +63,6 @@ When this data is actually published, it's split into multiple structures. Speci
 pub struct SequencerNamespaceData {
     pub block_hash: Hash,
     pub header: Header,
-    pub last_commit: Option<Commit>,
     pub rollup_chain_ids: Vec<ChainId>,
     pub action_tree_root: [u8; 32],
     pub action_tree_root_inclusion_proof: InclusionProof,
@@ -98,8 +95,6 @@ For a rollup node to verify the ordering, completeness, and correctness of the b
 4. the `data_hash` inside the header contains the `action_tree_root` of the block (see [sequencer inclusion proofs](sequencer-inclusion-proofs.md) for details), which is a commitment to the `sequence:Action`s in the block
 5. the `rollup_txs` inside `RollupNamespaceData` is contained within the `action_tree_root`
 6. the `chain_ids_commitment` is a valid commitment to `rollup_chain_ids`
-7. `last_commit` is a valid Tendermint commit to the parent block hash (TODO: I think these can just be changed to the block's commit at time of writing, even if it's not canonical)
-8. `last_commit_hash` inside the header is a valid commitment to the `last_commit`
 
 Let's go through these one-by-one. 
 
