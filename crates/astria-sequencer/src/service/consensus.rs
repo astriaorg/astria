@@ -7,7 +7,7 @@ use anyhow::{
     Context,
 };
 use penumbra_storage::Storage;
-use sequencer_types::abci_codes::AbciCode;
+use sequencer_types::abci_code::AbciCode;
 use tendermint::abci::{
     request,
     response,

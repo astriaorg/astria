@@ -4,7 +4,7 @@ use penumbra_storage::{
     Storage,
 };
 use proto::native::sequencer::v1alpha1::Address;
-use sequencer_types::abci_codes::AbciCode;
+use sequencer_types::abci_code::AbciCode;
 use tendermint::{
     abci::{
         request,

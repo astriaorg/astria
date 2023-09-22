@@ -33,7 +33,7 @@ use tracing::{
 
 mod abci_query_router;
 
-use sequencer_types::abci_codes::AbciCode;
+use sequencer_types::abci_code::AbciCode;
 
 use crate::state_ext::StateReadExt;
 
