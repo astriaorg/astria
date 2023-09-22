@@ -328,7 +328,8 @@ impl SequencerBlockData {
         }
 
         // generate the action tree root proof of inclusion in `Header::data_hash`
-        let tx_tree = MerkleTree::from_leaves(b.data[2..].to_vec());
+        let hashed_txs = b.data.iter().map(|tx| sha256_hash(tx)).collect::<Vec<_>>();
+        let tx_tree = MerkleTree::from_leaves(hashed_txs);
         let calculated_data_hash = tx_tree.root();
         if calculated_data_hash != data_hash.as_bytes() {
             return Err(Error::CometBftDataHashReconstructedHashMismatch);
@@ -359,6 +360,13 @@ impl SequencerBlockData {
         };
         Ok(data)
     }
+}
+
+fn sha256_hash(data: &[u8]) -> Vec<u8> {
+    use sha2::Digest as _;
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(data);
+    hasher.finalize().to_vec()
 }
 
 /// An unverified version of [`SequencerBlockData`], primarily used for
