@@ -1,6 +1,6 @@
 # Data flow and verification
 
-This document addresses how rollup data flows throughout the system and is verified throughout the system.
+This document addresses how rollup data flows throughout the system and is verified before execution.
 
 ## Background
 
@@ -54,7 +54,7 @@ pub struct SequencerBlockData {
 }
 ```
 
-When this data is actually published, it's split into multiple structures. Specifically, the data for each rollup is written independently, while a "base" data type which contains the rollup chain IDs  included in the block is also written. This allows each rollup to only require the `SequencerNamespaceData` for the block and the `RollupNamespaceData` for its own rollup transactions. For each block, if there are N rollup chain IDs included, 1 + N structures are written to DA.
+When this data is actually published, it's split into multiple structures. Specifically, the data for each rollup is written independently, while a "base" data type which contains the rollup chain IDs  included in the block is also written. This allows each rollup to only require the `SequencerNamespaceData` for the block and the `RollupNamespaceData` for its own rollup transactions. For each block, if there are N rollup chain IDs included, 1 + N structures are written to DA. 
 
 
 ```rust
@@ -84,7 +84,7 @@ pub struct RollupNamespaceData {
 }
 ```
 
-These structures contain all the information required for the reader of the rollup data to verify that it is in fact what the sequencer chain finalized; ie. the transactions are in the correct order, there are no transactions missing, or transactions included that were not actually in the block. We can refer to these properties as ordering, completeness, and correctness respectively.
+These structures contain all the information required for the reader of the rollup data to verify that it is in fact what the sequencer chain finalized; ie. the transactions are in the correct order, there are no transactions missing, or transactions included that were not actually in the block. We can refer to these properties as ordering, completeness, and correctness respectively. It is able to do this *without* requiring the full transaction data of the block, as is explained below.
 
 Note that the `Header` field in `SequencerNamespaceData` is a [Tendermint header](https://github.com/informalsystems/tendermint-rs/blob/4d81b67c28510db7d2d99ed62ebfa9fdf0e02141/tendermint/src/block/header.rs#L25).
 
@@ -103,6 +103,8 @@ For a rollup node to verify the ordering, completeness, and correctness of the b
 
 Let's go through these one-by-one. 
 
+Note: Tendermint validators will also validate all these fields before voting on a block; thus, if a block is committed, we know the majority of validators agreed that these fields are correct.
+
 #### 1. block proposer
 
 The block header contains the proposer of the block. To verify the expected proposer for a block, we obtain the validator set for that height, which includes the proposer power for each validator. From this, we can calculate the expected proposer for the height, and ensure it matches the proposer of the block at that height.
@@ -115,11 +117,19 @@ To verify the commit for a block, we obtain the commit somehow (through a sequen
 
 #### 3. block header
 
+The block hash is a commitment to the block header (specifically, the merkle root of the tree where the leaves are each header field). We then verify that the block header merkleizes to the block hash correctly.
+
 #### 4. `action_tree_root`
+
+The block's data (transactions) contain the `action_tree_root` of the block (see [sequencer inclusion proofs](sequencer-inclusion-proofs.md) for details), which is a commitment to the `sequence:Action`s in the block. Specifically, the `action_tree_root` is the root of a merkle tree where each leaf is a commitment to the rollup data for one spceific rollup. The block header contains the field `data_hash` which is the merkle root of all the transactions in a block. Since `action_tree_root` is a transaction, we can prove its inclusion inside `data_hash` (the `action_tree_root_inclusion_proof` field inside `SequencerNamespaceData`). Then, in the next step, we can verify that the rollup data we received was included inside `action_tree_root`.
 
 #### 5. `rollup_txs`
 
+We calculate a commitment of the rollup data we receive (`rollup_txs` inside `RollupNamespaceData`). We then verify that this data is included inside `action_tree_root` (via the `inclusion_proof` fiekd inside `RollupNamespaceData`). At this point, we are now certain that the rollup data we received, which is a subset of the entire block's data, was in fact committed by the majority of the sequencer chain's validators.
+
 #### 6. `chain_ids_commitment`
+
+The `SequencerNamespaceData` contains a list of the `rollup_chain_ids` that were included in the block. However, to ensure that chain IDs are not omitted when publishing the data (which would be undetectable to rollup nodes without forcing them to pull the entire block's data), we also add a commitment to the chain IDs in the block inside the block's transaction data. We ensure that the `rollup_chain_ids` inside `SequencerNamespaceData` match the `chain_ids_commitment`.
 
 ## Exit point
 
