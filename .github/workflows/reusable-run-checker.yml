@@ -53,6 +53,7 @@ jobs:
           filters: |
             release_workflow:
               - '.github/workflows/release.yml'
+              - '.github/workflows/reusable-cargo-version.yml'
             test_workflow:
               - '.github/workflows/test.yml'
             docker_workflow:
