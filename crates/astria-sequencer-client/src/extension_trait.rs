@@ -251,6 +251,15 @@ pub struct NewBlocksStream {
     inner: Pin<Box<dyn Stream<Item = Result<SequencerBlockData, NewBlockStreamError>> + Send>>,
 }
 
+impl NewBlocksStream {
+    pub fn empty() -> Self {
+        use futures::stream::{self,};
+        NewBlocksStream {
+            inner: Box::pin(stream::empty()),
+        }
+    }
+}
+
 impl Stream for NewBlocksStream {
     type Item = Result<SequencerBlockData, NewBlockStreamError>;
 

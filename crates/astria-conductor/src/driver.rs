@@ -9,6 +9,10 @@ use color_eyre::eyre::{
     Result,
     WrapErr as _,
 };
+// use futures::{
+//     io::empty,
+//     StreamExt,
+// };
 use sequencer_client::{
     tendermint,
     NewBlockStreamError,
@@ -77,7 +81,9 @@ pub(crate) struct Driver {
     executor_tx: executor::Sender,
 
     /// A client that subscribes to new sequencer blocks from cometbft.
-    sequencer_client: SequencerClient,
+    // TODO: update to option
+    // sequencer_client: SequencerClient,
+    sequencer_client: Option<SequencerClient>,
 
     is_shutdown: Mutex<bool>,
 }
@@ -133,9 +139,20 @@ impl Driver {
             }
         };
 
-        let sequencer_client = SequencerClient::new(&conf.sequencer_url)
-            .await
-            .wrap_err("failed constructing a cometbft websocket client to read off sequencer")?;
+        // TODO: update to return option based on commit level
+        // let sequencer_client = SequencerClient::new(&conf.sequencer_url)
+        //     .await
+        //     .wrap_err("failed constructing a cometbft websocket client to read off sequencer")?;
+
+        let sequencer_client = match conf.execution_commit_level {
+            CommitLevel::SoftOnly | CommitLevel::SoftAndFirm => {
+                let sequencer_client = SequencerClient::new(&conf.sequencer_url).await.wrap_err(
+                    "failed constructing a cometbft websocket client to read off sequencer",
+                )?;
+                Some(sequencer_client)
+            }
+            CommitLevel::FirmOnly => None,
+        };
 
         Ok((
             Self {
@@ -155,15 +172,30 @@ impl Driver {
     #[instrument(name = "driver", skip_all)]
     pub(crate) async fn run(mut self) -> Result<()> {
         use futures::StreamExt as _;
-        use sequencer_client::SequencerSubscriptionClientExt as _;
+        use sequencer_client::{
+            extension_trait::NewBlocksStream,
+            SequencerSubscriptionClientExt as _,
+        };
 
         info!("Starting driver event loop.");
-        let mut new_blocks = self
-            .sequencer_client
-            .client
-            .subscribe_new_block_data()
-            .await
-            .wrap_err("failed subscribing to sequencer to receive new blocks")?;
+        // TODO: look at chatgpt suggestion and try to add that here
+        // let mut new_blocks = self
+        //     .sequencer_client
+        //     .unwrap()
+        //     .client
+        //     .subscribe_new_block_data()
+        //     .await
+        //     .wrap_err("failed subscribing to sequencer to receive new blocks")?;
+        let mut new_blocks = if self.sequencer_client.is_some() {
+            let seq_client = self.sequencer_client.take().unwrap();
+            seq_client
+                .client
+                .subscribe_new_block_data()
+                .await
+                .wrap_err("failed subscribing to sequencer to receive new blocks")?
+        } else {
+            NewBlocksStream::empty()
+        };
         // FIXME(https://github.com/astriaorg/astria/issues/381): the event handlers
         // here block the select loop because they `await` their return.
         loop {
