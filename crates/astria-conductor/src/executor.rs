@@ -165,9 +165,8 @@ impl<C: ExecutionClient> Executor<C> {
                     let Some(block_subset) =
                         SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id)
                     else {
-                        info!(
-                            namespace = %self.namespace,
-                            "block did not contain data for namespace; skipping"
+                        error!(
+                            "there was an issue deriving rollup block subset from sequencer block"
                         );
                         continue;
                     };
