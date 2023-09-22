@@ -75,8 +75,8 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         native::sequencer::v1alpha1::SignedTransaction,
         Message as _,
     };
+    use sequencer_types::abci_code::AbciCode;
 
-    use super::AbciCode;
     use crate::transaction;
 
     let request::CheckTx {
