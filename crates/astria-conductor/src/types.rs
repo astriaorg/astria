@@ -38,8 +38,8 @@ impl SequencerBlockSubset {
             Some(txs) => txs,
             None => vec![],
         };
-       
-       Some(Self {
+
+        Some(Self {
             block_hash,
             header,
             rollup_transactions,
