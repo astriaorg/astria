@@ -347,7 +347,7 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
         signed_tx_bytes,
     ];
     let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
-        &data.iter().map(|tx| sha2::Sha256::digest(tx)).collect::<Vec<_>>(),
+        &data.iter().map(sha2::Sha256::digest).collect::<Vec<_>>(),
     )));
 
     let (last_commit_hash, last_commit) = sequencer_types::test_utils::make_test_commit_and_hash();
