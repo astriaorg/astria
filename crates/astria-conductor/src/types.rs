@@ -19,10 +19,7 @@ pub(crate) struct SequencerBlockSubset {
 }
 
 impl SequencerBlockSubset {
-    pub(crate) fn from_sequencer_block_data(
-        data: SequencerBlockData,
-        chain_id: &ChainId,
-    ) -> Option<Self> {
+    pub(crate) fn from_sequencer_block_data(data: SequencerBlockData, chain_id: &ChainId) -> Self {
         // we don't need to verify the action tree root here,
         // as [`SequencerBlockData`] would not be constructable
         // if it was invalid
@@ -34,15 +31,12 @@ impl SequencerBlockSubset {
             ..
         } = data.into_raw();
 
-        let rollup_transactions = match rollup_data.remove(chain_id) {
-            Some(txs) => txs,
-            None => vec![],
-        };
+        let rollup_transactions = rollup_data.remove(chain_id).unwrap_or_default();
 
-        Some(Self {
+        Self {
             block_hash,
             header,
             rollup_transactions,
-        })
+        }
     }
 }
