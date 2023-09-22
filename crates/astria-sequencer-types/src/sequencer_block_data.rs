@@ -328,7 +328,7 @@ impl SequencerBlockData {
         }
 
         // generate the action tree root proof of inclusion in `Header::data_hash`
-        let tx_tree = MerkleTree::from_leaves(b.data);
+        let tx_tree = MerkleTree::from_leaves(b.data[2..].to_vec());
         let calculated_data_hash = tx_tree.root();
         if calculated_data_hash != data_hash.as_bytes() {
             return Err(Error::CometBftDataHashReconstructedHashMismatch);
