@@ -34,8 +34,12 @@ impl SequencerBlockSubset {
             ..
         } = data.into_raw();
 
-        let rollup_transactions = rollup_data.remove(chain_id)?;
-        Some(Self {
+        let rollup_transactions = match rollup_data.remove(chain_id) {
+            Some(txs) => txs,
+            None => vec![],
+        };
+       
+       Some(Self {
             block_hash,
             header,
             rollup_transactions,
