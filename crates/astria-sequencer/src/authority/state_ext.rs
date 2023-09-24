@@ -29,14 +29,16 @@ use tracing::instrument;
 struct SudoAddress([u8; ADDRESS_LEN]);
 
 /// Newtype wrapper to read and write a validator set or set of updates from rocksdb.
+///
+/// Contains a map of hex-encoded public keys to validator updates.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) struct ValidatorSet(HashMap<Vec<u8>, tendermint::validator::Update>);
+pub(crate) struct ValidatorSet(HashMap<String, tendermint::validator::Update>);
 
 impl ValidatorSet {
     pub(crate) fn new_from_updates(updates: Vec<tendermint::validator::Update>) -> Self {
         let mut validator_set = HashMap::new();
         for update in updates {
-            validator_set.insert(update.pub_key.to_bytes(), update);
+            validator_set.insert(update.pub_key.to_hex(), update);
         }
         Self(validator_set)
     }
@@ -47,17 +49,27 @@ impl ValidatorSet {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn get(&self, pub_key: &[u8]) -> Option<&tendermint::validator::Update> {
-        self.0.get(pub_key)
+    pub(crate) fn get(
+        &self,
+        pub_key: &tendermint::public_key::PublicKey,
+    ) -> Option<&tendermint::validator::Update> {
+        self.0.get(&pub_key.to_hex())
     }
 
     pub(crate) fn push_update(&mut self, update: tendermint::validator::Update) {
-        self.0.insert(update.pub_key.to_bytes(), update);
+        self.0.insert(update.pub_key.to_hex(), update);
     }
 
+    /// Apply updates to the validator set.
+    ///
+    /// If the power of a validator is set to 0, remove it from the set.
+    /// Otherwise, update the validator's power.
     pub(crate) fn apply_updates(&mut self, validator_updates: ValidatorSet) {
         for (pub_key, update) in validator_updates.0 {
-            self.0.insert(pub_key, update);
+            match update.power.value() {
+                0 => self.0.remove(&pub_key),
+                _ => self.0.insert(pub_key, update),
+            };
         }
     }
 

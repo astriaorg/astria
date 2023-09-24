@@ -557,10 +557,9 @@ mod test {
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
         app.processed_txs = 2;
 
-        let public_key_bytes = [1u8; 32];
+        let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(&[1u8; 32]).unwrap();
         let update = tendermint::validator::Update {
-            pub_key: tendermint::public_key::PublicKey::from_raw_ed25519(&public_key_bytes)
-                .unwrap(),
+            pub_key,
             power: 100u32.into(),
         };
 
@@ -579,7 +578,7 @@ mod test {
 
         let validator_updates = app.state.get_validator_updates().await.unwrap();
         assert_eq!(validator_updates.len(), 1);
-        assert_eq!(validator_updates.get(&public_key_bytes).unwrap(), &update);
+        assert_eq!(validator_updates.get(&pub_key).unwrap(), &update);
     }
 
     #[tokio::test]
@@ -629,17 +628,19 @@ mod test {
                 height: 1u32.into(),
             })
             .await;
-        assert_eq!(resp.validator_updates, validator_updates);
+        // we only assert length here as the ordering of the updates is not guaranteed
+        // and validator::Update does not implement Ord
+        assert_eq!(resp.validator_updates.len(), validator_updates.len());
 
         // validator with pubkey_a should be removed (power set to 0)
         // validator with pubkey_b should be updated
         // validator with pubkey_c should be added
         let validator_set = app.state.get_validator_set().await.unwrap();
         assert_eq!(validator_set.len(), 2);
-        let validator_b = validator_set.get(&pubkey_b.to_bytes()).unwrap();
+        let validator_b = validator_set.get(&pubkey_b).unwrap();
         assert_eq!(validator_b.pub_key, pubkey_b);
         assert_eq!(validator_b.power, 100u32.into());
-        let validator_c = validator_set.get(&pubkey_c.to_bytes()).unwrap();
+        let validator_c = validator_set.get(&pubkey_c).unwrap();
         assert_eq!(validator_c.pub_key, pubkey_c);
         assert_eq!(validator_c.power, 100u32.into());
         assert_eq!(app.state.get_validator_updates().await.unwrap().len(), 0);
