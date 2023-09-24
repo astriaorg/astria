@@ -162,15 +162,9 @@ impl<C: ExecutionClient> Executor<C> {
                     block,
                 } => {
                     let height = block.header().height.value();
-                    let Some(block_subset) =
-                        SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id)
-                    else {
-                        info!(
-                            namespace = %self.namespace,
-                            "block did not contain data for namespace; skipping"
-                        );
-                        continue;
-                    };
+                    let block_subset =
+                        SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id);
+
                     if let Err(e) = self.execute_block(block_subset).await {
                         error!(
                             height = height,

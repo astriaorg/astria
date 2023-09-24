@@ -56,9 +56,7 @@ Conductor is written in Rust and utilizes the Tokio runtime to achieve this.
 - Creates the Reader and Executor actors on startup
 - Connects to the Sequencer network via websocket
 - Runs an event loop that handles receiving `DriverCommand`s from other actors
-- Creates a `TendermintClient` to validate Sequencer blocks received from the
-  sequencer
--  Passes validate sequencer blocks to the Executor for execution on the rollup
+-  Passes sequencer blocks to the Executor for execution on the rollup
 
 The Driver receives either `SequencerBlockData` blocks directly from the
 Sequencer via websocket connection, or `DriverCommand`s ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-conductor/src/driver.rs#L54))
@@ -111,7 +109,7 @@ The `ExecutorCommand`
 ([link](https://github.com/astriaorg/astria/blob/eeffd2dc24ec14cbc7a3b3197ec2a3c099a78605/crates/astria-conductor/src/executor.rs#L81))
 variants that the Executor receives are as follows:
 
-- `ExecutorCommand::BlockReceivedFromGossipNetwork` commands are received when
+- `ExecutorCommand::BlockReceivedFromSequencer` commands are received when
   data comes from the Sequencer via the Driver.
 - `ExecutorCommand::BlockReceivedFromDataAvailability` commands are received
   when data comes from the DA layer via the Reader.
@@ -151,20 +149,8 @@ Data is validated before being sent to the rollup for execution. Validation
 occurs in two places:
 
 - When blocks are received directly from the sequencer, the data is passed to
-  `handle_block()` and validated with
-  `BlockVerifier::validate_sequencer_block_data`
-  - `validate_sequencer_namespace_data` performs the following checks:
-    - the proposer of the sequencer block matches the expected proposer for
-      the block height from Tendermint
-    - the signer of the SignedNamespaceData matches the proposer
-    - the signature is valid
-    - the root of the merkle tree of all the header fields matches the
-      block's block_hash
-    - the root of the merkle tree of all transactions in the block matches
-      the block's data_hash
-    - the inclusion proof of the action tree root inside `data_hash` is
-      valid
-    - the block was actually finalized, i.e. >2/3 stake signed off on it
+  `handle_block()`. Because the websocket connection is trusted, validation of
+  the blocks can be skipped.
 - When blocks are fetched from the DA layer, the data is validated in the Reader's
   `get_new_blocks` using `BlockVerifier::validate_signed_namespace_data` and
   `BlockVerifier::validate_rollup_data`
