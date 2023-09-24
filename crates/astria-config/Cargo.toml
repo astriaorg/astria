@@ -1,0 +1,15 @@
+[package]
+name = "astria-config"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { workspace = true, features = ["extra-traits", "full"] }
+quote = { workspace = true }
+
+[dev-dependencies]
+trybuild = { version = "1.0.85", features = ["diff"] }

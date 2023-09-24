@@ -192,6 +192,7 @@ dependencies = [
 name = "astria-composer"
 version = "0.2.1"
 dependencies = [
+ "astria-config",
  "astria-proto",
  "astria-sequencer-client",
  "astria-telemetry",
@@ -228,6 +229,7 @@ dependencies = [
 name = "astria-conductor"
 version = "0.5.1"
 dependencies = [
+ "astria-config",
  "astria-proto",
  "astria-sequencer-client",
  "astria-sequencer-relayer",
@@ -259,6 +261,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-config"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn 2.0.37",
+ "trybuild",
+]
+
+[[package]]
 name = "astria-proto"
 version = "0.1.0"
 dependencies = [
@@ -280,6 +291,7 @@ name = "astria-sequencer"
 version = "0.4.1"
 dependencies = [
  "anyhow",
+ "astria-config",
  "astria-proto",
  "astria-sequencer-types",
  "astria-sequencer-validation",
@@ -338,6 +350,7 @@ name = "astria-sequencer-relayer"
 version = "0.5.1"
 dependencies = [
  "astria-celestia-jsonrpc-client",
+ "astria-config",
  "astria-proto",
  "astria-sequencer-types",
  "astria-sequencer-validation",
@@ -666,6 +679,15 @@ name = "base64ct"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
+
+[[package]]
+name = "basic-toml"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7bfc506e7a2370ec239e1d072507b2a80c833083699d3c6fa176fbb4de8448c6"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "bech32"
@@ -1424,6 +1446,12 @@ dependencies = [
  "redox_users",
  "winapi",
 ]
+
+[[package]]
+name = "dissimilar"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86e3bdc80eee6e16b2b6b0f87fbc98c04bee3455e35174c0de1a125d0688c632"
 
 [[package]]
 name = "dunce"
@@ -5144,6 +5172,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "termcolor"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6093bad37da69aab9d123a8091e4be0aa4a03e4d601ec641c327398315f62b64"
+dependencies = [
+ "winapi-util",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5682,6 +5719,22 @@ name = "try-lock"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3528ecfd12c466c6f163363caf2d02a71161dd5e1cc6ae7b34207ea2d42d81ed"
+
+[[package]]
+name = "trybuild"
+version = "1.0.85"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "196a58260a906cedb9bf6d8034b6379d0c11f552416960452f267402ceeddff1"
+dependencies = [
+ "basic-toml",
+ "dissimilar",
+ "glob",
+ "once_cell",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "termcolor",
+]
 
 [[package]]
 name = "tungstenite"
