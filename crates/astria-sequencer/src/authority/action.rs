@@ -22,7 +22,10 @@ impl ActionHandler for tendermint::validator::Update {
         from: Address,
     ) -> Result<()> {
         // ensure signer is the valid `sudo` key in state
-        let sudo_address = state.get_sudo_address().await?;
+        let sudo_address = state
+            .get_sudo_address()
+            .await
+            .context("failed to get sudo address from state")?;
         ensure!(sudo_address == from, "signer is not the sudo key");
         Ok(())
     }
@@ -33,9 +36,11 @@ impl ActionHandler for tendermint::validator::Update {
         let mut validator_updates = state
             .get_validator_updates()
             .await
-            .context("failed getting validator updates")?;
-        validator_updates.0.push(self.clone());
-        state.put_validator_updates(validator_updates)?;
+            .context("failed getting validator updates from state")?;
+        validator_updates.push_update(self.clone());
+        state
+            .put_validator_updates(validator_updates)
+            .context("failed to put validator updates in state")?;
         Ok(())
     }
 }

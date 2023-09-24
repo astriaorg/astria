@@ -134,7 +134,8 @@ impl Consensus {
             .context("failed to parse app_state in genesis file")?;
         self.app
             .init_chain(genesis_state, init_chain.validators.clone())
-            .await?;
+            .await
+            .context("failed to call init_chain")?;
 
         // commit the state and return the app hash
         let app_hash = self.app.commit(self.storage.clone()).await;

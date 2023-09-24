@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::{
     anyhow,
     Context,
@@ -26,38 +28,41 @@ use tracing::instrument;
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct SudoAddress([u8; ADDRESS_LEN]);
 
-/// Newtype wrapper to read and write a validator set from rocksdb.
-///
-/// Note: this is stored only in the nonconsensus state, thus is not part
-/// of the application state, so it's fine for it to be serialized/deserialized
-/// in a non-deterministic way (ie. with serde-json).
+/// Newtype wrapper to read and write a validator set or set of updates from rocksdb.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) struct ValidatorSet(pub(crate) Vec<tendermint::validator::Update>);
+pub(crate) struct ValidatorSet(HashMap<Vec<u8>, tendermint::validator::Update>);
 
 impl ValidatorSet {
-    pub(crate) fn apply_updates(&mut self, validator_updates: ValidatorSet) {
-        for update in validator_updates.0 {
-            if self
-                .0
-                .iter()
-                .map(|val| val.pub_key)
-                .collect::<Vec<tendermint::public_key::PublicKey>>()
-                .contains(&update.pub_key)
-            {
-                // update existing validator
-                self.0
-                    .iter_mut()
-                    .find(|val| val.pub_key == update.pub_key)
-                    .expect("validator must exist")
-                    .power = update.power;
-            } else {
-                // add new validator
-                self.0.push(update);
-            }
+    pub(crate) fn new_from_updates(updates: Vec<tendermint::validator::Update>) -> Self {
+        let mut validator_set = HashMap::new();
+        for update in updates {
+            validator_set.insert(update.pub_key.to_bytes(), update);
         }
+        Self(validator_set)
+    }
 
-        // delete validators with power 0
-        self.0.retain(|v| v.power.value() != 0);
+    #[allow(dead_code)]
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn get(&self, pub_key: &[u8]) -> Option<&tendermint::validator::Update> {
+        self.0.get(pub_key)
+    }
+
+    pub(crate) fn push_update(&mut self, update: tendermint::validator::Update) {
+        self.0.insert(update.pub_key.to_bytes(), update);
+    }
+
+    pub(crate) fn apply_updates(&mut self, validator_updates: ValidatorSet) {
+        for (pub_key, update) in validator_updates.0 {
+            self.0.insert(pub_key, update);
+        }
+    }
+
+    pub(crate) fn into_tendermint_validator_updates(self) -> Vec<tendermint::validator::Update> {
+        self.0.into_values().collect::<Vec<_>>()
     }
 }
 
@@ -106,7 +111,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed reading raw validator updates from state")?
         else {
             // return empty set because validator updates are optional
-            return Ok(ValidatorSet(vec![]));
+            return Ok(ValidatorSet(HashMap::new()));
         };
 
         let validator_updates: ValidatorSet =
@@ -123,7 +128,9 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_sudo_address(&mut self, address: Address) -> Result<()> {
         self.put_raw(
             SUDO_STORAGE_KEY.to_string(),
-            SudoAddress(address.0).try_to_vec()?,
+            SudoAddress(address.0)
+                .try_to_vec()
+                .context("failed to convert sudo address to vec")?,
         );
         Ok(())
     }
@@ -132,7 +139,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_validator_set(&mut self, validator_set: ValidatorSet) -> Result<()> {
         self.put_raw(
             VALIDATOR_SET_STORAGE_KEY.to_string(),
-            serde_json::to_vec(&validator_set)?,
+            serde_json::to_vec(&validator_set).context("failed to serialize validator set")?,
         );
         Ok(())
     }
@@ -141,7 +148,8 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_validator_updates(&mut self, validator_updates: ValidatorSet) -> Result<()> {
         self.nonconsensus_put_raw(
             VALIDATOR_UPDATES_KEY.to_vec(),
-            serde_json::to_vec(&validator_updates)?,
+            serde_json::to_vec(&validator_updates)
+                .context("failed to serialize validator updates")?,
         );
         Ok(())
     }

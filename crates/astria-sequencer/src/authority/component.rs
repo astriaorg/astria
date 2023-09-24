@@ -41,7 +41,9 @@ impl Component for AuthorityComponent {
             .put_sudo_address(app_state.authority_sudo_key)
             .context("failed to set sudo key")?;
         state
-            .put_validator_set(ValidatorSet(app_state.genesis_validators.clone()))
+            .put_validator_set(ValidatorSet::new_from_updates(
+                app_state.genesis_validators.clone(),
+            ))
             .context("failed to set validator set")?;
         Ok(())
     }
@@ -70,8 +72,8 @@ impl Component for AuthorityComponent {
             .expect("failed getting validator set");
         current_set.apply_updates(validator_updates);
 
-        // this is safe because we are the only ones with a reference to the state
-        let state = Arc::get_mut(state).unwrap();
+        let state =
+            Arc::get_mut(state).expect("must only have one reference to the state; this is a bug");
         state
             .put_validator_set(current_set)
             .expect("failed putting validator set");

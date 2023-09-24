@@ -220,7 +220,7 @@ impl App {
 
         let events = self.apply(state_tx);
         abci::response::EndBlock {
-            validator_updates: validator_updates.0,
+            validator_updates: validator_updates.into_tendermint_validator_updates(),
             events,
             ..Default::default()
         }
@@ -557,8 +557,10 @@ mod test {
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
         app.processed_txs = 2;
 
+        let public_key_bytes = [1u8; 32];
         let update = tendermint::validator::Update {
-            pub_key: tendermint::public_key::PublicKey::from_raw_ed25519(&[1; 32]).unwrap(),
+            pub_key: tendermint::public_key::PublicKey::from_raw_ed25519(&public_key_bytes)
+                .unwrap(),
             power: 100u32.into(),
         };
 
@@ -576,8 +578,8 @@ mod test {
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         let validator_updates = app.state.get_validator_updates().await.unwrap();
-        assert_eq!(validator_updates.0.len(), 1);
-        assert_eq!(validator_updates.0[0], update);
+        assert_eq!(validator_updates.len(), 1);
+        assert_eq!(validator_updates.get(&public_key_bytes).unwrap(), &update);
     }
 
     #[tokio::test]
@@ -618,7 +620,7 @@ mod test {
 
         let mut state_tx = StateDelta::new(app.state.clone());
         state_tx
-            .put_validator_updates(ValidatorSet(validator_updates.clone()))
+            .put_validator_updates(ValidatorSet::new_from_updates(validator_updates.clone()))
             .unwrap();
         app.apply(state_tx);
 
@@ -633,12 +635,14 @@ mod test {
         // validator with pubkey_b should be updated
         // validator with pubkey_c should be added
         let validator_set = app.state.get_validator_set().await.unwrap();
-        assert_eq!(validator_set.0.len(), 2);
-        assert_eq!(validator_set.0[0].pub_key, pubkey_b);
-        assert_eq!(validator_set.0[0].power, 100u32.into());
-        assert_eq!(validator_set.0[1].pub_key, pubkey_c);
-        assert_eq!(validator_set.0[1].power, 100u32.into());
-        assert_eq!(app.state.get_validator_updates().await.unwrap().0.len(), 0);
+        assert_eq!(validator_set.len(), 2);
+        let validator_b = validator_set.get(&pubkey_b.to_bytes()).unwrap();
+        assert_eq!(validator_b.pub_key, pubkey_b);
+        assert_eq!(validator_b.power, 100u32.into());
+        let validator_c = validator_set.get(&pubkey_c.to_bytes()).unwrap();
+        assert_eq!(validator_c.pub_key, pubkey_c);
+        assert_eq!(validator_c.power, 100u32.into());
+        assert_eq!(app.state.get_validator_updates().await.unwrap().len(), 0);
     }
 
     #[tokio::test]
