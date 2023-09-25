@@ -106,6 +106,70 @@ impl std::error::Error for VerificationFailure {
     }
 }
 
+/// A builder for an inclusion proof.
+///
+/// Primarily used for reconstructing proofs in other crates, for example during
+/// deserialization.
+#[derive(Debug)]
+pub struct InclusionProofBuilder {
+    // leaf index of value to be proven
+    index: usize,
+    // total number of leaves in the tree
+    num_leaves: usize,
+    // the merkle proof itself
+    inclusion_proof: CtInclusionProof<Sha256>,
+}
+
+impl Default for InclusionProofBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl InclusionProofBuilder {
+    pub fn new() -> Self {
+        Self {
+            index: 0,
+            num_leaves: 0,
+            inclusion_proof: CtInclusionProof::from_bytes(vec![]),
+        }
+    }
+
+    pub fn index(self, index: usize) -> Self {
+        Self {
+            index,
+            ..self
+        }
+    }
+
+    pub fn num_leaves(self, num_leaves: usize) -> Self {
+        Self {
+            num_leaves,
+            ..self
+        }
+    }
+
+    pub fn inclusion_proof(self, inclusion_proof: CtInclusionProof<Sha256>) -> Self {
+        Self {
+            inclusion_proof,
+            ..self
+        }
+    }
+
+    pub fn build(self) -> InclusionProof {
+        let Self {
+            index,
+            num_leaves,
+            inclusion_proof,
+        } = self;
+        InclusionProof {
+            index,
+            num_leaves,
+            inclusion_proof,
+        }
+    }
+}
+
 /// A merkle proof of inclusion.
 ///
 /// See [`astria_sequencer_validation::MerkleTree`] for a usage example.
@@ -121,6 +185,21 @@ pub struct InclusionProof {
 }
 
 impl InclusionProof {
+    /// Return a builder object to construct an inclusion proof from parts.
+    pub fn builder() -> InclusionProofBuilder {
+        InclusionProofBuilder::new()
+    }
+
+    /// Unpack an inclusion proof into its constitutent parts, consuming it.
+    pub fn into_parts(self) -> (usize, usize, CtInclusionProof<Sha256>) {
+        let Self {
+            index,
+            num_leaves,
+            inclusion_proof,
+        } = self;
+        (index, num_leaves, inclusion_proof)
+    }
+
     /// Verify that the merkle proof is valid for the given root hash and leaf value.
     ///
     /// # Errors

@@ -6,8 +6,10 @@
 mod proof;
 mod utils;
 
+pub use ct_merkle;
 pub use proof::{
     InclusionProof,
+    InclusionProofBuilder,
     IndexOutOfBounds,
     MerkleTree,
     VerificationFailure,
