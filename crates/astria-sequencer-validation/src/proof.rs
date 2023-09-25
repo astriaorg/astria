@@ -100,9 +100,11 @@ impl std::fmt::Display for VerificationFailure {
     }
 }
 
-// FIXME(https://github.com/astriaorg/astria/issues/374): implement std::error::Error for the
-// errors inside ct-merkle so that `Error::source` can be implemented.
-impl std::error::Error for VerificationFailure {}
+impl std::error::Error for VerificationFailure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
+    }
+}
 
 /// A merkle proof of inclusion.
 ///
