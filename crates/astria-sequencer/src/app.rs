@@ -128,6 +128,7 @@ impl App {
         // call begin_block on all components
         let mut arc_state_tx = Arc::new(state_tx);
         AccountsComponent::begin_block(&mut arc_state_tx, begin_block).await;
+        AuthorityComponent::begin_block(&mut arc_state_tx, begin_block).await;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
