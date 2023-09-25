@@ -22,6 +22,10 @@ use serde::{
     Deserialize,
     Serialize,
 };
+use tendermint::{
+    account,
+    validator,
+};
 use tracing::instrument;
 
 /// Newtype wrapper to read and write an address from rocksdb.
@@ -32,13 +36,14 @@ struct SudoAddress([u8; ADDRESS_LEN]);
 ///
 /// Contains a map of hex-encoded public keys to validator updates.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) struct ValidatorSet(HashMap<String, tendermint::validator::Update>);
+pub(crate) struct ValidatorSet(HashMap<account::Id, validator::Update>);
 
 impl ValidatorSet {
-    pub(crate) fn new_from_updates(updates: Vec<tendermint::validator::Update>) -> Self {
+    pub(crate) fn new_from_updates(updates: Vec<validator::Update>) -> Self {
         let mut validator_set = HashMap::new();
         for update in updates {
-            validator_set.insert(update.pub_key.to_hex(), update);
+            let address = account::Id::from(update.pub_key);
+            validator_set.insert(address, update);
         }
         Self(validator_set)
     }
@@ -49,15 +54,17 @@ impl ValidatorSet {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn get(
-        &self,
-        pub_key: &tendermint::public_key::PublicKey,
-    ) -> Option<&tendermint::validator::Update> {
-        self.0.get(&pub_key.to_hex())
+    pub(crate) fn get(&self, address: &account::Id) -> Option<&validator::Update> {
+        self.0.get(address)
     }
 
-    pub(crate) fn push_update(&mut self, update: tendermint::validator::Update) {
-        self.0.insert(update.pub_key.to_hex(), update);
+    pub(crate) fn push_update(&mut self, update: validator::Update) {
+        let address = tendermint::account::Id::from(update.pub_key);
+        self.0.insert(address, update);
+    }
+
+    pub(crate) fn remove(&mut self, address: &account::Id) {
+        self.0.remove(address);
     }
 
     /// Apply updates to the validator set.
@@ -65,15 +72,15 @@ impl ValidatorSet {
     /// If the power of a validator is set to 0, remove it from the set.
     /// Otherwise, update the validator's power.
     pub(crate) fn apply_updates(&mut self, validator_updates: ValidatorSet) {
-        for (pub_key, update) in validator_updates.0 {
+        for (address, update) in validator_updates.0 {
             match update.power.value() {
-                0 => self.0.remove(&pub_key),
-                _ => self.0.insert(pub_key, update),
+                0 => self.0.remove(&address),
+                _ => self.0.insert(address, update),
             };
         }
     }
 
-    pub(crate) fn into_tendermint_validator_updates(self) -> Vec<tendermint::validator::Update> {
+    pub(crate) fn into_tendermint_validator_updates(self) -> Vec<validator::Update> {
         self.0.into_values().collect::<Vec<_>>()
     }
 }

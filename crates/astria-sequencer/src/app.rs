@@ -579,7 +579,7 @@ mod test {
 
         let validator_updates = app.state.get_validator_updates().await.unwrap();
         assert_eq!(validator_updates.len(), 1);
-        assert_eq!(validator_updates.get(&pub_key).unwrap(), &update);
+        assert_eq!(validator_updates.get(&pub_key.into()).unwrap(), &update);
     }
 
     #[tokio::test]
@@ -638,10 +638,10 @@ mod test {
         // validator with pubkey_c should be added
         let validator_set = app.state.get_validator_set().await.unwrap();
         assert_eq!(validator_set.len(), 2);
-        let validator_b = validator_set.get(&pubkey_b).unwrap();
+        let validator_b = validator_set.get(&pubkey_b.into()).unwrap();
         assert_eq!(validator_b.pub_key, pubkey_b);
         assert_eq!(validator_b.power, 100u32.into());
-        let validator_c = validator_set.get(&pubkey_c).unwrap();
+        let validator_c = validator_set.get(&pubkey_c.into()).unwrap();
         assert_eq!(validator_c.pub_key, pubkey_c);
         assert_eq!(validator_c.power, 100u32.into());
         assert_eq!(app.state.get_validator_updates().await.unwrap().len(), 0);
