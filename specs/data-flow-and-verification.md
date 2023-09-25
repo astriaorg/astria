@@ -120,7 +120,7 @@ The block's data (transactions) contain the `action_tree_root` of the block (see
 
 #### 5. `rollup_txs`
 
-We calculate a commitment of the rollup data we receive (`rollup_txs` inside `RollupNamespaceData`). We then verify that this data is included inside `action_tree_root` (via the `inclusion_proof` fiekd inside `RollupNamespaceData`). At this point, we are now certain that the rollup data we received, which is a subset of the entire block's data, was in fact committed by the majority of the sequencer chain's validators.
+We calculate a commitment of the rollup data we receive (`rollup_txs` inside `RollupNamespaceData`). We then verify that this data is included inside `action_tree_root` (via the `inclusion_proof` field inside `RollupNamespaceData`). At this point, we are now certain that the rollup data we received, which is a subset of the entire block's data, was in fact committed by the majority of the sequencer chain's validators.
 
 #### 6. `chain_ids_commitment`
 
