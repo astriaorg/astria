@@ -448,6 +448,65 @@ mod test {
     }
 
     #[tokio::test]
+    async fn app_begin_block_remove_byzantine_validators() {
+        use tendermint::{
+            abci::types,
+            validator,
+        };
+
+        let pubkey_a = tendermint::public_key::PublicKey::from_raw_ed25519(&[1; 32]).unwrap();
+        let pubkey_b = tendermint::public_key::PublicKey::from_raw_ed25519(&[2; 32]).unwrap();
+
+        let initial_validator_set = vec![
+            validator::Update {
+                pub_key: pubkey_a,
+                power: 100u32.into(),
+            },
+            validator::Update {
+                pub_key: pubkey_b,
+                power: 1u32.into(),
+            },
+        ];
+
+        let mut app = initialize_app(None, initial_validator_set.clone()).await;
+
+        let misbehavior = types::Misbehavior {
+            kind: types::MisbehaviorKind::Unknown,
+            validator: types::Validator {
+                address: tendermint::account::Id::from(pubkey_a)
+                    .as_bytes()
+                    .try_into()
+                    .unwrap(),
+                power: 0u32.into(),
+            },
+            height: Height::default(),
+            time: Time::now(),
+            total_voting_power: 101u32.into(),
+        };
+
+        let mut begin_block = abci::request::BeginBlock {
+            header: default_header(),
+            hash: Hash::default(),
+            last_commit_info: CommitInfo {
+                votes: vec![],
+                round: Round::default(),
+            },
+            byzantine_validators: vec![misbehavior],
+        };
+        begin_block.header.height = Height::try_from(1u8).unwrap();
+
+        app.begin_block(&begin_block).await;
+
+        // assert that validator with pubkey_a is removed
+        let validator_set = app.state.get_validator_set().await.unwrap();
+        assert_eq!(validator_set.len(), 1);
+        assert_eq!(
+            validator_set.get(&pubkey_b.into()).unwrap().power,
+            1u32.into()
+        );
+    }
+
+    #[tokio::test]
     async fn app_deliver_tx_transfer() {
         let mut app = initialize_app(None, vec![]).await;
         app.processed_txs = 2;

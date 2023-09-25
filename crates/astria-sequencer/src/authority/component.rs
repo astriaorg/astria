@@ -59,6 +59,12 @@ impl Component for AuthorityComponent {
             let address = tendermint::account::Id::new(misbehaviour.validator.address);
             current_set.remove(&address);
         }
+
+        let state =
+            Arc::get_mut(state).expect("must only have one reference to the state; this is a bug");
+        state
+            .put_validator_set(current_set)
+            .expect("failed putting validator set");
     }
 
     #[instrument(name = "AuthorityComponent:end_block", skip(state))]
