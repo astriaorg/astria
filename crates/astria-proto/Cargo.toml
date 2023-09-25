@@ -22,13 +22,24 @@ prost-types = { workspace = true }
 sha2 = { workspace = true, optional = true }
 tendermint = { workspace = true }
 tendermint-proto = { workspace = true }
+thiserror = { workspace = true }
 tonic = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
+
+[dependencies.sequencer-validation]
+package = "astria-sequencer-validation"
+path = "../astria-sequencer-validation"
+optional = true
 
 [features]
 default = ["native"]
 client = ["dep:tonic"]
-native = ["dep:ed25519-consensus", "dep:hex", "dep:sha2", "dep:tracing"]
+native = [
+"dep:ed25519-consensus",
+"dep:hex",
+"dep:sequencer-validation",
+"dep:sha2",
+"dep:tracing"]
 server = ["dep:tonic"]
 
 [dev-dependencies]

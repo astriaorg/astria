@@ -12,6 +12,8 @@ use tracing::info;
 
 use crate::generated::sequencer::v1alpha1 as raw;
 
+pub mod validation;
+
 pub const ADDRESS_LEN: usize = 20;
 
 #[derive(Debug)]
