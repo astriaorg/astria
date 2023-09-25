@@ -139,11 +139,6 @@ impl Driver {
             }
         };
 
-        // TODO: update to return option based on commit level
-        // let sequencer_client = SequencerClient::new(&conf.sequencer_url)
-        //     .await
-        //     .wrap_err("failed constructing a cometbft websocket client to read off sequencer")?;
-
         let sequencer_client = match conf.execution_commit_level {
             CommitLevel::SoftOnly | CommitLevel::SoftAndFirm => {
                 let sequencer_client = SequencerClient::new(&conf.sequencer_url).await.wrap_err(
@@ -277,5 +272,191 @@ impl Driver {
         reader_tx.send(ReaderCommand::Shutdown)?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use astria_proto::generated::execution::v1alpha1::{
+        execution_service_server::{
+            ExecutionService,
+            ExecutionServiceServer,
+        },
+        DoBlockRequest,
+        DoBlockResponse,
+        FinalizeBlockRequest,
+        FinalizeBlockResponse,
+        InitStateRequest,
+        InitStateResponse,
+    };
+    use futures::{
+        SinkExt,
+        StreamExt,
+    };
+    // use tendermint_proto::google::protobuf::Timestamp;
+    use prost_types::Timestamp;
+    use sha2::Digest as _;
+    use tokio::net::TcpListener;
+    use tokio_tungstenite::{
+        accept_async,
+        tungstenite::protocol::Message,
+    };
+    use tonic::transport::Server;
+
+    // use tendermint::
+
+    // use tower::service_fn;
+    use super::*;
+    use crate::{
+        config,
+        execution_client::ExecutionClient,
+    };
+
+    fn get_test_config() -> Config {
+        Config {
+            chain_id: "ethereum".to_string(),
+            execution_rpc_url: "http://127.0.0.1:50051".to_string(),
+            log: "info".to_string(),
+            disable_empty_block_execution: false,
+            celestia_node_url: "http://127.0.0.1:26659".to_string(),
+            celestia_bearer_token: "test".to_string(),
+            tendermint_url: "http://127.0.0.1:26657".to_string(),
+            sequencer_url: "ws://127.0.0.1:26657".to_string(),
+            execution_commit_level: config::CommitLevel::SoftAndFirm,
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct MockExecutionServer {}
+
+    #[async_trait::async_trait]
+    impl ExecutionClient for MockExecutionServer {
+        async fn call_init_state(&mut self) -> Result<InitStateResponse> {
+            unimplemented!("call_init_state")
+        }
+
+        async fn call_do_block(
+            &mut self,
+            _prev_block_hash: Vec<u8>,
+            _transactions: Vec<Vec<u8>>,
+            _timestamp: Option<Timestamp>,
+        ) -> Result<DoBlockResponse> {
+            unimplemented!("call_do_block")
+        }
+
+        async fn call_finalize_block(&mut self, _block_hash: Vec<u8>) -> Result<()> {
+            unimplemented!("call_finalize_block")
+        }
+    }
+
+    #[tonic::async_trait]
+    impl ExecutionService for MockExecutionServer {
+        async fn init_state(
+            &self,
+            _request: tonic::Request<InitStateRequest>,
+        ) -> std::result::Result<tonic::Response<InitStateResponse>, tonic::Status> {
+            let hasher = sha2::Sha256::new();
+            Ok(tonic::Response::new(InitStateResponse {
+                block_hash: hasher.finalize().to_vec(),
+            }))
+        }
+
+        async fn do_block(
+            &self,
+            _request: tonic::Request<DoBlockRequest>,
+        ) -> std::result::Result<tonic::Response<DoBlockResponse>, tonic::Status> {
+            unimplemented!("do_block")
+        }
+
+        async fn finalize_block(
+            &self,
+            _request: tonic::Request<FinalizeBlockRequest>,
+        ) -> std::result::Result<tonic::Response<FinalizeBlockResponse>, tonic::Status> {
+            unimplemented!("finalize_block")
+        }
+    }
+
+    async fn handle_connection(stream: tokio::net::TcpStream) {
+        let ws_stream = accept_async(stream)
+            .await
+            .expect("Error during the websocket handshake occurred");
+
+        let (mut write, mut read) = ws_stream.split();
+
+        while let Some(message) = read.next().await {
+            match message {
+                Ok(msg) => {
+                    if msg.is_text() || msg.is_binary() {
+                        write.send(msg).await.expect("Failed to send message");
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error in WebSocket connection: {:?}", e);
+                }
+            }
+        }
+    }
+
+    async fn create_mock_execution_service_server() -> JoinHandle<()> {
+        // this is the default address for the execution service from config
+        let addr = "127.0.0.1:50051".parse().unwrap();
+
+        let server_handle = tokio::spawn(async move {
+            let _ = Server::builder()
+                .add_service(ExecutionServiceServer::new(MockExecutionServer::default()))
+                .serve(addr)
+                .await;
+        });
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        server_handle
+    }
+
+    #[tokio::test]
+    async fn new_driver_execution_commit_level_set_to_soft_only() {
+        let server_handle = create_mock_execution_service_server().await;
+
+        let ws_addr = "127.0.0.1:26657";
+        let listener = TcpListener::bind(&ws_addr).await.expect("Can't listen");
+        println!("Listening on: {}", ws_addr);
+
+        while let Ok((stream, _)) = listener.accept().await {
+            tokio::spawn(handle_connection(stream));
+        }
+        eprintln!("");
+
+        // let mut config = config::get().unwrap();
+        let mut config = get_test_config();
+        config.execution_commit_level = config::CommitLevel::SoftOnly;
+        let (driver, ..) = Driver::new(config).await.unwrap();
+        assert!(driver.reader_tx.is_none());
+        assert!(driver.sequencer_client.is_some());
+        drop(server_handle);
+    }
+
+    #[tokio::test]
+    async fn new_driver_execution_commit_level_set_to_firm_only() {
+        let server_handle = create_mock_execution_service_server().await;
+
+        eprintln!("server started");
+        // let mut config = config::get().unwrap();
+        let mut config = get_test_config();
+        config.execution_commit_level = config::CommitLevel::FirmOnly;
+        let (driver, ..) = Driver::new(config).await.unwrap();
+        assert!(driver.reader_tx.is_some());
+        assert!(driver.sequencer_client.is_none());
+        drop(server_handle);
+    }
+
+    #[tokio::test]
+    async fn new_driver_execution_commit_level_set_to_soft_and_firm() {
+        let server_handle = create_mock_execution_service_server().await;
+
+        // let mut config = config::get().unwrap();
+        let mut config = get_test_config();
+        config.execution_commit_level = config::CommitLevel::SoftAndFirm;
+        let (driver, ..) = Driver::new(config).await.unwrap();
+        assert!(driver.reader_tx.is_some());
+        assert!(driver.sequencer_client.is_some());
+        drop(server_handle);
     }
 }

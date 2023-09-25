@@ -38,7 +38,10 @@ sequencer-validation = { package = "astria-sequencer-validation", path = "../ast
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
+astria-proto = { path = "../astria-proto", features = ["client", "server"] }
 base64 = { workspace = true }
 once_cell = { workspace = true }
 figment = { workspace = true, features = ["test"] }
 regex = { workspace = true }
+tower = "0.4"
+tokio-tungstenite = "0.14"
