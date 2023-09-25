@@ -45,3 +45,7 @@ figment = { workspace = true, features = ["test"] }
 regex = { workspace = true }
 tower = "0.4"
 tokio-tungstenite = "0.14"
+astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client", features = [
+  "server",
+] }
+jsonrpsee = { workspace = true, features = ["server"] }

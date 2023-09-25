@@ -410,22 +410,142 @@ mod test {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         server_handle
     }
+    use std::{
+        net::SocketAddr,
+        time::Duration,
+    };
+
+    use astria_celestia_jsonrpc_client::rpc_impl::{
+        blob::Blob,
+        header::HeaderServer,
+        state::{
+            Fee,
+            StateServer,
+        },
+    };
+    use jsonrpsee::{
+        core::async_trait,
+        server::ServerHandle,
+        types::ErrorObjectOwned,
+    };
+    use tokio::sync::oneshot;
+
+    pub enum CelestiaMode {
+        Immediate,
+        Delayed(u64),
+    }
+
+    pub struct MockCelestia {
+        pub addr_rx: oneshot::Receiver<SocketAddr>,
+        pub state_rpc_confirmed_rx: mpsc::UnboundedReceiver<Vec<Blob>>,
+        pub _server_handle: ServerHandle,
+    }
+
+    impl MockCelestia {
+        async fn start(sequencer_block_time_ms: u64, mode: CelestiaMode) -> Self {
+            use jsonrpsee::server::ServerBuilder;
+            let (addr_tx, addr_rx) = oneshot::channel();
+            let server = ServerBuilder::default().build("127.0.0.1:0").await.unwrap();
+            let addr = server.local_addr().unwrap();
+            addr_tx.send(addr).unwrap();
+            let (state_rpc_confirmed_tx, state_rpc_confirmed_rx) = mpsc::unbounded_channel();
+            let state_celestia = StateCelestiaImpl {
+                sequencer_block_time_ms,
+                mode,
+                rpc_confirmed_tx: state_rpc_confirmed_tx,
+            };
+            let header_celestia = HeaderCelestiaImpl {};
+            let mut merged_celestia = state_celestia.into_rpc();
+            merged_celestia.merge(header_celestia.into_rpc()).unwrap();
+            let _server_handle = server.start(merged_celestia);
+            Self {
+                addr_rx,
+                state_rpc_confirmed_rx,
+                _server_handle,
+            }
+        }
+    }
+
+    struct HeaderCelestiaImpl;
+
+    #[async_trait]
+    impl HeaderServer for HeaderCelestiaImpl {
+        async fn network_head(&self) -> Result<Box<serde_json::value::RawValue>, ErrorObjectOwned> {
+            use astria_celestia_jsonrpc_client::header::{
+                Commit,
+                NetworkHeaderResponse,
+            };
+            use serde_json::{
+                to_string,
+                value::RawValue,
+                Value,
+            };
+            let rsp = RawValue::from_string(
+                to_string(&NetworkHeaderResponse {
+                    commit: Commit {
+                        height: 42,
+                        rest: Value::default(),
+                    },
+                    inner: Value::default(),
+                })
+                .unwrap(),
+            )
+            .unwrap();
+            Ok(rsp)
+        }
+    }
+
+    struct StateCelestiaImpl {
+        sequencer_block_time_ms: u64,
+        mode: CelestiaMode,
+        rpc_confirmed_tx: mpsc::UnboundedSender<Vec<Blob>>,
+    }
+
+    #[async_trait]
+    impl StateServer for StateCelestiaImpl {
+        async fn submit_pay_for_blob(
+            &self,
+            _fee: Fee,
+            _gas_limit: u64,
+            blobs: Vec<Blob>,
+        ) -> Result<Box<serde_json::value::RawValue>, ErrorObjectOwned> {
+            use astria_celestia_jsonrpc_client::state::SubmitPayForBlobResponse;
+            use serde_json::{
+                to_string,
+                value::RawValue,
+                Value,
+            };
+
+            self.rpc_confirmed_tx.send(blobs).unwrap();
+
+            let rsp = RawValue::from_string(
+                to_string(&SubmitPayForBlobResponse {
+                    height: 100,
+                    rest: Value::Null,
+                })
+                .unwrap(),
+            )
+            .unwrap();
+            if let CelestiaMode::Delayed(n) = self.mode {
+                tokio::time::sleep(Duration::from_millis(n * self.sequencer_block_time_ms)).await;
+            }
+
+            Ok(rsp)
+        }
+    }
 
     #[tokio::test]
     async fn new_driver_execution_commit_level_set_to_soft_only() {
         let server_handle = create_mock_execution_service_server().await;
 
-        let ws_addr = "127.0.0.1:26657";
-        let listener = TcpListener::bind(&ws_addr).await.expect("Can't listen");
-        println!("Listening on: {}", ws_addr);
-
-        while let Ok((stream, _)) = listener.accept().await {
-            tokio::spawn(handle_connection(stream));
-        }
-        eprintln!("");
+        let block_time = 1000;
+        let mut celestia = MockCelestia::start(block_time, CelestiaMode::Immediate).await;
+        let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
+        eprintln!("*** celestia_addr: {:?}", celestia_addr);
 
         // let mut config = config::get().unwrap();
         let mut config = get_test_config();
+        config.celestia_node_url = format!("http://{}", celestia_addr);
         config.execution_commit_level = config::CommitLevel::SoftOnly;
         let (driver, ..) = Driver::new(config).await.unwrap();
         assert!(driver.reader_tx.is_none());
@@ -435,24 +555,35 @@ mod test {
 
     #[tokio::test]
     async fn new_driver_execution_commit_level_set_to_firm_only() {
-        let server_handle = create_mock_execution_service_server().await;
-
-        eprintln!("server started");
-        // let mut config = config::get().unwrap();
         let mut config = get_test_config();
         config.execution_commit_level = config::CommitLevel::FirmOnly;
+
+        let server_handle = create_mock_execution_service_server().await;
+
+        let block_time = 1000;
+        let mut celestia = MockCelestia::start(block_time, CelestiaMode::Immediate).await;
+        let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
+        config.celestia_node_url = format!("http://{}", celestia_addr);
+
         let (driver, ..) = Driver::new(config).await.unwrap();
         assert!(driver.reader_tx.is_some());
         assert!(driver.sequencer_client.is_none());
         drop(server_handle);
+        drop(celestia._server_handle);
     }
 
     #[tokio::test]
     async fn new_driver_execution_commit_level_set_to_soft_and_firm() {
         let server_handle = create_mock_execution_service_server().await;
 
+        let block_time = 1000;
+        let mut celestia = MockCelestia::start(block_time, CelestiaMode::Immediate).await;
+        let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
+        eprintln!("*** celestia_addr: {:?}", celestia_addr);
+
         // let mut config = config::get().unwrap();
         let mut config = get_test_config();
+        config.celestia_node_url = format!("http://{}", celestia_addr);
         config.execution_commit_level = config::CommitLevel::SoftAndFirm;
         let (driver, ..) = Driver::new(config).await.unwrap();
         assert!(driver.reader_tx.is_some());

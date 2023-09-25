@@ -228,6 +228,7 @@ dependencies = [
 name = "astria-conductor"
 version = "0.4.0"
 dependencies = [
+ "astria-celestia-jsonrpc-client",
  "astria-proto",
  "astria-sequencer-client",
  "astria-sequencer-relayer",
@@ -241,6 +242,7 @@ dependencies = [
  "figment",
  "futures",
  "hex",
+ "jsonrpsee",
  "once_cell",
  "prost",
  "prost-types",
