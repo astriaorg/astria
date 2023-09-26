@@ -11,6 +11,7 @@ use astria_celestia_jsonrpc_client::{
 };
 use astria_sequencer_validation::{
     generate_action_tree_leaves,
+    utils,
     InclusionProof,
     MerkleTree,
 };
@@ -25,7 +26,6 @@ use eyre::{
 };
 use sequencer_types::{
     serde::Base64Standard,
-    ChainId,
     Namespace,
     RawSequencerBlockData,
     SequencerBlockData,
@@ -146,7 +146,7 @@ pub struct SequencerNamespaceData {
     pub block_hash: Hash,
     pub header: Header,
     pub last_commit: Option<Commit>,
-    pub rollup_chain_ids: Vec<ChainId>,
+    pub rollup_chain_ids: Vec<String>,
     pub action_tree_root: [u8; 32],
     pub action_tree_root_inclusion_proof: InclusionProof,
     pub chain_ids_commitment: [u8; 32],
@@ -158,7 +158,7 @@ impl NamespaceData for SequencerNamespaceData {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RollupNamespaceData {
     pub(crate) block_hash: Hash,
-    pub(crate) chain_id: ChainId,
+    pub(crate) chain_id: String,
     pub rollup_txs: Vec<Vec<u8>>,
     pub(crate) inclusion_proof: InclusionProof,
 }
@@ -168,7 +168,7 @@ impl NamespaceData for RollupNamespaceData {}
 impl RollupNamespaceData {
     pub fn new(
         block_hash: Hash,
-        chain_id: ChainId,
+        chain_id: String,
         rollup_txs: Vec<Vec<u8>>,
         inclusion_proof: InclusionProof,
     ) -> Self {
@@ -183,7 +183,7 @@ impl RollupNamespaceData {
     pub fn verify_inclusion_proof(&self, root_hash: [u8; 32]) -> eyre::Result<()> {
         let rollup_data_tree = MerkleTree::from_leaves(self.rollup_txs.clone());
         let rollup_data_root = rollup_data_tree.root();
-        let mut leaf = self.chain_id.as_ref().to_vec();
+        let mut leaf = utils::sha256_hash(self.chain_id.as_bytes()).to_vec();
         leaf.append(&mut rollup_data_root.to_vec());
         self.inclusion_proof.verify(&leaf, root_hash).wrap_err(
             "failed to verify rollup transactions against the contained inclusion proof with the \
