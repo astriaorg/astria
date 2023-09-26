@@ -65,7 +65,7 @@ pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
         conf.disable_empty_block_execution,
     )
     .await
-    .context("failed to create Executor")?;
+    .wrap_err("failed to create Executor")?;
     let join_handle = task::spawn(async move { executor.run().in_current_span().await });
     info!("Spawned executor task.");
     Ok((join_handle, executor_tx))

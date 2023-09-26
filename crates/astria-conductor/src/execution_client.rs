@@ -58,7 +58,7 @@ impl ExecutionClientExt for ExecutionServiceClient<Channel> {
         let response = self
             .batch_get_blocks(request)
             .await
-            .context("failed to batch get blocks")?
+            .wrap_err("failed to batch get blocks")?
             .into_inner();
         Ok(response)
     }
@@ -84,7 +84,7 @@ impl ExecutionClientExt for ExecutionServiceClient<Channel> {
         let response = self
             .execute_block(request)
             .await
-            .context("failed to execute block")?
+            .wrap_err("failed to execute block")?
             .into_inner();
         Ok(response)
     }
@@ -101,7 +101,7 @@ impl ExecutionClientExt for ExecutionServiceClient<Channel> {
         let response = self
             .get_block(request)
             .await
-            .context("failed to get block")?
+            .wrap_err("failed to get block")?
             .into_inner();
         Ok(response)
     }
@@ -112,7 +112,7 @@ impl ExecutionClientExt for ExecutionServiceClient<Channel> {
         let response = self
             .get_commitment_state(request)
             .await
-            .context("failed to get commitment state")?
+            .wrap_err("failed to get commitment state")?
             .into_inner();
         Ok(response)
     }
@@ -132,7 +132,7 @@ impl ExecutionClientExt for ExecutionServiceClient<Channel> {
         let response = self
             .update_commitment_state(request)
             .await
-            .context("failed to update commitment state")?
+            .wrap_err("failed to update commitment state")?
             .into_inner();
         Ok(response)
     }
