@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use astria_sequencer_types::{
-    ChainId,
     Namespace,
     SequencerBlockData,
 };
@@ -59,7 +58,7 @@ pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
         .wrap_err("failed to create execution rpc client")?;
     let (mut executor, executor_tx) = Executor::new(
         execution_rpc_client,
-        ChainId::new(conf.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
+        conf.chain_id.clone(),
         conf.disable_empty_block_execution,
     )
     .await
@@ -103,7 +102,7 @@ struct Executor<C> {
     execution_rpc_client: C,
 
     /// Chain ID
-    chain_id: ChainId,
+    chain_id: String,
 
     /// Namespace ID, derived from chain ID
     namespace: Namespace,
@@ -129,7 +128,7 @@ struct Executor<C> {
 impl<C: ExecutionClient> Executor<C> {
     async fn new(
         mut execution_rpc_client: C,
-        chain_id: ChainId,
+        chain_id: String,
         disable_empty_block_execution: bool,
     ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
@@ -417,10 +416,9 @@ mod test {
     #[tokio::test]
     async fn execute_sequencer_block_without_txs() {
         let conf = get_test_config();
-        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
         let (mut executor, _) = Executor::new(
             MockExecutionClient::new(),
-            chain_id,
+            conf.chain_id.clone(),
             conf.disable_empty_block_execution,
         )
         .await
@@ -440,11 +438,10 @@ mod test {
     #[tokio::test]
     async fn skip_sequencer_block_without_txs() {
         let mut conf = get_test_config();
-        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
         conf.disable_empty_block_execution = true;
         let (mut executor, _) = Executor::new(
             MockExecutionClient::new(),
-            chain_id,
+            conf.chain_id.clone(),
             conf.disable_empty_block_execution,
         )
         .await
@@ -458,14 +455,13 @@ mod test {
     #[tokio::test]
     async fn execute_unexecuted_da_block_with_transactions() {
         let conf = get_test_config();
-        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
         let (mut executor, _) = Executor::new(
             execution_client,
-            chain_id,
+            conf.chain_id.clone(),
             conf.disable_empty_block_execution,
         )
         .await
@@ -498,7 +494,6 @@ mod test {
     #[tokio::test]
     async fn skip_unexecuted_da_block_with_no_transactions() {
         let mut conf = get_test_config();
-        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
         conf.disable_empty_block_execution = true;
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
@@ -506,7 +501,7 @@ mod test {
         };
         let (mut executor, _) = Executor::new(
             execution_client,
-            chain_id,
+            conf.chain_id.clone(),
             conf.disable_empty_block_execution,
         )
         .await
@@ -537,14 +532,13 @@ mod test {
     #[tokio::test]
     async fn execute_unexecuted_da_block_with_no_transactions() {
         let conf = get_test_config();
-        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
         let (mut executor, _) = Executor::new(
             execution_client,
-            chain_id,
+            conf.chain_id.clone(),
             conf.disable_empty_block_execution,
         )
         .await
