@@ -49,4 +49,26 @@ impl ActionHandler for tendermint::validator::Update {
 }
 
 #[async_trait::async_trait]
-impl ActionHandler for SudoAddressChangeAction {}
+impl ActionHandler for SudoAddressChangeAction {
+    async fn check_stateful<S: StateReadExt + 'static>(
+        &self,
+        state: &S,
+        from: Address,
+    ) -> Result<()> {
+        // ensure signer is the valid `sudo` key in state
+        let sudo_address = state
+            .get_sudo_address()
+            .await
+            .context("failed to get sudo address from state")?;
+        ensure!(sudo_address == from, "signer is not the sudo key");
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn execute<S: StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
+        state
+            .put_sudo_address(self.new_address)
+            .context("failed to put sudo address in state")?;
+        Ok(())
+    }
+}
