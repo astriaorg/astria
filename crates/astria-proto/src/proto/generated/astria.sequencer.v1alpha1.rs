@@ -122,7 +122,7 @@ pub struct UnsignedTransaction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Action {
-    #[prost(oneof="action::Value", tags="1, 2")]
+    #[prost(oneof="action::Value", tags="1, 2, 3")]
     pub value: ::core::option::Option<action::Value>,
 }
 /// Nested message and enum types in `Action`.
@@ -134,6 +134,8 @@ pub mod action {
         TransferAction(super::TransferAction),
         #[prost(message, tag="2")]
         SequenceAction(super::SequenceAction),
+        #[prost(message, tag="3")]
+        ValidatorUpdateAction(::tendermint_proto::abci::ValidatorUpdate),
     }
 }
 /// `TransferAction` represents a value transfer transaction.
