@@ -191,7 +191,7 @@ impl Consensus {
         &mut self,
         end_block: request::EndBlock,
     ) -> anyhow::Result<response::EndBlock> {
-        Ok(self.app.end_block(&end_block).await)
+        self.app.end_block(&end_block).await
     }
 
     #[instrument(skip(self))]

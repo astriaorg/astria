@@ -198,13 +198,17 @@ impl App {
     pub(crate) async fn end_block(
         &mut self,
         end_block: &abci::request::EndBlock,
-    ) -> abci::response::EndBlock {
+    ) -> anyhow::Result<abci::response::EndBlock> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
         // call end_block on all components
-        AccountsComponent::end_block(&mut arc_state_tx, end_block).await;
-        AuthorityComponent::end_block(&mut arc_state_tx, end_block).await;
+        AccountsComponent::end_block(&mut arc_state_tx, end_block)
+            .await
+            .context("failed to call end_block on AccountsComponent")?;
+        AuthorityComponent::end_block(&mut arc_state_tx, end_block)
+            .await
+            .context("failed to call end_block on AuthorityComponent")?;
 
         // gather and return validator updates
         let validator_updates = self
@@ -220,11 +224,11 @@ impl App {
         state_tx.clear_validator_updates();
 
         let events = self.apply(state_tx);
-        abci::response::EndBlock {
+        Ok(abci::response::EndBlock {
             validator_updates: validator_updates.into_tendermint_validator_updates(),
             events,
             ..Default::default()
-        }
+        })
     }
 
     #[instrument(name = "App:commit", skip(self))]
@@ -628,7 +632,8 @@ mod test {
             .end_block(&abci::request::EndBlock {
                 height: 1u32.into(),
             })
-            .await;
+            .await
+            .unwrap();
         // we only assert length here as the ordering of the updates is not guaranteed
         // and validator::Update does not implement Ord
         assert_eq!(resp.validator_updates.len(), validator_updates.len());
