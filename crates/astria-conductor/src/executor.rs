@@ -136,7 +136,10 @@ impl<C: ExecutionClientExt> Executor<C> {
     ) -> Result<(Self, Sender)> {
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
 
-        let commitment_state = execution_rpc_client.call_get_commitment_state().await?;
+        let commitment_state = execution_rpc_client
+            .call_get_commitment_state()
+            .await
+            .wrap_err("executor failed to get commitment state")?;
 
         Ok((
             Self {
@@ -264,7 +267,8 @@ impl<C: ExecutionClientExt> Executor<C> {
         let executed_block = self
             .execution_rpc_client
             .call_execute_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
-            .await?;
+            .await
+            .wrap_err("executor failed to execute block")?;
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
@@ -287,7 +291,7 @@ impl<C: ExecutionClientExt> Executor<C> {
             .execution_rpc_client
             .call_update_commitment_state(commitment_state)
             .await
-            .wrap_err("failed to update commitment state")?;
+            .wrap_err("executor failed to updated commitment state")?;
         self.commitment_state = new_commitment_state;
         Ok(())
     }
@@ -298,7 +302,9 @@ impl<C: ExecutionClientExt> Executor<C> {
             soft: Some(block.clone()),
             firm: Some(block),
         };
-        self.update_commitment_state(commitment_state).await?;
+        self.update_commitment_state(commitment_state)
+            .await
+            .wrap_err("executor failed to update both commitments")?;
         Ok(())
     }
 
@@ -308,7 +314,9 @@ impl<C: ExecutionClientExt> Executor<C> {
             soft: self.commitment_state.soft.clone(),
             firm: Some(firm),
         };
-        self.update_commitment_state(commitment_state).await?;
+        self.update_commitment_state(commitment_state)
+            .await
+            .wrap_err("executor failed to update firm commitment")?;
         Ok(())
     }
 
@@ -318,7 +326,9 @@ impl<C: ExecutionClientExt> Executor<C> {
             soft: Some(soft),
             firm: self.commitment_state.firm.clone(),
         };
-        self.update_commitment_state(commitment_state).await?;
+        self.update_commitment_state(commitment_state)
+            .await
+            .wrap_err("executor failed to update soft commitment")?;
         Ok(())
     }
 
@@ -336,7 +346,7 @@ impl<C: ExecutionClientExt> Executor<C> {
                 // this case means block has already been executed.
                 self.update_firm_commitment(executed_block.clone())
                     .await
-                    .wrap_err("failed to update firm commitment")?;
+                    .wrap_err("executor failed to update firm commitment")?;
                 // remove the sequencer block hash from the map, as it's been firmly committed
                 self.sequencer_hash_to_execution_block
                     .remove(&block.block_hash);
@@ -354,7 +364,7 @@ impl<C: ExecutionClientExt> Executor<C> {
                 let Some(executed_block) = self
                     .execute_block(block.clone())
                     .await
-                    .wrap_err("failed to execute block")?
+                    .wrap_err("executor failed to execute block")?
                 else {
                     // no txs for our namespace, nothing to do
                     debug!("execute_block returned None; skipping call_update_commitment_state");
@@ -364,7 +374,7 @@ impl<C: ExecutionClientExt> Executor<C> {
                 // of it, so we set FIRM and SOFT to this executed block
                 self.update_commitments(executed_block)
                     .await
-                    .wrap_err("failed to update commitments")?;
+                    .wrap_err("executor failed to update both commitments")?;
                 // remove the sequencer block hash from the map, as it's been firmly committed
                 self.sequencer_hash_to_execution_block
                     .remove(&block.block_hash);
