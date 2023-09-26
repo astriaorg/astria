@@ -37,7 +37,7 @@ use tracing::{
 use crate::{
     config::Config,
     execution_client,
-    execution_client::ExecutionClient,
+    execution_client::ExecutionClientExt,
     types::SequencerBlockSubset,
 };
 
@@ -128,7 +128,7 @@ struct Executor<C> {
     disable_empty_block_execution: bool,
 }
 
-impl<C: ExecutionClient> Executor<C> {
+impl<C: ExecutionClientExt> Executor<C> {
     async fn new(
         mut execution_rpc_client: C,
         chain_id: ChainId,
@@ -405,7 +405,7 @@ mod test {
     }
 
     #[async_trait::async_trait]
-    impl ExecutionClient for MockExecutionClient {
+    impl ExecutionClientExt for MockExecutionClient {
         async fn call_batch_get_blocks(
             &mut self,
             _identifiers: Vec<BlockIdentifier>,

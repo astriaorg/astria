@@ -27,7 +27,7 @@ pub(crate) async fn new(address: &str) -> Result<ExecutionServiceClient<Channel>
 }
 
 #[async_trait::async_trait]
-pub(crate) trait ExecutionClient {
+pub(crate) trait ExecutionClientExt {
     async fn call_batch_get_blocks(
         &mut self,
         identifiers: Vec<BlockIdentifier>,
@@ -51,7 +51,7 @@ pub(crate) trait ExecutionClient {
 }
 
 #[async_trait::async_trait]
-impl ExecutionClient for ExecutionServiceClient<Channel> {
+impl ExecutionClientExt for ExecutionServiceClient<Channel> {
     /// Calls remote procedure BatchGetBlocks
     ///
     /// # Arguments
