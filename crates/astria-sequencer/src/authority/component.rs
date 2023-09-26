@@ -34,7 +34,7 @@ pub(crate) struct AuthorityComponentAppState {
 impl Component for AuthorityComponent {
     type AppState = AuthorityComponentAppState;
 
-    #[instrument(name = "AuthorityComponent:init_chain", skip(state))]
+    #[instrument(name = "AuthorityComponent::init_chain", skip(state))]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         // set sudo key and initial validator set
         state
@@ -48,7 +48,7 @@ impl Component for AuthorityComponent {
         Ok(())
     }
 
-    #[instrument(name = "AuthorityComponent:begin_block", skip(state))]
+    #[instrument(name = "AuthorityComponent::begin_block", skip(state))]
     async fn begin_block<S: StateWriteExt + 'static>(state: &mut Arc<S>, begin_block: &BeginBlock) {
         let mut current_set = state
             .get_validator_set()
@@ -67,27 +67,28 @@ impl Component for AuthorityComponent {
             .expect("failed putting validator set");
     }
 
-    #[instrument(name = "AuthorityComponent:end_block", skip(state))]
+    #[instrument(name = "AuthorityComponent::end_block", skip(state))]
     async fn end_block<S: StateWriteExt + StateReadExt + 'static>(
         state: &mut Arc<S>,
         _end_block: &EndBlock,
-    ) {
+    ) -> Result<()> {
         // update validator set
         let validator_updates = state
             .get_validator_updates()
             .await
-            .expect("failed getting validator updates");
+            .context("failed getting validator updates")?;
 
         let mut current_set = state
             .get_validator_set()
             .await
-            .expect("failed getting validator set");
+            .context("failed getting validator set")?;
         current_set.apply_updates(validator_updates);
 
-        let state =
-            Arc::get_mut(state).expect("must only have one reference to the state; this is a bug");
+        let state = Arc::get_mut(state)
+            .context("must only have one reference to the state; this is a bug")?;
         state
             .put_validator_set(current_set)
-            .expect("failed putting validator set");
+            .context("failed putting validator set")?;
+        Ok(())
     }
 }

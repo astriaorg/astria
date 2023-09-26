@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{
     anyhow,
+    bail,
     Context,
     Result,
 };
@@ -48,12 +49,12 @@ impl ValidatorSet {
         Self(validator_set)
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.0.len()
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn get(&self, address: &account::Id) -> Option<&validator::Update> {
         self.0.get(address)
     }
@@ -114,7 +115,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed reading raw validator set from state")?
         else {
             // return error because validator set must be set
-            return Err(anyhow!("validator set not found"));
+            bail!("validator set not found")
         };
 
         let ValidatorSet(validator_set) =

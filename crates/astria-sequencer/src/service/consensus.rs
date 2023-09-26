@@ -191,7 +191,7 @@ impl Consensus {
         &mut self,
         end_block: request::EndBlock,
     ) -> anyhow::Result<response::EndBlock> {
-        Ok(self.app.end_block(&end_block).await)
+        self.app.end_block(&end_block).await
     }
 
     #[instrument(skip(self))]
@@ -278,6 +278,7 @@ mod test {
     use ed25519_consensus::SigningKey;
     use proto::{
         native::sequencer::v1alpha1::{
+            Address,
             SequenceAction,
             UnsignedTransaction,
         },
@@ -462,6 +463,15 @@ mod test {
             last_results_hash: None,
             evidence_hash: None,
             proposer_address: account::Id::try_from([0u8; 20].to_vec()).unwrap(),
+        }
+    }
+
+    impl Default for GenesisState {
+        fn default() -> Self {
+            Self {
+                accounts: vec![],
+                authority_sudo_key: Address::from([0; 20]),
+            }
         }
     }
 
