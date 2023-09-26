@@ -52,5 +52,5 @@ pub(crate) trait Component {
     async fn end_block<S: StateWrite + 'static>(
         state: &mut Arc<S>,
         end_block: &abci::request::EndBlock,
-    );
+    ) -> Result<()>;
 }

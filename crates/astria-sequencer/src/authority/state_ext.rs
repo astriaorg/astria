@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{
     anyhow,
+    bail,
     Context,
     Result,
 };
@@ -36,19 +37,19 @@ pub(crate) struct ValidatorSet(HashMap<String, tendermint::validator::Update>);
 
 impl ValidatorSet {
     pub(crate) fn new_from_updates(updates: Vec<tendermint::validator::Update>) -> Self {
-        let mut validator_set = HashMap::new();
-        for update in updates {
-            validator_set.insert(update.pub_key.to_hex(), update);
-        }
+        let validator_set = updates
+            .into_iter()
+            .map(|update| (update.pub_key.to_hex(), update))
+            .collect();
         Self(validator_set)
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.0.len()
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn get(
         &self,
         pub_key: &tendermint::public_key::PublicKey,
@@ -107,7 +108,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed reading raw validator set from state")?
         else {
             // return error because validator set must be set
-            return Err(anyhow!("validator set not found"));
+            bail!("validator set not found")
         };
 
         let ValidatorSet(validator_set) =

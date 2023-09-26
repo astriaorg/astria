@@ -12,15 +12,6 @@ pub(crate) struct GenesisState {
     pub(crate) authority_sudo_key: Address,
 }
 
-impl Default for GenesisState {
-    fn default() -> Self {
-        Self {
-            accounts: vec![],
-            authority_sudo_key: Address::from([0; 20]),
-        }
-    }
-}
-
 #[derive(Debug, Deserialize)]
 pub(crate) struct Account {
     #[serde(deserialize_with = "deserialize_address")]
