@@ -302,6 +302,7 @@ enum UnsignedTransactionErrorKind {
 pub enum Action {
     Sequence(SequenceAction),
     Transfer(TransferAction),
+    ValidatorUpdate(tendermint::validator::Update),
 }
 
 impl Action {
@@ -311,6 +312,7 @@ impl Action {
         let kind = match self {
             Action::Sequence(act) => Value::SequenceAction(act.into_raw()),
             Action::Transfer(act) => Value::TransferAction(act.into_raw()),
+            Action::ValidatorUpdate(act) => Value::ValidatorUpdateAction(act.into()),
         };
         raw::Action {
             value: Some(kind),
@@ -323,6 +325,7 @@ impl Action {
         let kind = match self {
             Action::Sequence(act) => Value::SequenceAction(act.to_raw()),
             Action::Transfer(act) => Value::TransferAction(act.to_raw()),
+            Action::ValidatorUpdate(act) => Value::ValidatorUpdateAction(act.clone().into()),
         };
         raw::Action {
             value: Some(kind),
@@ -347,6 +350,9 @@ impl Action {
             Value::SequenceAction(act) => Self::Sequence(SequenceAction::from_raw(act)),
             Value::TransferAction(act) => {
                 Self::Transfer(TransferAction::try_from_raw(act).map_err(ActionError::transfer)?)
+            }
+            Value::ValidatorUpdateAction(act) => {
+                Self::ValidatorUpdate(act.try_into().map_err(ActionError::validator_update)?)
             }
         };
         Ok(action)
@@ -398,6 +404,12 @@ impl ActionError {
             kind: ActionErrorKind::Transfer(inner),
         }
     }
+
+    fn validator_update(inner: tendermint::error::Error) -> Self {
+        Self {
+            kind: ActionErrorKind::ValidatorUpdate(inner),
+        }
+    }
 }
 
 impl Display for ActionError {
@@ -405,6 +417,7 @@ impl Display for ActionError {
         let msg = match &self.kind {
             ActionErrorKind::Unset => "oneof value was not set",
             ActionErrorKind::Transfer(_) => "raw transfer action was not valid",
+            ActionErrorKind::ValidatorUpdate(_) => "raw validator update action was not valid",
         };
         f.pad(msg)
     }
@@ -415,6 +428,7 @@ impl Error for ActionError {
         match &self.kind {
             ActionErrorKind::Unset => None,
             ActionErrorKind::Transfer(e) => Some(e),
+            ActionErrorKind::ValidatorUpdate(e) => Some(e),
         }
     }
 }
@@ -423,6 +437,7 @@ impl Error for ActionError {
 enum ActionErrorKind {
     Unset,
     Transfer(TransferActionError),
+    ValidatorUpdate(tendermint::error::Error),
 }
 
 #[derive(Clone, Debug)]

@@ -8,7 +8,7 @@ on:
         value: ${{ jobs.changes.outputs.test_workflow == 'true' || jobs.changes.outputs.crates == 'true' }}
       run_docker:
         description: If docker workflow needs to be run, will be 'true'
-        value: ${{ jobs.changes.outputs.docker_workflow == 'true' || jobs.changes.outputs.crates == 'true' }}
+        value: ${{ jobs.changes.outputs.docker_workflow == 'true' || jobs.changes.outputs.crates == 'true' || contains(github.ref, 'refs/tags/v') }}
       run_lint_proto:
         description: If lint for protos needs to be run, will be 'true'
         value: ${{ jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.proto == 'true' }}
@@ -24,6 +24,9 @@ on:
       run_release_proto:
         description: If release for protos needs to be run, will be 'true'
         value: ${{ jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.proto == 'true' }}
+      run_release_services:
+        description: If release for services needs to be run, will be 'true'
+        value: ${{ jobs.changes.outputs.release_workflow == 'true' || jobs.changes.outputs.crates == 'true' }}
 
 jobs:
   changes:
@@ -46,9 +49,11 @@ jobs:
       - uses: dorny/paths-filter@v2
         id: filters
         with:
+          list-files: json
           filters: |
             release_workflow:
-              - '.github/workflows/proto.yml'
+              - '.github/workflows/release.yml'
+              - '.github/workflows/reusable-cargo-version.yml'
             test_workflow:
               - '.github/workflows/test.yml'
             docker_workflow:

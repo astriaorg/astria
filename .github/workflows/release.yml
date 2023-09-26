@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: BUF
     needs: run_checker
-    if: ${{ needs.run_checker.outputs.run_release_proto }} && github.repository_owner == 'astriaorg'
+    if: needs.run_checker.outputs.run_release_proto == 'true' && github.repository_owner == 'astriaorg'
     steps:
       - uses: actions/checkout@v3
       - uses: bufbuild/buf-setup-action@v1
@@ -26,6 +26,40 @@ jobs:
           input: "crates/astria-proto/proto"
           buf_token: ${{ secrets.BUF_TOKEN }}
 
+  conductor:
+    needs: run_checker
+    if: needs.run_checker.outputs.run_release_services == 'true'
+    uses: ./.github/workflows/reusable-cargo-version.yml
+    with:
+      package-name: 'conductor'
+      display-name: 'Conductor'
+
+  composer:
+    needs: run_checker
+    if: needs.run_checker.outputs.run_release_services == 'true'
+    uses: ./.github/workflows/reusable-cargo-version.yml
+    with:
+      package-name: 'composer'
+      display-name: 'Composer'
+  
+  sequencer:
+    needs: run_checker
+    if: needs.run_checker.outputs.run_release_services == 'true'
+    uses: ./.github/workflows/reusable-cargo-version.yml
+    with:
+      package-name: 'sequencer'
+      display-name: 'Sequencer'
+
+  sequencer-relayer:
+    needs: run_checker
+    if: needs.run_checker.outputs.run_release_services == 'true'
+    uses: ./.github/workflows/reusable-cargo-version.yml
+    with:
+      package-name: 'sequencer-relayer'
+      display-name: 'Sequencer Relayer'
+
+
   release:
-    needs: [proto]
+    needs: [proto, conductor, composer, sequencer, sequencer-relayer]
+    if: ${{ always() && !cancelled() }}
     uses: ./.github/workflows/reusable-success.yml

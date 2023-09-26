@@ -1,5 +1,7 @@
 pub(crate) mod action_handler;
 
+use std::fmt;
+
 pub(crate) use action_handler::ActionHandler;
 use anyhow::{
     ensure,
@@ -18,8 +20,26 @@ use crate::accounts::state_ext::{
     StateWriteExt,
 };
 
+pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
+    tx: &SignedTransaction,
+    state: &S,
+) -> anyhow::Result<()> {
+    let signer_address = Address::from_verification_key(tx.verification_key());
+    let curr_nonce = state
+        .get_account_nonce(signer_address)
+        .await
+        .context("failed to get account nonce")?;
+    ensure!(
+        tx.unsigned_transaction().nonce < curr_nonce,
+        "nonce already used by account"
+    );
+    Ok(())
+}
+
 pub(crate) fn check_stateless(tx: &SignedTransaction) -> anyhow::Result<()> {
-    tx.unsigned_transaction().check_stateless()
+    tx.unsigned_transaction()
+        .check_stateless()
+        .context("stateless check failed")
 }
 
 pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
@@ -42,6 +62,21 @@ pub(crate) async fn execute<S: StateWriteExt>(
         .await
 }
 
+#[derive(Debug)]
+pub(crate) struct InvalidNonce(pub(crate) u32);
+
+impl fmt::Display for InvalidNonce {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "provided nonce {} does not match expected next nonce",
+            self.0,
+        )
+    }
+}
+
+impl std::error::Error for InvalidNonce {}
+
 #[async_trait::async_trait]
 impl ActionHandler for UnsignedTransaction {
     fn check_stateless(&self) -> anyhow::Result<()> {
@@ -55,6 +90,9 @@ impl ActionHandler for UnsignedTransaction {
                 Action::Sequence(act) => act
                     .check_stateless()
                     .context("stateless check failed for SequenceAction")?,
+                Action::ValidatorUpdate(act) => act
+                    .check_stateless()
+                    .context("stateless check failed for ValidatorUpdateAction")?,
             }
         }
         Ok(())
@@ -68,10 +106,7 @@ impl ActionHandler for UnsignedTransaction {
         // Nonce should be equal to the number of executed transactions before this tx.
         // First tx has nonce 0.
         let curr_nonce = state.get_account_nonce(from).await?;
-        ensure!(
-            curr_nonce == self.nonce,
-            "invalid nonce, tx nonce must match account nonce"
-        );
+        ensure!(curr_nonce == self.nonce, InvalidNonce(self.nonce));
 
         for action in &self.actions {
             match action {
@@ -83,6 +118,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for SequenceAction")?,
+                Action::ValidatorUpdate(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for ValidatorUpdateAction")?,
             }
         }
 
@@ -119,6 +158,11 @@ impl ActionHandler for UnsignedTransaction {
                     act.execute(state, from)
                         .await
                         .context("execution failed for SequenceAction")?;
+                }
+                Action::ValidatorUpdate(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for ValidatorUpdateAction")?;
                 }
             }
         }

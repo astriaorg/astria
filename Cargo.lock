@@ -190,7 +190,7 @@ dependencies = [
 
 [[package]]
 name = "astria-composer"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "astria-proto",
  "astria-sequencer-client",
@@ -226,7 +226,7 @@ dependencies = [
 
 [[package]]
 name = "astria-conductor"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "astria-proto",
  "astria-sequencer-client",
@@ -268,6 +268,7 @@ dependencies = [
  "prost-types",
  "sha2 0.10.7",
  "tempfile",
+ "tendermint",
  "tendermint-proto",
  "tonic 0.9.2",
  "tracing",
@@ -276,10 +277,11 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "astria-proto",
+ "astria-sequencer-types",
  "astria-sequencer-validation",
  "astria-telemetry",
  "async-trait",
@@ -333,7 +335,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer-relayer"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "astria-celestia-jsonrpc-client",
  "astria-proto",
