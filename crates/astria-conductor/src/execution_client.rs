@@ -13,18 +13,6 @@ use astria_proto::generated::execution::v1alpha2::{
 use color_eyre::eyre::Result;
 use prost_types::Timestamp;
 use tonic::transport::Channel;
-use tracing::info;
-
-/// Creates a new RPC Client for Execution
-///
-/// # Arguments
-///
-/// * `address` - The address of the RPC server that we want to communicate with.
-pub(crate) async fn new(address: &str) -> Result<ExecutionServiceClient<Channel>> {
-    let client = ExecutionServiceClient::connect(address.to_owned()).await?;
-    info!("Connected to execution service at {}", address);
-    Ok(client)
-}
 
 #[async_trait::async_trait]
 pub(crate) trait ExecutionClientExt {

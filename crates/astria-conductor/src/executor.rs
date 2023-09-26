@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use astria_proto::generated::execution::v1alpha2::{
+    execution_service_client::ExecutionServiceClient,
     Block,
     CommitmentState,
 };
@@ -36,7 +37,6 @@ use tracing::{
 
 use crate::{
     config::Config,
-    execution_client,
     execution_client::ExecutionClientExt,
     types::SequencerBlockSubset,
 };
@@ -56,7 +56,7 @@ pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
         execution_rpc_url = %conf.execution_rpc_url,
         "Spawning executor task."
     );
-    let execution_rpc_client = execution_client::new(&conf.execution_rpc_url)
+    let execution_rpc_client = ExecutionServiceClient::connect(conf.execution_rpc_url.to_owned())
         .await
         .wrap_err("failed to create execution rpc client")?;
     let (mut executor, executor_tx) = Executor::new(
