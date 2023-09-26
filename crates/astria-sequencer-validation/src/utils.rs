@@ -18,6 +18,7 @@ pub fn generate_action_tree_leaves<T: AsRef<[u8]>>(
     leaves
 }
 
+#[must_use]
 pub fn sha256_hash(data: &[u8]) -> [u8; 32] {
     use sha2::Digest as _;
     let mut hasher = sha2::Sha256::new();
