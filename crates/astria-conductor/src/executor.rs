@@ -31,7 +31,6 @@ use tracing::{
     error,
     info,
     instrument,
-    warn,
     Instrument,
 };
 
@@ -163,15 +162,8 @@ impl<C: ExecutionClient> Executor<C> {
                     block,
                 } => {
                     let height = block.header().height.value();
-                    let Some(block_subset) =
-                        SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id)
-                    else {
-                        info!(
-                            namespace = %self.namespace,
-                            "block did not contain data for namespace; skipping"
-                        );
-                        continue;
-                    };
+                    let block_subset =
+                        SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id);
 
                     let executed_block_result = self.execute_block(block_subset).await;
                     if let Err(e) = executed_block_result {
@@ -590,13 +582,15 @@ mod test {
     }
 
     #[tokio::test]
-    async fn handle_block_received_from_data_availability_already_executed() {
+    async fn update_firm_after_receive_executed_da_block() {
         let chain_id = ChainId::new(b"test".to_vec()).unwrap();
         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
         let execution_client = MockExecutionClient {
             finalized_blocks: finalized_blocks.clone(),
         };
-        let (mut executor, _) = Executor::new(execution_client, chain_id).await.unwrap();
+        let (mut executor, _) = Executor::new(execution_client, chain_id, false)
+            .await
+            .unwrap();
 
         let block = get_test_block_subset();
 
@@ -654,7 +648,6 @@ mod test {
 
         // should not have executed or finalized the block
         assert!(finalized_blocks.lock().await.is_empty());
-        assert!(finalized_blocks.lock().await.get(&firm.hash).is_none());
         assert_eq!(
             previous_execution_state,
             executor.commitment_state.firm.unwrap().hash
@@ -680,22 +673,28 @@ mod test {
         .unwrap();
 
         let block: SequencerBlockSubset = get_test_block_subset();
-        let expected_execution_state = hash(&executor.execution_state);
+        // `hash(b"block1")` is the hash defined in the block from
+        // `get_test_block_subset`, so we're hashing it again here
+        // to mimic the mocked execute_block functionality
+        let expected_execution_hash = hash(&hash(b"block1"));
 
         executor
             .handle_block_received_from_data_availability(block)
             .await
             .unwrap();
 
-        assert!(
-            finalized_blocks
-                .lock()
-                .await
-                .get(&executor.execution_state)
-                .is_some()
+        let firm_hash = executor.commitment_state.firm.clone().unwrap().hash;
+        // should have executed and finalized the block
+        assert_eq!(finalized_blocks.lock().await.len(), 1);
+        assert!(finalized_blocks.lock().await.get(&firm_hash).is_some());
+        assert_eq!(expected_execution_hash, firm_hash);
+        // should be empty because 1 block was executed and finalized, which deletes it from the map
+        assert!(executor.sequencer_hash_to_execution_block.is_empty());
+        // should have updated self.commitment_state.firm and self.commitment_state.soft to the
+        // executed block
+        assert_eq!(
+            executor.commitment_state.firm.unwrap().hash,
+            executor.commitment_state.soft.unwrap().hash
         );
-        assert_eq!(expected_execution_state, executor.execution_state);
-        // should be empty because block was executed and finalized, which deletes it from the map
-        assert!(executor.sequencer_hash_to_execution_hash.is_empty());
     }
 }
