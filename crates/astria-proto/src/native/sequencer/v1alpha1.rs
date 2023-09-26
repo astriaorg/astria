@@ -10,7 +10,7 @@ use ed25519_consensus::{
 };
 use tracing::info;
 
-use crate::generated::sequencer::v1alpha1::{self as raw,};
+use crate::generated::sequencer::v1alpha1 as raw;
 
 pub const ADDRESS_LEN: usize = 20;
 
