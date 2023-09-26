@@ -1,6 +1,7 @@
 pub(crate) mod accounts;
 pub(crate) mod app;
 pub(crate) mod app_hash;
+pub(crate) mod authority;
 pub(crate) mod component;
 pub mod config;
 pub(crate) mod genesis;
