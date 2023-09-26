@@ -3,7 +3,10 @@ use anyhow::{
     Context as _,
     Result,
 };
-use proto::native::sequencer::v1alpha1::Address;
+use proto::native::sequencer::v1alpha1::{
+    Address,
+    SudoAddressChangeAction,
+};
 use tracing::instrument;
 
 use crate::{
@@ -44,3 +47,6 @@ impl ActionHandler for tendermint::validator::Update {
         Ok(())
     }
 }
+
+#[async_trait::async_trait]
+impl ActionHandler for SudoAddressChangeAction {}
