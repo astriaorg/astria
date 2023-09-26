@@ -7,15 +7,13 @@ use serde::{
     Serialize,
 };
 
-use crate::ChainId;
-
 base64_serde_type!(pub Base64Standard, base64::engine::general_purpose::STANDARD);
 
-pub struct ChainIdToTxCount<'a>(pub(crate) &'a BTreeMap<ChainId, Vec<Vec<u8>>>);
+pub struct ChainIdToTxCount<'a>(pub(crate) &'a BTreeMap<String, Vec<Vec<u8>>>);
 
 impl<'a> ChainIdToTxCount<'a> {
     #[must_use]
-    pub fn new(rollup_data: &BTreeMap<ChainId, Vec<Vec<u8>>>) -> ChainIdToTxCount {
+    pub fn new(rollup_data: &BTreeMap<String, Vec<Vec<u8>>>) -> ChainIdToTxCount {
         ChainIdToTxCount(rollup_data)
     }
 }
