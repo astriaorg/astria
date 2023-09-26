@@ -173,14 +173,6 @@ impl Driver {
         };
 
         info!("Starting driver event loop.");
-        // TODO: look at chatgpt suggestion and try to add that here
-        // let mut new_blocks = self
-        //     .sequencer_client
-        //     .unwrap()
-        //     .client
-        //     .subscribe_new_block_data()
-        //     .await
-        //     .wrap_err("failed subscribing to sequencer to receive new blocks")?;
         let mut new_blocks = if self.sequencer_client.is_some() {
             let seq_client = self.sequencer_client.take().unwrap();
             seq_client
@@ -289,18 +281,18 @@ mod test {
         InitStateRequest,
         InitStateResponse,
     };
-    use futures::{
-        SinkExt,
-        StreamExt,
-    };
+    // use futures::{
+    //     SinkExt,
+    //     StreamExt,
+    // };
     // use tendermint_proto::google::protobuf::Timestamp;
     use prost_types::Timestamp;
     use sha2::Digest as _;
-    use tokio::net::TcpListener;
-    use tokio_tungstenite::{
-        accept_async,
-        tungstenite::protocol::Message,
-    };
+    // use tokio::net::TcpListener;
+    // use tokio_tungstenite::{
+    //     accept_async,
+    //     tungstenite::protocol::Message,
+    // };
     use tonic::transport::Server;
 
     // use tendermint::
@@ -376,27 +368,6 @@ mod test {
         }
     }
 
-    async fn handle_connection(stream: tokio::net::TcpStream) {
-        let ws_stream = accept_async(stream)
-            .await
-            .expect("Error during the websocket handshake occurred");
-
-        let (mut write, mut read) = ws_stream.split();
-
-        while let Some(message) = read.next().await {
-            match message {
-                Ok(msg) => {
-                    if msg.is_text() || msg.is_binary() {
-                        write.send(msg).await.expect("Failed to send message");
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Error in WebSocket connection: {:?}", e);
-                }
-            }
-        }
-    }
-
     async fn create_mock_execution_service_server() -> JoinHandle<()> {
         // this is the default address for the execution service from config
         let addr = "127.0.0.1:50051".parse().unwrap();
@@ -430,15 +401,16 @@ mod test {
     };
     use tokio::sync::oneshot;
 
-    pub enum CelestiaMode {
+    #[allow(dead_code)]
+    pub(crate) enum CelestiaMode {
         Immediate,
         Delayed(u64),
     }
 
-    pub struct MockCelestia {
-        pub addr_rx: oneshot::Receiver<SocketAddr>,
-        pub state_rpc_confirmed_rx: mpsc::UnboundedReceiver<Vec<Blob>>,
-        pub _server_handle: ServerHandle,
+    pub(crate) struct MockCelestia {
+        pub(crate) addr_rx: oneshot::Receiver<SocketAddr>,
+        pub(crate) _state_rpc_confirmed_rx: mpsc::UnboundedReceiver<Vec<Blob>>,
+        pub(crate) _server_handle: ServerHandle,
     }
 
     impl MockCelestia {
@@ -460,7 +432,7 @@ mod test {
             let _server_handle = server.start(merged_celestia);
             Self {
                 addr_rx,
-                state_rpc_confirmed_rx,
+                _state_rpc_confirmed_rx: state_rpc_confirmed_rx,
                 _server_handle,
             }
         }
@@ -534,18 +506,37 @@ mod test {
         }
     }
 
+    // use std::sync::Arc;
+    use tendermint_rpc::query::Query;
+    use warp::{
+        ws::Ws,
+        Filter,
+    };
+
+    #[allow(unused_must_use)]
     #[tokio::test]
     async fn new_driver_execution_commit_level_set_to_soft_only() {
         let server_handle = create_mock_execution_service_server().await;
 
-        let block_time = 1000;
-        let mut celestia = MockCelestia::start(block_time, CelestiaMode::Immediate).await;
-        let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
-        eprintln!("*** celestia_addr: {:?}", celestia_addr);
+        let ws_route = warp::path("ws").and(warp::ws()).map(|ws: Ws| {
+            ws.on_upgrade(|_websocket| async {
+                // Just ignore the WebSocket connection
+            })
+        });
+
+        let (_tx, rx) = oneshot::channel::<()>();
+
+        // Spawn the server as a separate task
+        let server = warp::serve(ws_route);
+        tokio::spawn(async move {
+            server.bind_with_graceful_shutdown(([127, 0, 0, 1], 3030), async {
+                rx.await.ok();
+            });
+        });
 
         // let mut config = config::get().unwrap();
         let mut config = get_test_config();
-        config.celestia_node_url = format!("http://{}", celestia_addr);
+        config.sequencer_url = "ws://127.0.0.1:3030".to_string();
         config.execution_commit_level = config::CommitLevel::SoftOnly;
         let (driver, ..) = Driver::new(config).await.unwrap();
         assert!(driver.reader_tx.is_none());

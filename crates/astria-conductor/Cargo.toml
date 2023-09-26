@@ -22,6 +22,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 tendermint = { workspace = true }
+tendermint-rpc = { workspace = true }
 tendermint-proto = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tonic = { workspace = true }
@@ -36,6 +37,8 @@ astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 astria-sequencer-types = { path = "../astria-sequencer-types" }
 sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
+jsonrpsee = { workspace = true, features = ["macros", "server"] }
+
 
 [dev-dependencies]
 astria-proto = { path = "../astria-proto", features = ["client", "server"] }
@@ -48,4 +51,5 @@ tokio-tungstenite = "0.14"
 astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client", features = [
   "server",
 ] }
-jsonrpsee = { workspace = true, features = ["server"] }
+
+warp = "0.3"

@@ -14,6 +14,7 @@ pub mod config;
 pub(crate) mod driver;
 pub(crate) mod execution_client;
 pub(crate) mod executor;
+pub(crate) mod mock_sequencer;
 pub(crate) mod reader;
 pub(crate) mod types;
 
