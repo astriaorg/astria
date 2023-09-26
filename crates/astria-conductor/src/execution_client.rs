@@ -10,7 +10,10 @@ use astria_proto::generated::execution::v1alpha2::{
     GetCommitmentStateRequest,
     UpdateCommitmentStateRequest,
 };
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{
+    Result,
+    WrapErr,
+};
 use prost_types::Timestamp;
 use tonic::transport::Channel;
 
@@ -52,7 +55,11 @@ impl ExecutionClientExt for ExecutionServiceClient<Channel> {
         let request = BatchGetBlocksRequest {
             identifiers,
         };
-        let response = self.batch_get_blocks(request).await?.into_inner();
+        let response = self
+            .batch_get_blocks(request)
+            .await
+            .context("failed to batch get blocks")?
+            .into_inner();
         Ok(response)
     }
 
@@ -74,7 +81,11 @@ impl ExecutionClientExt for ExecutionServiceClient<Channel> {
             transactions,
             timestamp,
         };
-        let response = self.execute_block(request).await?.into_inner();
+        let response = self
+            .execute_block(request)
+            .await
+            .context("failed to execute block")?
+            .into_inner();
         Ok(response)
     }
 
@@ -87,14 +98,22 @@ impl ExecutionClientExt for ExecutionServiceClient<Channel> {
         let request = GetBlockRequest {
             identifier: Some(identifier),
         };
-        let response = self.get_block(request).await?.into_inner();
+        let response = self
+            .get_block(request)
+            .await
+            .context("failed to get block")?
+            .into_inner();
         Ok(response)
     }
 
     /// Calls remote procedure GetCommitmentState
     async fn call_get_commitment_state(&mut self) -> Result<CommitmentState> {
         let request = GetCommitmentStateRequest {};
-        let response = self.get_commitment_state(request).await?.into_inner();
+        let response = self
+            .get_commitment_state(request)
+            .await
+            .context("failed to get commitment state")?
+            .into_inner();
         Ok(response)
     }
 
@@ -110,7 +129,11 @@ impl ExecutionClientExt for ExecutionServiceClient<Channel> {
         let request = UpdateCommitmentStateRequest {
             commitment_state: Some(commitment_state),
         };
-        let response = self.update_commitment_state(request).await?.into_inner();
+        let response = self
+            .update_commitment_state(request)
+            .await
+            .context("failed to update commitment state")?
+            .into_inner();
         Ok(response)
     }
 }
