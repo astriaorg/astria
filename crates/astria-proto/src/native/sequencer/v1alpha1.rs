@@ -654,9 +654,7 @@ impl MintActionError {
 impl Display for MintActionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
-            MintActionErrorKind::Address(_) => {
-                f.pad("`to` field did not contain a valid address")
-            }
+            MintActionErrorKind::Address(_) => f.pad("`to` field did not contain a valid address"),
         }
     }
 }
