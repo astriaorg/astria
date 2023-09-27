@@ -41,11 +41,10 @@ pub(crate) struct ValidatorSet(HashMap<account::Id, validator::Update>);
 
 impl ValidatorSet {
     pub(crate) fn new_from_updates(updates: Vec<validator::Update>) -> Self {
-        let mut validator_set = HashMap::new();
-        for update in updates {
-            let address = account::Id::from(update.pub_key);
-            validator_set.insert(address, update);
-        }
+        let validator_set = updates
+            .into_iter()
+            .map(|update| (account::Id::from(update.pub_key), update))
+            .collect::<HashMap<_, _>>();
         Self(validator_set)
     }
 
