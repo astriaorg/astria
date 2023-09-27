@@ -5,9 +5,11 @@ use serde::{
 };
 
 /// The genesis state for the application.
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize)]
 pub(crate) struct GenesisState {
     pub(crate) accounts: Vec<Account>,
+    #[serde(deserialize_with = "deserialize_address")]
+    pub(crate) authority_sudo_key: Address,
 }
 
 #[derive(Debug, Deserialize)]

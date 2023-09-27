@@ -132,7 +132,10 @@ impl Consensus {
 
         let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
             .context("failed to parse app_state in genesis file")?;
-        self.app.init_chain(genesis_state).await?;
+        self.app
+            .init_chain(genesis_state, init_chain.validators.clone())
+            .await
+            .context("failed to call init_chain")?;
 
         // commit the state and return the app hash
         let app_hash = self.app.commit(self.storage.clone()).await;
@@ -188,11 +191,7 @@ impl Consensus {
         &mut self,
         end_block: request::EndBlock,
     ) -> anyhow::Result<response::EndBlock> {
-        let events = self.app.end_block(&end_block).await;
-        Ok(response::EndBlock {
-            events,
-            ..Default::default()
-        })
+        self.app.end_block(&end_block).await
     }
 
     #[instrument(skip(self))]
@@ -279,6 +278,7 @@ mod test {
     use ed25519_consensus::SigningKey;
     use proto::{
         native::sequencer::v1alpha1::{
+            Address,
             SequenceAction,
             UnsignedTransaction,
         },
@@ -466,10 +466,22 @@ mod test {
         }
     }
 
+    impl Default for GenesisState {
+        fn default() -> Self {
+            Self {
+                accounts: vec![],
+                authority_sudo_key: Address::from([0; 20]),
+            }
+        }
+    }
+
     async fn new_consensus_service() -> Consensus {
         let storage = penumbra_storage::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
-        let app = App::new(snapshot);
+        let mut app = App::new(snapshot);
+        app.init_chain(GenesisState::default(), vec![])
+            .await
+            .unwrap();
 
         let (_tx, rx) = mpsc::channel(1);
         Consensus::new(storage.clone(), app, rx)
