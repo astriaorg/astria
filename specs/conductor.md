@@ -21,8 +21,7 @@ In the first case, the transactions in the block are filtered and pushed to the
 execution layer, executed, and added to the blockchain. Transactions for new
 blocks are sent to the execution layer and are immediately marked as `soft` once
 an execution hash is returned from the rollup. Blocks are not finalized until
-they are also received from the data
-availability layer.
+they are also received from the data availability layer.
 
 In the second case, batches of blocks are received from the DA layer and
 filtered for the rollup. These blocks are then used to set their corresponding
@@ -30,15 +29,17 @@ blocks' commit status on the rollup as finalized/`firm`.
 
 The exact terminology that a rollup uses for its fork choice rules is up to its
 implementation. For example, Geth uses `head`, `safe`, and `final`. The
-Conductor uses `soft` and `firm`. The fork choice options are mapped
-with Geth in the following way:
+Conductor uses `soft` and `firm`. The fork choice options are mapped with Geth
+in the following way:
 
 - `soft` -> `safe`
   - The leading soft block is also the `head`
 - `firm` -> `final`
 
-To update the commitment level of a block on the rollup, the Conductor simply sends a
-[`UpdateCommitmentState` message](https://buf.build/astria/astria/docs/main:astria.execution.v1alpha2#astria.execution.v1alpha2.ExecutionService.UpdateCommitmentState) to the rollup node.
+To update the commitment level of a block on the rollup, the Conductor simply
+sends a [`UpdateCommitmentState`
+message](https://buf.build/astria/astria/docs/main:astria.execution.v1alpha2#astria.execution.v1alpha2.ExecutionService.UpdateCommitmentState)
+to the rollup node.
 
 ## Architecture
 
@@ -52,20 +53,23 @@ Conductor is written in Rust and utilizes the Tokio runtime to achieve this.
 
 ### Driver
 
-- The top level coordinator that runs and manages all the subcomponents necessary for the Conductor
+- The top level coordinator that runs and manages all the subcomponents
+  necessary for the Conductor
 - Creates the Reader and Executor actors on startup
 - Connects to the Sequencer network via websocket
 - Runs an event loop that handles receiving `DriverCommand`s from other actors
--  Passes sequencer blocks to the Executor for execution on the rollup
+- Passes sequencer blocks to the Executor for execution on the rollup
 
 The Driver receives either `SequencerBlockData` blocks directly from the
-Sequencer via websocket connection, or `DriverCommand`s ([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-conductor/src/driver.rs#L54))
-from the Conductor's internal event loop on a timer. The variant for  `DriverCommand` that is relevant to the processing of blocks within the
+Sequencer via websocket connection, or `DriverCommand`s
+([link](https://github.com/astriaorg/astria/blob/6e71a76fa52c522ffdcabcd9d659e4de765d9d61/crates/astria-conductor/src/driver.rs#L54))
+from the Conductor's internal event loop on a timer. The variant for
+`DriverCommand` that is relevant to the processing of blocks within the
 Conductor are:
 
 - `DriverCommand::GetNewBlocks`([link](https://github.com/astriaorg/astria/blob/3c4e47dbe1818e4228691d6bfd2b2143a06f1a6e/crates/astria-conductor/src/driver.rs#L54))
-  - This message triggers the sending of a `ReaderCommand::GetNewBlocks` to
-    the Reader actor to initiate the pulling of data from the DA layer.
+  - This message triggers the sending of a `ReaderCommand::GetNewBlocks` to the
+    Reader actor to initiate the pulling of data from the DA layer.
 
 ### Reader
 
@@ -82,14 +86,14 @@ message from the driver. The `CelestiaClient`
 ([link](https://github.com/astriaorg/astria/blob/3c4e47dbe1818e4228691d6bfd2b2143a06f1a6e/crates/astria-sequencer-relayer/src/data_availability.rs#L244))
 is then called from the Reader to get data from the Celestia DA. This data is
 then parsed from Celestia blobs into individual partial blocks (consisting of
-relevant information needed for validation and the relevant rollup transactions by
-namespace).
-The block data is then validated to make sure that the proposer for the block is
-the one expected. It also checks the commit of the parent block by verifying
-that >2/3 staking power of the sequencer chain voted for it. Each block is then
-transformed into a `SequencerBlockSubset` and handed off to the Executor along
-with the command `ExecutorCommand::BlockReceivedFromDataAvailability`, then it
-is sent to the rollup for execution.
+relevant information needed for validation and the relevant rollup transactions
+by namespace). The block data is then validated to make sure that the proposer
+for the block is the one expected. It also checks the commit of the parent block
+by verifying that >2/3 staking power of the sequencer chain voted for it. Each
+block is then transformed into a `SequencerBlockSubset` and handed off to the
+Executor along with the command
+`ExecutorCommand::BlockReceivedFromDataAvailability`, then it is sent to the
+rollup for execution.
 
 ### Executor
 
@@ -98,26 +102,27 @@ is sent to the rollup for execution.
 - Filters transactions by their rollup namespace and sends them to the rollup
   for execution
 - Maps sequencer block hashes to execution block hashes so that blocks received
-  from the sequencer and DA can be match and `firm` commits can be sent to the rollup
+  from the sequencer and DA can be match and `firm` commits can be sent to the
+  rollup
 - Blocks are sent to the execution layer using [Astria’s GRPC Execution client
   interface](https://buf.build/astria/astria/docs/main:astria.execution.v1alpha2)
   - Rollups utilizing the Conductor must implement this interface
-- If a block comes from the DA layer, an `UpdateCommitmentState` message is sent to the
-  rollup
+- If a block comes from the DA layer, an `UpdateCommitmentState` message is sent
+  to the rollup
 
 The `ExecutorCommand`
 ([link](https://github.com/astriaorg/astria/blob/eeffd2dc24ec14cbc7a3b3197ec2a3c099a78605/crates/astria-conductor/src/executor.rs#L81))
 variants that the Executor receives are as follows:
 
-- `ExecutorCommand::BlockReceivedFromSequencer` commands are received when
-  data comes from the Sequencer via the Driver.
+- `ExecutorCommand::BlockReceivedFromSequencer` commands are received when data
+  comes from the Sequencer via the Driver.
 - `ExecutorCommand::BlockReceivedFromDataAvailability` commands are received
   when data comes from the DA layer via the Reader.
 
-When blocks are received from the sequencer, their transactions are
-filtered based on the rollup's namespace, then are sent to the rollup for
-execution. The execution hash that is returned from the rollup is then stored in
-a hash map for Sequencer block hash -> execution hash.
+When blocks are received from the sequencer, their transactions are filtered
+based on the rollup's namespace, then are sent to the rollup for execution. The
+execution hash that is returned from the rollup is then stored in a hash map for
+Sequencer block hash -> execution hash.
 
 When blocks are received from the DA layer, the hash map of Sequencer block hash
 -> execution hash is checked to see if the block has already passed through the
@@ -138,10 +143,11 @@ The `chain_id` that Conductor uses as the rollup's identifier is pulled from the
 rollup's config. When a user submits a transaction to be sequenced, they specify
 the `chain_id` of its destination.
 
-When a Sequencer block is received, the Conductor
-filters the transactions for its chain ID and executes only those transactions
-on top of its parent state. See the [astria execution
-api](https://github.com/astriaorg/astria/blob/main/specs/execution-api.md) for more details.
+When a Sequencer block is received, the Conductor filters the transactions for
+its chain ID and executes only those transactions on top of its parent state.
+See the [astria execution
+api](https://github.com/astriaorg/astria/blob/main/specs/execution-api.md) for
+more details.
 
 ### Data Validation
 
@@ -151,32 +157,34 @@ occurs in two places:
 - When blocks are received directly from the sequencer, the data is passed to
   `handle_block()`. Because the websocket connection is trusted, validation of
   the blocks can be skipped.
-- When blocks are fetched from the DA layer, the data is validated in the Reader's
-  `get_new_blocks` using `BlockVerifier::validate_signed_namespace_data` and
+- When blocks are fetched from the DA layer, the data is validated in the
+  Reader's `get_new_blocks` using
+  `BlockVerifier::validate_signed_namespace_data` and
   `BlockVerifier::validate_rollup_data`
   - `BlockVerifier::validate_signed_namespace_data`
-    - verifies the block signature and checks that the data was signed by
-      the expected proposer for this block height
+    - verifies the block signature and checks that the data was signed by the
+      expected proposer for this block height
   - `BlockVerifier::validate_rollup_data`
-    - calls `BlockVerifier::validate_sequencer_namespace_data` to perform
-      the same checks as when blocks are received from the gossip network,
-      described above
-    - validates the rollup data inclusion proof; it checks that the rollup
-      data received was actually what was included in the Sequencer block
-      (that no transactions were added or omitted incorrectly and the
-      ordering is correct)
+    - calls `BlockVerifier::validate_sequencer_namespace_data` to perform the
+      same checks as when blocks are received from the gossip network, described
+      above
+    - validates the rollup data inclusion proof; it checks that the rollup data
+      received was actually what was included in the Sequencer block (that no
+      transactions were added or omitted incorrectly and the ordering is
+      correct)
 
 ### Soft Commitments
 
-When a block is received by the Conductor directly from the sequencer, it
-is immediately set as a `soft` commitment.
+When a block is received by the Conductor directly from the sequencer, it is
+immediately set as a `soft` commitment.
 
 As mentioned in the [Transaction Filtering](#transaction-filtering) section
 above, the only information sent to the rollup is the list of ordered
 transactions, the previous execution hash from the rollup, and timestamp (see
 [ExecuteBlockRequest](https://buf.build/astria/astria/docs/main:astria.execution.v1alpha2#astria.execution.v1alpha2.ExecuteBlockRequest)).
 It is the rollup node's responsibility to build their own specific block from
-the data provided and return the execution hash that resulted from adding the new block.
+the data provided and return the execution hash that resulted from adding the
+new block.
 
 The Conductor keeps a map of Sequencer block hashes to rollup execution hashes
 for later matching when blocks are seen in the DA layer.
@@ -186,7 +194,8 @@ for later matching when blocks are seen in the DA layer.
 When the Conductor pulls data from the DA, it compares the Sequencer block
 hashes seen with those of the already executed blocks stored in the map
 mentioned at the end of the [Soft Commitments](#soft-commitments) section. For
-each block seen in DA that matches an executed block, a [`UpdateCommitState` message](https://buf.build/astria/astria/docs/main:astria.execution.v1alpha2#astria.execution.v1alpha2.ExecutionService.UpdateCommitmentState)
+each block seen in DA that matches an executed block, a [`UpdateCommitState`
+message](https://buf.build/astria/astria/docs/main:astria.execution.v1alpha2#astria.execution.v1alpha2.ExecutionService.UpdateCommitmentState)
 is sent to the rollup to set those blocks to `firm` and the entries in the
 execution hash to Sequencer block hash map are cleared.
 
