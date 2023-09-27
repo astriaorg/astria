@@ -262,7 +262,7 @@ impl<C: ExecutionClientExt> Executor<C> {
 
         let executed_block = self
             .execution_rpc_client
-            .call_execute_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
+            .call_execute_block(prev_block_hash, block.rollup_transactions, timestamp)
             .await
             .wrap_err("executor failed to execute block")?;
 
@@ -410,7 +410,7 @@ mod test {
             &mut self,
             prev_block_hash: Vec<u8>,
             _transactions: Vec<Vec<u8>>,
-            timestamp: Option<ProstTimestamp>,
+            timestamp: ProstTimestamp,
         ) -> Result<Block> {
             // returns the sha256 of the prev_block_hash
             let fake_next_hash = hash(&prev_block_hash);
@@ -418,7 +418,7 @@ mod test {
                 number: 1,
                 hash: fake_next_hash,
                 parent_block_hash: prev_block_hash,
-                timestamp,
+                timestamp: Some(timestamp),
             })
         }
 

@@ -32,7 +32,7 @@ pub(crate) trait ExecutionClientExt {
         &mut self,
         prev_block_hash: Vec<u8>,
         transactions: Vec<Vec<u8>>,
-        timestamp: Option<Timestamp>,
+        timestamp: Timestamp,
     ) -> Result<Block>;
 
     async fn call_get_block(&mut self, identifier: BlockIdentifier) -> Result<Block>;
@@ -79,12 +79,12 @@ impl ExecutionClientExt for ExecutionServiceClient<Channel> {
         &mut self,
         prev_block_hash: Vec<u8>,
         transactions: Vec<Vec<u8>>,
-        timestamp: Option<Timestamp>,
+        timestamp: Timestamp,
     ) -> Result<Block> {
         let request = ExecuteBlockRequest {
             prev_block_hash,
             transactions,
-            timestamp,
+            timestamp: Some(timestamp),
         };
         let response = self
             .execute_block(request)
