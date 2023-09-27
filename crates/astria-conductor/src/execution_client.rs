@@ -17,6 +17,10 @@ use color_eyre::eyre::{
 use prost_types::Timestamp;
 use tonic::transport::Channel;
 
+use crate::types::ExecutorCommitmentState;
+
+/// Extension trait for the ExecutionServiceClient that makes it easier to interact with the
+/// execution client.
 #[async_trait::async_trait]
 pub(crate) trait ExecutionClientExt {
     async fn call_batch_get_blocks(
@@ -33,12 +37,13 @@ pub(crate) trait ExecutionClientExt {
 
     async fn call_get_block(&mut self, identifier: BlockIdentifier) -> Result<Block>;
 
-    async fn call_get_commitment_state(&mut self) -> Result<CommitmentState>;
+    async fn call_get_commitment_state(&mut self) -> Result<ExecutorCommitmentState>;
 
     async fn call_update_commitment_state(
         &mut self,
-        commitment_state: CommitmentState,
-    ) -> Result<CommitmentState>;
+        firm: Block,
+        soft: Block,
+    ) -> Result<ExecutorCommitmentState>;
 }
 
 #[async_trait::async_trait]
@@ -107,14 +112,16 @@ impl ExecutionClientExt for ExecutionServiceClient<Channel> {
     }
 
     /// Calls remote procedure GetCommitmentState
-    async fn call_get_commitment_state(&mut self) -> Result<CommitmentState> {
+    async fn call_get_commitment_state(&mut self) -> Result<ExecutorCommitmentState> {
         let request = GetCommitmentStateRequest {};
         let response = self
             .get_commitment_state(request)
             .await
             .wrap_err("failed to get commitment state")?
             .into_inner();
-        Ok(response)
+        let commitment_state =
+            ExecutorCommitmentState::from_execution_client_commitment_state(response);
+        Ok(commitment_state)
     }
 
     /// Calls remote procedure UpdateCommitmentState
@@ -124,8 +131,13 @@ impl ExecutionClientExt for ExecutionServiceClient<Channel> {
     /// * `commitment_state` - The CommitmentState to set, must include complete state.
     async fn call_update_commitment_state(
         &mut self,
-        commitment_state: CommitmentState,
-    ) -> Result<CommitmentState> {
+        firm: Block,
+        soft: Block,
+    ) -> Result<ExecutorCommitmentState> {
+        let commitment_state = CommitmentState {
+            firm: Some(firm),
+            soft: Some(soft),
+        };
         let request = UpdateCommitmentStateRequest {
             commitment_state: Some(commitment_state),
         };
@@ -134,6 +146,8 @@ impl ExecutionClientExt for ExecutionServiceClient<Channel> {
             .await
             .wrap_err("failed to update commitment state")?
             .into_inner();
-        Ok(response)
+        let commitment_state =
+            ExecutorCommitmentState::from_execution_client_commitment_state(response);
+        Ok(commitment_state)
     }
 }

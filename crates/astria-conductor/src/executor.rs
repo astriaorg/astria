@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use astria_proto::generated::execution::v1alpha2::{
     execution_service_client::ExecutionServiceClient,
     Block,
-    CommitmentState,
 };
 use astria_sequencer_types::{
     ChainId,
@@ -38,7 +37,10 @@ use tracing::{
 use crate::{
     config::Config,
     execution_client::ExecutionClientExt,
-    types::SequencerBlockSubset,
+    types::{
+        ExecutorCommitmentState,
+        SequencerBlockSubset,
+    },
 };
 
 pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
@@ -111,7 +113,7 @@ struct Executor<C> {
     namespace: Namespace,
 
     /// Tracks SOFT and FIRM on the execution chain
-    commitment_state: CommitmentState,
+    commitment_state: ExecutorCommitmentState,
 
     /// map of sequencer block hash to execution block
     ///
@@ -247,13 +249,7 @@ impl<C: ExecutionClientExt> Executor<C> {
             return Ok(Some(execution_block.clone()));
         }
 
-        let prev_block_hash = if let Some(soft_commitment) = self.commitment_state.soft.clone() {
-            soft_commitment.hash
-        } else {
-            // TODO - return error here
-            error!("could not get previous block. soft commitment is None");
-            return Ok(None);
-        };
+        let prev_block_hash = self.commitment_state.soft.hash.clone();
 
         info!(
             height = block.header.height.value(),
@@ -270,7 +266,6 @@ impl<C: ExecutionClientExt> Executor<C> {
             .await
             .wrap_err("executor failed to execute block")?;
 
-        // store block hash returned by execution client, as we need it to finalize the block later
         info!(
             sequencer_block_hash = ?block.block_hash,
             sequencer_block_height = block.header.height.value(),
@@ -278,6 +273,7 @@ impl<C: ExecutionClientExt> Executor<C> {
             "executed sequencer block",
         );
 
+        // store block returned by execution client, as we need it to finalize the block later
         self.sequencer_hash_to_execution_block
             .insert(block.block_hash, executed_block.clone());
 
@@ -285,24 +281,20 @@ impl<C: ExecutionClientExt> Executor<C> {
     }
 
     /// Updates the commitment state on the execution layer.
-    /// Updates the local commitment_state with the new values.
-    async fn update_commitment_state(&mut self, commitment_state: CommitmentState) -> Result<()> {
+    /// Updates the local `commitment_state` with the new values.
+    async fn update_commitment_states(&mut self, firm: Block, soft: Block) -> Result<()> {
         let new_commitment_state = self
             .execution_rpc_client
-            .call_update_commitment_state(commitment_state)
+            .call_update_commitment_state(firm, soft)
             .await
-            .wrap_err("executor failed to updated commitment state")?;
+            .wrap_err("executor failed to update commitment state")?;
         self.commitment_state = new_commitment_state;
         Ok(())
     }
 
     /// Updates both firm and soft commitments.
     async fn update_commitments(&mut self, block: Block) -> Result<()> {
-        let commitment_state = CommitmentState {
-            soft: Some(block.clone()),
-            firm: Some(block),
-        };
-        self.update_commitment_state(commitment_state)
+        self.update_commitment_states(block.clone(), block)
             .await
             .wrap_err("executor failed to update both commitments")?;
         Ok(())
@@ -310,11 +302,7 @@ impl<C: ExecutionClientExt> Executor<C> {
 
     /// Updates only firm commitment and leaves soft commitment the same.
     async fn update_firm_commitment(&mut self, firm: Block) -> Result<()> {
-        let commitment_state = CommitmentState {
-            soft: self.commitment_state.soft.clone(),
-            firm: Some(firm),
-        };
-        self.update_commitment_state(commitment_state)
+        self.update_commitment_states(firm, self.commitment_state.soft.clone())
             .await
             .wrap_err("executor failed to update firm commitment")?;
         Ok(())
@@ -322,11 +310,7 @@ impl<C: ExecutionClientExt> Executor<C> {
 
     /// Updates only soft commitment and leaves firm commitment the same.
     async fn update_soft_commitment(&mut self, soft: Block) -> Result<()> {
-        let commitment_state = CommitmentState {
-            soft: Some(soft),
-            firm: self.commitment_state.firm.clone(),
-        };
-        self.update_commitment_state(commitment_state)
+        self.update_commitment_states(self.commitment_state.firm.clone(), soft)
             .await
             .wrap_err("executor failed to update soft commitment")?;
         Ok(())
@@ -394,7 +378,6 @@ mod test {
     use astria_proto::generated::execution::v1alpha2::{
         BatchGetBlocksResponse,
         BlockIdentifier,
-        CommitmentState,
     };
     use sha2::Digest as _;
     use tokio::sync::Mutex;
@@ -443,7 +426,7 @@ mod test {
             unimplemented!()
         }
 
-        async fn call_get_commitment_state(&mut self) -> Result<CommitmentState> {
+        async fn call_get_commitment_state(&mut self) -> Result<ExecutorCommitmentState> {
             let timestamp = convert_tendermint_to_prost_timestamp(Time::now())
                 .wrap_err("failed parsing str as protobuf timestamp")?;
             // NOTE - these are the same right now. we can change this if we want to test
@@ -454,25 +437,23 @@ mod test {
                 parent_block_hash: hash(b"block0"),
                 timestamp: Some(timestamp),
             };
-            Ok(CommitmentState {
-                soft: Some(block.clone()),
-                firm: Some(block),
+            Ok(ExecutorCommitmentState {
+                soft: block.clone(),
+                firm: block,
             })
         }
 
         async fn call_update_commitment_state(
             &mut self,
-            commitment_state: CommitmentState,
-        ) -> Result<CommitmentState> {
+            firm: Block,
+            soft: Block,
+        ) -> Result<ExecutorCommitmentState> {
             // using `finalized_blocks` as a proxy for the execution state
             // so that we can more easily make assertions in our tests
-            self.finalized_blocks
-                .lock()
-                .await
-                .insert(commitment_state.firm.clone().unwrap().hash);
-            Ok(CommitmentState {
-                soft: commitment_state.soft,
-                firm: commitment_state.firm,
+            self.finalized_blocks.lock().await.insert(firm.hash.clone());
+            Ok(ExecutorCommitmentState {
+                soft,
+                firm,
             })
         }
     }
@@ -517,7 +498,7 @@ mod test {
         .await
         .unwrap();
 
-        let expected_execution_hash = hash(&executor.commitment_state.soft.clone().unwrap().hash);
+        let expected_execution_hash = hash(&executor.commitment_state.soft.clone().hash);
         let mut block = get_test_block_subset();
         block.rollup_transactions.push(b"test_transaction".to_vec());
 
@@ -576,7 +557,7 @@ mod test {
             .await
             .unwrap();
 
-        let firm_hash = executor.commitment_state.firm.clone().unwrap().hash;
+        let firm_hash = executor.commitment_state.firm.clone().hash;
         // should have executed and finalized the block
         assert_eq!(finalized_blocks.lock().await.len(), 1);
         assert!(finalized_blocks.lock().await.get(&firm_hash).is_some());
@@ -586,8 +567,8 @@ mod test {
         // should have updated self.commitment_state.firm and self.commitment_state.soft to the
         // executed block
         assert_eq!(
-            executor.commitment_state.firm.unwrap().hash,
-            executor.commitment_state.soft.unwrap().hash
+            executor.commitment_state.firm.hash,
+            executor.commitment_state.soft.hash
         );
     }
 
@@ -625,8 +606,8 @@ mod test {
         assert!(executor.sequencer_hash_to_execution_block.is_empty());
         // should have updated self.commitment_state.firm but soft stayed the same
         assert_ne!(
-            executor.commitment_state.firm.unwrap().hash,
-            executor.commitment_state.soft.unwrap().hash
+            executor.commitment_state.firm.hash,
+            executor.commitment_state.soft.hash
         );
     }
 
@@ -648,7 +629,7 @@ mod test {
         .unwrap();
 
         let block: SequencerBlockSubset = get_test_block_subset();
-        let firm = executor.commitment_state.firm.clone().unwrap();
+        let firm = executor.commitment_state.firm.clone();
         let previous_execution_state = firm.hash.clone();
 
         executor
@@ -660,7 +641,7 @@ mod test {
         assert!(finalized_blocks.lock().await.is_empty());
         assert_eq!(
             previous_execution_state,
-            executor.commitment_state.firm.unwrap().hash
+            executor.commitment_state.firm.hash
         );
         // should be empty because nothing was executed
         assert!(executor.sequencer_hash_to_execution_block.is_empty());
@@ -693,7 +674,7 @@ mod test {
             .await
             .unwrap();
 
-        let firm_hash = executor.commitment_state.firm.clone().unwrap().hash;
+        let firm_hash = executor.commitment_state.firm.clone().hash;
         // should have executed and finalized the block
         assert_eq!(finalized_blocks.lock().await.len(), 1);
         assert!(finalized_blocks.lock().await.get(&firm_hash).is_some());
@@ -703,8 +684,8 @@ mod test {
         // should have updated self.commitment_state.firm and self.commitment_state.soft to the
         // executed block
         assert_eq!(
-            executor.commitment_state.firm.unwrap().hash,
-            executor.commitment_state.soft.unwrap().hash
+            executor.commitment_state.firm.hash,
+            executor.commitment_state.soft.hash
         );
     }
 }
