@@ -128,7 +128,8 @@ impl ExecutionClientExt for ExecutionServiceClient<Channel> {
     ///
     /// # Arguments
     ///
-    /// * `commitment_state` - The CommitmentState to set, must include complete state.
+    /// * `firm` - The firm block
+    /// * `soft` - The soft block
     async fn call_update_commitment_state(
         &mut self,
         firm: Block,
