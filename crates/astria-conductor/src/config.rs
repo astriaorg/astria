@@ -107,4 +107,17 @@ mod tests {
             Ok(())
         });
     }
+
+    #[test]
+    #[should_panic]
+    fn incorrect_commit_level_setting_panics() {
+        let test_envar_prefix = "TESTTEST";
+        let full_envar_prefix = format!("{}_{}", test_envar_prefix, "ASTRIA_CONDUCTOR_");
+        Jail::expect_with(|jail| {
+            populate_environment_from_example(jail, test_envar_prefix);
+            jail.set_env("TESTTEST_ASTRIA_CONDUCTOR_EXECUTION_COMMIT_LEVEL", "BAZ");
+            Config::from_environment(full_envar_prefix.as_str()).unwrap();
+            Ok(())
+        });
+    }
 }
