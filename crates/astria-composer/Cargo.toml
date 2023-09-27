@@ -8,6 +8,7 @@ rust-version = "1.70.0"
 
 [dependencies]
 proto = { package = "astria-proto", path = "../astria-proto" }
+sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 ethers = { version = "2.0.7", features = ["ws"] }

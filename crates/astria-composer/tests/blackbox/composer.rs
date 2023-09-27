@@ -83,7 +83,9 @@ async fn mount_broadcast_tx_sync_mock(
         let Some(sequence_action) = sent_action.as_sequence() else {
             panic!("mocked sequencer expected a sequence action");
         };
-        sequence_action.chain_id == expected_chain_id.as_bytes()
+        let expected_chain_id_hash =
+            sequencer_validation::utils::sha256_hash(expected_chain_id.as_bytes());
+        sequence_action.chain_id == expected_chain_id_hash
             && signed_tx.unsigned_transaction().nonce == expected_nonce
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(

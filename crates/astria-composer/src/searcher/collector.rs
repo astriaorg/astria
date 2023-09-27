@@ -28,7 +28,7 @@ use tracing::{
 ///
 /// Used to send new transactions to the searcher.
 pub(super) struct Transaction {
-    pub(super) chain_id: String,
+    pub(super) chain_id_hash: [u8; 32],
     pub(super) inner: ethers::types::Transaction,
 }
 
@@ -45,6 +45,8 @@ pub(super) struct Collector {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to.
     chain_id: String,
+    // The hash of the chain ID
+    chain_id_hash: [u8; 32],
     // The client for getting new pending transactions from an ethereum rollup.
     client: GethClient,
     // The channel on which the collector sends new txs to the searcher.
@@ -81,8 +83,10 @@ impl Collector {
             .await
             .wrap_err("failed connecting to eth")?;
         let (status, _) = watch::channel(Status::new());
+        let chain_id_hash = sequencer_validation::utils::sha256_hash(chain_id.as_bytes());
         Ok(Self {
             chain_id,
+            chain_id_hash,
             client,
             searcher_channel,
             status,
@@ -107,7 +111,7 @@ impl Collector {
             .wrap_err("failed connecting ")?;
 
         let Self {
-            chain_id,
+            chain_id_hash,
             client,
             searcher_channel,
             ..
@@ -122,7 +126,7 @@ impl Collector {
             match searcher_channel
                 .send_timeout(
                     Transaction {
-                        chain_id: chain_id.clone(),
+                        chain_id_hash,
                         inner: tx,
                     },
                     Duration::from_millis(500),

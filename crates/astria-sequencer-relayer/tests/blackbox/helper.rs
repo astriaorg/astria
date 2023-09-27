@@ -324,7 +324,8 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
     let signing_key = validator.signing_key();
 
     let suffix = height.to_string().into_bytes();
-    let chain_id = [b"test_chain_id_", &*suffix].concat();
+    let chain_id =
+        astria_sequencer_validation::utils::sha256_hash(&[b"test_chain_id_", &*suffix].concat());
     let signed_tx_bytes = UnsignedTransaction {
         nonce: 1,
         actions: vec![
@@ -340,7 +341,7 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
     .encode_to_vec();
     let action_tree =
         astria_sequencer_validation::MerkleTree::from_leaves(vec![signed_tx_bytes.clone()]);
-    let chain_ids_commitment = MerkleTree::from_leaves(vec![chain_id]).root();
+    let chain_ids_commitment = MerkleTree::from_leaves(vec![chain_id.into()]).root();
     let data = vec![
         action_tree.root().to_vec(),
         chain_ids_commitment.to_vec(),

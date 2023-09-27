@@ -532,7 +532,7 @@ mod test {
             nonce: 0,
             actions: vec![
                 SequenceAction {
-                    chain_id: b"testchainid".to_vec(),
+                    chain_id: sequencer_validation::utils::sha256_hash(b"testchainid"),
                     data,
                 }
                 .into(),
@@ -665,7 +665,7 @@ mod test {
             nonce: 1,
             actions: vec![
                 SequenceAction {
-                    chain_id: b"testchainid".to_vec(),
+                    chain_id: sequencer_validation::utils::sha256_hash(b"testchainid"),
                     data,
                 }
                 .into(),

@@ -11,7 +11,6 @@ pub use namespace::{
     DEFAULT_NAMESPACE,
 };
 pub use sequencer_block_data::{
-    ChainId,
     RawSequencerBlockData,
     SequencerBlockData,
 };

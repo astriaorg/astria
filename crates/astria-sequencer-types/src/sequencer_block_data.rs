@@ -78,30 +78,6 @@ pub enum Error {
     WritingJson(#[source] serde_json::Error),
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct ChainId(#[serde(with = "hex::serde")] Vec<u8>);
-
-impl ChainId {
-    /// Creates a new `ChainId` from the given bytes.
-    ///
-    /// # Errors
-    ///
-    /// - if the given bytes are longer than 32 bytes
-    pub fn new(inner: Vec<u8>) -> Result<Self, Error> {
-        if inner.len() > 32 {
-            return Err(Error::InvalidChainIdLength);
-        }
-
-        Ok(Self(inner))
-    }
-}
-
-impl AsRef<[u8]> for ChainId {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
 /// `SequencerBlockData` represents a sequencer block's data
 /// to be submitted to the DA layer.
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
@@ -113,7 +89,7 @@ pub struct SequencerBlockData {
     /// This field should be set for every block with height > 1.
     last_commit: Option<Commit>,
     /// chain ID -> rollup transactions
-    rollup_data: BTreeMap<ChainId, Vec<Vec<u8>>>,
+    rollup_data: BTreeMap<[u8; 32], Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
     action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included
@@ -211,7 +187,7 @@ impl SequencerBlockData {
     }
 
     #[must_use]
-    pub fn rollup_data(&self) -> &BTreeMap<ChainId, Vec<Vec<u8>>> {
+    pub fn rollup_data(&self) -> &BTreeMap<[u8; 32], Vec<Vec<u8>>> {
         &self.rollup_data
     }
 
@@ -298,7 +274,7 @@ impl SequencerBlockData {
 
         // we unwrap sequencer txs into rollup-specific data here,
         // and namespace them correspondingly
-        let mut rollup_data = BTreeMap::new();
+        let mut rollup_data = BTreeMap::<[u8; 32], Vec<_>>::new();
 
         // the first two transactions is skipped as it's the action tree root,
         // not a user-submitted transaction.
@@ -315,14 +291,10 @@ impl SequencerBlockData {
                 .map_err(Error::RawSignedTransactionConversion)?;
             tx.actions().iter().for_each(|action| {
                 if let Some(action) = action.as_sequence() {
-                    // TODO(https://github.com/astriaorg/astria/issues/318): intern
-                    // these namespaces so they don't get rebuild on every iteration.
                     rollup_data
-                        .entry(ChainId(action.chain_id.clone()))
-                        .and_modify(|data: &mut Vec<Vec<u8>>| {
-                            data.push(action.data.clone());
-                        })
-                        .or_insert_with(|| vec![action.data.clone()]);
+                        .entry(action.chain_id)
+                        .and_modify(|data| data.push(action.data.clone()))
+                        .or_insert(vec![action.data.clone()]);
                 }
             });
         }
@@ -339,8 +311,9 @@ impl SequencerBlockData {
         // ensure the chain IDs commitment matches the one calculated from the rollup data
         let chain_ids = rollup_data
             .keys()
-            .cloned()
-            .map(|chain_id| chain_id.0)
+            .copied()
+            // FIXME: Change the MerkleTree to take [u8; 32]
+            .map(Into::into)
             .collect::<Vec<_>>();
         let calculated_chain_ids_commitment = MerkleTree::from_leaves(chain_ids).root();
         if calculated_chain_ids_commitment != chain_ids_commitment {
@@ -361,17 +334,13 @@ impl SequencerBlockData {
 }
 
 fn calculate_data_hash_and_tx_tree(txs: &[Vec<u8>]) -> ([u8; 32], MerkleTree) {
-    let hashed_txs = txs.iter().map(|tx| sha256_hash(tx)).collect::<Vec<_>>();
+    let hashed_txs = txs
+        .iter()
+        .map(|tx| sequencer_validation::utils::sha256_hash(tx).into())
+        .collect::<Vec<_>>();
     let tx_tree = MerkleTree::from_leaves(hashed_txs);
     let calculated_data_hash = tx_tree.root();
     (calculated_data_hash, tx_tree)
-}
-
-fn sha256_hash(data: &[u8]) -> Vec<u8> {
-    use sha2::Digest as _;
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(data);
-    hasher.finalize().to_vec()
 }
 
 /// An unverified version of [`SequencerBlockData`], primarily used for
@@ -384,7 +353,7 @@ pub struct RawSequencerBlockData {
     /// This field should be set for every block with height > 1.
     pub last_commit: Option<Commit>,
     /// namespace -> rollup data (chain ID and transactions)
-    pub rollup_data: BTreeMap<ChainId, Vec<Vec<u8>>>,
+    pub rollup_data: BTreeMap<[u8; 32], Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
     pub action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included

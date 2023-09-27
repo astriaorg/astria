@@ -496,9 +496,9 @@ mod test {
     #[tokio::test]
     async fn validate_rollup_data_ok() {
         let test_tx = b"test-tx".to_vec();
-        let test_chain_id = b"test-chain";
+        let test_chain_id = sequencer_validation::utils::sha256_hash(b"test-chain");
         let mut btree = BTreeMap::new();
-        btree.insert(test_chain_id.to_vec(), vec![test_tx.clone()]);
+        btree.insert(test_chain_id, vec![test_tx.clone()]);
         let leaves = generate_action_tree_leaves(btree);
 
         let action_tree = MerkleTree::from_leaves(leaves);
@@ -520,9 +520,7 @@ mod test {
             block_hash,
             header,
             last_commit: None,
-            rollup_chain_ids: vec![
-                astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
-            ],
+            rollup_chain_ids: vec![test_chain_id],
             action_tree_root,
             action_tree_root_inclusion_proof,
             chain_ids_commitment: MerkleTree::from_leaves(vec![test_chain_id.to_vec()]).root(),
@@ -530,7 +528,7 @@ mod test {
 
         let rollup_namespace_data = RollupNamespaceData::new(
             block_hash,
-            astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
+            test_chain_id,
             vec![test_tx],
             action_tree.prove_inclusion(0).unwrap(),
         );

@@ -91,7 +91,7 @@ pub(crate) fn generate_sequence_actions_commitment(txs_bytes: Vec<Bytes>) -> Gen
 /// Within an entry, actions are ordered by their transaction index within a block.
 fn group_sequence_actions_by_chain_id(
     txs: &[SignedTransaction],
-) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
+) -> BTreeMap<[u8; 32], Vec<Vec<u8>>> {
     let mut rollup_txs_map = BTreeMap::new();
 
     for action in txs.iter().flat_map(SignedTransaction::actions) {
@@ -125,8 +125,9 @@ mod test {
 
     #[test]
     fn generate_sequence_actions_commitment_should_ignore_transfers() {
+        let chain_id = sequencer_validation::utils::sha256_hash(b"testchainid");
         let sequence_action = SequenceAction {
-            chain_id: b"testchainid".to_vec(),
+            chain_id,
             data: b"helloworld".to_vec(),
         };
         let transfer_action = TransferAction {
@@ -166,14 +167,15 @@ mod test {
 
     #[test]
     fn generate_action_tree_leaves_assert_leaves_ordered_by_chain_id() {
+        use sequencer_validation::utils::sha256_hash;
         let signing_key = SigningKey::new(OsRng);
 
-        let chain_id_0 = b"testchainid0";
+        let chain_id_0 = sha256_hash(b"testchainid0");
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![
                 SequenceAction {
-                    chain_id: chain_id_0.to_vec(),
+                    chain_id: chain_id_0,
                     data: b"helloworld".to_vec(),
                 }
                 .into(),
@@ -181,12 +183,12 @@ mod test {
         };
         let signed_tx_0 = tx.into_signed(&signing_key);
 
-        let chain_id_1 = b"testchainid1";
+        let chain_id_1 = sha256_hash(b"testchainid1");
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![
                 SequenceAction {
-                    chain_id: chain_id_1.to_vec(),
+                    chain_id: chain_id_1,
                     data: b"helloworld".to_vec(),
                 }
                 .into(),
@@ -194,12 +196,12 @@ mod test {
         };
         let signed_tx_1 = tx.into_signed(&signing_key);
 
-        let chain_id_2 = b"testchainid2";
+        let chain_id_2 = sha256_hash(b"testchainid2");
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![
                 SequenceAction {
-                    chain_id: chain_id_2.to_vec(),
+                    chain_id: chain_id_2,
                     data: b"helloworld".to_vec(),
                 }
                 .into(),
@@ -226,8 +228,9 @@ mod test {
         // this test will only break in the case of a breaking change to the commitment scheme,
         // thus if this test needs to be updated, we should cut a new release.
 
+        let chain_id = sequencer_validation::utils::sha256_hash(b"testchainid");
         let sequence_action = SequenceAction {
-            chain_id: b"testchainid".to_vec(),
+            chain_id,
             data: b"helloworld".to_vec(),
         };
         let transfer_action = TransferAction {
@@ -250,8 +253,8 @@ mod test {
         } = generate_sequence_actions_commitment(txs);
 
         let expected: [u8; 32] = [
-            97, 82, 159, 138, 201, 12, 241, 95, 99, 19, 162, 205, 37, 38, 130, 165, 78, 185, 141,
-            6, 69, 51, 32, 9, 224, 92, 34, 25, 192, 213, 235, 3,
+            74, 113, 242, 162, 39, 84, 89, 175, 130, 76, 171, 61, 17, 189, 247, 101, 151, 181, 174,
+            181, 52, 122, 131, 245, 56, 22, 11, 80, 217, 112, 44, 31,
         ];
         assert_eq!(expected, actual);
     }

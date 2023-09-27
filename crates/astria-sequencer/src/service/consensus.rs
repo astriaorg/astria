@@ -294,11 +294,12 @@ mod test {
     use super::*;
 
     fn make_unsigned_tx() -> UnsignedTransaction {
+        let chain_id = sequencer_validation::utils::sha256_hash(b"testchainid");
         UnsignedTransaction {
             nonce: 0,
             actions: vec![
                 SequenceAction {
-                    chain_id: b"testchainid".to_vec(),
+                    chain_id,
                     data: b"helloworld".to_vec(),
                 }
                 .into(),

@@ -25,7 +25,6 @@ use eyre::{
 };
 use sequencer_types::{
     serde::Base64Standard,
-    ChainId,
     Namespace,
     RawSequencerBlockData,
     SequencerBlockData,
@@ -146,7 +145,7 @@ pub struct SequencerNamespaceData {
     pub block_hash: Hash,
     pub header: Header,
     pub last_commit: Option<Commit>,
-    pub rollup_chain_ids: Vec<ChainId>,
+    pub rollup_chain_ids: Vec<[u8; 32]>,
     pub action_tree_root: [u8; 32],
     pub action_tree_root_inclusion_proof: InclusionProof,
     pub chain_ids_commitment: [u8; 32],
@@ -158,7 +157,7 @@ impl NamespaceData for SequencerNamespaceData {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RollupNamespaceData {
     pub(crate) block_hash: Hash,
-    pub(crate) chain_id: ChainId,
+    pub(crate) chain_id: [u8; 32],
     pub rollup_txs: Vec<Vec<u8>>,
     pub(crate) inclusion_proof: InclusionProof,
 }
@@ -168,7 +167,7 @@ impl NamespaceData for RollupNamespaceData {}
 impl RollupNamespaceData {
     pub fn new(
         block_hash: Hash,
-        chain_id: ChainId,
+        chain_id: [u8; 32],
         rollup_txs: Vec<Vec<u8>>,
         inclusion_proof: InclusionProof,
     ) -> Self {

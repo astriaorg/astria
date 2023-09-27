@@ -156,7 +156,7 @@ impl Searcher {
     /// Serializes and signs a sequencer tx from a rollup tx.
     fn bundle_pending_tx(&mut self, tx: collector::Transaction) {
         let collector::Transaction {
-            chain_id,
+            chain_id_hash,
             inner: rollup_tx,
         } = tx;
 
@@ -164,9 +164,8 @@ impl Searcher {
         // on tokio's blocking threadpool
         self.conversion_tasks.spawn_blocking(move || {
             let data = rollup_tx.rlp().to_vec();
-            let chain_id = chain_id.into_bytes();
             let seq_action = Action::Sequence(SequenceAction {
-                chain_id,
+                chain_id: chain_id_hash,
                 data,
             });
 
