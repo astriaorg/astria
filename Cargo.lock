@@ -250,6 +250,7 @@ dependencies = [
  "prost-types",
  "rand 0.8.5",
  "regex",
+ "serde",
  "serde_json",
  "sha2 0.10.7",
  "sync_wrapper",
