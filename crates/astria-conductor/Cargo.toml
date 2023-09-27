@@ -52,4 +52,5 @@ astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client", f
   "server",
 ] }
 
-warp = "0.3"
+ethers = { version = "2.0.7", features = ["ws"] }
+impl-serde = "0.4.0"

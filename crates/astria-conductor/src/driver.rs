@@ -269,6 +269,96 @@ impl Driver {
 
 #[cfg(test)]
 mod test {
+
+    use test_utils::{
+        create_mock_execution_service_server,
+        get_test_config,
+        CelestiaMode,
+        MockCelestia,
+        MockSequencer,
+    };
+
+    use super::*;
+    use crate::config::CommitLevel;
+
+    #[allow(unused_must_use)]
+    #[tokio::test]
+    async fn new_driver_execution_commit_level_set_to_soft_only() {
+        let mut config = get_test_config();
+        config.execution_commit_level = CommitLevel::SoftOnly;
+
+        let server_handle = create_mock_execution_service_server().await;
+
+        let sequencer = MockSequencer::spawn().await;
+        let sequencer_url = format!("ws://{}", sequencer.local_addr());
+
+        config.sequencer_url = sequencer_url;
+        let (driver, ..) = Driver::new(config).await.unwrap();
+        assert!(driver.reader_tx.is_none());
+        assert!(driver.sequencer_client.is_some());
+        drop(server_handle);
+    }
+
+    #[tokio::test]
+    async fn new_driver_execution_commit_level_set_to_firm_only() {
+        let mut config = get_test_config();
+        config.execution_commit_level = CommitLevel::FirmOnly;
+
+        let server_handle = create_mock_execution_service_server().await;
+
+        let block_time = 1000;
+        let mut celestia = MockCelestia::start(block_time, CelestiaMode::Immediate).await;
+        let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
+        config.celestia_node_url = format!("http://{}", celestia_addr);
+
+        let (driver, ..) = Driver::new(config).await.unwrap();
+        assert!(driver.reader_tx.is_some());
+        assert!(driver.sequencer_client.is_none());
+        drop(server_handle);
+        drop(celestia._server_handle);
+    }
+
+    #[tokio::test]
+    async fn new_driver_execution_commit_level_set_to_soft_and_firm() {
+        let mut config = get_test_config();
+        config.execution_commit_level = CommitLevel::SoftAndFirm;
+
+        let server_handle = create_mock_execution_service_server().await;
+
+        let sequencer = MockSequencer::spawn().await;
+        let sequencer_url = format!("ws://{}", sequencer.local_addr());
+
+        let block_time = 1000;
+        let mut celestia = MockCelestia::start(block_time, CelestiaMode::Immediate).await;
+        let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
+        eprintln!("*** celestia_addr: {:?}", celestia_addr);
+
+        config.sequencer_url = sequencer_url;
+        config.celestia_node_url = format!("http://{}", celestia_addr);
+
+        let (driver, ..) = Driver::new(config).await.unwrap();
+        assert!(driver.reader_tx.is_some());
+        assert!(driver.sequencer_client.is_some());
+        drop(server_handle);
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test_utils {
+
+    use std::{
+        net::SocketAddr,
+        time::Duration,
+    };
+
+    use astria_celestia_jsonrpc_client::rpc_impl::{
+        blob::Blob,
+        header::HeaderServer,
+        state::{
+            Fee,
+            StateServer,
+        },
+    };
     use astria_proto::generated::execution::v1alpha1::{
         execution_service_server::{
             ExecutionService,
@@ -281,30 +371,39 @@ mod test {
         InitStateRequest,
         InitStateResponse,
     };
-    // use futures::{
-    //     SinkExt,
-    //     StreamExt,
-    // };
-    // use tendermint_proto::google::protobuf::Timestamp;
+    use ethers::types::Transaction;
+    use jsonrpsee::{
+        core::{
+            async_trait,
+            SubscriptionResult,
+        },
+        proc_macros::rpc,
+        server::{
+            IdProvider,
+            ServerHandle,
+        },
+        types::{
+            ErrorObjectOwned,
+            SubscriptionId,
+        },
+        PendingSubscriptionSink,
+    };
     use prost_types::Timestamp;
+    use serde::Deserialize;
     use sha2::Digest as _;
-    // use tokio::net::TcpListener;
-    // use tokio_tungstenite::{
-    //     accept_async,
-    //     tungstenite::protocol::Message,
-    // };
+    use tokio::sync::broadcast::{
+        channel,
+        Sender,
+    };
     use tonic::transport::Server;
 
-    // use tendermint::
-
-    // use tower::service_fn;
     use super::*;
     use crate::{
         config,
         execution_client::ExecutionClient,
     };
 
-    fn get_test_config() -> Config {
+    pub(crate) fn get_test_config() -> Config {
         Config {
             chain_id: "ethereum".to_string(),
             execution_rpc_url: "http://127.0.0.1:50051".to_string(),
@@ -368,7 +467,7 @@ mod test {
         }
     }
 
-    async fn create_mock_execution_service_server() -> JoinHandle<()> {
+    pub(crate) async fn create_mock_execution_service_server() -> JoinHandle<()> {
         // this is the default address for the execution service from config
         let addr = "127.0.0.1:50051".parse().unwrap();
 
@@ -381,24 +480,7 @@ mod test {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         server_handle
     }
-    use std::{
-        net::SocketAddr,
-        time::Duration,
-    };
 
-    use astria_celestia_jsonrpc_client::rpc_impl::{
-        blob::Blob,
-        header::HeaderServer,
-        state::{
-            Fee,
-            StateServer,
-        },
-    };
-    use jsonrpsee::{
-        core::async_trait,
-        server::ServerHandle,
-        types::ErrorObjectOwned,
-    };
     use tokio::sync::oneshot;
 
     #[allow(dead_code)]
@@ -414,7 +496,7 @@ mod test {
     }
 
     impl MockCelestia {
-        async fn start(sequencer_block_time_ms: u64, mode: CelestiaMode) -> Self {
+        pub(crate) async fn start(sequencer_block_time_ms: u64, mode: CelestiaMode) -> Self {
             use jsonrpsee::server::ServerBuilder;
             let (addr_tx, addr_rx) = oneshot::channel();
             let server = ServerBuilder::default().build("127.0.0.1:0").await.unwrap();
@@ -506,79 +588,129 @@ mod test {
         }
     }
 
-    // use std::sync::Arc;
-    use tendermint_rpc::query::Query;
-    use warp::{
-        ws::Ws,
-        Filter,
-    };
+    #[derive(Deserialize)]
+    struct ProxyQuery {
+        query: String,
+    }
 
-    #[allow(unused_must_use)]
-    #[tokio::test]
-    async fn new_driver_execution_commit_level_set_to_soft_only() {
-        let server_handle = create_mock_execution_service_server().await;
+    #[derive(Deserialize)]
+    #[serde(try_from = "ProxyQuery")]
+    #[allow(unreachable_pub)]
+    pub struct Query {
+        _query: tendermint_rpc::query::Query,
+    }
 
-        let ws_route = warp::path("ws").and(warp::ws()).map(|ws: Ws| {
-            ws.on_upgrade(|_websocket| async {
-                // Just ignore the WebSocket connection
+    impl TryFrom<ProxyQuery> for Query {
+        type Error = tendermint_rpc::error::Error;
+
+        fn try_from(proxy: ProxyQuery) -> Result<Self, Self::Error> {
+            let query = proxy.query.parse::<tendermint_rpc::query::Query>()?;
+            Ok(Self {
+                _query: query,
             })
-        });
-
-        let (_tx, rx) = oneshot::channel::<()>();
-
-        // Spawn the server as a separate task
-        let server = warp::serve(ws_route);
-        tokio::spawn(async move {
-            server.bind_with_graceful_shutdown(([127, 0, 0, 1], 3030), async {
-                rx.await.ok();
-            });
-        });
-
-        // let mut config = config::get().unwrap();
-        let mut config = get_test_config();
-        config.sequencer_url = "ws://127.0.0.1:3030".to_string();
-        config.execution_commit_level = config::CommitLevel::SoftOnly;
-        let (driver, ..) = Driver::new(config).await.unwrap();
-        assert!(driver.reader_tx.is_none());
-        assert!(driver.sequencer_client.is_some());
-        drop(server_handle);
+        }
     }
 
-    #[tokio::test]
-    async fn new_driver_execution_commit_level_set_to_firm_only() {
-        let mut config = get_test_config();
-        config.execution_commit_level = config::CommitLevel::FirmOnly;
+    #[derive(Debug)]
+    struct RandomU256IdProvider;
 
-        let server_handle = create_mock_execution_service_server().await;
+    impl IdProvider for RandomU256IdProvider {
+        fn next_id(&self) -> SubscriptionId<'static> {
+            use ethers::types::U256;
+            use impl_serde::serialize::to_hex;
+            use rand::RngCore as _;
 
-        let block_time = 1000;
-        let mut celestia = MockCelestia::start(block_time, CelestiaMode::Immediate).await;
-        let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
-        config.celestia_node_url = format!("http://{}", celestia_addr);
-
-        let (driver, ..) = Driver::new(config).await.unwrap();
-        assert!(driver.reader_tx.is_some());
-        assert!(driver.sequencer_client.is_none());
-        drop(server_handle);
-        drop(celestia._server_handle);
+            let mut rng = rand::thread_rng();
+            let mut raw_u256 = [0u8; 32];
+            rng.fill_bytes(&mut raw_u256);
+            // Just in case, convert to u256 and back to big endian because parity's u256
+            // implementation does some extra complex transformations.
+            let u256 = U256::from(raw_u256);
+            let mut byte_repr = [0u8; 32];
+            u256.to_big_endian(&mut byte_repr);
+            let u256_ser = to_hex(&byte_repr, true);
+            SubscriptionId::from(u256_ser)
+        }
     }
 
-    #[tokio::test]
-    async fn new_driver_execution_commit_level_set_to_soft_and_firm() {
-        let server_handle = create_mock_execution_service_server().await;
+    // The mockserver has to be able to handle an `eth_subscribe` RPC with parameters
+    // `"newPendingTransactions"` and `true`
+    #[rpc(server)]
+    trait Sequencer {
+        #[subscription(name = "subscribe", item = Transaction, unsubscribe = "unsubscribe")]
+        async fn subscribe(&self, queury: Query) -> SubscriptionResult;
 
-        let block_time = 1000;
-        let mut celestia = MockCelestia::start(block_time, CelestiaMode::Immediate).await;
-        let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
-        eprintln!("*** celestia_addr: {:?}", celestia_addr);
+        #[method(name = "net_version")]
+        async fn net_version(&self) -> Result<String, ErrorObjectOwned>;
+    }
 
-        // let mut config = config::get().unwrap();
-        let mut config = get_test_config();
-        config.celestia_node_url = format!("http://{}", celestia_addr);
-        config.execution_commit_level = config::CommitLevel::SoftAndFirm;
-        let (driver, ..) = Driver::new(config).await.unwrap();
-        assert!(driver.reader_tx.is_some());
-        assert!(driver.sequencer_client.is_some());
-        drop(server_handle);
+    struct SequencerImpl {
+        new_tx_sender: Sender<Transaction>,
+    }
+
+    #[async_trait]
+    impl SequencerServer for SequencerImpl {
+        async fn subscribe(
+            &self,
+            pending: PendingSubscriptionSink,
+            _query: Query,
+        ) -> SubscriptionResult {
+            use jsonrpsee::server::SubscriptionMessage;
+            let sink = pending.accept().await?;
+            let mut rx = self.new_tx_sender.subscribe();
+            loop {
+                tokio::select!(
+                    biased;
+                    () = sink.closed() => break,
+                    Ok(new_tx) = rx.recv() => sink.send(
+                        SubscriptionMessage::from_json(&new_tx)?
+                    ).await?,
+                );
+            }
+            Ok(())
+        }
+
+        async fn net_version(&self) -> Result<String, ErrorObjectOwned> {
+            Ok("mock_sequencer".into())
+        }
+    }
+
+    pub(crate) struct MockSequencer {
+        /// The local address to which the mocked jsonrpc server is bound.
+        local_addr: SocketAddr,
+        _server_task_handle: tokio::task::JoinHandle<()>,
+    }
+
+    impl MockSequencer {
+        /// Spawns a new mocked geth server.
+        /// # Panics
+        /// Panics if the server fails to start.
+        pub(crate) async fn spawn() -> Self {
+            use jsonrpsee::server::Server;
+            let server = Server::builder()
+                .ws_only()
+                .set_id_provider(RandomU256IdProvider)
+                .build("127.0.0.1:0")
+                .await
+                .expect("should be able to start a jsonrpsee server bound to a 0 port");
+            let local_addr = server
+                .local_addr()
+                .expect("server should have a local addr");
+            let (new_tx_sender, _) = channel(256);
+            let mock_geth_impl = SequencerImpl {
+                new_tx_sender: new_tx_sender.clone(),
+            };
+            let handle = server.start(mock_geth_impl.into_rpc());
+            let server_task_handle = tokio::spawn(handle.stopped());
+            Self {
+                local_addr,
+                _server_task_handle: server_task_handle,
+            }
+        }
+
+        #[must_use]
+        pub(crate) fn local_addr(&self) -> SocketAddr {
+            self.local_addr
+        }
     }
 }
