@@ -137,6 +137,10 @@ impl SequencerBlockData {
     /// - if the block's action tree root inclusion proof cannot be verified
     /// - if the block's height is >1 and it does not contain a last commit or last commit hash
     /// - if the block's last commit hash does not match the one calculated from the block's commit
+    ///
+    /// # Panics
+    ///
+    /// - If the `last_commit` is not set but the `last_commit_hash` is set.
     pub fn try_from_raw(raw: RawSequencerBlockData) -> Result<Self, Error> {
         let RawSequencerBlockData {
             block_hash,

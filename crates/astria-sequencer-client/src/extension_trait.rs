@@ -252,6 +252,7 @@ pub struct NewBlocksStream {
 }
 
 impl NewBlocksStream {
+    #[must_use]
     pub fn empty() -> Self {
         use futures::stream::{self,};
         NewBlocksStream {
