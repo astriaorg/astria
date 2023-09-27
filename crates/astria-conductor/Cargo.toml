@@ -16,11 +16,9 @@ futures = { workspace = true }
 hex = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
-rand = { workspace = true }
-reqwest = { workspace = true, features = ["json"] }
-serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 tendermint = { workspace = true }
 tendermint-rpc = { workspace = true }
 tendermint-proto = { workspace = true }
@@ -36,21 +34,18 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
 astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 astria-sequencer-types = { path = "../astria-sequencer-types" }
 sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
-telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
-jsonrpsee = { workspace = true, features = ["macros", "server"] }
 
 
 [dev-dependencies]
 astria-proto = { path = "../astria-proto", features = ["client", "server"] }
-base64 = { workspace = true }
 once_cell = { workspace = true }
 figment = { workspace = true, features = ["test"] }
 regex = { workspace = true }
-tower = "0.4"
-tokio-tungstenite = "0.14"
 astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client", features = [
   "server",
 ] }
 
 ethers = { version = "2.0.7", features = ["ws"] }
 impl-serde = "0.4.0"
+jsonrpsee = { workspace = true, features = ["macros", "server"] }
+rand = { workspace = true }
