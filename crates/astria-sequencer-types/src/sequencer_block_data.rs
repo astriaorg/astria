@@ -89,8 +89,8 @@ pub struct SequencerBlockData {
     header: Header,
     /// This field should be set for every block with height > 1.
     last_commit: Option<Commit>,
-    /// chain ID -> rollup transactions
-    rollup_data: BTreeMap<String, Vec<Vec<u8>>>,
+    /// sha256(chain ID) -> rollup transactions
+    rollup_data: BTreeMap<[u8; 32], Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
     action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included
@@ -188,7 +188,7 @@ impl SequencerBlockData {
     }
 
     #[must_use]
-    pub fn rollup_data(&self) -> &BTreeMap<String, Vec<Vec<u8>>> {
+    pub fn rollup_data(&self) -> &BTreeMap<[u8; 32], Vec<Vec<u8>>> {
         &self.rollup_data
     }
 
@@ -275,7 +275,7 @@ impl SequencerBlockData {
 
         // we unwrap sequencer txs into rollup-specific data here,
         // and namespace them correspondingly
-        let mut rollup_data: BTreeMap<String, Vec<_>> = BTreeMap::new();
+        let mut rollup_data: BTreeMap<[u8; 32], Vec<_>> = BTreeMap::new();
 
         // the first two transactions is skipped as it's the action tree root,
         // not a user-submitted transaction.
@@ -294,14 +294,11 @@ impl SequencerBlockData {
                 if let Some(action) = action.as_sequence() {
                     // TODO(https://github.com/astriaorg/astria/issues/318): intern
                     // these namespaces so they don't get rebuild on every iteration.
-                    // FIXME(https://): change sequence actions to carry string chain IDs
-                    let chain_id = String::from_utf8_lossy(&action.chain_id);
-                    let action_data = action.data.clone();
-                    if let Some(data) = rollup_data.get_mut(&*chain_id) {
-                        data.push(action_data);
-                    } else {
-                        rollup_data.insert(chain_id.into_owned(), vec![action_data]);
-                    }
+                    let chain_id = utils::sha256_hash(&action.chain_id);
+                    rollup_data
+                        .entry(chain_id)
+                        .and_modify(|data| data.push(action.data.clone()))
+                        .or_insert(vec![action.data.clone()]);
                 }
             });
         }
@@ -318,7 +315,9 @@ impl SequencerBlockData {
         // ensure the chain IDs commitment matches the one calculated from the rollup data
         let chain_ids = rollup_data
             .keys()
-            .map(|s| utils::sha256_hash(s.as_bytes()).to_vec())
+            .copied()
+            // FIXME: allow merkle tree construction from array to avoid these allocations.
+            .map(Into::into)
             .collect::<Vec<_>>();
         let calculated_chain_ids_commitment = MerkleTree::from_leaves(chain_ids).root();
         if calculated_chain_ids_commitment != chain_ids_commitment {
@@ -358,7 +357,7 @@ pub struct RawSequencerBlockData {
     /// This field should be set for every block with height > 1.
     pub last_commit: Option<Commit>,
     /// namespace -> rollup data (chain ID and transactions)
-    pub rollup_data: BTreeMap<String, Vec<Vec<u8>>>,
+    pub rollup_data: BTreeMap<[u8; 32], Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
     pub action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included

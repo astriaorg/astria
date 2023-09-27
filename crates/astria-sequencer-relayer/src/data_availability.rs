@@ -11,7 +11,6 @@ use astria_celestia_jsonrpc_client::{
 };
 use astria_sequencer_validation::{
     generate_action_tree_leaves,
-    utils,
     InclusionProof,
     MerkleTree,
 };
@@ -146,7 +145,7 @@ pub struct SequencerNamespaceData {
     pub block_hash: Hash,
     pub header: Header,
     pub last_commit: Option<Commit>,
-    pub rollup_chain_ids: Vec<String>,
+    pub rollup_chain_ids: Vec<[u8; 32]>,
     pub action_tree_root: [u8; 32],
     pub action_tree_root_inclusion_proof: InclusionProof,
     pub chain_ids_commitment: [u8; 32],
@@ -158,7 +157,7 @@ impl NamespaceData for SequencerNamespaceData {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RollupNamespaceData {
     pub(crate) block_hash: Hash,
-    pub(crate) chain_id: String,
+    pub(crate) chain_id: [u8; 32],
     pub rollup_txs: Vec<Vec<u8>>,
     pub(crate) inclusion_proof: InclusionProof,
 }
@@ -168,7 +167,7 @@ impl NamespaceData for RollupNamespaceData {}
 impl RollupNamespaceData {
     pub fn new(
         block_hash: Hash,
-        chain_id: String,
+        chain_id: [u8; 32],
         rollup_txs: Vec<Vec<u8>>,
         inclusion_proof: InclusionProof,
     ) -> Self {
@@ -183,7 +182,7 @@ impl RollupNamespaceData {
     pub fn verify_inclusion_proof(&self, root_hash: [u8; 32]) -> eyre::Result<()> {
         let rollup_data_tree = MerkleTree::from_leaves(self.rollup_txs.clone());
         let rollup_data_root = rollup_data_tree.root();
-        let mut leaf = utils::sha256_hash(self.chain_id.as_bytes()).to_vec();
+        let mut leaf = self.chain_id.to_vec();
         leaf.append(&mut rollup_data_root.to_vec());
         self.inclusion_proof.verify(&leaf, root_hash).wrap_err(
             "failed to verify rollup transactions against the contained inclusion proof with the \

@@ -9,6 +9,7 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use prost_types::Timestamp as ProstTimestamp;
+use sequencer_validation::utils;
 use tendermint::{
     Hash,
     Time,
@@ -104,6 +105,9 @@ struct Executor<C> {
     /// Chain ID
     chain_id: String,
 
+    /// sha256(chain_id)
+    chain_id_hash: [u8; 32],
+
     /// Namespace ID, derived from chain ID
     namespace: Namespace,
 
@@ -142,6 +146,7 @@ impl<C: ExecutionClient> Executor<C> {
                 cmd_rx,
                 execution_rpc_client,
                 chain_id: chain_id.clone(),
+                chain_id_hash: utils::sha256_hash(chain_id.as_bytes()),
                 namespace: Namespace::from_slice(chain_id.as_ref()),
                 execution_state,
                 sequencer_hash_to_execution_hash: HashMap::new(),
@@ -151,7 +156,7 @@ impl<C: ExecutionClient> Executor<C> {
         ))
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, fields(chain_id = %self.chain_id,))]
     async fn run(&mut self) -> Result<()> {
         info!("Starting executor event loop.");
 
@@ -162,7 +167,7 @@ impl<C: ExecutionClient> Executor<C> {
                 } => {
                     let height = block.header().height.value();
                     let block_subset =
-                        SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id);
+                        SequencerBlockSubset::from_sequencer_block_data(*block, self.chain_id_hash);
 
                     if let Err(e) = self.execute_block(block_subset).await {
                         error!(

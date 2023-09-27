@@ -232,7 +232,9 @@ fn validate_sequencer_namespace_data(
     let leaves = data
         .rollup_chain_ids
         .iter()
-        .map(|s| sequencer_validation::utils::sha256_hash(s.as_bytes()).to_vec())
+        .copied()
+        // FIXME: allow merkle tree construction from array to avoid these allocations.
+        .map(Into::into)
         .collect::<Vec<_>>();
     let expected_chain_ids_commitment =
         sequencer_validation::MerkleTree::from_leaves(leaves).root();
@@ -423,6 +425,7 @@ mod test {
 
     use sequencer_validation::{
         generate_action_tree_leaves,
+        utils,
         MerkleTree,
     };
     use tendermint::{
@@ -524,7 +527,7 @@ mod test {
             block_hash,
             header,
             last_commit: None,
-            rollup_chain_ids: vec![test_chain_id.to_string()],
+            rollup_chain_ids: vec![utils::sha256_hash(test_chain_id.as_bytes())],
             action_tree_root,
             action_tree_root_inclusion_proof,
             chain_ids_commitment,
@@ -532,7 +535,7 @@ mod test {
 
         let rollup_namespace_data = RollupNamespaceData::new(
             block_hash,
-            test_chain_id.to_string().clone(),
+            utils::sha256_hash(test_chain_id.as_bytes()),
             vec![test_tx],
             action_tree.prove_inclusion(0).unwrap(),
         );
