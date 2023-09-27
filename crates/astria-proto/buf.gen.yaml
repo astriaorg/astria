@@ -6,6 +6,7 @@ plugins:
     out: .
     opt:
      - extern_path=.tendermint.types=::tendermint-proto::types
+     - extern_path=.tendermint.abci=::tendermint-proto::abci
      - type_attribute=.astria.primitive.v1.Uint128=#[derive(Copy)]
   - plugin: buf.build/community/neoeinstein-tonic:v0.3.0
     out: .
