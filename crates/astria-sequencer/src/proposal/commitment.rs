@@ -91,7 +91,7 @@ pub(crate) fn generate_sequence_actions_commitment(txs_bytes: Vec<Bytes>) -> Gen
 /// Within an entry, actions are ordered by their transaction index within a block.
 fn group_sequence_actions_by_chain_id(
     txs: &[SignedTransaction],
-) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
+) -> BTreeMap<[u8; 32], Vec<Vec<u8>>> {
     let mut rollup_txs_map = BTreeMap::new();
 
     for action in txs.iter().flat_map(SignedTransaction::actions) {

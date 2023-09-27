@@ -344,7 +344,9 @@ impl Action {
             return Err(ActionError::unset());
         };
         let action = match action {
-            Value::SequenceAction(act) => Self::Sequence(SequenceAction::from_raw(act)),
+            Value::SequenceAction(act) => {
+                Self::Sequence(SequenceAction::try_from_raw(act).map_err(ActionError::sequence)?)
+            }
             Value::TransferAction(act) => {
                 Self::Transfer(TransferAction::try_from_raw(act).map_err(ActionError::transfer)?)
             }
@@ -393,6 +395,12 @@ impl ActionError {
         }
     }
 
+    fn sequence(inner: SequenceActionError) -> Self {
+        Self {
+            kind: ActionErrorKind::Sequence(inner),
+        }
+    }
+
     fn transfer(inner: TransferActionError) -> Self {
         Self {
             kind: ActionErrorKind::Transfer(inner),
@@ -404,6 +412,7 @@ impl Display for ActionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg = match &self.kind {
             ActionErrorKind::Unset => "oneof value was not set",
+            ActionErrorKind::Sequence(_) => "raw sequence action was not valid",
             ActionErrorKind::Transfer(_) => "raw transfer action was not valid",
         };
         f.pad(msg)
@@ -414,6 +423,7 @@ impl Error for ActionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
             ActionErrorKind::Unset => None,
+            ActionErrorKind::Sequence(e) => Some(e),
             ActionErrorKind::Transfer(e) => Some(e),
         }
     }
@@ -422,12 +432,43 @@ impl Error for ActionError {
 #[derive(Debug)]
 enum ActionErrorKind {
     Unset,
+    Sequence(SequenceActionError),
     Transfer(TransferActionError),
 }
 
+#[derive(Debug)]
+pub struct SequenceActionError {
+    kind: SequenceActionErrorKind,
+}
+
+impl SequenceActionError {
+    fn incorrect_chain_id_length() -> Self {
+        Self {
+            kind: SequenceActionErrorKind::IncorrectChainIdLength,
+        }
+    }
+}
+
+#[derive(Debug)]
+enum SequenceActionErrorKind {
+    IncorrectChainIdLength,
+}
+
+impl Display for SequenceActionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.kind {
+            SequenceActionErrorKind::IncorrectChainIdLength => {
+                f.pad("`chain_id` did not contain 32 bytes")
+            }
+        }
+    }
+}
+
+impl Error for SequenceActionError {}
+
 #[derive(Clone, Debug)]
 pub struct SequenceAction {
-    pub chain_id: Vec<u8>,
+    pub chain_id: [u8; 32],
     pub data: Vec<u8>,
 }
 
@@ -439,7 +480,7 @@ impl SequenceAction {
             data,
         } = self;
         raw::SequenceAction {
-            chain_id,
+            chain_id: chain_id.into(),
             data,
         }
     }
@@ -451,22 +492,25 @@ impl SequenceAction {
             data,
         } = self;
         raw::SequenceAction {
-            chain_id: chain_id.clone(),
+            chain_id: chain_id.to_vec(),
             data: data.clone(),
         }
     }
 
     /// Convert from a raw, unchecked protobuf [`raw::SequenceAction`].
     #[must_use]
-    pub fn from_raw(proto: raw::SequenceAction) -> Self {
+    pub fn try_from_raw(proto: raw::SequenceAction) -> Result<Self, SequenceActionError> {
         let raw::SequenceAction {
             chain_id,
             data,
         } = proto;
-        Self {
+        let chain_id = chain_id
+            .try_into()
+            .map_err(|_| SequenceActionError::incorrect_chain_id_length())?;
+        Ok(Self {
             chain_id,
             data,
-        }
+        })
     }
 }
 

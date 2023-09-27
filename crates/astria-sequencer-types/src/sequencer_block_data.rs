@@ -89,7 +89,7 @@ pub struct SequencerBlockData {
     header: Header,
     /// This field should be set for every block with height > 1.
     last_commit: Option<Commit>,
-    /// sha256(chain ID) -> rollup transactions
+    /// chain ID -> rollup transactions
     rollup_data: BTreeMap<[u8; 32], Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
     action_tree_root: [u8; 32],
@@ -292,11 +292,8 @@ impl SequencerBlockData {
                 .map_err(Error::RawSignedTransactionConversion)?;
             tx.actions().iter().for_each(|action| {
                 if let Some(action) = action.as_sequence() {
-                    // TODO(https://github.com/astriaorg/astria/issues/318): intern
-                    // these namespaces so they don't get rebuild on every iteration.
-                    let chain_id = utils::sha256_hash(&action.chain_id);
                     rollup_data
-                        .entry(chain_id)
+                        .entry(action.chain_id)
                         .and_modify(|data| data.push(action.data.clone()))
                         .or_insert(vec![action.data.clone()]);
                 }
