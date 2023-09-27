@@ -3,6 +3,7 @@ syntax = "proto3";
 package astria.sequencer.v1alpha1;
 
 import "astria/primitive/v1/types.proto";
+import "tendermint/abci/types.proto";
 
 // `SignedTransaction` is a transaction that has
 // been signed by the given public key.
@@ -26,6 +27,7 @@ message Action {
     oneof value {
         TransferAction transfer_action = 1;
         SequenceAction sequence_action = 2;
+        tendermint.abci.ValidatorUpdate validator_update_action = 3;
     }   
 }
 
