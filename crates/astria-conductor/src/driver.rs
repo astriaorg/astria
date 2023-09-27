@@ -713,7 +713,7 @@ pub(crate) mod test_utils {
                 .expect("server should have a local addr");
             let (new_tx_sender, _) = channel(256);
             let mock_geth_impl = SequencerImpl {
-                new_tx_sender: new_tx_sender.clone(),
+                new_tx_sender,
             };
             let handle = server.start(mock_geth_impl.into_rpc());
             let server_task_handle = tokio::spawn(handle.stopped());
