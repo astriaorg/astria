@@ -30,7 +30,7 @@ pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
         .await
         .context("failed to get account nonce")?;
     ensure!(
-        tx.unsigned_transaction().nonce < curr_nonce,
+        tx.unsigned_transaction().nonce >= curr_nonce,
         "nonce already used by account"
     );
     Ok(())
