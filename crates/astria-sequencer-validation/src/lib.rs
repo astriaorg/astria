@@ -4,7 +4,7 @@
 //! This is used by the astria-sequencer to generate a commitment to the rollup data in a block,
 //! and for the astria-conductor to validate that the rollup data received was in fact committed to.
 mod proof;
-mod utils;
+pub mod utils;
 
 pub use ct_merkle;
 pub use proof::{

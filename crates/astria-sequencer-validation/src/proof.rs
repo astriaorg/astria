@@ -52,6 +52,10 @@ impl std::error::Error for IndexOutOfBounds {}
 pub struct MerkleTree(CtMerkleTree<Sha256, Vec<u8>>);
 
 impl MerkleTree {
+    pub(super) fn from_inner_tree(inner: CtMerkleTree<Sha256, Vec<u8>>) -> Self {
+        Self(inner)
+    }
+
     /// Creates a new merkle tree from the given leaves.
     #[must_use]
     pub fn from_leaves(leaves: Vec<Vec<u8>>) -> Self {
@@ -61,7 +65,7 @@ impl MerkleTree {
                 tree.push(leaf);
                 tree
             });
-        MerkleTree(tree)
+        Self::from_inner_tree(tree)
     }
 
     /// Returns the root hash of the merkle tree as a fixed sized array of 32 bytes.

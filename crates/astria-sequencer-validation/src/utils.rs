@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 
+use ct_merkle::CtMerkleTree;
+
 use crate::MerkleTree;
 
 /// Groups the `sequence::Action`s within the transactions by their `chain_id`.
@@ -16,4 +18,12 @@ pub fn generate_action_tree_leaves<T: AsRef<[u8]>>(
         leaves.push(leaf);
     }
     leaves
+}
+
+pub fn generate_commitment<'a, T: IntoIterator<Item = &'a [u8]> + 'a>(input: T) -> [u8; 32] {
+    let mut tree = CtMerkleTree::new();
+    for elem in input {
+        tree.push(elem.to_vec());
+    }
+    MerkleTree::from_inner_tree(tree).root()
 }
