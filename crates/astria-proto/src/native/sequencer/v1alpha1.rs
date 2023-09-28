@@ -340,7 +340,7 @@ impl Action {
     /// # Errors
     ///
     /// Returns an error if conversion of one of the inner raw action variants
-    /// to a native action ([`SequenceAction`] or [`TransaferAction`]) fails.
+    /// to a native action ([`SequenceAction`] or [`TransferAction`]) fails.
     pub fn try_from_raw(proto: raw::Action) -> Result<Self, ActionError> {
         use raw::action::Value;
         let raw::Action {
