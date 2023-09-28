@@ -113,7 +113,7 @@ pub enum SequencerBlockError {
 }
 
 #[derive(Clone)]
-pub struct SequencerBlock {
+pub struct UnverifiedSequencerBlock {
     /// The hash of the sequencer block.
     pub block_hash: [u8; 32],
     /// The original cometbft header that was the input to this sequencer block.
@@ -131,7 +131,7 @@ pub struct SequencerBlock {
     pub chain_ids_commitment: [u8; 32],
 }
 
-impl SequencerBlock {
+impl UnverifiedSequencerBlock {
     pub fn try_from_raw(raw: raw::SequencerBlock) -> Result<Self, SequencerBlockError> {
         let raw::SequencerBlock {
             block_hash,
@@ -156,14 +156,6 @@ impl SequencerBlock {
                 .map_err(SequencerBlockError::HeaderConversion)
         }?;
 
-        let data_hash = header
-            .data_hash
-            .ok_or(SequencerBlockError::HeaderDataHashNotSet)?;
-
-        if block_hash != header.hash().as_bytes() {
-            return Err(SequencerBlockError::BlockHashNotHeaderHash);
-        }
-
         let Ok::<[u8; 32], _>(action_tree_root) = action_tree_root.try_into() else {
             return Err(SequencerBlockError::ActionTreeRootNot32Bytes);
         };
@@ -175,10 +167,6 @@ impl SequencerBlock {
         let action_tree_inclusion_proof = InclusionProof::try_from_raw(action_tree_inclusion_proof)
             .map_err(SequencerBlockError::InclusionProofConversion)?;
 
-        action_tree_inclusion_proof
-            .verify(&action_tree_root, data_hash)
-            .map_err(SequencerBlockError::ActionTreeRootVerification)?;
-
         let Ok(chain_ids_commitment) = chain_ids_commitment.try_into() else {
             return Err(SequencerBlockError::ChainIdsCommitmentNot32Bytes);
         };
@@ -189,6 +177,46 @@ impl SequencerBlock {
             .collect::<Result<Vec<_>, _>>()
             .map_err(SequencerBlockError::RollupTransactionsConversion)?;
 
+        // calculate and verify last_commit_hash
+        let last_commit = last_commit
+            .map(tendermint::block::Commit::try_from)
+            .transpose()
+            .map_err(SequencerBlockError::LastCommitConversion)?;
+
+        Ok(Self {
+            block_hash,
+            header,
+            last_commit,
+            rollup_transactions,
+            action_tree_root,
+            action_tree_inclusion_proof,
+            chain_ids_commitment,
+        })
+    }
+
+    pub fn verify(self) -> Result<SequencerBlock, SequencerBlockError> {
+        let Self {
+            block_hash,
+            header,
+            last_commit,
+            rollup_transactions,
+            action_tree_root,
+            action_tree_inclusion_proof,
+            chain_ids_commitment,
+        } = self;
+
+        let data_hash = header
+            .data_hash
+            .ok_or(SequencerBlockError::HeaderDataHashNotSet)?;
+
+        if block_hash != header.hash().as_bytes() {
+            return Err(SequencerBlockError::BlockHashNotHeaderHash);
+        }
+
+        action_tree_inclusion_proof
+            .verify(&action_tree_root, data_hash)
+            .map_err(SequencerBlockError::ActionTreeRootVerification)?;
+
         let generated_commitment = sequencer_validation::utils::generate_commitment(
             rollup_transactions.iter().map(|tx| &tx.chain_id[..]),
         );
@@ -198,7 +226,7 @@ impl SequencerBlock {
 
         // genesis and height 1 do not have a last commit
         if header.height.value() <= 1 {
-            return Ok(Self {
+            return Ok(SequencerBlock {
                 block_hash,
                 header,
                 last_commit: None,
@@ -208,25 +236,23 @@ impl SequencerBlock {
                 chain_ids_commitment,
             });
         }
-        // calculate and verify last_commit_hash
-        let last_commit = {
-            let Some(hash) = header.last_commit_hash else {
-                return Err(SequencerBlockError::LastCommitHashNotSet);
-            };
-            let Some(commit) = last_commit else {
-                return Err(SequencerBlockError::LastCommitNotSet);
-            };
-            if hash != calculate_last_commit_hash(&commit) {
-                return Err(SequencerBlockError::LastCommitHashNotGenerated)?;
-            }
-            tendermint::block::Commit::try_from(commit)
-                .map_err(SequencerBlockError::LastCommitConversion)?
+        // calculate and verify last_commit_hash. Both of these must be set
+        // if height > 1
+        let Some(hash) = header.last_commit_hash else {
+            return Err(SequencerBlockError::LastCommitHashNotSet);
+        };
+        let Some(commit) = last_commit else {
+            return Err(SequencerBlockError::LastCommitNotSet);
         };
 
-        Ok(Self {
+        if hash != calculate_last_commit_hash(&commit) {
+            return Err(SequencerBlockError::LastCommitHashNotGenerated)?;
+        }
+
+        Ok(SequencerBlock {
             block_hash,
             header,
-            last_commit: Some(last_commit),
+            last_commit: Some(commit),
             rollup_transactions,
             action_tree_root,
             action_tree_inclusion_proof,
@@ -235,8 +261,55 @@ impl SequencerBlock {
     }
 }
 
+#[derive(Clone)]
+pub struct SequencerBlock {
+    /// The hash of the sequencer block.
+    block_hash: [u8; 32],
+    /// The original cometbft header that was the input to this sequencer block.
+    header: tendermint::block::Header,
+    /// The commit/set of signatures that commited this block.
+    last_commit: Option<tendermint::block::Commit>,
+    /// The collection of rollup transactions that were included in this block.
+    rollup_transactions: Vec<RollupTransactions>,
+    /// The root of the action tree of this block. Must be 32 bytes.
+    action_tree_root: [u8; 32],
+    /// The proof that the action tree root was included in `header.data_hash`.
+    action_tree_inclusion_proof: InclusionProof,
+    /// The root of the merkle tree constructed form the chain IDs of the rollup
+    /// transactions in this block.
+    chain_ids_commitment: [u8; 32],
+}
+
+impl SequencerBlock {
+    pub fn into_unverified(self) -> UnverifiedSequencerBlock {
+        let Self {
+            block_hash,
+            header,
+            last_commit,
+            rollup_transactions,
+            action_tree_root,
+            action_tree_inclusion_proof,
+            chain_ids_commitment,
+        } = self;
+        UnverifiedSequencerBlock {
+            block_hash,
+            header,
+            last_commit,
+            rollup_transactions,
+            action_tree_root,
+            action_tree_inclusion_proof,
+            chain_ids_commitment,
+        }
+    }
+
+    pub fn try_from_raw(raw: raw::SequencerBlock) -> Result<Self, SequencerBlockError> {
+        UnverifiedSequencerBlock::try_from_raw(raw)?.verify()
+    }
+}
+
 #[must_use]
-fn calculate_last_commit_hash(commit: &tendermint_proto::types::Commit) -> tendermint::Hash {
+fn calculate_last_commit_hash(commit: &tendermint::block::Commit) -> tendermint::Hash {
+    use prost::Message as _;
     use tendermint::{
         crypto,
         merkle,
@@ -245,7 +318,7 @@ fn calculate_last_commit_hash(commit: &tendermint_proto::types::Commit) -> tende
     let signatures = commit
         .signatures
         .iter()
-        .map(prost::Message::encode_to_vec)
+        .map(|sig| tendermint_proto::types::CommitSig::from(sig.clone()).encode_to_vec())
         .collect::<Vec<_>>();
     tendermint::Hash::Sha256(merkle::simple_hash_from_byte_vectors::<
         crypto::default::Sha256,
