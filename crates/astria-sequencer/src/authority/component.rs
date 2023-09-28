@@ -34,7 +34,7 @@ pub(crate) struct AuthorityComponentAppState {
 impl Component for AuthorityComponent {
     type AppState = AuthorityComponentAppState;
 
-    #[instrument(name = "AuthorityComponent:init_chain", skip(state))]
+    #[instrument(name = "AuthorityComponent::init_chain", skip(state))]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         // set sudo key and initial validator set
         state
@@ -48,14 +48,30 @@ impl Component for AuthorityComponent {
         Ok(())
     }
 
-    #[instrument(name = "AuthorityComponent:begin_block", skip(_state))]
+    #[instrument(name = "AuthorityComponent::begin_block", skip(state))]
     async fn begin_block<S: StateWriteExt + 'static>(
-        _state: &mut Arc<S>,
-        _begin_block: &BeginBlock,
-    ) {
+        state: &mut Arc<S>,
+        begin_block: &BeginBlock,
+    ) -> Result<()> {
+        let mut current_set = state
+            .get_validator_set()
+            .await
+            .context("failed getting validator set")?;
+
+        for misbehaviour in &begin_block.byzantine_validators {
+            let address = tendermint::account::Id::new(misbehaviour.validator.address);
+            current_set.remove(&address);
+        }
+
+        let state = Arc::get_mut(state)
+            .context("must only have one reference to the state; this is a bug")?;
+        state
+            .put_validator_set(current_set)
+            .context("failed putting validator set")?;
+        Ok(())
     }
 
-    #[instrument(name = "AuthorityComponent:end_block", skip(state))]
+    #[instrument(name = "AuthorityComponent::end_block", skip(state))]
     async fn end_block<S: StateWriteExt + StateReadExt + 'static>(
         state: &mut Arc<S>,
         _end_block: &EndBlock,

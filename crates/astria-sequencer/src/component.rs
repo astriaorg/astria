@@ -33,7 +33,7 @@ pub(crate) trait Component {
     async fn begin_block<S: StateWrite + 'static>(
         state: &mut Arc<S>,
         begin_block: &abci::request::BeginBlock,
-    );
+    ) -> Result<()>;
 
     /// Ends the block, optionally inspecting the ABCI
     /// [`EndBlock`](abci::request::EndBlock) request, and performing any batch
