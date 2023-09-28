@@ -12,6 +12,7 @@ pub(crate) mod block_verifier;
 pub mod conductor;
 pub mod config;
 pub(crate) mod driver;
+pub(crate) mod driver_test_utils;
 pub(crate) mod execution_client;
 pub(crate) mod executor;
 pub(crate) mod reader;
