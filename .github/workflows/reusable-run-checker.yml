@@ -8,7 +8,7 @@ on:
         value: ${{ jobs.changes.outputs.test_workflow == 'true' || jobs.changes.outputs.crates == 'true' }}
       run_docker:
         description: If docker workflow needs to be run, will be 'true'
-        value: ${{ jobs.changes.outputs.docker_workflow == 'true' || jobs.changes.outputs.crates == 'true' || contains(github.ref, 'refs/tags/v') }}
+        value: ${{ jobs.changes.outputs.docker_workflow == 'true' || github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'docker-build') }}
       run_lint_proto:
         description: If lint for protos needs to be run, will be 'true'
         value: ${{ jobs.changes.outputs.lint_workflow == 'true' || jobs.changes.outputs.proto == 'true' }}
