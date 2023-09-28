@@ -295,6 +295,7 @@ mod test {
     use proto::{
         native::sequencer::v1alpha1::{
             Address,
+            MintAction,
             SequenceAction,
             TransferAction,
             UnsignedTransaction,
@@ -584,6 +585,41 @@ mod test {
         let validator_updates = app.state.get_validator_updates().await.unwrap();
         assert_eq!(validator_updates.len(), 1);
         assert_eq!(validator_updates.get(&pub_key).unwrap(), &update);
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_mint() {
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_key: alice_address,
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+        app.processed_txs = 2;
+
+        let bob_address = address_from_hex_string(BOB_ADDRESS);
+        let value = 333_333;
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                MintAction {
+                    to: bob_address,
+                    amount: value,
+                }
+                .into(),
+            ],
+        };
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        let bytes = signed_tx.into_raw().encode_to_vec();
+
+        app.deliver_tx(&bytes).await.unwrap();
+        assert_eq!(
+            app.state.get_account_balance(bob_address).await.unwrap(),
+            value + 10u128.pow(19)
+        );
+        assert_eq!(app.state.get_account_nonce(bob_address).await.unwrap(), 0);
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
     }
 
     #[tokio::test]

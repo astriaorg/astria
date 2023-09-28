@@ -393,6 +393,12 @@ impl From<TransferAction> for Action {
     }
 }
 
+impl From<MintAction> for Action {
+    fn from(value: MintAction) -> Self {
+        Self::Mint(value)
+    }
+}
+
 #[derive(Debug)]
 pub struct ActionError {
     kind: ActionErrorKind,
