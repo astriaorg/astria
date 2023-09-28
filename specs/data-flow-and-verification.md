@@ -26,7 +26,7 @@ pub struct Unsigned {
 }
 ```
 
-The `data` field inside the `sequence::Action` is arbitrary bytes, which should be an encoded rollup transaction. The sequencer is agnostic to the transaction format of the rollups using it. The `chain_id` field is an identifier for the rollup the data is destined for. 
+The `data` field inside the `sequence::Action` is arbitrary bytes, which should be an encoded rollup transaction. The sequencer is agnostic to the transaction format of the rollups using it. The `chain_id` field is an identifier for the rollup the data is destined for.
 
 To submit rollup data to the system, the user creates a transaction with a `sequence::Action` within it and signs and submits it to the sequencer. The sequencer will then include it in a block, thus finalizing its ordering.
 
@@ -35,6 +35,7 @@ To submit rollup data to the system, the user creates a transaction with a `sequ
 Once a transaction (and the actions within it) is included in a sequencer block, the block data is published via a data availability layer.
 
 The block data published is as follows:
+
 ```rust
 pub struct SequencerBlockData {
     block_hash: Hash,
@@ -52,8 +53,7 @@ pub struct SequencerBlockData {
 }
 ```
 
-When this data is actually published, it's split into multiple structures. Specifically, the data for each rollup is written independently, while a "base" data type which contains the rollup chain IDs  included in the block is also written. This allows each rollup to only require the `SequencerNamespaceData` for the block and the `RollupNamespaceData` for its own rollup transactions. For each block, if there are N rollup chain IDs included, 1 + N structures are written to DA. 
-
+When this data is actually published, it's split into multiple structures. Specifically, the data for each rollup is written independently, while a "base" data type which contains the rollup chain IDs  included in the block is also written. This allows each rollup to only require the `SequencerNamespaceData` for the block and the `RollupNamespaceData` for its own rollup transactions. For each block, if there are N rollup chain IDs included, 1 + N structures are written to DA.
 
 ```rust
 /// SequencerNamespaceData represents the data written to the "base"
@@ -96,7 +96,7 @@ For a rollup node to verify the ordering, completeness, and correctness of the b
 5. the `rollup_txs` inside `RollupNamespaceData` is contained within the `action_tree_root`
 6. the `chain_ids_commitment` is a valid commitment to `rollup_chain_ids`
 
-Let's go through these one-by-one. 
+Let's go through these one-by-one.
 
 Note: Tendermint validators will also validate all these fields before voting on a block; thus, if a block is committed, we know the majority of validators agreed that these fields are correct.
 
@@ -108,7 +108,7 @@ The block header contains the proposer of the block. To verify the expected prop
 
 Tendermint votes contain the block hash of the block the vote is for. Thus, when verifying the votes for a block, we see what block hash was committed. The block hash is a commitment to the entire block data.
 
-To verify the commit for a block, we obtain the commit somehow (through a sequencer node, or waiting for the next block which contains the commit for the previous block). We also obtain the validator set for that height. 
+To verify the commit for a block, we obtain the commit somehow (through a sequencer node, or waiting for the next block which contains the commit for the previous block). We also obtain the validator set for that height.
 
 #### 3. block header
 

@@ -111,6 +111,8 @@ just fmt-toml
 brew install markdownlint-cli2
 # Install for Arch Linux
 sudo pacman -S markdownlint-cli2
+# Install with NPM
+npm install markdownlint-cli2 --global
 
 # Run
 markdownlint-cli2 "**/*.md" "#target" "#.github"
