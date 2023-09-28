@@ -35,11 +35,12 @@ optional = true
 default = ["native"]
 client = ["dep:tonic"]
 native = [
-"dep:ed25519-consensus",
-"dep:hex",
-"dep:sequencer-validation",
-"dep:sha2",
-"dep:tracing"]
+  "dep:ed25519-consensus",
+  "dep:hex",
+  "dep:sequencer-validation",
+  "dep:sha2",
+  "dep:tracing",
+]
 server = ["dep:tonic"]
 
 [dev-dependencies]
