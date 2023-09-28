@@ -19,7 +19,6 @@ prost-types = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
-telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 tendermint = { workspace = true }
 tendermint-rpc = { workspace = true }
 tendermint-proto = { workspace = true }
@@ -35,6 +34,7 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
 astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 astria-sequencer-types = { path = "../astria-sequencer-types" }
 sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 
 [dev-dependencies]

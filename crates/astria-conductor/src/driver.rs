@@ -9,10 +9,6 @@ use color_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-// use futures::{
-//     io::empty,
-//     StreamExt,
-// };
 use sequencer_client::{
     tendermint,
     NewBlockStreamError,
@@ -81,8 +77,6 @@ pub(crate) struct Driver {
     executor_tx: executor::Sender,
 
     /// A client that subscribes to new sequencer blocks from cometbft.
-    // TODO: update to option
-    // sequencer_client: SequencerClient,
     sequencer_client: Option<SequencerClient>,
 
     is_shutdown: Mutex<bool>,
