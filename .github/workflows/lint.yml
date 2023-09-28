@@ -66,8 +66,8 @@ jobs:
       - uses: DavidAnson/markdownlint-cli2-action@v11
         with:
           globs: |
-            '**/*.md'
-            '#.github'
+            **/*.md
+            #.github
 
   lint:
     needs: [proto, rust, toml, markdown]
