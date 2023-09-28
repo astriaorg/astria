@@ -64,7 +64,7 @@ jobs:
             lint_workflow:
               - '.github/workflows/lint.yml'
             crates:
-              - 'crates/**'
+              - 'crates/**!(*.md)'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - '.cargo/**'
