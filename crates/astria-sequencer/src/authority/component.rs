@@ -49,22 +49,26 @@ impl Component for AuthorityComponent {
     }
 
     #[instrument(name = "AuthorityComponent::begin_block", skip(state))]
-    async fn begin_block<S: StateWriteExt + 'static>(state: &mut Arc<S>, begin_block: &BeginBlock) {
+    async fn begin_block<S: StateWriteExt + 'static>(
+        state: &mut Arc<S>,
+        begin_block: &BeginBlock,
+    ) -> Result<()> {
         let mut current_set = state
             .get_validator_set()
             .await
-            .expect("failed getting validator set");
+            .context("failed getting validator set")?;
 
         for misbehaviour in &begin_block.byzantine_validators {
             let address = tendermint::account::Id::new(misbehaviour.validator.address);
             current_set.remove(&address);
         }
 
-        let state =
-            Arc::get_mut(state).expect("must only have one reference to the state; this is a bug");
+        let state = Arc::get_mut(state)
+            .context("must only have one reference to the state; this is a bug")?;
         state
             .put_validator_set(current_set)
-            .expect("failed putting validator set");
+            .context("failed putting validator set")?;
+        Ok(())
     }
 
     #[instrument(name = "AuthorityComponent::end_block", skip(state))]

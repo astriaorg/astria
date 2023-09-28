@@ -117,7 +117,7 @@ impl App {
     pub(crate) async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
-    ) -> Vec<abci::Event> {
+    ) -> anyhow::Result<Vec<abci::Event>> {
         let mut state_tx = StateDelta::new(self.state.clone());
 
         // store the block height
@@ -127,14 +127,18 @@ impl App {
 
         // call begin_block on all components
         let mut arc_state_tx = Arc::new(state_tx);
-        AccountsComponent::begin_block(&mut arc_state_tx, begin_block).await;
-        AuthorityComponent::begin_block(&mut arc_state_tx, begin_block).await;
+        AccountsComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .context("failed to call begin_block on AccountsComponent")?;
+        AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .context("failed to call begin_block on AuthorityComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
 
         self.processed_txs = 0;
-        self.apply(state_tx)
+        Ok(self.apply(state_tx))
     }
 
     #[instrument(name = "App:deliver_tx", skip(self))]
@@ -443,7 +447,7 @@ mod test {
         };
         begin_block.header.height = Height::try_from(1u8).unwrap();
 
-        app.begin_block(&begin_block).await;
+        app.begin_block(&begin_block).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 1);
         assert_eq!(
             app.state.get_block_timestamp().await.unwrap(),
@@ -499,7 +503,7 @@ mod test {
         };
         begin_block.header.height = Height::try_from(1u8).unwrap();
 
-        app.begin_block(&begin_block).await;
+        app.begin_block(&begin_block).await.unwrap();
 
         // assert that validator with pubkey_a is removed
         let validator_set = app.state.get_validator_set().await.unwrap();
