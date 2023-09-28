@@ -155,7 +155,11 @@ impl Consensus {
         &mut self,
         begin_block: request::BeginBlock,
     ) -> anyhow::Result<response::BeginBlock> {
-        let events = self.app.begin_block(&begin_block).await;
+        let events = self
+            .app
+            .begin_block(&begin_block)
+            .await
+            .context("failed to call App::begin_block")?;
         Ok(response::BeginBlock {
             events,
         })
