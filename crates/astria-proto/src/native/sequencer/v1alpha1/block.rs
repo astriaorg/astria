@@ -1,9 +1,20 @@
+use prost::Message;
+use sequencer_validation::MerkleTree;
+
+use super::{
+    SignedTransaction,
+    SignedTransactionError,
+};
 use crate::{
     generated::sequencer::v1alpha1 as raw,
     native::{
-        sequencer::v1alpha1::validation::{
-            InclusionProof,
-            InclusionProofError,
+        sequencer::v1alpha1::{
+            validation::{
+                InclusionProof,
+                InclusionProofError,
+            },
+            Action,
+            SequenceAction,
         },
         Protobuf as _,
     },
@@ -72,7 +83,7 @@ pub enum SequencerBlockError {
         "the `chain_id_commitments` field in the raw sequencer block does not match match the \
          commitment generated from the chain IDs recorded in the `rollup_transactions` field"
     )]
-    ChainIdsCommitmentNotGenerated,
+    ChainIdsCommitmentWrong,
     #[error("the chain ID commitiment contained in the raw sequencer block was not 32 bytes long")]
     ChainIdsCommitmentNot32Bytes,
     #[error("the `header` field in the raw sequencer block was not set")]
@@ -89,7 +100,7 @@ pub enum SequencerBlockError {
         "the last commit hash contained in the raw sequencer block does not match match the hash \
          generated from the last commit signatures"
     )]
-    LastCommitHashNotGenerated,
+    LastCommitHashWrong,
     #[error(
         "the `header.last_commit_hash` field in the raw sequencer block was not set, even though \
          the height was above 1"
@@ -194,7 +205,7 @@ impl UnverifiedSequencerBlock {
         })
     }
 
-    pub fn verify(self) -> Result<SequencerBlock, SequencerBlockError> {
+    pub fn into_verified(self) -> Result<SequencerBlock, SequencerBlockError> {
         let Self {
             block_hash,
             header,
@@ -221,7 +232,7 @@ impl UnverifiedSequencerBlock {
             rollup_transactions.iter().map(|tx| &tx.chain_id[..]),
         );
         if chain_ids_commitment != generated_commitment {
-            return Err(SequencerBlockError::ChainIdsCommitmentNotGenerated);
+            return Err(SequencerBlockError::ChainIdsCommitmentWrong);
         }
 
         // genesis and height 1 do not have a last commit
@@ -246,7 +257,7 @@ impl UnverifiedSequencerBlock {
         };
 
         if hash != calculate_last_commit_hash(&commit) {
-            return Err(SequencerBlockError::LastCommitHashNotGenerated)?;
+            return Err(SequencerBlockError::LastCommitHashWrong)?;
         }
 
         Ok(SequencerBlock {
@@ -259,6 +270,69 @@ impl UnverifiedSequencerBlock {
             chain_ids_commitment,
         })
     }
+
+    pub fn into_verified_unchecked(self) -> SequencerBlock {
+        let Self {
+            block_hash,
+            header,
+            last_commit,
+            rollup_transactions,
+            action_tree_root,
+            action_tree_inclusion_proof,
+            chain_ids_commitment,
+        } = self;
+
+        SequencerBlock {
+            block_hash,
+            header,
+            last_commit,
+            rollup_transactions,
+            action_tree_root,
+            action_tree_inclusion_proof,
+            chain_ids_commitment,
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum CometBftConversionError {
+    #[error("the 1st element in the cometbft datas list exists, but was not 32 bytes long")]
+    ActionTreeRootNot32Bytes,
+    #[error("the 2nd element in the cometbft datas list exists, but was not 32 bytes long")]
+    ChainIdsCommitmentNot32Bytes,
+    #[error(
+        "the chain IDs commitment constructed from the chain IDs in the signed transactions \
+         deserialized from the datas list does not match the 2nd element of the datas field"
+    )]
+    ChainIdsCommitmentWrong,
+    #[error(
+        "the `header.data_hash` field in the cometbft block does not match the hash generated \
+         from its `datas` field"
+    )]
+    DataHashWrong,
+    #[error(
+        "failed constructing the inclusion proof for the root of the data list in the cometbft \
+         header"
+    )]
+    InclusionProof(#[source] sequencer_validation::IndexOutOfBounds),
+    #[error("the `header.data_hash` field in the cometbft block was not set")]
+    MissingDataHash,
+    #[error(
+        "the 1st element in the cometbft datas list is the action tree root, but the list was \
+         shorter than that"
+    )]
+    NoActionTreeRoot,
+    #[error(
+        "the 2nd element in the cometbft datas list is the chain IDs commitment, but the list was \
+         shorter than that"
+    )]
+    NoChainIdsCommitment,
+    #[error(
+        "failed converting a raw protobuf signed transaction to a common astria signed transaction"
+    )]
+    RawSignedTransactionConversion(#[source] SignedTransactionError),
+    #[error("failed decoding a cometbft datas element into a protobuf raw signed transaction")]
+    SignedTransactionProtobufDecode(#[source] prost::DecodeError),
 }
 
 #[derive(Clone)]
@@ -302,9 +376,126 @@ impl SequencerBlock {
         }
     }
 
-    pub fn try_from_raw(raw: raw::SequencerBlock) -> Result<Self, SequencerBlockError> {
-        UnverifiedSequencerBlock::try_from_raw(raw)?.verify()
+    /// Converts a Tendermint block into a `SequencerBlockData`.
+    /// it parses the block for `SequenceAction`s and namespaces them accordingly.
+    ///
+    /// # Errors
+    ///
+    /// - if the block has no data hash
+    /// - if the block has no transactions
+    /// - if the block's first transaction is not the 32-byte action tree root
+    /// - if a transaction in the block cannot be parsed
+    /// - if the block's `data_hash` does not match the one calculated from the transactions
+    /// - if the inclusion proof of the action tree root in the block's `data_hash` cannot be
+    ///   generated
+    ///
+    /// See `specs/sequencer-inclusion-proofs.md` for most details on the action tree root
+    /// and inclusion proof purpose.
+    pub fn try_from_cometbft(
+        block: tendermint::block::Block,
+    ) -> Result<Self, CometBftConversionError> {
+        let Some(data_hash) = block.header.data_hash else {
+            return Err(CometBftConversionError::MissingDataHash);
+        };
+
+        let mut datas = block.data.iter();
+
+        // The first entry is the action tree root
+        let action_tree_root: [u8; 32] = datas
+            .next()
+            .map(Vec::as_slice)
+            .ok_or(CometBftConversionError::NoActionTreeRoot)?
+            .try_into()
+            .map_err(|_| CometBftConversionError::ActionTreeRootNot32Bytes)?;
+
+        // The second entry is the chain IDs commitment
+        let chain_ids_commitment: [u8; 32] = datas
+            .next()
+            .map(Vec::as_slice)
+            .ok_or(CometBftConversionError::NoChainIdsCommitment)?
+            .try_into()
+            .map_err(|_| CometBftConversionError::ChainIdsCommitmentNot32Bytes)?;
+
+        // The remaining bytes are the rollup transactions
+        let mut rollup_map = indexmap::IndexMap::<_, Vec<_>>::new();
+        for tx_bytes in datas {
+            let raw_tx = raw::SignedTransaction::decode(&**tx_bytes)
+                .map_err(CometBftConversionError::SignedTransactionProtobufDecode)?;
+            let tx = SignedTransaction::try_from_raw(raw_tx)
+                .map_err(CometBftConversionError::RawSignedTransactionConversion)?;
+
+            for action in tx.into_unsigned_transaction().actions {
+                if let Action::Sequence(seq) = action {
+                    let SequenceAction {
+                        chain_id,
+                        data,
+                    } = seq;
+                    if let Some(datas) = rollup_map.get_mut(&chain_id) {
+                        datas.push(data)
+                    } else {
+                        rollup_map.insert(chain_id, vec![data]);
+                    }
+                }
+            }
+        }
+
+        // generate the action tree root proof of inclusion in `Header::data_hash`
+        let data_tree = calculate_merkle_tree_from_cometbft_data(&block.data);
+        if data_tree.root() != data_hash.as_bytes() {
+            return Err(CometBftConversionError::DataHashWrong);
+        }
+        let action_tree_inclusion_proof = data_tree
+            .prove_inclusion(0) // action tree root is always the first tx in a block
+            .map_err(CometBftConversionError::InclusionProof)?;
+
+        // ensure the chain IDs commitment matches the one calculated from the rollup data
+        rollup_map.sort_keys();
+        let chain_ids = rollup_map
+            .keys()
+            .copied()
+            .map(Into::into)
+            .collect::<Vec<_>>();
+        let calculated_chain_ids_commitment = MerkleTree::from_leaves(chain_ids).root();
+        if calculated_chain_ids_commitment != chain_ids_commitment {
+            return Err(CometBftConversionError::ChainIdsCommitmentWrong);
+        }
+        let rollup_transactions = rollup_map
+            .into_iter()
+            .map(|(chain_id, transactions)| RollupTransactions {
+                chain_id,
+                transactions,
+            })
+            .collect();
+
+        let tendermint::hash::Hash::Sha256(block_hash) = block.header.hash() else {
+            panic!(
+                "Header::hash is guaranteed to produce the Sha256 variant of the `Hash` type. If \
+                 that has changed then that is a breaking change. Please report."
+            );
+        };
+        Ok(Self {
+            block_hash,
+            header: block.header,
+            last_commit: block.last_commit,
+            rollup_transactions,
+            action_tree_root,
+            action_tree_inclusion_proof,
+            chain_ids_commitment,
+        })
     }
+
+    pub fn try_from_raw(raw: raw::SequencerBlock) -> Result<Self, SequencerBlockError> {
+        UnverifiedSequencerBlock::try_from_raw(raw)
+            .and_then(UnverifiedSequencerBlock::into_verified)
+    }
+}
+
+fn calculate_merkle_tree_from_cometbft_data(txs: &[Vec<u8>]) -> MerkleTree {
+    let hashed_txs = txs
+        .into_iter()
+        .map(|tx| sequencer_validation::utils::sha256_hash(tx).into())
+        .collect::<Vec<_>>();
+    MerkleTree::from_leaves(hashed_txs)
 }
 
 #[must_use]

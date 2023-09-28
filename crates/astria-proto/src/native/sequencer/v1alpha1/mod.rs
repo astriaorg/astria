@@ -174,6 +174,11 @@ impl SignedTransaction {
     }
 
     #[must_use]
+    pub fn into_unsigned_transaction(self) -> UnsignedTransaction {
+        self.transaction
+    }
+
+    #[must_use]
     pub fn actions(&self) -> &[Action] {
         &self.transaction.actions
     }
