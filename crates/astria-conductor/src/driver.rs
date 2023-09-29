@@ -74,8 +74,8 @@ pub(crate) struct Driver {
     /// The channel used to send messages to the executor task.
     executor_tx: executor::Sender,
 
-    /// A client that subscribes to new sequencer blocks from cometbft.
-    sequencer_client: SequencerClient,
+    /// URL used for connecting to sequencer
+    sequencer_ws_url: String,
 
     is_shutdown: Mutex<bool>,
 }
@@ -130,17 +130,13 @@ impl Driver {
             (Some(reader_join_handle), Some(reader_tx))
         };
 
-        let sequencer_client = SequencerClient::new(&conf.sequencer_url)
-            .await
-            .wrap_err("failed constructing a cometbft websocket client to read off sequencer")?;
-
         Ok((
             Self {
                 cmd_tx: cmd_tx.clone(),
                 cmd_rx,
                 reader_tx,
                 executor_tx,
-                sequencer_client,
+                sequencer_ws_url: conf.sequencer_url.clone(),
                 is_shutdown: Mutex::new(false),
             },
             executor_join_handle,
@@ -192,8 +188,11 @@ impl Driver {
     async fn get_new_block_stream(&self) -> Result<NewBlocksStream> {
         use sequencer_client::SequencerSubscriptionClientExt as _;
 
-        let block_stream = self
-            .sequencer_client
+        let sequencer_client = SequencerClient::new(&self.sequencer_ws_url)
+            .await
+            .wrap_err("failed constructing a cometbft websocket client to read off sequencer")?;
+
+        let block_stream = sequencer_client
             .client
             .subscribe_new_block_data()
             .await?;
