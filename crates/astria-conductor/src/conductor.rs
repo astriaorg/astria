@@ -1,8 +1,12 @@
-use astria_sequencer_types::ChainId;
+use astria_sequencer_types::{
+    ChainId,
+    Namespace,
+};
 use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use sequencer_client::WebSocketClient;
 use tokio::{
     select,
     signal::unix::{
@@ -14,14 +18,18 @@ use tokio::{
         oneshot,
         watch,
     },
+    task::JoinHandle,
 };
 use tracing::{
     error,
     info,
+    warn,
 };
 
 use crate::{
+    block_verifier::BlockVerifier,
     executor::Executor,
+    reader::Reader,
     Config,
     Driver,
 };
@@ -31,6 +39,9 @@ pub struct Conductor {
     executor_shutdown: oneshot::Sender<()>,
     driver: Driver,
     driver_shutdown: oneshot::Sender<()>,
+    reader: Option<Reader>,
+    reader_shutdown: Option<oneshot::Sender<()>>,
+    sequencer_driver: JoinHandle<Result<(), sequencer_client::tendermint::Error>>,
 }
 
 impl Conductor {
@@ -49,16 +60,53 @@ impl Conductor {
         .await
         .wrap_err("failed to construct executor")?;
 
+        let (sequencer_client, sequencer_driver) = {
+            let (client, driver) = WebSocketClient::new(&*cfg.sequencer_url).await.wrap_err(
+                "failed constructing a cometbft websocket client to read off sequencer",
+            )?;
+            let driver_handle = tokio::spawn(async move { driver.run().await });
+            (client, driver_handle)
+        };
+
         let (driver_shutdown_tx, driver_shutdown_rx) = oneshot::channel();
-        let driver = Driver::new(cfg, driver_shutdown_rx, executor_tx)
-            .await
-            .wrap_err("failed initializing driver")?;
+        let driver = Driver::new(
+            sequencer_client.clone(),
+            driver_shutdown_rx,
+            executor_tx.clone(),
+        )
+        .await
+        .wrap_err("failed initializing driver")?;
+
+        let mut reader = None;
+        let mut reader_shutdown = None;
+        if !cfg.disable_finalization {
+            let (shutdown_tx, shutdown_rx) = oneshot::channel();
+            let block_verifier = BlockVerifier::new(sequencer_client.clone());
+            reader = Some(
+                Reader::new(
+                    &cfg.celestia_node_url,
+                    &cfg.celestia_bearer_token,
+                    std::time::Duration::from_secs(3),
+                    executor_tx.clone(),
+                    block_verifier,
+                    Namespace::from_slice(cfg.chain_id.as_bytes()),
+                    shutdown_rx,
+                )
+                .await
+                .wrap_err("failed constructing data availability reader")?,
+            );
+            reader_shutdown = Some(shutdown_tx);
+        };
+
         Ok(Self {
             signals,
             driver,
             driver_shutdown: driver_shutdown_tx,
             executor,
             executor_shutdown: executor_shutdown_tx,
+            reader,
+            reader_shutdown,
+            sequencer_driver,
         })
     }
 
@@ -73,10 +121,18 @@ impl Conductor {
             executor_shutdown,
             driver,
             driver_shutdown,
+            reader,
+            reader_shutdown,
+            mut sequencer_driver,
         } = self;
 
         let mut driver = tokio::spawn(driver.run_until_stopped());
         let mut executor = tokio::spawn(executor.run_until_stopped());
+        let mut reader = if let Some(reader) = reader {
+            Some(tokio::spawn(reader.run()))
+        } else {
+            None
+        };
 
         loop {
             select! {
@@ -101,6 +157,15 @@ impl Conductor {
                     break;
                 }
 
+                ret = async { reader.as_mut().unwrap().await }, if reader.is_some() => {
+                    match ret {
+                        Ok(Ok(())) => warn!("reader task exited unexpectedly; shutting down"),
+                        Ok(Err(e)) => warn!(err.message = %e, err.cause = ?e, "reader task exited with error; shutting down"),
+                        Err(e) => warn!(err.cause = ?e, "reader task failed; shutting down"),
+                    }
+                    break;
+                }
+
                 res = &mut executor => {
                     match res {
                         Ok(()) => error!("executor task exited unexpectedly"),
@@ -108,10 +173,20 @@ impl Conductor {
                     }
                     break;
                 }
+
+                driver_res = &mut sequencer_driver => {
+                    match driver_res {
+                        Ok(Ok(())) => warn!("sequencer client websocket driver exited unexpectedly"),
+                        Ok(Err(e)) => warn!(err.message = %e, err.cause = ?e, "sequencer client websocket driver exited with error"),
+                        Err(e) => warn!(err.cause = ?e, "sequencer client driver task failed"),
+                    }
+                    break;
+                }
             }
         }
         let _ = executor_shutdown.send(());
         let _ = driver_shutdown.send(());
+        let _ = reader_shutdown.map(|shutdown| shutdown.send(()));
 
         Ok(())
     }
