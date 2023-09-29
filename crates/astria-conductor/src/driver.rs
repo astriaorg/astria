@@ -24,7 +24,10 @@ use tokio::{
         },
         Mutex,
     },
-    task::JoinHandle,
+    task::{
+        spawn,
+        JoinHandle,
+    }
 };
 use tracing::{
     info,
@@ -44,6 +47,7 @@ use crate::{
         self,
         ReaderCommand,
     },
+    queue::Queue,
 };
 
 /// The channel through which the user can send commands to the driver.
@@ -56,6 +60,11 @@ pub(crate) type Receiver = UnboundedReceiver<DriverCommand>;
 pub(crate) enum DriverCommand {
     /// Get new blocks
     GetNewBlocks,
+    /// Add Block to driver queue
+    ProcessNewBlock {
+        block: Box<SequencerBlockData>,
+    },
+
     /// Gracefully shuts down the driver and its components.
     Shutdown,
 }
@@ -76,9 +85,14 @@ pub(crate) struct Driver {
     /// A client that subscribes to new sequencer blocks from cometbft.
     sequencer_client: SequencerClient,
 
+    queue: Queue,
+
+    sync_task: Option<JoinHandle<Result<()>>>,
+
     is_shutdown: Mutex<bool>,
 }
 
+#[derive(Clone)]
 struct SequencerClient {
     client: WebSocketClient,
     _driver: JoinHandle<Result<(), tendermint::Error>>,
@@ -141,6 +155,8 @@ impl Driver {
                 executor_tx,
                 sequencer_client,
                 is_shutdown: Mutex::new(false),
+                queue: Queue::new(conf.genesis_sequencer_block_height),
+                sync_task: None,
             },
             executor_join_handle,
             reader_join_handle,
@@ -185,7 +201,9 @@ impl Driver {
         Ok(())
     }
 
-    async fn handle_new_block(&self, block: Result<SequencerBlockData, NewBlockStreamError>) {
+    pub(crate) 
+
+    async fn handle_new_block(&mut self, block: Result<SequencerBlockData, NewBlockStreamError>) {
         let block = match block {
             Err(err) => {
                 warn!(err.msg = %err, err.cause = ?err, "encountered an error while receiving a new block from sequencer");
@@ -194,13 +212,30 @@ impl Driver {
             Ok(new_block) => new_block,
         };
 
-        if let Err(err) = self
-            .executor_tx
-            .send(ExecutorCommand::BlockReceivedFromSequencer {
-                block: Box::new(block),
-            })
-        {
-            warn!(err.msg = %err, err.cause = ?err, "failed sending new block received from sequencer to executor");
+        self.queue.insert(block);
+        match self.queue.get_executable_block() {
+            Some(exec_block) => {
+                if let Err(err) = self
+                    .executor_tx
+                    .send(ExecutorCommand::BlockReceivedFromSequencer {
+                        block: Box::new(exec_block),
+                    })
+                {
+                    warn!(err.msg = %err, err.cause = ?err, "failed sending new block received from sequencer to executor");
+                } else {
+                    self.queue.increment_head_height();
+                }
+            }
+            None => {
+                if self.sync_task.is_none() {
+                    if let Some((start_block, end_block)) = self.queue.get_missing_block_end() {
+                        // TODO: Figure out how sync task can use sequencer_client?
+                        let sequencer_client = self.sequencer_client.clone();
+                        let sender = self.cmd_tx.clone();
+                        self.sync_task = Some(spawn(sync(sender, start_block, end_block)))
+                    }
+                }
+            }
         }
     }
 
@@ -208,6 +243,10 @@ impl Driver {
         match cmd {
             DriverCommand::Shutdown => {
                 self.shutdown().await?;
+            }
+
+            DriverCommand::ProcessNewBlock { block } => {
+                self.handle_new_block(Ok(*block));
             }
 
             DriverCommand::GetNewBlocks => {
@@ -242,4 +281,9 @@ impl Driver {
 
         Ok(())
     }
+}
+
+async fn sync(driver_tx: Sender, start_block: u64, end_block: u64) -> Result<()> {
+    // Run on an interval to fetch data from sequencer, propogate commands back to add to queue (need a join handler here?)
+    todo!();
 }

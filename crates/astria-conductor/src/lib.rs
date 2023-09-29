@@ -16,6 +16,7 @@ pub(crate) mod execution_client;
 pub(crate) mod executor;
 pub(crate) mod reader;
 pub(crate) mod types;
+pub(crate) mod queue;
 
 pub use config::Config;
 pub(crate) use driver::Driver;
