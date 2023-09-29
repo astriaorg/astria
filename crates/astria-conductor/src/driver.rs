@@ -175,6 +175,9 @@ impl Driver {
                 .await
                 .wrap_err("failed subscribing to sequencer to receive new blocks")?
         } else {
+            // new_blocks gets set to this if we don't have a sequencer client.
+            // This stream will always return Pending when polled, effectively
+            // skipping it in the select loop below.
             NewBlocksStream::empty()
         };
         // FIXME(https://github.com/astriaorg/astria/issues/381): the event handlers

@@ -252,11 +252,15 @@ pub struct NewBlocksStream {
 }
 
 impl NewBlocksStream {
+    /// Returns an empty stream that will never return any items.
+    ///
+    /// This function will hang indefinitely when called, and should only be
+    /// used with a tokio select! macro.
     #[must_use]
     pub fn empty() -> Self {
         use futures::stream::{self,};
         NewBlocksStream {
-            inner: Box::pin(stream::empty()),
+            inner: Box::pin(stream::pending()),
         }
     }
 }
