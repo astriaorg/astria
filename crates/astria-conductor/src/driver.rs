@@ -10,6 +10,7 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use sequencer_client::{
+    extension_trait::NewBlocksStream,
     tendermint,
     NewBlockStreamError,
     WebSocketClient,
@@ -151,13 +152,10 @@ impl Driver {
     #[instrument(name = "driver", skip_all)]
     pub(crate) async fn run(mut self) -> Result<()> {
         use futures::StreamExt as _;
-        use sequencer_client::SequencerSubscriptionClientExt as _;
 
         info!("Starting driver event loop.");
         let mut new_blocks = self
-            .sequencer_client
-            .client
-            .subscribe_new_block_data()
+            .get_new_block_stream()
             .await
             .wrap_err("failed subscribing to sequencer to receive new blocks")?;
         // FIXME(https://github.com/astriaorg/astria/issues/381): the event handlers
@@ -168,8 +166,14 @@ impl Driver {
                     if let Some(block) = new_block {
                         self.handle_new_block(block).await
                     } else {
-                        warn!("sequencer new-block subscription closed unexpectedly; shutting down driver");
-                        break;
+                        warn!("sequencer new-block subscription closed; restarting");
+                        match self.get_new_block_stream().await {
+                            Ok(res) => new_blocks = res,
+                            Err(_) => {
+                                warn!("sequencer new-block restart failed; shutting down driver");
+                                break;
+                            }
+                        }
                     }
                 }
                 cmd = self.cmd_rx.recv() => {
@@ -183,6 +187,18 @@ impl Driver {
             }
         }
         Ok(())
+    }
+
+    async fn get_new_block_stream(&self) -> Result<NewBlocksStream> {
+        use sequencer_client::SequencerSubscriptionClientExt as _;
+
+        let block_stream = self
+            .sequencer_client
+            .client
+            .subscribe_new_block_data()
+            .await?;
+
+        Ok(block_stream)
     }
 
     async fn handle_new_block(&self, block: Result<SequencerBlockData, NewBlockStreamError>) {
