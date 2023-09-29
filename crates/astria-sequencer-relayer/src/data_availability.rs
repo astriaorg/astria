@@ -373,7 +373,7 @@ impl CelestiaClient {
                 match SignedNamespaceData::<SequencerNamespaceData>::from_bytes(&blob.data) {
                     Ok(data) => Some(data),
                     Err(e) => {
-                        warn!(error.msg = %e, error.cause_chain = ?e, "failed deserializing sequencer namespace data from bytes stored in retrieved celestia blob");
+                        warn!(error.msg = %e, error.cause_chain = ?e, height = %height, blob.data = ?blob.data, "failed deserializing sequencer namespace data from bytes stored in retrieved celestia blob");
                         None
                     }
                 }
@@ -528,8 +528,7 @@ fn filter_and_convert_rollup_data_blobs(
             if let Ok(data) = SignedNamespaceData::<RollupNamespaceData>::from_bytes(&blob.data) {
                 Some((Namespace::new(blob.namespace_id), data))
             } else {
-                // FIXME: provide some info to identify the rollup namespace data?
-                warn!("failed to deserialize rollup namespace data");
+                warn!(blob.namespace_id = ?blob.namespace_id, blob.data = ?blob.data, "failed to deserialize rollup namespace data");
                 None
             }
         })

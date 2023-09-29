@@ -217,9 +217,12 @@ impl Reader {
                     .validate_signed_namespace_data(&data)
                     .await
                 {
-                    // FIXME: provide more information here to identify the particular block?
+                    let block_height = data.data.header.height;
+                    let block_hash = data.data.block_hash;
                     warn!(
                         error = ?e,
+                        block.height = ?block_height,
+                        block.hash = ?block_hash,
                         "failed to validate signed namespace data; skipping"
                     );
                     continue 'get_sequencer_blocks;
