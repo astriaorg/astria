@@ -75,8 +75,6 @@ pub(crate) struct Driver {
     sequencer_client: WebSocketClient,
 
     sequencer_driver: JoinHandle<Result<(), tendermint::Error>>,
-
-    is_shutdown: Mutex<bool>,
 }
 
 impl Driver {
@@ -121,7 +119,6 @@ impl Driver {
                 executor_tx,
                 sequencer_client,
                 sequencer_driver,
-                is_shutdown: Mutex::new(false),
             },
             executor_join_handle,
             reader_join_handle,
@@ -154,7 +151,7 @@ impl Driver {
                 }
                 cmd = self.cmd_rx.recv() => {
                     if let Some(cmd) = cmd {
-                        self.handle_driver_command(cmd).await.wrap_err("failed to handle driver command")?;
+                        self.handle_driver_command(cmd).wrap_err("failed to handle driver command")?;
                     } else {
                         info!("Driver command channel closed.");
                         break;
@@ -192,11 +189,9 @@ impl Driver {
         }
     }
 
-    async fn handle_driver_command(&mut self, cmd: DriverCommand) -> Result<()> {
+    fn handle_driver_command(&mut self, cmd: DriverCommand) -> Result<()> {
         match cmd {
-            DriverCommand::Shutdown => {
-                self.shutdown().await?;
-            }
+            DriverCommand::Shutdown => self.shutdown(),
 
             DriverCommand::GetNewBlocks => {
                 let Some(reader_tx) = &self.reader_tx else {
@@ -213,21 +208,16 @@ impl Driver {
     }
 
     /// Sends shutdown commands to the other actors.
-    async fn shutdown(&mut self) -> Result<()> {
-        let mut is_shutdown = self.is_shutdown.lock().await;
-        if *is_shutdown {
-            return Ok(());
-        }
-        *is_shutdown = true;
-
+    fn shutdown(&mut self) {
         info!("Shutting down driver.");
-        self.executor_tx.send(ExecutorCommand::Shutdown)?;
+        if let Err(e) = self.executor_tx.send(ExecutorCommand::Shutdown) {
+            warn!(error.message = %e, error.cause = ?e, "failed sending shutdown command to executor");
+        }
 
-        let Some(reader_tx) = &self.reader_tx else {
-            return Ok(());
+        if let Some(reader_tx) = &self.reader_tx {
+            if let Err(e) = reader_tx.send(ReaderCommand::Shutdown) {
+                warn!(error.message = %e, error.cause = ?e, "failed sending shutdown command to reader");
+            }
         };
-        reader_tx.send(ReaderCommand::Shutdown)?;
-
-        Ok(())
     }
 }
