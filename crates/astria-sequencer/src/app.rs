@@ -117,7 +117,7 @@ impl App {
     pub(crate) async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
-    ) -> Vec<abci::Event> {
+    ) -> anyhow::Result<Vec<abci::Event>> {
         let mut state_tx = StateDelta::new(self.state.clone());
 
         // store the block height
@@ -127,14 +127,18 @@ impl App {
 
         // call begin_block on all components
         let mut arc_state_tx = Arc::new(state_tx);
-        AccountsComponent::begin_block(&mut arc_state_tx, begin_block).await;
-        AuthorityComponent::begin_block(&mut arc_state_tx, begin_block).await;
+        AccountsComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .context("failed to call begin_block on AccountsComponent")?;
+        AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .context("failed to call begin_block on AuthorityComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
 
         self.processed_txs = 0;
-        self.apply(state_tx)
+        Ok(self.apply(state_tx))
     }
 
     #[instrument(name = "App:deliver_tx", skip(self))]
@@ -444,11 +448,70 @@ mod test {
         };
         begin_block.header.height = Height::try_from(1u8).unwrap();
 
-        app.begin_block(&begin_block).await;
+        app.begin_block(&begin_block).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 1);
         assert_eq!(
             app.state.get_block_timestamp().await.unwrap(),
             begin_block.header.time
+        );
+    }
+
+    #[tokio::test]
+    async fn app_begin_block_remove_byzantine_validators() {
+        use tendermint::{
+            abci::types,
+            validator,
+        };
+
+        let pubkey_a = tendermint::public_key::PublicKey::from_raw_ed25519(&[1; 32]).unwrap();
+        let pubkey_b = tendermint::public_key::PublicKey::from_raw_ed25519(&[2; 32]).unwrap();
+
+        let initial_validator_set = vec![
+            validator::Update {
+                pub_key: pubkey_a,
+                power: 100u32.into(),
+            },
+            validator::Update {
+                pub_key: pubkey_b,
+                power: 1u32.into(),
+            },
+        ];
+
+        let mut app = initialize_app(None, initial_validator_set.clone()).await;
+
+        let misbehavior = types::Misbehavior {
+            kind: types::MisbehaviorKind::Unknown,
+            validator: types::Validator {
+                address: tendermint::account::Id::from(pubkey_a)
+                    .as_bytes()
+                    .try_into()
+                    .unwrap(),
+                power: 0u32.into(),
+            },
+            height: Height::default(),
+            time: Time::now(),
+            total_voting_power: 101u32.into(),
+        };
+
+        let mut begin_block = abci::request::BeginBlock {
+            header: default_header(),
+            hash: Hash::default(),
+            last_commit_info: CommitInfo {
+                votes: vec![],
+                round: Round::default(),
+            },
+            byzantine_validators: vec![misbehavior],
+        };
+        begin_block.header.height = Height::try_from(1u8).unwrap();
+
+        app.begin_block(&begin_block).await.unwrap();
+
+        // assert that validator with pubkey_a is removed
+        let validator_set = app.state.get_validator_set().await.unwrap();
+        assert_eq!(validator_set.len(), 1);
+        assert_eq!(
+            validator_set.get(&pubkey_b.into()).unwrap().power,
+            1u32.into()
         );
     }
 
@@ -584,7 +647,7 @@ mod test {
 
         let validator_updates = app.state.get_validator_updates().await.unwrap();
         assert_eq!(validator_updates.len(), 1);
-        assert_eq!(validator_updates.get(&pub_key).unwrap(), &update);
+        assert_eq!(validator_updates.get(&pub_key.into()).unwrap(), &update);
     }
 
     #[tokio::test]
@@ -678,10 +741,10 @@ mod test {
         // validator with pubkey_c should be added
         let validator_set = app.state.get_validator_set().await.unwrap();
         assert_eq!(validator_set.len(), 2);
-        let validator_b = validator_set.get(&pubkey_b).unwrap();
+        let validator_b = validator_set.get(&pubkey_b.into()).unwrap();
         assert_eq!(validator_b.pub_key, pubkey_b);
         assert_eq!(validator_b.power, 100u32.into());
-        let validator_c = validator_set.get(&pubkey_c).unwrap();
+        let validator_c = validator_set.get(&pubkey_c.into()).unwrap();
         assert_eq!(validator_c.pub_key, pubkey_c);
         assert_eq!(validator_c.power, 100u32.into());
         assert_eq!(app.state.get_validator_updates().await.unwrap().len(), 0);

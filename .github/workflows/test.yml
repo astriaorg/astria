@@ -16,7 +16,7 @@ jobs:
   compiles:
     runs-on: buildjet-4vcpu-ubuntu-2204
     needs: run_checker
-    if: ${{ needs.run_checker.outputs.run_tests }}
+    if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.70.0
@@ -32,7 +32,7 @@ jobs:
   lockfile:
     runs-on: ubuntu-22.04
     needs: run_checker
-    if: ${{ needs.run_checker.outputs.run_tests }}
+    if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.70.0
@@ -45,7 +45,7 @@ jobs:
   rust:
     runs-on: buildjet-8vcpu-ubuntu-2204
     needs: run_checker
-    if: ${{ needs.run_checker.outputs.run_tests }}
+    if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.70.0
