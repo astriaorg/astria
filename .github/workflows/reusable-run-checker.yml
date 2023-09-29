@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
-    outputs: 
+    outputs:
       release_workflow: ${{ steps.filters.outputs.release_workflow }}
       test_workflow: ${{ steps.filters.outputs.test_workflow }}
       docker_workflow: ${{ steps.filters.outputs.docker_workflow }}
