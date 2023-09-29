@@ -12,6 +12,9 @@ use tracing::info;
 
 use crate::generated::sequencer::v1alpha1 as raw;
 
+#[cfg(feature = "celestia")]
+pub mod celestia;
+
 pub mod block;
 pub mod validation;
 

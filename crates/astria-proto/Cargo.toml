@@ -28,6 +28,11 @@ thiserror = { workspace = true }
 tonic = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
+[dependencies.celestia-jsonrpc-client]
+package = "astria-celestia-jsonrpc-client"
+path = "../astria-celestia-jsonrpc-client"
+optional = true
+
 [dependencies.sequencer-validation]
 package = "astria-sequencer-validation"
 path = "../astria-sequencer-validation"
@@ -35,6 +40,7 @@ optional = true
 
 [features]
 default = ["native"]
+celestia = ["dep:celestia-jsonrpc-client"]
 client = ["dep:tonic"]
 native = [
   "dep:ed25519-consensus",
