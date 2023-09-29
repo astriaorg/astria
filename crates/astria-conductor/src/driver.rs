@@ -146,7 +146,7 @@ impl Driver {
             select! {
                 new_block = new_blocks.next() => {
                     if let Some(block) = new_block {
-                        self.handle_new_block(block).await
+                        self.handle_new_block(block)
                     } else {
                         warn!("sequencer new-block subscription closed unexpectedly; shutting down driver");
                         break;
@@ -173,7 +173,7 @@ impl Driver {
         Ok(())
     }
 
-    async fn handle_new_block(&self, block: Result<SequencerBlockData, NewBlockStreamError>) {
+    fn handle_new_block(&self, block: Result<SequencerBlockData, NewBlockStreamError>) {
         let block = match block {
             Err(err) => {
                 warn!(err.msg = %err, err.cause = ?err, "encountered an error while receiving a new block from sequencer");
