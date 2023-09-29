@@ -28,20 +28,20 @@ use tracing::{
 
 use crate::{
     block_verifier::BlockVerifier,
+    data_availability,
     executor::Executor,
-    reader::Reader,
+    sequencer,
     Config,
-    Driver,
 };
 pub struct Conductor {
     signals: SignalReceiver,
     executor: Executor,
     executor_shutdown: oneshot::Sender<()>,
-    driver: Driver,
-    driver_shutdown: oneshot::Sender<()>,
-    reader: Option<Reader>,
-    reader_shutdown: Option<oneshot::Sender<()>>,
-    sequencer_driver: JoinHandle<Result<(), sequencer_client::tendermint::Error>>,
+    sequencer_reader: sequencer::Reader,
+    sequencer_reader_shutdown: oneshot::Sender<()>,
+    data_availability_reader: Option<data_availability::Reader>,
+    data_availability_reader_shutdown: Option<oneshot::Sender<()>>,
+    sequencer_websocket_driver: JoinHandle<Result<(), sequencer_client::tendermint::Error>>,
 }
 
 impl Conductor {
@@ -60,7 +60,7 @@ impl Conductor {
         .await
         .wrap_err("failed to construct executor")?;
 
-        let (sequencer_client, sequencer_driver) = {
+        let (sequencer_client, sequencer_websocket_driver) = {
             let (client, driver) = WebSocketClient::new(&*cfg.sequencer_url).await.wrap_err(
                 "failed constructing a cometbft websocket client to read off sequencer",
             )?;
@@ -68,22 +68,22 @@ impl Conductor {
             (client, driver_handle)
         };
 
-        let (driver_shutdown_tx, driver_shutdown_rx) = oneshot::channel();
-        let driver = Driver::new(
+        let (sequencer_shutdown_tx, sequencer_shutdown_rx) = oneshot::channel();
+        let sequencer_reader = sequencer::Reader::new(
             sequencer_client.clone(),
-            driver_shutdown_rx,
+            sequencer_shutdown_rx,
             executor_tx.clone(),
         )
         .await
         .wrap_err("failed initializing driver")?;
 
-        let mut reader = None;
-        let mut reader_shutdown = None;
+        let mut data_availability_reader = None;
+        let mut data_availability_reader_shutdown = None;
         if !cfg.disable_finalization {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             let block_verifier = BlockVerifier::new(sequencer_client.clone());
-            reader = Some(
-                Reader::new(
+            data_availability_reader = Some(
+                data_availability::Reader::new(
                     &cfg.celestia_node_url,
                     &cfg.celestia_bearer_token,
                     std::time::Duration::from_secs(3),
@@ -95,18 +95,18 @@ impl Conductor {
                 .await
                 .wrap_err("failed constructing data availability reader")?,
             );
-            reader_shutdown = Some(shutdown_tx);
+            data_availability_reader_shutdown = Some(shutdown_tx);
         };
 
         Ok(Self {
             signals,
-            driver,
-            driver_shutdown: driver_shutdown_tx,
+            sequencer_reader,
+            sequencer_reader_shutdown: sequencer_shutdown_tx,
             executor,
             executor_shutdown: executor_shutdown_tx,
-            reader,
-            reader_shutdown,
-            sequencer_driver,
+            data_availability_reader,
+            data_availability_reader_shutdown,
+            sequencer_websocket_driver,
         })
     }
 
@@ -119,16 +119,16 @@ impl Conductor {
                 },
             executor,
             executor_shutdown,
-            driver,
-            driver_shutdown,
-            reader,
-            reader_shutdown,
-            mut sequencer_driver,
+            data_availability_reader,
+            data_availability_reader_shutdown,
+            sequencer_reader,
+            sequencer_reader_shutdown,
+            mut sequencer_websocket_driver,
         } = self;
 
-        let mut driver = tokio::spawn(driver.run_until_stopped());
+        let mut sequencer_reader = tokio::spawn(sequencer_reader.run_until_stopped());
         let mut executor = tokio::spawn(executor.run_until_stopped());
-        let mut reader = if let Some(reader) = reader {
+        let mut data_availability_reader = if let Some(reader) = data_availability_reader {
             Some(tokio::spawn(reader.run()))
         } else {
             None
@@ -148,33 +148,34 @@ impl Conductor {
                 _ = reload_rx.changed() => {
                     info!("reloading is currently not implemented");
                 }
-                res = &mut driver => {
+
+                res = &mut sequencer_reader => {
                     match res {
-                        Ok(Ok(())) => error!("driver task exited unexpectedly"),
-                        Ok(Err(e)) => error!(error.msg = %e, error.cause = ?e, "driver exited with error"),
-                        Err(e) => error!(error.msg = %e, error.cause = ?e, "driver task failed"),
+                        Ok(Ok(())) => error!("sequencer reader exited unexpectedly; shutting down"),
+                        Ok(Err(e)) => error!(error.msg = %e, error.cause = ?e, "sequencer reader exited with error; shutting down"),
+                        Err(e) => error!(error.msg = %e, error.cause = ?e, "sequencer reader task failed; shutting down"),
                     }
                     break;
                 }
 
-                ret = async { reader.as_mut().unwrap().await }, if reader.is_some() => {
-                    match ret {
-                        Ok(Ok(())) => warn!("reader task exited unexpectedly; shutting down"),
-                        Ok(Err(e)) => warn!(err.message = %e, err.cause = ?e, "reader task exited with error; shutting down"),
-                        Err(e) => warn!(err.cause = ?e, "reader task failed; shutting down"),
+                res = async { data_availability_reader.as_mut().unwrap().await }, if data_availability_reader.is_some() => {
+                    match res {
+                        Ok(Ok(())) => warn!("data availability reader exited unexpectedly; shutting down"),
+                        Ok(Err(e)) => warn!(err.message = %e, err.cause = ?e, "data availability reader exited with error; shutting down"),
+                        Err(e) => warn!(err.cause = ?e, "data availability task failed; shutting down"),
                     }
                     break;
                 }
 
                 res = &mut executor => {
                     match res {
-                        Ok(()) => error!("executor task exited unexpectedly"),
-                        Err(e) => error!(error.msg = %e, error.cause = ?e, "executor task failed"),
+                        Ok(()) => error!("executor task exited unexpectedly; shutting down"),
+                        Err(e) => error!(error.msg = %e, error.cause = ?e, "executor task failed; shutting down"),
                     }
                     break;
                 }
 
-                driver_res = &mut sequencer_driver => {
+                driver_res = &mut sequencer_websocket_driver => {
                     match driver_res {
                         Ok(Ok(())) => warn!("sequencer client websocket driver exited unexpectedly"),
                         Ok(Err(e)) => warn!(err.message = %e, err.cause = ?e, "sequencer client websocket driver exited with error"),
@@ -185,8 +186,8 @@ impl Conductor {
             }
         }
         let _ = executor_shutdown.send(());
-        let _ = driver_shutdown.send(());
-        let _ = reader_shutdown.map(|shutdown| shutdown.send(()));
+        let _ = sequencer_reader_shutdown.send(());
+        let _ = data_availability_reader_shutdown.map(|shutdown| shutdown.send(()));
 
         Ok(())
     }

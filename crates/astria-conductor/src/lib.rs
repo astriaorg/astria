@@ -11,11 +11,10 @@
 pub(crate) mod block_verifier;
 pub mod conductor;
 pub mod config;
-pub(crate) mod driver;
+pub(crate) mod data_availability;
 pub(crate) mod execution_client;
 pub(crate) mod executor;
-pub(crate) mod reader;
+pub(crate) mod sequencer;
 pub(crate) mod types;
 
 pub use config::Config;
-pub(crate) use driver::Driver;

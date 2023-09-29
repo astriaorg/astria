@@ -26,7 +26,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub(crate) struct Driver {
+pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
     executor_tx: executor::Sender,
 
@@ -36,7 +36,7 @@ pub(crate) struct Driver {
     shutdown: oneshot::Receiver<()>,
 }
 
-impl Driver {
+impl Reader {
     #[instrument(name = "driver", skip_all)]
     pub(crate) async fn new(
         sequencer_client: WebSocketClient,
@@ -50,8 +50,8 @@ impl Driver {
         })
     }
 
-    /// Runs the Driver event loop.
-    #[instrument(name = "driver", skip_all)]
+    /// Run the sequencer reader event loop
+    #[instrument(skip_all)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         use futures::StreamExt as _;
         use sequencer_client::SequencerSubscriptionClientExt as _;
