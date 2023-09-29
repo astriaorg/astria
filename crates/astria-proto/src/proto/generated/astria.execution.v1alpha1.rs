@@ -10,7 +10,7 @@ pub struct DoBlockRequest {
     pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(Clone, PartialEq, ::prost::Message)] confirm
 pub struct DoBlockResponse {
     #[prost(bytes="vec", tag="1")]
     pub block_hash: ::prost::alloc::vec::Vec<u8>,
