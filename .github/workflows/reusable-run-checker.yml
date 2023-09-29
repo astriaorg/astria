@@ -51,6 +51,8 @@ jobs:
         with:
           list-files: json
           filters: |
+            gating_changed:
+              - '.github/workflows/reusable-run-checker.yml'
             release_workflow:
               - '.github/workflows/release.yml'
               - '.github/workflows/reusable-cargo-version.yml'
@@ -64,10 +66,10 @@ jobs:
             lint_workflow:
               - '.github/workflows/lint.yml'
             crates:
-              - 'crates/**'
+              - 'crates/**/*!(*.md)'
               - 'Cargo.toml'
               - 'Cargo.lock'
-              - '.cargo/**'
+              - '.cargo/**/*'
             proto:
               - '**/*.proto'
             rust:
