@@ -192,10 +192,7 @@ impl Driver {
             .await
             .wrap_err("failed constructing a cometbft websocket client to read off sequencer")?;
 
-        let block_stream = sequencer_client
-            .client
-            .subscribe_new_block_data()
-            .await?;
+        let block_stream = sequencer_client.client.subscribe_new_block_data().await?;
 
         Ok(block_stream)
     }
