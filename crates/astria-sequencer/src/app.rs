@@ -24,6 +24,16 @@ use tracing::{
 use crate::{
     accounts::component::AccountsComponent,
     app_hash::AppHash,
+    authority::{
+        component::{
+            AuthorityComponent,
+            AuthorityComponentAppState,
+        },
+        state_ext::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
+    },
     component::Component,
     genesis::GenesisState,
     state_ext::{
@@ -74,7 +84,11 @@ impl App {
     }
 
     #[instrument(name = "App:init_chain", skip(self))]
-    pub(crate) async fn init_chain(&mut self, genesis_state: GenesisState) -> anyhow::Result<()> {
+    pub(crate) async fn init_chain(
+        &mut self,
+        genesis_state: GenesisState,
+        genesis_validators: Vec<tendermint::validator::Update>,
+    ) -> anyhow::Result<()> {
         let mut state_tx = self
             .state
             .try_begin_transaction()
@@ -83,7 +97,18 @@ impl App {
         state_tx.put_block_height(0);
 
         // call init_chain on all components
-        AccountsComponent::init_chain(&mut state_tx, &genesis_state).await?;
+        AccountsComponent::init_chain(&mut state_tx, &genesis_state)
+            .await
+            .context("failed to call init_chain on AccountsComponent")?;
+        AuthorityComponent::init_chain(
+            &mut state_tx,
+            &AuthorityComponentAppState {
+                authority_sudo_key: genesis_state.authority_sudo_key,
+                genesis_validators,
+            },
+        )
+        .await
+        .context("failed to call init_chain on AuthorityComponent")?;
         state_tx.apply();
         Ok(())
     }
@@ -92,7 +117,7 @@ impl App {
     pub(crate) async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
-    ) -> Vec<abci::Event> {
+    ) -> anyhow::Result<Vec<abci::Event>> {
         let mut state_tx = StateDelta::new(self.state.clone());
 
         // store the block height
@@ -102,13 +127,18 @@ impl App {
 
         // call begin_block on all components
         let mut arc_state_tx = Arc::new(state_tx);
-        AccountsComponent::begin_block(&mut arc_state_tx, begin_block).await;
+        AccountsComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .context("failed to call begin_block on AccountsComponent")?;
+        AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .context("failed to call begin_block on AuthorityComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
 
         self.processed_txs = 0;
-        self.apply(state_tx)
+        Ok(self.apply(state_tx))
     }
 
     #[instrument(name = "App:deliver_tx", skip(self))]
@@ -172,15 +202,37 @@ impl App {
     pub(crate) async fn end_block(
         &mut self,
         end_block: &abci::request::EndBlock,
-    ) -> Vec<abci::Event> {
+    ) -> anyhow::Result<abci::response::EndBlock> {
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
         // call end_block on all components
-        AccountsComponent::end_block(&mut arc_state_tx, end_block).await;
-        let state_tx = Arc::try_unwrap(arc_state_tx)
+        AccountsComponent::end_block(&mut arc_state_tx, end_block)
+            .await
+            .context("failed to call end_block on AccountsComponent")?;
+        AuthorityComponent::end_block(&mut arc_state_tx, end_block)
+            .await
+            .context("failed to call end_block on AuthorityComponent")?;
+
+        // gather and return validator updates
+        let validator_updates = self
+            .state
+            .get_validator_updates()
+            .await
+            .expect("failed getting validator updates");
+
+        let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
-        self.apply(state_tx)
+
+        // clear validator updates
+        state_tx.clear_validator_updates();
+
+        let events = self.apply(state_tx);
+        Ok(abci::response::EndBlock {
+            validator_updates: validator_updates.into_tendermint_validator_updates(),
+            events,
+            ..Default::default()
+        })
     }
 
     #[instrument(name = "App:commit", skip(self))]
@@ -274,6 +326,7 @@ mod test {
             action::TRANSFER_FEE,
             state_ext::StateReadExt as _,
         },
+        authority::state_ext::ValidatorSet,
         genesis::Account,
         sequence::calculate_fee,
         transaction::InvalidNonce,
@@ -286,7 +339,6 @@ mod test {
         Address::from_array(arr)
     }
 
-    // generated with test `generate_default_keys()`
     const ALICE_ADDRESS: &str = "1c0c490f1b5528d8173c5de46d131160e4b2c0c3";
     const BOB_ADDRESS: &str = "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a";
     const CAROL_ADDRESS: &str = "60709e2d391864b732b4f0f51e387abb76743871";
@@ -330,18 +382,44 @@ mod test {
         }
     }
 
-    #[tokio::test]
-    async fn app_genesis_and_init_chain() {
+    async fn initialize_app(
+        genesis_state: Option<GenesisState>,
+        genesis_validators: Vec<tendermint::validator::Update>,
+    ) -> App {
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
-        let genesis_state = GenesisState {
+
+        let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
             accounts: default_genesis_accounts(),
-        };
-        app.init_chain(genesis_state).await.unwrap();
+            authority_sudo_key: Address::from([0; 20]),
+        });
+
+        app.init_chain(genesis_state, genesis_validators)
+            .await
+            .unwrap();
+        app
+    }
+
+    fn get_alice_signing_key_and_address() -> (SigningKey, Address) {
+        // this secret key corresponds to ALICE_ADDRESS
+        let alice_secret_bytes: [u8; 32] =
+            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let alice_signing_key = SigningKey::from(alice_secret_bytes);
+        let alice = Address::from_verification_key(alice_signing_key.verification_key());
+        (alice_signing_key, alice)
+    }
+
+    #[tokio::test]
+    async fn app_genesis_and_init_chain() {
+        let app = initialize_app(None, vec![]).await;
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
+
         for Account {
             address,
             balance,
@@ -356,15 +434,7 @@ mod test {
 
     #[tokio::test]
     async fn app_begin_block() {
-        let storage = penumbra_storage::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
-        let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
-        let genesis_state = GenesisState {
-            accounts: vec![],
-        };
-        app.init_chain(genesis_state).await.unwrap();
+        let mut app = initialize_app(None, vec![]).await;
 
         let mut begin_block = abci::request::BeginBlock {
             header: default_header(),
@@ -377,7 +447,7 @@ mod test {
         };
         begin_block.header.height = Height::try_from(1u8).unwrap();
 
-        app.begin_block(&begin_block).await;
+        app.begin_block(&begin_block).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 1);
         assert_eq!(
             app.state.get_block_timestamp().await.unwrap(),
@@ -386,69 +456,104 @@ mod test {
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_transfer() {
-        let storage = penumbra_storage::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
-        let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
-        let genesis_state = GenesisState {
-            accounts: default_genesis_accounts(),
+    async fn app_begin_block_remove_byzantine_validators() {
+        use tendermint::{
+            abci::types,
+            validator,
         };
-        app.init_chain(genesis_state).await.unwrap();
+
+        let pubkey_a = tendermint::public_key::PublicKey::from_raw_ed25519(&[1; 32]).unwrap();
+        let pubkey_b = tendermint::public_key::PublicKey::from_raw_ed25519(&[2; 32]).unwrap();
+
+        let initial_validator_set = vec![
+            validator::Update {
+                pub_key: pubkey_a,
+                power: 100u32.into(),
+            },
+            validator::Update {
+                pub_key: pubkey_b,
+                power: 1u32.into(),
+            },
+        ];
+
+        let mut app = initialize_app(None, initial_validator_set.clone()).await;
+
+        let misbehavior = types::Misbehavior {
+            kind: types::MisbehaviorKind::Unknown,
+            validator: types::Validator {
+                address: tendermint::account::Id::from(pubkey_a)
+                    .as_bytes()
+                    .try_into()
+                    .unwrap(),
+                power: 0u32.into(),
+            },
+            height: Height::default(),
+            time: Time::now(),
+            total_voting_power: 101u32.into(),
+        };
+
+        let mut begin_block = abci::request::BeginBlock {
+            header: default_header(),
+            hash: Hash::default(),
+            last_commit_info: CommitInfo {
+                votes: vec![],
+                round: Round::default(),
+            },
+            byzantine_validators: vec![misbehavior],
+        };
+        begin_block.header.height = Height::try_from(1u8).unwrap();
+
+        app.begin_block(&begin_block).await.unwrap();
+
+        // assert that validator with pubkey_a is removed
+        let validator_set = app.state.get_validator_set().await.unwrap();
+        assert_eq!(validator_set.len(), 1);
+        assert_eq!(
+            validator_set.get(&pubkey_b.into()).unwrap().power,
+            1u32.into()
+        );
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_transfer() {
+        let mut app = initialize_app(None, vec![]).await;
         app.processed_txs = 2;
 
         // transfer funds from Alice to Bob
-        // this secret key corresponds to ALICE_ADDRESS
-        let alice_secret_bytes: [u8; 32] =
-            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let alice_keypair = SigningKey::from(alice_secret_bytes);
-
-        let alice = address_from_hex_string(ALICE_ADDRESS);
-        let bob = address_from_hex_string(BOB_ADDRESS);
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let bob_address = address_from_hex_string(BOB_ADDRESS);
         let value = 333_333;
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![
                 TransferAction {
-                    to: bob,
+                    to: bob_address,
                     amount: value,
                 }
                 .into(),
             ],
         };
-        let signed_tx = tx.into_signed(&alice_keypair);
+        let signed_tx = tx.into_signed(&alice_signing_key);
         let bytes = signed_tx.into_raw().encode_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
         assert_eq!(
-            app.state.get_account_balance(bob).await.unwrap(),
+            app.state.get_account_balance(bob_address).await.unwrap(),
             value + 10u128.pow(19)
         );
         assert_eq!(
-            app.state.get_account_balance(alice).await.unwrap(),
+            app.state.get_account_balance(alice_address).await.unwrap(),
             10u128.pow(19) - (value + TRANSFER_FEE),
         );
-        assert_eq!(app.state.get_account_nonce(bob).await.unwrap(), 0);
-        assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 1);
+        assert_eq!(app.state.get_account_nonce(bob_address).await.unwrap(), 0);
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
     }
 
     #[tokio::test]
     async fn app_deliver_tx_transfer_balance_too_low_for_fee() {
         use rand::rngs::OsRng;
 
-        let storage = penumbra_storage::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
-        let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
-        let genesis_state = GenesisState {
-            accounts: default_genesis_accounts(),
-        };
-        app.init_chain(genesis_state).await.unwrap();
+        let mut app = initialize_app(None, vec![]).await;
         app.processed_txs = 2;
 
         // create a new key; will have 0 balance
@@ -479,26 +584,10 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_sequence() {
-        let storage = penumbra_storage::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
-        let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
-        let genesis_state = GenesisState {
-            accounts: default_genesis_accounts(),
-        };
-        app.init_chain(genesis_state).await.unwrap();
+        let mut app = initialize_app(None, vec![]).await;
         app.processed_txs = 2;
 
-        // this secret key corresponds to ALICE_ADDRESS
-        let alice_secret_bytes: [u8; 32] =
-            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let alice_signing_key = SigningKey::from(alice_secret_bytes);
-        let alice = Address::from_verification_key(alice_signing_key.verification_key());
-
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let data = b"hello world".to_vec();
         let fee = calculate_fee(&data).unwrap();
 
@@ -517,39 +606,121 @@ mod test {
         let bytes = signed_tx.into_raw().encode_to_vec();
 
         app.deliver_tx(&bytes).await.unwrap();
-        assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 1);
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         assert_eq!(
-            app.state.get_account_balance(alice).await.unwrap(),
+            app.state.get_account_balance(alice_address).await.unwrap(),
             10u128.pow(19) - fee,
         );
     }
 
     #[tokio::test]
-    async fn app_deliver_tx_invalid_nonce() {
-        // Arrange
-        // initialize app from genesis state with default_genesis_accounts
-        // (balances are 10u128.pow(19))
-        let storage = penumbra_storage::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
-        let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
+    async fn app_deliver_tx_validator_update() {
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
+            authority_sudo_key: alice_address,
         };
-        app.init_chain(genesis_state).await.unwrap();
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
         app.processed_txs = 2;
 
-        // initialize tx signer
-        // this secret key corresponds to ALICE_ADDRESS
-        let alice_secret_bytes: [u8; 32] =
-            hex::decode("2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let alice_signing_key = SigningKey::from(alice_secret_bytes);
-        let alice = Address::from_verification_key(alice_signing_key.verification_key());
+        let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(&[1u8; 32]).unwrap();
+        let update = tendermint::validator::Update {
+            pub_key,
+            power: 100u32.into(),
+        };
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![proto::native::sequencer::v1alpha1::Action::ValidatorUpdate(
+                update.clone(),
+            )],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        let bytes = signed_tx.into_raw().encode_to_vec();
+
+        app.deliver_tx(&bytes).await.unwrap();
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+
+        let validator_updates = app.state.get_validator_updates().await.unwrap();
+        assert_eq!(validator_updates.len(), 1);
+        assert_eq!(validator_updates.get(&pub_key.into()).unwrap(), &update);
+    }
+
+    #[tokio::test]
+    async fn app_end_block_validator_updates() {
+        use tendermint::validator;
+
+        let pubkey_a = tendermint::public_key::PublicKey::from_raw_ed25519(&[1; 32]).unwrap();
+        let pubkey_b = tendermint::public_key::PublicKey::from_raw_ed25519(&[2; 32]).unwrap();
+        let pubkey_c = tendermint::public_key::PublicKey::from_raw_ed25519(&[3; 32]).unwrap();
+
+        let initial_validator_set = vec![
+            validator::Update {
+                pub_key: pubkey_a,
+                power: 100u32.into(),
+            },
+            validator::Update {
+                pub_key: pubkey_b,
+                power: 1u32.into(),
+            },
+        ];
+
+        let mut app = initialize_app(None, initial_validator_set).await;
+
+        let validator_updates = vec![
+            validator::Update {
+                pub_key: pubkey_a,
+                power: 0u32.into(),
+            },
+            validator::Update {
+                pub_key: pubkey_b,
+                power: 100u32.into(),
+            },
+            validator::Update {
+                pub_key: pubkey_c,
+                power: 100u32.into(),
+            },
+        ];
+
+        let mut state_tx = StateDelta::new(app.state.clone());
+        state_tx
+            .put_validator_updates(ValidatorSet::new_from_updates(validator_updates.clone()))
+            .unwrap();
+        app.apply(state_tx);
+
+        let resp = app
+            .end_block(&abci::request::EndBlock {
+                height: 1u32.into(),
+            })
+            .await
+            .unwrap();
+        // we only assert length here as the ordering of the updates is not guaranteed
+        // and validator::Update does not implement Ord
+        assert_eq!(resp.validator_updates.len(), validator_updates.len());
+
+        // validator with pubkey_a should be removed (power set to 0)
+        // validator with pubkey_b should be updated
+        // validator with pubkey_c should be added
+        let validator_set = app.state.get_validator_set().await.unwrap();
+        assert_eq!(validator_set.len(), 2);
+        let validator_b = validator_set.get(&pubkey_b.into()).unwrap();
+        assert_eq!(validator_b.pub_key, pubkey_b);
+        assert_eq!(validator_b.power, 100u32.into());
+        let validator_c = validator_set.get(&pubkey_c.into()).unwrap();
+        assert_eq!(validator_c.pub_key, pubkey_c);
+        assert_eq!(validator_c.power, 100u32.into());
+        assert_eq!(app.state.get_validator_updates().await.unwrap().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_invalid_nonce() {
+        let mut app = initialize_app(None, vec![]).await;
+        app.processed_txs = 2;
+
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
         // create tx with invalid nonce 1
         let data = b"hello world".to_vec();
@@ -564,19 +735,14 @@ mod test {
             ],
         };
 
-        // sign tx
         let signed_tx = tx.into_signed(&alice_signing_key);
         let bytes = signed_tx.into_raw().encode_to_vec();
-
-        // Act
-        // pass tx to deliver_tx
         let response = app.deliver_tx(&bytes).await;
 
-        // Assert
         // check that tx was not executed by checking nonce and balance are unchanged
-        assert_eq!(app.state.get_account_nonce(alice).await.unwrap(), 0);
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 0);
         assert_eq!(
-            app.state.get_account_balance(alice).await.unwrap(),
+            app.state.get_account_balance(alice_address).await.unwrap(),
             10u128.pow(19),
         );
 
@@ -599,10 +765,12 @@ mod test {
         let mut app = App::new(snapshot);
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
+            authority_sudo_key: Address::from([0; 20]),
         };
 
-        app.init_chain(genesis_state).await.unwrap();
+        app.init_chain(genesis_state, vec![]).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
+
         for Account {
             address,
             balance,

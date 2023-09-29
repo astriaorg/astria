@@ -24,7 +24,6 @@ CC=/usr/bin/gcc-12 CXX=/usr/bin/c++-12 cargo build
 <https://github.com/rust-rocksdb/rust-rocksdb/issues/713>
 <https://github.com/facebook/rocksdb/pull/11118>
 
-
 ## Running the Sequencer
 
 ### Configuration
@@ -69,10 +68,8 @@ make install_abci
 In astria-sequencer/:
 
 ```sh
-cargo build
-../../target/debug/astria-sequencer
+just run
 ```
-
 
 ### Query the app for info
 
@@ -86,14 +83,29 @@ I[2023-05-16|16:53:56.786] service start    module=abci-client
 -> data.hex: 0x626173655F617070
 ```
 
+To query an address's balance:
+
+```sh
+abci-cli query --path=accounts/balance/<ADDRESS> 0x00
+```
+
+To query an address's nonce:
+
+```sh
+abci-cli query --path=accounts/nonce/<ADDRESS> 0x00
+```
+
 ### Start the cometbft node
 
 ```sh
 # initialize the node
 cometbft init
 
-# inside astria-sequencer, update the genesis file to include genesis application state
-../../target/debug/astria-sequencer-utils --genesis-app-state-file=test-genesis-app-state.json  --destination-genesis-file=$HOME/.cometbft/config/genesis.json
+# inside astria-sequencer, update the genesis file to include genesis
+# application state
+../../target/debug/astria-sequencer-utils \
+    --genesis-app-state-file=test-genesis-app-state.json \
+    --destination-genesis-file=$HOME/.cometbft/config/genesis.json
 
 # set the block time to 15s
 sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "15s"/g' ~/.cometbft/config/config.toml
@@ -112,4 +124,5 @@ just run-cometbft
 
 ## Testnet
 
-Check out the `TESTNET.md` file for details on how to run a multi-node sequencer testnet.
+Check out the `TESTNET.md` file for details on how to run a multi-node sequencer
+testnet.

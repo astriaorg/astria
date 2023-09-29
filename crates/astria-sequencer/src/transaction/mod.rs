@@ -20,8 +20,26 @@ use crate::accounts::state_ext::{
     StateWriteExt,
 };
 
+pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
+    tx: &SignedTransaction,
+    state: &S,
+) -> anyhow::Result<()> {
+    let signer_address = Address::from_verification_key(tx.verification_key());
+    let curr_nonce = state
+        .get_account_nonce(signer_address)
+        .await
+        .context("failed to get account nonce")?;
+    ensure!(
+        tx.unsigned_transaction().nonce >= curr_nonce,
+        "nonce already used by account"
+    );
+    Ok(())
+}
+
 pub(crate) fn check_stateless(tx: &SignedTransaction) -> anyhow::Result<()> {
-    tx.unsigned_transaction().check_stateless()
+    tx.unsigned_transaction()
+        .check_stateless()
+        .context("stateless check failed")
 }
 
 pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
@@ -72,6 +90,9 @@ impl ActionHandler for UnsignedTransaction {
                 Action::Sequence(act) => act
                     .check_stateless()
                     .context("stateless check failed for SequenceAction")?,
+                Action::ValidatorUpdate(act) => act
+                    .check_stateless()
+                    .context("stateless check failed for ValidatorUpdateAction")?,
             }
         }
         Ok(())
@@ -97,6 +118,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for SequenceAction")?,
+                Action::ValidatorUpdate(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for ValidatorUpdateAction")?,
             }
         }
 
@@ -133,6 +158,11 @@ impl ActionHandler for UnsignedTransaction {
                     act.execute(state, from)
                         .await
                         .context("execution failed for SequenceAction")?;
+                }
+                Action::ValidatorUpdate(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for ValidatorUpdateAction")?;
                 }
             }
         }

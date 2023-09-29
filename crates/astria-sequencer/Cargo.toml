@@ -1,6 +1,6 @@
 [package]
 name = "astria-sequencer"
-version = "0.2.0"
+version = "0.4.1"
 edition = "2021"
 rust-version = "1.70.0"
 
@@ -8,6 +8,7 @@ rust-version = "1.70.0"
 proto = { package = "astria-proto", path = "../astria-proto" }
 sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
+sequencer_types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }
 
 anyhow = "1"
 matchit = "0.7.2"
