@@ -78,6 +78,7 @@ pub(crate) mod mocks {
             tendermint_url: "http://127.0.0.1:26657".to_string(),
             sequencer_url: "ws://127.0.0.1:26657".to_string(),
             execution_commit_level: config::CommitLevel::SoftAndFirm,
+            initial_sequencer_block_height: 1,
         }
     }
 
