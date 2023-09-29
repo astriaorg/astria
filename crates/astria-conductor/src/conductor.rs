@@ -1,5 +1,4 @@
-use std::time::Duration;
-
+use astria_sequencer_types::ChainId;
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -10,9 +9,11 @@ use tokio::{
         signal,
         SignalKind,
     },
-    sync::watch,
-    task::JoinHandle,
-    time,
+    sync::{
+        mpsc,
+        oneshot,
+        watch,
+    },
 };
 use tracing::{
     error,
@@ -20,29 +21,44 @@ use tracing::{
 };
 
 use crate::{
-    driver::DriverCommand,
+    executor::Executor,
     Config,
     Driver,
 };
 pub struct Conductor {
     signals: SignalReceiver,
+    executor: Executor,
+    executor_shutdown: oneshot::Sender<()>,
     driver: Driver,
-    executor_join_handle: JoinHandle<eyre::Result<()>>,
-    reader_join_handle: Option<JoinHandle<eyre::Result<()>>>,
+    driver_shutdown: oneshot::Sender<()>,
 }
 
 impl Conductor {
     pub async fn new(cfg: Config) -> eyre::Result<Self> {
         let signals = spawn_signal_handler();
         // spawn our driver
-        let (driver, executor_join_handle, reader_join_handle) = Driver::new(cfg)
+        let (executor_tx, executor_rx) = mpsc::unbounded_channel();
+        let (executor_shutdown_tx, executor_shutdown_rx) = oneshot::channel();
+        let executor = Executor::new(
+            &cfg.execution_rpc_url,
+            ChainId::new(cfg.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
+            cfg.disable_empty_block_execution,
+            executor_rx,
+            executor_shutdown_rx,
+        )
+        .await
+        .wrap_err("failed to construct executor")?;
+
+        let (driver_shutdown_tx, driver_shutdown_rx) = oneshot::channel();
+        let driver = Driver::new(cfg, driver_shutdown_rx, executor_tx)
             .await
             .wrap_err("failed initializing driver")?;
         Ok(Self {
             signals,
             driver,
-            executor_join_handle,
-            reader_join_handle,
+            driver_shutdown: driver_shutdown_tx,
+            executor,
+            executor_shutdown: executor_shutdown_tx,
         })
     }
 
@@ -53,13 +69,14 @@ impl Conductor {
                     mut reload_rx,
                     mut stop_rx,
                 },
+            executor,
+            executor_shutdown,
             driver,
-            executor_join_handle: mut executor,
-            reader_join_handle: mut reader,
+            driver_shutdown,
         } = self;
-        let driver_tx = driver.cmd_tx.clone();
-        let mut driver = tokio::spawn(driver.run());
-        let mut interval = time::interval(Duration::from_secs(3));
+
+        let mut driver = tokio::spawn(driver.run_until_stopped());
+        let mut executor = tokio::spawn(executor.run_until_stopped());
 
         loop {
             select! {
@@ -69,33 +86,12 @@ impl Conductor {
 
                 _ = stop_rx.changed() => {
                     info!("shutting down conductor");
-                    if let Some(e) = driver_tx.send(DriverCommand::Shutdown).err() {
-                        error!(
-                            error.msg = %e,
-                            error.cause = ?e,
-                            "error sending Shutdown command to driver"
-                        );
-                    }
                     break;
                 }
 
                 _ = reload_rx.changed() => {
                     info!("reloading is currently not implemented");
                 }
-                // request new blocks every X seconds
-                _ = interval.tick() => {
-                    if let Some(e) = driver_tx.send(DriverCommand::GetNewBlocks).err() {
-                        // the only error that can happen here is SendError which occurs
-                        // if the driver's receiver channel is dropped
-                        error!(
-                            error.msg = %e,
-                            error.cause = ?e,
-                            "error sending GetNewBlocks command to driver"
-                        );
-                        break;
-                    }
-                }
-
                 res = &mut driver => {
                     match res {
                         Ok(Ok(())) => error!("driver task exited unexpectedly"),
@@ -107,24 +103,15 @@ impl Conductor {
 
                 res = &mut executor => {
                     match res {
-                        Ok(Ok(())) => error!("executor task exited unexpectedly"),
-                        Ok(Err(e)) => error!(error.msg = %e, error.cause = ?e, "executor exited with error"),
+                        Ok(()) => error!("executor task exited unexpectedly"),
                         Err(e) => error!(error.msg = %e, error.cause = ?e, "executor task failed"),
-                    }
-                    break;
-                }
-
-
-                res = async { reader.as_mut().unwrap().await }, if reader.is_some() => {
-                    match res {
-                        Ok(Ok(())) => error!("reader task exited unexpectedly"),
-                        Ok(Err(e)) => error!(error.msg = %e, error.cause = ?e, "reader exited with error"),
-                        Err(e) => error!(error.msg = %e, error.cause = ?e, "reader task failed"),
                     }
                     break;
                 }
             }
         }
+        let _ = executor_shutdown.send(());
+        let _ = driver_shutdown.send(());
 
         Ok(())
     }

@@ -1,9 +1,12 @@
 //! The driver is the top-level coordinator that runs and manages all the components
 //! necessary for this reader.
 
-use astria_sequencer_types::SequencerBlockData;
+use astria_sequencer_types::{
+    Namespace,
+    SequencerBlockData,
+};
 use color_eyre::eyre::{
-    eyre,
+    self,
     Result,
     WrapErr as _,
 };
@@ -14,23 +17,14 @@ use sequencer_client::{
 };
 use tokio::{
     select,
-    sync::{
-        mpsc::{
-            self,
-            UnboundedReceiver,
-            UnboundedSender,
-        },
-        Mutex,
-    },
+    sync::oneshot,
     task::JoinHandle,
 };
 use tracing::{
     info,
     instrument,
-    span,
     warn,
     Instrument,
-    Level,
 };
 
 use crate::{
@@ -38,36 +32,11 @@ use crate::{
     config::Config,
     executor,
     executor::ExecutorCommand,
-    reader::{
-        self,
-        ReaderCommand,
-    },
+    reader::Reader,
 };
-
-/// The channel through which the user can send commands to the driver.
-pub(crate) type Sender = UnboundedSender<DriverCommand>;
-/// The channel on which the driver listens for commands from the user.
-pub(crate) type Receiver = UnboundedReceiver<DriverCommand>;
-
-/// The type of commands that the driver can receive.
-#[derive(Debug)]
-pub(crate) enum DriverCommand {
-    /// Get new blocks
-    GetNewBlocks,
-    /// Gracefully shuts down the driver and its components.
-    Shutdown,
-}
 
 #[derive(Debug)]
 pub(crate) struct Driver {
-    pub(crate) cmd_tx: Sender,
-
-    /// The channel on which other components in the driver sends the driver messages.
-    cmd_rx: Receiver,
-
-    /// The channel used to send messages to the reader task.
-    reader_tx: Option<reader::Sender>,
-
     /// The channel used to send messages to the executor task.
     executor_tx: executor::Sender,
 
@@ -75,20 +44,20 @@ pub(crate) struct Driver {
     sequencer_client: WebSocketClient,
 
     sequencer_driver: JoinHandle<Result<(), tendermint::Error>>,
+
+    shutdown: oneshot::Receiver<()>,
+
+    reader_task: Option<JoinHandle<eyre::Result<()>>>,
+    reader_shutdown: Option<oneshot::Sender<()>>,
 }
 
 impl Driver {
     #[instrument(name = "driver", skip_all)]
     pub(crate) async fn new(
         conf: Config,
-    ) -> Result<(Self, executor::JoinHandle, Option<reader::JoinHandle>)> {
-        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
-        let executor_span = span!(Level::ERROR, "executor::spawn");
-        let (executor_join_handle, executor_tx) = executor::spawn(&conf)
-            .instrument(executor_span)
-            .await
-            .wrap_err("failed to construct Executor")?;
-
+        shutdown: oneshot::Receiver<()>,
+        executor_tx: executor::Sender,
+    ) -> Result<Self> {
         let (sequencer_client, sequencer_driver) = {
             let (client, driver) = WebSocketClient::new(&*conf.sequencer_url).await.wrap_err(
                 "failed constructing a cometbft websocket client to read off sequencer",
@@ -99,35 +68,40 @@ impl Driver {
 
         let block_verifier = BlockVerifier::new(sequencer_client.clone());
 
-        let (reader_join_handle, reader_tx) = if conf.disable_finalization {
-            (None, None)
-        } else {
-            let reader_span = span!(Level::ERROR, "reader::spawn");
-            let (reader_join_handle, reader_tx) =
-                reader::spawn(&conf, executor_tx.clone(), block_verifier)
-                    .instrument(reader_span)
-                    .await
-                    .wrap_err("failed to construct data availability Reader")?;
-            (Some(reader_join_handle), Some(reader_tx))
+        let mut reader_task = None;
+        let mut reader_shutdown = None;
+
+        if !conf.disable_finalization {
+            let (shutdown_tx, shutdown_rx) = oneshot::channel();
+            let reader = Reader::new(
+                &conf.celestia_node_url,
+                &conf.celestia_bearer_token,
+                std::time::Duration::from_secs(3),
+                executor_tx.clone(),
+                block_verifier,
+                Namespace::from_slice(conf.chain_id.as_bytes()),
+                shutdown_rx,
+            )
+            .await
+            .wrap_err("failed constructing data availability reader")?;
+
+            reader_shutdown = Some(shutdown_tx);
+            reader_task = Some(tokio::spawn(reader.run().in_current_span()));
         };
 
-        Ok((
-            Self {
-                cmd_tx: cmd_tx.clone(),
-                cmd_rx,
-                reader_tx,
-                executor_tx,
-                sequencer_client,
-                sequencer_driver,
-            },
-            executor_join_handle,
-            reader_join_handle,
-        ))
+        Ok(Self {
+            executor_tx,
+            shutdown,
+            sequencer_client,
+            sequencer_driver,
+            reader_task,
+            reader_shutdown,
+        })
     }
 
     /// Runs the Driver event loop.
     #[instrument(name = "driver", skip_all)]
-    pub(crate) async fn run(mut self) -> Result<()> {
+    pub(crate) async fn run_until_stopped(mut self) -> Result<()> {
         use futures::StreamExt as _;
         use sequencer_client::SequencerSubscriptionClientExt as _;
 
@@ -141,19 +115,28 @@ impl Driver {
         // here block the select loop because they `await` their return.
         loop {
             select! {
+                shutdown = &mut self.shutdown => {
+                    match shutdown {
+                        Err(e) => warn!(error.message = %e, "shutdown channel return with error; shutting down"),
+                        Ok(()) => info!("received shutdown signal; shutting down"),
+                    }
+                    break;
+                }
+
+                ret = async { self.reader_task.as_mut().unwrap().await }, if self.reader_task.is_some() => {
+                    match ret {
+                        Ok(Ok(())) => warn!("reader task exited unexpectedly; shutting down"),
+                        Ok(Err(e)) => warn!(err.message = %e, err.cause = ?e, "reader task exited with error; shutting down"),
+                        Err(e) => warn!(err.cause = ?e, "reader task failed; shutting down"),
+                    }
+                    break;
+                }
+
                 new_block = new_blocks.next() => {
                     if let Some(block) = new_block {
                         self.handle_new_block(block)
                     } else {
                         warn!("sequencer new-block subscription closed unexpectedly; shutting down driver");
-                        break;
-                    }
-                }
-                cmd = self.cmd_rx.recv() => {
-                    if let Some(cmd) = cmd {
-                        self.handle_driver_command(cmd).wrap_err("failed to handle driver command")?;
-                    } else {
-                        info!("Driver command channel closed.");
                         break;
                     }
                 }
@@ -167,6 +150,9 @@ impl Driver {
                 }
             }
         }
+        if let Some(reader_shutdown) = self.reader_shutdown {
+            let _ = reader_shutdown.send(());
+        };
         Ok(())
     }
 
@@ -187,37 +173,5 @@ impl Driver {
         {
             warn!(err.msg = %err, err.cause = ?err, "failed sending new block received from sequencer to executor");
         }
-    }
-
-    fn handle_driver_command(&mut self, cmd: DriverCommand) -> Result<()> {
-        match cmd {
-            DriverCommand::Shutdown => self.shutdown(),
-
-            DriverCommand::GetNewBlocks => {
-                let Some(reader_tx) = &self.reader_tx else {
-                    return Ok(());
-                };
-
-                reader_tx
-                    .send(ReaderCommand::GetNewBlocks)
-                    .map_err(|e| eyre!("reader rx channel closed: {}", e))?;
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Sends shutdown commands to the other actors.
-    fn shutdown(&mut self) {
-        info!("Shutting down driver.");
-        if let Err(e) = self.executor_tx.send(ExecutorCommand::Shutdown) {
-            warn!(error.message = %e, error.cause = ?e, "failed sending shutdown command to executor");
-        }
-
-        if let Some(reader_tx) = &self.reader_tx {
-            if let Err(e) = reader_tx.send(ReaderCommand::Shutdown) {
-                warn!(error.message = %e, error.cause = ?e, "failed sending shutdown command to reader");
-            }
-        };
     }
 }

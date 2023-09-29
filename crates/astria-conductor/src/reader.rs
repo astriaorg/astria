@@ -1,19 +1,30 @@
-use astria_sequencer_relayer::data_availability::CelestiaClient;
+use std::time::Duration;
+
+use astria_sequencer_relayer::data_availability::{
+    CelestiaClient,
+    SequencerNamespaceData,
+    SignedNamespaceData,
+};
 use astria_sequencer_types::Namespace;
 use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
 use tokio::{
-    sync::mpsc::{
-        self,
-        UnboundedReceiver,
-        UnboundedSender,
+    select,
+    sync::{
+        mpsc,
+        oneshot,
     },
-    task,
+    task::{
+        self,
+        JoinHandle,
+        JoinSet,
+    },
 };
+use tokio_util::task::JoinMap;
 use tracing::{
-    debug,
+    error,
     info,
     instrument,
     warn,
@@ -21,70 +32,43 @@ use tracing::{
 };
 
 use crate::{
-    block_verifier::BlockVerifier,
-    config::Config,
+    block_verifier::{
+        self,
+        BlockVerifier,
+    },
+    // config::Config,
     executor,
     types::SequencerBlockSubset,
 };
 
-pub(crate) type JoinHandle = task::JoinHandle<eyre::Result<()>>;
-
-/// The channel for sending commands to the reader task.
-pub(crate) type Sender = UnboundedSender<ReaderCommand>;
-/// The channel the reader task uses to listen for commands.
-type Receiver = UnboundedReceiver<ReaderCommand>;
-
-/// spawns a reader task and returns a tuple with the task's join handle
-/// and the channel for sending commands to this reader
-pub(crate) async fn spawn(
-    conf: &Config,
-    executor_tx: executor::Sender,
-    block_verifier: BlockVerifier,
-) -> eyre::Result<(JoinHandle, Sender)> {
-    info!(
-        celestia_node_url = %conf.celestia_node_url,
-        "Spawning reader task."
-    );
-    let (mut reader, reader_tx) = Reader::new(
-        &conf.celestia_node_url,
-        &conf.celestia_bearer_token,
-        executor_tx,
-        block_verifier,
-        Namespace::from_slice(conf.chain_id.as_bytes()),
-    )
-    .await
-    .wrap_err("failed to create Reader")?;
-    let join_handle = task::spawn(async move { reader.run().in_current_span().await });
-    info!("Spawned reader task.");
-    Ok((join_handle, reader_tx))
-}
-
-#[derive(Debug)]
-pub(crate) enum ReaderCommand {
-    /// Get new blocks
-    GetNewBlocks,
-
-    Shutdown,
-}
-
 #[derive(Debug)]
 pub(crate) struct Reader {
-    /// Channel on which reader commands are received.
-    cmd_rx: Receiver,
-
     /// The channel used to send messages to the executor task.
     executor_tx: executor::Sender,
 
     /// The client used to communicate with Celestia.
     celestia_client: CelestiaClient,
 
+    /// The between the reader waits until it queries celestia for new blocks
+    celestia_poll_interval: Duration,
+
     /// the last block height fetched from Celestia
-    curr_block_height: u64,
+    current_block_height: u64,
 
     block_verifier: BlockVerifier,
 
     /// Namespace ID
     namespace: Namespace,
+
+    get_latest_height: Option<JoinHandle<eyre::Result<u64>>>,
+
+    /// A map of in-flight queries to celestia for new sequencer blocks
+    get_sequencer_datas:
+        JoinMap<u64, eyre::Result<Vec<SignedNamespaceData<SequencerNamespaceData>>>>,
+
+    process_sequencer_datas: JoinMap<u64, eyre::Result<Vec<SequencerBlockSubset>>>,
+
+    shutdown: oneshot::Receiver<()>,
 }
 
 impl Reader {
@@ -92,11 +76,12 @@ impl Reader {
     pub(crate) async fn new(
         celestia_node_url: &str,
         celestia_bearer_token: &str,
+        celestia_poll_interval: Duration,
         executor_tx: executor::Sender,
         block_verifier: BlockVerifier,
         namespace: Namespace,
-    ) -> eyre::Result<(Self, Sender)> {
-        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        shutdown: oneshot::Receiver<()>,
+    ) -> eyre::Result<Self> {
         let celestia_client = CelestiaClient::builder()
             .endpoint(celestia_node_url)
             .bearer_token(celestia_bearer_token)
@@ -105,190 +90,257 @@ impl Reader {
 
         // TODO: we should probably pass in the height we want to start at from some genesis/config
         // file
-        let curr_block_height = celestia_client.get_latest_height().await?;
-        info!(da_height = curr_block_height, "creating Reader");
+        let current_block_height = celestia_client.get_latest_height().await?;
+        info!(da_height = current_block_height, "creating Reader");
 
-        Ok((
-            Self {
-                cmd_rx,
-                executor_tx,
-                celestia_client,
-                curr_block_height,
-                block_verifier,
-                namespace,
-            },
-            cmd_tx,
-        ))
+        Ok(Self {
+            executor_tx,
+            celestia_client,
+            celestia_poll_interval,
+            current_block_height,
+            get_latest_height: None,
+            get_sequencer_datas: JoinMap::new(),
+            process_sequencer_datas: JoinMap::new(),
+            block_verifier,
+            namespace,
+            shutdown,
+        })
     }
 
-    #[instrument(name = "reader", skip_all)]
-    async fn run(&mut self) -> eyre::Result<()> {
+    #[instrument(skip(self))]
+    pub(crate) async fn run(mut self) -> eyre::Result<()> {
         info!("Starting reader event loop.");
 
-        while let Some(cmd) = self.cmd_rx.recv().await {
-            match cmd {
-                ReaderCommand::GetNewBlocks => {
-                    let blocks = match self.get_new_blocks().await {
-                        Ok(blocks) => blocks,
-                        Err(e) => {
-                            warn!(
-                                error = ?e,
-                                "failed to get new blocks"
-                            );
-                            continue;
-                        }
-                    };
-                    if let Some(blocks) = blocks {
-                        for block in blocks {
-                            if let Err(e) = self.process_block(block).await {
-                                warn!(
-                                    error = ?e,
-                                    "failed to process block"
-                                );
-                            }
-                        }
+        let mut interval = tokio::time::interval(self.celestia_poll_interval);
+        loop {
+            select!(
+                shutdown_res = &mut self.shutdown => {
+                    match shutdown_res {
+                        Ok(()) => info!("received shutdown command; exiting"),
+                        Err(e) => warn!(error.message = %e, error.cause = ?e, "shutdown receiver dropped; exiting"),
                     }
-                }
-                ReaderCommand::Shutdown => {
-                    info!("Shutting down reader event loop.");
                     break;
                 }
-            }
-        }
 
+                _ = interval.tick() => self.handle_tick(),
+
+                latest_height = async { self.get_latest_height.as_mut().unwrap().await }, if self.get_latest_height.is_some() => {
+                    self.get_latest_height = None;
+                    match latest_height {
+                        Err(e) => warn!(error.message = %e, error.cause = ?e, "task querying celestia for latest height failed"),
+
+                        Ok(Err(e)) => warn!(error.message = %e, error.cause = ?e, "task querying celestia for latest height returned with an error"),
+
+                        Ok(Ok(height)) => self.handle_latest_height(height),
+                    }
+                }
+
+                Some((height, sequencer_data)) = self.get_sequencer_datas.join_next(), if !self.get_sequencer_datas.is_empty() => {
+                    match sequencer_data {
+                        Err(e) => warn!(height, error.message = %e, error.cause = ?e, "task querying celestia for sequencer data failed"),
+
+                        Ok(Err(e)) => warn!(error.message = %e, error.cause = ?e, "task querying celestia for sequencer data returned with an error"),
+
+                        Ok(Ok(sequencer_data)) => self.handle_sequencer_data(height, sequencer_data),
+                    }
+                }
+
+                Some((height, sequencer_subsets)) = self.process_sequencer_datas.join_next(), if !self.process_sequencer_datas.is_empty() => {
+                    match sequencer_subsets {
+                        Err(e) => warn!(height, error.message = %e, error.cause = ?e, "task processing sequencer data failed"),
+                        Ok(Err(e)) => warn!(height, error.message = %e, error.cause = ?e, "task processing sequencer data returned with an error"),
+                        Ok(Ok(subsets)) => self.executor_tx.send(
+                            executor::ExecutorCommand::FromCelestia(subsets),
+                        ).wrap_err("failed sending processed sequencer subsets: executor channel is closed")?,
+                    }
+                }
+            )
+        }
         Ok(())
     }
 
-    /// get_new_blocks fetches any new sequencer blocks from Celestia.
-    pub(crate) async fn get_new_blocks(
-        &mut self,
-    ) -> eyre::Result<Option<Vec<SequencerBlockSubset>>> {
-        // get the latest celestia block height
-        let first_new_height = self.curr_block_height + 1;
-        let curr_block_height = self
-            .celestia_client
-            .get_latest_height()
-            .await
-            .wrap_err("failed getting latest height from celestia")?;
-        if curr_block_height <= self.curr_block_height {
-            info!(
-                height.celestia = curr_block_height,
-                height.previous = self.curr_block_height,
-                "no new celestia height"
-            );
-            return Ok(None);
-        }
+    fn handle_tick(&mut self) {
+        let client = self.celestia_client.inner().clone();
+        self.get_latest_height = Some(tokio::spawn(async move {
+            Ok(client.header_network_head().await?.height())
+        }))
+    }
 
+    fn handle_latest_height(&mut self, latest_height: u64) {
+        if latest_height <= self.current_block_height {
+            info!(
+                height.celestia = latest_height,
+                height.previous = self.current_block_height,
+                "no new celestia height; not spawning tasks to fetch sequencer blocks"
+            );
+            return;
+        }
+        let first_new_height = self.current_block_height + 1;
         info!(
             height.start = first_new_height,
-            height.end = curr_block_height,
-            "checking celestia blocks for range of heights",
+            height.end = self.current_block_height,
+            "spawning tasks to fetch sequencer blocks for different celestia heights",
         );
-        let mut blocks = vec![];
-        // check for any new sequencer blocks written from the previous to current block height
-        'check_heights: for height in first_new_height..=curr_block_height {
-            info!(
-                height,
-                "querying data availability layer for sequencer namespace data"
-            );
-            let sequencer_namespaced_datas = match self
-                .celestia_client
-                .get_sequencer_namespace_data(height)
-                .await
-            {
-                Ok(datas) => datas,
-                Err(e) => {
-                    warn!(
-                        error = ?e,
-                        height,
-                        "failed getting sequencer namespace data from data availability layer");
-                    continue 'check_heights;
-                }
-            };
-
-            // update the stored current block height after every successful call to the data
-            // availability layer
-            // FIXME: is that correct? We have to figure out how to
-            // retry heights that fail (and under which conditions)
-            self.curr_block_height = height;
-            'get_sequencer_blocks: for data in sequencer_namespaced_datas {
-                if let Err(e) = self
-                    .block_verifier
-                    .validate_signed_namespace_data(&data)
-                    .await
-                {
-                    // FIXME: provide more information here to identify the particular block?
-                    warn!(
-                        error = ?e,
-                        "failed to validate signed namespace data; skipping"
-                    );
-                    continue 'get_sequencer_blocks;
-                }
-
-                let rollup_data = match self
-                    .celestia_client
-                    .get_rollup_data(height, &data, self.namespace)
-                    .await
-                    .wrap_err("failed to get rollup data")
-                {
-                    Ok(Some(rollup_data)) => rollup_data,
-                    Ok(None) => {
-                        debug!(
-                            height,
-                            "reader was unable to find rollup data for the given height"
-                        );
-                        continue;
-                    }
-                    Err(e) => {
-                        // this means someone submitted an invalid block to celestia;
-                        // we can ignore it
-                        warn!(
-                            error = ?e,
-                            "failed to get sequencer block from namespace data"
-                        );
-                        continue 'get_sequencer_blocks;
-                    }
-                };
-                if let Err(e) = self
-                    .block_verifier
-                    .validate_rollup_data(&data.data, &rollup_data)
-                    .await
-                {
-                    // this means someone submitted an invalid block to celestia;
-                    // we can ignore it
-                    warn!(
-                        error = ?e,
-                        "failed to validate sequencer block"
-                    );
-                    continue 'get_sequencer_blocks;
-                }
-                blocks.push(SequencerBlockSubset {
-                    block_hash: data.data.block_hash,
-                    header: data.data.header,
-                    rollup_transactions: rollup_data.rollup_txs,
+        for height in first_new_height..=self.current_block_height {
+            let client = self.celestia_client.clone();
+            if self.get_sequencer_datas.contains_key(&height) {
+                warn!(
+                    height,
+                    "getting sequencer data from celestia already in flight, not spawning"
+                );
+            } else {
+                self.get_sequencer_datas.spawn(height, async move {
+                    client.get_sequencer_namespace_data(height).await
                 });
             }
         }
-
-        // sort blocks by height
-        // TODO: there isn't a guarantee that the blocks aren't severely out of order,
-        // and we need to ensure that there are no gaps between the block heights before processing.
-        blocks.sort_by(|a, b| a.header.height.cmp(&b.header.height));
-        Ok(Some(blocks))
     }
 
-    /// Processes an individual block
-    async fn process_block(&self, block: SequencerBlockSubset) -> eyre::Result<()> {
-        info!(
-            height = block.header.height.value(),
-            "sequencer block received from DA layer"
+    #[instrument(skip(self, sequencer_data))]
+    fn handle_sequencer_data(
+        &mut self,
+        height: u64,
+        sequencer_data: Vec<SignedNamespaceData<SequencerNamespaceData>>,
+    ) {
+        // Set the current block height to the maximum height seen. Having reached this
+        // handler means that we have successfully received valid (but unverified) sequencer
+        // data at celestia `height`. If the next steps fail that is fine: re-requesting
+        // the data will not change the verification failure.
+        // If there are other tasks querying celestia for lower heights are still in
+        // flight they are unaffected and will still be processed here.
+        self.current_block_height = std::cmp::max(self.current_block_height, height);
+        if self.process_sequencer_datas.contains_key(&height) {
+            error!(
+                "sequencer data is already being processed; no two sequencer data responses \
+                 should have been received; this is a bug"
+            );
+            return;
+        }
+        self.process_sequencer_datas.spawn(
+            height,
+            process_sequencer_data(
+                height,
+                sequencer_data,
+                self.celestia_client.clone(),
+                self.block_verifier.clone(),
+                self.namespace,
+            )
+            .in_current_span(),
         );
-        self.executor_tx.send(
-            executor::ExecutorCommand::BlockReceivedFromDataAvailability {
-                block: Box::new(block),
-            },
-        )?;
-
-        Ok(())
     }
+}
+
+async fn process_sequencer_data(
+    height: u64,
+    datas: Vec<SignedNamespaceData<SequencerNamespaceData>>,
+    client: CelestiaClient,
+    block_verifier: BlockVerifier,
+    namespace: Namespace,
+) -> eyre::Result<Vec<SequencerBlockSubset>> {
+    // spawn the verification tasks
+    let mut verification_tasks = verify_all_datas(datas, block_verifier);
+
+    let (assembly_tx, assembly_rx) = mpsc::channel(256);
+    let block_assembler = task::spawn(assemble_blocks(assembly_rx));
+
+    let mut get_rollups = JoinSet::new();
+    while let Some((block_hash, verification_result)) = verification_tasks.join_next().await {
+        match verification_result {
+            Err(e) => {
+                warn!(%block_hash, error.message = %e, error.cause = ?e, "task verifying sequencer data retrieved from celestia failed; dropping block")
+            }
+            Ok(Err(e)) => {
+                warn!(%block_hash, error.message = %e, error.cause = ?e, "task verifying sequencer data retrieved from celestia returned with an error; dropping block")
+            }
+            Ok(Ok(data)) => {
+                get_rollups.spawn(
+                    get_rollup(client.clone(), height, data, namespace, assembly_tx.clone())
+                        .in_current_span(),
+                );
+            }
+        }
+    }
+
+    // ensure that the last sender goes out of scope so that block assembler's exit condition fires
+    std::mem::drop(assembly_tx);
+
+    block_assembler
+        .await
+        .wrap_err("failed assembling sequencer block subsets")
+}
+
+async fn get_rollup(
+    client: CelestiaClient,
+    height: u64,
+    data: SignedNamespaceData<SequencerNamespaceData>,
+    namespace: Namespace,
+    block_tx: mpsc::Sender<SequencerBlockSubset>,
+) {
+    let rollup_data = match client.get_rollup_data(height, &data, namespace).await {
+        Err(e) => {
+            warn!(error.message = %e, error.cause = ?e, "failed to get rollup data from celestia");
+            return;
+        }
+        Ok(None) => {
+            info!("could not find rollup data");
+            return;
+        }
+        Ok(Some(rollup_data)) => rollup_data,
+    };
+
+    if block_verifier::validate_rollup_data(&rollup_data, data.data.action_tree_root).is_err() {
+        warn!(
+            "could not validate rollup data given the action tree root of the sequencer data; \
+             dropping the block"
+        )
+    } else {
+        let subset = SequencerBlockSubset {
+            block_hash: data.data.block_hash,
+            header: data.data.header,
+            rollup_transactions: rollup_data.rollup_txs,
+        };
+        if block_tx.send(subset).await.is_err() {
+            warn!("failed sending validated rollup data to block assembler; receiver dropped");
+        }
+    }
+}
+
+async fn assemble_blocks(
+    mut assembly_rx: mpsc::Receiver<SequencerBlockSubset>,
+) -> Vec<SequencerBlockSubset> {
+    let mut blocks = Vec::new();
+    while let Some(subset) = assembly_rx.recv().await {
+        blocks.push(subset)
+    }
+    blocks.sort_unstable_by(|a, b| a.header.height.cmp(&b.header.height));
+    blocks
+}
+
+fn verify_all_datas(
+    datas: Vec<SignedNamespaceData<SequencerNamespaceData>>,
+    block_verifier: BlockVerifier,
+) -> JoinMap<tendermint::Hash, eyre::Result<SignedNamespaceData<SequencerNamespaceData>>> {
+    let mut verification_tasks = JoinMap::new();
+    for data in datas {
+        let block_hash = data.data.block_hash;
+        if verification_tasks.contains_key(&block_hash) {
+            warn!(%block_hash,
+                "more than one sequencer data with the same block hash retrieved from celestia; \
+                 only keeping the first"
+            );
+        } else {
+            let verifier = block_verifier.clone();
+            verification_tasks.spawn(
+                block_hash,
+                async move {
+                    verifier
+                        .validate_signed_namespace_data(&data)
+                        .await
+                        .map(|()| data)
+                }
+                .in_current_span(),
+            );
+        }
+    }
+    verification_tasks
 }

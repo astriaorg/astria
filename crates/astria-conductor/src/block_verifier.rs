@@ -64,7 +64,7 @@ impl BlockVerifier {
             .await
             .wrap_err("failed to get validator set")?;
 
-        validate_signed_namespace_data(current_validator_set, data)
+        validate_signed_namespace_data(&current_validator_set, data)
             .wrap_err("failed validating signed namespace data")?;
 
         // get validator set for the previous height, as the commit contained
@@ -75,27 +75,22 @@ impl BlockVerifier {
             .await
             .wrap_err("failed to get validator set")?;
 
-        validate_sequencer_namespace_data(current_validator_set, parent_validator_set, data)
+        validate_sequencer_namespace_data(&current_validator_set, &parent_validator_set, &data.data)
             .wrap_err("failed validataing sequencer data inside signed namespace data")
-    }
-
-    /// validates `RollupNamespaceData` received from Celestia.
-    /// uses the given `SequencerNamespaceData` to validate the rollup data inclusion proof;
-    /// ie. that the rollup data received was actually what was included in a sequencer block,
-    /// (no transactions were added or omitted incorrectly, and the ordering is correct).
-    pub(crate) fn validate_rollup_data(
-        &self,
-        sequencer_namespace_data: &SequencerNamespaceData,
-        rollup_data: &RollupNamespaceData,
-    ) -> eyre::Result<()> {
-        rollup_data
-            .verify_inclusion_proof(sequencer_namespace_data.action_tree_root)
-            .wrap_err("failed to verify rollup data inclusion proof")
     }
 }
 
+pub(crate) fn validate_rollup_data(
+    rollup_data: &RollupNamespaceData,
+    action_tree_root: [u8; 32],
+) -> eyre::Result<()> {
+    rollup_data
+        .verify_inclusion_proof(action_tree_root)
+        .wrap_err("failed to verify rollup data inclusion proof")
+}
+
 fn validate_signed_namespace_data(
-    validator_set: validators::Response,
+    validator_set: &validators::Response,
     data: &SignedNamespaceData<SequencerNamespaceData>,
 ) -> eyre::Result<()> {
     // verify the block signature
@@ -121,8 +116,8 @@ fn validate_signed_namespace_data(
 }
 
 fn validate_sequencer_namespace_data(
-    current_validator_set: validators::Response,
-    parent_validator_set: validators::Response,
+    current_validator_set: &validators::Response,
+    parent_validator_set: &validators::Response,
     data: &SequencerNamespaceData,
 ) -> eyre::Result<()> {
     let SequencerNamespaceData {
@@ -453,8 +448,8 @@ mod test {
         };
 
         validate_sequencer_namespace_data(
-            validator_set,
-            make_test_validator_set(height - 1).0,
+            &validator_set,
+            &make_test_validator_set(height - 1).0,
             &sequencer_namespace_data,
         )
         .unwrap();

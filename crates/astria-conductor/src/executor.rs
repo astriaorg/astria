@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use astria_sequencer_types::{
     ChainId,
-    Namespace,
     SequencerBlockData,
 };
 use color_eyre::eyre::{
@@ -15,23 +14,24 @@ use tendermint::{
     Time,
 };
 use tokio::{
-    sync::mpsc::{
-        self,
-        UnboundedReceiver,
-        UnboundedSender,
+    select,
+    sync::{
+        mpsc::{
+            UnboundedReceiver,
+            UnboundedSender,
+        },
+        oneshot,
     },
-    task,
 };
 use tracing::{
     debug,
     error,
     info,
     instrument,
-    Instrument,
+    warn,
 };
 
 use crate::{
-    config::Config,
     execution_client::{
         ExecutionClient,
         ExecutionRpcClient,
@@ -39,35 +39,10 @@ use crate::{
     types::SequencerBlockSubset,
 };
 
-pub(crate) type JoinHandle = task::JoinHandle<Result<()>>;
-
 /// The channel for sending commands to the executor task.
 pub(crate) type Sender = UnboundedSender<ExecutorCommand>;
 /// The channel the executor task uses to listen for commands.
 type Receiver = UnboundedReceiver<ExecutorCommand>;
-
-/// spawns a executor task and returns a tuple with the task's join handle
-/// and the channel for sending commands to this executor
-pub(crate) async fn spawn(conf: &Config) -> Result<(JoinHandle, Sender)> {
-    info!(
-        chain_id = %conf.chain_id,
-        execution_rpc_url = %conf.execution_rpc_url,
-        "Spawning executor task."
-    );
-    let execution_rpc_client = ExecutionRpcClient::new(&conf.execution_rpc_url)
-        .await
-        .wrap_err("failed to create execution rpc client")?;
-    let (mut executor, executor_tx) = Executor::new(
-        execution_rpc_client,
-        ChainId::new(conf.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
-        conf.disable_empty_block_execution,
-    )
-    .await
-    .context("failed to create Executor")?;
-    let join_handle = task::spawn(async move { executor.run().in_current_span().await });
-    info!("Spawned executor task.");
-    Ok((join_handle, executor_tx))
-}
 
 // Given `Time`, convert to protobuf timestamp
 fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> {
@@ -85,28 +60,22 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> 
 #[derive(Debug)]
 pub(crate) enum ExecutorCommand {
     /// used when a block is received from the subscription stream to sequencer
-    BlockReceivedFromSequencer {
-        block: Box<SequencerBlockData>,
-    },
+    BlockReceivedFromSequencer { block: Box<SequencerBlockData> },
     /// used when a block is received from the reader (Celestia)
-    BlockReceivedFromDataAvailability {
-        block: Box<SequencerBlockSubset>,
-    },
-    Shutdown,
+    FromCelestia(Vec<SequencerBlockSubset>),
 }
 
-struct Executor<C> {
+pub(crate) struct Executor {
     /// Channel on which executor commands are received.
     cmd_rx: Receiver,
 
+    shutdown: oneshot::Receiver<()>,
+
     /// The execution rpc client that we use to send messages to the execution service
-    execution_rpc_client: C,
+    execution_rpc_client: ExecutionRpcClient,
 
     /// Chain ID
     chain_id: ChainId,
-
-    /// Namespace ID, derived from chain ID
-    namespace: Namespace,
 
     /// Tracks the state of the execution chain
     execution_state: Vec<u8>,
@@ -126,81 +95,88 @@ struct Executor<C> {
     disable_empty_block_execution: bool,
 }
 
-impl<C: ExecutionClient> Executor<C> {
-    async fn new(
-        mut execution_rpc_client: C,
+impl Executor {
+    pub(crate) async fn new(
+        client_url: &str,
         chain_id: ChainId,
         disable_empty_block_execution: bool,
-    ) -> Result<(Self, Sender)> {
-        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        cmd_rx: Receiver,
+        shutdown: oneshot::Receiver<()>,
+    ) -> Result<Self> {
+        let mut execution_rpc_client = ExecutionRpcClient::new(client_url)
+            .await
+            .wrap_err("failed to create execution rpc client")?;
         let init_state_response = execution_rpc_client
             .call_init_state()
             .await
             .wrap_err("could not initialize execution rpc client state")?;
         let execution_state = init_state_response.block_hash;
-        Ok((
-            Self {
-                cmd_rx,
-                execution_rpc_client,
-                chain_id: chain_id.clone(),
-                namespace: Namespace::from_slice(chain_id.as_ref()),
-                execution_state,
-                sequencer_hash_to_execution_hash: HashMap::new(),
-                disable_empty_block_execution,
-            },
-            cmd_tx,
-        ))
+        Ok(Self {
+            cmd_rx,
+            shutdown,
+            execution_rpc_client,
+            chain_id,
+            execution_state,
+            sequencer_hash_to_execution_hash: HashMap::new(),
+            disable_empty_block_execution,
+        })
     }
 
     #[instrument(skip_all)]
-    async fn run(&mut self) -> Result<()> {
-        info!("Starting executor event loop.");
+    pub(crate) async fn run_until_stopped(mut self) {
+        loop {
+            select!(
+                biased;
 
-        while let Some(cmd) = self.cmd_rx.recv().await {
-            match cmd {
-                ExecutorCommand::BlockReceivedFromSequencer {
-                    block,
-                } => {
-                    let height = block.header().height.value();
-                    let block_subset =
-                        SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id);
-
-                    if let Err(e) = self.execute_block(block_subset).await {
-                        error!(
-                            height = height,
-                            error = ?e,
-                            "failed to execute block"
-                        );
+                shutdown = &mut self.shutdown => {
+                    match shutdown {
+                        Err(e) => warn!(error.message = %e, "shutdown channel return with error; shutting down"),
+                        Ok(()) => info!("received shutdown signal; shutting down"),
                     }
-                }
-
-                ExecutorCommand::BlockReceivedFromDataAvailability {
-                    block,
-                } => {
-                    let height = block.header.height.value();
-                    if let Err(e) = self
-                        .handle_block_received_from_data_availability(*block)
-                        .await
-                    {
-                        error!(
-                            height = height,
-                            error = ?e,
-                            "failed to finalize block"
-                        );
-                    }
-                }
-
-                ExecutorCommand::Shutdown => {
-                    info!(
-                        namespace = %self.namespace,
-                        "Shutting down executor event loop."
-                    );
                     break;
                 }
-            }
-        }
 
-        Ok(())
+                cmd = self.cmd_rx.recv() => {
+                    let Some(cmd) = cmd else {
+                        error!("cmd channel closed unexpectedly; shutting down");
+                        break;
+                    };
+                    match cmd {
+                        ExecutorCommand::BlockReceivedFromSequencer {
+                            block,
+                        } => {
+                            let height = block.header().height.value();
+                            let block_subset =
+                                SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id);
+
+                            if let Err(e) = self.execute_block(block_subset).await {
+                                error!(
+                                    height = height,
+                                    error = ?e,
+                                    "failed to execute block"
+                                );
+                            }
+                        }
+
+                        ExecutorCommand::FromCelestia(mut subsets) => {
+                            // FIXME: actually process all the blocks
+                            let block = subsets.remove(0);
+                            let height = block.header.height.value();
+                            if let Err(e) = self
+                                .handle_block_received_from_data_availability(block)
+                                .await
+                            {
+                                error!(
+                                    height = height,
+                                    error = ?e,
+                                    "failed to finalize block"
+                                );
+                            }
+                        }
+                    }
+                }
+            )
+        }
     }
 
     /// checks for relevant transactions in the SequencerBlock and attempts
