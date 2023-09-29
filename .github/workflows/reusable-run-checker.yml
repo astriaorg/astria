@@ -67,7 +67,7 @@ jobs:
               - 'crates/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
-              - '.cargo/**/*'
+              - '.cargo/**'
             proto:
               - '**/*.proto'
             rust:
