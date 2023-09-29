@@ -1,7 +1,10 @@
 //! The driver is the top-level coordinator that runs and manages all the components
 //! necessary for this reader.
 
-use std::fmt;
+use std::{
+    fmt,
+    time::Duration,
+};
 
 use astria_sequencer_types::SequencerBlockData;
 use color_eyre::eyre::{
@@ -13,7 +16,9 @@ use sequencer_client::{
     tendermint,
     NewBlockStreamError,
     WebSocketClient,
+    HttpClient,
 };
+use ::tendermint::block::Height;
 use tokio::{
     select,
     sync::{
@@ -27,7 +32,8 @@ use tokio::{
     task::{
         spawn,
         JoinHandle,
-    }
+    },
+    time,
 };
 use tracing::{
     info,
@@ -87,12 +93,13 @@ pub(crate) struct Driver {
 
     queue: Queue,
 
+    sequencer_url: String,
+
     sync_task: Option<JoinHandle<Result<()>>>,
 
     is_shutdown: Mutex<bool>,
 }
 
-#[derive(Clone)]
 struct SequencerClient {
     client: WebSocketClient,
     _driver: JoinHandle<Result<(), tendermint::Error>>,
@@ -147,6 +154,7 @@ impl Driver {
             .await
             .wrap_err("failed constructing a cometbft websocket client to read off sequencer")?;
 
+
         Ok((
             Self {
                 cmd_tx: cmd_tx.clone(),
@@ -154,6 +162,7 @@ impl Driver {
                 reader_tx,
                 executor_tx,
                 sequencer_client,
+                sequencer_url: conf.sequencer_url.clone(),
                 is_shutdown: Mutex::new(false),
                 queue: Queue::new(conf.genesis_sequencer_block_height),
                 sync_task: None,
@@ -201,9 +210,7 @@ impl Driver {
         Ok(())
     }
 
-    pub(crate) 
-
-    async fn handle_new_block(&mut self, block: Result<SequencerBlockData, NewBlockStreamError>) {
+    pub(crate) async fn handle_new_block(&mut self, block: Result<SequencerBlockData, NewBlockStreamError>) {
         let block = match block {
             Err(err) => {
                 warn!(err.msg = %err, err.cause = ?err, "encountered an error while receiving a new block from sequencer");
@@ -229,10 +236,10 @@ impl Driver {
             None => {
                 if self.sync_task.is_none() {
                     if let Some((start_block, end_block)) = self.queue.get_missing_block_end() {
-                        // TODO: Figure out how sync task can use sequencer_client?
-                        let sequencer_client = self.sequencer_client.clone();
-                        let sender = self.cmd_tx.clone();
-                        self.sync_task = Some(spawn(sync(sender, start_block, end_block)))
+                        match Syncer::new(self.cmd_tx.clone(), &self.sequencer_url).await {
+                           Ok(syncer) => self.sync_task = Some(spawn(syncer.run(start_block, end_block))),
+                           Err(err) => warn!(err.msg = %err, err.cause = ?err, "much stuff")
+                        }
                     }
                 }
             }
@@ -246,7 +253,7 @@ impl Driver {
             }
 
             DriverCommand::ProcessNewBlock { block } => {
-                self.handle_new_block(Ok(*block));
+                self.handle_new_block(Ok(*block)).await;
             }
 
             DriverCommand::GetNewBlocks => {
@@ -283,7 +290,58 @@ impl Driver {
     }
 }
 
-async fn sync(driver_tx: Sender, start_block: u64, end_block: u64) -> Result<()> {
-    // Run on an interval to fetch data from sequencer, propogate commands back to add to queue (need a join handler here?)
-    todo!();
+
+struct Syncer {
+    driver_tx: Sender,
+    sequencer_client: HttpClient,
+}
+
+impl fmt::Debug for Syncer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Syncer")
+            .finish_non_exhaustive()
+    }
+}
+
+impl Syncer {
+    pub(crate) async fn new(
+        driver_tx: Sender,
+        sequencer_url: &str,
+    ) -> Result<Self> {
+        let sequencer_client = HttpClient::new(sequencer_url)
+            .wrap_err("failed constructing a cometbft client to read off sequencer")?;
+
+        Ok(
+            Self{
+                driver_tx,
+                sequencer_client,
+            }
+        )
+    }
+
+    pub(crate) async fn run(self, start_block: u64, end_block: u64) -> Result<()> {
+        use sequencer_client::Client;
+        // Run on an interval to fetch data from sequencer, propogate commands back to add to queue 
+        let mut interval = time::interval(Duration::from_millis(50));
+        let mut block_to_grab = start_block;
+        while block_to_grab < end_block {
+            select! {
+                _ = interval.tick() => {
+                    if let Ok(resp) = self.sequencer_client.block(Height::from(block_to_grab as u32)).await {
+                        if let Ok(block) = SequencerBlockData::from_tendermint_block(resp.block).map_err(NewBlockStreamError::CometBftConversion) {
+                            if let Err(err) = self
+                                .driver_tx
+                                .send(DriverCommand::ProcessNewBlock { block: Box::new(block) }) {
+                                    warn!(err.msg = %err, err.cause = ?err, "failed sending new block received from sequencer to executor");
+                            } else {
+                                block_to_grab += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    
+        Ok(())
+    }
 }
