@@ -35,7 +35,7 @@ use tendermint::{
 use tracing::instrument;
 
 /// `BlockVerifier` is verifying blocks received from celestia.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct BlockVerifier {
     sequencer_client: WebSocketClient,
 }
@@ -58,61 +58,14 @@ impl BlockVerifier {
         let height: u32 = data.data.header.height.value().try_into().expect(
             "a tendermint height (currently non-negative i32) should always fit into a u32",
         );
-        let validator_set = self
-            .sequencer_client
-            .validators(height, sequencer_client::tendermint::Paging::Default)
-            .await
-            .wrap_err("failed to get validator set")?;
-
-        validate_signed_namespace_data(validator_set, data)
-    }
-
-    /// validates `RollupNamespaceData` received from Celestia.
-    /// uses the given `SequencerNamespaceData` to validate the rollup data inclusion proof;
-    /// ie. that the rollup data received was actually what was included in a sequencer block,
-    /// (no transactions were added or omitted incorrectly, and the ordering is correct).
-    pub(crate) async fn validate_rollup_data(
-        &self,
-        sequencer_namespace_data: &SequencerNamespaceData,
-        rollup_data: &RollupNamespaceData,
-    ) -> eyre::Result<()> {
-        self.validate_sequencer_namespace_data(sequencer_namespace_data)
-            .await
-            .wrap_err("failed to validate sequencer block header and last commit")?;
-
-        // validate that rollup data was included in the sequencer block
-        rollup_data
-            .verify_inclusion_proof(sequencer_namespace_data.action_tree_root)
-            .wrap_err("failed to verify rollup data inclusion proof")?;
-        Ok(())
-    }
-
-    /// performs various validation checks on the sequencer data received from Celestia.
-    ///
-    /// checks performed:
-    /// - the proposer of the sequencer block matches the expected proposer for the block height
-    ///   from tendermint
-    /// - the signer of the SignedNamespaceData the proposer
-    /// - the signature is valid
-    /// - the root of the merkle tree of all the header fields matches the block's block_hash
-    /// - the root of the merkle tree of all transactions in the block matches the block's data_hash
-    /// - the inclusion proof of the action tree root inside `data_hash` is valid
-    /// - validate the block was actually finalized; ie >2/3 stake signed off on it
-    async fn validate_sequencer_namespace_data(
-        &self,
-        data: &SequencerNamespaceData,
-    ) -> eyre::Result<()> {
-        // sequencer block's height
-        let height: u32 = data.header.height.value().try_into().expect(
-            "a tendermint height (currently non-negative i32) should always fit into a u32",
-        );
-
-        // get the validator set for this height
         let current_validator_set = self
             .sequencer_client
             .validators(height, sequencer_client::tendermint::Paging::Default)
             .await
             .wrap_err("failed to get validator set")?;
+
+        validate_signed_namespace_data(current_validator_set, data)
+            .wrap_err("failed validating signed namespace data")?;
 
         // get validator set for the previous height, as the commit contained
         // in the block is for the previous height
@@ -123,6 +76,21 @@ impl BlockVerifier {
             .wrap_err("failed to get validator set")?;
 
         validate_sequencer_namespace_data(current_validator_set, parent_validator_set, data)
+            .wrap_err("failed validataing sequencer data inside signed namespace data")
+    }
+
+    /// validates `RollupNamespaceData` received from Celestia.
+    /// uses the given `SequencerNamespaceData` to validate the rollup data inclusion proof;
+    /// ie. that the rollup data received was actually what was included in a sequencer block,
+    /// (no transactions were added or omitted incorrectly, and the ordering is correct).
+    pub(crate) fn validate_rollup_data(
+        &self,
+        sequencer_namespace_data: &SequencerNamespaceData,
+        rollup_data: &RollupNamespaceData,
+    ) -> eyre::Result<()> {
+        rollup_data
+            .verify_inclusion_proof(sequencer_namespace_data.action_tree_root)
+            .wrap_err("failed to verify rollup data inclusion proof")
     }
 }
 
