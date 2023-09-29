@@ -412,6 +412,7 @@ mod test {
             tendermint_url: "test".to_string(),
             sequencer_url: "test".to_string(),
             execution_commit_level: config::CommitLevel::SoftAndFirm,
+            initial_sequencer_block_height: 1,
         }
     }
 
