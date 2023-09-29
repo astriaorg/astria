@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
-    outputs:
+    outputs: 
       release_workflow: ${{ steps.filters.outputs.release_workflow }}
       test_workflow: ${{ steps.filters.outputs.test_workflow }}
       docker_workflow: ${{ steps.filters.outputs.docker_workflow }}
@@ -51,8 +51,6 @@ jobs:
         with:
           list-files: json
           filters: |
-            gating_changed:
-              - '.github/workflows/reusable-run-checker.yml'
             release_workflow:
               - '.github/workflows/release.yml'
               - '.github/workflows/reusable-cargo-version.yml'
