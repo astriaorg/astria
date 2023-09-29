@@ -36,7 +36,7 @@ pub struct Config {
     /// Disable reading from the DA layer and block finalization
     pub disable_finalization: bool,
 
-    /// log directive to use for telemetry.
+    /// log directive to use for telemetry. validate me
     pub log: String,
 
     /// Choose to execute empty blocks or not
