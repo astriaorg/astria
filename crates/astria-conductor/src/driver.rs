@@ -1,8 +1,6 @@
 //! The driver is the top-level coordinator that runs and manages all the components
 //! necessary for this reader.
 
-use std::fmt;
-
 use astria_sequencer_types::SequencerBlockData;
 use color_eyre::eyre::{
     eyre,
@@ -74,32 +72,11 @@ pub(crate) struct Driver {
     executor_tx: executor::Sender,
 
     /// A client that subscribes to new sequencer blocks from cometbft.
-    sequencer_client: SequencerClient,
+    sequencer_client: WebSocketClient,
+
+    sequencer_driver: JoinHandle<Result<(), tendermint::Error>>,
 
     is_shutdown: Mutex<bool>,
-}
-
-struct SequencerClient {
-    client: WebSocketClient,
-    _driver: JoinHandle<Result<(), tendermint::Error>>,
-}
-
-impl SequencerClient {
-    async fn new(url: &str) -> Result<Self, tendermint::Error> {
-        let (client, driver) = WebSocketClient::new(url).await?;
-        Ok(Self {
-            client,
-            _driver: tokio::spawn(async move { driver.run().await }),
-        })
-    }
-}
-
-impl fmt::Debug for SequencerClient {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SequencerClient")
-            .field("client", &self.client)
-            .finish_non_exhaustive()
-    }
 }
 
 impl Driver {
@@ -114,8 +91,15 @@ impl Driver {
             .await
             .wrap_err("failed to construct Executor")?;
 
-        let block_verifier = BlockVerifier::new(&conf.tendermint_url)
-            .wrap_err("failed to construct block verifier")?;
+        let (sequencer_client, sequencer_driver) = {
+            let (client, driver) = WebSocketClient::new(&*conf.sequencer_url).await.wrap_err(
+                "failed constructing a cometbft websocket client to read off sequencer",
+            )?;
+            let driver_handle = tokio::spawn(async move { driver.run().await });
+            (client, driver_handle)
+        };
+
+        let block_verifier = BlockVerifier::new(sequencer_client.clone());
 
         let (reader_join_handle, reader_tx) = if conf.disable_finalization {
             (None, None)
@@ -129,10 +113,6 @@ impl Driver {
             (Some(reader_join_handle), Some(reader_tx))
         };
 
-        let sequencer_client = SequencerClient::new(&conf.sequencer_url)
-            .await
-            .wrap_err("failed constructing a cometbft websocket client to read off sequencer")?;
-
         Ok((
             Self {
                 cmd_tx: cmd_tx.clone(),
@@ -140,6 +120,7 @@ impl Driver {
                 reader_tx,
                 executor_tx,
                 sequencer_client,
+                sequencer_driver,
                 is_shutdown: Mutex::new(false),
             },
             executor_join_handle,
@@ -156,7 +137,6 @@ impl Driver {
         info!("Starting driver event loop.");
         let mut new_blocks = self
             .sequencer_client
-            .client
             .subscribe_new_block_data()
             .await
             .wrap_err("failed subscribing to sequencer to receive new blocks")?;
@@ -179,6 +159,14 @@ impl Driver {
                         info!("Driver command channel closed.");
                         break;
                     }
+                }
+                driver_res = &mut self.sequencer_driver => {
+                    match driver_res {
+                        Ok(Ok(())) => warn!("sequencer client websocket driver exited unexpectedly"),
+                        Ok(Err(e)) => warn!(err.message = %e, err.cause = ?e, "sequencer client websocket driver exited with error"),
+                        Err(e) => warn!(err.cause = ?e, "sequencer client driver task failed"),
+                    }
+                    break;
                 }
             }
         }

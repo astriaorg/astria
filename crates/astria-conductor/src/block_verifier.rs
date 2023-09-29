@@ -20,7 +20,7 @@ use prost::Message;
 use sequencer_client::{
     tendermint::endpoint::validators,
     Client as _,
-    HttpClient,
+    WebSocketClient,
 };
 use tendermint::{
     account,
@@ -37,15 +37,14 @@ use tracing::instrument;
 /// `BlockVerifier` is verifying blocks received from celestia.
 #[derive(Debug)]
 pub(crate) struct BlockVerifier {
-    sequencer_client: HttpClient,
+    sequencer_client: WebSocketClient,
 }
 
 impl BlockVerifier {
-    pub(crate) fn new(sequencer_url: &str) -> eyre::Result<Self> {
-        Ok(Self {
-            sequencer_client: HttpClient::new(sequencer_url)
-                .wrap_err("failed to construct sequencer client")?,
-        })
+    pub(crate) fn new(sequencer_client: WebSocketClient) -> Self {
+        Self {
+            sequencer_client,
+        }
     }
 
     /// validates `SignedNamespaceData` received from Celestia.
