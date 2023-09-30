@@ -18,6 +18,7 @@ use tokio::{
     },
     task::{
         self,
+        JoinError,
         JoinHandle,
         JoinSet,
     },
@@ -122,51 +123,49 @@ impl Reader {
                     break;
                 }
 
-                _ = interval.tick() => self.handle_tick(),
+                _ = interval.tick() => self.get_latest_height(),
 
-                latest_height = async { self.get_latest_height.as_mut().unwrap().await }, if self.get_latest_height.is_some() => {
+                res = async { self.get_latest_height.as_mut().unwrap().await }, if self.get_latest_height.is_some() => {
                     self.get_latest_height = None;
-                    match latest_height {
-                        Err(e) => warn!(error.message = %e, error.cause = ?e, "task querying celestia for latest height failed"),
-
-                        Ok(Err(e)) => warn!(error.message = %e, error.cause = ?e, "task querying celestia for latest height returned with an error"),
-
-                        Ok(Ok(height)) => self.handle_latest_height(height),
-                    }
+                    self.get_sequencer_datas(res);
                 }
 
-                Some((height, sequencer_data)) = self.get_sequencer_datas.join_next(), if !self.get_sequencer_datas.is_empty() => {
-                    match sequencer_data {
-                        Err(e) => warn!(height, error.message = %e, error.cause = ?e, "task querying celestia for sequencer data failed"),
-
-                        Ok(Err(e)) => warn!(error.message = %e, error.cause = ?e, "task querying celestia for sequencer data returned with an error"),
-
-                        Ok(Ok(sequencer_data)) => self.handle_sequencer_data(height, sequencer_data),
-                    }
+                Some((height, res)) = self.get_sequencer_datas.join_next(), if !self.get_sequencer_datas.is_empty() => {
+                    self.process_sequencer_datas(height, res);
                 }
 
-                Some((height, sequencer_subsets)) = self.process_sequencer_datas.join_next(), if !self.process_sequencer_datas.is_empty() => {
-                    match sequencer_subsets {
-                        Err(e) => warn!(height, error.message = %e, error.cause = ?e, "task processing sequencer data failed"),
-                        Ok(Err(e)) => warn!(height, error.message = %e, error.cause = ?e, "task processing sequencer data returned with an error"),
-                        Ok(Ok(subsets)) => self.executor_tx.send(
-                            executor::ExecutorCommand::FromCelestia(subsets),
-                        ).wrap_err("failed sending processed sequencer subsets: executor channel is closed")?,
-                    }
+                Some((height, res)) = self.process_sequencer_datas.join_next(), if !self.process_sequencer_datas.is_empty() => {
+                    let span = tracing::info_span!("send_sequencer_subsets", height);
+                    span.in_scope(|| self.send_sequencer_subsets(res))
+                        .wrap_err("failed sending sequencer subsets to executor")?;
                 }
             )
         }
         Ok(())
     }
 
-    fn handle_tick(&mut self) {
+    fn get_latest_height(&mut self) {
         let client = self.celestia_client.inner().clone();
         self.get_latest_height = Some(tokio::spawn(async move {
             Ok(client.header_network_head().await?.height())
         }))
     }
 
-    fn handle_latest_height(&mut self, latest_height: u64) {
+    fn get_sequencer_datas(&mut self, latest_height_res: Result<eyre::Result<u64>, JoinError>) {
+        let latest_height = match latest_height_res {
+            Err(e) => {
+                warn!(error.message = %e, error.cause = ?e, "task querying celestia for latest height failed");
+                return;
+            }
+
+            Ok(Err(e)) => {
+                warn!(error.message = %e, error.cause = ?e, "task querying celestia for latest height returned with an error");
+                return;
+            }
+
+            Ok(Ok(height)) => height,
+        };
+
         if latest_height <= self.current_block_height {
             info!(
                 height.celestia = latest_height,
@@ -196,12 +195,29 @@ impl Reader {
         }
     }
 
-    #[instrument(skip(self, sequencer_data))]
-    fn handle_sequencer_data(
+    #[instrument(skip(self, sequencer_data_res))]
+    fn process_sequencer_datas(
         &mut self,
         height: u64,
-        sequencer_data: Vec<SignedNamespaceData<SequencerNamespaceData>>,
+        sequencer_data_res: Result<
+            eyre::Result<Vec<SignedNamespaceData<SequencerNamespaceData>>>,
+            JoinError,
+        >,
     ) {
+        let sequencer_data = match sequencer_data_res {
+            Err(e) => {
+                warn!(height, error.message = %e, error.cause = ?e, "task querying celestia for sequencer data failed");
+                return;
+            }
+
+            Ok(Err(e)) => {
+                warn!(error.message = %e, error.cause = ?e, "task querying celestia for sequencer data returned with an error");
+                return;
+            }
+
+            Ok(Ok(sequencer_data)) => sequencer_data,
+        };
+
         // Set the current block height to the maximum height seen. Having reached this
         // handler means that we have successfully received valid (but unverified) sequencer
         // data at celestia `height`. If the next steps fail that is fine: re-requesting
@@ -227,6 +243,27 @@ impl Reader {
             )
             .in_current_span(),
         );
+    }
+
+    #[instrument(skip_all, fields(height))]
+    fn send_sequencer_subsets(
+        &self,
+        sequencer_subsets_res: Result<eyre::Result<Vec<SequencerBlockSubset>>, JoinError>,
+    ) -> eyre::Result<()> {
+        let subsets = match sequencer_subsets_res {
+            Err(e) => {
+                warn!(error.message = %e, error.cause = ?e, "task processing sequencer data failed");
+                return Ok(());
+            }
+            Ok(Err(e)) => {
+                warn!(error.message = %e, error.cause = ?e, "task processing sequencer data returned with an error");
+                return Ok(());
+            }
+            Ok(Ok(subsets)) => subsets,
+        };
+        self.executor_tx
+            .send(executor::ExecutorCommand::FromCelestia(subsets))
+            .wrap_err("failed sending processed sequencer subsets: executor channel is closed")
     }
 }
 
