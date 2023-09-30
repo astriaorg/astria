@@ -411,6 +411,7 @@ mod test {
             celestia_bearer_token: "test".to_string(),
             tendermint_url: "test".to_string(),
             sequencer_url: "test".to_string(),
+            initial_sequencer_block_height: 1,
         }
     }
 
