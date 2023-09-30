@@ -50,6 +50,8 @@ impl ActionHandler for tendermint::validator::Update {
 
 #[async_trait::async_trait]
 impl ActionHandler for SudoAddressChangeAction {
+    /// check that the signer of the transaction is the current sudo address,
+    /// as only that address can change the sudo address
     async fn check_stateful<S: StateReadExt + 'static>(
         &self,
         state: &S,

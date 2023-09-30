@@ -685,6 +685,41 @@ mod test {
     }
 
     #[tokio::test]
+    async fn app_deliver_tx_sudo_address_change_error() {
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let sudo_address = address_from_hex_string(CAROL_ADDRESS);
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_key: sudo_address,
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+        app.processed_txs = 2;
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                proto::native::sequencer::v1alpha1::Action::SudoAddressChange(
+                    SudoAddressChangeAction {
+                        new_address: alice_address,
+                    },
+                ),
+            ],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        let bytes = signed_tx.into_raw().encode_to_vec();
+
+        let res = app
+            .deliver_tx(&bytes)
+            .await
+            .unwrap_err()
+            .root_cause()
+            .to_string();
+        assert!(res.contains("signer is not the sudo key"));
+    }
+
+    #[tokio::test]
     async fn app_end_block_validator_updates() {
         use tendermint::validator;
 
