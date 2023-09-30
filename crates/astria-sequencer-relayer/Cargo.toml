@@ -34,6 +34,7 @@ tracing = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client" }
+astria-sequencer-client = { path = "../astria-sequencer-client" }
 astria-sequencer-validation = { path = "../astria-sequencer-validation" }
 proto = { package = "astria-proto", path = "../astria-proto" }
 sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }

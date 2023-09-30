@@ -339,6 +339,7 @@ version = "0.5.1"
 dependencies = [
  "astria-celestia-jsonrpc-client",
  "astria-proto",
+ "astria-sequencer-client",
  "astria-sequencer-types",
  "astria-sequencer-validation",
  "astria-telemetry",
