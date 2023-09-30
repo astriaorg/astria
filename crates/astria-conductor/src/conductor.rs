@@ -1,4 +1,8 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    rc::Rc,
+    time::Duration,
+};
 
 use astria_sequencer_types::{
     ChainId,
@@ -20,7 +24,11 @@ use tokio::{
         oneshot,
         watch,
     },
-    task::JoinHandle,
+    task::{
+        self,
+        JoinHandle,
+    },
+    time::timeout,
 };
 use tokio_util::task::JoinMap;
 use tracing::{
@@ -165,10 +173,44 @@ impl Conductor {
             }
         }
 
+        info!("sending shutdown command to all tasks");
         for (_, channel) in shutdown_channels {
             let _ = channel.send(());
         }
 
+        // wait 5 seconds for all tasks to shut down
+        // put the tasks into an Rc to make them 'static
+        let mut tasks = Rc::new(tasks);
+        let local_set = task::LocalSet::new();
+        local_set
+            .run_until(async {
+                let mut tasks = tasks.clone();
+                let _ = timeout(
+                    Duration::from_secs(5),
+                    task::spawn_local(async move {
+                        while let Some(_) = Rc::get_mut(&mut tasks)
+                            .expect(
+                                "only one Rc to the conductor tasks should exist; this is a bug",
+                            )
+                            .join_next()
+                            .await
+                        {}
+                    }),
+                )
+                .await;
+            })
+            .await;
+
+        if !tasks.is_empty() {
+            warn!(
+                number = tasks.len(),
+                "aborting tasks that haven't shutdown yet"
+            );
+            Rc::get_mut(&mut tasks)
+                .expect("only one Rc to the conductor tasks should exist; this is a bug")
+                .shutdown()
+                .await;
+        }
         Ok(())
     }
 }
