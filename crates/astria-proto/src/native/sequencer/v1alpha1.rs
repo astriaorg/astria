@@ -303,6 +303,7 @@ pub enum Action {
     Sequence(SequenceAction),
     Transfer(TransferAction),
     ValidatorUpdate(tendermint::validator::Update),
+    SudoAddressChange(SudoAddressChangeAction),
     Mint(MintAction),
 }
 
@@ -314,6 +315,7 @@ impl Action {
             Action::Sequence(act) => Value::SequenceAction(act.into_raw()),
             Action::Transfer(act) => Value::TransferAction(act.into_raw()),
             Action::ValidatorUpdate(act) => Value::ValidatorUpdateAction(act.into()),
+            Action::SudoAddressChange(act) => Value::SudoAddressChangeAction(act.into_raw()),
             Action::Mint(act) => Value::MintAction(act.into_raw()),
         };
         raw::Action {
@@ -328,6 +330,9 @@ impl Action {
             Action::Sequence(act) => Value::SequenceAction(act.to_raw()),
             Action::Transfer(act) => Value::TransferAction(act.to_raw()),
             Action::ValidatorUpdate(act) => Value::ValidatorUpdateAction(act.clone().into()),
+            Action::SudoAddressChange(act) => {
+                Value::SudoAddressChangeAction(act.clone().into_raw())
+            }
             Action::Mint(act) => Value::MintAction(act.to_raw()),
         };
         raw::Action {
@@ -357,6 +362,10 @@ impl Action {
             Value::ValidatorUpdateAction(act) => {
                 Self::ValidatorUpdate(act.try_into().map_err(ActionError::validator_update)?)
             }
+            Value::SudoAddressChangeAction(act) => Self::SudoAddressChange(
+                SudoAddressChangeAction::try_from_raw(act)
+                    .map_err(ActionError::sudo_address_change)?,
+            ),
             Value::MintAction(act) => {
                 Self::Mint(MintAction::try_from_raw(act).map_err(ActionError::mint)?)
             }
@@ -393,6 +402,12 @@ impl From<TransferAction> for Action {
     }
 }
 
+impl From<SudoAddressChangeAction> for Action {
+    fn from(value: SudoAddressChangeAction) -> Self {
+        Self::SudoAddressChange(value)
+    }
+}
+
 impl From<MintAction> for Action {
     fn from(value: MintAction) -> Self {
         Self::Mint(value)
@@ -423,6 +438,12 @@ impl ActionError {
         }
     }
 
+    fn sudo_address_change(inner: SudoAddressChangeActionError) -> Self {
+        Self {
+            kind: ActionErrorKind::SudoAddressChange(inner),
+        }
+    }
+
     fn mint(inner: MintActionError) -> Self {
         Self {
             kind: ActionErrorKind::Mint(inner),
@@ -436,6 +457,7 @@ impl Display for ActionError {
             ActionErrorKind::Unset => "oneof value was not set",
             ActionErrorKind::Transfer(_) => "raw transfer action was not valid",
             ActionErrorKind::ValidatorUpdate(_) => "raw validator update action was not valid",
+            ActionErrorKind::SudoAddressChange(_) => "raw sudo address change action was not valid",
             ActionErrorKind::Mint(_) => "raw mint action was not valid",
         };
         f.pad(msg)
@@ -448,6 +470,7 @@ impl Error for ActionError {
             ActionErrorKind::Unset => None,
             ActionErrorKind::Transfer(e) => Some(e),
             ActionErrorKind::ValidatorUpdate(e) => Some(e),
+            ActionErrorKind::SudoAddressChange(e) => Some(e),
             ActionErrorKind::Mint(e) => Some(e),
         }
     }
@@ -458,6 +481,7 @@ enum ActionErrorKind {
     Unset,
     Transfer(TransferActionError),
     ValidatorUpdate(tendermint::error::Error),
+    SudoAddressChange(SudoAddressChangeActionError),
     Mint(MintActionError),
 }
 
@@ -590,6 +614,88 @@ impl Error for TransferActionError {
 
 #[derive(Debug)]
 enum TransferActionErrorKind {
+    Address(IncorrectAddressLength),
+}
+
+#[derive(Clone, Debug)]
+pub struct SudoAddressChangeAction {
+    pub new_address: Address,
+}
+
+impl SudoAddressChangeAction {
+    #[must_use]
+    pub fn into_raw(self) -> raw::SudoAddressChangeAction {
+        let Self {
+            new_address,
+        } = self;
+        raw::SudoAddressChangeAction {
+            new_address: new_address.to_vec(),
+        }
+    }
+
+    #[must_use]
+    pub fn to_raw(&self) -> raw::SudoAddressChangeAction {
+        let Self {
+            new_address,
+        } = self;
+        raw::SudoAddressChangeAction {
+            new_address: new_address.to_vec(),
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::SudoAddressChangeAction`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the raw action's `new_address` did not have the expected
+    /// length.
+    pub fn try_from_raw(
+        proto: raw::SudoAddressChangeAction,
+    ) -> Result<Self, SudoAddressChangeActionError> {
+        let raw::SudoAddressChangeAction {
+            new_address,
+        } = proto;
+        let new_address =
+            Address::try_from_slice(&new_address).map_err(SudoAddressChangeActionError::address)?;
+        Ok(Self {
+            new_address,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct SudoAddressChangeActionError {
+    kind: SudoAddressChangeActionErrorKind,
+}
+
+impl SudoAddressChangeActionError {
+    fn address(inner: IncorrectAddressLength) -> Self {
+        Self {
+            kind: SudoAddressChangeActionErrorKind::Address(inner),
+        }
+    }
+}
+
+impl Display for SudoAddressChangeActionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.kind {
+            SudoAddressChangeActionErrorKind::Address(_) => {
+                f.pad("`new_address` field did not contain a valid address")
+            }
+        }
+    }
+}
+
+impl Error for SudoAddressChangeActionError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match &self.kind {
+            SudoAddressChangeActionErrorKind::Address(e) => Some(e),
+        }
+    }
+}
+
+#[derive(Debug)]
+enum SudoAddressChangeActionErrorKind {
     Address(IncorrectAddressLength),
 }
 

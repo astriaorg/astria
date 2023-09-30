@@ -122,7 +122,7 @@ pub struct UnsignedTransaction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Action {
-    #[prost(oneof="action::Value", tags="1, 2, 3, 5")]
+    #[prost(oneof="action::Value", tags="1, 2, 3, 4, 5")]
     pub value: ::core::option::Option<action::Value>,
 }
 /// Nested message and enum types in `Action`.
@@ -136,6 +136,8 @@ pub mod action {
         SequenceAction(super::SequenceAction),
         #[prost(message, tag="3")]
         ValidatorUpdateAction(::tendermint_proto::abci::ValidatorUpdate),
+        #[prost(message, tag="4")]
+        SudoAddressChangeAction(super::SudoAddressChangeAction),
         #[prost(message, tag="5")]
         MintAction(super::MintAction),
     }
@@ -164,6 +166,17 @@ pub struct SequenceAction {
     pub chain_id: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes="vec", tag="2")]
     pub data: ::prost::alloc::vec::Vec<u8>,
+}
+/// / `SudoAddressChangeAction` represents a transaction that changes
+/// / the sudo address of the chain, which is the address authorized to 
+/// / make validator update actions.
+/// /
+/// / It contains the new sudo address.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SudoAddressChangeAction {
+    #[prost(bytes="vec", tag="1")]
+    pub new_address: ::prost::alloc::vec::Vec<u8>,
 }
 /// `MintAction` represents a minting transaction.
 /// It can only be executed by the chain's sudo address.

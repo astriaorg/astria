@@ -3,7 +3,10 @@ use anyhow::{
     Context as _,
     Result,
 };
-use proto::native::sequencer::v1alpha1::Address;
+use proto::native::sequencer::v1alpha1::{
+    Address,
+    SudoAddressChangeAction,
+};
 use tracing::instrument;
 
 use crate::{
@@ -41,6 +44,33 @@ impl ActionHandler for tendermint::validator::Update {
         state
             .put_validator_updates(validator_updates)
             .context("failed to put validator updates in state")?;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl ActionHandler for SudoAddressChangeAction {
+    /// check that the signer of the transaction is the current sudo address,
+    /// as only that address can change the sudo address
+    async fn check_stateful<S: StateReadExt + 'static>(
+        &self,
+        state: &S,
+        from: Address,
+    ) -> Result<()> {
+        // ensure signer is the valid `sudo` key in state
+        let sudo_address = state
+            .get_sudo_address()
+            .await
+            .context("failed to get sudo address from state")?;
+        ensure!(sudo_address == from, "signer is not the sudo key");
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn execute<S: StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
+        state
+            .put_sudo_address(self.new_address)
+            .context("failed to put sudo address in state")?;
         Ok(())
     }
 }
