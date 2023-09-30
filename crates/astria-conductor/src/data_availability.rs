@@ -109,7 +109,7 @@ impl Reader {
     }
 
     #[instrument(skip(self))]
-    pub(crate) async fn run(mut self) -> eyre::Result<()> {
+    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         info!("Starting reader event loop.");
 
         let mut interval = tokio::time::interval(self.celestia_poll_interval);

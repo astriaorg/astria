@@ -105,7 +105,10 @@ impl Conductor {
             )
             .await
             .wrap_err("failed constructing data availability reader")?;
-            tasks.spawn(Self::DATA_AVAILABILITY, data_availability_reader.run());
+            tasks.spawn(
+                Self::DATA_AVAILABILITY,
+                data_availability_reader.run_until_stopped(),
+            );
             shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
         };
 
