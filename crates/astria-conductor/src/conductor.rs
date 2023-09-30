@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use astria_sequencer_types::{
     ChainId,
     Namespace,
@@ -20,6 +22,7 @@ use tokio::{
     },
     task::JoinHandle,
 };
+use tokio_util::task::JoinMap;
 use tracing::{
     error,
     info,
@@ -35,17 +38,22 @@ use crate::{
 };
 pub struct Conductor {
     signals: SignalReceiver,
-    executor: Executor,
-    executor_shutdown: oneshot::Sender<()>,
-    sequencer_reader: sequencer::Reader,
-    sequencer_reader_shutdown: oneshot::Sender<()>,
-    data_availability_reader: Option<data_availability::Reader>,
-    data_availability_reader_shutdown: Option<oneshot::Sender<()>>,
+    /// the different long-running tasks that make up the conductor;
+    tasks: JoinMap<&'static str, eyre::Result<()>>,
+    /// channels to the long-running tasks to shut them down gracefully
+    shutdown_channels: HashMap<&'static str, oneshot::Sender<()>>,
     sequencer_websocket_driver: JoinHandle<Result<(), sequencer_client::tendermint::Error>>,
 }
 
 impl Conductor {
+    const DATA_AVAILABILITY: &str = "data_availability";
+    const EXECUTOR: &str = "executor";
+    const SEQUENCER: &str = "sequencer";
+
     pub async fn new(cfg: Config) -> eyre::Result<Self> {
+        let mut tasks = JoinMap::new();
+        let mut shutdown_channels = HashMap::new();
+
         let signals = spawn_signal_handler();
         // spawn our driver
         let (executor_tx, executor_rx) = mpsc::unbounded_channel();
@@ -59,6 +67,9 @@ impl Conductor {
         )
         .await
         .wrap_err("failed to construct executor")?;
+
+        tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
+        shutdown_channels.insert(Self::EXECUTOR, executor_shutdown_tx);
 
         let (sequencer_client, sequencer_websocket_driver) = {
             let (client, driver) = WebSocketClient::new(&*cfg.sequencer_url).await.wrap_err(
@@ -77,35 +88,31 @@ impl Conductor {
         .await
         .wrap_err("failed initializing driver")?;
 
-        let mut data_availability_reader = None;
-        let mut data_availability_reader_shutdown = None;
+        tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
+        shutdown_channels.insert(Self::SEQUENCER, sequencer_shutdown_tx);
+
         if !cfg.disable_finalization {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             let block_verifier = BlockVerifier::new(sequencer_client.clone());
-            data_availability_reader = Some(
-                data_availability::Reader::new(
-                    &cfg.celestia_node_url,
-                    &cfg.celestia_bearer_token,
-                    std::time::Duration::from_secs(3),
-                    executor_tx.clone(),
-                    block_verifier,
-                    Namespace::from_slice(cfg.chain_id.as_bytes()),
-                    shutdown_rx,
-                )
-                .await
-                .wrap_err("failed constructing data availability reader")?,
-            );
-            data_availability_reader_shutdown = Some(shutdown_tx);
+            let data_availability_reader = data_availability::Reader::new(
+                &cfg.celestia_node_url,
+                &cfg.celestia_bearer_token,
+                std::time::Duration::from_secs(3),
+                executor_tx.clone(),
+                block_verifier,
+                Namespace::from_slice(cfg.chain_id.as_bytes()),
+                shutdown_rx,
+            )
+            .await
+            .wrap_err("failed constructing data availability reader")?;
+            tasks.spawn(Self::DATA_AVAILABILITY, data_availability_reader.run());
+            shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
         };
 
         Ok(Self {
             signals,
-            sequencer_reader,
-            sequencer_reader_shutdown: sequencer_shutdown_tx,
-            executor,
-            executor_shutdown: executor_shutdown_tx,
-            data_availability_reader,
-            data_availability_reader_shutdown,
+            tasks,
+            shutdown_channels,
             sequencer_websocket_driver,
         })
     }
@@ -117,27 +124,14 @@ impl Conductor {
                     mut reload_rx,
                     mut stop_rx,
                 },
-            executor,
-            executor_shutdown,
-            data_availability_reader,
-            data_availability_reader_shutdown,
-            sequencer_reader,
-            sequencer_reader_shutdown,
+            mut tasks,
+            shutdown_channels,
             mut sequencer_websocket_driver,
         } = self;
 
-        let mut sequencer_reader = tokio::spawn(sequencer_reader.run_until_stopped());
-        let mut executor = tokio::spawn(executor.run_until_stopped());
-        let mut data_availability_reader = if let Some(reader) = data_availability_reader {
-            Some(tokio::spawn(reader.run()))
-        } else {
-            None
-        };
-
         loop {
             select! {
-                // FIXME: The bias should only be on the signal channels. The the two
-                //       handlers should have the same bias.
+                // FIXME: The bias should only be on the signal channels. The two handlers should have the same bias.
                 biased;
 
                 _ = stop_rx.changed() => {
@@ -149,30 +143,12 @@ impl Conductor {
                     info!("reloading is currently not implemented");
                 }
 
-                res = &mut sequencer_reader => {
+                Some((name, res)) = tasks.join_next() => {
                     match res {
-                        Ok(Ok(())) => error!("sequencer reader exited unexpectedly; shutting down"),
-                        Ok(Err(e)) => error!(error.msg = %e, error.cause = ?e, "sequencer reader exited with error; shutting down"),
-                        Err(e) => error!(error.msg = %e, error.cause = ?e, "sequencer reader task failed; shutting down"),
+                        Ok(Ok(())) => error!(tak.name = name, "task exited unexpectedly, shutting down"),
+                        Ok(Err(e)) => error!(task.name = name, error.msg = %e, error.cause = ?e, "task exited with error; shutting down"),
+                        Err(e) => error!(task.name = name, error.msg = %e, error.cause = ?e, "task failed; shutting down"),
                     }
-                    break;
-                }
-
-                res = async { data_availability_reader.as_mut().unwrap().await }, if data_availability_reader.is_some() => {
-                    match res {
-                        Ok(Ok(())) => warn!("data availability reader exited unexpectedly; shutting down"),
-                        Ok(Err(e)) => warn!(err.message = %e, err.cause = ?e, "data availability reader exited with error; shutting down"),
-                        Err(e) => warn!(err.cause = ?e, "data availability task failed; shutting down"),
-                    }
-                    break;
-                }
-
-                res = &mut executor => {
-                    match res {
-                        Ok(()) => error!("executor task exited unexpectedly; shutting down"),
-                        Err(e) => error!(error.msg = %e, error.cause = ?e, "executor task failed; shutting down"),
-                    }
-                    break;
                 }
 
                 driver_res = &mut sequencer_websocket_driver => {
@@ -185,9 +161,10 @@ impl Conductor {
                 }
             }
         }
-        let _ = executor_shutdown.send(());
-        let _ = sequencer_reader_shutdown.send(());
-        let _ = data_availability_reader_shutdown.map(|shutdown| shutdown.send(()));
+
+        for (_, channel) in shutdown_channels {
+            let _ = channel.send(());
+        }
 
         Ok(())
     }

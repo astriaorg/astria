@@ -5,6 +5,7 @@ use astria_sequencer_types::{
     SequencerBlockData,
 };
 use color_eyre::eyre::{
+    self,
     Result,
     WrapErr as _,
 };
@@ -123,7 +124,7 @@ impl Executor {
     }
 
     #[instrument(skip_all)]
-    pub(crate) async fn run_until_stopped(mut self) {
+    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         loop {
             select!(
                 biased;
@@ -177,6 +178,7 @@ impl Executor {
                 }
             )
         }
+        Ok(())
     }
 
     /// checks for relevant transactions in the SequencerBlock and attempts
