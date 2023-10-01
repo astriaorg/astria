@@ -72,8 +72,8 @@ impl ClientProvider {
                     }
 
                     Some(tx) = client_rx.recv() => {
-                        let _ = if let Some(client) = client.clone() {{}
-                            tx.send(Ok(client.clone()))
+                        let _ = if let Some(client) = client.clone() {
+                            tx.send(Ok(client))
                         } else {
                             tx.send(Err(Error::Reconnecting))
                         };
