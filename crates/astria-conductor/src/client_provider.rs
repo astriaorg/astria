@@ -24,10 +24,7 @@ pub(crate) enum Error {
     Failed,
     #[error("the client provider is currently trying to reconnect")]
     Reconnecting,
-    #[error(
-        "the channel over which the client provider was expected to return a client was dropped \
-         unexpectedly"
-    )]
+    #[error("the channel over which to receive a client was closed unexpectedly")]
     ClientChannelDroped,
 }
 
