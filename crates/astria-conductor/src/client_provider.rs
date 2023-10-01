@@ -38,6 +38,7 @@ pub(crate) struct ClientProvider {
 
 impl ClientProvider {
     pub(crate) async fn new(url: &str) -> eyre::Result<Self> {
+        use futures::FutureExt as _;
         let url = url.to_string();
         let (client, driver) = WebSocketClient::new(&*url)
             .await
@@ -45,24 +46,22 @@ impl ClientProvider {
         let (client_tx, mut client_rx): (ClientTx, ClientRx) = mpsc::unbounded_channel();
         let _driver = tokio::spawn(async move {
             let mut client = Some(client);
-            let mut driver_fut = Some(Box::pin(driver.run()));
-            let mut reconnect = None;
+            let mut driver_fut = Box::pin(driver.run()).fuse();
+            let mut reconnect = futures::future::Fuse::terminated();
             loop {
                 select!(
-                    _ = async { driver_fut.as_mut().unwrap().await }, if driver_fut.is_some() => {
+                    _ = &mut driver_fut => {
                         warn!("websocket driver failed, attempting to reconnect");
                         client = None;
-                        driver_fut = None;
                         let url = url.clone();
-                        reconnect = Some(tokio::spawn(async move { WebSocketClient::new(&*url).await } ));
+                        reconnect = tokio::spawn(async move { WebSocketClient::new(&*url).await }).fuse();
                     }
 
-                    res = async { reconnect.as_mut().unwrap().await }, if reconnect.is_some() => {
-                        reconnect = None;
+                    res = &mut reconnect => {
                         match res {
                             Ok(Ok((new_client, driver))) => {
                                 client = Some(new_client);
-                                driver_fut = Some(Box::pin(driver.run()));
+                                driver_fut = Box::pin(driver.run()).fuse();
                             }
                             Ok(Err(e)) => {
                                 warn!(error.message = %e, error.cause = ?e, "failed to reestablish websocket connection; exiting");
