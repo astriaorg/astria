@@ -30,7 +30,7 @@ pub(crate) enum Error {
 
 pub(crate) struct ClientProvider {
     client_tx: ClientTx,
-    _driver: JoinHandle<()>,
+    _provider_loop: JoinHandle<()>,
 }
 
 impl ClientProvider {
@@ -41,7 +41,7 @@ impl ClientProvider {
             .await
             .wrap_err("failed constructing a cometbft websocket client to read off sequencer")?;
         let (client_tx, mut client_rx): (ClientTx, ClientRx) = mpsc::unbounded_channel();
-        let _driver = tokio::spawn(async move {
+        let _provider_loop = tokio::spawn(async move {
             let mut client = Some(client);
             let mut driver_fut = Box::pin(driver.run()).fuse();
             let mut reconnect = futures::future::Fuse::terminated();
@@ -84,7 +84,7 @@ impl ClientProvider {
 
         Ok(Self {
             client_tx,
-            _driver,
+            _provider_loop,
         })
     }
 
