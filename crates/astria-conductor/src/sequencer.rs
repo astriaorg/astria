@@ -6,10 +6,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use sequencer_client::{
-    NewBlockStreamError,
-    WebSocketClient,
-};
+use sequencer_client::NewBlockStreamError;
 use tokio::{
     select,
     sync::oneshot,
@@ -25,13 +22,11 @@ use crate::{
     executor::ExecutorCommand,
 };
 
-#[derive(Debug)]
 pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
     executor_tx: executor::Sender,
 
-    /// A client that subscribes to new sequencer blocks from cometbft.
-    sequencer_client: WebSocketClient,
+    pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
 
     shutdown: oneshot::Receiver<()>,
 }
@@ -39,14 +34,14 @@ pub(crate) struct Reader {
 impl Reader {
     #[instrument(name = "driver", skip_all)]
     pub(crate) async fn new(
-        sequencer_client: WebSocketClient,
+        pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
         shutdown: oneshot::Receiver<()>,
         executor_tx: executor::Sender,
     ) -> eyre::Result<Self> {
         Ok(Self {
             executor_tx,
+            pool,
             shutdown,
-            sequencer_client,
         })
     }
 
@@ -58,12 +53,13 @@ impl Reader {
 
         info!("Starting driver event loop.");
         let mut new_blocks = self
-            .sequencer_client
+            .pool
+            .get()
+            .await
+            .wrap_err("failed getting an initial sequencer client from the pool")?
             .subscribe_new_block_data()
             .await
             .wrap_err("failed subscribing to sequencer to receive new blocks")?;
-        // FIXME(https://github.com/astriaorg/astria/issues/381): the event handlers
-        // here block the select loop because they `await` their return.
         loop {
             select! {
                 shutdown = &mut self.shutdown => {

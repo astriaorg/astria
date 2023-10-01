@@ -12,7 +12,6 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use sequencer_client::WebSocketClient;
 use tokio::{
     select,
     signal::unix::{
@@ -25,8 +24,8 @@ use tokio::{
         watch,
     },
     task::{
-        self,
-        JoinHandle,
+        spawn_local,
+        LocalSet,
     },
     time::timeout,
 };
@@ -39,18 +38,20 @@ use tracing::{
 
 use crate::{
     block_verifier::BlockVerifier,
+    client_provider::ClientProvider,
     data_availability,
     executor::Executor,
     sequencer,
     Config,
 };
+
 pub struct Conductor {
     signals: SignalReceiver,
     /// the different long-running tasks that make up the conductor;
     tasks: JoinMap<&'static str, eyre::Result<()>>,
     /// channels to the long-running tasks to shut them down gracefully
     shutdown_channels: HashMap<&'static str, oneshot::Sender<()>>,
-    sequencer_websocket_driver: JoinHandle<Result<(), sequencer_client::tendermint::Error>>,
+    sequencer_client_pool: deadpool::managed::Pool<ClientProvider>,
 }
 
 impl Conductor {
@@ -79,17 +80,17 @@ impl Conductor {
         tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
         shutdown_channels.insert(Self::EXECUTOR, executor_shutdown_tx);
 
-        let (sequencer_client, sequencer_websocket_driver) = {
-            let (client, driver) = WebSocketClient::new(&*cfg.sequencer_url).await.wrap_err(
-                "failed constructing a cometbft websocket client to read off sequencer",
-            )?;
-            let driver_handle = tokio::spawn(async move { driver.run().await });
-            (client, driver_handle)
-        };
+        let client_provider = ClientProvider::new(&cfg.sequencer_url)
+            .await
+            .wrap_err("failed initializing sequencer client provider")?;
+        let sequencer_client_pool = deadpool::managed::Pool::builder(client_provider)
+            .max_size(50)
+            .build()
+            .wrap_err("failed to create sequencer client pool")?;
 
         let (sequencer_shutdown_tx, sequencer_shutdown_rx) = oneshot::channel();
         let sequencer_reader = sequencer::Reader::new(
-            sequencer_client.clone(),
+            sequencer_client_pool.clone(),
             sequencer_shutdown_rx,
             executor_tx.clone(),
         )
@@ -101,7 +102,7 @@ impl Conductor {
 
         if !cfg.disable_finalization {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
-            let block_verifier = BlockVerifier::new(sequencer_client.clone());
+            let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
             let data_availability_reader = data_availability::Reader::new(
                 &cfg.celestia_node_url,
                 &cfg.celestia_bearer_token,
@@ -123,8 +124,8 @@ impl Conductor {
         Ok(Self {
             signals,
             tasks,
+            sequencer_client_pool,
             shutdown_channels,
-            sequencer_websocket_driver,
         })
     }
 
@@ -137,7 +138,7 @@ impl Conductor {
                 },
             mut tasks,
             shutdown_channels,
-            mut sequencer_websocket_driver,
+            sequencer_client_pool,
         } = self;
 
         loop {
@@ -161,15 +162,6 @@ impl Conductor {
                         Err(e) => error!(task.name = name, error.msg = %e, error.cause = ?e, "task failed; shutting down"),
                     }
                 }
-
-                driver_res = &mut sequencer_websocket_driver => {
-                    match driver_res {
-                        Ok(Ok(())) => warn!("sequencer client websocket driver exited unexpectedly"),
-                        Ok(Err(e)) => warn!(err.message = %e, err.cause = ?e, "sequencer client websocket driver exited with error"),
-                        Err(e) => warn!(err.cause = ?e, "sequencer client driver task failed"),
-                    }
-                    break;
-                }
             }
         }
 
@@ -178,16 +170,18 @@ impl Conductor {
             let _ = channel.send(());
         }
 
+        sequencer_client_pool.close();
+
         // wait 5 seconds for all tasks to shut down
         // put the tasks into an Rc to make them 'static
         let mut tasks = Rc::new(tasks);
-        let local_set = task::LocalSet::new();
+        let local_set = LocalSet::new();
         local_set
             .run_until(async {
                 let mut tasks = tasks.clone();
                 let _ = timeout(
                     Duration::from_secs(5),
-                    task::spawn_local(async move {
+                    spawn_local(async move {
                         while let Some(_) = Rc::get_mut(&mut tasks)
                             .expect(
                                 "only one Rc to the conductor tasks should exist; this is a bug",

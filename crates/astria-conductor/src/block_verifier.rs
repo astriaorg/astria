@@ -20,7 +20,6 @@ use prost::Message;
 use sequencer_client::{
     tendermint::endpoint::validators,
     Client as _,
-    WebSocketClient,
 };
 use tendermint::{
     account,
@@ -35,15 +34,17 @@ use tendermint::{
 use tracing::instrument;
 
 /// `BlockVerifier` is verifying blocks received from celestia.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) struct BlockVerifier {
-    sequencer_client: WebSocketClient,
+    pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
 }
 
 impl BlockVerifier {
-    pub(crate) fn new(sequencer_client: WebSocketClient) -> Self {
+    pub(crate) fn new(
+        pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
+    ) -> Self {
         Self {
-            sequencer_client,
+            pool,
         }
     }
 
@@ -59,7 +60,10 @@ impl BlockVerifier {
             "a tendermint height (currently non-negative i32) should always fit into a u32",
         );
         let current_validator_set = self
-            .sequencer_client
+            .pool
+            .get()
+            .await
+            .wrap_err("failed getting a client from the pool to get the current validator set")?
             .validators(height, sequencer_client::tendermint::Paging::Default)
             .await
             .wrap_err("failed to get validator set")?;
@@ -70,7 +74,10 @@ impl BlockVerifier {
         // get validator set for the previous height, as the commit contained
         // in the block is for the previous height
         let parent_validator_set = self
-            .sequencer_client
+            .pool
+            .get()
+            .await
+            .wrap_err("failed getting a client from the pool to get the previous validator set")?
             .validators(height - 1, sequencer_client::tendermint::Paging::Default)
             .await
             .wrap_err("failed to get validator set")?;

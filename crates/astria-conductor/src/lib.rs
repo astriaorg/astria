@@ -9,6 +9,7 @@
 //! execution layer until it's received from the data availability layer. In the second case, the
 //! execution layer is notified to mark the block as finalized.
 pub(crate) mod block_verifier;
+pub(crate) mod client_provider;
 pub mod conductor;
 pub mod config;
 pub(crate) mod data_availability;

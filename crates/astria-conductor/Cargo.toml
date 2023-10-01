@@ -6,8 +6,7 @@ rust-version = "1.70.0"
 
 [dependencies]
 sync_wrapper = "0.1.2"
-
-async-trait = { workspace = true }
+async-trait = "0.1.73"
 base64 = { workspace = true }
 color-eyre = { workspace = true }
 ed25519-consensus = { workspace = true }
@@ -36,6 +35,8 @@ astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 astria-sequencer-types = { path = "../astria-sequencer-types" }
 sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
+deadpool = { version = "0.10.0", default-features = false, features = ["managed"] }
+thiserror.workspace = true
 
 [dev-dependencies]
 base64 = { workspace = true }

@@ -42,7 +42,6 @@ use crate::{
     types::SequencerBlockSubset,
 };
 
-#[derive(Debug)]
 pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
     executor_tx: executor::Sender,
