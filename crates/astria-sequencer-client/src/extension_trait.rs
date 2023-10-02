@@ -91,6 +91,13 @@ impl Error {
         &self.inner
     }
 
+    pub fn as_tendermint_rpc(&self) -> Option<&TendermintRpcError> {
+        match self.kind() {
+            ErrorKind::TendermintRpc(e) => Some(e),
+            _ => None,
+        }
+    }
+
     /// Convenience function to construct `Error` containing an `AbciQueryDeserializationError`.
     fn abci_query_deserialization(
         target: &'static str,
