@@ -31,6 +31,7 @@ use tokio::{
 };
 use tokio_util::task::JoinMap;
 use tracing::{
+    debug,
     error,
     info,
     warn,
@@ -55,9 +56,9 @@ pub struct Conductor {
 }
 
 impl Conductor {
-    const DATA_AVAILABILITY: &str = "data_availability";
-    const EXECUTOR: &str = "executor";
-    const SEQUENCER: &str = "sequencer";
+    const DATA_AVAILABILITY: &'static str = "data_availability";
+    const EXECUTOR: &'static str = "executor";
+    const SEQUENCER: &'static str = "sequencer";
 
     pub async fn new(cfg: Config) -> eyre::Result<Self> {
         let mut tasks = JoinMap::new();
@@ -67,6 +68,11 @@ impl Conductor {
         // spawn our driver
         let (executor_tx, executor_rx) = mpsc::unbounded_channel();
         let (executor_shutdown_tx, executor_shutdown_rx) = oneshot::channel();
+        debug!(
+            execution_rpc_url = &cfg.execution_rpc_url,
+            chain_id = &cfg.chain_id,
+            "starting executor"
+        );
         let executor = Executor::new(
             &cfg.execution_rpc_url,
             ChainId::new(cfg.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
@@ -80,6 +86,12 @@ impl Conductor {
         tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
         shutdown_channels.insert(Self::EXECUTOR, executor_shutdown_tx);
 
+        // TODO: add in execution_commit_level
+        // if !cfg.execution_commit_level == "SoftOnly" | "SoftAndFirm" {
+        debug!(
+            sequencer_url = &cfg.sequencer_url,
+            "starting sequencer::Reader"
+        );
         let client_provider = ClientProvider::new(&cfg.sequencer_url)
             .await
             .wrap_err("failed initializing sequencer client provider")?;
@@ -99,8 +111,15 @@ impl Conductor {
 
         tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
         shutdown_channels.insert(Self::SEQUENCER, sequencer_shutdown_tx);
+        // }
 
+        // TODO: update this to use execution_commit_level, instead of cfg.disable_finalization,
+        // once it's added
         if !cfg.disable_finalization {
+            debug!(
+                celestia_node_url = &cfg.celestia_node_url,
+                "starting data_availability::Reader"
+            );
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
             let data_availability_reader = data_availability::Reader::new(
