@@ -144,6 +144,7 @@ impl Reader {
     }
 
     fn get_latest_height(&mut self) {
+        info!("spawning task to get latest height from celestia");
         let client = self.celestia_client.inner().clone();
         self.get_latest_height = Some(tokio::spawn(async move {
             Ok(client.header_network_head().await?.height())
@@ -151,6 +152,7 @@ impl Reader {
     }
 
     fn get_sequencer_datas(&mut self, latest_height_res: Result<eyre::Result<u64>, JoinError>) {
+        info!("fetching latest celestia data");
         let latest_height = match latest_height_res {
             Err(e) => {
                 warn!(error.message = %e, error.cause = ?e, "task querying celestia for latest height failed");
@@ -192,6 +194,11 @@ impl Reader {
                 });
             }
         }
+        info!(
+            height.start = first_new_height,
+            height.end = self.current_block_height,
+            "fetching of sequencer data from celestia complete"
+        );
     }
 
     #[instrument(skip(self, sequencer_data_res))]
@@ -260,6 +267,10 @@ impl Reader {
             }
             Ok(Ok(subsets)) => subsets,
         };
+        info!(
+            num_subsets = subsets.len(),
+            "sending processed sequencer subsets to executor"
+        );
         self.executor_tx
             .send(executor::ExecutorCommand::FromCelestia(subsets))
             .wrap_err("failed sending processed sequencer subsets: executor channel is closed")
