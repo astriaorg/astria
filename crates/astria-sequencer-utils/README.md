@@ -21,7 +21,9 @@ cargo run -- --genesis-app-state-file=<source json path> \
 ```
 
 For example:
+
 ```sh
-cargo run -- --genesis-app-state-file=../astria-sequencer/test-genesis-app-state.json \
+cargo run -- \
+ --genesis-app-state-file=../astria-sequencer/test-genesis-app-state.json \
  --destination-genesis-file=$HOME/.cometbft/config/genesis.json
 ```
