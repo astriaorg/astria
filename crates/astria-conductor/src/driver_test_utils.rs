@@ -329,7 +329,7 @@ pub(crate) mod mocks {
     #[rpc(server)]
     trait Sequencer {
         #[subscription(name = "subscribe", item = Query)]
-        async fn subscribe(&self, queury: Query) -> SubscriptionResult;
+        async fn subscribe(&self, query: Query) -> SubscriptionResult;
     }
 
     struct SequencerImpl {
