@@ -57,19 +57,14 @@ impl ExecutorCommitmentState {
     /// Creates a new `ExecutorCommitmentState` from a `CommitmentState`.
     /// `firm` and `soft` should never be `None`
     pub(crate) fn from_execution_client_commitment_state(data: CommitmentState) -> Self {
-        let Some(firm) = data.firm else {
-            panic!(
-                "could not convert from CommitmentState to ExecutorCommitmentState. firm is None. \
-                 this should never happen."
-            );
-        };
-
-        let Some(soft) = data.soft else {
-            panic!(
-                "could not convert from CommitmentState to ExecutorCommitmentState. soft is None. \
-                 this should never happen."
-            );
-        };
+        let firm = data.firm.expect(
+            "could not convert from CommitmentState to ExecutorCommitmentState. `firm` is None. \
+             This should never happen.",
+        );
+        let soft = data.soft.expect(
+            "could not convert from CommitmentState to ExecutorCommitmentState. `soft` is None. \
+             This should never happen.",
+        );
 
         Self {
             firm,
