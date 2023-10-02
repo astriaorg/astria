@@ -22,8 +22,6 @@ type ClientTx = mpsc::UnboundedSender<oneshot::Sender<Result<WebSocketClient, Er
 pub(crate) enum Error {
     #[error("the client provider failed to reconnect and is permanently closed")]
     Failed,
-    #[error("the client provider is currently trying to reconnect")]
-    Reconnecting,
     #[error("the channel over which to receive a client was closed unexpectedly")]
     ClientChannelDroped,
 }
@@ -45,6 +43,8 @@ impl ClientProvider {
             let mut client = Some(client);
             let mut driver_fut = Box::pin(driver.run()).fuse();
             let mut reconnect = futures::future::Fuse::terminated();
+            let mut pending_requests: Vec<oneshot::Sender<Result<WebSocketClient, Error>>> =
+                Vec::new();
             loop {
                 select!(
                     _ = &mut driver_fut => {
@@ -57,8 +57,11 @@ impl ClientProvider {
                     res = &mut reconnect => {
                         match res {
                             Ok(Ok((new_client, driver))) => {
-                                client = Some(new_client);
                                 driver_fut = Box::pin(driver.run()).fuse();
+                                for tx in pending_requests.drain(..) {
+                                    let _ = tx.send(Ok(new_client.clone()));
+                                }
+                                client = Some(new_client);
                             }
                             Ok(Err(e)) => {
                                 warn!(error.message = %e, error.cause = ?e, "failed to reestablish websocket connection; exiting");
@@ -72,11 +75,13 @@ impl ClientProvider {
                     }
 
                     Some(tx) = client_rx.recv() => {
-                        let _ = if let Some(client) = client.clone() {
-                            tx.send(Ok(client))
+                        // immediately return a client if available
+                        if let Some(client) = client.clone() {
+                            let _ = tx.send(Ok(client));
+                        // or schedule to return them once available
                         } else {
-                            tx.send(Err(Error::Reconnecting))
-                        };
+                            pending_requests.push(tx);
+                        }
                     }
                 )
             }
