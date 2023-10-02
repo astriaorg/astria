@@ -381,10 +381,10 @@ pub(crate) mod mocks {
                 .local_addr()
                 .expect("server should have a local addr");
             let (new_tx_sender, _) = channel(256);
-            let mock_geth_impl = SequencerImpl {
+            let seq_impl = SequencerImpl {
                 new_tx_sender,
             };
-            let handle = server.start(mock_geth_impl.into_rpc());
+            let handle = server.start(seq_impl.into_rpc());
             let server_task_handle = tokio::spawn(handle.stopped());
             Self {
                 local_addr: format!("ws://{}", local_addr),
