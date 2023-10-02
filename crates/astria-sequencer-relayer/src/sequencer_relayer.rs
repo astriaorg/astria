@@ -20,8 +20,10 @@ impl SequencerRelayer {
     /// # Errors
     ///
     /// Returns an error if constructing the inner relayer type failed.
-    pub fn new(cfg: Config) -> eyre::Result<Self> {
-        let relayer = Relayer::new(&cfg).wrap_err("failed to create relayer")?;
+    pub async fn new(cfg: Config) -> eyre::Result<Self> {
+        let relayer = Relayer::new(&cfg)
+            .await
+            .wrap_err("failed to create relayer")?;
         let state_rx = relayer.subscribe_to_state();
         let api_server = api::start(cfg.rpc_port, state_rx);
         Ok(Self {

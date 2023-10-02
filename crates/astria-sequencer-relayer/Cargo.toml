@@ -29,12 +29,11 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tendermint = { workspace = true, features = ["rust-crypto"] }
 tendermint-config = { workspace = true }
-tendermint-rpc = { workspace = true, features = ["http-client"] }
+tendermint-rpc = { workspace = true, features = ["websocket-client"] }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client" }
-astria-sequencer-client = { path = "../astria-sequencer-client" }
 astria-sequencer-validation = { path = "../astria-sequencer-validation" }
 proto = { package = "astria-proto", path = "../astria-proto" }
 sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }

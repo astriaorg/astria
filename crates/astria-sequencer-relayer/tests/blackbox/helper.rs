@@ -28,7 +28,6 @@ use tokio::{
         oneshot,
     },
     task::JoinHandle,
-    time,
 };
 use tracing::info;
 use wiremock::{
@@ -88,7 +87,7 @@ pub struct TestSequencerRelayer {
 
 impl TestSequencerRelayer {
     pub async fn advance_by_block_time(&self) {
-        time::advance(Duration::from_millis(self.config.block_time + 100)).await;
+        // time::advance(Duration::from_millis(self.config.block_time + 100)).await;
     }
 
     // Mount a block response on the mocks erver inside the test sequencer relayer env.
@@ -149,7 +148,6 @@ pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequenc
         celestia_endpoint: format!("http://{celestia_addr}"),
         celestia_bearer_token: "".into(),
         gas_limit: 100000,
-        block_time: 1000,
         validator_key_file: keyfile.path().to_string_lossy().to_string(),
         rpc_port: 0,
         log: "".into(),
@@ -160,6 +158,7 @@ pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequenc
     let sequencer_relayer = tokio::task::spawn_blocking(|| SequencerRelayer::new(config_clone))
         .await
         .unwrap()
+        .await
         .unwrap();
     let api_address = sequencer_relayer.local_addr();
     let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
@@ -435,7 +434,7 @@ pub async fn mount_4_changing_block_responses(
         rsp
     }
 
-    let response_delay = Duration::from_millis(sequencer_relayer.config.block_time);
+    let response_delay = Duration::from_millis(1000); // was block_time
     let validator = &sequencer_relayer.validator;
     let server = &sequencer_relayer.sequencer;
 

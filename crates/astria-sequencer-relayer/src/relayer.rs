@@ -6,18 +6,15 @@ use eyre::{
 };
 use humantime::format_duration;
 use sequencer_types::SequencerBlockData;
-use tendermint_rpc::{
-    endpoint::block,
-    HttpClient,
-};
+use tendermint_rpc::WebSocketClient;
 use tokio::{
     select,
     sync::watch,
     task,
-    time::interval,
 };
 use tracing::{
     debug,
+    error,
     info,
     instrument,
     warn,
@@ -30,10 +27,7 @@ use crate::{
 };
 pub struct Relayer {
     /// The actual client used to poll the sequencer.
-    sequencer: HttpClient,
-
-    /// The poll period defines the fixed interval at which the sequencer is polled.
-    sequencer_poll_period: Duration,
+    sequencer_ws_client: WebSocketClient,
 
     // The client for submitting sequencer blocks to the data availability layer.
     data_availability: CelestiaClient,
@@ -57,10 +51,9 @@ pub struct Relayer {
     // an RPC is currently in flight and new blocks are queued up. They will be submitted
     // once this task finishes.
     submission_task: Option<task::JoinHandle<eyre::Result<u64>>>,
-
-    // Task to query the sequencer for new blocks. A new request will be sent once this
-    // task returns.
-    sequencer_task: Option<task::JoinHandle<eyre::Result<block::Response>>>,
+    // // Task to query the sequencer for new blocks. A new request will be sent once this
+    // // task returns.
+    // sequencer_task: Option<task::JoinHandle<eyre::Result<block::Response>>>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -86,9 +79,11 @@ impl Relayer {
     /// + failed to read the validator keys from the path in cfg;
     /// + failed to construct a client to the data availability layer (unless `cfg.disable_writing`
     ///   is set).
-    pub fn new(cfg: &crate::config::Config) -> Result<Self> {
-        let sequencer = HttpClient::new(&*cfg.sequencer_endpoint)
+    pub async fn new(cfg: &crate::config::Config) -> Result<Self> {
+        let (sequencer_ws_client, driver) = WebSocketClient::new(&*cfg.sequencer_endpoint)
+            .await
             .wrap_err("failed to create sequencer client")?;
+        tokio::spawn(async move { driver.run().await }); // TODO move to self.run()
 
         let validator = Validator::from_path(&cfg.validator_key_file)
             .wrap_err("failed to get validator info from file")?;
@@ -103,77 +98,18 @@ impl Relayer {
         let (state_tx, _) = watch::channel(State::default());
 
         Ok(Self {
-            sequencer,
-            sequencer_poll_period: Duration::from_millis(cfg.block_time),
+            sequencer_ws_client,
             data_availability,
             validator,
             state_tx,
             queued_blocks: Vec::new(),
             conversion_workers: task::JoinSet::new(),
             submission_task: None,
-            sequencer_task: None,
         })
     }
 
     pub(crate) fn subscribe_to_state(&self) -> watch::Receiver<State> {
         self.state_tx.subscribe()
-    }
-
-    #[instrument(skip_all)]
-    fn handle_sequencer_tick(&mut self) {
-        use tendermint_rpc::Client as _;
-        if self.sequencer_task.is_some() {
-            debug!("task polling sequencer is currently in flight; not scheduling a new task");
-            return;
-        }
-        let client = self.sequencer.clone();
-        let timeout = self.sequencer_poll_period.checked_mul(2).expect(
-            "the sequencer block time should never be set to a value so high that multiplying it \
-             by 2 causes it to overflow",
-        );
-        self.sequencer_task = Some(tokio::spawn(async move {
-            let block = tokio::time::timeout(timeout, client.latest_block())
-                .await
-                .wrap_err("timed out getting latest block from sequencer")??;
-            Ok(block)
-        }))
-    }
-
-    #[instrument(skip_all)]
-    fn handle_sequencer_response(
-        &mut self,
-        join_result: Result<eyre::Result<block::Response>, task::JoinError>,
-    ) {
-        // First check if the join task panicked
-        let request_result = match join_result {
-            Ok(request_result) => request_result,
-            // Report if the task failed, i.e. panicked
-            Err(e) => {
-                // TODO: inject the correct tracing span
-                report_err!(e, "sequencer poll task failed");
-                return;
-            }
-        };
-        match request_result {
-            Ok(rsp) => {
-                info!(
-                    height = %rsp.block.header.height,
-                    tx.count = rsp.block.data.len(),
-                    "received block from sequencer"
-                );
-                let current_height = self.state_tx.borrow().current_sequencer_height;
-                let validator = self.validator.clone();
-                // Start the costly conversion; note that the current height at
-                // the time of receipt matters. The internal state might have advanced
-                // past the height recorded in the block while it was converting, but
-                // that's ok.
-                self.conversion_workers.spawn_blocking(move || {
-                    convert_block_response_to_sequencer_block_data(rsp, current_height, validator)
-                });
-            }
-
-            Err(e) => report_err!(e, "failed getting latest block from sequencer"),
-        }
     }
 
     /// Handle the result
@@ -323,7 +259,7 @@ impl Relayer {
             .with_factor(factor)
             .with_max_times(n_retries);
         (|| {
-            let client = self.sequencer.clone();
+            let client = self.sequencer_ws_client.clone();
             async move { client.abci_info().await }
         })
         .retry(&backoff)
@@ -358,20 +294,73 @@ impl Relayer {
             .await
             .wrap_err("failed establishing connection to the sequencer")?;
 
-        let mut sequencer_interval = interval(self.sequencer_poll_period);
+        use futures::stream::TryStreamExt as _;
+        use tendermint_rpc::{
+            query::{
+                EventType,
+                Query,
+            },
+            SubscriptionClient,
+        };
+
+        let mut stream = self
+            .sequencer_ws_client
+            .subscribe(Query::from(EventType::NewBlock))
+            .await
+            .wrap_err("failed to subscribe to NewBlock event")?;
 
         loop {
             select!(
-                // Query sequencer for the latest block if no task is in flight
-                _ = sequencer_interval.tick() => self.handle_sequencer_tick(),
+                // // Query sequencer for the latest block if no task is in flight
+                // _ = sequencer_interval.tick() => self.handle_sequencer_tick(),
 
-                // Handle the sequencer response by converting it
-                //
-                // NOTE: + wrapping the task in an async block makes this lazy;
-                //       + `unwrap`ping can't fail because this branch is disabled if `None`
-                res = async { self.sequencer_task.as_mut().unwrap().await }, if self.sequencer_task.is_some() => {
-                    self.sequencer_task = None;
-                    self.handle_sequencer_response(res);
+                // // Handle the sequencer response by converting it
+                // //
+                // // NOTE: + wrapping the task in an async block makes this lazy;
+                // //       + `unwrap`ping can't fail because this branch is disabled if `None`
+                // res = async { self.sequencer_task.as_mut().unwrap().await }, if self.sequencer_task.is_some() => {
+                //     self.sequencer_task = None;
+                //     self.handle_sequencer_response(res);
+                // }
+                res = stream.try_next() => {
+                    match res {
+                        Ok(maybe_event) => {
+                            let Some(event) = maybe_event else {
+                                info!(
+                                    "sequencer websocket subscription returned None"
+                                );
+                                break;
+                            };
+                            let tendermint_rpc::event::EventData::NewBlock {block: maybe_block, ..} = event.data else {
+                                error!(
+                                    "sequencer websocket subscription returned unexpected event"
+                                );
+                                break;
+                            };
+                            let Some(block) = maybe_block else {
+                                info!(
+                                    "sequencer websocket subscription returned event without block"
+                                );
+                                break;
+                            };
+
+                            info!(
+                                height = %block.header.height,
+                                tx.count = block.data.len(),
+                                "received block from sequencer"
+                            );
+                            let current_height = self.state_tx.borrow().current_sequencer_height;
+                            let validator = self.validator.clone();
+                            // Start the costly conversion; note that the current height at
+                            // the time of receipt matters. The internal state might have advanced
+                            // past the height recorded in the block while it was converting, but
+                            // that's ok.
+                            self.conversion_workers.spawn_blocking(move || {
+                                convert_tendermint_block_to_sequencer_block_data(block, current_height, validator)
+                            });
+                        }
+                        Err(e) => report_err!(e, "failed getting latest block from sequencer"),
+                    }
                 }
 
                 // Distribute and store converted/admitted blocks
@@ -416,23 +405,23 @@ impl Relayer {
 }
 
 #[instrument(skip_all)]
-fn convert_block_response_to_sequencer_block_data(
-    res: block::Response,
+fn convert_tendermint_block_to_sequencer_block_data(
+    block: tendermint::Block,
     current_height: Option<u64>,
     validator: Validator,
 ) -> eyre::Result<Option<SequencerBlockData>> {
-    if Some(res.block.header.height.value()) <= current_height {
+    if Some(block.header.height.value()) <= current_height {
         debug!(
             "sequencer block response contained height at or below the current height tracked in \
              relayer"
         );
         return Ok(None);
     }
-    if res.block.header.proposer_address != validator.address {
+    if block.header.proposer_address != validator.address {
         debug!("proposer recorded in sequencer block response does not match internal validator");
         return Ok(None);
     }
-    let sequencer_block_data = SequencerBlockData::from_tendermint_block(res.block)
+    let sequencer_block_data = SequencerBlockData::from_tendermint_block(block)
         .wrap_err("failed converting sequencer block response to sequencer block data")?;
     Ok(Some(sequencer_block_data))
 }
