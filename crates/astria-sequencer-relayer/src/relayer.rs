@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use eyre::{
+    bail,
     Result,
     WrapErr as _,
 };
@@ -25,6 +26,7 @@ use crate::{
     macros::report_err,
     validator::Validator,
 };
+
 pub struct Relayer {
     /// The actual client used to poll the sequencer.
     sequencer_ws_client: WebSocketClient,
@@ -51,9 +53,6 @@ pub struct Relayer {
     // an RPC is currently in flight and new blocks are queued up. They will be submitted
     // once this task finishes.
     submission_task: Option<task::JoinHandle<eyre::Result<u64>>>,
-    // // Task to query the sequencer for new blocks. A new request will be sent once this
-    // // task returns.
-    // sequencer_task: Option<task::JoinHandle<eyre::Result<block::Response>>>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -276,12 +275,43 @@ impl Relayer {
         Ok(())
     }
 
+    /// Handle an [`Event`] returned from the sequencer websocket subscription.
+    fn handle_new_block_event(&mut self, event: tendermint_rpc::event::Event) -> eyre::Result<()> {
+        let tendermint_rpc::event::EventData::NewBlock {
+            block: maybe_block,
+            ..
+        } = event.data
+        else {
+            bail!("sequencer websocket subscription returned unexpected event");
+        };
+        let Some(block) = maybe_block else {
+            bail!("sequencer websocket subscription returned event without block");
+        };
+
+        info!(
+            height = %block.header.height,
+            tx.count = block.data.len(),
+            "received block from sequencer"
+        );
+        let current_height = self.state_tx.borrow().current_sequencer_height;
+        let validator = self.validator.clone();
+
+        // Start the costly conversion; note that the current height at
+        // the time of receipt matters. The internal state might have advanced
+        // past the height recorded in the block while it was converting, but
+        // that's ok.
+        self.conversion_workers.spawn_blocking(move || {
+            convert_tendermint_block_to_sequencer_block_data(block, current_height, validator)
+        });
+        Ok(())
+    }
+
     /// Runs the relayer worker.
     ///
     /// # Errors
     ///
-    /// `Relayer::run` never returns an error. The return type is
-    /// only set to `eyre::Result` for convenient use in `SequencerRelayer`.
+    /// - if waiting for DA or the sequencer fails
+    /// - if subscribing to the `NewBlock` event on the sequencer fails
     #[instrument(name = "Relayer::run", skip_all)]
     pub(crate) async fn run(mut self) -> eyre::Result<()> {
         let wait_for_da = self.wait_for_data_availability_layer(5, Duration::from_secs(5), 2.0);
@@ -311,53 +341,17 @@ impl Relayer {
 
         loop {
             select!(
-                // // Query sequencer for the latest block if no task is in flight
-                // _ = sequencer_interval.tick() => self.handle_sequencer_tick(),
-
-                // // Handle the sequencer response by converting it
-                // //
-                // // NOTE: + wrapping the task in an async block makes this lazy;
-                // //       + `unwrap`ping can't fail because this branch is disabled if `None`
-                // res = async { self.sequencer_task.as_mut().unwrap().await }, if self.sequencer_task.is_some() => {
-                //     self.sequencer_task = None;
-                //     self.handle_sequencer_response(res);
-                // }
+                // Receive new blocks from the sequencer
                 res = stream.try_next() => {
                     match res {
                         Ok(maybe_event) => {
                             let Some(event) = maybe_event else {
-                                info!(
+                                error!(
                                     "sequencer websocket subscription returned None"
                                 );
                                 break;
                             };
-                            let tendermint_rpc::event::EventData::NewBlock {block: maybe_block, ..} = event.data else {
-                                error!(
-                                    "sequencer websocket subscription returned unexpected event"
-                                );
-                                break;
-                            };
-                            let Some(block) = maybe_block else {
-                                info!(
-                                    "sequencer websocket subscription returned event without block"
-                                );
-                                break;
-                            };
-
-                            info!(
-                                height = %block.header.height,
-                                tx.count = block.data.len(),
-                                "received block from sequencer"
-                            );
-                            let current_height = self.state_tx.borrow().current_sequencer_height;
-                            let validator = self.validator.clone();
-                            // Start the costly conversion; note that the current height at
-                            // the time of receipt matters. The internal state might have advanced
-                            // past the height recorded in the block while it was converting, but
-                            // that's ok.
-                            self.conversion_workers.spawn_blocking(move || {
-                                convert_tendermint_block_to_sequencer_block_data(block, current_height, validator)
-                            });
+                            self.handle_new_block_event(event).wrap_err("failed to handle new block event")?;
                         }
                         Err(e) => report_err!(e, "failed getting latest block from sequencer"),
                     }
