@@ -172,6 +172,14 @@ async fn loop_until_sequencer_relayer_is_ready(addr: SocketAddr) {
         if readyz.status.to_lowercase() == "ok" {
             break;
         }
+
+        let status = reqwest::get(format!("http://{addr}/status"))
+            .await
+            .unwrap()
+            .json::<serde_json::Value>()
+            .await
+            .unwrap();
+        println!("status: {:?}", status);
     }
 }
 

@@ -63,7 +63,7 @@ impl Consensus {
             // for some reason -- but that's not our problem.
             let rsp = self.handle_request(req).instrument(span.clone()).await;
             if let Err(e) = rsp.as_ref() {
-                warn!(parent: &span, error = ?e, "failed processing concensus request; returning error back to sender");
+                warn!(parent: &span, error = ?e, "failed processing consensus request; returning error back to sender");
             }
             // `send` returns the sent message if sending fail, so we are dropping it.
             if rsp_sender.send(rsp).is_err() {
@@ -130,6 +130,7 @@ impl Consensus {
             bail!("database already initialized");
         }
 
+        println!("Initializing chain with genesis state: {:#?}", init_chain.app_state_bytes);
         let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
             .context("failed to parse app_state in genesis file")?;
         self.app
