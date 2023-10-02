@@ -21,9 +21,6 @@ pub struct Config {
     /// The JWT bearer token supplied with each jsonrpc call
     pub celestia_bearer_token: String,
 
-    /// URL of the Tendermint node (sequencer/metro)
-    pub tendermint_url: String,
-
     /// URL of the sequencer cometbft websocket
     pub sequencer_url: String,
 
