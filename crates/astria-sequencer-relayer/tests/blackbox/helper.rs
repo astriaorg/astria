@@ -10,33 +10,30 @@ use astria_sequencer_relayer::{
     SequencerRelayer,
 };
 use astria_sequencer_validation::MerkleTree;
+use jsonrpsee::{
+    core::SubscriptionResult,
+    proc_macros::rpc,
+    PendingSubscriptionSink,
+};
 use once_cell::sync::Lazy;
 use proto::native::sequencer::v1alpha1::{
     SequenceAction,
     UnsignedTransaction,
 };
-use serde_json::json;
+use serde::Deserialize;
 use tempfile::NamedTempFile;
-use tendermint_rpc::{
-    endpoint,
-    response::Wrapper,
-    Id,
-};
 use tokio::{
     sync::{
+        broadcast::{
+            channel,
+            Sender,
+        },
         mpsc,
         oneshot,
     },
     task::JoinHandle,
 };
 use tracing::info;
-use wiremock::{
-    matchers::body_partial_json,
-    Mock,
-    MockGuard,
-    MockServer,
-    ResponseTemplate,
-};
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
@@ -63,65 +60,48 @@ const PRIVATE_VALIDATOR_KEY: &str = r#"
 }
 "#;
 
-pub struct TestSequencerRelayer {
+pub(crate) struct TestSequencerRelayer {
     /// The socket address that sequencer relayer is serving its API endpoint on
     ///
     /// This is useful for checking if it's healthy, ready, or how many p2p peers
     /// are subscribed to it.
-    pub api_address: SocketAddr,
+    api_address: SocketAddr,
 
     /// The mocked celestia node jsonrpc server
-    pub celestia: MockCelestia,
+    pub(crate) celestia: MockCelestia,
 
-    /// The mocked sequencer service (also serving as tendermint jsonrpc?)
-    pub sequencer: MockServer,
+    /// The mocked sequencer service (provides websockets for subscribing to new blocks)
+    sequencer: MockSequencer,
 
-    pub sequencer_relayer: JoinHandle<()>,
+    sequencer_relayer: JoinHandle<()>,
 
-    pub config: Config,
+    config: Config,
 
-    pub validator: Validator,
+    validator: Validator,
 
-    pub _keyfile: NamedTempFile,
+    _keyfile: NamedTempFile,
+
+    block_time: tokio::time::Duration,
 }
 
 impl TestSequencerRelayer {
-    pub async fn advance_by_block_time(&self) {
-        // time::advance(Duration::from_millis(self.config.block_time + 100)).await;
+    pub(crate) async fn advance_by_block_time(&self) {
+        tokio::time::advance(self.block_time + tokio::time::Duration::from_millis(100)).await;
     }
 
-    // Mount a block response on the mocks erver inside the test sequencer relayer env.
-    //
-    // Returns a MockGuard that can be used to verify that a block was picked up
-    // by sequencer-relayer.
-    pub async fn mount_initial_block_response(&self) -> MockGuard {
-        let block_response = create_block_response(&self.validator, 1);
-        let wrapped = Wrapper::new_with_id(Id::Num(1), Some(block_response.clone()), None);
-        Mock::given(body_partial_json(json!({"method": "block"})))
-            .respond_with(ResponseTemplate::new(200).set_body_json(wrapped))
-            .expect(1)
-            .up_to_n_times(1)
-            .mount_as_scoped(&self.sequencer)
-            .await
-    }
-
-    pub async fn mount_block_response(&self, height: u32) -> MockGuard {
+    pub(crate) async fn mount_block_response(&self, height: u32) {
         let block_response = create_block_response(&self.validator, height);
-        let wrapped = Wrapper::new_with_id(Id::Num(1), Some(block_response.clone()), None);
-        Mock::given(body_partial_json(json!({"method": "block"})))
-            .respond_with(ResponseTemplate::new(200).set_body_json(wrapped))
-            .expect(1)
-            .mount_as_scoped(&self.sequencer)
-            .await
+        // let wrapped = Wrapper::new_with_id(Id::Num(1), Some(block_response.clone()), None);
+        self.sequencer.block_tx.send(block_response).unwrap();
     }
 }
 
-pub enum CelestiaMode {
+pub(crate) enum CelestiaMode {
     Immediate,
     Delayed(u64),
 }
 
-pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequencerRelayer {
+pub(crate) async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequencerRelayer {
     Lazy::force(&TELEMETRY);
     let block_time = 1000;
 
@@ -141,10 +121,10 @@ pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequenc
     .await
     .unwrap();
 
-    let sequencer = start_mocked_sequencer().await;
+    let sequencer = MockSequencer::spawn().await;
 
     let config = Config {
-        sequencer_endpoint: sequencer.uri(),
+        sequencer_endpoint: sequencer.local_addr(),
         celestia_endpoint: format!("http://{celestia_addr}"),
         celestia_bearer_token: "".into(),
         gas_limit: 100000,
@@ -172,11 +152,12 @@ pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequenc
         sequencer,
         sequencer_relayer,
         validator,
+        block_time: Duration::from_millis(block_time),
         _keyfile: keyfile,
     }
 }
 
-pub async fn loop_until_sequencer_relayer_is_ready(addr: SocketAddr) {
+async fn loop_until_sequencer_relayer_is_ready(addr: SocketAddr) {
     #[derive(Debug, serde::Deserialize)]
     struct Readyz {
         status: String,
@@ -307,7 +288,7 @@ impl StateServer for StateCelestiaImpl {
     }
 }
 
-fn create_block_response(validator: &Validator, height: u32) -> endpoint::block::Response {
+fn create_block_response(validator: &Validator, height: u32) -> tendermint::Block {
     use proto::Message as _;
     use sha2::Digest as _;
     use tendermint::{
@@ -351,111 +332,199 @@ fn create_block_response(validator: &Validator, height: u32) -> endpoint::block:
 
     let (last_commit_hash, last_commit) = sequencer_types::test_utils::make_test_commit_and_hash();
 
-    endpoint::block::Response {
-        block_id: block::Id {
-            hash: Hash::Sha256([0; 32]),
-            part_set_header: block::parts::Header::new(0, Hash::None).unwrap(),
-        },
-        block: Block::new(
-            block::Header {
-                version: block::header::Version {
-                    block: 0,
-                    app: 0,
-                },
-                chain_id: chain::Id::try_from("test").unwrap(),
-                height: block::Height::from(height),
-                time: Time::now(),
-                last_block_id: None,
-                last_commit_hash: (height > 1).then_some(last_commit_hash),
-                data_hash,
-                validators_hash: Hash::Sha256([0; 32]),
-                next_validators_hash: Hash::Sha256([0; 32]),
-                consensus_hash: Hash::Sha256([0; 32]),
-                app_hash: AppHash::try_from([0; 32].to_vec()).unwrap(),
-                last_results_hash: None,
-                evidence_hash: None,
-                proposer_address: *validator.address(),
+    Block::new(
+        block::Header {
+            version: block::header::Version {
+                block: 0,
+                app: 0,
             },
-            data,
-            evidence::List::default(),
-            // The first height must not, every height after must contain a last commit
-            (height > 1).then_some(last_commit),
-        )
-        .unwrap(),
-    }
-}
-
-async fn start_mocked_sequencer() -> MockServer {
-    use tendermint::{
-        abci,
-        hash::AppHash,
-    };
-    use tendermint_rpc::endpoint::abci_info;
-    let server = MockServer::start().await;
-
-    let abci_response = abci_info::Response {
-        response: abci::response::Info {
-            data: "SequencerRelayerTest".into(),
-            version: "1.0.0".into(),
-            app_version: 1,
-            last_block_height: 5u32.into(),
-            last_block_app_hash: AppHash::try_from([0; 32].to_vec()).unwrap(),
+            chain_id: chain::Id::try_from("test").unwrap(),
+            height: block::Height::from(height),
+            time: Time::now(),
+            last_block_id: None,
+            last_commit_hash: (height > 1).then_some(last_commit_hash),
+            data_hash,
+            validators_hash: Hash::Sha256([0; 32]),
+            next_validators_hash: Hash::Sha256([0; 32]),
+            consensus_hash: Hash::Sha256([0; 32]),
+            app_hash: AppHash::try_from([0; 32].to_vec()).unwrap(),
+            last_results_hash: None,
+            evidence_hash: None,
+            proposer_address: *validator.address(),
         },
-    };
-    let abci_response = Wrapper::new_with_id(Id::Num(1), Some(abci_response), None);
-    Mock::given(body_partial_json(json!({"method": "abci_info"})))
-        .respond_with(ResponseTemplate::new(200).set_body_json(abci_response))
-        .mount(&server)
-        .await;
-    server
+        data,
+        evidence::List::default(),
+        // The first height must not, every height after must contain a last commit
+        (height > 1).then_some(last_commit),
+    )
+    .unwrap()
 }
 
-/// Mounts 4 changing mock responses with the last one repeating
-pub async fn mount_4_changing_block_responses(
-    sequencer_relayer: &TestSequencerRelayer,
-) -> Vec<endpoint::block::Response> {
-    async fn create_and_mount_block(
-        delay: Duration,
-        server: &MockServer,
-        validator: &Validator,
-        height: u32,
-    ) -> endpoint::block::Response {
-        let rsp = create_block_response(validator, height);
-        let wrapped = Wrapper::new_with_id(Id::Num(1), Some(rsp.clone()), None);
-        Mock::given(body_partial_json(json!({"method": "block"})))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(wrapped)
-                    .set_delay(delay),
-            )
-            .up_to_n_times(1)
-            .mount(server)
-            .await;
-        rsp
+// /// Mounts 4 changing mock responses with the last one repeating
+// pub async fn mount_4_changing_block_responses(
+//     sequencer_relayer: &TestSequencerRelayer,
+// ) -> Vec<endpoint::block::Response> { async fn create_and_mount_block( delay: Duration, server:
+//   &MockServer, validator: &Validator, height: u32,
+//     ) -> endpoint::block::Response { let rsp = create_block_response(validator, height); let
+//       wrapped = Wrapper::new_with_id(Id::Num(1), Some(rsp.clone()), None);
+//       Mock::given(body_partial_json(json!({"method": "block"}))) .respond_with(
+//       ResponseTemplate::new(200) .set_body_json(wrapped) .set_delay(delay), ) .up_to_n_times(1)
+//       .mount(server) .await; rsp
+//     }
+
+//     let response_delay = Duration::from_millis(1000); // was block_time
+//     let validator = &sequencer_relayer.validator;
+//     let server = &sequencer_relayer.sequencer;
+
+//     let mut rsps = Vec::new();
+//     // The first one resolves immediately
+//     rsps.push(create_and_mount_block(Duration::ZERO, server, validator, 1).await);
+
+//     for i in 2..=3 {
+//         rsps.push(create_and_mount_block(response_delay, server, validator, i).await);
+//     }
+
+//     // The last one will repeat
+//     rsps.push(create_block_response(validator, 4));
+//     let wrapped = Wrapper::new_with_id(Id::Num(1), Some(rsps[3].clone()), None);
+//     Mock::given(body_partial_json(json!({"method": "block"})))
+//         .respond_with(
+//             ResponseTemplate::new(200)
+//                 .set_body_json(wrapped)
+//                 .set_delay(response_delay),
+//         )
+//         .mount(&sequencer_relayer.sequencer)
+//         .await;
+//     rsps
+// }
+
+#[derive(Deserialize)]
+struct ProxyQuery {
+    query: String,
+}
+
+#[derive(Deserialize)]
+#[serde(try_from = "ProxyQuery")]
+#[allow(unreachable_pub)]
+pub struct Query {
+    _query: tendermint_rpc::query::Query,
+}
+
+impl TryFrom<ProxyQuery> for Query {
+    type Error = tendermint_rpc::error::Error;
+
+    fn try_from(proxy: ProxyQuery) -> Result<Self, Self::Error> {
+        let query = proxy.query.parse::<tendermint_rpc::query::Query>()?;
+        Ok(Self {
+            _query: query,
+        })
+    }
+}
+
+#[rpc(server)]
+trait Sequencer {
+    #[subscription(name = "subscribe", item = Query)]
+    async fn subscribe(&self, query: Query) -> SubscriptionResult;
+
+    #[method(name = "abci_info")]
+    async fn abci_info(&self) -> String;
+}
+
+struct SequencerImpl {
+    block_tx: Sender<tendermint::Block>,
+}
+
+#[async_trait]
+impl SequencerServer for SequencerImpl {
+    async fn abci_info(&self) -> String {
+        let resp = tendermint_rpc::endpoint::abci_info::Response {
+            response: tendermint::abci::response::Info {
+                data: "SequencerRelayerTest".into(),
+                version: "1.0.0".into(),
+                app_version: 1,
+                last_block_height: 5u32.into(),
+                last_block_app_hash: tendermint::AppHash::try_from([0; 32].to_vec()).unwrap(),
+            },
+        };
+        let wrapper = tendermint_rpc::response::Wrapper::new_with_id(
+            tendermint_rpc::Id::Num(1),
+            Some(resp),
+            None,
+        );
+        println!("abci_info: {}", serde_json::to_string(&wrapper).unwrap());
+        serde_json::to_string(&wrapper).unwrap()
     }
 
-    let response_delay = Duration::from_millis(1000); // was block_time
-    let validator = &sequencer_relayer.validator;
-    let server = &sequencer_relayer.sequencer;
+    async fn subscribe(
+        &self,
+        pending: PendingSubscriptionSink,
+        _query: Query,
+    ) -> SubscriptionResult {
+        use jsonrpsee::server::SubscriptionMessage;
+        let sink = pending.accept().await?;
+        let mut rx = self.block_tx.subscribe();
+        loop {
+            tokio::select!(
+                biased;
+                () = sink.closed() => break,
+                Ok(block) = rx.recv() => {
+                    let event = tendermint_rpc::event::Event {
+                        query: "".to_string(),
+                        data: tendermint_rpc::event::EventData::NewBlock { block: Some(block), result_begin_block: None, result_end_block: None },
+                        events: None,
+                    };
+                    let event_wrapper: tendermint_rpc::event::DialectEvent<tendermint_rpc::dialect::v0_37::Event> = event.into();
+                    // let response_wrapper = tendermint_rpc::response::Wrapper::new_with_id(
+                    //     tendermint_rpc::Id::Num(1),
+                    //     Some(event_wrapper),
+                    //     None,
+                    // );
+                    sink.send(
+                        SubscriptionMessage::from_json(&event_wrapper)?
+                    ).await?
+                }
+            );
+        }
+        Ok(())
+    }
+}
 
-    let mut rsps = Vec::new();
-    // The first one resolves immediately
-    rsps.push(create_and_mount_block(Duration::ZERO, server, validator, 1).await);
+pub(crate) struct MockSequencer {
+    /// The local address to which the mocked jsonrpc server is bound.
+    local_addr: String,
+    block_tx: Sender<tendermint::Block>,
+    _server_task_handle: tokio::task::JoinHandle<()>,
+}
 
-    for i in 2..=3 {
-        rsps.push(create_and_mount_block(response_delay, server, validator, i).await);
+impl MockSequencer {
+    /// Spawns a new mocked sequencer server.
+    /// # Panics
+    /// Panics if the server fails to start.
+    pub(crate) async fn spawn() -> Self {
+        use jsonrpsee::server::Server;
+        let server = Server::builder()
+            .ws_only()
+            .build("127.0.0.1:0")
+            .await
+            .expect("should be able to start a jsonrpsee server bound to a 0 port");
+        let local_addr = server
+            .local_addr()
+            .expect("server should have a local addr");
+        let (block_tx, _) = channel(256);
+        let sequencer_impl = SequencerImpl {
+            block_tx: block_tx.clone(),
+        };
+        let handle = server.start(sequencer_impl.into_rpc());
+        let server_task_handle = tokio::spawn(handle.stopped());
+        Self {
+            local_addr: format!("ws://{}", local_addr),
+            block_tx,
+            _server_task_handle: server_task_handle,
+        }
     }
 
-    // The last one will repeat
-    rsps.push(create_block_response(validator, 4));
-    let wrapped = Wrapper::new_with_id(Id::Num(1), Some(rsps[3].clone()), None);
-    Mock::given(body_partial_json(json!({"method": "block"})))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(wrapped)
-                .set_delay(response_delay),
-        )
-        .mount(&sequencer_relayer.sequencer)
-        .await;
-    rsps
+    #[must_use]
+    pub(crate) fn local_addr(&self) -> String {
+        self.local_addr.clone()
+    }
 }

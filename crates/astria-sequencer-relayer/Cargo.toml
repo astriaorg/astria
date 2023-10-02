@@ -29,6 +29,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tendermint = { workspace = true, features = ["rust-crypto"] }
 tendermint-config = { workspace = true }
+tendermint-proto = { workspace = true }
 tendermint-rpc = { workspace = true, features = ["websocket-client"] }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

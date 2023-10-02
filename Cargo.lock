@@ -368,6 +368,7 @@ dependencies = [
  "tempfile",
  "tendermint",
  "tendermint-config",
+ "tendermint-proto",
  "tendermint-rpc",
  "tokio",
  "tracing",
