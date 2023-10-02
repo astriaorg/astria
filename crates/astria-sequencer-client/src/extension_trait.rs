@@ -80,6 +80,7 @@ impl std::error::Error for Error {
         match &self.inner {
             ErrorKind::AbciQueryDeserialization(e) => Some(e),
             ErrorKind::TendermintRpc(e) => Some(e),
+            ErrorKind::Deserialization(e) => Some(e),
         }
     }
 }
@@ -106,6 +107,15 @@ impl Error {
     ) -> Self {
         Self {
             inner: ErrorKind::abci_query_deserialization(target, response, inner),
+        }
+    }
+
+    fn deserialization<T>(target: &'static str, inner: T) -> Self
+    where
+        T: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
+    {
+        Self {
+            inner: ErrorKind::deserialization(target, inner.into()),
         }
     }
 
@@ -184,12 +194,35 @@ impl std::error::Error for TendermintRpcError {
     }
 }
 
+#[derive(Debug)]
+pub struct DeserializationError {
+    inner: Box<dyn std::error::Error + Send + Sync + 'static>,
+    target: &'static str,
+}
+
+impl std::fmt::Display for DeserializationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "failed deserializing cometbft response to {}",
+            self.target,
+        )
+    }
+}
+
+impl std::error::Error for DeserializationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&*self.inner)
+    }
+}
+
 /// The collection of different errors that can occur when using the extension trait.
 ///
 /// Note that none of the errors contained herein are constructable outside this crate.
 #[derive(Debug)]
 pub enum ErrorKind {
     AbciQueryDeserialization(AbciQueryDeserializationError),
+    Deserialization(DeserializationError),
     TendermintRpc(TendermintRpcError),
 }
 
@@ -203,6 +236,16 @@ impl ErrorKind {
         Self::AbciQueryDeserialization(AbciQueryDeserializationError {
             inner,
             response: Box::new(response),
+            target,
+        })
+    }
+
+    fn deserialization(
+        target: &'static str,
+        inner: Box<dyn std::error::Error + Send + Sync + 'static>,
+    ) -> Self {
+        Self::Deserialization(DeserializationError {
+            inner,
             target,
         })
     }
@@ -410,6 +453,32 @@ pub trait SequencerClientExt: Client {
         // This makes use of the fact that a height `None` and `Some(0)` are
         // treated the same.
         self.get_nonce(address, 0).await
+    }
+
+    /// Get the latest sequencer block.
+    ///
+    /// This is a convenience method that converts the result [`Client::latest_block`]
+    /// to `SequencerBlockData`.
+    async fn latest_sequencer_block(&self) -> Result<SequencerBlockData, Error> {
+        let rsp = self
+            .latest_block()
+            .await
+            .map_err(|e| Error::tendermint_rpc("latest_block", e))?;
+        SequencerBlockData::from_tendermint_block(rsp.block)
+            .map_err(|e| Error::deserialization("SequencerBlockData", e))
+    }
+
+    /// Get the sequencer block at the provided height.
+    ///
+    /// This is a convenience method that converts the result [`Client::block`]
+    /// to `SequencerBlockData`.
+    async fn sequencer_block(&self, height: u32) -> Result<SequencerBlockData, Error> {
+        let rsp = self
+            .block(height)
+            .await
+            .map_err(|e| Error::tendermint_rpc("block", e))?;
+        SequencerBlockData::from_tendermint_block(rsp.block)
+            .map_err(|e| Error::deserialization("SequencerBlockData", e))
     }
 
     /// Submits the given transaction to the Sequencer node.
