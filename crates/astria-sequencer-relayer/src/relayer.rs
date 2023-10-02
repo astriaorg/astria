@@ -5,9 +5,18 @@ use eyre::{
     Result,
     WrapErr as _,
 };
+use futures::stream::TryStreamExt as _;
 use humantime::format_duration;
 use sequencer_types::SequencerBlockData;
-use tendermint_rpc::WebSocketClient;
+use tendermint_rpc::{
+    event::Event,
+    query::{
+        EventType,
+        Query,
+    },
+    SubscriptionClient,
+    WebSocketClient,
+};
 use tokio::{
     select,
     sync::watch,
@@ -28,7 +37,7 @@ use crate::{
 };
 
 pub struct Relayer {
-    /// The actual client used to poll the sequencer.
+    /// The websocket client for the sequencer, used to create a `NewBlock` subscription.
     sequencer_ws_client: WebSocketClient,
 
     // The client for submitting sequencer blocks to the data availability layer.
@@ -109,6 +118,42 @@ impl Relayer {
 
     pub(crate) fn subscribe_to_state(&self) -> watch::Receiver<State> {
         self.state_tx.subscribe()
+    }
+
+    /// Handle an [`Event`] returned from the sequencer websocket subscription.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the event is not a `NewBlock` event or if the event
+    /// does not contain a block.
+    fn handle_new_block_event(&mut self, event: Event) -> eyre::Result<()> {
+        let tendermint_rpc::event::EventData::NewBlock {
+            block: maybe_block,
+            ..
+        } = event.data
+        else {
+            bail!("sequencer websocket subscription returned unexpected event");
+        };
+        let Some(block) = maybe_block else {
+            bail!("sequencer websocket subscription returned event without block");
+        };
+
+        info!(
+            height = %block.header.height,
+            tx.count = block.data.len(),
+            "received block from sequencer"
+        );
+        let current_height = self.state_tx.borrow().current_sequencer_height;
+        let validator = self.validator.clone();
+
+        // Start the costly conversion; note that the current height at
+        // the time of receipt matters. The internal state might have advanced
+        // past the height recorded in the block while it was converting, but
+        // that's ok.
+        self.conversion_workers.spawn_blocking(move || {
+            convert_tendermint_block_to_sequencer_block_data(block, current_height, validator)
+        });
+        Ok(())
     }
 
     /// Handle the result
@@ -275,37 +320,6 @@ impl Relayer {
         Ok(())
     }
 
-    /// Handle an [`Event`] returned from the sequencer websocket subscription.
-    fn handle_new_block_event(&mut self, event: tendermint_rpc::event::Event) -> eyre::Result<()> {
-        let tendermint_rpc::event::EventData::NewBlock {
-            block: maybe_block,
-            ..
-        } = event.data
-        else {
-            bail!("sequencer websocket subscription returned unexpected event");
-        };
-        let Some(block) = maybe_block else {
-            bail!("sequencer websocket subscription returned event without block");
-        };
-
-        info!(
-            height = %block.header.height,
-            tx.count = block.data.len(),
-            "received block from sequencer"
-        );
-        let current_height = self.state_tx.borrow().current_sequencer_height;
-        let validator = self.validator.clone();
-
-        // Start the costly conversion; note that the current height at
-        // the time of receipt matters. The internal state might have advanced
-        // past the height recorded in the block while it was converting, but
-        // that's ok.
-        self.conversion_workers.spawn_blocking(move || {
-            convert_tendermint_block_to_sequencer_block_data(block, current_height, validator)
-        });
-        Ok(())
-    }
-
     /// Runs the relayer worker.
     ///
     /// # Errors
@@ -323,15 +337,6 @@ impl Relayer {
         self.wait_for_sequencer(5, Duration::from_secs(5), 2.0)
             .await
             .wrap_err("failed establishing connection to the sequencer")?;
-
-        use futures::stream::TryStreamExt as _;
-        use tendermint_rpc::{
-            query::{
-                EventType,
-                Query,
-            },
-            SubscriptionClient,
-        };
 
         let mut stream = self
             .sequencer_ws_client
