@@ -169,6 +169,26 @@ pub struct TendermintRpcError {
 }
 
 impl TendermintRpcError {
+    /// Utility to check if the underlying error is related to the transport failing.
+    ///
+    /// This is useful when trying to understand if a request failed because the underlying
+    /// connection failed.
+    pub fn is_transport(&self) -> bool {
+        use tendermint_rpc::error::ErrorDetail;
+        match &self.inner.detail() {
+            // - ChannelSend is returned if the channel that WebSocketClient uses to communicate
+            //   with the driver fails. This is the case if the driver has already failed, but the
+            //   client still in use (there is no feedback mechanism between driver and its clients
+            //   other than client commands failing).
+            // - ClientInternal is returned by WebSocketClient if the channel the client sent to the
+            //   websocket driver is dropped. This is the case if the driver recives the channel as
+            //   part of a client's requests to the driver to send a message over the websocket, but
+            //   then exits, dropping channel.
+            ErrorDetail::ChannelSend(_) | ErrorDetail::ClientInternal(_) => true,
+            _other => false,
+        }
+    }
+
     /// Returns the error returned by the underlying tendermint RPC call.
     #[must_use]
     pub fn inner(&self) -> &tendermint_rpc::error::Error {
