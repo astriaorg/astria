@@ -189,6 +189,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-cli"
+version = "0.1.0"
+dependencies = [
+ "camino",
+ "clap",
+ "color-eyre",
+]
+
+[[package]]
 name = "astria-composer"
 version = "0.2.1"
 dependencies = [
