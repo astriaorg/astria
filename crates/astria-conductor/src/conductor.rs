@@ -90,6 +90,7 @@ impl Conductor {
 
         let (sequencer_shutdown_tx, sequencer_shutdown_rx) = oneshot::channel();
         let sequencer_reader = sequencer::Reader::new(
+            cfg.initial_sequencer_block_height,
             sequencer_client_pool.clone(),
             sequencer_shutdown_rx,
             executor_tx.clone(),

@@ -40,7 +40,7 @@ pub struct Config {
     pub disable_empty_block_execution: bool,
 
     /// The Sequencer block height that the rollup genesis block was in
-    pub initial_sequencer_block_height: u64,
+    pub initial_sequencer_block_height: u32,
 }
 
 impl Config {

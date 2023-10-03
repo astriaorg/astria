@@ -72,6 +72,8 @@ pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
     executor_tx: executor::Sender,
 
+    initial_sequencer_block_height: u32,
+
     pool: Pool<ClientProvider>,
 
     shutdown: oneshot::Receiver<()>,
@@ -80,11 +82,13 @@ pub(crate) struct Reader {
 impl Reader {
     #[instrument(name = "driver", skip_all)]
     pub(crate) async fn new(
+        initial_sequencer_block_height: u32,
         pool: Pool<ClientProvider>,
         shutdown: oneshot::Receiver<()>,
         executor_tx: executor::Sender,
     ) -> eyre::Result<Self> {
         Ok(Self {
+            initial_sequencer_block_height,
             executor_tx,
             pool,
             shutdown,
@@ -116,12 +120,19 @@ impl Reader {
             }
         };
 
+        let latest_height: u32 = latest_height.try_into().wrap_err(
+            "failed converting the cometbft height to u32, but this should always work",
+        )?;
+
+        info!(
+            height.initial = self.initial_sequencer_block_height,
+            height.latest = latest_height,
+            "syncing sequencer between configured initial and latest retrieved height"
+        );
         let mut sync_heights = {
+            let sync_range = self.initial_sequencer_block_height..latest_height;
             let pool = self.pool.clone();
-            Box::pin(futures::stream::iter(1..latest_height).then(move |height| {
-                let height: u32 = height
-                    .try_into()
-                    .expect("converting a u64 extract from a tendermint Height should always work");
+            Box::pin(futures::stream::iter(sync_range).then(move |height| {
                 let pool = pool.clone();
                 async move { pool.get().await }.map_ok(move |client| (height, client))
             }))
