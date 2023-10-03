@@ -182,12 +182,13 @@ impl Conductor {
                 let _ = timeout(
                     Duration::from_secs(5),
                     spawn_local(async move {
-                        while let Some(_) = Rc::get_mut(&mut tasks)
+                        while Rc::get_mut(&mut tasks)
                             .expect(
                                 "only one Rc to the conductor tasks should exist; this is a bug",
                             )
                             .join_next()
                             .await
+                            .is_some()
                         {}
                     }),
                 )

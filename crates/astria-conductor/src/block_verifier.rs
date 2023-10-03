@@ -105,7 +105,7 @@ fn validate_signed_namespace_data(
         .wrap_err("failed to verify signature of signed namepsace data")?;
 
     // find proposer address for this height
-    let expected_proposer_public_key = get_proposer(&validator_set)
+    let expected_proposer_public_key = get_proposer(validator_set)
         .wrap_err("failed to get proposer from validator set")?
         .pub_key
         .to_bytes();
@@ -139,7 +139,7 @@ fn validate_sequencer_namespace_data(
 
     // find proposer address for this height
     let expected_proposer_address = account::Id::from(
-        get_proposer(&current_validator_set)
+        get_proposer(current_validator_set)
             .wrap_err("failed to get proposer from validator set")?
             .pub_key,
     );
@@ -166,7 +166,7 @@ fn validate_sequencer_namespace_data(
             // verify that the validator votes on the previous block have >2/3 voting power
             let last_commit = last_commit.clone();
             let chain_id = header.chain_id.clone();
-            ensure_commit_has_quorum(&last_commit, &parent_validator_set, chain_id.as_ref())
+            ensure_commit_has_quorum(&last_commit, parent_validator_set, chain_id.as_ref())
                 .wrap_err("failed to ensure commit has quorum")?
 
             // TODO: commit is for previous block; how do we handle this? (#50)

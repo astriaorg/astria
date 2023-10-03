@@ -131,7 +131,7 @@ impl Reader {
         let mut sync_blocks = FuturesOrdered::new();
 
         let mut resubscribe = future::Fuse::terminated();
-        let exit_reason = 'reader_loop: loop {
+        'reader_loop: loop {
             select! {
                 shutdown = &mut self.shutdown => {
                     let ret = match shutdown {
@@ -207,8 +207,7 @@ impl Reader {
                     }
                 }
             }
-        };
-        exit_reason
+        }
     }
 }
 
