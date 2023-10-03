@@ -6,6 +6,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use deadpool::managed::PoolError;
 use sequencer_client::extension_trait::NewBlocksStream;
 use tokio::{
     select,
@@ -21,6 +22,14 @@ use crate::{
     executor,
     executor::ExecutorCommand,
 };
+
+#[derive(Debug, thiserror::Error)]
+enum Error {
+    #[error("failed requesting a client from the pool")]
+    Pool(#[from] PoolError<crate::client_provider::Error>),
+    #[error("sequencer request failed")]
+    Request(#[from] sequencer_client::extension_trait::Error),
+}
 
 pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
@@ -110,7 +119,7 @@ impl Reader {
                 Some(res) = sync_heights.next(), if !sync_heights.is_done() && sync_blocks.len() < 20 => {
                     match res {
                         Ok((height, client)) => sync_blocks.push_back(
-                            async move { client.sequencer_block(height).await }
+                            async move { client.sequencer_block(height).await.map_err(Error::Request) }
                             .map(move |res| (height, res))
                             .boxed()
                         ),
@@ -128,16 +137,24 @@ impl Reader {
                 // an infinite process? At which point should the height just be dropped?
                 Some((height, res)) = sync_blocks.next(), if !sync_blocks.is_empty() => {
                     match res {
-                        Err(e) if e.as_tendermint_rpc().is_some() => {
-                            let pool = self.pool.clone();
-                            sync_blocks.push_front(
-                                async move { let client = pool.get().await.unwrap(); client.sequencer_block(height).await }
-                                .map(move |res| (height, res))
-                                .boxed()
-                            )
+                        Err(Error::Request(e)) => {
+                            if let Some(err) = e.as_tendermint_rpc() {
+                                if err.is_transport() {
+                                    let pool = self.pool.clone();
+                                    sync_blocks.push_front(
+                                        async move {
+                                            let client = pool.get().await?;
+                                            let block = client.sequencer_block(height).await?;
+                                            Ok(block)
+                                        }
+                                        .map(move |res| (height, res))
+                                        .boxed()
+                                    );
+                                }
+                            }
                         }
-                        Err(e) => {
-                            warn!(height, error.message = %e, error.cause = ?e, "getting sequencer block for given height failed; dropping it");
+                        Err(Error::Pool(e)) => {
+                            warn!(height, error.message = %e, error.cause = ?e, "getting a client from the pool failed; can't recover from that; dropping the height");
                         }
                         Ok(block) => self.forward_block(block),
                     }
