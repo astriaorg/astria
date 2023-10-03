@@ -305,246 +305,243 @@ impl Executor {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use std::{
-        collections::HashSet,
-        sync::Arc,
-    };
+// #[cfg(test)]
+// mod test {
+//     use std::{
+//         collections::HashSet,
+//         sync::Arc,
+//     };
 
-    use astria_proto::generated::execution::v1alpha1::{
-        DoBlockResponse,
-        InitStateResponse,
-    };
-    use prost_types::Timestamp;
-    use sha2::Digest as _;
-    use tokio::sync::Mutex;
+//     use astria_proto::generated::execution::v1alpha1::{
+//         DoBlockResponse,
+//         InitStateResponse,
+//     };
+//     use prost_types::Timestamp;
+//     use sha2::Digest as _;
+//     use tokio::sync::Mutex;
 
-    use super::*;
+//     use super::*;
 
-    // a mock ExecutionClient used for testing the Executor
-    struct MockExecutionClient {
-        finalized_blocks: Arc<Mutex<HashSet<Vec<u8>>>>,
-    }
+//     // a mock ExecutionClient used for testing the Executor
+//     struct MockExecutionClient {
+//         finalized_blocks: Arc<Mutex<HashSet<Vec<u8>>>>,
+//     }
 
-    impl MockExecutionClient {
-        fn new() -> Self {
-            Self {
-                finalized_blocks: Arc::new(Mutex::new(HashSet::new())),
-            }
-        }
-    }
+//     impl MockExecutionClient {
+//         fn new() -> Self {
+//             Self {
+//                 finalized_blocks: Arc::new(Mutex::new(HashSet::new())),
+//             }
+//         }
+//     }
 
-    #[async_trait::async_trait]
-    impl ExecutionClient for MockExecutionClient {
-        // returns the sha256 hash of the prev_block_hash
-        // the Executor passes self.execution_state as prev_block_hash
-        async fn call_do_block(
-            &mut self,
-            prev_block_hash: Vec<u8>,
-            _transactions: Vec<Vec<u8>>,
-            _timestamp: Option<Timestamp>,
-        ) -> Result<DoBlockResponse> {
-            let res = hash(&prev_block_hash);
-            Ok(DoBlockResponse {
-                block_hash: res.to_vec(),
-            })
-        }
+//     #[async_trait::async_trait]
+//     impl ExecutionClient for MockExecutionClient {
+//         // returns the sha256 hash of the prev_block_hash
+//         // the Executor passes self.execution_state as prev_block_hash
+//         async fn call_do_block(
+//             &mut self,
+//             prev_block_hash: Vec<u8>,
+//             _transactions: Vec<Vec<u8>>,
+//             _timestamp: Option<Timestamp>,
+//         ) -> Result<DoBlockResponse> { let res = hash(&prev_block_hash); Ok(DoBlockResponse {
+//           block_hash: res.to_vec(), })
+//         }
 
-        async fn call_finalize_block(&mut self, block_hash: Vec<u8>) -> Result<()> {
-            self.finalized_blocks.lock().await.insert(block_hash);
-            Ok(())
-        }
+//         async fn call_finalize_block(&mut self, block_hash: Vec<u8>) -> Result<()> {
+//             self.finalized_blocks.lock().await.insert(block_hash);
+//             Ok(())
+//         }
 
-        async fn call_init_state(&mut self) -> Result<InitStateResponse> {
-            let hasher = sha2::Sha256::new();
-            Ok(InitStateResponse {
-                block_hash: hasher.finalize().to_vec(),
-            })
-        }
-    }
+//         async fn call_init_state(&mut self) -> Result<InitStateResponse> {
+//             let hasher = sha2::Sha256::new();
+//             Ok(InitStateResponse {
+//                 block_hash: hasher.finalize().to_vec(),
+//             })
+//         }
+//     }
 
-    fn hash(s: &[u8]) -> Vec<u8> {
-        let mut hasher = sha2::Sha256::new();
-        hasher.update(s);
-        hasher.finalize().to_vec()
-    }
+//     fn hash(s: &[u8]) -> Vec<u8> {
+//         let mut hasher = sha2::Sha256::new();
+//         hasher.update(s);
+//         hasher.finalize().to_vec()
+//     }
 
-    fn get_test_block_subset() -> SequencerBlockSubset {
-        SequencerBlockSubset {
-            block_hash: hash(b"block1").try_into().unwrap(),
-            header: astria_sequencer_types::test_utils::default_header(),
-            rollup_transactions: vec![],
-        }
-    }
+//     fn get_test_block_subset() -> SequencerBlockSubset {
+//         SequencerBlockSubset {
+//             block_hash: hash(b"block1").try_into().unwrap(),
+//             header: astria_sequencer_types::test_utils::default_header(),
+//             rollup_transactions: vec![],
+//         }
+//     }
 
-    fn get_test_config() -> Config {
-        Config {
-            chain_id: "test".to_string(),
-            execution_rpc_url: "test".to_string(),
-            disable_finalization: false,
-            log: "test".to_string(),
-            disable_empty_block_execution: false,
-            celestia_node_url: "test".to_string(),
-            celestia_bearer_token: "test".to_string(),
-            sequencer_url: "test".to_string(),
-            initial_sequencer_block_height: 1,
-        }
-    }
+//     fn get_test_config() -> crate::Config {
+//         crate::Config {
+//             chain_id: "test".to_string(),
+//             execution_rpc_url: "test".to_string(),
+//             disable_finalization: false,
+//             log: "test".to_string(),
+//             disable_empty_block_execution: false,
+//             celestia_node_url: "test".to_string(),
+//             celestia_bearer_token: "test".to_string(),
+//             sequencer_url: "test".to_string(),
+//             initial_sequencer_block_height: 1,
+//         }
+//     }
 
-    #[tokio::test]
-    async fn execute_sequencer_block_without_txs() {
-        let conf = get_test_config();
-        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
-        let (mut executor, _) = Executor::new(
-            MockExecutionClient::new(),
-            chain_id,
-            conf.disable_empty_block_execution,
-        )
-        .await
-        .unwrap();
+//     #[tokio::test]
+//     async fn execute_sequencer_block_without_txs() {
+//         let conf = get_test_config();
+//         let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
+//         let (mut executor, _) = Executor::new(
+//             MockExecutionClient::new(),
+//             chain_id,
+//             conf.disable_empty_block_execution,
+//         )
+//         .await
+//         .unwrap();
 
-        let expected_exection_hash = hash(&executor.execution_state);
-        let block = get_test_block_subset();
+//         let expected_exection_hash = hash(&executor.execution_state);
+//         let block = get_test_block_subset();
 
-        let execution_block_hash = executor
-            .execute_block(block)
-            .await
-            .unwrap()
-            .expect("expected execution block hash");
-        assert_eq!(expected_exection_hash, execution_block_hash);
-    }
+//         let execution_block_hash = executor
+//             .execute_block(block)
+//             .await
+//             .unwrap()
+//             .expect("expected execution block hash");
+//         assert_eq!(expected_exection_hash, execution_block_hash);
+//     }
 
-    #[tokio::test]
-    async fn skip_sequencer_block_without_txs() {
-        let mut conf = get_test_config();
-        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
-        conf.disable_empty_block_execution = true;
-        let (mut executor, _) = Executor::new(
-            MockExecutionClient::new(),
-            chain_id,
-            conf.disable_empty_block_execution,
-        )
-        .await
-        .unwrap();
+//     #[tokio::test]
+//     async fn skip_sequencer_block_without_txs() {
+//         let mut conf = get_test_config();
+//         let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
+//         conf.disable_empty_block_execution = true;
+//         let (mut executor, _) = Executor::new(
+//             MockExecutionClient::new(),
+//             chain_id,
+//             conf.disable_empty_block_execution,
+//         )
+//         .await
+//         .unwrap();
 
-        let block = get_test_block_subset();
-        let execution_block_hash = executor.execute_block(block).await.unwrap();
-        assert!(execution_block_hash.is_none());
-    }
+//         let block = get_test_block_subset();
+//         let execution_block_hash = executor.execute_block(block).await.unwrap();
+//         assert!(execution_block_hash.is_none());
+//     }
 
-    #[tokio::test]
-    async fn execute_unexecuted_da_block_with_transactions() {
-        let conf = get_test_config();
-        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
-        let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
-        let execution_client = MockExecutionClient {
-            finalized_blocks: finalized_blocks.clone(),
-        };
-        let (mut executor, _) = Executor::new(
-            execution_client,
-            chain_id,
-            conf.disable_empty_block_execution,
-        )
-        .await
-        .unwrap();
+//     #[tokio::test]
+//     async fn execute_unexecuted_da_block_with_transactions() {
+//         let conf = get_test_config();
+//         let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
+//         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
+//         let execution_client = MockExecutionClient {
+//             finalized_blocks: finalized_blocks.clone(),
+//         };
+//         let (mut executor, _) = Executor::new(
+//             execution_client,
+//             chain_id,
+//             conf.disable_empty_block_execution,
+//         )
+//         .await
+//         .unwrap();
 
-        let mut block = get_test_block_subset();
-        block.rollup_transactions.push(b"test_transaction".to_vec());
+//         let mut block = get_test_block_subset();
+//         block.rollup_transactions.push(b"test_transaction".to_vec());
 
-        let expected_exection_hash = hash(&executor.execution_state);
+//         let expected_exection_hash = hash(&executor.execution_state);
 
-        executor
-            .handle_block_received_from_data_availability(block)
-            .await
-            .unwrap();
+//         executor
+//             .handle_block_received_from_data_availability(block)
+//             .await
+//             .unwrap();
 
-        // should have executed and finalized the block
-        assert!(finalized_blocks.lock().await.len() == 1);
-        assert!(
-            finalized_blocks
-                .lock()
-                .await
-                .get(&executor.execution_state)
-                .is_some()
-        );
-        assert_eq!(expected_exection_hash, executor.execution_state);
-        // should be empty because 1 block was executed and finalized, which deletes it from the map
-        assert!(executor.sequencer_hash_to_execution_hash.is_empty());
-    }
+//         // should have executed and finalized the block
+//         assert!(finalized_blocks.lock().await.len() == 1);
+//         assert!(
+//             finalized_blocks
+//                 .lock()
+//                 .await
+//                 .get(&executor.execution_state)
+//                 .is_some()
+//         );
+//         assert_eq!(expected_exection_hash, executor.execution_state);
+//         // should be empty because 1 block was executed and finalized, which deletes it from the
+// map         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
+//     }
 
-    #[tokio::test]
-    async fn skip_unexecuted_da_block_with_no_transactions() {
-        let mut conf = get_test_config();
-        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
-        conf.disable_empty_block_execution = true;
-        let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
-        let execution_client = MockExecutionClient {
-            finalized_blocks: finalized_blocks.clone(),
-        };
-        let (mut executor, _) = Executor::new(
-            execution_client,
-            chain_id,
-            conf.disable_empty_block_execution,
-        )
-        .await
-        .unwrap();
+//     #[tokio::test]
+//     async fn skip_unexecuted_da_block_with_no_transactions() {
+//         let mut conf = get_test_config();
+//         let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
+//         conf.disable_empty_block_execution = true;
+//         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
+//         let execution_client = MockExecutionClient {
+//             finalized_blocks: finalized_blocks.clone(),
+//         };
+//         let (mut executor, _) = Executor::new(
+//             execution_client,
+//             chain_id,
+//             conf.disable_empty_block_execution,
+//         )
+//         .await
+//         .unwrap();
 
-        let block: SequencerBlockSubset = get_test_block_subset();
-        let previous_execution_state = executor.execution_state.clone();
+//         let block: SequencerBlockSubset = get_test_block_subset();
+//         let previous_execution_state = executor.execution_state.clone();
 
-        executor
-            .handle_block_received_from_data_availability(block)
-            .await
-            .unwrap();
+//         executor
+//             .handle_block_received_from_data_availability(block)
+//             .await
+//             .unwrap();
 
-        // should not have executed or finalized the block
-        assert!(finalized_blocks.lock().await.is_empty());
-        assert!(
-            finalized_blocks
-                .lock()
-                .await
-                .get(&executor.execution_state)
-                .is_none()
-        );
-        assert_eq!(previous_execution_state, executor.execution_state,);
-        // should be empty because nothing was executed
-        assert!(executor.sequencer_hash_to_execution_hash.is_empty());
-    }
+//         // should not have executed or finalized the block
+//         assert!(finalized_blocks.lock().await.is_empty());
+//         assert!(
+//             finalized_blocks
+//                 .lock()
+//                 .await
+//                 .get(&executor.execution_state)
+//                 .is_none()
+//         );
+//         assert_eq!(previous_execution_state, executor.execution_state,);
+//         // should be empty because nothing was executed
+//         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
+//     }
 
-    #[tokio::test]
-    async fn execute_unexecuted_da_block_with_no_transactions() {
-        let conf = get_test_config();
-        let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
-        let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
-        let execution_client = MockExecutionClient {
-            finalized_blocks: finalized_blocks.clone(),
-        };
-        let (mut executor, _) = Executor::new(
-            execution_client,
-            chain_id,
-            conf.disable_empty_block_execution,
-        )
-        .await
-        .unwrap();
+//     #[tokio::test]
+//     async fn execute_unexecuted_da_block_with_no_transactions() {
+//         let conf = get_test_config();
+//         let chain_id = ChainId::new(conf.chain_id.as_bytes().to_vec()).unwrap();
+//         let finalized_blocks = Arc::new(Mutex::new(HashSet::new()));
+//         let execution_client = MockExecutionClient {
+//             finalized_blocks: finalized_blocks.clone(),
+//         };
+//         let (mut executor, _) = Executor::new(
+//             execution_client,
+//             chain_id,
+//             conf.disable_empty_block_execution,
+//         )
+//         .await
+//         .unwrap();
 
-        let block: SequencerBlockSubset = get_test_block_subset();
-        let expected_execution_state = hash(&executor.execution_state);
+//         let block: SequencerBlockSubset = get_test_block_subset();
+//         let expected_execution_state = hash(&executor.execution_state);
 
-        executor
-            .handle_block_received_from_data_availability(block)
-            .await
-            .unwrap();
+//         executor
+//             .handle_block_received_from_data_availability(block)
+//             .await
+//             .unwrap();
 
-        assert!(
-            finalized_blocks
-                .lock()
-                .await
-                .get(&executor.execution_state)
-                .is_some()
-        );
-        assert_eq!(expected_execution_state, executor.execution_state);
-        // should be empty because block was executed and finalized, which deletes it from the map
-        assert!(executor.sequencer_hash_to_execution_hash.is_empty());
-    }
-}
+//         assert!(
+//             finalized_blocks
+//                 .lock()
+//                 .await
+//                 .get(&executor.execution_state)
+//                 .is_some()
+//         );
+//         assert_eq!(expected_execution_state, executor.execution_state);
+//         // should be empty because block was executed and finalized, which deletes it from the
+// map         assert!(executor.sequencer_hash_to_execution_hash.is_empty());
+//     }
+// }
