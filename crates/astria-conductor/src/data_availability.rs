@@ -355,6 +355,7 @@ async fn get_rollup(
 async fn assemble_blocks(
     mut assembly_rx: mpsc::Receiver<SequencerBlockSubset>,
 ) -> Vec<SequencerBlockSubset> {
+    info!("assembling sequencer block subsets");
     let mut blocks = Vec::new();
     while let Some(subset) = assembly_rx.recv().await {
         blocks.push(subset)
@@ -369,6 +370,7 @@ fn verify_all_datas(
 ) -> JoinMap<tendermint::Hash, eyre::Result<SignedNamespaceData<SequencerNamespaceData>>> {
     let mut verification_tasks = JoinMap::new();
     for data in datas {
+        info!(height = ?data.data.header.height, "verifying sequencer data");
         let block_hash = data.data.block_hash;
         if verification_tasks.contains_key(&block_hash) {
             warn!(%block_hash,
