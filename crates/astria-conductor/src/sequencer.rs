@@ -149,6 +149,7 @@ impl Reader {
                 // order they were received.
                 new_block = new_blocks.next(), if !new_blocks.is_done() => {
                     if let Some(block) = new_block {
+                    info!(block = ?block, "received new block from sequencer, adding to pending blocks");
                         pending_blocks.push_back(futures::future::ready(block));
                     } else {
                         warn!("sequencer new-block subscription closed unexpectedly; attempting to resubscribe");
@@ -165,6 +166,7 @@ impl Reader {
                             warn!(error.message = %e, error.cause = ?e, "response from sequencer block subscription was bad; dropping it");
                         }
                         Ok(block) => {
+                            info!(block = ?block, "new pending block received, forwarding from sequencer::Reader to executor");
                             self.forward_block(block);
                         }
                     };

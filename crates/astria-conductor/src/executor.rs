@@ -150,6 +150,8 @@ impl Executor {
                             let block_subset =
                                 SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id);
 
+                            info!(height = %height, block_subset = ?block_subset, "received block from sequencer::Reader");
+
                             if let Err(e) = self.execute_block(block_subset).await {
                                 error!(
                                     height = height,
@@ -163,6 +165,7 @@ impl Executor {
                             // FIXME: actually process all the blocks
                             let block = subsets.remove(0);
                             let height = block.header.height.value();
+                            info!(height = %height, block = ?block, "received block from data_availability::Reader");
                             if let Err(e) = self
                                 .handle_block_received_from_data_availability(block)
                                 .await

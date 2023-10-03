@@ -97,6 +97,7 @@ pub(crate) fn validate_rollup_data(
     rollup_data: &RollupNamespaceData,
     action_tree_root: [u8; 32],
 ) -> eyre::Result<()> {
+    info!("validating rollup data");
     rollup_data
         .verify_inclusion_proof(action_tree_root)
         .wrap_err("failed to verify rollup data inclusion proof")

@@ -34,6 +34,7 @@ use tracing::{
     debug,
     error,
     info,
+    instrument,
     warn,
 };
 
@@ -60,6 +61,7 @@ impl Conductor {
     const EXECUTOR: &'static str = "executor";
     const SEQUENCER: &'static str = "sequencer";
 
+    #[instrument(name = "conductor", skip_all)]
     pub async fn new(cfg: Config) -> eyre::Result<Self> {
         let mut tasks = JoinMap::new();
         let mut shutdown_channels = HashMap::new();
@@ -68,7 +70,7 @@ impl Conductor {
         // spawn our driver
         let (executor_tx, executor_rx) = mpsc::unbounded_channel();
         let (executor_shutdown_tx, executor_shutdown_rx) = oneshot::channel();
-        debug!(
+        info!(
             execution_rpc_url = &cfg.execution_rpc_url,
             chain_id = &cfg.chain_id,
             "starting executor"
@@ -82,13 +84,14 @@ impl Conductor {
         )
         .await
         .wrap_err("failed to construct executor")?;
+        info!("executor initialized successfully");
 
         tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
         shutdown_channels.insert(Self::EXECUTOR, executor_shutdown_tx);
 
         // TODO: add in execution_commit_level
         // if !cfg.execution_commit_level == "SoftOnly" | "SoftAndFirm" {
-        debug!(
+        info!(
             sequencer_url = &cfg.sequencer_url,
             "starting sequencer::Reader"
         );
@@ -108,6 +111,7 @@ impl Conductor {
         )
         .await
         .wrap_err("failed initializing driver")?;
+        info!("sequencer::Reader initialized successfully");
 
         tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
         shutdown_channels.insert(Self::SEQUENCER, sequencer_shutdown_tx);
@@ -133,6 +137,7 @@ impl Conductor {
             )
             .await
             .wrap_err("failed constructing data availability reader")?;
+            info!("data_availability::Reader initialized successfully");
             tasks.spawn(
                 Self::DATA_AVAILABILITY,
                 data_availability_reader.run_until_stopped(),

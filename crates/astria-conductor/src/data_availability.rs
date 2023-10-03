@@ -189,6 +189,7 @@ impl Reader {
                     "getting sequencer data from celestia already in flight, not spawning"
                 );
             } else {
+                info!(height = %height, "spawning task to get sequencer data from celestia");
                 self.get_sequencer_datas.spawn(height, async move {
                     client.get_sequencer_namespace_data(height).await
                 });

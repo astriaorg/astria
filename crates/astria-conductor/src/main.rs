@@ -43,7 +43,10 @@ async fn main() -> ExitCode {
             error!(error.msg = %e, error.cause = ?e, "failed initializing conductor");
             return ExitCode::FAILURE;
         }
-        Ok(conductor) => conductor,
+        Ok(conductor) => {
+            info!("conductor initialized successfully");
+            conductor
+        }
     };
 
     if let Err(e) = conductor.run_until_stopped().await {
