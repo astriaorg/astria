@@ -9,7 +9,10 @@ use astria_proto::generated::execution::v1alpha1::{
 use color_eyre::eyre::Result;
 use prost_types::Timestamp;
 use tonic::transport::Channel;
-use tracing::info;
+use tracing::{
+    info,
+    instrument,
+};
 
 #[async_trait::async_trait]
 pub(crate) trait ExecutionClient {
@@ -55,6 +58,7 @@ impl ExecutionClient for ExecutionRpcClient {
     /// * `prev_block_hash` - Block hash of the parent block
     /// * `transactions` - List of transactions extracted from the sequencer block
     /// * `timestamp` - Optional timestamp of the sequencer block
+    #[instrument(skip_all)]
     async fn call_do_block(
         &mut self,
         prev_block_hash: Vec<u8>,
@@ -66,23 +70,31 @@ impl ExecutionClient for ExecutionRpcClient {
             transactions,
             timestamp,
         };
+        info!(do_block_request = ?request, "Sending request to execution service");
         let response = self.client.do_block(request).await?.into_inner();
+        info!(hash = ?response , "Received response from execution service");
         Ok(response)
     }
 
     /// Calls remote procedure FinalizeBlock
+    #[instrument(skip_all)]
     async fn call_finalize_block(&mut self, block_hash: Vec<u8>) -> Result<()> {
         let request = FinalizeBlockRequest {
             block_hash,
         };
+        info!(request = ?request, "Sending finalize block request to execution service");
         self.client.finalize_block(request).await?;
+        info!("Finalized block call from execution service completed");
         Ok(())
     }
 
     /// Calls remote procedure InitState
+    #[instrument(skip_all)]
     async fn call_init_state(&mut self) -> Result<InitStateResponse> {
         let request = InitStateRequest {};
+        info!("Sending init state request to execution service");
         let response = self.client.init_state(request).await?.into_inner();
+        info!(response = ?response, "Received init state response from execution service");
         Ok(response)
     }
 }

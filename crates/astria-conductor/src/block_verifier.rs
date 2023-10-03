@@ -54,6 +54,7 @@ impl BlockVerifier {
     /// validates `SignedNamespaceData` received from Celestia.
     /// This function verifies the block signature and checks that the data
     /// was signed by the expected proposer for this block height.
+    #[instrument(skip_all)]
     pub(crate) async fn validate_signed_namespace_data(
         &self,
         data: &SignedNamespaceData<SequencerNamespaceData>,
