@@ -92,6 +92,7 @@ impl Error {
         &self.inner
     }
 
+    #[must_use]
     pub fn as_tendermint_rpc(&self) -> Option<&TendermintRpcError> {
         match self.kind() {
             ErrorKind::TendermintRpc(e) => Some(e),
@@ -173,6 +174,7 @@ impl TendermintRpcError {
     ///
     /// This is useful when trying to understand if a request failed because the underlying
     /// connection failed.
+    #[must_use]
     pub fn is_transport(&self) -> bool {
         use tendermint_rpc::error::ErrorDetail;
         match &self.inner.detail() {
