@@ -1,9 +1,13 @@
-use astria_config::astria_config;
+use astria_config_derive::astria_config;
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// The global configuration for the driver and its components.
-#[astria_config(conductor)]
-// #[derive(Debug, Deserialize, Serialize)]
-// #[serde(deny_unknown_fields)]
+#[astria_config(ASTRIA_CONDUCTOR_)]
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Config {
     /// URL of the Celestia Node
     pub celestia_node_url: String,
@@ -34,4 +38,27 @@ pub struct Config {
 
     /// The Sequencer block height that the rollup genesis block was in
     pub initial_sequencer_block_height: u64,
+}
+#[cfg(test)]
+mod test {
+    use astria_utils::{
+        config_test_suite_failing,
+        config_test_suite_passing,
+    };
+
+    use crate::Config;
+
+    const EXAMPLE_ENV: &str = include_str!("../local.env.example");
+    const ENV_PREFIX: &str = "ASTRIA_CONDUCTOR_";
+
+    #[test]
+    fn test_config_passing() {
+        config_test_suite_passing::<Config>(ENV_PREFIX, EXAMPLE_ENV);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_config_failing() {
+        config_test_suite_failing::<Config>(ENV_PREFIX, EXAMPLE_ENV);
+    }
 }

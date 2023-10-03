@@ -33,7 +33,11 @@ tendermint-rpc = { workspace = true, features = ["http-client"] }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
-astria-config = { path = "../astria-config" }
+astria-utils = { path = "../astria-utils", features = [
+  "config",
+  "config-tests",
+] }
+astria-config-derive = { path = "../astria-config-derive" }
 astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client" }
 astria-sequencer-validation = { path = "../astria-sequencer-validation" }
 proto = { package = "astria-proto", path = "../astria-proto" }

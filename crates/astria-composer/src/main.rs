@@ -1,5 +1,5 @@
 use astria_composer::{
-    config,
+    config::Config,
     telemetry,
     Composer,
 };
@@ -7,7 +7,7 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() {
-    let cfg = match config::get() {
+    let cfg = match Config::get() {
         Ok(cfg) => cfg,
         Err(e) => {
             eprintln!("failed to read configuration: {e}");

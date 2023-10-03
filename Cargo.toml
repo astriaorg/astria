@@ -12,7 +12,8 @@ members = [
   "crates/astria-sequencer-validation",
   "crates/astria-telemetry",
   "crates/astria-test-utils",
-  "crates/astria-config",
+  "crates/astria-config-derive",
+  "crates/astria-utils",
 ]
 resolver = "2"
 

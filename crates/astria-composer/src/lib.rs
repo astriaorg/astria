@@ -19,7 +19,7 @@
 //! };
 //! # use tracing::info;
 //! # tokio_test::block_on(async {
-//! let cfg = config::get().expect("failed to read configuration");
+//! let cfg = Config::get().expect("failed to read configuration");
 //! let cfg_ser = serde_json::to_string(&cfg)
 //!     .expect("the json serializer should never fail when serializing to a string");
 //! eprintln!("config:\n{cfg_ser}");
