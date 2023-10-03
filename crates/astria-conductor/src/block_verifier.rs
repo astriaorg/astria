@@ -505,8 +505,8 @@ mod test {
         );
 
         validate_sequencer_namespace_data(
-            validator_set,
-            make_test_validator_set(height - 1).0,
+            &validator_set,
+            &make_test_validator_set(height - 1).0,
             &sequencer_namespace_data,
         )
         .unwrap();
