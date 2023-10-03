@@ -173,6 +173,7 @@ impl Reader {
                 res = &mut resubscribe => {
                     match res {
                         Ok(Ok::<NewBlocksStream, _>(subscription)) => {
+                            info!("successfully resubscribed to new blocks from sequencer");
                             new_blocks = subscription.fuse();
                         }
                         Ok(Err(e)) => {
@@ -191,6 +192,7 @@ impl Reader {
     }
 
     fn forward_block(&self, block: SequencerBlockData) {
+        info!(height = %block.header().height, "forwarding new block from sequencer::Reader to executor");
         if let Err(err) = self
             .executor_tx
             .send(ExecutorCommand::BlockReceivedFromSequencer {
@@ -202,10 +204,12 @@ impl Reader {
     }
 }
 
+#[instrument(skip_all)]
 async fn subscribe_new_blocks(
     pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
 ) -> eyre::Result<NewBlocksStream> {
     use sequencer_client::SequencerSubscriptionClientExt as _;
+    info!("subscribing to new blocks from sequencer");
     pool.get()
         .await
         .wrap_err("failed getting a sequencer client from the pool")?
