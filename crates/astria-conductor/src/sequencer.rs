@@ -13,6 +13,7 @@ use color_eyre::eyre::{
 };
 use deadpool::managed::{
     Object,
+    Pool,
     PoolError,
 };
 use futures::{
@@ -62,7 +63,7 @@ type SyncHeightResult = Result<(u32, Object<ClientProvider>), PoolError<client_p
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("failed requesting a client from the pool")]
-    Pool(#[from] PoolError<crate::client_provider::Error>),
+    Pool(#[from] PoolError<client_provider::Error>),
     #[error("sequencer request failed")]
     Request(#[from] sequencer_client::extension_trait::Error),
 }
@@ -71,7 +72,7 @@ pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
     executor_tx: executor::Sender,
 
-    pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
+    pool: Pool<ClientProvider>,
 
     shutdown: oneshot::Receiver<()>,
 }
@@ -79,7 +80,7 @@ pub(crate) struct Reader {
 impl Reader {
     #[instrument(name = "driver", skip_all)]
     pub(crate) async fn new(
-        pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
+        pool: Pool<ClientProvider>,
         shutdown: oneshot::Receiver<()>,
         executor_tx: executor::Sender,
     ) -> eyre::Result<Self> {
@@ -90,7 +91,6 @@ impl Reader {
         })
     }
 
-    /// Run the sequencer reader event loop
     #[instrument(skip_all)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         use futures::{
@@ -226,8 +226,6 @@ fn assign_new_blocks_subscription(
     Ok(())
 }
 
-// fn sync_block_at_height(res: Result<(u32, Object<WebSocketClient>),
-// PoolError<crate::client_provider::Error>>) -> eyre::Result<()> {
 fn sync_block_at_height(
     sync_stream: &mut SyncBlockStream,
     res: SyncHeightResult,
@@ -243,9 +241,7 @@ fn sync_block_at_height(
     Ok(())
 }
 
-async fn subscribe_new_blocks(
-    pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
-) -> eyre::Result<NewBlocksStream> {
+async fn subscribe_new_blocks(pool: Pool<ClientProvider>) -> eyre::Result<NewBlocksStream> {
     use sequencer_client::SequencerSubscriptionClientExt as _;
     pool.get()
         .await
@@ -257,7 +253,7 @@ async fn subscribe_new_blocks(
 
 fn forward_sync_block_or_reschedule(
     sync_stream: &mut SyncBlockStream,
-    pool: deadpool::managed::Pool<ClientProvider>,
+    pool: Pool<ClientProvider>,
     executor_tx: executor::Sender,
     height: u32,
     res: SyncBlockResult,
@@ -321,7 +317,7 @@ fn forward_pending_block(
 fn schedule_for_forwarding_or_resubscribe(
     resubscribe: &mut future::Fuse<JoinHandle<eyre::Result<NewBlocksStream>>>,
     pending_blocks: &mut FuturesOrdered<Ready<Result<SequencerBlockData, NewBlockStreamError>>>,
-    pool: deadpool::managed::Pool<ClientProvider>,
+    pool: Pool<ClientProvider>,
     res: Option<Result<SequencerBlockData, NewBlockStreamError>>,
 ) {
     use futures::future::FutureExt as _;
