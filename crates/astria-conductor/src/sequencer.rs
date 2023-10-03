@@ -1,27 +1,63 @@
 //! The driver is the top-level coordinator that runs and manages all the components
 //! necessary for this reader.
+use std::{
+    future::Future,
+    pin::Pin,
+};
 
 use astria_sequencer_types::SequencerBlockData;
 use color_eyre::eyre::{
     self,
+    bail,
     WrapErr as _,
 };
-use deadpool::managed::PoolError;
-use sequencer_client::extension_trait::NewBlocksStream;
+use deadpool::managed::{
+    Object,
+    PoolError,
+};
+use futures::{
+    future::{
+        self,
+        Ready,
+    },
+    stream::{
+        self,
+        FuturesOrdered,
+    },
+};
+use sequencer_client::{
+    extension_trait::NewBlocksStream,
+    NewBlockStreamError,
+};
 use tokio::{
     select,
     sync::oneshot,
+    task::{
+        JoinError,
+        JoinHandle,
+    },
 };
 use tracing::{
+    error,
     info,
     instrument,
     warn,
 };
 
 use crate::{
+    client_provider::{
+        self,
+        ClientProvider,
+    },
     executor,
     executor::ExecutorCommand,
 };
+
+type SyncBlockStream = FuturesOrdered<Pin<Box<dyn Future<Output = (u32, SyncBlockResult)> + Send>>>;
+
+type SyncBlockResult = Result<SequencerBlockData, Error>;
+
+type SyncHeightResult = Result<(u32, Object<ClientProvider>), PoolError<client_provider::Error>>;
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -59,55 +95,56 @@ impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         use futures::{
             stream::FuturesOrdered,
-            FutureExt as _,
             StreamExt as _,
             TryFutureExt as _,
         };
-        use sequencer_client::SequencerClientExt as _;
+        let mut new_blocks: stream::Fuse<NewBlocksStream> = subscribe_new_blocks(self.pool.clone())
+            .await
+            .wrap_err("failed to start initial new-blocks subscription")?
+            .fuse();
 
-        let latest_block = self
-            .pool
-            .get()
-            .await
-            .wrap_err("failed getting client from pool to fetch initial latest block")?
-            .latest_sequencer_block()
-            .await
-            .wrap_err("failed to issue an initial request for the latest block")?;
+        let mut pending_blocks = FuturesOrdered::new();
+        let latest_height = match new_blocks.next().await {
+            None => bail!("subscription to sequencer for new blocks failed immediately; bailing"),
+            Some(Err(e)) => {
+                return Err(e).wrap_err("first sequencer block returned from subscription was bad");
+            }
+            Some(Ok(block)) => {
+                let height = block.header().height.value();
+                pending_blocks.push_back(futures::future::ready(Ok(block)));
+                height
+            }
+        };
 
         let mut sync_heights = {
             let pool = self.pool.clone();
-            Box::pin(
-                futures::stream::iter(1..latest_block.header().height.value()).then(
-                    move |height| {
-                        let height: u32 = height.try_into().expect(
-                            "converting a u64 extract from a tendermint Height should always work",
-                        );
-                        let pool = pool.clone();
-                        async move { pool.get().await }.map_ok(move |client| (height, client))
-                    },
-                ),
-            )
+            Box::pin(futures::stream::iter(1..latest_height).then(move |height| {
+                let height: u32 = height
+                    .try_into()
+                    .expect("converting a u64 extract from a tendermint Height should always work");
+                let pool = pool.clone();
+                async move { pool.get().await }.map_ok(move |client| (height, client))
+            }))
         }
         .fuse();
 
         let mut sync_blocks = FuturesOrdered::new();
-        let mut pending_blocks = FuturesOrdered::new();
 
-        let mut new_blocks: futures::stream::Fuse<NewBlocksStream> =
-            subscribe_new_blocks(self.pool.clone())
-                .await
-                .wrap_err("failed to start initial new-blocks subscription")?
-                .fuse();
-
-        let mut resubscribe = futures::future::Fuse::terminated();
-        loop {
+        let mut resubscribe = future::Fuse::terminated();
+        let exit_reason = 'reader_loop: loop {
             select! {
                 shutdown = &mut self.shutdown => {
-                    match shutdown {
-                        Err(e) => warn!(error.message = %e, "shutdown channel return with error; shutting down"),
-                        Ok(()) => info!("received shutdown signal; shutting down"),
-                    }
-                    break;
+                    let ret = match shutdown {
+                        Err(e) => {
+                            warn!(error.message = %e, "shutdown channel closed unexpectedly; shutting down");
+                            Err(e).wrap_err("shut down channel closed unexpectedly")
+                        }
+                        Ok(()) => {
+                            info!("received shutdown signal; shutting down");
+                            Ok(())
+                        }
+                    };
+                    break 'reader_loop ret;
                 }
 
                 // Drain the stream of heights to sync the sequencer reader.
@@ -117,16 +154,9 @@ impl Reader {
                 // Leaving some objects in the pool is important, so that the match arm for resolving priority blocks
                 // below can reschedule blocks.
                 Some(res) = sync_heights.next(), if !sync_heights.is_done() && sync_blocks.len() < 20 => {
-                    match res {
-                        Ok((height, client)) => sync_blocks.push_back(
-                            async move { client.sequencer_block(height).await.map_err(Error::Request) }
-                            .map(move |res| (height, res))
-                            .boxed()
-                        ),
-                        Err(e) => {
-                            warn!(error.message = %e, error.cause = ?e, "sync stream failed; exiting reader");
-                            break;
-                        }
+                    if let Err(e) = sync_block_at_height(&mut sync_blocks, res) {
+                        error!(error.message = %e, error.cause = ?e, "syncing heights failed; exiting reader");
+                        break 'reader_loop Err(e).wrap_err("syncing heights failed");
                     }
                 }
 
@@ -136,27 +166,15 @@ impl Reader {
                 // TODO: Are there conditions under which we repeatedly encounter jsonrpc errors, making this
                 // an infinite process? At which point should the height just be dropped?
                 Some((height, res)) = sync_blocks.next(), if !sync_blocks.is_empty() => {
-                    match res {
-                        Err(Error::Request(e)) => {
-                            if let Some(err) = e.as_tendermint_rpc() {
-                                if err.is_transport() {
-                                    let pool = self.pool.clone();
-                                    sync_blocks.push_front(
-                                        async move {
-                                            let client = pool.get().await?;
-                                            let block = client.sequencer_block(height).await?;
-                                            Ok(block)
-                                        }
-                                        .map(move |res| (height, res))
-                                        .boxed()
-                                    );
-                                }
-                            }
-                        }
-                        Err(Error::Pool(e)) => {
-                            warn!(height, error.message = %e, error.cause = ?e, "getting a client from the pool failed; can't recover from that; dropping the height");
-                        }
-                        Ok(block) => self.forward_block(block),
+                    if let Err(e) = forward_sync_block_or_reschedule(
+                        &mut sync_blocks,
+                        self.pool.clone(),
+                        self.executor_tx.clone(),
+                        height,
+                        res,
+                    ) {
+                        error!("failed forwarding blocks during sync; exiting reader");
+                        break 'reader_loop Err(e).wrap_err("failed forwarding blocks during sync");
                     }
                 }
 
@@ -165,58 +183,64 @@ impl Reader {
                 // New blocks are pushed into `pending_blocks` so that they are forwarded to the executor in the
                 // order they were received.
                 new_block = new_blocks.next(), if !new_blocks.is_done() => {
-                    if let Some(block) = new_block {
-                        pending_blocks.push_back(futures::future::ready(block));
-                    } else {
-                        warn!("sequencer new-block subscription closed unexpectedly; attempting to resubscribe");
-                        let pool = self.pool.clone();
-                        resubscribe = tokio::spawn(subscribe_new_blocks(pool)).fuse();
-                    }
+                    schedule_for_forwarding_or_resubscribe(
+                        &mut resubscribe,
+                        &mut pending_blocks,
+                        self.pool.clone(),
+                        new_block,
+                    );
                 }
 
                 // Regular pending blocks will be submitted to the executor in the order they were received.
                 // The condition on priority_blocks ensures that blocks from the sync process are sent first.
                 Some(res) = pending_blocks.next(), if sync_blocks.is_empty() && !pending_blocks.is_empty() => {
-                    match res {
-                        Err(e) => {
-                            warn!(error.message = %e, error.cause = ?e, "response from sequencer block subscription was bad; dropping it");
-                        }
-                        Ok(block) => {
-                            self.forward_block(block);
-                        }
-                    };
+                    if let Err(e) = forward_pending_block(self.executor_tx.clone(), res) {
+                        error!("failed forwarding blocks during regular operation; exiting reader");
+                        break 'reader_loop Err(e).wrap_err("failed forwarding blocks regular operation");
+                    }
                 }
 
                 res = &mut resubscribe => {
-                    match res {
-                        Ok(Ok::<NewBlocksStream, _>(subscription)) => {
-                            new_blocks = subscription.fuse();
-                        }
-                        Ok(Err(e)) => {
-                            warn!(error.message = %e, error.cause = ?e, "failed subscribing to new blocks from sequencer; exiting reader");
-                            break;
-                        }
-                        Err(e) => {
-                            warn!(error.message = %e, error.cause = ?e, "task attempting to subscribe to new blocks from sequencer failed; exiting reader");
-                            break;
-                        }
+                    if let Err(e) = assign_new_blocks_subscription(&mut new_blocks, res) {
+                        error!(error.message = %e, error.cause = ?e, "failed to resubscribe to get new blocks from sequencer; exiting");
+                        break 'reader_loop Err(e).wrap_err("failed to resubscribe to new blocks from sequencer");
                     }
                 }
             }
-        }
-        Ok(())
+        };
+        exit_reason
     }
+}
 
-    fn forward_block(&self, block: SequencerBlockData) {
-        if let Err(err) = self
-            .executor_tx
-            .send(ExecutorCommand::BlockReceivedFromSequencer {
-                block: Box::new(block),
-            })
-        {
-            warn!(err.msg = %err, err.cause = ?err, "failed sending new block received from sequencer to executor");
-        }
-    }
+fn assign_new_blocks_subscription(
+    subscription: &mut stream::Fuse<NewBlocksStream>,
+    res: Result<eyre::Result<NewBlocksStream>, JoinError>,
+) -> eyre::Result<()> {
+    use futures::stream::StreamExt as _;
+
+    let new_subscription = res
+        .wrap_err("task to subscribe to new blocks from sequencer was aborted prematurely")?
+        .wrap_err("failed subscribing to new blocks from sequencer")?;
+    *subscription = new_subscription.fuse();
+
+    Ok(())
+}
+
+// fn sync_block_at_height(res: Result<(u32, Object<WebSocketClient>),
+// PoolError<crate::client_provider::Error>>) -> eyre::Result<()> {
+fn sync_block_at_height(
+    sync_stream: &mut SyncBlockStream,
+    res: SyncHeightResult,
+) -> eyre::Result<()> {
+    use futures::future::FutureExt as _;
+    use sequencer_client::SequencerClientExt as _;
+    let (height, client) = res.wrap_err("failed requesting a client from the pool")?;
+    sync_stream.push_back(
+        async move { client.sequencer_block(height).await.map_err(Error::Request) }
+            .map(move |res| (height, res))
+            .boxed(),
+    );
+    Ok(())
 }
 
 async fn subscribe_new_blocks(
@@ -229,4 +253,82 @@ async fn subscribe_new_blocks(
         .subscribe_new_block_data()
         .await
         .wrap_err("failed subscribing to sequencer to receive new blocks")
+}
+
+fn forward_sync_block_or_reschedule(
+    sync_stream: &mut SyncBlockStream,
+    pool: deadpool::managed::Pool<ClientProvider>,
+    executor_tx: executor::Sender,
+    height: u32,
+    res: SyncBlockResult,
+) -> eyre::Result<()> {
+    use futures::future::FutureExt as _;
+    use sequencer_client::SequencerClientExt as _;
+
+    let block = match res {
+        Err(e) => {
+            let mut rescheduled = false;
+            if let Error::Request(e) = &e {
+                if let Some(err) = e.as_tendermint_rpc() {
+                    if err.is_transport() {
+                        sync_stream.push_front(
+                            async move {
+                                let client = pool.get().await?;
+                                let block = client.sequencer_block(height).await?;
+                                Ok(block)
+                            }
+                            .map(move |res| (height, res))
+                            .boxed(),
+                        );
+                        rescheduled = true;
+                    }
+                }
+            }
+            if rescheduled {
+                warn!(error.message = %e, error.cause = ?e, "rescheduling fetch of sequencer block because underlying transport failed");
+            } else {
+                warn!(error.message = %e, error.cause = ?e, "failed syncing block; dropping the height from sync");
+            }
+            return Ok(());
+        }
+        Ok(block) => block,
+    };
+    executor_tx
+        .send(ExecutorCommand::BlockReceivedFromSequencer {
+            block: Box::new(block),
+        })
+        .wrap_err("failed sending new block received from sequencer to executor")
+}
+
+fn forward_pending_block(
+    executor_tx: executor::Sender,
+    res: Result<SequencerBlockData, NewBlockStreamError>,
+) -> eyre::Result<()> {
+    let block = match res {
+        Err(e) => {
+            warn!(error.message = %e, error.cause = ?e, "response from sequencer block subscription was bad; dropping it");
+            return Ok(());
+        }
+        Ok(block) => block,
+    };
+    executor_tx
+        .send(ExecutorCommand::BlockReceivedFromSequencer {
+            block: Box::new(block),
+        })
+        .wrap_err("failed sending new block received from sequencer to executor")
+}
+
+fn schedule_for_forwarding_or_resubscribe(
+    resubscribe: &mut future::Fuse<JoinHandle<eyre::Result<NewBlocksStream>>>,
+    pending_blocks: &mut FuturesOrdered<Ready<Result<SequencerBlockData, NewBlockStreamError>>>,
+    pool: deadpool::managed::Pool<ClientProvider>,
+    res: Option<Result<SequencerBlockData, NewBlockStreamError>>,
+) {
+    use futures::future::FutureExt as _;
+    if let Some(res) = res {
+        pending_blocks.push_back(futures::future::ready(res));
+    } else {
+        warn!("sequencer new-block subscription closed unexpectedly; attempting to resubscribe");
+        *resubscribe = tokio::spawn(subscribe_new_blocks(pool)).fuse();
+    }
 }
