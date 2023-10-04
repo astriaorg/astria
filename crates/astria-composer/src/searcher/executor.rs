@@ -7,7 +7,6 @@ use std::time::Duration;
 
 use color_eyre::eyre::{
     self,
-    bail,
     eyre,
     Context,
 };
@@ -29,6 +28,7 @@ use sequencer_client::{
     NonceResponse,
     SequencerClientExt,
 };
+use sequencer_types::abci_code::AbciCode;
 use tokio::sync::{
     mpsc,
     watch,
@@ -50,8 +50,10 @@ use tracing::{
 pub(super) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
-    // Channel for receving bundles to pack, sign, and submit
+    // Channel receiver for bundles to pack, sign, and submit
     executor_rx: mpsc::Receiver<Vec<Action>>,
+    // Channel sender for resubmitting transactions that failed submission due to failed nonce
+    transaction_resubmission_tx: mpsc::Sender<Vec<Action>>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
     sequencer_client: SequencerClient,
@@ -84,6 +86,7 @@ impl Executor {
     pub(super) fn new(
         sequencer_url: &str,
         private_key: &SecretString,
+        transaction_resubmission_tx: mpsc::Sender<Vec<Action>>,
         executor_rx: mpsc::Receiver<Vec<Action>>,
     ) -> eyre::Result<Self> {
         // connect to sequencer node
@@ -108,6 +111,7 @@ impl Executor {
         Ok(Self {
             status,
             executor_rx,
+            transaction_resubmission_tx,
             sequencer_client,
             sequencer_key,
             nonce: None,
@@ -141,7 +145,7 @@ impl Executor {
         let nonce = self
             .get_and_increment_nonce()
             .await
-            .map_err(|e| ExeuctionError::NonceRetrievalFailed(e))?;
+            .map_err(|e| ExeuctionError::SequencerClientFailure(e))?;
 
         let tx = UnsignedTransaction {
             nonce,
@@ -151,14 +155,26 @@ impl Executor {
 
         let submission_rsp = self
             .sequencer_client
-            .submit_transaction_sync(tx)
+            .submit_transaction_sync(tx.clone())
             .await
-            .map_err(|e| ExeuctionError::SubmissionFailed(e))?;
+            .map_err(|e| ExeuctionError::SequencerClientFailure(e))?;
 
-        match submission_rsp.code {
-            AbciCode::Ok => Ok(()),
-            AbciCode::InvalidNonce => todo!("handle invalid nonce"),
-            _ => todo!("handle other submission errors"),
+        match AbciCode::from_tendermint(submission_rsp.code) {
+            Some(AbciCode::OK) => Ok(()),
+            Some(AbciCode::INVALID_NONCE) => Err(ExeuctionError::InvalidNonce {
+                nonce,
+                transaction: tx,
+            }),
+            _ => Err(ExeuctionError::UnknownDeliverTxFailure {
+                code: submission_rsp.code,
+                transaction: tx,
+            }),
+        }
+    }
+
+    async fn handle_bundle_resubmission(&self, bundle: Vec<Action>) {
+        if let Err(e) = self.transaction_resubmission_tx.send(bundle).await {
+            error!(error.msg = %e, error.cause_chain=?e, "failed to resubmit transaction")
         }
     }
 
@@ -175,7 +191,37 @@ impl Executor {
         while let Some(bundle) = self.executor_rx.recv().await {
             if let Err(e) = self.execute_bundle(bundle).await {
                 match e {
-                    _ => todo!("handle bundle execution errors"),
+                    ExeuctionError::InvalidNonce {
+                        nonce,
+                        transaction,
+                    } => {
+                        warn!(
+                            nonce,
+                            "invalid nonce returned from sequencer; retrieving new nonce and \
+                             resubmitting the transaction"
+                        );
+                        self.nonce = None;
+                        let bundle = {
+                            let (_, _, unsigned) = transaction.into_parts();
+                            unsigned.actions
+                        };
+                        self.handle_bundle_resubmission(bundle).await;
+                    }
+                    ExeuctionError::UnknownDeliverTxFailure {
+                        code,
+                        transaction,
+                    } => {
+                        warn!(
+                            code=?code,
+                            transaction = ?transaction,
+                            "unknown error code returned from sequencer; skipping this \
+                             transaction"
+                        );
+                    }
+                    ExeuctionError::SequencerClientFailure(e) => {
+                        error!(error.msg = %e, "client failed to communicate with sequencer");
+                        break;
+                    }
                 }
             }
         }
@@ -240,9 +286,12 @@ impl Executor {
 }
 
 enum ExeuctionError {
-    NonceRetrievalFailed(eyre::Report),
-    SubmissionFailed(eyre::Report),
-    DeliverTxError {
+    SequencerClientFailure(eyre::Report),
+    InvalidNonce {
+        nonce: u32,
+        transaction: SignedTransaction,
+    },
+    UnknownDeliverTxFailure {
         code: tendermint::abci::Code,
         transaction: SignedTransaction,
     },

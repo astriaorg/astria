@@ -194,6 +194,7 @@ version = "0.2.1"
 dependencies = [
  "astria-proto",
  "astria-sequencer-client",
+ "astria-sequencer-types",
  "astria-telemetry",
  "async-trait",
  "axum",

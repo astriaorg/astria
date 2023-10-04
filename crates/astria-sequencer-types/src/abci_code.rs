@@ -1,6 +1,4 @@
-use tendermint::abci::Code;
-
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AbciCode(u32);
 
 #[rustfmt::skip]
@@ -24,6 +22,17 @@ impl AbciCode {
             _ => None,
         }
     }
+
+    pub fn from_tendermint(code: tendermint::abci::Code) -> Option<Self> {
+        match code.value() {
+            0 => Some(Self::OK),
+            1 => Some(Self::UNKNOWN_PATH),
+            2 => Some(Self::INVALID_PARAMETER),
+            3 => Some(Self::INTERNAL_ERROR),
+            4 => Some(Self::INVALID_NONCE),
+            _ => None,
+        }
+    }
 }
 
 impl std::fmt::Display for AbciCode {
@@ -32,7 +41,7 @@ impl std::fmt::Display for AbciCode {
     }
 }
 
-impl From<AbciCode> for Code {
+impl From<AbciCode> for tendermint::abci::Code {
     fn from(value: AbciCode) -> Self {
         value.0.into()
     }
