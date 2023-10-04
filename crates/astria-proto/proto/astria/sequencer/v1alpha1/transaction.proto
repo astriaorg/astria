@@ -28,6 +28,7 @@ message Action {
         TransferAction transfer_action = 1;
         SequenceAction sequence_action = 2;
         tendermint.abci.ValidatorUpdate validator_update_action = 3;
+        SudoAddressChangeAction sudo_address_change_action = 4;
     }   
 }
 
@@ -48,4 +49,8 @@ message TransferAction {
 message SequenceAction {
     bytes chain_id = 1;
     bytes data = 2;
+}
+
+message SudoAddressChangeAction {
+    bytes new_address = 1;
 }
