@@ -64,7 +64,7 @@ impl Conductor {
         let mut shutdown_channels = HashMap::new();
 
         let signals = spawn_signal_handler();
-        // spawn our driver
+
         let (executor_tx, executor_rx) = mpsc::unbounded_channel();
         let (executor_shutdown_tx, executor_shutdown_rx) = oneshot::channel();
         let executor = Executor::new(
