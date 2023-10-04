@@ -24,140 +24,98 @@ impl Cli {
 /// Commands that can be run
 #[derive(Subcommand)]
 pub enum Command {
-    Deploy {
+    Rollup {
         #[clap(subcommand)]
-        command: DeployCommand,
+        command: RollupCommand,
     },
-    Delete {
+    Sequencer {
         #[clap(subcommand)]
-        command: DeleteCommand,
-    },
-    Create {
-        #[clap(subcommand)]
-        command: CreateCommand,
+        command: SequencerCommand,
     },
 }
 
-/// Deploy Celestia, Sequencer, or Rollup
+/// Commands for managing your rollup.
 #[derive(Subcommand)]
-pub enum DeployCommand {
-    /// Deploy a Celestia node
-    Celestia {
-        #[clap(subcommand)]
-        command: DeployCelestiaCommand,
-    },
-    /// Deploy a Sequencer node
-    Sequencer {
-        #[clap(subcommand)]
-        command: DeploySequencerCommand,
-    },
+pub enum RollupCommand {
     /// Deploy a rollup on the Astria Shared Sequencer Network
-    Rollup {
+    Config {
         #[clap(subcommand)]
-        command: DeployRollupCommand,
+        command: RollupConfigCommand,
     },
 }
 
+/// Commands for managing rollup configs.
 #[derive(Subcommand)]
-pub enum DeployCelestiaCommand {
-    /// Deploy a local Celestia chart
-    Local(DeployCelestiaArgs),
+pub enum RollupConfigCommand {
+    /// Create a new rollup config
+    Create(RollupConfigCreateArgs),
+    /// Edit a rollup config
+    Edit(RollupConfigEditArgs),
+    /// Deploy a rollup config
+    Deploy(RollupConfigDeployArgs),
+    /// Delete a rollup config
+    Delete(RollupConfigDeleteArgs),
 }
 
 #[derive(Args, Debug)]
-pub struct DeployCelestiaArgs {
+pub struct RollupConfigCreateArgs {
     /// Path to optional config override file
     #[clap(long)]
-    config: Option<Utf8PathBuf>,
-    // TODO - add all options
-}
-
-#[derive(Subcommand)]
-pub enum DeploySequencerCommand {
-    /// Deploy a local Sequencer chart
-    Local(DeploySequencerArgs),
+    config_path: Option<Utf8PathBuf>,
+    /// The name of the config to create
+    #[clap(long)]
+    pub(crate) config_name: Option<String>,
 }
 
 #[derive(Args, Debug)]
-pub struct DeploySequencerArgs {
-    /// Path to optional config override file
+pub struct RollupConfigEditArgs {
+    /// The name of the config to edit
     #[clap(long)]
-    config: Option<Utf8PathBuf>,
-    // TODO - add all options
-}
-
-/// Deploy a rollup
-#[derive(Subcommand)]
-pub enum DeployRollupCommand {
-    /// Deploy a rollup on your local machine
-    Local(DeployRollupArgs),
-
-    /// Deploy a rollup on a remote machine
-    Remote(DeployRollupArgs),
+    pub(crate) config_name: Option<String>,
 }
 
 #[derive(Args, Debug)]
-pub struct DeployRollupArgs {
-    /// Path to optional config override file
+pub struct RollupConfigDeployArgs {
+    /// The name of the config to deploy
     #[clap(long)]
-    config: Option<Utf8PathBuf>,
-    /// The name of the rollup to deploy
-    #[clap(long)]
-    pub(crate) name: Option<String>,
-    /// The chain ID of the rollup
-    #[clap(long)]
-    pub(crate) chain_id: Option<String>,
+    pub(crate) config_name: Option<String>,
 }
 
-/// Deletes Celestia, Sequencer, or Rollup
+#[derive(Args, Debug)]
+pub struct RollupConfigDeleteArgs {
+    /// The name of the config to delete
+    #[clap(long)]
+    pub(crate) config_name: Option<String>,
+}
+
 #[derive(Subcommand)]
-pub enum DeleteCommand {
-    /// Delete a Celestia node
-    Celestia {
+pub enum SequencerCommand {
+    /// Create a new sequencer account
+    Account {
         #[clap(subcommand)]
-        command: DeleteCelestiaCommand,
+        command: SequencerAccountCommand,
     },
-    /// Delete a Sequencer node
-    Sequencer {
+    Balance {
         #[clap(subcommand)]
-        command: DeleteSequencerCommand,
-    },
-    /// Delete a rollup
-    Rollup {
-        #[clap(subcommand)]
-        command: DeleteRollupCommand,
+        command: SequencerBalanceCommand,
     },
 }
 
 #[derive(Subcommand)]
-pub enum DeleteCelestiaCommand {
-    /// Delete a local Celestia chart
-    Local,
+pub enum SequencerAccountCommand {
+    /// Create a new sequencer account
+    Create,
 }
 
 #[derive(Subcommand)]
-pub enum DeleteSequencerCommand {
-    /// Delete a local Sequencer chart
-    Local,
-}
-
-#[derive(Subcommand)]
-pub enum DeleteRollupCommand {
-    /// Delete a rollup on your local machine
-    Local(DeleteRollupArgs),
-    /// Delete a rollup on a remote machine
-    Remote(DeleteRollupArgs),
+pub enum SequencerBalanceCommand {
+    /// Get the balance of a sequencer account
+    Get(SequencerBalanceGetArgs),
 }
 
 #[derive(Args, Debug)]
-pub struct DeleteRollupArgs {
-    /// The name of the rollup to delete
+pub struct SequencerBalanceGetArgs {
+    /// The address of the sequencer account
     #[clap(long)]
-    pub(crate) name: Option<String>,
-}
-
-#[derive(Subcommand)]
-pub enum CreateCommand {
-    /// Create a new Sequencer account
-    SequencerAccount,
+    pub(crate) address: Option<String>,
 }

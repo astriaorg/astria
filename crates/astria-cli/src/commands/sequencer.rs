@@ -6,6 +6,8 @@ use sha2::{
     Sha256,
 };
 
+use crate::cli::SequencerBalanceGetArgs;
+
 pub(crate) fn create_sequencer_account() -> eyre::Result<()> {
     // generate new key
     let csprng = OsRng;
@@ -38,6 +40,11 @@ pub(crate) fn create_sequencer_account() -> eyre::Result<()> {
     println!("Public Key:  {:?}", public_key);
     println!("Address:     {:?}", address);
 
+    Ok(())
+}
+
+pub(crate) fn get_balance(args: SequencerBalanceGetArgs) -> eyre::Result<()> {
+    println!("Get Sequencer Balance {:?}", args);
     Ok(())
 }
 
