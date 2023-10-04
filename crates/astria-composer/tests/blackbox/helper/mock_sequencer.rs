@@ -29,7 +29,7 @@ pub async fn start() -> MockServer {
     server
 }
 
-async fn mount_abci_query_mock(server: &MockServer, query_path: &str, response: impl Message) {
+pub async fn mount_abci_query_mock(server: &MockServer, query_path: &str, response: impl Message) {
     let expected_body = json!({
         "method": "abci_query"
     });

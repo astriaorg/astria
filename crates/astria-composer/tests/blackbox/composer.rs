@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use ethers::types::Transaction;
+use proto::generated::sequencer::v1alpha1::NonceResponse;
 use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
     request::{self,},
@@ -54,6 +55,51 @@ async fn tx_from_two_rollups_are_received_by_sequencer() {
         .await
         .expect("mocked sequencer should have received a broadcast message from composer");
 }
+
+#[tokio::test]
+async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
+    use futures::future::join;
+
+    use crate::helper::mock_sequencer::mount_abci_query_mock;
+
+    // Spawn a composer with a mock sequencer and a mock rollup node
+    // Initial nonce is 42
+    let test_composer = spawn_composer(&["test1"]).await;
+
+    // Expect nonce 0 so that the tx is rejected
+    let invalid_nonce_guard =
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1", 0).await;
+    // Mount a response of 0 to a nonce query
+    mount_abci_query_mock(
+        &test_composer.sequencer,
+        "accounts/nonce",
+        NonceResponse {
+            height: 42,
+            nonce: 0,
+        },
+    )
+    .await;
+    // Expect nonce 0 again so that the resubmitted tx is accepted
+    let valid_nonce_guard =
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1", 0).await;
+
+    // Push a tx to the rollup node so that it is picked up by the composer and submitted with the
+    // stored nonce of 42, triggering the nonce refetch process
+    test_composer.rollup_nodes["test1"]
+        .push_tx(Transaction::default())
+        .unwrap();
+
+    let all_guards = join(
+        invalid_nonce_guard.wait_until_satisfied(),
+        valid_nonce_guard.wait_until_satisfied(),
+    );
+    tokio::time::timeout(Duration::from_millis(100), all_guards)
+        .await
+        .expect("mocked sequencer should have received a broadcast message from composer");
+}
+
+#[tokio::test]
+async fn invalid_nonce_failure_causes_nonce_refetch() {}
 
 /// Deserizalizes the bytes contained in a `tx_sync::Request` to a
 /// signed sequencer transaction and verifies that the contained
