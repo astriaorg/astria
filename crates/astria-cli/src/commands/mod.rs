@@ -55,7 +55,6 @@ pub fn run(cli: Cli) -> eyre::Result<()> {
                 SequencerCommand::Balance {
                     command,
                 } => match command {
-                    // SequencerBalanceCommand::Get(args) => sequencer::get_balance(&args)?,
                     SequencerBalanceCommand::Get(_args) => todo!(),
                 },
             },
