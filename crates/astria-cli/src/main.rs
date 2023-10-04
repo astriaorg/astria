@@ -8,7 +8,7 @@ use color_eyre::eyre;
 
 fn main() -> ExitCode {
     if let Err(err) = run() {
-        eprintln!("{}", err);
+        eprintln!("{err}");
         return ExitCode::FAILURE;
     }
 

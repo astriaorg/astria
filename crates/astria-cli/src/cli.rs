@@ -15,6 +15,11 @@ pub struct Cli {
 }
 
 impl Cli {
+    /// Parse the command line arguments
+    ///
+    /// # Errors
+    ///
+    /// * If the arguments cannot be parsed
     pub fn get_args() -> eyre::Result<Self> {
         let args = Self::parse();
         Ok(args)
