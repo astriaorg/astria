@@ -46,7 +46,11 @@ pub(super) async fn run(
 
     'sync: loop {
         select!(
-            Some(height) = height_stream.next() => {
+            // The condition on block_stream relies on the pool size being currently set to 50.
+            // This ensures that no more than 20 requests to the sequencer are active at the same time.
+            // Leaving some objects in the pool is important so that failed blocks can be rescheduled
+            // in the match arm below.
+            Some(height) = height_stream.next(), if block_stream.len() <= 20 => {
                 let pool = client_pool.clone();
                 block_stream.push_back(async move {
                     get_client_then_block(pool, height).await
