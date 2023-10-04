@@ -123,13 +123,18 @@ impl Collector {
                 .send_timeout(
                     Transaction {
                         chain_id: chain_id.clone(),
-                        inner: tx,
+                        inner: tx.clone(),
                     },
                     Duration::from_millis(500),
                 )
                 .await
             {
-                Ok(()) => {}
+                Ok(()) => {
+                    info!(
+                        transaction.hash = %tx.hash,
+                        chain_id = %chain_id,
+                        "collected transaction with hash `{}` from rollup with chain_id `{}`", tx.hash, chain_id);
+                }
                 Err(SendTimeoutError::Timeout(tx)) => {
                     warn!(
                         transaction.hash = %tx.inner.hash,
