@@ -10,6 +10,6 @@ camino = "1.1.6"
 clap = { workspace = true, features = ["derive"] }
 color-eyre = { workspace = true }
 ed25519-consensus = { workspace = true }
-hex = "0.4.3"
-rand = "0.8.5"
+hex = { workspace = true }
+rand = { workspace = true }
 sha2 = { workspace = true }
