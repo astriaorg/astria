@@ -192,12 +192,13 @@ dependencies = [
 name = "astria-cli"
 version = "0.1.0"
 dependencies = [
- "camino",
  "clap",
  "color-eyre",
  "ed25519-consensus",
  "hex",
  "rand 0.8.5",
+ "serde",
+ "serde_yaml",
  "sha2 0.10.7",
 ]
 

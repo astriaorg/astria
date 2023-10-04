@@ -6,10 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-camino = "1.1.6"
 clap = { workspace = true, features = ["derive"] }
 color-eyre = { workspace = true }
 ed25519-consensus = { workspace = true }
 hex = { workspace = true }
 rand = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_yaml = "0.9.25"
 sha2 = { workspace = true }

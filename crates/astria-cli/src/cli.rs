@@ -1,10 +1,10 @@
-use camino::Utf8PathBuf;
 use clap::{
     Args,
     Parser,
     Subcommand,
 };
 use color_eyre::eyre;
+use serde::Serialize;
 
 /// A CLI for deploying and managing Astria services and related infrastructure.
 #[derive(Parser)]
@@ -62,14 +62,32 @@ pub enum RollupConfigCommand {
     Delete(RollupConfigDeleteArgs),
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RollupConfigCreateArgs {
-    /// Path to optional config override file
+    // /// Path to optional config override file
+    // #[clap(long)]
+    // config_path: Option<Utf8PathBuf>,
+
+    // FIXME - which of these can be optional?
+    /// The name of the rollup
     #[clap(long)]
-    config_path: Option<Utf8PathBuf>,
-    /// The name of the config to create
+    pub(crate) name: String,
+    /// The address to use for the genesis allocation
     #[clap(long)]
-    pub(crate) config_name: Option<String>,
+    pub(crate) genesis_alloc_address: String,
+    /// The private key to use for the rollup
+    #[clap(long)]
+    pub(crate) private_key: String,
+    /// The EVM chain ID to use for the rollup
+    #[clap(long)]
+    pub(crate) evm_chain_id: String,
+    /// The EVM network ID to use for the rollup
+    #[clap(long)]
+    pub(crate) evm_network_id: u64,
+    /// The private key to use for submissions to the sequencer
+    #[clap(long)]
+    pub(crate) sequencer_private_key: String,
 }
 
 #[derive(Args, Debug)]

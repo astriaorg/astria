@@ -38,11 +38,7 @@ pub fn run(cli: Cli) -> eyre::Result<()> {
                 RollupCommand::Config {
                     command,
                 } => match command {
-                    // RollupConfigCommand::Create(args) => rollup::create_config(&args)?,
-                    // RollupConfigCommand::Edit(args) => rollup::edit_config(&args)?,
-                    // RollupConfigCommand::Deploy(args) => rollup::deploy_config(&args)?,
-                    // RollupConfigCommand::Delete(args) => rollup::delete_config(&args)?,
-                    RollupConfigCommand::Create(args) => rollup::create_config(&args),
+                    RollupConfigCommand::Create(args) => rollup::create_config(&args)?,
                     RollupConfigCommand::Edit(args) => rollup::edit_config(&args),
                     RollupConfigCommand::Deploy(args) => rollup::deploy_config(&args),
                     RollupConfigCommand::Delete(args) => rollup::delete_config(&args),
