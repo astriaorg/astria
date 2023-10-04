@@ -41,7 +41,7 @@ deadpool = { version = "0.10.0", default-features = false, features = [
 thiserror.workspace = true
 
 [dev-dependencies]
-base64 = { workspace = true }
 once_cell = { workspace = true }
 figment = { workspace = true, features = ["test"] }
 regex = { workspace = true }
+astria-proto = { path = "../astria-proto", features = ["client", "server"] }
