@@ -3,7 +3,10 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use deadpool::managed;
+use deadpool::managed::{
+    self,
+    Pool,
+};
 use sequencer_client::WebSocketClient;
 use tokio::{
     select,
@@ -17,6 +20,16 @@ use tracing::warn;
 
 type ClientRx = mpsc::UnboundedReceiver<oneshot::Sender<Result<WebSocketClient, Error>>>;
 type ClientTx = mpsc::UnboundedSender<oneshot::Sender<Result<WebSocketClient, Error>>>;
+
+pub(super) async fn start_pool(url: &str) -> eyre::Result<Pool<ClientProvider>> {
+    let client_provider = ClientProvider::new(url)
+        .await
+        .wrap_err("failed initializing sequencer client provider")?;
+    Pool::builder(client_provider)
+        .max_size(50)
+        .build()
+        .wrap_err("failed to create sequencer client pool")
+}
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {

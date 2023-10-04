@@ -38,7 +38,10 @@ use tracing::{
 
 use crate::{
     block_verifier::BlockVerifier,
-    client_provider::ClientProvider,
+    client_provider::{
+        self,
+        ClientProvider,
+    },
     data_availability,
     executor::Executor,
     sequencer,
@@ -46,13 +49,24 @@ use crate::{
 };
 
 pub struct Conductor {
+    /// Listens for several unix signals and notifies its subscribers.
     signals: SignalReceiver,
-    /// the different long-running tasks that make up the conductor;
+
+    /// The different long-running tasks that make up the conductor;
     tasks: JoinMap<&'static str, eyre::Result<()>>,
-    /// channels to the long-running tasks to shut them down gracefully
+
+    /// Channels to the long-running tasks to shut them down gracefully
     shutdown_channels: HashMap<&'static str, oneshot::Sender<()>>,
+
+    /// The object pool of sequencer clients that restarts the websocket connection
+    /// on failure.
     sequencer_client_pool: deadpool::managed::Pool<ClientProvider>,
+
+    /// The channel over which the sequencer reader task notifies conductor that sync is completed.
     sync_done: oneshot::Receiver<()>,
+
+    /// The data availability reader that is spawned after sync is completed.
+    /// Constructed if constructed if `disable_finalization = false`.
     data_availability_reader: Option<data_availability::Reader>,
 }
 
@@ -67,42 +81,47 @@ impl Conductor {
 
         let signals = spawn_signal_handler();
 
-        let (executor_tx, executor_rx) = mpsc::unbounded_channel();
-        let (executor_shutdown_tx, executor_shutdown_rx) = oneshot::channel();
-        let executor = Executor::new(
-            &cfg.execution_rpc_url,
-            ChainId::new(cfg.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
-            cfg.disable_empty_block_execution,
-            executor_rx,
-            executor_shutdown_rx,
-        )
-        .await
-        .wrap_err("failed to construct executor")?;
-
-        tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
-        shutdown_channels.insert(Self::EXECUTOR, executor_shutdown_tx);
-
-        let client_provider = ClientProvider::new(&cfg.sequencer_url)
+        // Spawn the executor task.
+        let executor_tx = {
+            let (block_tx, block_rx) = mpsc::unbounded_channel();
+            let (shutdown_tx, shutdown_rx) = oneshot::channel();
+            let executor = Executor::new(
+                &cfg.execution_rpc_url,
+                ChainId::new(cfg.chain_id.as_bytes().to_vec())
+                    .wrap_err("failed to create chain ID")?,
+                cfg.disable_empty_block_execution,
+                block_rx,
+                shutdown_rx,
+            )
             .await
-            .wrap_err("failed initializing sequencer client provider")?;
-        let sequencer_client_pool = deadpool::managed::Pool::builder(client_provider)
-            .max_size(50)
-            .build()
+            .wrap_err("failed to construct executor")?;
+            tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
+            shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
+            block_tx
+        };
+
+        let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
+            .await
             .wrap_err("failed to create sequencer client pool")?;
 
-        let (sequencer_shutdown_tx, sequencer_shutdown_rx) = oneshot::channel();
-        let (sync_done_tx, sync_done_rx) = oneshot::channel();
-        let sequencer_reader = sequencer::Reader::new(
-            cfg.initial_sequencer_block_height,
-            sequencer_client_pool.clone(),
-            sequencer_shutdown_rx,
-            executor_tx.clone(),
-            sync_done_tx,
-        );
+        // Spawn the sequencer task
+        let sync_done = {
+            let (shutdown_tx, shutdown_rx) = oneshot::channel();
+            let (sync_done_tx, sync_done_rx) = oneshot::channel();
+            let sequencer_reader = sequencer::Reader::new(
+                cfg.initial_sequencer_block_height,
+                sequencer_client_pool.clone(),
+                shutdown_rx,
+                executor_tx.clone(),
+                sync_done_tx,
+            );
+            tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
+            shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
+            sync_done_rx
+        };
 
-        tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
-        shutdown_channels.insert(Self::SEQUENCER, sequencer_shutdown_tx);
-
+        // Construct the data availability reader without spawning it.
+        // It will be executed after sync is done.
         let mut data_availability_reader = None;
         if !cfg.disable_finalization {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -127,7 +146,7 @@ impl Conductor {
             tasks,
             sequencer_client_pool,
             shutdown_channels,
-            sync_done: sync_done_rx,
+            sync_done,
             data_availability_reader,
         })
     }
