@@ -34,10 +34,10 @@ pub enum Command {
     },
 }
 
-/// Commands for managing your rollup.
+/// Manage your rollups
 #[derive(Subcommand)]
 pub enum RollupCommand {
-    /// Deploy a rollup on the Astria Shared Sequencer Network
+    /// Manage your rollup configs
     Config {
         #[clap(subcommand)]
         command: RollupConfigCommand,
@@ -88,13 +88,15 @@ pub struct RollupConfigDeleteArgs {
     pub(crate) config_name: Option<String>,
 }
 
+/// Interact with the Sequencer
 #[derive(Subcommand)]
 pub enum SequencerCommand {
-    /// Create a new sequencer account
+    /// Create a new Sequencer account
     Account {
         #[clap(subcommand)]
         command: SequencerAccountCommand,
     },
+    /// Get the balance of a Sequencer account
     Balance {
         #[clap(subcommand)]
         command: SequencerBalanceCommand,
