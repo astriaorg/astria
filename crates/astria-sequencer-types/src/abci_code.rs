@@ -23,6 +23,7 @@ impl AbciCode {
         }
     }
 
+    #[must_use]
     pub fn from_tendermint(code: tendermint::abci::Code) -> Option<Self> {
         match code.value() {
             0 => Some(Self::OK),

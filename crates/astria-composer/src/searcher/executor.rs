@@ -140,8 +140,12 @@ impl Executor {
         }
     }
 
-    /// Populates nonce, signs and submits the bundle of actions to the sequencer.
-    async fn execute_bundle(&mut self, bundle: Vec<Action>) -> Result<(), ExeuctionError> {
+    /// Populates nonce, signs and submits the bundle of actions to the sequencer. Returns the
+    /// transaction if successfully submitted.
+    async fn execute_bundle(
+        &mut self,
+        bundle: Vec<Action>,
+    ) -> Result<SignedTransaction, ExeuctionError> {
         let nonce = self
             .get_and_increment_nonce()
             .await
@@ -160,7 +164,7 @@ impl Executor {
             .map_err(|e| ExeuctionError::SequencerClientFailure(e))?;
 
         match AbciCode::from_tendermint(submission_rsp.code) {
-            Some(AbciCode::OK) => Ok(()),
+            Some(AbciCode::OK) => Ok(tx),
             Some(AbciCode::INVALID_NONCE) => Err(ExeuctionError::InvalidNonce {
                 nonce,
                 transaction: tx,
@@ -189,8 +193,8 @@ impl Executor {
             .wrap_err("failed retrieving initial nonce from sequencer")?;
 
         while let Some(bundle) = self.executor_rx.recv().await {
-            if let Err(e) = self.execute_bundle(bundle).await {
-                match e {
+            match self.execute_bundle(bundle).await {
+                Err(e) => match e {
                     ExeuctionError::InvalidNonce {
                         nonce,
                         transaction,
@@ -222,6 +226,15 @@ impl Executor {
                         error!(error.msg = %e, "client failed to communicate with sequencer");
                         break;
                     }
+                },
+                Ok(tx) => {
+                    let nonce = tx.unsigned_transaction().nonce;
+                    info!(
+                        tx = ?tx,
+                        nonce = ?nonce,
+                        "transaction submitted to sequencer successfully with nonce {}",
+                        nonce
+                    )
                 }
             }
         }
