@@ -94,9 +94,7 @@ impl Conductor {
             sequencer_client_pool.clone(),
             sequencer_shutdown_rx,
             executor_tx.clone(),
-        )
-        .await
-        .wrap_err("failed initializing driver")?;
+        );
 
         tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
         shutdown_channels.insert(Self::SEQUENCER, sequencer_shutdown_tx);

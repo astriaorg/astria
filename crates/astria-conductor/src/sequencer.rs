@@ -80,19 +80,18 @@ pub(crate) struct Reader {
 }
 
 impl Reader {
-    #[instrument(name = "driver", skip_all)]
-    pub(crate) async fn new(
+    pub(crate) fn new(
         initial_sequencer_block_height: u32,
         pool: Pool<ClientProvider>,
         shutdown: oneshot::Receiver<()>,
         executor_tx: executor::Sender,
-    ) -> eyre::Result<Self> {
-        Ok(Self {
+    ) -> Self {
+        Self {
             initial_sequencer_block_height,
             executor_tx,
             pool,
             shutdown,
-        })
+        }
     }
 
     #[instrument(skip_all)]
