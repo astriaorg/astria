@@ -77,6 +77,8 @@ pub(crate) struct Reader {
     pool: Pool<ClientProvider>,
 
     shutdown: oneshot::Receiver<()>,
+
+    sync_done: oneshot::Sender<()>,
 }
 
 impl Reader {
@@ -85,23 +87,34 @@ impl Reader {
         pool: Pool<ClientProvider>,
         shutdown: oneshot::Receiver<()>,
         executor_tx: executor::Sender,
+        sync_done: oneshot::Sender<()>,
     ) -> Self {
         Self {
             initial_sequencer_block_height,
             executor_tx,
             pool,
             shutdown,
+            sync_done,
         }
     }
 
     #[instrument(skip_all)]
-    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+    pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
         use futures::{
             stream::FuturesOrdered,
             StreamExt as _,
             TryFutureExt as _,
         };
-        let mut new_blocks: stream::Fuse<NewBlocksStream> = subscribe_new_blocks(self.pool.clone())
+        let Self {
+            executor_tx,
+            initial_sequencer_block_height,
+            pool,
+            mut shutdown,
+            sync_done,
+        } = self;
+        let mut sync_done = Some(sync_done);
+
+        let mut new_blocks: stream::Fuse<NewBlocksStream> = subscribe_new_blocks(pool.clone())
             .await
             .wrap_err("failed to start initial new-blocks subscription")?
             .fuse();
@@ -124,13 +137,26 @@ impl Reader {
         )?;
 
         info!(
-            height.initial = self.initial_sequencer_block_height,
+            height.initial = initial_sequencer_block_height,
             height.latest = latest_height,
             "syncing sequencer between configured initial and latest retrieved height"
         );
         let mut sync_heights = {
-            let sync_range = self.initial_sequencer_block_height..latest_height;
-            let pool = self.pool.clone();
+            let sync_range = initial_sequencer_block_height..latest_height;
+            if sync_range.is_empty() {
+                info!(
+                    height.initial = initial_sequencer_block_height,
+                    height.latest = latest_height,
+                    "no blocks to sync; notifying conductor"
+                );
+                let Some(sync_done) = sync_done.take() else {
+                    bail!("sync notification channel was unexpectedly unset");
+                };
+                if sync_done.send(()).is_err() {
+                    warn!("failed sending sync-done notification because channel was dropped");
+                }
+            }
+            let pool = pool.clone();
             Box::pin(futures::stream::iter(sync_range).then(move |height| {
                 let pool = pool.clone();
                 async move { pool.get().await }.map_ok(move |client| (height, client))
@@ -143,7 +169,7 @@ impl Reader {
         let mut resubscribe = future::Fuse::terminated();
         'reader_loop: loop {
             select! {
-                shutdown = &mut self.shutdown => {
+                shutdown = &mut shutdown => {
                     let ret = match shutdown {
                         Err(e) => {
                             warn!(error.message = %e, "shutdown channel closed unexpectedly; shutting down");
@@ -178,13 +204,23 @@ impl Reader {
                 Some((height, res)) = sync_blocks.next(), if !sync_blocks.is_empty() => {
                     if let Err(e) = forward_sync_block_or_reschedule(
                         &mut sync_blocks,
-                        self.pool.clone(),
-                        self.executor_tx.clone(),
+                        pool.clone(),
+                        executor_tx.clone(),
                         height,
                         res,
                     ) {
                         error!("failed forwarding blocks during sync; exiting reader");
                         break 'reader_loop Err(e).wrap_err("failed forwarding blocks during sync");
+                    };
+                    if sync_blocks.is_empty() && sync_heights.is_done() {
+                        info!("sync is done; notifying conductor");
+                        if let Some(sync_done) = sync_done.take() {
+                            if sync_done.send(()).is_err() {
+                                warn!("failed sending sync-done notification because channel was dropped");
+                            }
+                        } else {
+                            warn!("tried send sync done notification more than once");
+                        }
                     }
                 }
 
@@ -196,7 +232,7 @@ impl Reader {
                     schedule_for_forwarding_or_resubscribe(
                         &mut resubscribe,
                         &mut pending_blocks,
-                        self.pool.clone(),
+                        pool.clone(),
                         new_block,
                     );
                 }
@@ -204,7 +240,7 @@ impl Reader {
                 // Regular pending blocks will be submitted to the executor in the order they were received.
                 // The condition on priority_blocks ensures that blocks from the sync process are sent first.
                 Some(res) = pending_blocks.next(), if sync_blocks.is_empty() && !pending_blocks.is_empty() => {
-                    if let Err(e) = forward_pending_block(self.executor_tx.clone(), res) {
+                    if let Err(e) = forward_pending_block(executor_tx.clone(), res) {
                         error!("failed forwarding blocks during regular operation; exiting reader");
                         break 'reader_loop Err(e).wrap_err("failed forwarding blocks regular operation");
                     }

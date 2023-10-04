@@ -52,6 +52,8 @@ pub struct Conductor {
     /// channels to the long-running tasks to shut them down gracefully
     shutdown_channels: HashMap<&'static str, oneshot::Sender<()>>,
     sequencer_client_pool: deadpool::managed::Pool<ClientProvider>,
+    sync_done: oneshot::Receiver<()>,
+    data_availability_reader: Option<data_availability::Reader>,
 }
 
 impl Conductor {
@@ -89,20 +91,24 @@ impl Conductor {
             .wrap_err("failed to create sequencer client pool")?;
 
         let (sequencer_shutdown_tx, sequencer_shutdown_rx) = oneshot::channel();
+        let (sync_done_tx, sync_done_rx) = oneshot::channel();
         let sequencer_reader = sequencer::Reader::new(
             cfg.initial_sequencer_block_height,
             sequencer_client_pool.clone(),
             sequencer_shutdown_rx,
             executor_tx.clone(),
+            sync_done_tx,
         );
 
         tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
         shutdown_channels.insert(Self::SEQUENCER, sequencer_shutdown_tx);
 
+        let mut data_availability_reader = None;
         if !cfg.disable_finalization {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
+            shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
             let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
-            let data_availability_reader = data_availability::Reader::new(
+            let reader = data_availability::Reader::new(
                 &cfg.celestia_node_url,
                 &cfg.celestia_bearer_token,
                 std::time::Duration::from_secs(3),
@@ -113,11 +119,7 @@ impl Conductor {
             )
             .await
             .wrap_err("failed constructing data availability reader")?;
-            tasks.spawn(
-                Self::DATA_AVAILABILITY,
-                data_availability_reader.run_until_stopped(),
-            );
-            shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
+            data_availability_reader = Some(reader);
         };
 
         Ok(Self {
@@ -125,10 +127,17 @@ impl Conductor {
             tasks,
             sequencer_client_pool,
             shutdown_channels,
+            sync_done: sync_done_rx,
+            data_availability_reader,
         })
     }
 
     pub async fn run_until_stopped(self) -> eyre::Result<()> {
+        use futures::future::{
+            FusedFuture as _,
+            FutureExt as _,
+        };
+
         let Self {
             signals:
                 SignalReceiver {
@@ -138,7 +147,11 @@ impl Conductor {
             mut tasks,
             shutdown_channels,
             sequencer_client_pool,
+            sync_done,
+            mut data_availability_reader,
         } = self;
+
+        let mut sync_done = sync_done.fuse();
 
         loop {
             select! {
@@ -152,6 +165,20 @@ impl Conductor {
 
                 _ = reload_rx.changed() => {
                     info!("reloading is currently not implemented");
+                }
+
+                res = &mut sync_done, if !sync_done.is_terminated() => {
+                    match res {
+                        Ok(()) => info!("received sync-complete signal from sequencer reader"),
+                        Err(e) => warn!(error.message = %e, error.cause = ?e, "sync-complete channel failed prematurely"),
+                    }
+                    if let Some(data_availability_reader) = data_availability_reader.take() {
+                        info!("starting data availability reader");
+                        tasks.spawn(
+                            Self::DATA_AVAILABILITY,
+                            data_availability_reader.run_until_stopped(),
+                        );
+                    }
                 }
 
                 Some((name, res)) = tasks.join_next() => {
