@@ -1,3 +1,5 @@
+//! The conductor configuration.
+
 use figment::{
     providers::Env,
     Figment,
@@ -11,7 +13,6 @@ pub fn get() -> Result<Config, figment::Error> {
     Config::from_environment("ASTRIA_CONDUCTOR_")
 }
 
-/// The global configuration for the driver and its components.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
