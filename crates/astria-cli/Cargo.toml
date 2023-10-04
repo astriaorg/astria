@@ -9,3 +9,8 @@ edition = "2021"
 camino = "1.1.6"
 clap = { workspace = true, features = ["derive"] }
 color-eyre = { workspace = true }
+ed25519 = "2.2.2"
+ed25519-dalek = { version = "2.0.0", features = ["rand_core"] }
+rand = "0.8.5"
+hex = "0.4.3"
+sha2.workspace = true

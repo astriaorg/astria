@@ -32,6 +32,10 @@ pub enum Command {
         #[clap(subcommand)]
         command: DeleteCommand,
     },
+    Create {
+        #[clap(subcommand)]
+        command: CreateCommand,
+    },
 }
 
 /// Deploy Celestia, Sequencer, or Rollup
@@ -150,4 +154,10 @@ pub struct DeleteRollupArgs {
     /// The name of the rollup to delete
     #[clap(long)]
     pub(crate) name: Option<String>,
+}
+
+#[derive(Subcommand)]
+pub enum CreateCommand {
+    /// Create a new Sequencer account
+    SequencerAccount,
 }

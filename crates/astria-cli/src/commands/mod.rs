@@ -1,3 +1,4 @@
+mod create;
 mod delete;
 mod deploy;
 
@@ -10,6 +11,7 @@ use crate::{
     cli::{
         Cli,
         Command,
+        CreateCommand,
         DeleteCelestiaCommand,
         DeleteCommand,
         DeleteRollupCommand,
@@ -20,6 +22,7 @@ use crate::{
         DeploySequencerCommand,
     },
     commands::{
+        create::create_sequencer_account,
         delete::{
             delete_celestia_local,
             delete_rollup_local,
@@ -78,6 +81,11 @@ pub fn run(cli: Cli) -> eyre::Result<()> {
                     DeleteRollupCommand::Local(args) => delete_rollup_local(args)?,
                     DeleteRollupCommand::Remote(args) => delete_rollup_remote(args)?,
                 },
+            },
+            Command::Create {
+                command,
+            } => match command {
+                CreateCommand::SequencerAccount => create_sequencer_account()?,
             },
         }
     } else {
