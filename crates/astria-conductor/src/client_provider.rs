@@ -36,7 +36,7 @@ pub(crate) enum Error {
     #[error("the client provider failed to reconnect and is permanently closed")]
     Failed,
     #[error("the channel over which to receive a client was closed unexpectedly")]
-    ClientChannelDroped,
+    ClientChannelDropped,
 }
 
 pub(crate) struct ClientProvider {
