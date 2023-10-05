@@ -103,33 +103,19 @@ fn get_test_block_subset() -> SequencerBlockSubset {
 
 struct MockEnvironment {
     _server: MockExecutionServer,
-    chain_id: ChainId,
-    server_url: String,
+    _block_tx: super::Sender,
+    _shutdown_tx: oneshot::Sender<()>,
+    executor: Executor,
 }
 
-async fn start_mock() -> MockEnvironment {
+async fn start_mock(disable_empty_block_execution: bool) -> MockEnvironment {
     let _server = MockExecutionServer::spawn().await;
     let chain_id = ChainId::new(b"test".to_vec()).unwrap();
     let server_url = format!("http://{}", _server.local_addr());
-    MockEnvironment {
-        _server,
-        chain_id,
-        server_url,
-    }
-}
-
-#[tokio::test]
-async fn execute_sequencer_block_without_txs() {
-    let MockEnvironment {
-        _server,
-        chain_id,
-        server_url,
-    } = start_mock().await;
 
     let (_block_tx, block_rx) = mpsc::unbounded_channel();
     let (_shutdown_tx, shutdown_rx) = oneshot::channel();
-    let disable_empty_block_execution = false;
-    let mut executor = Executor::new(
+    let executor = Executor::new(
         &server_url,
         chain_id,
         disable_empty_block_execution,
@@ -139,10 +125,23 @@ async fn execute_sequencer_block_without_txs() {
     .await
     .unwrap();
 
-    let expected_exection_hash = hash(&executor.execution_state);
+    MockEnvironment {
+        _server,
+        _block_tx,
+        _shutdown_tx,
+        executor,
+    }
+}
+
+#[tokio::test]
+async fn execute_sequencer_block_without_txs() {
+    let mut mock = start_mock(false).await;
+
+    let expected_exection_hash = hash(&mock.executor.execution_state);
     let block = get_test_block_subset();
 
-    let execution_block_hash = executor
+    let execution_block_hash = mock
+        .executor
         .execute_block(block)
         .await
         .unwrap()
@@ -152,132 +151,63 @@ async fn execute_sequencer_block_without_txs() {
 
 #[tokio::test]
 async fn skip_sequencer_block_without_txs() {
-    let MockEnvironment {
-        _server,
-        chain_id,
-        server_url,
-    } = start_mock().await;
-
-    let (_block_tx, block_rx) = mpsc::unbounded_channel();
-    let (_shutdown_tx, shutdown_rx) = oneshot::channel();
-    let disable_empty_block_execution = true;
-    let mut executor = Executor::new(
-        &server_url,
-        chain_id,
-        disable_empty_block_execution,
-        block_rx,
-        shutdown_rx,
-    )
-    .await
-    .unwrap();
+    let mut mock = start_mock(true).await;
 
     let block = get_test_block_subset();
-    let execution_block_hash = executor.execute_block(block).await.unwrap();
+    let execution_block_hash = mock.executor.execute_block(block).await.unwrap();
     assert!(execution_block_hash.is_none());
 }
 
 #[tokio::test]
 async fn execute_unexecuted_da_block_with_transactions() {
-    let MockEnvironment {
-        _server,
-        chain_id,
-        server_url,
-    } = start_mock().await;
-
-    let (_block_tx, block_rx) = mpsc::unbounded_channel();
-    let (_shutdown_tx, shutdown_rx) = oneshot::channel();
-    let disable_empty_block_execution = false;
-    let mut executor = Executor::new(
-        &server_url,
-        chain_id,
-        disable_empty_block_execution,
-        block_rx,
-        shutdown_rx,
-    )
-    .await
-    .unwrap();
+    let mut mock = start_mock(false).await;
 
     let mut block = get_test_block_subset();
     block.rollup_transactions.push(b"test_transaction".to_vec());
 
-    let expected_exection_hash = hash(&executor.execution_state);
+    let expected_exection_hash = hash(&mock.executor.execution_state);
 
-    executor
+    mock.executor
         .handle_block_received_from_data_availability(block)
         .await
         .unwrap();
 
-    assert_eq!(expected_exection_hash, executor.execution_state);
+    assert_eq!(expected_exection_hash, mock.executor.execution_state);
     // should be empty because 1 block was executed and finalized, which
     // deletes it from the map
-    assert!(executor.sequencer_hash_to_execution_hash.is_empty());
+    assert!(mock.executor.sequencer_hash_to_execution_hash.is_empty());
 }
 
 #[tokio::test]
 async fn skip_unexecuted_da_block_with_no_transactions() {
-    let MockEnvironment {
-        _server,
-        chain_id,
-        server_url,
-    } = start_mock().await;
-
-    let (_block_tx, block_rx) = mpsc::unbounded_channel();
-    let (_shutdown_tx, shutdown_rx) = oneshot::channel();
-    let disable_empty_block_execution = true;
-    let mut executor = Executor::new(
-        &server_url,
-        chain_id,
-        disable_empty_block_execution,
-        block_rx,
-        shutdown_rx,
-    )
-    .await
-    .unwrap();
+    let mut mock = start_mock(true).await;
 
     let block: SequencerBlockSubset = get_test_block_subset();
-    let previous_execution_state = executor.execution_state.clone();
+    let previous_execution_state = mock.executor.execution_state.clone();
 
-    executor
+    mock.executor
         .handle_block_received_from_data_availability(block)
         .await
         .unwrap();
 
-    assert_eq!(previous_execution_state, executor.execution_state,);
+    assert_eq!(previous_execution_state, mock.executor.execution_state,);
     // should be empty because nothing was executed
-    assert!(executor.sequencer_hash_to_execution_hash.is_empty());
+    assert!(mock.executor.sequencer_hash_to_execution_hash.is_empty());
 }
 
 #[tokio::test]
 async fn execute_unexecuted_da_block_with_no_transactions() {
-    let MockEnvironment {
-        _server,
-        chain_id,
-        server_url,
-    } = start_mock().await;
-
-    let (_block_tx, block_rx) = mpsc::unbounded_channel();
-    let (_shutdown_tx, shutdown_rx) = oneshot::channel();
-    let disable_empty_block_execution = false;
-    let mut executor = Executor::new(
-        &server_url,
-        chain_id,
-        disable_empty_block_execution,
-        block_rx,
-        shutdown_rx,
-    )
-    .await
-    .unwrap();
-
+    let mut mock = start_mock(false).await;
     let block: SequencerBlockSubset = get_test_block_subset();
-    let expected_execution_state = hash(&executor.execution_state);
+    let expected_execution_state = hash(&mock.executor.execution_state);
 
-    executor
+    mock.executor
         .handle_block_received_from_data_availability(block)
         .await
         .unwrap();
 
-    assert_eq!(expected_execution_state, executor.execution_state);
+    assert_eq!(expected_execution_state, mock.executor.execution_state);
     // should be empty because block was executed and finalized, which
     // deletes it from the map
-    assert!(executor.sequencer_hash_to_execution_hash.is_empty());
+    assert!(mock.executor.sequencer_hash_to_execution_hash.is_empty());
 }
