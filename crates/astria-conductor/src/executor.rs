@@ -309,7 +309,9 @@ impl Executor {
 mod test {
     use std::net::SocketAddr;
 
-    use astria_proto::generated::execution::v1alpha1::{
+    use color_eyre::eyre::Result;
+    use prost_types::Timestamp;
+    use proto::generated::execution::v1alpha1::{
         execution_service_server::{
             ExecutionService,
             ExecutionServiceServer,
@@ -321,8 +323,6 @@ mod test {
         InitStateRequest,
         InitStateResponse,
     };
-    use color_eyre::eyre::Result;
-    use prost_types::Timestamp;
     use sha2::Digest as _;
     use tokio::{
         sync::{
@@ -335,7 +335,6 @@ mod test {
 
     use super::*;
 
-    // the mock execution server
     #[derive(Debug, Default)]
     struct MockExecutionServer {}
 
