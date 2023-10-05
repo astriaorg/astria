@@ -21,7 +21,6 @@ fn get_public_key_pretty(signing_key: &SigningKey) -> String {
 
 /// Get the private key from the signing key
 fn get_private_key_pretty(signing_key: &SigningKey) -> String {
-    // get full private key for printing
     let secret_key_bytes = signing_key.to_bytes();
     hex::encode(secret_key_bytes)
 }
