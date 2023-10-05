@@ -37,7 +37,6 @@ use crate::{
         self,
         BlockVerifier,
     },
-    // config::Config,
     executor,
     types::SequencerBlockSubset,
 };
