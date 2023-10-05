@@ -369,10 +369,8 @@ fn verify_all_datas(
             verification_tasks.spawn(
                 block_hash,
                 async move {
-                    verifier
-                        .validate_signed_namespace_data(&data)
-                        .await
-                        .map(|()| data)
+                    verifier.validate_signed_namespace_data(&data).await?;
+                    Ok(data)
                 }
                 .in_current_span(),
             );
