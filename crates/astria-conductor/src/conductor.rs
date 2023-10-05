@@ -202,9 +202,9 @@ impl Conductor {
 
                 Some((name, res)) = tasks.join_next() => {
                     match res {
-                        Ok(Ok(())) => error!(tak.name = name, "task exited unexpectedly, shutting down"),
-                        Ok(Err(e)) => error!(task.name = name, error.msg = %e, error.cause = ?e, "task exited with error; shutting down"),
-                        Err(e) => error!(task.name = name, error.msg = %e, error.cause = ?e, "task failed; shutting down"),
+                        Ok(Ok(())) => error!(task.name = name, "task exited unexpectedly, shutting down"),
+                        Ok(Err(e)) => error!(task.name = name, error.message = %e, error.cause = ?e, "task exited with error; shutting down"),
+                        Err(e) => error!(task.name = name, error.message = %e, error.cause = ?e, "task failed; shutting down"),
                     }
                 }
             }
