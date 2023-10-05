@@ -280,6 +280,10 @@ impl CelestiaClient {
         CelestiaClientBuilder::new()
     }
 
+    pub fn inner(&self) -> &Client {
+        &self.client
+    }
+
     #[instrument(skip_all)]
     pub async fn get_latest_height(&self) -> eyre::Result<u64> {
         let res = self

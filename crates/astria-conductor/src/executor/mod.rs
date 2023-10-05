@@ -1,0 +1,309 @@
+use std::collections::HashMap;
+
+use astria_sequencer_types::{
+    ChainId,
+    SequencerBlockData,
+};
+use color_eyre::eyre::{
+    self,
+    Result,
+    WrapErr as _,
+};
+use prost_types::Timestamp as ProstTimestamp;
+use tendermint::{
+    Hash,
+    Time,
+};
+use tokio::{
+    select,
+    sync::{
+        mpsc::{
+            UnboundedReceiver,
+            UnboundedSender,
+        },
+        oneshot,
+    },
+};
+use tracing::{
+    debug,
+    error,
+    info,
+    instrument,
+    warn,
+};
+
+use crate::{
+    execution_client::{
+        ExecutionClient,
+        ExecutionRpcClient,
+    },
+    types::SequencerBlockSubset,
+};
+
+#[cfg(test)]
+mod tests;
+
+/// The channel for sending commands to the executor task.
+pub(crate) type Sender = UnboundedSender<ExecutorCommand>;
+/// The channel the executor task uses to listen for commands.
+type Receiver = UnboundedReceiver<ExecutorCommand>;
+
+// Given `Time`, convert to protobuf timestamp
+fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> {
+    use tendermint_proto::google::protobuf::Timestamp as TendermintTimestamp;
+    let TendermintTimestamp {
+        seconds,
+        nanos,
+    } = value.into();
+    Ok(ProstTimestamp {
+        seconds,
+        nanos,
+    })
+}
+
+#[derive(Debug)]
+pub(crate) enum ExecutorCommand {
+    /// used when a block is received from the subscription stream to sequencer
+    FromSequencer { block: Box<SequencerBlockData> },
+    /// used when a block is received from the reader (Celestia)
+    FromCelestia(Vec<SequencerBlockSubset>),
+}
+
+pub(crate) struct Executor {
+    /// Channel on which executor commands are received.
+    cmd_rx: Receiver,
+
+    shutdown: oneshot::Receiver<()>,
+
+    /// The execution rpc client that we use to send messages to the execution service
+    execution_rpc_client: ExecutionRpcClient,
+
+    /// Chain ID
+    chain_id: ChainId,
+
+    /// Tracks the state of the execution chain
+    execution_state: Vec<u8>,
+
+    /// map of sequencer block hash to execution block hash
+    ///
+    /// this is required because when we receive sequencer blocks (from network or DA),
+    /// we only know the sequencer block hash, but not the execution block hash,
+    /// as the execution block hash is created by executing the block.
+    /// as well, the execution layer is not aware of the sequencer block hash.
+    /// we need to track the mapping of sequencer block hash -> execution block hash
+    /// so that we can mark the block as final on the execution layer when
+    /// we receive a finalized sequencer block.
+    sequencer_hash_to_execution_hash: HashMap<Hash, Vec<u8>>,
+
+    /// Chose to execute empty blocks or not
+    disable_empty_block_execution: bool,
+}
+
+impl Executor {
+    pub(crate) async fn new(
+        server_addr: &str,
+        chain_id: ChainId,
+        disable_empty_block_execution: bool,
+        cmd_rx: Receiver,
+        shutdown: oneshot::Receiver<()>,
+    ) -> Result<Self> {
+        let mut execution_rpc_client = ExecutionRpcClient::new(server_addr)
+            .await
+            .wrap_err("failed to create execution rpc client")?;
+        let init_state_response = execution_rpc_client
+            .call_init_state()
+            .await
+            .wrap_err("could not initialize execution rpc client state")?;
+        let execution_state = init_state_response.block_hash;
+        Ok(Self {
+            cmd_rx,
+            shutdown,
+            execution_rpc_client,
+            chain_id,
+            execution_state,
+            sequencer_hash_to_execution_hash: HashMap::new(),
+            disable_empty_block_execution,
+        })
+    }
+
+    #[instrument(skip_all)]
+    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+        loop {
+            select!(
+                biased;
+
+                shutdown = &mut self.shutdown => {
+                    match shutdown {
+                        Err(e) => warn!(error.message = %e, "shutdown channel return with error; shutting down"),
+                        Ok(()) => info!("received shutdown signal; shutting down"),
+                    }
+                    break;
+                }
+
+                cmd = self.cmd_rx.recv() => {
+                    let Some(cmd) = cmd else {
+                        error!("cmd channel closed unexpectedly; shutting down");
+                        break;
+                    };
+                    match cmd {
+                        ExecutorCommand::FromSequencer {
+                            block,
+                        } => {
+                            let height = block.header().height.value();
+                            let block_subset =
+                                SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id);
+
+                            if let Err(e) = self.execute_block(block_subset).await {
+                                error!(
+                                    height = height,
+                                    error = ?e,
+                                    "failed to execute block"
+                                );
+                            }
+                        }
+
+                        ExecutorCommand::FromCelestia(mut subsets) => {
+                            // FIXME: actually process all the blocks
+                            let block = subsets.remove(0);
+                            let height = block.header.height.value();
+                            if let Err(e) = self
+                                .handle_block_received_from_data_availability(block)
+                                .await
+                            {
+                                error!(
+                                    height = height,
+                                    error = ?e,
+                                    "failed to finalize block"
+                                );
+                            }
+                        }
+                    }
+                }
+            )
+        }
+        Ok(())
+    }
+
+    /// checks for relevant transactions in the SequencerBlock and attempts
+    /// to execute them via the execution service function DoBlock.
+    /// if there are relevant transactions that successfully execute,
+    /// it returns the resulting execution block hash.
+    /// if the block has already been executed, it returns the previously-computed
+    /// execution block hash.
+    /// if there are no relevant transactions in the SequencerBlock, it returns None.
+    async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Vec<u8>>> {
+        if self.disable_empty_block_execution && block.rollup_transactions.is_empty() {
+            debug!(
+                height = block.header.height.value(),
+                "no transactions in block, skipping execution"
+            );
+            return Ok(None);
+        }
+
+        if let Some(execution_hash) = self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
+            debug!(
+                height = block.header.height.value(),
+                execution_hash = hex::encode(execution_hash),
+                "block already executed"
+            );
+            return Ok(Some(execution_hash.clone()));
+        }
+
+        let prev_block_hash = self.execution_state.clone();
+        info!(
+            height = block.header.height.value(),
+            parent_block_hash = hex::encode(&prev_block_hash),
+            "executing block with given parent block",
+        );
+
+        let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
+            .wrap_err("failed parsing str as protobuf timestamp")?;
+
+        let response = self
+            .execution_rpc_client
+            .call_do_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
+            .await?;
+        self.execution_state = response.block_hash.clone();
+
+        // store block hash returned by execution client, as we need it to finalize the block later
+        info!(
+            sequencer_block_hash = ?block.block_hash,
+            sequencer_block_height = block.header.height.value(),
+            execution_block_hash = hex::encode(&response.block_hash),
+            "executed sequencer block",
+        );
+        self.sequencer_hash_to_execution_hash
+            .insert(block.block_hash, response.block_hash.clone());
+
+        Ok(Some(response.block_hash))
+    }
+
+    async fn handle_block_received_from_data_availability(
+        &mut self,
+        block: SequencerBlockSubset,
+    ) -> Result<()> {
+        let sequencer_block_hash = block.block_hash;
+        let maybe_execution_block_hash = self
+            .sequencer_hash_to_execution_hash
+            .get(&sequencer_block_hash)
+            .cloned();
+        match maybe_execution_block_hash {
+            Some(execution_block_hash) => {
+                self.finalize_block(execution_block_hash, sequencer_block_hash)
+                    .await?;
+            }
+            None => {
+                // this means either:
+                // - we didn't receive the block from the sequencer stream, or
+                // - we received it, but the sequencer block didn't contain
+                // any transactions for this rollup namespace, thus nothing was executed
+                // on receiving this block.
+
+                // try executing the block as it hasn't been executed before
+                // execute_block will check if our namespace has txs; if so, it'll return the
+                // resulting execution block hash, otherwise None
+                let Some(execution_block_hash) = self
+                    .execute_block(block)
+                    .await
+                    .wrap_err("failed to execute block")?
+                else {
+                    // no txs for our namespace, nothing to do
+                    debug!("execute_block returned None; skipping finalize_block");
+                    return Ok(());
+                };
+
+                // finalize the block after it's been executed
+                self.finalize_block(execution_block_hash, sequencer_block_hash)
+                    .await?;
+            }
+        };
+        Ok(())
+    }
+
+    /// This function finalizes the given execution block on the execution layer by calling
+    /// the execution service's FinalizeBlock function.
+    /// note that this function clears the respective entry in the
+    /// `sequencer_hash_to_execution_hash` map.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if:
+    /// - the call to the execution service's FinalizeBlock function fails
+    #[instrument(ret, err, skip_all, fields(
+        execution_block_hash = hex::encode(&execution_block_hash),
+        sequencer_block_hash = hex::encode(sequencer_block_hash),
+    ))]
+    async fn finalize_block(
+        &mut self,
+        execution_block_hash: Vec<u8>,
+        sequencer_block_hash: Hash,
+    ) -> Result<()> {
+        self.execution_rpc_client
+            .call_finalize_block(execution_block_hash)
+            .await
+            .wrap_err("failed to finalize block")?;
+        self.sequencer_hash_to_execution_hash
+            .remove(&sequencer_block_hash);
+        Ok(())
+    }
+}
