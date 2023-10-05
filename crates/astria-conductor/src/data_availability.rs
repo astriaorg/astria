@@ -296,7 +296,7 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
     let (assembly_tx, assembly_rx) = mpsc::channel(256);
     let block_assembler = task::spawn(assemble_blocks(assembly_rx));
 
-    let mut get_rollups = JoinSet::new();
+    let mut fetch_and_verify_rollups = JoinSet::new();
     while let Some((block_hash, verification_result)) = verification_tasks.join_next().await {
         match verification_result {
             Err(e) => {
@@ -306,9 +306,15 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
                 warn!(%block_hash, error.message = %e, error.cause = ?e, "task verifying sequencer data retrieved from celestia returned with an error; dropping block")
             }
             Ok(Ok(data)) => {
-                get_rollups.spawn(
-                    get_rollup(client.clone(), height, data, namespace, assembly_tx.clone())
-                        .in_current_span(),
+                fetch_and_verify_rollups.spawn(
+                    fetch_and_verify_rollup_blobs(
+                        client.clone(),
+                        height,
+                        data,
+                        namespace,
+                        assembly_tx.clone(),
+                    )
+                    .in_current_span(),
                 );
             }
         }
@@ -322,7 +328,9 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
         .wrap_err("failed assembling sequencer block subsets")
 }
 
-async fn get_rollup(
+/// Fetches rollup blobs for the given height and namespace, verifiying it
+/// against the sequencer "header" blob.
+async fn fetch_and_verify_rollup_blobs(
     client: CelestiaClient,
     height: u64,
     data: SignedNamespaceData<SequencerNamespaceData>,
