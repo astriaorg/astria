@@ -36,7 +36,7 @@ use crate::{
     validator::Validator,
 };
 
-pub struct Relayer {
+pub(crate) struct Relayer {
     /// The websocket client for the sequencer, used to create a `NewBlock` subscription.
     sequencer_ws_client: WebSocketClient,
 
@@ -65,7 +65,7 @@ pub struct Relayer {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct State {
+pub(crate) struct State {
     pub(crate) data_availability_connected: bool,
     pub(crate) sequencer_connected: bool,
     pub(crate) current_sequencer_height: Option<u64>,
@@ -73,7 +73,7 @@ pub struct State {
 }
 
 impl State {
-    pub fn is_ready(&self) -> bool {
+    pub(crate) fn is_ready(&self) -> bool {
         self.data_availability_connected && self.sequencer_connected
     }
 }
@@ -87,7 +87,7 @@ impl Relayer {
     /// + failed to read the validator keys from the path in cfg;
     /// + failed to construct a client to the data availability layer (unless `cfg.disable_writing`
     ///   is set).
-    pub async fn new(cfg: &crate::config::Config) -> Result<Self> {
+    pub(crate) async fn new(cfg: &crate::config::Config) -> Result<Self> {
         let (sequencer_ws_client, driver) = WebSocketClient::new(&*cfg.sequencer_endpoint)
             .await
             .wrap_err("failed to create sequencer client")?;
@@ -298,6 +298,7 @@ impl Relayer {
         use tendermint_rpc::Client as _;
 
         debug!("attempting to connect to sequencer layer");
+        tokio::time::sleep(delay).await;
         let backoff = ExponentialBuilder::default()
             .with_min_delay(delay)
             .with_factor(factor)
@@ -326,15 +327,15 @@ impl Relayer {
     /// - if subscribing to the `NewBlock` event on the sequencer fails
     #[instrument(name = "Relayer::run", skip_all)]
     pub(crate) async fn run(mut self) -> eyre::Result<()> {
+        println!("Relayer::run()");
         let wait_for_da = self.wait_for_data_availability_layer(5, Duration::from_secs(5), 2.0);
         let wait_for_seq = self.wait_for_sequencer(5, Duration::from_secs(5), 2.0);
         match tokio::try_join!(wait_for_da, wait_for_seq) {
             Ok(((), ())) => {}
             Err(err) => return Err(err).wrap_err("failed to start relayer"),
         }
-        self.wait_for_sequencer(5, Duration::from_secs(5), 2.0)
-            .await
-            .wrap_err("failed establishing connection to the sequencer")?;
+
+        println!("subscribing to NewBlock event");
 
         let mut stream = self
             .sequencer_ws_client
@@ -342,10 +343,13 @@ impl Relayer {
             .await
             .wrap_err("failed to subscribe to NewBlock event")?;
 
+        println!("subscription established");
+
         loop {
             select!(
                 // Receive new blocks from the sequencer
                 res = stream.try_next() => {
+                    println!("received event from sequencer: {:?}", res);
                     match res {
                         Ok(maybe_event) => {
                             let Some(event) = maybe_event else {

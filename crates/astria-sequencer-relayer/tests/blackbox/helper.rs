@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     net::SocketAddr,
     time::Duration,
 };
@@ -91,7 +92,6 @@ impl TestSequencerRelayer {
 
     pub(crate) async fn mount_block_response(&self, height: u32) {
         let block_response = create_block_response(&self.validator, height);
-        // let wrapped = Wrapper::new_with_id(Id::Num(1), Some(block_response.clone()), None);
         self.sequencer.block_tx.send(block_response).unwrap();
     }
 }
@@ -133,6 +133,8 @@ pub(crate) async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> Test
         log: "".into(),
     };
 
+    println!("sequencer endpoint: {}", config.sequencer_endpoint);
+
     info!(config = serde_json::to_string(&config).unwrap());
     let config_clone = config.clone();
     let sequencer_relayer = tokio::task::spawn_blocking(|| SequencerRelayer::new(config_clone))
@@ -144,6 +146,8 @@ pub(crate) async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> Test
     let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
 
     loop_until_sequencer_relayer_is_ready(api_address).await;
+
+    tokio::time::sleep(Duration::from_millis(2000)).await;
 
     TestSequencerRelayer {
         api_address,
@@ -172,14 +176,6 @@ async fn loop_until_sequencer_relayer_is_ready(addr: SocketAddr) {
         if readyz.status.to_lowercase() == "ok" {
             break;
         }
-
-        let status = reqwest::get(format!("http://{addr}/status"))
-            .await
-            .unwrap()
-            .json::<serde_json::Value>()
-            .await
-            .unwrap();
-        println!("status: {:?}", status);
     }
 }
 
@@ -431,11 +427,11 @@ impl TryFrom<ProxyQuery> for Query {
 
 #[rpc(server)]
 trait Sequencer {
-    #[subscription(name = "subscribe", item = Query)]
+    #[subscription(name = "subscribe", item = jsonrpsee_core::JsonValue)]
     async fn subscribe(&self, query: Query) -> SubscriptionResult;
 
     #[method(name = "abci_info")]
-    async fn abci_info(&self) -> String;
+    async fn abci_info(&self) -> jsonrpsee_core::JsonValue;
 }
 
 struct SequencerImpl {
@@ -444,23 +440,17 @@ struct SequencerImpl {
 
 #[async_trait]
 impl SequencerServer for SequencerImpl {
-    async fn abci_info(&self) -> String {
-        let resp = tendermint_rpc::endpoint::abci_info::Response {
-            response: tendermint::abci::response::Info {
-                data: "SequencerRelayerTest".into(),
-                version: "1.0.0".into(),
-                app_version: 1,
-                last_block_height: 5u32.into(),
-                last_block_app_hash: tendermint::AppHash::try_from([0; 32].to_vec()).unwrap(),
-            },
-        };
-        let wrapper = tendermint_rpc::response::Wrapper::new_with_id(
-            tendermint_rpc::Id::Num(1),
-            Some(resp),
-            None,
-        );
-        println!("abci_info: {}", serde_json::to_string(&wrapper).unwrap());
-        serde_json::to_string(&wrapper).unwrap()
+    async fn abci_info(&self) -> jsonrpsee_core::JsonValue {
+        let resp = serde_json::json!({
+                "response": {
+                    "data": "SequencerRelayerTest",
+                    "version": "1.0.0",
+                    "app_version": "1",
+                    "last_block_height": "5",
+                    "last_block_app_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+                }
+        });
+        resp
     }
 
     async fn subscribe(
@@ -468,6 +458,7 @@ impl SequencerServer for SequencerImpl {
         pending: PendingSubscriptionSink,
         _query: Query,
     ) -> SubscriptionResult {
+        println!("subscribe()");
         use jsonrpsee::server::SubscriptionMessage;
         let sink = pending.accept().await?;
         let mut rx = self.block_tx.subscribe();
@@ -476,10 +467,13 @@ impl SequencerServer for SequencerImpl {
                 biased;
                 () = sink.closed() => break,
                 Ok(block) = rx.recv() => {
+                    let mut map = BTreeMap::new();
+                    map.insert("tm.event".to_string(), vec!["NewBlock".to_string()]);
+
                     let event = tendermint_rpc::event::Event {
-                        query: "".to_string(),
+                        query: "tm.event='NewBlock'".to_string(),
                         data: tendermint_rpc::event::EventData::NewBlock { block: Some(block), result_begin_block: None, result_end_block: None },
-                        events: None,
+                        events: Some(map),
                     };
                     let event_wrapper: tendermint_rpc::event::DialectEvent<tendermint_rpc::dialect::v0_37::Event> = event.into();
                     // let response_wrapper = tendermint_rpc::response::Wrapper::new_with_id(
@@ -487,8 +481,18 @@ impl SequencerServer for SequencerImpl {
                     //     Some(event_wrapper),
                     //     None,
                     // );
+                    let resp = serde_json::json!({
+                        "query": "tm.event='NewBlock'",
+                        "data": {
+                            "type": "tendermint/event/NewBlock",
+                            "value": event_wrapper,
+                        },
+                        "events": {
+                            "tm.event": ["NewBlock"],
+                        }
+                    });
                     sink.send(
-                        SubscriptionMessage::from_json(&event_wrapper)?
+                        SubscriptionMessage::from_json(&resp)?
                     ).await?
                 }
             );
@@ -524,6 +528,7 @@ impl MockSequencer {
         };
         let handle = server.start(sequencer_impl.into_rpc());
         let server_task_handle = tokio::spawn(handle.stopped());
+        println!("sequencer server started on {}", local_addr);
         Self {
             local_addr: format!("ws://{}", local_addr),
             block_tx,

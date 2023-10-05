@@ -130,7 +130,10 @@ impl Consensus {
             bail!("database already initialized");
         }
 
-        println!("Initializing chain with genesis state: {:#?}", init_chain.app_state_bytes);
+        println!(
+            "Initializing chain with genesis state: {:#?}",
+            init_chain.app_state_bytes
+        );
         let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
             .context("failed to parse app_state in genesis file")?;
         self.app
