@@ -186,7 +186,7 @@ impl Reader {
             height.end = self.current_block_height,
             "spawning tasks to fetch sequencer blocks for different celestia heights",
         );
-        for height in first_new_height..=self.current_block_height {
+        for height in first_new_height..=latest_height {
             let client = self.celestia_client.clone();
             if self.fetch_sequencer_blobs_at_height.contains_key(&height) {
                 warn!(
