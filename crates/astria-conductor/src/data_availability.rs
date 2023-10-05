@@ -61,8 +61,8 @@ pub(crate) struct Reader {
 
     get_latest_height: Option<JoinHandle<eyre::Result<u64>>>,
 
-    /// A map of in-flight queries to celestia for new sequencer blocks
-    get_sequencer_datas:
+    /// A map of in-flight queries to celestia for new sequencer blobs at a given height
+    fetch_sequencer_blobs_at_height:
         JoinMap<u64, eyre::Result<Vec<SignedNamespaceData<SequencerNamespaceData>>>>,
 
     process_sequencer_datas: JoinMap<u64, eyre::Result<Vec<SequencerBlockSubset>>>,
@@ -98,7 +98,7 @@ impl Reader {
             celestia_poll_interval,
             current_block_height,
             get_latest_height: None,
-            get_sequencer_datas: JoinMap::new(),
+            fetch_sequencer_blobs_at_height: JoinMap::new(),
             process_sequencer_datas: JoinMap::new(),
             block_verifier,
             namespace,
@@ -125,10 +125,10 @@ impl Reader {
 
                 res = async { self.get_latest_height.as_mut().unwrap().await }, if self.get_latest_height.is_some() => {
                     self.get_latest_height = None;
-                    self.get_sequencer_datas(res);
+                    self.fetch_sequencer_blobs_up_to_latest_height(res);
                 }
 
-                Some((height, res)) = self.get_sequencer_datas.join_next(), if !self.get_sequencer_datas.is_empty() => {
+                Some((height, res)) = self.fetch_sequencer_blobs_at_height.join_next(), if !self.fetch_sequencer_blobs_at_height.is_empty() => {
                     self.process_sequencer_datas(height, res);
                 }
 
@@ -149,7 +149,15 @@ impl Reader {
         }))
     }
 
-    fn get_sequencer_datas(&mut self, latest_height_res: Result<eyre::Result<u64>, JoinError>) {
+    /// Starts fetching sequencer blobs for each height between `self.current_height`
+    /// and `latest_height` returned by celestia, populating `fetch_sequencer_blobs_at_height`.
+    ///
+    /// Note that this method evaluates the return value of the `fetch_latest_height` task. If it
+    /// failed no heights are fetched.
+    fn fetch_sequencer_blobs_up_to_latest_height(
+        &mut self,
+        latest_height_res: Result<eyre::Result<u64>, JoinError>,
+    ) {
         let latest_height = match latest_height_res {
             Err(e) => {
                 warn!(error.message = %e, error.cause = ?e, "task querying celestia for latest height failed");
@@ -180,15 +188,16 @@ impl Reader {
         );
         for height in first_new_height..=self.current_block_height {
             let client = self.celestia_client.clone();
-            if self.get_sequencer_datas.contains_key(&height) {
+            if self.fetch_sequencer_blobs_at_height.contains_key(&height) {
                 warn!(
                     height,
                     "getting sequencer data from celestia already in flight, not spawning"
                 );
             } else {
-                self.get_sequencer_datas.spawn(height, async move {
-                    client.get_sequencer_namespace_data(height).await
-                });
+                self.fetch_sequencer_blobs_at_height
+                    .spawn(height, async move {
+                        client.get_sequencer_namespace_data(height).await
+                    });
             }
         }
     }
