@@ -23,11 +23,7 @@ fn get_public_key_pretty(signing_key: &SigningKey) -> String {
 fn get_private_key_pretty(signing_key: &SigningKey) -> String {
     // get full private key for printing
     let secret_key_bytes = signing_key.to_bytes();
-    let verifying_key_bytes = signing_key.verification_key().to_bytes();
-    let mut complete_key = [0u8; 64];
-    complete_key[..32].copy_from_slice(&secret_key_bytes);
-    complete_key[32..].copy_from_slice(&verifying_key_bytes);
-    hex::encode(complete_key)
+    hex::encode(secret_key_bytes)
 }
 
 /// Get the address from the signing key
@@ -87,7 +83,7 @@ mod test {
     fn test_get_private_key_pretty() {
         let signing_key = get_new_signing_key();
         let private_key_pretty = get_private_key_pretty(&signing_key);
-        assert_eq!(private_key_pretty.len(), 128);
+        assert_eq!(private_key_pretty.len(), 64);
     }
 
     #[test]
