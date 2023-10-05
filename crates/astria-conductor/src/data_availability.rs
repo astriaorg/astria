@@ -65,7 +65,10 @@ pub(crate) struct Reader {
     fetch_sequencer_blobs_at_height:
         JoinMap<u64, eyre::Result<Vec<SignedNamespaceData<SequencerNamespaceData>>>>,
 
-    process_sequencer_datas: JoinMap<u64, eyre::Result<Vec<SequencerBlockSubset>>>,
+    /// A map of futures verifying that sequencer blobs read off celestia stem from sequencer
+    /// before collecting their constituent rollup blobs. One task per celestia height.
+    verify_sequencer_blobs_and_assemble_rollups:
+        JoinMap<u64, eyre::Result<Vec<SequencerBlockSubset>>>,
 
     shutdown: oneshot::Receiver<()>,
 }
@@ -99,7 +102,7 @@ impl Reader {
             current_block_height,
             get_latest_height: None,
             fetch_sequencer_blobs_at_height: JoinMap::new(),
-            process_sequencer_datas: JoinMap::new(),
+            verify_sequencer_blobs_and_assemble_rollups: JoinMap::new(),
             block_verifier,
             namespace,
             shutdown,
@@ -132,7 +135,7 @@ impl Reader {
                     self.process_sequencer_datas(height, res);
                 }
 
-                Some((height, res)) = self.process_sequencer_datas.join_next(), if !self.process_sequencer_datas.is_empty() => {
+                Some((height, res)) = self.verify_sequencer_blobs_and_assemble_rollups.join_next(), if !self.verify_sequencer_blobs_and_assemble_rollups.is_empty() => {
                     let span = tracing::info_span!("send_sequencer_subsets", height);
                     span.in_scope(|| self.send_sequencer_subsets(res))
                         .wrap_err("failed sending sequencer subsets to executor")?;
@@ -232,16 +235,19 @@ impl Reader {
         // If there are other tasks querying celestia for lower heights are still in
         // flight they are unaffected and will still be processed here.
         self.current_block_height = std::cmp::max(self.current_block_height, height);
-        if self.process_sequencer_datas.contains_key(&height) {
+        if self
+            .verify_sequencer_blobs_and_assemble_rollups
+            .contains_key(&height)
+        {
             error!(
                 "sequencer data is already being processed; no two sequencer data responses \
                  should have been received; this is a bug"
             );
             return;
         }
-        self.process_sequencer_datas.spawn(
+        self.verify_sequencer_blobs_and_assemble_rollups.spawn(
             height,
-            process_sequencer_data(
+            verify_sequencer_blobs_and_assemble_rollups(
                 height,
                 sequencer_data,
                 self.celestia_client.clone(),
@@ -274,15 +280,18 @@ impl Reader {
     }
 }
 
-async fn process_sequencer_data(
+/// Verifies that each sequencer blob is genuinely derived from a sequencer block.
+/// If it is, fetches its constituent rollup blobs from celestia and assembles
+/// into a collection.
+async fn verify_sequencer_blobs_and_assemble_rollups(
     height: u64,
-    datas: Vec<SignedNamespaceData<SequencerNamespaceData>>,
+    sequencer_blobs: Vec<SignedNamespaceData<SequencerNamespaceData>>,
     client: CelestiaClient,
     block_verifier: BlockVerifier,
     namespace: Namespace,
 ) -> eyre::Result<Vec<SequencerBlockSubset>> {
     // spawn the verification tasks
-    let mut verification_tasks = verify_all_datas(datas, block_verifier);
+    let mut verification_tasks = verify_all_datas(sequencer_blobs, block_verifier);
 
     let (assembly_tx, assembly_rx) = mpsc::channel(256);
     let block_assembler = task::spawn(assemble_blocks(assembly_rx));
