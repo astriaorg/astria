@@ -46,3 +46,4 @@ figment = { workspace = true, features = ["test"] }
 regex = { workspace = true }
 
 proto = { package = "astria-proto", path = "../astria-proto", features = ["server"] }
+tokio-stream = { version = "0.1.14", features = ["net"] }

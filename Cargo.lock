@@ -256,6 +256,7 @@ dependencies = [
  "tendermint-proto",
  "thiserror",
  "tokio",
+ "tokio-stream",
  "tokio-util 0.7.9",
  "tonic 0.9.2",
  "tracing",
