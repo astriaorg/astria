@@ -459,6 +459,7 @@ impl SequencerServer for SequencerImpl {
         _query: Query,
     ) -> SubscriptionResult {
         println!("subscribe()");
+        panic!("subscribe() not implemented");
         use jsonrpsee::server::SubscriptionMessage;
         let sink = pending.accept().await.unwrap();
         let mut rx = self.block_tx.subscribe();
@@ -476,7 +477,7 @@ impl SequencerServer for SequencerImpl {
                     //     events: Some(map),
                     // };
                     // let event_wrapper: tendermint_rpc::event::DialectEvent<tendermint_rpc::dialect::v0_37::Event> = event.into();
-                    
+
                     // let response_wrapper = tendermint_rpc::response::Wrapper::new_with_id(
                     //     tendermint_rpc::Id::Num(1),
                     //     Some(event_wrapper),
