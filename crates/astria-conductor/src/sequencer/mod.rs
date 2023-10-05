@@ -185,7 +185,7 @@ impl Reader {
                     }
                 }
 
-                res = &mut resubscribe => {
+                res = &mut resubscribe, if !resubscribe.is_terminated() => {
                     if let Err(e) = assign_new_blocks_subscription(&mut new_blocks, res) {
                         error!(error.message = %e, error.cause = ?e, "failed to resubscribe to get new blocks from sequencer; exiting reader");
                         break 'reader_loop Err(e).wrap_err("failed to resubscribe to new blocks from sequencer");
