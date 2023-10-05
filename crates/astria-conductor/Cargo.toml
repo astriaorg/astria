@@ -33,7 +33,9 @@ tracing = { workspace = true }
 
 astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
 astria-sequencer-types = { path = "../astria-sequencer-types" }
-proto = { package = "astria-proto", path = "../astria-proto", features = ["client"] }
+proto = { package = "astria-proto", path = "../astria-proto", features = [
+  "client",
+] }
 sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
   "websocket",
 ] }
@@ -45,5 +47,7 @@ once_cell = { workspace = true }
 figment = { workspace = true, features = ["test"] }
 regex = { workspace = true }
 
-proto = { package = "astria-proto", path = "../astria-proto", features = ["server"] }
+proto = { package = "astria-proto", path = "../astria-proto", features = [
+  "server",
+] }
 tokio-stream = { version = "0.1.14", features = ["net"] }
