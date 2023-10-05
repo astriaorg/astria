@@ -74,7 +74,7 @@ pub(super) async fn run(
 
                     Ok(block) => {
                         let block = Box::new(block);
-                        if let Err(e) = executor.send(crate::executor::ExecutorCommand::BlockReceivedFromSequencer { block }) {
+                        if let Err(e) = executor.send(crate::executor::ExecutorCommand::FromSequencer { block }) {
                             error!(height, error.message = %e, error.cause = ?e, "failed forwarding block to executor; aborting async");
                             break 'sync Err(e).wrap_err("failed forwarding block to executor");
                         }

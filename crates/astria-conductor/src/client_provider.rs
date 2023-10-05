@@ -111,7 +111,7 @@ impl ClientProvider {
         if self.client_tx.send(tx).is_err() {
             return Err(Error::Failed);
         }
-        rx.await.map_err(|_| Error::ClientChannelDroped)?
+        rx.await.map_err(|_| Error::ClientChannelDropped)?
     }
 }
 

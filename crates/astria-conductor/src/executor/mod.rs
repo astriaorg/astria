@@ -64,7 +64,7 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> 
 #[derive(Debug)]
 pub(crate) enum ExecutorCommand {
     /// used when a block is received from the subscription stream to sequencer
-    BlockReceivedFromSequencer { block: Box<SequencerBlockData> },
+    FromSequencer { block: Box<SequencerBlockData> },
     /// used when a block is received from the reader (Celestia)
     FromCelestia(Vec<SequencerBlockSubset>),
 }
@@ -146,7 +146,7 @@ impl Executor {
                         break;
                     };
                     match cmd {
-                        ExecutorCommand::BlockReceivedFromSequencer {
+                        ExecutorCommand::FromSequencer {
                             block,
                         } => {
                             let height = block.header().height.value();

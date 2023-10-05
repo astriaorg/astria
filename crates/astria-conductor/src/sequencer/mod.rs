@@ -230,7 +230,7 @@ fn forward_pending_block(
         Ok(block) => block,
     };
     executor_tx
-        .send(ExecutorCommand::BlockReceivedFromSequencer {
+        .send(ExecutorCommand::FromSequencer {
             block: Box::new(block),
         })
         .wrap_err("failed sending new block received from sequencer to executor")
