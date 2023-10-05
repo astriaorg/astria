@@ -460,22 +460,23 @@ impl SequencerServer for SequencerImpl {
     ) -> SubscriptionResult {
         println!("subscribe()");
         use jsonrpsee::server::SubscriptionMessage;
-        let sink = pending.accept().await?;
+        let sink = pending.accept().await.unwrap();
         let mut rx = self.block_tx.subscribe();
         loop {
             tokio::select!(
                 biased;
                 () = sink.closed() => break,
                 Ok(block) = rx.recv() => {
-                    let mut map = BTreeMap::new();
-                    map.insert("tm.event".to_string(), vec!["NewBlock".to_string()]);
+                    // let mut map = BTreeMap::new();
+                    // map.insert("tm.event".to_string(), vec!["NewBlock".to_string()]);
 
-                    let event = tendermint_rpc::event::Event {
-                        query: "tm.event='NewBlock'".to_string(),
-                        data: tendermint_rpc::event::EventData::NewBlock { block: Some(block), result_begin_block: None, result_end_block: None },
-                        events: Some(map),
-                    };
-                    let event_wrapper: tendermint_rpc::event::DialectEvent<tendermint_rpc::dialect::v0_37::Event> = event.into();
+                    // let event = tendermint_rpc::event::Event {
+                    //     query: "tm.event='NewBlock'".to_string(),
+                    //     data: tendermint_rpc::event::EventData::NewBlock { block: Some(block), result_begin_block: None, result_end_block: None },
+                    //     events: Some(map),
+                    // };
+                    // let event_wrapper: tendermint_rpc::event::DialectEvent<tendermint_rpc::dialect::v0_37::Event> = event.into();
+                    
                     // let response_wrapper = tendermint_rpc::response::Wrapper::new_with_id(
                     //     tendermint_rpc::Id::Num(1),
                     //     Some(event_wrapper),
@@ -485,14 +486,14 @@ impl SequencerServer for SequencerImpl {
                         "query": "tm.event='NewBlock'",
                         "data": {
                             "type": "tendermint/event/NewBlock",
-                            "value": event_wrapper,
+                            "value": block,
                         },
                         "events": {
                             "tm.event": ["NewBlock"],
                         }
                     });
                     sink.send(
-                        SubscriptionMessage::from_json(&resp)?
+                        SubscriptionMessage::from_json(&resp).unwrap()
                     ).await?
                 }
             );
