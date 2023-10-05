@@ -204,7 +204,7 @@ impl Reader {
     ) {
         let sequencer_data = match sequencer_data_res {
             Err(e) => {
-                warn!(height, error.message = %e, error.cause = ?e, "task querying celestia for sequencer data failed");
+                warn!(error.message = %e, error.cause = ?e, "task querying celestia for sequencer data failed");
                 return;
             }
 
