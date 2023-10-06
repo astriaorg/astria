@@ -1,4 +1,6 @@
-use astria_proto::generated::execution::v1alpha1::{
+use color_eyre::eyre::Result;
+use prost_types::Timestamp;
+use proto::generated::execution::v1alpha1::{
     execution_service_client::ExecutionServiceClient,
     DoBlockRequest,
     DoBlockResponse,
@@ -6,8 +8,6 @@ use astria_proto::generated::execution::v1alpha1::{
     InitStateRequest,
     InitStateResponse,
 };
-use color_eyre::eyre::Result;
-use prost_types::Timestamp;
 use tonic::transport::Channel;
 use tracing::info;
 
