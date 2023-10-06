@@ -162,19 +162,17 @@ impl Executor {
                             }
                         }
 
-                        ExecutorCommand::FromCelestia(mut subsets) => {
-                            // FIXME: actually process all the blocks
-                            let block = subsets.remove(0);
-                            let height = block.header.height.value();
+                        ExecutorCommand::FromCelestia(blocks) => {
                             if let Err(e) = self
-                                .handle_block_received_from_data_availability(block)
+                                .execute_and_finalize_blocks_from_celestia(blocks)
                                 .await
                             {
                                 error!(
-                                    height = height,
-                                    error = ?e,
-                                    "failed to finalize block"
+                                    error.message = %e,
+                                    error.cause = ?e,
+                                    "failed to finalize block; stopping executor"
                                 );
+                                break;
                             }
                         }
                     }
@@ -238,10 +236,15 @@ impl Executor {
         Ok(Some(response.block_hash))
     }
 
-    async fn handle_block_received_from_data_availability(
+    async fn execute_and_finalize_blocks_from_celestia(
         &mut self,
-        block: SequencerBlockSubset,
+        blocks: Vec<SequencerBlockSubset>,
     ) -> Result<()> {
+        // FIXME: actually process all blocks.
+        let Some(block) = blocks.get(0).cloned() else {
+            info!("received a message from data availability without; skipping execution");
+            return Ok(());
+        };
         let sequencer_block_hash = block.block_hash;
         let maybe_execution_block_hash = self
             .sequencer_hash_to_execution_hash
