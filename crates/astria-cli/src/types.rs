@@ -45,7 +45,6 @@ pub struct RollupDeploymentConfig {
     use_tty: bool,
     log_level: String,
     rollup: RollupConfig,
-    faucet: FaucetConfig,
     sequencer: SequencerConfig,
     celestia: CelestiaConfig,
 }
@@ -93,14 +92,10 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
                 skip_empty_blocks: args.skip_empty_blocks,
                 genesis_accounts,
             },
-            faucet: FaucetConfig {
-                private_key: args.faucet_private_key.clone(),
-            },
             sequencer: SequencerConfig {
                 initial_block_height: sequencer_initial_block_height,
                 websocket: args.sequencer_websocket.clone(),
                 rpc: args.sequencer_rpc.clone(),
-                private_key: args.sequencer_private_key.clone(),
             },
             celestia: CelestiaConfig {
                 full_node_url: args.celestia_full_node_url.clone(),
@@ -140,17 +135,10 @@ impl From<GenesisAccountArg> for GenesisAccount {
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct FaucetConfig {
-    private_key: String,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct SequencerConfig {
     initial_block_height: u64,
     websocket: String,
     rpc: String,
-    private_key: String,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -215,14 +203,10 @@ mod tests {
                         },
                     ],
                 },
-                faucet: FaucetConfig {
-                    private_key: "key1".to_string(),
-                },
                 sequencer: SequencerConfig {
                     initial_block_height: 10,
                     websocket: "ws://localhost:8080".to_string(),
                     rpc: "http://localhost:8081".to_string(),
-                    private_key: "seq_key1".to_string(),
                 },
                 celestia: CelestiaConfig {
                     full_node_url: "http://celestia_node".to_string(),
@@ -267,14 +251,10 @@ mod tests {
                         balance: "10000".to_string(),
                     }],
                 },
-                faucet: FaucetConfig {
-                    private_key: "key2".to_string(),
-                },
                 sequencer: SequencerConfig {
                     initial_block_height: 0, // Default value
                     websocket: "ws://localhost:8082".to_string(),
                     rpc: "http://localhost:8083".to_string(),
-                    private_key: "seq_key2".to_string(),
                 },
                 celestia: CelestiaConfig {
                     full_node_url: "http://celestia_node2".to_string(),

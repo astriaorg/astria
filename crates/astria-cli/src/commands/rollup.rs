@@ -93,6 +93,10 @@ pub(crate) fn deploy_config(args: &ConfigDeployArgs) -> eyre::Result<()> {
         .arg(rollup.deployment_config.get_filename())
         .arg("--set")
         .arg("config.rollup.disableFinalization=true")
+        .arg("--set")
+        .arg(format!("config.faucet.privateKey={}", args.faucet_private_key.clone()))
+        .arg("--set")
+        .arg(format!("config.sequencer.privateKey={}", args.sequencer_private_key.clone()))
         .arg(rollup.deployment_config.get_chart_release_name())
         .arg(EVM_ROLLUP_CHART_URL);
 

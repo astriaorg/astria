@@ -53,10 +53,6 @@ pub struct ConfigCreateArgs {
     #[clap(long, env = "ROLLUP_GENESIS_ACCOUNTS", num_args = 1..)]
     pub genesis_accounts: Vec<GenesisAccountArg>,
 
-    // faucet config
-    #[clap(long = "faucet.private-key", env = "ROLLUP_FAUCET_PRIVATE_KEY")]
-    pub faucet_private_key: String,
-
     // sequencer config
     #[clap(
         long = "sequencer.initial-block-height",
@@ -69,8 +65,6 @@ pub struct ConfigCreateArgs {
     pub sequencer_websocket: String,
     #[clap(long = "sequencer.rpc", env = "ROLLUP_SEQUENCER_RPC")]
     pub sequencer_rpc: String,
-    #[clap(long = "sequencer.private-key", env = "ROLLUP_SEQUENCER_PRIVATE_KEY")]
-    pub sequencer_private_key: String,
 
     // celestia config
     #[clap(long = "celestia.full-node-url", env = "ROLLUP_CELESTIA_FULL_NODE_URL")]
@@ -136,6 +130,12 @@ pub struct ConfigDeployArgs {
     /// The name of the config to deploy
     #[clap(long)]
     pub(crate) filename: String,
+    /// The faucet private key
+    #[clap(long)]
+    pub(crate) faucet_private_key: String,
+    /// The sequencer private key
+    #[clap(long)]
+    pub(crate) sequencer_private_key: String,
 }
 
 #[derive(Args, Debug)]
