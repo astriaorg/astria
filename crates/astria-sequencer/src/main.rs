@@ -24,6 +24,13 @@ async fn main() -> ExitCode {
         config = serde_json::to_string(&config).expect("serializing to a string cannot fail"),
         "initializing sequencer"
     );
+
+    #[cfg(feature = "mint")]
+    {
+        tracing::warn!("MINT FEATURE IS ENABLED!");
+        tracing::warn!("do not enable minting in production!");
+    }
+
     Sequencer::run_until_stopped(config)
         .await
         .expect("failed to run sequencer");
