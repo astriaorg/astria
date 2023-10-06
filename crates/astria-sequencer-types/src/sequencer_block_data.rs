@@ -363,6 +363,7 @@ impl SequencerBlockData {
     }
 }
 
+#[must_use]
 pub fn calculate_data_hash_and_tx_tree(txs: &[Vec<u8>]) -> ([u8; 32], MerkleTree) {
     let hashed_txs = txs.iter().map(|tx| sha256_hash(tx)).collect::<Vec<_>>();
     let tx_tree = MerkleTree::from_leaves(hashed_txs);
