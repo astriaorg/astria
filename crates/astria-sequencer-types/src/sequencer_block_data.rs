@@ -559,10 +559,7 @@ mod test {
 
     #[test]
     fn tendermint_block_to_sequencer_block() {
-        use rand::rngs::OsRng;
-        let signing_key = ed25519_consensus::SigningKey::new(OsRng);
-        let height = 1;
-        let block = create_tendermint_block(&signing_key, height);
+        let block = create_tendermint_block();
         let block_data = SequencerBlockData::from_tendermint_block(block).unwrap();
 
         // convert to raw and back, which performs all necessary validations
@@ -570,10 +567,7 @@ mod test {
         SequencerBlockData::try_from_raw(raw).unwrap();
     }
 
-    fn create_tendermint_block(
-        signing_key: &ed25519_consensus::SigningKey,
-        height: u32,
-    ) -> tendermint::Block {
+    fn create_tendermint_block() -> tendermint::Block {
         use proto::{
             native::sequencer::v1alpha1::{
                 SequenceAction,
@@ -581,6 +575,7 @@ mod test {
             },
             Message as _,
         };
+        use rand::rngs::OsRng;
         use sha2::Digest as _;
         use tendermint::{
             block,
@@ -591,6 +586,9 @@ mod test {
             Time,
         };
 
+        let height = 1u32;
+
+        let signing_key = ed25519_consensus::SigningKey::new(OsRng);
         let public_key: tendermint::crypto::ed25519::VerificationKey =
             signing_key.verification_key().as_ref().try_into().unwrap();
         let proposer_address = tendermint::account::Id::from(public_key);
@@ -607,7 +605,7 @@ mod test {
                 .into(),
             ],
         }
-        .into_signed(signing_key)
+        .into_signed(&signing_key)
         .into_raw()
         .encode_to_vec();
         let action_tree =
