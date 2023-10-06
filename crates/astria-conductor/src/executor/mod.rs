@@ -242,7 +242,7 @@ impl Executor {
     ) -> Result<()> {
         // FIXME: actually process all blocks.
         let Some(block) = blocks.get(0).cloned() else {
-            info!("received a message from data availability without; skipping execution");
+            info!("received a message from data availability without blocks; skipping execution");
             return Ok(());
         };
         let sequencer_block_hash = block.block_hash;
