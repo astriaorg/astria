@@ -1,0 +1,17 @@
+config:
+  useTty: true
+  logLevel: DEBUG
+  rollup:
+    name: MyRollup
+    chainId: '0x1234'
+    networkId: 42
+    skipEmptyBlocks: true
+  faucet:
+    privateKey: 0xYourPrivateKeyHere
+  sequencer:
+    initialBlockHeight: 1000
+    websocket: ws://localhost:8080
+    rpc: http://localhost:8545
+    privateKey: 0xSequencerPrivateKeyHere
+  celestia:
+    fullNodeUrl: http://celestia-node-url.com

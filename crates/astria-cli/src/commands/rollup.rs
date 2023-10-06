@@ -4,20 +4,16 @@ use std::{
 };
 
 use color_eyre::eyre;
-use serde_yaml::to_string;
 
-use crate::cli::{
-    RollupConfigCreateArgs,
-    RollupConfigDeleteArgs,
-    RollupConfigDeployArgs,
-    RollupConfigEditArgs,
+use crate::{
+    cli::rollup::{
+        ConfigCreateArgs,
+        ConfigDeleteArgs,
+        ConfigDeployArgs,
+        ConfigEditArgs,
+    },
+    types::Rollup,
 };
-
-/// Generate a yaml string from the arguments
-fn generate_yaml(args: &RollupConfigCreateArgs) -> eyre::Result<String> {
-    let yaml_str = to_string(args)?;
-    Ok(yaml_str)
-}
 
 /// Create a new rollup config file
 ///
@@ -30,50 +26,28 @@ fn generate_yaml(args: &RollupConfigCreateArgs) -> eyre::Result<String> {
 /// * If the config file cannot be created
 /// * If the arguments cannot be serialized to yaml
 /// * If the yaml cannot be written to the file
-pub(crate) fn create_config(args: &RollupConfigCreateArgs) -> eyre::Result<()> {
+pub(crate) fn create_config(args: &ConfigCreateArgs) -> eyre::Result<()> {
     // create file and prefix name with rollup name
     let name = &args.name;
     let path = format!("{name}-values-override.yaml");
     let mut output = File::create(path)?;
 
     // write args as yaml
-    let yaml_str = generate_yaml(args)?;
+    let rollup = Rollup::from_cli_args(args)?;
+    let yaml_str = rollup.to_yaml()?;
     write!(output, "{yaml_str}")?;
 
     Ok(())
 }
 
-pub(crate) fn edit_config(args: &RollupConfigEditArgs) {
+pub(crate) fn edit_config(args: &ConfigEditArgs) {
     println!("Edit Rollup Config {args:?}");
 }
 
-pub(crate) fn deploy_config(args: &RollupConfigDeployArgs) {
+pub(crate) fn deploy_config(args: &ConfigDeployArgs) {
     println!("Deploy Rollup Config {args:?}");
 }
 
-pub(crate) fn delete_config(args: &RollupConfigDeleteArgs) {
+pub(crate) fn delete_config(args: &ConfigDeleteArgs) {
     println!("Delete Rollup Config {args:?}");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::cli::RollupConfigCreateArgs;
-
-    #[test]
-    fn test_generate_yaml() {
-        let args = RollupConfigCreateArgs {
-            name: "test".to_string(),
-            genesis_alloc_address: "0x000000".to_string(),
-            private_key: "0x000000".to_string(),
-            evm_chain_id: "test".to_string(),
-            evm_network_id: 12345,
-            sequencer_private_key: "0x000000".to_string(),
-        };
-        let result = generate_yaml(&args);
-        let yaml_str = result.unwrap();
-        assert!(yaml_str.contains("test"));
-        assert!(yaml_str.contains("0x000000"));
-        assert!(yaml_str.contains("12345"));
-    }
 }

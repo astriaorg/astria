@@ -7,13 +7,17 @@ use color_eyre::{
 };
 
 use crate::cli::{
+    rollup::{
+        Command as RollupCommand,
+        ConfigCommand,
+    },
+    sequencer::{
+        AccountCommand,
+        BalanceCommand,
+        Command as SequencerCommand,
+    },
     Cli,
     Command,
-    RollupCommand,
-    RollupConfigCommand,
-    SequencerAccountCommand,
-    SequencerBalanceCommand,
-    SequencerCommand,
 };
 
 /// Checks what function needs to be run and calls it with the appropriate arguments
@@ -38,10 +42,10 @@ pub fn run(cli: Cli) -> eyre::Result<()> {
                 RollupCommand::Config {
                     command,
                 } => match command {
-                    RollupConfigCommand::Create(args) => rollup::create_config(&args)?,
-                    RollupConfigCommand::Edit(args) => rollup::edit_config(&args),
-                    RollupConfigCommand::Deploy(args) => rollup::deploy_config(&args),
-                    RollupConfigCommand::Delete(args) => rollup::delete_config(&args),
+                    ConfigCommand::Create(args) => rollup::create_config(&args)?,
+                    ConfigCommand::Edit(args) => rollup::edit_config(&args),
+                    ConfigCommand::Deploy(args) => rollup::deploy_config(&args),
+                    ConfigCommand::Delete(args) => rollup::delete_config(&args),
                 },
             },
             Command::Sequencer {
@@ -50,12 +54,12 @@ pub fn run(cli: Cli) -> eyre::Result<()> {
                 SequencerCommand::Account {
                     command,
                 } => match command {
-                    SequencerAccountCommand::Create => sequencer::create_account(),
+                    AccountCommand::Create => sequencer::create_account(),
                 },
                 SequencerCommand::Balance {
                     command,
                 } => match command {
-                    SequencerBalanceCommand::Get(_args) => todo!(),
+                    BalanceCommand::Get(_args) => todo!(),
                 },
             },
         }
