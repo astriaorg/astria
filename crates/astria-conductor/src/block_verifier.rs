@@ -127,6 +127,8 @@ fn validate_sequencer_namespace_data(
     parent_validator_set: &validators::Response,
     data: &SequencerNamespaceData,
 ) -> eyre::Result<()> {
+    use sha2::Digest as _;
+
     let SequencerNamespaceData {
         block_hash,
         header,
@@ -193,8 +195,9 @@ fn validate_sequencer_namespace_data(
     let Some(data_hash) = header.data_hash else {
         bail!("data hash should not be empty");
     };
+    let action_tree_root_hash = sha2::Sha256::digest(action_tree_root);
     action_tree_root_inclusion_proof
-        .verify(action_tree_root, data_hash)
+        .verify(action_tree_root_hash, data_hash)
         .wrap_err("failed to verify action tree root inclusion proof")?;
 
     // validate the chain IDs commitment
