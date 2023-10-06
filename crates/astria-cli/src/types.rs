@@ -41,12 +41,25 @@ impl TryInto<String> for Rollup {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RollupDeploymentConfig {
+    #[serde(rename = "useTTY")]
     use_tty: bool,
     log_level: String,
     rollup: RollupConfig,
     faucet: FaucetConfig,
     sequencer: SequencerConfig,
     celestia: CelestiaConfig,
+}
+
+impl RollupDeploymentConfig {
+    #[must_use]
+    pub fn get_filename(&self) -> String {
+        format!("{}-rollup-conf.yaml", self.rollup.name)
+    }
+
+    #[must_use]
+    pub fn get_chart_release_name(&self) -> String {
+        format!("{}-rollup", self.rollup.name)
+    }
 }
 
 impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
@@ -113,7 +126,7 @@ pub struct RollupConfig {
 #[serde(rename_all = "camelCase")]
 struct GenesisAccount {
     address: String,
-    balance: u64,
+    balance: String,
 }
 
 impl From<GenesisAccountArg> for GenesisAccount {
@@ -167,11 +180,11 @@ mod tests {
             genesis_accounts: vec![
                 GenesisAccountArg {
                     address: "0xA5TR14".to_string(),
-                    balance: 10000,
+                    balance: "10000".to_string(),
                 },
                 GenesisAccountArg {
                     address: "0x420XYZ69".to_string(),
-                    balance: 420,
+                    balance: "420".to_string(),
                 },
             ],
             faucet_private_key: "key1".to_string(),
@@ -194,11 +207,11 @@ mod tests {
                     genesis_accounts: vec![
                         GenesisAccount {
                             address: "0xA5TR14".to_string(),
-                            balance: 10000,
+                            balance: "10000".to_string(),
                         },
                         GenesisAccount {
                             address: "0x420XYZ69".to_string(),
-                            balance: 420,
+                            balance: "420".to_string(),
                         },
                     ],
                 },
@@ -230,7 +243,7 @@ mod tests {
             skip_empty_blocks: false,
             genesis_accounts: vec![GenesisAccountArg {
                 address: "0xA5TR14".to_string(),
-                balance: 10000,
+                balance: "10000".to_string(),
             }],
             faucet_private_key: "key2".to_string(),
             sequencer_initial_block_height: None,
@@ -251,7 +264,7 @@ mod tests {
                     skip_empty_blocks: false,
                     genesis_accounts: vec![GenesisAccount {
                         address: "0xA5TR14".to_string(),
-                        balance: 10000,
+                        balance: "10000".to_string(),
                     }],
                 },
                 faucet: FaucetConfig {

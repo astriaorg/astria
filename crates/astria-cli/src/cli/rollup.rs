@@ -77,12 +77,17 @@ pub struct ConfigCreateArgs {
     pub celestia_full_node_url: String,
 }
 
-/// `GenesisAccount` is a wrapper around a string to allow for custom parsing.
+/// `GenesisAccount` is a struct that represents a genesis account to be funded.
 /// It has the form of `address:balance`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct GenesisAccountArg {
     pub address: String,
-    pub balance: u64,
+    pub balance: String,
+}
+
+/// Check if a string is a valid balance.
+fn is_valid_balance(s: &str) -> bool {
+    s.parse::<u128>().is_ok()
 }
 
 impl FromStr for GenesisAccountArg {
@@ -95,7 +100,6 @@ impl FromStr for GenesisAccountArg {
     ///
     /// * If the address is missing
     /// * If the address is empty
-    /// * If the balance cannot be converted to a u64
     fn from_str(s: &str) -> eyre::Result<Self, Self::Err> {
         let mut parts = s.splitn(2, ':');
 
@@ -108,9 +112,10 @@ impl FromStr for GenesisAccountArg {
         }
 
         let balance_str = parts.next().unwrap_or("0");
-        let balance = balance_str
-            .parse::<u64>()
-            .map_err(|e| eyre::eyre!("Invalid balance: {}", e))?;
+        if !is_valid_balance(balance_str) {
+            return Err(eyre::eyre!("Invalid balance"));
+        }
+        let balance = balance_str.to_string();
 
         Ok(GenesisAccountArg {
             address,
@@ -121,23 +126,23 @@ impl FromStr for GenesisAccountArg {
 
 #[derive(Args, Debug)]
 pub struct ConfigEditArgs {
-    /// The name of the config to edit
+    /// The filename of the config to edit
     #[clap(long)]
-    pub(crate) config_name: Option<String>,
+    pub(crate) filename: String,
 }
 
 #[derive(Args, Debug)]
 pub struct ConfigDeployArgs {
     /// The name of the config to deploy
     #[clap(long)]
-    pub(crate) config_name: Option<String>,
+    pub(crate) filename: String,
 }
 
 #[derive(Args, Debug)]
 pub struct ConfigDeleteArgs {
     /// The name of the config to delete
     #[clap(long)]
-    pub(crate) config_name: Option<String>,
+    pub(crate) filename: String,
 }
 
 #[cfg(test)]
@@ -149,7 +154,7 @@ mod tests {
         let input = "0x1234abcd:1000";
         let expected = GenesisAccountArg {
             address: "0x1234abcd".to_string(),
-            balance: 1000,
+            balance: "1000".to_string(),
         };
         let result: GenesisAccountArg = input.parse().unwrap();
         assert_eq!(result, expected);
@@ -160,7 +165,7 @@ mod tests {
         let input = "0x1234abcd";
         let expected = GenesisAccountArg {
             address: "0x1234abcd".to_string(),
-            balance: 0,
+            balance: "0".to_string(),
         };
         let result: GenesisAccountArg = input.parse().unwrap();
         assert_eq!(result, expected);

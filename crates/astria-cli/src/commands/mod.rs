@@ -44,8 +44,8 @@ pub fn run(cli: Cli) -> eyre::Result<()> {
                 } => match command {
                     ConfigCommand::Create(args) => rollup::create_config(&args)?,
                     ConfigCommand::Edit(args) => rollup::edit_config(&args),
-                    ConfigCommand::Deploy(args) => rollup::deploy_config(&args),
-                    ConfigCommand::Delete(args) => rollup::delete_config(&args),
+                    ConfigCommand::Deploy(args) => rollup::deploy_config(&args)?,
+                    ConfigCommand::Delete(args) => rollup::delete_config(&args)?,
                 },
             },
             Command::Sequencer {
