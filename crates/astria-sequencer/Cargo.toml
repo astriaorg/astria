@@ -39,3 +39,7 @@ figment = { workspace = true, features = ["env"] }
 once_cell = { workspace = true }
 figment = { workspace = true, features = ["test"] }
 regex = { workspace = true }
+
+[features]
+default = []
+mint = ["proto/mint"]

@@ -96,6 +96,7 @@ impl ActionHandler for UnsignedTransaction {
                 Action::SudoAddressChange(act) => act
                     .check_stateless()
                     .context("stateless check failed for SudoAddressChangeAction")?,
+                #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateless()
                     .context("stateless check failed for MintAction")?,
@@ -132,6 +133,7 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for SudoAddressChangeAction")?,
+                #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateful(state, from)
                     .await
@@ -183,6 +185,7 @@ impl ActionHandler for UnsignedTransaction {
                         .await
                         .context("execution failed for SudoAddressChangeAction")?;
                 }
+                #[cfg(feature = "mint")]
                 Action::Mint(act) => {
                     act.execute(state, from)
                         .await

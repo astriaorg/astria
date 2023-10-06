@@ -296,10 +296,11 @@ impl App {
 #[cfg(test)]
 mod test {
     use ed25519_consensus::SigningKey;
+    #[cfg(feature = "mint")]
+    use proto::native::sequencer::v1alpha1::MintAction;
     use proto::{
         native::sequencer::v1alpha1::{
             Address,
-            MintAction,
             SequenceAction,
             SudoAddressChangeAction,
             TransferAction,
@@ -720,6 +721,7 @@ mod test {
         assert!(res.contains("signer is not the sudo key"));
     }
 
+    #[cfg(feature = "mint")]
     #[tokio::test]
     async fn app_deliver_tx_mint() {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
