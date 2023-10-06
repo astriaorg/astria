@@ -42,6 +42,7 @@ use crate::{
         self,
         ClientProvider,
     },
+    config::CommitLevel,
     data_availability,
     executor::Executor,
     sequencer,
@@ -71,9 +72,9 @@ pub struct Conductor {
 }
 
 impl Conductor {
-    const DATA_AVAILABILITY: &str = "data_availability";
-    const EXECUTOR: &str = "executor";
-    const SEQUENCER: &str = "sequencer";
+    const DATA_AVAILABILITY: &'static str = "data_availability";
+    const EXECUTOR: &'static str = "executor";
+    const SEQUENCER: &'static str = "sequencer";
 
     pub async fn new(cfg: Config) -> eyre::Result<Self> {
         let mut tasks = JoinMap::new();
@@ -105,7 +106,9 @@ impl Conductor {
             .wrap_err("failed to create sequencer client pool")?;
 
         // Spawn the sequencer task
-        let sync_done = {
+        // Only spawn the sequencer::Reader if CommitLevel is not FirmOnly, also
+        // send () to sync_done to start normal block execution behavior
+        let sync_done = if cfg.execution_commit_level != CommitLevel::FirmOnly {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             let (sync_done_tx, sync_done_rx) = oneshot::channel();
             let sequencer_reader = sequencer::Reader::new(
@@ -118,15 +121,21 @@ impl Conductor {
             tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
             shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
             sync_done_rx
+        } else {
+            let (sync_done_tx, sync_done_rx) = oneshot::channel();
+            let _ = sync_done_tx.send(());
+            sync_done_rx
         };
 
         // Construct the data availability reader without spawning it.
         // It will be executed after sync is done.
         let mut data_availability_reader = None;
-        if !cfg.disable_finalization {
+        // Only spawn the data_availability::Reader if CommitLevel is not SoftOnly
+        if cfg.execution_commit_level != CommitLevel::SoftOnly {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
             let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
+            // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
             let reader = data_availability::Reader::new(
                 &cfg.celestia_node_url,
                 &cfg.celestia_bearer_token,
