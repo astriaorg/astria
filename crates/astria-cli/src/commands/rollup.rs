@@ -135,7 +135,9 @@ pub(crate) fn delete_config(args: &ConfigDeleteArgs) -> eyre::Result<()> {
                 String::from_utf8_lossy(&output.stderr)
             );
         }
-        Ok(_) => {}
+        Ok(_) => {
+            println!("Deleted deployment created from rollup config {}", args.filename);
+        }
     };
 
     Ok(())
