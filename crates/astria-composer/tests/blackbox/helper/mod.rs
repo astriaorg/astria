@@ -12,6 +12,7 @@ use astria_composer::{
 use once_cell::sync::Lazy;
 use tokio::task::JoinHandle;
 use tracing::debug;
+use wiremock::MockGuard;
 pub mod mock_geth;
 pub mod mock_sequencer;
 
@@ -28,6 +29,7 @@ pub struct TestComposer {
     pub composer: JoinHandle<()>,
     pub rollup_nodes: HashMap<String, mock_geth::MockGeth>,
     pub sequencer: wiremock::MockServer,
+    pub setup_guard: MockGuard,
 }
 
 /// Spawns composer in a test environment.
@@ -51,7 +53,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         rollup_nodes.insert((*id).to_string(), geth);
         rollups.push_str(&format!("{id}::{execution_url},"));
     }
-    let sequencer = mock_sequencer::start().await;
+    let (sequencer, sequencer_setup_guard) = mock_sequencer::start().await;
     let sequencer_url = sequencer.uri();
     let config = Config {
         log: String::new(),
@@ -75,6 +77,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         composer,
         rollup_nodes,
         sequencer,
+        setup_guard: sequencer_setup_guard,
     }
 }
 

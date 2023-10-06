@@ -127,16 +127,13 @@ impl Executor {
     /// Gets the next nonce to sign over and increments the internal counter.
     /// If there is not a nonce currently stored, will fetch the latest nonce from the sequencer.
     async fn get_and_increment_nonce(&mut self) -> eyre::Result<u32> {
-        match self.nonce {
-            Some(curr_nonce) => {
-                self.nonce = Some(curr_nonce + 1);
-                Ok(curr_nonce)
-            }
-            None => {
-                let rsp = self.sequencer_client.get_latest_nonce(self.address).await?;
-                self.nonce = Some(rsp.nonce + 1);
-                Ok(rsp.nonce)
-            }
+        if let Some(curr_nonce) = self.nonce {
+            self.nonce = Some(curr_nonce + 1);
+            Ok(curr_nonce)
+        } else {
+            let rsp = self.sequencer_client.get_latest_nonce(self.address).await?;
+            self.nonce = Some(rsp.nonce + 1);
+            Ok(rsp.nonce)
         }
     }
 
@@ -149,7 +146,7 @@ impl Executor {
         let nonce = self
             .get_and_increment_nonce()
             .await
-            .map_err(|e| ExeuctionError::SequencerClientFailure(e))?;
+            .map_err(ExeuctionError::SequencerClientFailure)?;
 
         let tx = UnsignedTransaction {
             nonce,
@@ -161,7 +158,7 @@ impl Executor {
             .sequencer_client
             .submit_transaction_sync(tx.clone())
             .await
-            .map_err(|e| ExeuctionError::SequencerClientFailure(e))?;
+            .map_err(ExeuctionError::SequencerClientFailure)?;
 
         match AbciCode::from_tendermint(submission_rsp.code) {
             Some(AbciCode::OK) => Ok(tx),
@@ -178,7 +175,7 @@ impl Executor {
 
     async fn handle_bundle_resubmission(&self, bundle: Vec<Action>) {
         if let Err(e) = self.transaction_resubmission_tx.send(bundle).await {
-            error!(error.msg = %e, error.cause_chain=?e, "failed to resubmit transaction")
+            error!(error.msg = %e, error.cause_chain=?e, "failed to resubmit transaction");
         }
     }
 
@@ -234,7 +231,7 @@ impl Executor {
                         nonce = ?nonce,
                         "transaction submitted to sequencer successfully with nonce {}",
                         nonce
-                    )
+                    );
                 }
             }
         }
