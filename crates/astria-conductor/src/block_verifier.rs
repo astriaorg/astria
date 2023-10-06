@@ -127,6 +127,8 @@ fn validate_sequencer_namespace_data(
     parent_validator_set: &validators::Response,
     data: &SequencerNamespaceData,
 ) -> eyre::Result<()> {
+    use sha2::Digest as _;
+
     let SequencerNamespaceData {
         block_hash,
         header,
@@ -193,8 +195,9 @@ fn validate_sequencer_namespace_data(
     let Some(data_hash) = header.data_hash else {
         bail!("data hash should not be empty");
     };
+    let action_tree_root_hash = sha2::Sha256::digest(action_tree_root);
     action_tree_root_inclusion_proof
-        .verify(action_tree_root, data_hash)
+        .verify(&action_tree_root_hash, data_hash)
         .wrap_err("failed to verify action tree root inclusion proof")?;
 
     // validate the chain IDs commitment
@@ -432,9 +435,10 @@ mod test {
         let action_tree = MerkleTree::from_leaves(vec![vec![1, 2, 3], vec![4, 5, 6]]);
         let action_tree_root = action_tree.root();
 
-        let tx_tree = MerkleTree::from_leaves(vec![action_tree_root.to_vec()]);
+        let txs = vec![action_tree_root.to_vec()];
+        let (data_hash, tx_tree) =
+            astria_sequencer_types::sequencer_block_data::calculate_data_hash_and_tx_tree(&txs);
         let action_tree_root_inclusion_proof = tx_tree.prove_inclusion(0).unwrap();
-        let data_hash = tx_tree.root();
 
         let mut header = astria_sequencer_types::test_utils::default_header();
         let height = header.height.value() as u32;
@@ -473,9 +477,10 @@ mod test {
         let action_tree = MerkleTree::from_leaves(leaves);
         let action_tree_root = action_tree.root();
 
-        let tx_tree = MerkleTree::from_leaves(vec![action_tree_root.to_vec()]);
+        let txs = vec![action_tree_root.to_vec()];
+        let (data_hash, tx_tree) =
+            astria_sequencer_types::sequencer_block_data::calculate_data_hash_and_tx_tree(&txs);
         let action_tree_root_inclusion_proof = tx_tree.prove_inclusion(0).unwrap();
-        let data_hash = tx_tree.root();
 
         let mut header = astria_sequencer_types::test_utils::default_header();
         let height = header.height.value() as u32;
