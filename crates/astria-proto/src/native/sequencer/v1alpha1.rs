@@ -716,8 +716,15 @@ pub use mint::{
 
 #[cfg(feature = "mint")]
 mod mint {
-    use super::*;
+    use super::{
+        raw,
+        Address,
+        Display,
+        Error,
+        IncorrectAddressLength,
+    };
 
+    #[allow(clippy::module-name-repetitions)]
     #[derive(Clone, Debug)]
     pub struct MintAction {
         pub to: Address,
@@ -769,6 +776,7 @@ mod mint {
         }
     }
 
+    #[allow(clippy::module-name-repetitions)]
     #[derive(Debug)]
     pub struct MintActionError {
         kind: MintActionErrorKind,
