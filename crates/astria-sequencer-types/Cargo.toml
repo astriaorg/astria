@@ -23,3 +23,5 @@ sequencer-validation = { package = "astria-sequencer-validation", path = "../ast
 
 [dev-dependencies]
 ct-merkle = { version = "0.1", features = ["serde"] }
+ed25519-consensus = { workspace = true }
+rand = { workspace = true }

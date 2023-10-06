@@ -138,6 +138,8 @@ impl SequencerBlockData {
     /// - if the block's height is >1 and it does not contain a last commit or last commit hash
     /// - if the block's last commit hash does not match the one calculated from the block's commit
     pub fn try_from_raw(raw: RawSequencerBlockData) -> Result<Self, Error> {
+        use sha2::Digest as _;
+
         let RawSequencerBlockData {
             block_hash,
             header,
@@ -154,8 +156,9 @@ impl SequencerBlockData {
         }
 
         let data_hash = header.data_hash.ok_or(Error::MissingDataHash)?;
+        let action_tree_root_hash = sha2::Sha256::digest(action_tree_root);
         action_tree_root_inclusion_proof
-            .verify(&action_tree_root, data_hash)
+            .verify(&action_tree_root_hash, data_hash)
             .map_err(Error::Verification)?;
 
         // genesis and height 1 do not have a last commit
@@ -360,7 +363,7 @@ impl SequencerBlockData {
     }
 }
 
-fn calculate_data_hash_and_tx_tree(txs: &[Vec<u8>]) -> ([u8; 32], MerkleTree) {
+pub fn calculate_data_hash_and_tx_tree(txs: &[Vec<u8>]) -> ([u8; 32], MerkleTree) {
     let hashed_txs = txs.iter().map(|tx| sha256_hash(tx)).collect::<Vec<_>>();
     let tx_tree = MerkleTree::from_leaves(hashed_txs);
     let calculated_data_hash = tx_tree.root();
@@ -551,5 +554,100 @@ mod test {
             .unwrap();
         let (data_hash, _) = super::calculate_data_hash_and_tx_tree(&[tx]);
         assert_eq!(data_hash.to_vec(), expected_data_hash);
+    }
+
+    #[test]
+    fn tendermint_block_to_sequencer_block() {
+        use rand::rngs::OsRng;
+        let signing_key = ed25519_consensus::SigningKey::new(OsRng);
+        let height = 1;
+        let block = create_tendermint_block(&signing_key, height);
+        let block_data = SequencerBlockData::from_tendermint_block(block).unwrap();
+
+        // convert to raw and back, which performs all necessary validations
+        let raw = block_data.into_raw();
+        SequencerBlockData::try_from_raw(raw).unwrap();
+    }
+
+    fn create_tendermint_block(
+        signing_key: &ed25519_consensus::SigningKey,
+        height: u32,
+    ) -> tendermint::Block {
+        use proto::{
+            native::sequencer::v1alpha1::{
+                SequenceAction,
+                UnsignedTransaction,
+            },
+            Message as _,
+        };
+        use sha2::Digest as _;
+        use tendermint::{
+            block,
+            chain,
+            evidence,
+            hash::AppHash,
+            merkle::simple_hash_from_byte_vectors,
+            Time,
+        };
+
+        let public_key: tendermint::crypto::ed25519::VerificationKey =
+            signing_key.verification_key().as_ref().try_into().unwrap();
+        let proposer_address = tendermint::account::Id::from(public_key);
+
+        let suffix = height.to_string().into_bytes();
+        let chain_id = [b"test_chain_id_", &*suffix].concat();
+        let signed_tx_bytes = UnsignedTransaction {
+            nonce: 1,
+            actions: vec![
+                SequenceAction {
+                    chain_id: chain_id.clone(),
+                    data: [b"hello_world_id_", &*suffix].concat(),
+                }
+                .into(),
+            ],
+        }
+        .into_signed(signing_key)
+        .into_raw()
+        .encode_to_vec();
+        let action_tree =
+            sequencer_validation::MerkleTree::from_leaves(vec![signed_tx_bytes.clone()]);
+        let chain_ids_commitment = MerkleTree::from_leaves(vec![chain_id]).root();
+        let data = vec![
+            action_tree.root().to_vec(),
+            chain_ids_commitment.to_vec(),
+            signed_tx_bytes,
+        ];
+        let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
+            &data.iter().map(sha2::Sha256::digest).collect::<Vec<_>>(),
+        )));
+
+        let (last_commit_hash, last_commit) = crate::test_utils::make_test_commit_and_hash();
+
+        tendermint::Block::new(
+            block::Header {
+                version: block::header::Version {
+                    block: 0,
+                    app: 0,
+                },
+                chain_id: chain::Id::try_from("test").unwrap(),
+                height: block::Height::from(height),
+                time: Time::now(),
+                last_block_id: None,
+                last_commit_hash: (height > 1).then_some(last_commit_hash),
+                data_hash,
+                validators_hash: Hash::Sha256([0; 32]),
+                next_validators_hash: Hash::Sha256([0; 32]),
+                consensus_hash: Hash::Sha256([0; 32]),
+                app_hash: AppHash::try_from([0; 32].to_vec()).unwrap(),
+                last_results_hash: None,
+                evidence_hash: None,
+                proposer_address,
+            },
+            data,
+            evidence::List::default(),
+            // The first height must not, every height after must contain a last commit
+            (height > 1).then_some(last_commit),
+        )
+        .unwrap()
     }
 }
