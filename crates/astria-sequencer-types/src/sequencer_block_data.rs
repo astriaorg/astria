@@ -422,6 +422,7 @@ mod test {
 
     use super::SequencerBlockData;
     use crate::{
+        sequencer_block_data::calculate_data_hash_and_tx_tree,
         test_utils::make_test_commit_and_hash,
         RawSequencerBlockData,
     };
@@ -437,7 +438,7 @@ mod test {
                 vec![0x44, 0x55, 0x66],
                 vec![0x77, 0x88, 0x99],
             ];
-            let tree = MerkleTree::from_leaves(transactions);
+            let (_, tree) = calculate_data_hash_and_tx_tree(&transactions);
             (
                 action_tree_root,
                 tree.prove_inclusion(0).unwrap(),
@@ -475,7 +476,7 @@ mod test {
                 vec![0x44, 0x55, 0x66],
                 vec![0x77, 0x88, 0x99],
             ];
-            let tree = MerkleTree::from_leaves(transactions);
+            let (_, tree) = calculate_data_hash_and_tx_tree(&transactions);
             (
                 action_tree_root,
                 tree.prove_inclusion(0).unwrap(),
