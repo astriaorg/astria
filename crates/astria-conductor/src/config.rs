@@ -1,3 +1,5 @@
+//! The conductor configuration.
+
 use figment::{
     providers::Env,
     Figment,
@@ -11,7 +13,6 @@ pub fn get() -> Result<Config, figment::Error> {
     Config::from_environment("ASTRIA_CONDUCTOR_")
 }
 
-/// The global configuration for the driver and its components.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
@@ -20,9 +21,6 @@ pub struct Config {
 
     /// The JWT bearer token supplied with each jsonrpc call
     pub celestia_bearer_token: String,
-
-    /// URL of the Tendermint node (sequencer/metro)
-    pub tendermint_url: String,
 
     /// URL of the sequencer cometbft websocket
     pub sequencer_url: String,
@@ -43,7 +41,7 @@ pub struct Config {
     pub disable_empty_block_execution: bool,
 
     /// The Sequencer block height that the rollup genesis block was in
-    pub initial_sequencer_block_height: u64,
+    pub initial_sequencer_block_height: u32,
 }
 
 impl Config {
