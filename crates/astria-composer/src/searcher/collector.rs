@@ -119,22 +119,18 @@ impl Collector {
             .await
             .wrap_err("failed to subscribe eth client to full pending transactions")?;
         while let Some(tx) = tx_stream.next().await {
+            debug!(transaction.hash = %tx.hash, "collected transaction with from rollup");
             match searcher_channel
                 .send_timeout(
                     Transaction {
                         chain_id: chain_id.clone(),
-                        inner: tx.clone(),
+                        inner: tx,
                     },
                     Duration::from_millis(500),
                 )
                 .await
             {
-                Ok(()) => {
-                    info!(
-                        transaction.hash = %tx.hash,
-                        chain_id = %chain_id,
-                        "collected transaction with hash `{}` from rollup with chain_id `{}`", tx.hash, chain_id);
-                }
+                Ok(()) => {}
                 Err(SendTimeoutError::Timeout(tx)) => {
                     warn!(
                         transaction.hash = %tx.inner.hash,
