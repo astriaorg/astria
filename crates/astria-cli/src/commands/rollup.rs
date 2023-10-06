@@ -29,12 +29,12 @@ use crate::{
 pub(crate) fn create_config(args: &ConfigCreateArgs) -> eyre::Result<()> {
     // create file and prefix name with rollup name
     let name = &args.name;
-    let path = format!("{name}-values-override.yaml");
+    let path = format!("{name}-rollup-conf.yaml");
     let mut output = File::create(path)?;
 
     // write args as yaml
-    let rollup = Rollup::from_cli_args(args)?;
-    let yaml_str = rollup.to_yaml()?;
+    let rollup = Rollup::try_from(args)?;
+    let yaml_str: String = rollup.try_into()?;
     write!(output, "{yaml_str}")?;
 
     Ok(())
