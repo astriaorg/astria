@@ -111,9 +111,6 @@ pub struct RollupConfig {
     chain_id: String,
     network_id: u64,
     skip_empty_blocks: bool,
-    // TODO - best place to ensure this is false?
-    // set manually with flag when calling helm install?
-    // disable_finalization: bool,
     genesis_accounts: Vec<GenesisAccount>,
 }
 
