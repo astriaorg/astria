@@ -12,6 +12,7 @@ use crate::{
         rollup::{
             Command as RollupCommand,
             ConfigCommand,
+            DeploymentCommand,
         },
         sequencer::{
             AccountCommand,
@@ -53,8 +54,14 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                 } => match command {
                     ConfigCommand::Create(args) => rollup::create_config(&args)?,
                     ConfigCommand::Edit(args) => rollup::edit_config(&args),
-                    ConfigCommand::Deploy(args) => rollup::deploy_config(&args)?,
                     ConfigCommand::Delete(args) => rollup::delete_config(&args)?,
+                },
+                RollupCommand::Deployment {
+                    command,
+                } => match command {
+                    DeploymentCommand::Create(args) => rollup::create_deployment(&args)?,
+                    DeploymentCommand::Delete(args) => rollup::delete_deployment(&args)?,
+                    DeploymentCommand::List => {}
                 },
             },
             Command::Sequencer {

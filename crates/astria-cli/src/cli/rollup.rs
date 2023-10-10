@@ -15,6 +15,41 @@ pub enum Command {
         #[clap(subcommand)]
         command: ConfigCommand,
     },
+    /// Manage your rollup deployments
+    Deployment {
+        #[clap(subcommand)]
+        command: DeploymentCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum DeploymentCommand {
+    /// Deploy a rollup
+    Create(DeploymentCreateArgs),
+    /// Delete a rollup
+    Delete(DeploymentDeleteArgs),
+    /// List all deployed rollups
+    List,
+}
+
+#[derive(Args, Debug, Serialize)]
+pub struct DeploymentCreateArgs {
+    /// The filepath of the config to deploy
+    #[clap(long = "config")]
+    pub(crate) config_path: String,
+    /// The faucet private key
+    #[clap(long)]
+    pub(crate) faucet_private_key: String,
+    /// The sequencer private key
+    #[clap(long)]
+    pub(crate) sequencer_private_key: String,
+}
+
+#[derive(Args, Debug)]
+pub struct DeploymentDeleteArgs {
+    /// The filepath of the config to delete
+    #[clap(long = "config")]
+    pub(crate) config_path: String,
 }
 
 /// Commands for managing rollup configs.
@@ -24,14 +59,11 @@ pub enum ConfigCommand {
     Create(ConfigCreateArgs),
     /// Edit a rollup config
     Edit(ConfigEditArgs),
-    /// Deploy a rollup config
-    Deploy(ConfigDeployArgs),
     /// Delete a rollup config
     Delete(ConfigDeleteArgs),
 }
 
 #[derive(Args, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ConfigCreateArgs {
     #[clap(long, env = "ROLLUP_USE_TTY")]
     pub use_tty: bool,
@@ -50,7 +82,7 @@ pub struct ConfigCreateArgs {
     #[clap(long = "rollup.skip-empty-blocks", env = "ROLLUP_SKIP_EMPTY_BLOCKS")]
     pub skip_empty_blocks: bool,
 
-    #[clap(long, env = "ROLLUP_GENESIS_ACCOUNTS", num_args = 1..)]
+    #[clap(long = "rollup.genesis-accounts", env = "ROLLUP_GENESIS_ACCOUNTS", num_args = 1..)]
     pub genesis_accounts: Vec<GenesisAccountArg>,
 
     // sequencer config
@@ -121,28 +153,15 @@ impl FromStr for GenesisAccountArg {
 #[derive(Args, Debug)]
 pub struct ConfigEditArgs {
     /// The filepath of the config to edit
-    #[clap(long)]
-    pub(crate) config: String,
-}
-
-#[derive(Args, Debug)]
-pub struct ConfigDeployArgs {
-    /// The filepath of the config to deploy
-    #[clap(long)]
-    pub(crate) config: String,
-    /// The faucet private key
-    #[clap(long)]
-    pub(crate) faucet_private_key: String,
-    /// The sequencer private key
-    #[clap(long)]
-    pub(crate) sequencer_private_key: String,
+    #[clap(long = "config")]
+    pub(crate) config_path: String,
 }
 
 #[derive(Args, Debug)]
 pub struct ConfigDeleteArgs {
     /// The filepath of the config to delete
-    #[clap(long)]
-    pub(crate) config: String,
+    #[clap(long = "config")]
+    pub(crate) config_path: String,
 }
 
 #[cfg(test)]

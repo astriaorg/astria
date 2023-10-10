@@ -30,14 +30,27 @@ cargo build --release
   --sequencer.websocket ws://sequencer-service:26657/websocket \
   --sequencer.rpc http://sequencer-service:26657 \
   --celestia.full-node-url http://celestia-service:26658 \
-  --genesis-accounts 0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30:100000000000000000000
+  --rollup.genesis-accounts 0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30:100000000000000000000
+  
+# edit config (TODO)
+./target/release/astria-cli rollup config edit \
+  --config somerollupname-rollup-config.yaml
+  <KEY> <VALUE>
 
-# deploy this config
-./target/release/astria-cli rollup config deploy \
+# delete config
+./target/release/astria-cli rollup config delete \
+  --config somerollupname-rollup-config.yaml
+
+# create deployment from config
+./target/release/astria-cli rollup deployment create \
   --config somerollupname-rollup-config.yaml \
   --faucet-private-key <FAUCET_PRIVATE_KEY> \
-  --sequencer-private_key <SEQUENCER_PRIVATE_KEY>
+  --sequencer-private-key <SEQUENCER_PRIVATE_KEY>
+  
+# list deployments
+./target/release/astria-cli rollup deployment list
 
-# delete the deployment that was created from the config
-./target/release/astria-cli rollup config delete --config somerollupname-rollup-config.yaml
+# delete deployment
+./target/release/astria-cli rollup deplyoment delete \
+  --config somerollupname-rollup-config.yaml
 ```

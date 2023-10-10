@@ -9,20 +9,43 @@ use std::{
     process::Command,
 };
 
-use color_eyre::eyre;
+use color_eyre::{
+    eyre,
+    eyre::Context,
+};
 
 use crate::{
     cli::rollup::{
         ConfigCreateArgs,
         ConfigDeleteArgs,
-        ConfigDeployArgs,
         ConfigEditArgs,
+        DeploymentCreateArgs,
+        DeploymentDeleteArgs,
     },
     types::Rollup,
 };
 
 const EVM_ROLLUP_CHART_URL: &str =
     "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.3.0.tgz";
+
+///
+fn helm_from_env() -> PathBuf {
+    let os_specific_hint = match OS {
+        "macos" => "You could try running `brew install helm` or downloading a recent release from https://github.com/helm/helm/releases",
+        "linux" => "You can download it from https://github.com/helm/helm/releases",
+        _other =>  "Check if there is a precompiled version for your OS at https://github.com/helm/helm/releases"
+    };
+    let error_msg = "Could not find `helm` installation and this deployment cannot proceed without
+    this knowledge. If `helm` is installed and this crate had trouble finding
+    it, you can set the `HELM` environment variable with the specific path to your
+    installed `helm` binary.";
+    let msg = format!("{error_msg} {os_specific_hint}");
+
+    env::var_os("HELM")
+        .map(PathBuf::from)
+        .or_else(|| which::which("helm").ok())
+        .expect(&msg)
+}
 
 /// Create a new rollup config file in the calling directory.
 ///
@@ -52,46 +75,58 @@ pub(crate) fn create_config(args: &ConfigCreateArgs) -> eyre::Result<()> {
     Ok(())
 }
 
+/// Deletes a config file
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the config file cannot be deleted
+pub(crate) fn delete_config(args: &ConfigDeleteArgs) -> eyre::Result<()> {
+    let path = PathBuf::from(args.config_path.clone());
+    std::fs::remove_file(path).wrap_err("could not delete the config file")?;
+
+    println!("Deleted rollup config file {}", args.config_path);
+
+    Ok(())
+}
+
 pub(crate) fn edit_config(args: &ConfigEditArgs) {
+    // TODO
     println!("Edit Rollup Config {args:?}");
 }
 
-fn helm_from_env() -> PathBuf {
-    let os_specific_hint = match OS {
-        "macos" => "You could try running `brew install helm` or downloading a recent release from https://github.com/helm/helm/releases",
-        "linux" => "You can download it from https://github.com/helm/helm/releases",
-        _other =>  "Check if there is a precompiled version for your OS at https://github.com/helm/helm/releases"
-    };
-    let error_msg = "Could not find `helm` installation and this deployment cannot proceed without
-    this knowledge. If `helm` is installed and this crate had trouble finding
-    it, you can set the `HELM_PATH` environment variable with the specific path to your
-    installed `helm` binary.";
-    let msg = format!("{error_msg} {os_specific_hint}");
-
-    env::var_os("HELM")
-        .map(PathBuf::from)
-        .or_else(|| which::which("helm").ok())
-        .expect(&msg)
-}
-
-pub(crate) fn deploy_config(args: &ConfigDeployArgs) -> eyre::Result<()> {
-    let helm = helm_from_env();
-
-    let path = PathBuf::from(args.config.clone());
+/// Creates a deployment from a config file
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+///
+/// * If the config file cannot be opened
+/// * If the config file cannot be deserialized
+/// * If the deployment cannot be created
+/// * If the helm command fails
+pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()> {
+    let path = PathBuf::from(args.config_path.clone());
     let file = File::open(path)?;
     let rollup: Rollup = serde_yaml::from_reader(file)?;
 
-    let mut cmd = Command::new(helm.clone());
-
     // call `helm install` with appropriate args.
-    // setting values via the generated config file
-    // FIXME - is this the best place to set disable_finalization to true?
-    //  bc we probably don't want it in the config file for them to change right now
+    // setting values via the generated config file.
+    let helm = helm_from_env();
+    let mut cmd = Command::new(helm.clone());
     cmd.arg("install")
         .arg("--debug")
         .arg("--values")
         .arg(rollup.deployment_config.get_filename())
         .arg("--set")
+        // FIXME - is this the best place to set disable_finalization to true?
+        //  bc we probably don't want it in the config file for them to change right now
         .arg("config.rollup.disableFinalization=true")
         .arg("--set")
         .arg(format!(
@@ -123,14 +158,24 @@ pub(crate) fn deploy_config(args: &ConfigDeployArgs) -> eyre::Result<()> {
 }
 
 /// Deletes a deployment
-// TODO - implement separate commands to delete the config and to delete the deployment
-pub(crate) fn delete_config(args: &ConfigDeleteArgs) -> eyre::Result<()> {
-    let helm = helm_from_env();
-
-    let path = PathBuf::from(args.config.clone());
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the config file cannot be opened
+/// * If the config file cannot be deserialized
+/// * If the deployment cannot be deleted
+/// * If the helm command fails
+pub(crate) fn delete_deployment(args: &DeploymentDeleteArgs) -> eyre::Result<()> {
+    let path = PathBuf::from(args.config_path.clone());
     let file = File::open(path)?;
     let rollup: Rollup = serde_yaml::from_reader(file)?;
 
+    // call `helm uninstall` with appropriate args
+    let helm = helm_from_env();
     let mut cmd = Command::new(helm.clone());
     cmd.arg("uninstall")
         .arg(rollup.deployment_config.get_chart_release_name());
@@ -148,7 +193,7 @@ pub(crate) fn delete_config(args: &ConfigDeleteArgs) -> eyre::Result<()> {
         Ok(_) => {
             println!(
                 "Deleted deployment created from rollup config {}",
-                args.config
+                args.config_path
             );
         }
     };
