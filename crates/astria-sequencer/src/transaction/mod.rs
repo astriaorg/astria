@@ -3,8 +3,9 @@ pub(crate) mod action_handler;
 use std::fmt;
 
 pub(crate) use action_handler::ActionHandler;
+#[cfg(not(feature = "mint"))]
+use anyhow::bail;
 use anyhow::{
-    bail,
     ensure,
     Context as _,
 };
