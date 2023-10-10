@@ -31,6 +31,8 @@ async fn main() -> ExitCode {
         loop {
             eprintln!("MINT FEATURE IS ENABLED!");
             eprintln!("do not enable minting in production!");
+            tracing::warn!("MINT FEATURE IS ENABLED!");
+            tracing::warn!("do not enable minting in production!");
             tokio::time::sleep(duration).await;
         }
     });
