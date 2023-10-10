@@ -34,10 +34,10 @@ cargo build --release
 
 # deploy this config
 ./target/release/astria-cli rollup config deploy \
-  --filename somerollupname-rollup-config.yaml \
+  --config somerollupname-rollup-config.yaml \
   --faucet-private-key <FAUCET_PRIVATE_KEY> \
   --sequencer-private_key <SEQUENCER_PRIVATE_KEY>
 
 # delete the deployment that was created from the config
-./target/release/astria-cli rollup config delete --filename somerollupname-rollup-config.yaml
+./target/release/astria-cli rollup config delete --config somerollupname-rollup-config.yaml
 ```

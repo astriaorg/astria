@@ -120,16 +120,16 @@ impl FromStr for GenesisAccountArg {
 
 #[derive(Args, Debug)]
 pub struct ConfigEditArgs {
-    /// The filename of the config to edit
+    /// The filepath of the config to edit
     #[clap(long)]
-    pub(crate) filename: String,
+    pub(crate) config: String,
 }
 
 #[derive(Args, Debug)]
 pub struct ConfigDeployArgs {
-    /// The name of the config to deploy
+    /// The filepath of the config to deploy
     #[clap(long)]
-    pub(crate) filename: String,
+    pub(crate) config: String,
     /// The faucet private key
     #[clap(long)]
     pub(crate) faucet_private_key: String,
@@ -140,9 +140,9 @@ pub struct ConfigDeployArgs {
 
 #[derive(Args, Debug)]
 pub struct ConfigDeleteArgs {
-    /// The name of the config to delete
+    /// The filepath of the config to delete
     #[clap(long)]
-    pub(crate) filename: String,
+    pub(crate) config: String,
 }
 
 #[cfg(test)]

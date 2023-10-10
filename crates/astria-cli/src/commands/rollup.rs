@@ -24,7 +24,7 @@ use crate::{
 const EVM_ROLLUP_CHART_URL: &str =
     "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.3.0.tgz";
 
-/// Create a new rollup config file
+/// Create a new rollup config file in the calling directory.
 ///
 /// # Arguments
 ///
@@ -77,7 +77,7 @@ fn helm_from_env() -> PathBuf {
 pub(crate) fn deploy_config(args: &ConfigDeployArgs) -> eyre::Result<()> {
     let helm = helm_from_env();
 
-    let path = PathBuf::from(args.filename.clone());
+    let path = PathBuf::from(args.config.clone());
     let file = File::open(path)?;
     let rollup: Rollup = serde_yaml::from_reader(file)?;
 
@@ -94,9 +94,15 @@ pub(crate) fn deploy_config(args: &ConfigDeployArgs) -> eyre::Result<()> {
         .arg("--set")
         .arg("config.rollup.disableFinalization=true")
         .arg("--set")
-        .arg(format!("config.faucet.privateKey={}", args.faucet_private_key.clone()))
+        .arg(format!(
+            "config.faucet.privateKey={}",
+            args.faucet_private_key.clone()
+        ))
         .arg("--set")
-        .arg(format!("config.sequencer.privateKey={}", args.sequencer_private_key.clone()))
+        .arg(format!(
+            "config.sequencer.privateKey={}",
+            args.sequencer_private_key.clone()
+        ))
         .arg(rollup.deployment_config.get_chart_release_name())
         .arg(EVM_ROLLUP_CHART_URL);
 
@@ -121,7 +127,7 @@ pub(crate) fn deploy_config(args: &ConfigDeployArgs) -> eyre::Result<()> {
 pub(crate) fn delete_config(args: &ConfigDeleteArgs) -> eyre::Result<()> {
     let helm = helm_from_env();
 
-    let path = PathBuf::from(args.filename.clone());
+    let path = PathBuf::from(args.config.clone());
     let file = File::open(path)?;
     let rollup: Rollup = serde_yaml::from_reader(file)?;
 
@@ -140,7 +146,10 @@ pub(crate) fn delete_config(args: &ConfigDeleteArgs) -> eyre::Result<()> {
             );
         }
         Ok(_) => {
-            println!("Deleted deployment created from rollup config {}", args.filename);
+            println!(
+                "Deleted deployment created from rollup config {}",
+                args.config
+            );
         }
     };
 
