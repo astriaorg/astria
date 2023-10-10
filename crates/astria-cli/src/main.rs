@@ -4,7 +4,10 @@ use astria_cli::{
     cli::Cli,
     commands,
 };
-use color_eyre::eyre;
+use color_eyre::{
+    eyre,
+    eyre::Context,
+};
 
 fn main() -> ExitCode {
     if let Err(err) = run() {
@@ -15,7 +18,12 @@ fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
+/// Run our asynchronous command code in a blocking manner
 fn run() -> eyre::Result<()> {
-    let args = Cli::get_args()?;
-    commands::run(args)
+    let rt = tokio::runtime::Runtime::new().wrap_err("failed to create a new runtime")?;
+
+    rt.block_on(async {
+        let args = Cli::get_args()?;
+        commands::run(args).await
+    })
 }

@@ -5,19 +5,23 @@ use color_eyre::{
     eyre,
     eyre::eyre,
 };
+use tracing::instrument;
 
-use crate::cli::{
-    rollup::{
-        Command as RollupCommand,
-        ConfigCommand,
+use crate::{
+    cli::{
+        rollup::{
+            Command as RollupCommand,
+            ConfigCommand,
+        },
+        sequencer::{
+            AccountCommand,
+            BalanceCommand,
+            Command as SequencerCommand,
+        },
+        Cli,
+        Command,
     },
-    sequencer::{
-        AccountCommand,
-        BalanceCommand,
-        Command as SequencerCommand,
-    },
-    Cli,
-    Command,
+    commands::sequencer::get_balance,
 };
 
 /// Checks what function needs to be run and calls it with the appropriate arguments
@@ -33,7 +37,8 @@ use crate::cli::{
 /// # Panics
 ///
 /// * If the command is not recognized
-pub fn run(cli: Cli) -> eyre::Result<()> {
+#[instrument]
+pub async fn run(cli: Cli) -> eyre::Result<()> {
     if let Some(command) = cli.command {
         match command {
             Command::Rollup {
@@ -59,7 +64,7 @@ pub fn run(cli: Cli) -> eyre::Result<()> {
                 SequencerCommand::Balance {
                     command,
                 } => match command {
-                    BalanceCommand::Get(_args) => todo!(),
+                    BalanceCommand::Get(args) => get_balance(&args).await?,
                 },
             },
         }

@@ -13,7 +13,7 @@ use crate::cli::{
 };
 
 /// A CLI for deploying and managing Astria services and related infrastructure.
-#[derive(Parser)]
+#[derive(Debug, Parser)]
 #[clap(name = "astria-cli", version)]
 pub struct Cli {
     #[clap(subcommand)]
@@ -33,7 +33,7 @@ impl Cli {
 }
 
 /// Commands that can be run
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub enum Command {
     Rollup {
         #[clap(subcommand)]

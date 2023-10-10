@@ -1,9 +1,19 @@
+use astria_sequencer_client::{
+    HttpClient,
+    SequencerClientExt,
+};
+use color_eyre::{
+    eyre,
+    eyre::Context,
+};
 use ed25519_consensus::SigningKey;
 use rand::rngs::OsRng;
 use sha2::{
     Digest,
     Sha256,
 };
+
+use crate::cli::sequencer::BalanceGetArgs;
 
 /// Generate new keypair
 fn get_new_signing_key() -> SigningKey {
@@ -56,10 +66,24 @@ pub(crate) fn create_account() {
 /// * `args` - The arguments passed to the command
 ///
 /// # Errors
-// pub(crate) fn get_balance(args: &SequencerBalanceGetArgs) -> eyre::Result<()> {
-//     println!("Get Sequencer Balance {:?}", args);
-//     Ok(())
-// }
+///
+/// * If the http client cannot be created
+/// * If the balance cannot be retrieved
+pub(crate) async fn get_balance(args: &BalanceGetArgs) -> eyre::Result<()> {
+    let address = &args.address;
+    let sequencer_client = HttpClient::new(args.sequencer_url.as_str())
+        .wrap_err("failed constructing http sequencer client")?;
+
+    let res = sequencer_client
+        .get_latest_balance(address.0)
+        .await
+        .wrap_err("failed to get balance")?;
+
+    println!("Balance for address {}:", address.0);
+    println!("    {}", res.balance);
+
+    Ok(())
+}
 
 #[cfg(test)]
 mod test {

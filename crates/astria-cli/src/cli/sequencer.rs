@@ -1,10 +1,17 @@
+use std::str::FromStr;
+
+use astria_sequencer_client::Address;
 use clap::{
     Args,
     Subcommand,
 };
+use color_eyre::{
+    eyre,
+    eyre::Context,
+};
 
 /// Interact with the Sequencer
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub enum Command {
     /// Create a new Sequencer account
     Account {
@@ -18,13 +25,13 @@ pub enum Command {
     },
 }
 
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub enum AccountCommand {
     /// Create a new sequencer account
     Create,
 }
 
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub enum BalanceCommand {
     /// Get the balance of a sequencer account
     Get(BalanceGetArgs),
@@ -32,7 +39,28 @@ pub enum BalanceCommand {
 
 #[derive(Args, Debug)]
 pub struct BalanceGetArgs {
+    /// The url of the sequencer node
+    #[clap(long)]
+    pub(crate) sequencer_url: String,
     /// The address of the sequencer account
     #[clap(long)]
-    pub(crate) address: Option<String>,
+    pub(crate) address: AddressArg,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct AddressArg(pub(crate) Address);
+
+impl FromStr for AddressArg {
+    type Err = eyre::Report;
+
+    /// Parse a string into a Sequencer Address
+    fn from_str(s: &str) -> eyre::Result<Self, Self::Err> {
+        let address_bytes = hex::decode(s).wrap_err(
+            "failed to decode address. address should be 20 bytes long. do not prefix with 0x",
+        )?;
+        let address =
+            Address::try_from_slice(address_bytes.as_ref()).wrap_err("failed to create address")?;
+
+        Ok(Self(address))
+    }
 }

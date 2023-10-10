@@ -192,6 +192,7 @@ dependencies = [
 name = "astria-cli"
 version = "0.1.0"
 dependencies = [
+ "astria-sequencer-client",
  "clap",
  "color-eyre",
  "ed25519-consensus",
@@ -200,6 +201,8 @@ dependencies = [
  "serde",
  "serde_yaml",
  "sha2 0.10.7",
+ "tokio",
+ "tracing",
  "which",
 ]
 

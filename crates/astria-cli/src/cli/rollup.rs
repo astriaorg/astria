@@ -8,7 +8,7 @@ use color_eyre::eyre;
 use serde::Serialize;
 
 /// Manage your rollups
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub enum Command {
     /// Manage your rollup configs
     Config {
@@ -18,7 +18,7 @@ pub enum Command {
 }
 
 /// Commands for managing rollup configs.
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 pub enum ConfigCommand {
     /// Create a new rollup config
     Create(ConfigCreateArgs),

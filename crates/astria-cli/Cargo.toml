@@ -14,4 +14,10 @@ rand = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_yaml = "0.9.25"
 sha2 = { workspace = true }
+tokio = { workspace = true, features = ["rt", "macros"] }
+tracing = { workspace = true }
 which = { workspace = true }
+
+astria-sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
+    "http",
+] }
