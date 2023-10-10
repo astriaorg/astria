@@ -238,12 +238,8 @@ mod test {
 
     use super::*;
 
-    #[test]
-    fn test_create_config_file() {
-        let dir = tempdir().unwrap();
-        env::set_current_dir(&dir).unwrap();
-
-        let args = ConfigCreateArgs {
+    fn get_config_create_args() -> ConfigCreateArgs {
+        ConfigCreateArgs {
             use_tty: false,
             name: "test".to_string(),
             chain_id: None,
@@ -255,7 +251,15 @@ mod test {
             sequencer_rpc: "".to_string(),
             log_level: "".to_string(),
             celestia_full_node_url: "".to_string(),
-        };
+        }
+    }
+
+    #[test]
+    fn test_create_config_file() {
+        let dir = tempdir().unwrap();
+        env::set_current_dir(&dir).unwrap();
+
+        let args = get_config_create_args();
         create_config(&args).unwrap();
 
         let file_path = dir.path().join("test-rollup-conf.yaml");
