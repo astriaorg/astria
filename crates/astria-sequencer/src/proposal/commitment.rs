@@ -7,16 +7,17 @@ use proto::native::sequencer::v1alpha1::SignedTransaction;
 pub(crate) struct GeneratedCommitments {
     pub(crate) sequence_actions_commitment: [u8; 32],
     pub(crate) chain_ids_commitment: [u8; 32],
-    pub(crate) txs_to_include: Vec<Bytes>,
 }
 
 impl GeneratedCommitments {
+    /// Converts the commitments plus external transaction data into a vector of bytes
+    /// which can be used as the block's transactions.
     #[must_use]
-    pub(crate) fn into_transactions(mut self) -> Vec<Bytes> {
-        let mut txs = Vec::with_capacity(self.txs_to_include.len() + 2);
+    pub(crate) fn into_transactions(self, mut tx_data: Vec<Bytes>) -> Vec<Bytes> {
+        let mut txs = Vec::with_capacity(tx_data.len() + 2);
         txs.push(self.sequence_actions_commitment.to_vec().into());
         txs.push(self.chain_ids_commitment.to_vec().into());
-        txs.append(&mut self.txs_to_include);
+        txs.append(&mut tx_data);
         txs
     }
 }
@@ -38,40 +39,16 @@ impl GeneratedCommitments {
 /// The leaf, which contains a commitment to every action with the same `chain_id`, is currently
 /// implemented as ( `chain_id` || root of merkle tree of the `sequence::Action`s ).
 /// This is somewhat arbitrary, but could be useful for proof of an action within the action tree.
-pub(crate) fn generate_sequence_actions_commitment(txs_bytes: Vec<Bytes>) -> GeneratedCommitments {
-    use proto::{
-        generated::sequencer::v1alpha1 as raw,
-        Message as _,
-    };
+pub(crate) fn generate_sequence_actions_commitment(
+    signed_txs: Vec<SignedTransaction>,
+) -> GeneratedCommitments {
     use sequencer_validation::generate_action_tree_leaves;
     use tendermint::{
         crypto::default::Sha256,
         merkle::simple_hash_from_byte_vectors,
     };
-    use tracing::debug;
-
-    let (signed_txs, txs_to_include): (Vec<_>, Vec<_>) = txs_bytes
-        .into_iter()
-        .filter_map(|bytes| {
-            raw::SignedTransaction::decode(&*bytes)
-            .map_err(|err| {
-                debug!(error = ?err, "failed to deserialize bytes as a signed transaction");
-                err
-            })
-            .ok()
-            .and_then(|raw_tx| SignedTransaction::try_from_raw(raw_tx)
-                .map_err(|err| {
-                    debug!(error = ?err, "could not convert raw signed transaction to native signed transaction");
-                    err
-                })
-                .ok()
-            )
-            .map(move |signed_tx| (signed_tx, bytes))
-        })
-        .unzip();
 
     let chain_id_to_txs = group_sequence_actions_by_chain_id(&signed_txs);
-
     let chain_ids = chain_id_to_txs.keys().cloned().collect::<Vec<_>>();
 
     // each leaf of the action tree is the root of a merkle tree of the `sequence::Action`s
@@ -81,7 +58,6 @@ pub(crate) fn generate_sequence_actions_commitment(txs_bytes: Vec<Bytes>) -> Gen
     GeneratedCommitments {
         sequence_actions_commitment: simple_hash_from_byte_vectors::<Sha256>(&leaves),
         chain_ids_commitment: simple_hash_from_byte_vectors::<Sha256>(&chain_ids),
-        txs_to_include,
     }
 }
 
@@ -109,14 +85,11 @@ fn group_sequence_actions_by_chain_id(
 #[cfg(test)]
 mod test {
     use ed25519_consensus::SigningKey;
-    use proto::{
-        native::sequencer::v1alpha1::{
-            Address,
-            SequenceAction,
-            TransferAction,
-            UnsignedTransaction,
-        },
-        Message as _,
+    use proto::native::sequencer::v1alpha1::{
+        Address,
+        SequenceAction,
+        TransferAction,
+        UnsignedTransaction,
     };
     use rand::rngs::OsRng;
     use sequencer_validation::generate_action_tree_leaves;
@@ -141,8 +114,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.into_raw().encode_to_vec();
-        let txs = vec![tx_bytes.into()];
+        let txs = vec![signed_tx];
         let GeneratedCommitments {
             sequence_actions_commitment: commitment_0,
             ..
@@ -155,8 +127,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.into_raw().encode_to_vec();
-        let txs = vec![tx_bytes.into()];
+        let txs = vec![signed_tx];
         let GeneratedCommitments {
             sequence_actions_commitment: commitment_1,
             ..
@@ -242,8 +213,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.into_raw().encode_to_vec();
-        let txs = vec![tx_bytes.into()];
+        let txs = vec![signed_tx];
         let GeneratedCommitments {
             sequence_actions_commitment: actual,
             ..

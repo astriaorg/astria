@@ -1,4 +1,7 @@
-use std::collections::VecDeque;
+use std::{
+    collections::VecDeque,
+    sync::Arc,
+};
 
 use anyhow::{
     anyhow,
@@ -6,7 +9,15 @@ use anyhow::{
     ensure,
     Context,
 };
-use penumbra_storage::Storage;
+use penumbra_storage::{
+    StateDelta,
+    Storage,
+};
+use proto::{
+    generated::sequencer::v1alpha1 as raw,
+    native::sequencer::v1alpha1::SignedTransaction,
+    Message as _,
+};
 use sequencer_types::abci_code::AbciCode;
 use tendermint::abci::{
     request,
@@ -18,12 +29,14 @@ use tokio::sync::mpsc;
 use tower_abci::BoxError;
 use tower_actor::Message;
 use tracing::{
+    debug,
     instrument,
     warn,
     Instrument,
 };
 
 use crate::{
+    accounts::state_ext::StateReadExt,
     app::App,
     genesis::GenesisState,
     proposal::commitment::{
@@ -88,11 +101,13 @@ impl Consensus {
                     .context("failed initializing chain")?,
             ),
             ConsensusRequest::PrepareProposal(prepare_proposal) => {
-                ConsensusResponse::PrepareProposal(handle_prepare_proposal(prepare_proposal))
+                ConsensusResponse::PrepareProposal(
+                    self.handle_prepare_proposal(prepare_proposal).await,
+                )
             }
             ConsensusRequest::ProcessProposal(process_proposal) => {
                 ConsensusResponse::ProcessProposal(
-                    match handle_process_proposal(process_proposal) {
+                    match self.handle_process_proposal(process_proposal).await {
                         Ok(()) => response::ProcessProposal::Accept,
                         Err(e) => {
                             warn!(error = ?e, "rejecting proposal");
@@ -206,72 +221,122 @@ impl Consensus {
             ..Default::default()
         })
     }
-}
 
-/// Generates a commitment to the `sequence::Actions` in the block's transactions.
-/// This is required so that a rollup can easily verify that the transactions it
-/// receives are correct (ie. we actually included in a sequencer block, and none
-/// are missing)
-/// It puts this special "commitment" as the first transaction in a block.
-/// When other validators receive the block, they know the first transaction is
-/// supposed to be the commitment, and verifies that is it correct.
-#[instrument]
-fn handle_prepare_proposal(
-    prepare_proposal: request::PrepareProposal,
-) -> response::PrepareProposal {
-    // generate commitment to sequence::Actions and commitment to the chain IDs included in the
-    // sequence::Actions
-    let res = generate_sequence_actions_commitment(prepare_proposal.txs);
+    /// Generates a commitment to the `sequence::Actions` in the block's transactions.
+    /// This is required so that a rollup can easily verify that the transactions it
+    /// receives are correct (ie. we actually included in a sequencer block, and none
+    /// are missing)
+    /// It puts this special "commitment" as the first transaction in a block.
+    /// When other validators receive the block, they know the first transaction is
+    /// supposed to be the commitment, and verifies that is it correct.
+    #[instrument(skip(self))]
+    async fn handle_prepare_proposal(
+        &self,
+        prepare_proposal: request::PrepareProposal,
+    ) -> response::PrepareProposal {
+        let (signed_txs, txs_to_include) =
+            validate_sequence_actions(self.storage.latest_snapshot(), prepare_proposal.txs).await;
 
-    response::PrepareProposal {
-        txs: res.into_transactions(),
+        // generate commitment to sequence::Actions and commitment to the chain IDs included in the
+        // sequence::Actions
+        let res = generate_sequence_actions_commitment(signed_txs);
+
+        response::PrepareProposal {
+            txs: res.into_transactions(txs_to_include),
+        }
+    }
+
+    /// Generates a commitment to the `sequence::Actions` in the block's transactions
+    /// and ensures it matches the commitment created by the proposer, which
+    /// should be the first transaction in the block.
+    #[instrument(skip(self))]
+    async fn handle_process_proposal(
+        &self,
+        process_proposal: request::ProcessProposal,
+    ) -> anyhow::Result<()> {
+        let mut txs = VecDeque::from(process_proposal.txs);
+        let received_action_commitment: [u8; 32] = txs
+            .pop_front()
+            .context("no transaction commitment in proposal")?
+            .to_vec()
+            .try_into()
+            .map_err(|_| anyhow!("transaction commitment must be 32 bytes"))?;
+
+        let received_chain_ids_commitment: [u8; 32] = txs
+            .pop_front()
+            .context("no chain IDs commitment in proposal")?
+            .to_vec()
+            .try_into()
+            .map_err(|_| anyhow!("chain IDs commitment must be 32 bytes"))?;
+
+        let expected_txs_len = txs.len();
+
+        let (signed_txs, txs_to_include) =
+            validate_sequence_actions(self.storage.latest_snapshot(), txs.into()).await;
+
+        let GeneratedCommitments {
+            sequence_actions_commitment: expected_action_commitment,
+            chain_ids_commitment: expected_chain_ids_commitment,
+        } = generate_sequence_actions_commitment(signed_txs);
+        ensure!(
+            received_action_commitment == expected_action_commitment,
+            "transaction commitment does not match expected",
+        );
+
+        ensure!(
+            received_chain_ids_commitment == expected_chain_ids_commitment,
+            "chain IDs commitment does not match expected",
+        );
+
+        // all txs in the proposal should be deserializable
+        ensure!(
+            txs_to_include.len() == expected_txs_len,
+            "transactions to be included do not match expected",
+        );
+
+        Ok(())
     }
 }
 
-/// Generates a commitment to the `sequence::Actions` in the block's transactions
-/// and ensures it matches the commitment created by the proposer, which
-/// should be the first transaction in the block.
-#[instrument]
-fn handle_process_proposal(process_proposal: request::ProcessProposal) -> anyhow::Result<()> {
-    let mut txs = VecDeque::from(process_proposal.txs);
-    let received_action_commitment: [u8; 32] = txs
-        .pop_front()
-        .context("no transaction commitment in proposal")?
-        .to_vec()
-        .try_into()
-        .map_err(|_| anyhow!("transaction commitment must be 32 bytes"))?;
+async fn validate_sequence_actions<S: StateReadExt + 'static>(
+    state: S,
+    txs: Vec<bytes::Bytes>,
+) -> (Vec<SignedTransaction>, Vec<bytes::Bytes>) {
+    let state_delta = Arc::new(StateDelta::new(state));
+    let mut signed_txs = Vec::with_capacity(txs.len());
+    let mut validated_txs = Vec::with_capacity(txs.len());
 
-    let received_chain_ids_commitment: [u8; 32] = txs
-        .pop_front()
-        .context("no chain IDs commitment in proposal")?
-        .to_vec()
-        .try_into()
-        .map_err(|_| anyhow!("chain IDs commitment must be 32 bytes"))?;
+    for tx_bytes in txs {
+        let Some(signed_tx) = raw::SignedTransaction::decode(&*tx_bytes)
+        .map_err(|err| {
+            debug!(error = ?err, "failed to deserialize bytes as a signed transaction");
+            err
+        })
+        .ok()
+        .and_then(|raw_tx| SignedTransaction::try_from_raw(raw_tx)
+            .map_err(|err| {
+                debug!(error = ?err, "could not convert raw signed transaction to native signed transaction");
+                err
+            })
+            .ok()
+        ) else {
+            continue;
+        };
 
-    let expected_txs_len = txs.len();
+        // TODO: should we just move the whole contents of `deliver_tx` here?
+        // or should we only do stateless checks on transactions containing
+        // `sequence::Action`s here?
+        let state_delta = state_delta.clone();
+        if let Err(e) = crate::transaction::check_stateful(&signed_tx, &state_delta).await {
+            debug!(error = ?e, "transaction failed stateful check");
+            continue;
+        }
 
-    let GeneratedCommitments {
-        sequence_actions_commitment: expected_action_commitment,
-        chain_ids_commitment: expected_chain_ids_commitment,
-        txs_to_include,
-    } = generate_sequence_actions_commitment(txs.into());
-    ensure!(
-        received_action_commitment == expected_action_commitment,
-        "transaction commitment does not match expected",
-    );
+        signed_txs.push(signed_tx);
+        validated_txs.push(tx_bytes);
+    }
 
-    ensure!(
-        received_chain_ids_commitment == expected_chain_ids_commitment,
-        "chain IDs commitment does not match expected",
-    );
-
-    // all txs in the proposal should be deserializable
-    ensure!(
-        txs_to_include.len() == expected_txs_len,
-        "transactions to be included do not match expected",
-    );
-
-    Ok(())
+    (signed_txs, validated_txs)
 }
 
 #[cfg(test)]
