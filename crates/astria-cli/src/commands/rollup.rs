@@ -231,3 +231,53 @@ pub(crate) fn list_deployments() -> eyre::Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod test {
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[test]
+    fn test_create_config_file() {
+        let dir = tempdir().unwrap();
+        env::set_current_dir(&dir).unwrap();
+
+        let args = ConfigCreateArgs {
+            use_tty: false,
+            name: "test".to_string(),
+            chain_id: None,
+            network_id: 0,
+            skip_empty_blocks: false,
+            genesis_accounts: vec![],
+            sequencer_initial_block_height: None,
+            sequencer_websocket: "".to_string(),
+            sequencer_rpc: "".to_string(),
+            log_level: "".to_string(),
+            celestia_full_node_url: "".to_string(),
+        };
+        create_config(&args).unwrap();
+
+        let file_path = dir.path().join("test-rollup-conf.yaml");
+        assert!(file_path.exists());
+
+        dir.close().unwrap();
+    }
+
+    #[test]
+    fn test_delete_config_file() {
+        let dir = tempdir().unwrap();
+        env::set_current_dir(&dir).unwrap();
+
+        let file_path = dir.path().join("test-rollup-conf.yaml");
+        File::create(&file_path).unwrap();
+
+        let args = ConfigDeleteArgs {
+            config_path: file_path.to_str().unwrap().to_string(),
+        };
+        delete_config(&args).unwrap();
+        assert!(!file_path.exists());
+
+        dir.close().unwrap();
+    }
+}

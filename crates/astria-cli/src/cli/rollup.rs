@@ -7,6 +7,11 @@ use clap::{
 use color_eyre::eyre;
 use serde::Serialize;
 
+/// Check if a string is a valid balance.
+fn is_valid_balance(s: &str) -> bool {
+    s.parse::<u128>().is_ok()
+}
+
 /// Manage your rollups
 #[derive(Debug, Subcommand)]
 pub enum Command {
@@ -20,36 +25,6 @@ pub enum Command {
         #[clap(subcommand)]
         command: DeploymentCommand,
     },
-}
-
-#[derive(Debug, Subcommand)]
-pub enum DeploymentCommand {
-    /// Deploy a rollup
-    Create(DeploymentCreateArgs),
-    /// Delete a rollup
-    Delete(DeploymentDeleteArgs),
-    /// List all deployed rollups
-    List,
-}
-
-#[derive(Args, Debug, Serialize)]
-pub struct DeploymentCreateArgs {
-    /// The filepath of the config to deploy
-    #[clap(long = "config")]
-    pub(crate) config_path: String,
-    /// The faucet private key
-    #[clap(long)]
-    pub(crate) faucet_private_key: String,
-    /// The sequencer private key
-    #[clap(long)]
-    pub(crate) sequencer_private_key: String,
-}
-
-#[derive(Args, Debug)]
-pub struct DeploymentDeleteArgs {
-    /// The filepath of the config to delete
-    #[clap(long = "config")]
-    pub(crate) config_path: String,
 }
 
 /// Commands for managing rollup configs.
@@ -111,11 +86,6 @@ pub struct GenesisAccountArg {
     pub balance: String,
 }
 
-/// Check if a string is a valid balance.
-fn is_valid_balance(s: &str) -> bool {
-    s.parse::<u128>().is_ok()
-}
-
 impl FromStr for GenesisAccountArg {
     type Err = eyre::Report;
 
@@ -164,6 +134,36 @@ pub struct ConfigDeleteArgs {
     pub(crate) config_path: String,
 }
 
+#[derive(Debug, Subcommand)]
+pub enum DeploymentCommand {
+    /// Deploy a rollup
+    Create(DeploymentCreateArgs),
+    /// Delete a rollup
+    Delete(DeploymentDeleteArgs),
+    /// List all deployed rollups
+    List,
+}
+
+#[derive(Args, Debug, Serialize)]
+pub struct DeploymentCreateArgs {
+    /// The filepath of the config to deploy
+    #[clap(long = "config")]
+    pub(crate) config_path: String,
+    /// The faucet private key
+    #[clap(long, env = "FAUCET_PRIVATE_KEY")]
+    pub(crate) faucet_private_key: String,
+    /// The sequencer private key
+    #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
+    pub(crate) sequencer_private_key: String,
+}
+
+#[derive(Args, Debug)]
+pub struct DeploymentDeleteArgs {
+    /// The filepath of the config to delete
+    #[clap(long = "config")]
+    pub(crate) config_path: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -195,5 +195,12 @@ mod tests {
         let input = "0x1234abcd:invalid_balance";
         let result: Result<GenesisAccountArg, _> = input.parse();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_is_valid_balance() {
+        assert!(is_valid_balance("100"));
+        assert!(!is_valid_balance("not_a_number"));
+        assert!(is_valid_balance("0"));
     }
 }
