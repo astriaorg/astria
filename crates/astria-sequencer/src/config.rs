@@ -25,6 +25,10 @@ pub struct Config {
     pub db_filepath: PathBuf,
     /// Log level: debug, info, warn, or error
     pub log: String,
+    /// Set to true to enable the mint component
+    /// Only used if the "mint" feature is enabled
+    #[cfg(feature = "mint")]
+    pub enable_mint: bool,
 }
 
 impl Config {
