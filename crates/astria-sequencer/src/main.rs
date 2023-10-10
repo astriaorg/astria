@@ -1,8 +1,8 @@
 use std::process::ExitCode;
 
 use astria_sequencer::{
-    Config,
     Sequencer,
+    config::get_config
 };
 use tracing::info;
 
@@ -12,7 +12,7 @@ const EX_CONFIG: u8 = 78;
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    let config = match Config::get() {
+    let config = match get_config() {
         Ok(cfg) => cfg,
         Err(e) => {
             eprintln!("failed to read configuration:\n{e:?}");

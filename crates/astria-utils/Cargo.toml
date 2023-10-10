@@ -10,7 +10,9 @@ serde = { workspace = true, optional = true }
 figment = { workspace = true, features = ["env", "test"], optional = true }
 once_cell = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
+astria-config-derive = { path = "../astria-config-derive", optional = true}
 
 [features]
 config = ["dep:serde", "dep:figment", "figment/env"]
+derive = ["config", "dep:astria-config-derive"]
 config-tests = ["config", "figment/test", "dep:once_cell", "dep:regex"]

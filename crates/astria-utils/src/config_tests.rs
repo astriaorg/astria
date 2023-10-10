@@ -22,11 +22,39 @@ fn populate_environment_from_example(jail: &mut Jail, test_envar_prefix: &str, e
     }
 }
 
-pub fn config_test_suite_passing<'a, C>(env_prefix: &str, example_env: &str)
+
+/// Test suite for testing configs according to the Astria spec
+/// # Example for running the test suite
+/// 
+/// ```rust,ignore
+/// mod test {
+///     use astria_utils::{
+///         config_test_suite_test_should_fail_with_bad_prefix,
+///         config_test_suite_test_should_populate_config_with_env_vars,
+///     };
+/// 
+///     use crate::Config;
+/// 
+///     const EXAMPLE_ENV: &str = include_str!("../local.env.example");
+/// 
+///     #[test]
+///     fn test_config_passing() {
+///         config_test_suite_test_should_populate_config_with_env_vars::<Config>(EXAMPLE_ENV);
+///     }
+/// 
+///     #[test]
+///     #[should_panic]
+///     fn test_config_failing() {
+///         config_test_suite_test_should_fail_with_bad_prefix::<Config>(EXAMPLE_ENV);
+///     }
+/// }
+/// ```
+
+pub fn config_test_suite_test_should_populate_config_with_env_vars<'a, C>(example_env: &str)
 where
     C: AstriaConfig<'a>,
 {
-    let test_prefix = format!("TESTTEST_{}", env_prefix);
+    let test_prefix = format!("TESTTEST_{}", C::PREFIX);
 
     Jail::expect_with(|jail| {
         populate_environment_from_example(jail, "TESTTEST", example_env);
@@ -35,11 +63,11 @@ where
     });
 }
 
-pub fn config_test_suite_failing<'a, C>(env_prefix: &str, example_env: &str)
+pub fn config_test_suite_test_should_fail_with_bad_prefix<'a, C>(example_env: &str)
 where
     C: AstriaConfig<'a>,
 {
-    let test_prefix = format!("TESTTEST_{}", env_prefix);
+    let test_prefix = format!("TESTTEST_{}", C::PREFIX);
 
     Jail::expect_with(|jail| {
         populate_environment_from_example(jail, "TESTTEST", example_env);

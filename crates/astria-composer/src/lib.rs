@@ -14,12 +14,12 @@
 //! ```no_run
 //! # use astria_composer::{
 //! #     Composer,
-//! #     config,
+//! #     config::{get_config, Config},
 //! #     telemetry,
 //! };
 //! # use tracing::info;
 //! # tokio_test::block_on(async {
-//! let cfg = Config::get().expect("failed to read configuration");
+//! let cfg = get_config().expect("failed to read configuration");
 //! let cfg_ser = serde_json::to_string(&cfg)
 //!     .expect("the json serializer should never fail when serializing to a string");
 //! eprintln!("config:\n{cfg_ser}");

@@ -3,14 +3,12 @@ use quote::quote;
 use syn::{
     parse_macro_input,
     spanned::Spanned,
-    Error as SynError,
     Item,
-    Result as SynResult,
 };
 
-fn extract_struct_properties(item_ast: &Item) -> SynResult<syn::Ident> {
+fn extract_struct_properties(item_ast: &Item) -> syn::Result<syn::Ident> {
     let Item::Struct(ref item_struct) = item_ast else {
-        return Err(SynError::new(
+        return Err(syn::Error::new(
             item_ast.span(),
             "the astria_config proc macro can only be called on structs",
         ));
@@ -38,9 +36,9 @@ fn extract_struct_properties(item_ast: &Item) -> SynResult<syn::Ident> {
         .collect::<Vec<_>>()
         .contains(&"log".to_string())
     else {
-        return Err(SynError::new(
+        return Err(syn::Error::new(
             item_ast.span(),
-            "config struct does not contain a log element, which is necessary",
+            "config struct does not contain a log field, which is necessary",
         ));
     };
 
@@ -55,15 +53,14 @@ pub fn astria_config(attr: TokenStream, item: TokenStream) -> TokenStream {
     let struct_name: syn::Ident = extract_struct_properties(&item_ast).unwrap();
 
     let code_gen_ast = quote! {
-        use astria_utils::AstriaConfig;
         #item_ast
 
-        impl AstriaConfig<'_> for #struct_name {}
+        impl astria_utils::AstriaConfig<'_> for #struct_name {
+            const PREFIX: &'static str = #attr_str;
+        }
 
-        impl #struct_name {
-            pub fn get() -> Result<Self, figment::Error> {
-                Self::from_environment(#attr_str)
-            }
+        pub fn get_config() -> Result<#struct_name, figment::Error> {
+            astria_utils::get_config::<#struct_name>(#attr_str)
         }
     };
 

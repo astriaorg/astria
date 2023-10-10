@@ -1,5 +1,5 @@
 use astria_sequencer_relayer::{
-    config::Config,
+    config::get_config,
     telemetry,
     SequencerRelayer,
 };
@@ -7,7 +7,7 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() {
-    let cfg = Config::get().expect("failed to read configuration");
+    let cfg = get_config().expect("failed to read configuration");
     telemetry::init(std::io::stdout, &cfg.log).expect("failed to setup telemetry");
     info!(
         config = serde_json::to_string(&cfg).expect("serializing to a string cannot fail"),

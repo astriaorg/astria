@@ -183,7 +183,6 @@ dependencies = [
 name = "astria-composer"
 version = "0.2.1"
 dependencies = [
- "astria-config-derive",
  "astria-proto",
  "astria-sequencer-client",
  "astria-telemetry",
@@ -221,7 +220,6 @@ dependencies = [
 name = "astria-conductor"
 version = "0.5.1"
 dependencies = [
- "astria-config-derive",
  "astria-proto",
  "astria-sequencer-client",
  "astria-sequencer-relayer",
@@ -284,7 +282,6 @@ name = "astria-sequencer"
 version = "0.4.1"
 dependencies = [
  "anyhow",
- "astria-config-derive",
  "astria-proto",
  "astria-sequencer-types",
  "astria-sequencer-validation",
@@ -344,7 +341,6 @@ name = "astria-sequencer-relayer"
 version = "0.5.1"
 dependencies = [
  "astria-celestia-jsonrpc-client",
- "astria-config-derive",
  "astria-proto",
  "astria-sequencer-types",
  "astria-sequencer-validation",
@@ -448,6 +444,7 @@ dependencies = [
 name = "astria-utils"
 version = "0.1.0"
 dependencies = [
+ "astria-config-derive",
  "figment",
  "once_cell",
  "regex",
