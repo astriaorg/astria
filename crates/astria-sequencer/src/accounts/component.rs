@@ -37,9 +37,15 @@ impl Component for AccountsComponent {
     async fn begin_block<S: StateWriteExt + 'static>(
         _state: &mut Arc<S>,
         _begin_block: &BeginBlock,
-    ) {
+    ) -> Result<()> {
+        Ok(())
     }
 
     #[instrument(name = "AccountsComponent:end_block", skip(_state))]
-    async fn end_block<S: StateWriteExt + 'static>(_state: &mut Arc<S>, _end_block: &EndBlock) {}
+    async fn end_block<S: StateWriteExt + 'static>(
+        _state: &mut Arc<S>,
+        _end_block: &EndBlock,
+    ) -> Result<()> {
+        Ok(())
+    }
 }

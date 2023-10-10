@@ -139,7 +139,7 @@ where
 }
 
 /// SequencerNamespaceData represents the data written to the "base"
-/// sequencer namespace. It contains all the other namespaces that were
+/// sequencer namespace. It contains all the other chain IDs (and thus, namespaces) that were
 /// also written to in the same block.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SequencerNamespaceData {
@@ -278,6 +278,10 @@ pub struct CelestiaClient {
 impl CelestiaClient {
     pub fn builder() -> CelestiaClientBuilder {
         CelestiaClientBuilder::new()
+    }
+
+    pub fn inner(&self) -> &Client {
+        &self.client
     }
 
     #[instrument(skip_all)]

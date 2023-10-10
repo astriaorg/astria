@@ -1,9 +1,12 @@
 pub(crate) mod accounts;
 pub(crate) mod app;
 pub(crate) mod app_hash;
+pub(crate) mod authority;
 pub(crate) mod component;
 pub mod config;
 pub(crate) mod genesis;
+#[cfg(feature = "mint")]
+pub(crate) mod mint;
 pub(crate) mod proposal;
 pub(crate) mod sequence;
 mod sequencer;

@@ -3,6 +3,8 @@ pub(crate) mod action_handler;
 use std::fmt;
 
 pub(crate) use action_handler::ActionHandler;
+#[cfg(not(feature = "mint"))]
+use anyhow::bail;
 use anyhow::{
     ensure,
     Context as _,
@@ -30,7 +32,7 @@ pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
         .await
         .context("failed to get account nonce")?;
     ensure!(
-        tx.unsigned_transaction().nonce < curr_nonce,
+        tx.unsigned_transaction().nonce >= curr_nonce,
         "nonce already used by account"
     );
     Ok(())
@@ -90,6 +92,18 @@ impl ActionHandler for UnsignedTransaction {
                 Action::Sequence(act) => act
                     .check_stateless()
                     .context("stateless check failed for SequenceAction")?,
+                Action::ValidatorUpdate(act) => act
+                    .check_stateless()
+                    .context("stateless check failed for ValidatorUpdateAction")?,
+                Action::SudoAddressChange(act) => act
+                    .check_stateless()
+                    .context("stateless check failed for SudoAddressChangeAction")?,
+                #[cfg(feature = "mint")]
+                Action::Mint(act) => act
+                    .check_stateless()
+                    .context("stateless check failed for MintAction")?,
+                #[cfg(not(feature = "mint"))]
+                _ => bail!("unsupported action type: {:?}", action),
             }
         }
         Ok(())
@@ -115,6 +129,21 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for SequenceAction")?,
+                Action::ValidatorUpdate(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for ValidatorUpdateAction")?,
+                Action::SudoAddressChange(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for SudoAddressChangeAction")?,
+                #[cfg(feature = "mint")]
+                Action::Mint(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for MintAction")?,
+                #[cfg(not(feature = "mint"))]
+                _ => bail!("unsupported action type: {:?}", action),
             }
         }
 
@@ -152,6 +181,24 @@ impl ActionHandler for UnsignedTransaction {
                         .await
                         .context("execution failed for SequenceAction")?;
                 }
+                Action::ValidatorUpdate(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for ValidatorUpdateAction")?;
+                }
+                Action::SudoAddressChange(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for SudoAddressChangeAction")?;
+                }
+                #[cfg(feature = "mint")]
+                Action::Mint(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for MintAction")?;
+                }
+                #[cfg(not(feature = "mint"))]
+                _ => bail!("unsupported action type: {:?}", action),
             }
         }
 
