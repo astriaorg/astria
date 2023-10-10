@@ -175,11 +175,9 @@ mod tests {
                     balance: "420".to_string(),
                 },
             ],
-            faucet_private_key: "key1".to_string(),
             sequencer_initial_block_height: Some(10),
             sequencer_websocket: "ws://localhost:8080".to_string(),
             sequencer_rpc: "http://localhost:8081".to_string(),
-            sequencer_private_key: "seq_key1".to_string(),
             celestia_full_node_url: "http://celestia_node".to_string(),
         };
 
@@ -229,11 +227,9 @@ mod tests {
                 address: "0xA5TR14".to_string(),
                 balance: "10000".to_string(),
             }],
-            faucet_private_key: "key2".to_string(),
             sequencer_initial_block_height: None,
             sequencer_websocket: "ws://localhost:8082".to_string(),
             sequencer_rpc: "http://localhost:8083".to_string(),
-            sequencer_private_key: "seq_key2".to_string(),
             celestia_full_node_url: "http://celestia_node2".to_string(),
         };
 
