@@ -200,3 +200,34 @@ pub(crate) fn delete_deployment(args: &DeploymentDeleteArgs) -> eyre::Result<()>
 
     Ok(())
 }
+
+/// Lists all deployments
+///
+/// # Errors
+///
+/// * If the helm command fails
+pub(crate) fn list_deployments() -> eyre::Result<()> {
+    // call `helm list` with appropriate args
+    let helm = helm_from_env();
+    let mut cmd = Command::new(helm.clone());
+    // FIXME - right now it lists all helm releases, not just rollup release
+    cmd.arg("list");
+
+    match cmd.output() {
+        Err(e) => {
+            panic!("failed listing deployments: failed to invoke helm (path: {helm:?}): {e:?}");
+        }
+        Ok(output) if !output.status.success() => {
+            panic!(
+                "failed listing deployments: `helm` returned error: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        Ok(output) => {
+            // print output
+            println!("{}", String::from_utf8_lossy(&output.stdout));
+        }
+    };
+
+    Ok(())
+}

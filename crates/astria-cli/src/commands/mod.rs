@@ -61,7 +61,7 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                 } => match command {
                     DeploymentCommand::Create(args) => rollup::create_deployment(&args)?,
                     DeploymentCommand::Delete(args) => rollup::delete_deployment(&args)?,
-                    DeploymentCommand::List => {}
+                    DeploymentCommand::List => rollup::list_deployments()?,
                 },
             },
             Command::Sequencer {
