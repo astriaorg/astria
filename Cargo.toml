@@ -13,7 +13,7 @@ members = [
   "crates/astria-telemetry",
   "crates/astria-test-utils",
   "crates/astria-config-derive",
-  "crates/astria-utils",
+  "crates/astria-config",
 ]
 resolver = "2"
 

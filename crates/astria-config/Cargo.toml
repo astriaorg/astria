@@ -1,5 +1,5 @@
 [package]
-name = "astria-utils"
+name = "astria-config"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,7 +10,7 @@ serde = { workspace = true, optional = true }
 figment = { workspace = true, features = ["env", "test"], optional = true }
 once_cell = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
-astria-config-derive = { path = "../astria-config-derive", optional = true}
+astria-config-derive = { path = "../astria-config-derive", optional = true }
 
 [features]
 config = ["dep:serde", "dep:figment", "figment/env"]

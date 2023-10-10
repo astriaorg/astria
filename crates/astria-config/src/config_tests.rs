@@ -22,26 +22,25 @@ fn populate_environment_from_example(jail: &mut Jail, test_envar_prefix: &str, e
     }
 }
 
-
 /// Test suite for testing configs according to the Astria spec
 /// # Example for running the test suite
-/// 
+///
 /// ```rust,ignore
 /// mod test {
-///     use astria_utils::{
+///     use astria_config::{
 ///         config_test_suite_test_should_fail_with_bad_prefix,
 ///         config_test_suite_test_should_populate_config_with_env_vars,
 ///     };
-/// 
+///
 ///     use crate::Config;
-/// 
+///
 ///     const EXAMPLE_ENV: &str = include_str!("../local.env.example");
-/// 
+///
 ///     #[test]
 ///     fn test_config_passing() {
 ///         config_test_suite_test_should_populate_config_with_env_vars::<Config>(EXAMPLE_ENV);
 ///     }
-/// 
+///
 ///     #[test]
 ///     #[should_panic]
 ///     fn test_config_failing() {

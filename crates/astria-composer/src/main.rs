@@ -1,4 +1,8 @@
-use astria_composer::{config::get_config, telemetry, Composer};
+use astria_composer::{
+    config::get_config,
+    telemetry,
+    Composer,
+};
 use tracing::info;
 
 #[tokio::main]

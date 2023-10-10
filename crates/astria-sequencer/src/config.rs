@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use astria_utils::astria_config;
+use astria_config::astria_config;
 use serde::{
     Deserialize,
     Serialize,
@@ -20,7 +20,7 @@ pub struct Config {
 
 #[cfg(test)]
 mod test {
-    use astria_utils::{
+    use astria_config::{
         config_test_suite_test_should_fail_with_bad_prefix,
         config_test_suite_test_should_populate_config_with_env_vars,
     };

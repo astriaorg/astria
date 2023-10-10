@@ -2,7 +2,7 @@ use std::process::ExitCode;
 
 use astria_conductor::{
     conductor::Conductor,
-    config::get_config
+    config::get_config,
 };
 use tracing::{
     error,

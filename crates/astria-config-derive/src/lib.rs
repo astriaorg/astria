@@ -55,12 +55,12 @@ pub fn astria_config(attr: TokenStream, item: TokenStream) -> TokenStream {
     let code_gen_ast = quote! {
         #item_ast
 
-        impl astria_utils::AstriaConfig<'_> for #struct_name {
+        impl astria_config::AstriaConfig<'_> for #struct_name {
             const PREFIX: &'static str = #attr_str;
         }
 
         pub fn get_config() -> Result<#struct_name, figment::Error> {
-            astria_utils::get_config::<#struct_name>(#attr_str)
+            astria_config::get_config::<#struct_name>(#attr_str)
         }
     };
 

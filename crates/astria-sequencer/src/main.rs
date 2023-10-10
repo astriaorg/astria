@@ -1,8 +1,8 @@
 use std::process::ExitCode;
 
 use astria_sequencer::{
+    config::get_config,
     Sequencer,
-    config::get_config
 };
 use tracing::info;
 

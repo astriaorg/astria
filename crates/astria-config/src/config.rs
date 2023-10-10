@@ -8,7 +8,7 @@ use serde::{
 };
 
 pub trait AstriaConfig<'a>: Serialize + Deserialize<'a> {
-    const PREFIX: & 'static str;
+    const PREFIX: &'static str;
 
     fn from_environment(env_prefix: &str) -> Result<Self, figment::Error> {
         Figment::new()
@@ -18,6 +18,9 @@ pub trait AstriaConfig<'a>: Serialize + Deserialize<'a> {
     }
 }
 
-pub fn get_config<'a, T>(env_prefix: &str) -> Result<T, figment::Error> where T: AstriaConfig<'a> {
+pub fn get_config<'a, T>(env_prefix: &str) -> Result<T, figment::Error>
+where
+    T: AstriaConfig<'a>,
+{
     T::from_environment(env_prefix)
 }

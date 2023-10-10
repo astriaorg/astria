@@ -47,7 +47,7 @@ features = ["http"]
 
 [dev-dependencies]
 proto = { package = "astria-proto", path = "../astria-proto" }
-astria-config = { path = "../astria-config", features = ["config-tests"] }
+astria_config = { path = "../astria_config", features = ["config-tests"] }
 
 impl-serde = "0.4.0"
 tokio-test = "0.4.2"
