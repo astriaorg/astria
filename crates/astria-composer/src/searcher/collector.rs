@@ -119,7 +119,7 @@ impl Collector {
             .await
             .wrap_err("failed to subscribe eth client to full pending transactions")?;
         while let Some(tx) = tx_stream.next().await {
-            debug!(transaction.hash = %tx.hash, "collected transaction with from rollup");
+            debug!(transaction.hash = %tx.hash, "collected transaction from rollup");
             match searcher_channel
                 .send_timeout(
                     Transaction {
