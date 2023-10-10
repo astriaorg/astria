@@ -6,13 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serde = { workspace = true, optional = true }
-figment = { workspace = true, features = ["env", "test"], optional = true }
+serde = { workspace = true }
+figment = { workspace = true, features = ["env"] }
 once_cell = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 astria-config-derive = { path = "../astria-config-derive", optional = true }
 
 [features]
-config = ["dep:serde", "dep:figment", "figment/env"]
-derive = ["config", "dep:astria-config-derive"]
-config-tests = ["config", "figment/test", "dep:once_cell", "dep:regex"]
+derive = ["dep:astria-config-derive"]
+config-tests = ["figment/test", "dep:once_cell", "dep:regex"]

@@ -1,13 +1,14 @@
 use astria_composer::{
-    config::get_config,
     telemetry,
     Composer,
+    Config,
 };
+use astria_config::AstriaConfig as _;
 use tracing::info;
 
 #[tokio::main]
 async fn main() {
-    let cfg = match get_config() {
+    let cfg = match Config::get() {
         Ok(cfg) => cfg,
         Err(e) => {
             eprintln!("failed to read configuration: {e}");
