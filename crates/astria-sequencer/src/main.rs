@@ -26,10 +26,14 @@ async fn main() -> ExitCode {
     );
 
     #[cfg(feature = "mint")]
-    {
-        tracing::warn!("MINT FEATURE IS ENABLED!");
-        tracing::warn!("do not enable minting in production!");
-    }
+    tokio::spawn({
+        let duration = std::time::Duration::from_secs(5);
+        loop {
+            eprintln!("MINT FEATURE IS ENABLED!");
+            eprintln!("do not enable minting in production!");
+            tokio::sleep(duration).await;
+        }
+    });
 
     Sequencer::run_until_stopped(config)
         .await
