@@ -30,7 +30,6 @@ default = ["native"]
 client = ["dep:tonic"]
 native = ["dep:ed25519-consensus", "dep:hex", "dep:sha2", "dep:tracing"]
 server = ["dep:tonic"]
-mint = []
 
 [dev-dependencies]
 tempfile = { workspace = true }

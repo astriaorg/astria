@@ -4,6 +4,7 @@ use std::fmt;
 
 pub(crate) use action_handler::ActionHandler;
 use anyhow::{
+    bail,
     ensure,
     Context as _,
 };
@@ -100,6 +101,8 @@ impl ActionHandler for UnsignedTransaction {
                 Action::Mint(act) => act
                     .check_stateless()
                     .context("stateless check failed for MintAction")?,
+                #[cfg(not(feature = "mint"))]
+                _ => bail!("unsupported action type: {:?}", action),
             }
         }
         Ok(())
@@ -138,6 +141,8 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for MintAction")?,
+                #[cfg(not(feature = "mint"))]
+                _ => bail!("unsupported action type: {:?}", action),
             }
         }
 
@@ -191,6 +196,8 @@ impl ActionHandler for UnsignedTransaction {
                         .await
                         .context("execution failed for MintAction")?;
                 }
+                #[cfg(not(feature = "mint"))]
+                _ => bail!("unsupported action type: {:?}", action),
             }
         }
 

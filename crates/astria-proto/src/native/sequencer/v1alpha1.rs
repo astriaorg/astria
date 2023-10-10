@@ -304,7 +304,6 @@ pub enum Action {
     Transfer(TransferAction),
     ValidatorUpdate(tendermint::validator::Update),
     SudoAddressChange(SudoAddressChangeAction),
-    #[cfg(feature = "mint")]
     Mint(MintAction),
 }
 
@@ -317,7 +316,6 @@ impl Action {
             Action::Transfer(act) => Value::TransferAction(act.into_raw()),
             Action::ValidatorUpdate(act) => Value::ValidatorUpdateAction(act.into()),
             Action::SudoAddressChange(act) => Value::SudoAddressChangeAction(act.into_raw()),
-            #[cfg(feature = "mint")]
             Action::Mint(act) => Value::MintAction(act.into_raw()),
         };
         raw::Action {
@@ -335,7 +333,6 @@ impl Action {
             Action::SudoAddressChange(act) => {
                 Value::SudoAddressChangeAction(act.clone().into_raw())
             }
-            #[cfg(feature = "mint")]
             Action::Mint(act) => Value::MintAction(act.to_raw()),
         };
         raw::Action {
@@ -369,7 +366,6 @@ impl Action {
                 SudoAddressChangeAction::try_from_raw(act)
                     .map_err(ActionError::sudo_address_change)?,
             ),
-            #[cfg(feature = "mint")]
             Value::MintAction(act) => {
                 Self::Mint(MintAction::try_from_raw(act).map_err(ActionError::mint)?)
             }
@@ -412,7 +408,6 @@ impl From<SudoAddressChangeAction> for Action {
     }
 }
 
-#[cfg(feature = "mint")]
 impl From<MintAction> for Action {
     fn from(value: MintAction) -> Self {
         Self::Mint(value)
@@ -449,7 +444,6 @@ impl ActionError {
         }
     }
 
-    #[cfg(feature = "mint")]
     fn mint(inner: MintActionError) -> Self {
         Self {
             kind: ActionErrorKind::Mint(inner),
@@ -464,7 +458,6 @@ impl Display for ActionError {
             ActionErrorKind::Transfer(_) => "raw transfer action was not valid",
             ActionErrorKind::ValidatorUpdate(_) => "raw validator update action was not valid",
             ActionErrorKind::SudoAddressChange(_) => "raw sudo address change action was not valid",
-            #[cfg(feature = "mint")]
             ActionErrorKind::Mint(_) => "raw mint action was not valid",
         };
         f.pad(msg)
@@ -478,7 +471,6 @@ impl Error for ActionError {
             ActionErrorKind::Transfer(e) => Some(e),
             ActionErrorKind::ValidatorUpdate(e) => Some(e),
             ActionErrorKind::SudoAddressChange(e) => Some(e),
-            #[cfg(feature = "mint")]
             ActionErrorKind::Mint(e) => Some(e),
         }
     }
@@ -490,7 +482,6 @@ enum ActionErrorKind {
     Transfer(TransferActionError),
     ValidatorUpdate(tendermint::error::Error),
     SudoAddressChange(SudoAddressChangeActionError),
-    #[cfg(feature = "mint")]
     Mint(MintActionError),
 }
 
@@ -708,110 +699,91 @@ enum SudoAddressChangeActionErrorKind {
     Address(IncorrectAddressLength),
 }
 
-#[cfg(feature = "mint")]
-pub use mint::{
-    MintAction,
-    MintActionError,
-};
+#[allow(clippy::module_name_repetitions)]
+#[derive(Clone, Debug)]
+pub struct MintAction {
+    pub to: Address,
+    pub amount: u128,
+}
 
-#[cfg(feature = "mint")]
-mod mint {
-    use super::{
-        raw,
-        Address,
-        Display,
-        Error,
-        IncorrectAddressLength,
-    };
-
-    #[allow(clippy::module_name_repetitions)]
-    #[derive(Clone, Debug)]
-    pub struct MintAction {
-        pub to: Address,
-        pub amount: u128,
-    }
-
-    impl MintAction {
-        #[must_use]
-        pub fn into_raw(self) -> raw::MintAction {
-            let Self {
-                to,
-                amount,
-            } = self;
-            raw::MintAction {
-                to: to.to_vec(),
-                amount: Some(amount.into()),
-            }
-        }
-
-        #[must_use]
-        pub fn to_raw(&self) -> raw::MintAction {
-            let Self {
-                to,
-                amount,
-            } = self;
-            raw::MintAction {
-                to: to.to_vec(),
-                amount: Some((*amount).into()),
-            }
-        }
-
-        /// Convert from a raw, unchecked protobuf [`raw::MintAction`].
-        ///
-        /// # Errors
-        ///
-        /// Returns an error if the raw action's `to` address did not have the expected
-        /// length.
-        pub fn try_from_raw(proto: raw::MintAction) -> Result<Self, MintActionError> {
-            let raw::MintAction {
-                to,
-                amount,
-            } = proto;
-            let to = Address::try_from_slice(&to).map_err(MintActionError::address)?;
-            let amount = amount.map_or(0, Into::into);
-            Ok(Self {
-                to,
-                amount,
-            })
+impl MintAction {
+    #[must_use]
+    pub fn into_raw(self) -> raw::MintAction {
+        let Self {
+            to,
+            amount,
+        } = self;
+        raw::MintAction {
+            to: to.to_vec(),
+            amount: Some(amount.into()),
         }
     }
 
-    #[allow(clippy::module_name_repetitions)]
-    #[derive(Debug)]
-    pub struct MintActionError {
-        kind: MintActionErrorKind,
-    }
-
-    impl MintActionError {
-        fn address(inner: IncorrectAddressLength) -> Self {
-            Self {
-                kind: MintActionErrorKind::Address(inner),
-            }
+    #[must_use]
+    pub fn to_raw(&self) -> raw::MintAction {
+        let Self {
+            to,
+            amount,
+        } = self;
+        raw::MintAction {
+            to: to.to_vec(),
+            amount: Some((*amount).into()),
         }
     }
 
-    impl Display for MintActionError {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self.kind {
-                MintActionErrorKind::Address(_) => {
-                    f.pad("`to` field did not contain a valid address")
-                }
-            }
+    /// Convert from a raw, unchecked protobuf [`raw::MintAction`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the raw action's `to` address did not have the expected
+    /// length.
+    pub fn try_from_raw(proto: raw::MintAction) -> Result<Self, MintActionError> {
+        let raw::MintAction {
+            to,
+            amount,
+        } = proto;
+        let to = Address::try_from_slice(&to).map_err(MintActionError::address)?;
+        let amount = amount.map_or(0, Into::into);
+        Ok(Self {
+            to,
+            amount,
+        })
+    }
+}
+
+#[allow(clippy::module_name_repetitions)]
+#[derive(Debug)]
+pub struct MintActionError {
+    kind: MintActionErrorKind,
+}
+
+impl MintActionError {
+    fn address(inner: IncorrectAddressLength) -> Self {
+        Self {
+            kind: MintActionErrorKind::Address(inner),
         }
     }
+}
 
-    impl Error for MintActionError {
-        fn source(&self) -> Option<&(dyn Error + 'static)> {
-            match &self.kind {
-                MintActionErrorKind::Address(e) => Some(e),
-            }
+impl Display for MintActionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.kind {
+            MintActionErrorKind::Address(_) => f.pad("`to` field did not contain a valid address"),
         }
     }
+}
 
-    #[derive(Debug)]
-    enum MintActionErrorKind {
-        Address(IncorrectAddressLength),
+impl Error for MintActionError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match &self.kind {
+            MintActionErrorKind::Address(e) => Some(e),
+        }
     }
+}
+
+#[derive(Debug)]
+enum MintActionErrorKind {
+    Address(IncorrectAddressLength),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

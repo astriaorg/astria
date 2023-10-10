@@ -8,8 +8,6 @@ plugins:
      - extern_path=.tendermint.types=::tendermint-proto::types
      - extern_path=.tendermint.abci=::tendermint-proto::abci
      - type_attribute=.astria.primitive.v1.Uint128=#[derive(Copy)]
-     - type_attribute=.astria.sequencer.v1alpha1.MintAction=#[cfg(feature = "mint")]
-     - field_attribute=.astria.sequencer.v1alpha1.Action.value.mint_action=#[cfg(feature = "mint")]
   - plugin: buf.build/community/neoeinstein-tonic:v0.3.0
     out: .
     opt:

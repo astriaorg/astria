@@ -139,7 +139,6 @@ pub mod action {
         #[prost(message, tag="4")]
         SudoAddressChangeAction(super::SudoAddressChangeAction),
         #[prost(message, tag="5")]
-        #[cfg(feature = "mint")]
         MintAction(super::MintAction),
     }
 }
@@ -183,7 +182,6 @@ pub struct SudoAddressChangeAction {
 /// It can only be executed by the chain's sudo address.
 ///
 /// It contains the address to mint to, and the amount to mint.
-#[cfg(feature = "mint")]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MintAction {
