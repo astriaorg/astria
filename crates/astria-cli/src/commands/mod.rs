@@ -16,12 +16,16 @@ use crate::{
         sequencer::{
             AccountCommand,
             BalanceCommand,
+            BlockHeightCommand,
             Command as SequencerCommand,
         },
         Cli,
         Command,
     },
-    commands::sequencer::get_balance,
+    commands::sequencer::{
+        get_balance,
+        get_block_height,
+    },
 };
 
 /// Checks what function needs to be run and calls it with the appropriate arguments
@@ -65,6 +69,11 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                     command,
                 } => match command {
                     BalanceCommand::Get(args) => get_balance(&args).await?,
+                },
+                SequencerCommand::BlockHeight {
+                    command,
+                } => match command {
+                    BlockHeightCommand::Get(args) => get_block_height(&args).await?,
                 },
             },
         }

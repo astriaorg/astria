@@ -10,39 +10,45 @@ use color_eyre::{
     eyre::Context,
 };
 
-/// Interact with the Sequencer
+/// Interact with a Sequencer node
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Create a new Sequencer account
+    /// Commands for interacting with Sequencer accounts
     Account {
         #[clap(subcommand)]
         command: AccountCommand,
     },
-    /// Get the balance of a Sequencer account
+    /// Commands for interacting with Sequencer balances
     Balance {
         #[clap(subcommand)]
         command: BalanceCommand,
+    },
+    /// Commands for interacting with Sequencer block heights
+    #[clap(name = "blockheight")]
+    BlockHeight {
+        #[clap(subcommand)]
+        command: BlockHeightCommand,
     },
 }
 
 #[derive(Debug, Subcommand)]
 pub enum AccountCommand {
-    /// Create a new sequencer account
+    /// Create a new Sequencer account
     Create,
 }
 
 #[derive(Debug, Subcommand)]
 pub enum BalanceCommand {
-    /// Get the balance of a sequencer account
+    /// Get the balance of a Sequencer account
     Get(BalanceGetArgs),
 }
 
 #[derive(Args, Debug)]
 pub struct BalanceGetArgs {
-    /// The url of the sequencer node
+    /// The url of the Sequencer node
     #[clap(long)]
     pub(crate) sequencer_url: String,
-    /// The address of the sequencer account
+    /// The address of the Sequencer account
     #[clap(long)]
     pub(crate) address: AddressArg,
 }
@@ -63,4 +69,17 @@ impl FromStr for AddressArg {
 
         Ok(Self(address))
     }
+}
+
+#[derive(Debug, Subcommand)]
+pub enum BlockHeightCommand {
+    /// Get the current block height of the Sequencer node
+    Get(BlockHeightGetArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct BlockHeightGetArgs {
+    /// The url of the Sequencer node
+    #[clap(long)]
+    pub(crate) sequencer_url: String,
 }

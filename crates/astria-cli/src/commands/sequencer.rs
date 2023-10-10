@@ -13,7 +13,10 @@ use sha2::{
     Sha256,
 };
 
-use crate::cli::sequencer::BalanceGetArgs;
+use crate::cli::sequencer::{
+    BalanceGetArgs,
+    BlockHeightGetArgs,
+};
 
 /// Generate new keypair
 fn get_new_signing_key() -> SigningKey {
@@ -45,7 +48,7 @@ fn get_address_pretty(signing_key: &SigningKey) -> String {
     hex::encode(&address_bytes[..20])
 }
 
-/// Create a new sequencer account
+/// Generates a new ED25519 keypair and prints the public key, private key, and address
 pub(crate) fn create_account() {
     let signing_key = get_new_signing_key();
     let public_key_pretty = get_public_key_pretty(&signing_key);
@@ -59,7 +62,7 @@ pub(crate) fn create_account() {
     println!("Address:     {address_pretty:?}");
 }
 
-/// Get the balance of a sequencer account
+/// Gets the balance of a Sequencer account
 ///
 /// # Arguments
 ///
@@ -81,6 +84,31 @@ pub(crate) async fn get_balance(args: &BalanceGetArgs) -> eyre::Result<()> {
 
     println!("Balance for address {}:", address.0);
     println!("    {}", res.balance);
+
+    Ok(())
+}
+
+/// Gets the latest block height of a Sequencer node
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the latest block height cannot be retrieved
+pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<()> {
+    let sequencer_client = HttpClient::new(args.sequencer_url.as_str())
+        .wrap_err("failed constructing http sequencer client")?;
+
+    let res = sequencer_client
+        .latest_sequencer_block()
+        .await
+        .wrap_err("failed to get sequencer block")?;
+
+    println!("Block Height:");
+    println!("    {}", res.header().height);
 
     Ok(())
 }
