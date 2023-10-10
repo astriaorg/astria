@@ -26,6 +26,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
+      - uses: arduino/setup-protoc@v2
+        with:
+          version: "24.4"
       - name: Check that each crate compiles individually (circumventing workspace wide dependency resolution)
         run: cargo hack check --all --all-features
 
@@ -57,52 +60,20 @@ jobs:
         with:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build tests (excluding RPC client, which needs kubernetes)
+      - uses: arduino/setup-protoc@v2
+        with:
+          version: "24.4"
+      - name: Build tests
         run: |
           cargo test --no-run --release --workspace \
           --all-features \
           --all-targets \
-          --exclude astria-celestia-jsonrpc-client
-      - name: Run tests (excluding RPC client, which needs kubernetes)
+      - name: Run tests
         timeout-minutes: 20
         run: |
           cargo test --release --workspace \
           --all-features \
           --all-targets \
-          --exclude astria-celestia-jsonrpc-client
-
-  rpc_client:
-    runs-on: ubuntu-22.04
-    needs: run_checker
-    if: needs.run_checker.outputs.run_tests == 'true'
-    steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.72.0
-      - uses: Swatinem/rust-cache@v2.6.1
-        with:
-          cache-provider: "github"
-      - name: Build the jsonrpc client tests
-        run: cargo test --release --no-run --package astria-celestia-jsonrpc-client
-      - name: create kubernetes in docker cluster
-        uses: helm/kind-action@v1.5.0
-        with:
-          version: v0.18.0
-          config: crates/astria-celestia-jsonrpc-client/k8s/cluster-config.yml
-          kubectl_version: v1.27.1
-      - name: install just
-        uses: taiki-e/install-action@just
-      - run: just deploy-ingress-controller
-      - run: just wait-for-ingress-controller
-      - run: just start-celestia-jsonrpc-test-deployment
-      - run: just wait-for-celestia-jsonrpc-test-deployment
-      - name: wait 5 seconds for ingress to pick up rules, services
-        run: sleep 5
-      - name: Run the jsonrpc client tests
-        run: |
-          cargo test --release \
-          --package astria-celestia-jsonrpc-client \
-          --all-features \
-          -- --ignored
 
   doctest:
     runs-on: ubuntu-22.04
@@ -114,6 +85,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "github"
+      - uses: arduino/setup-protoc@v2
+        with:
+          version: "24.4"
       - name: Run doctests
         run: cargo test --doc --all-features
 
@@ -133,6 +107,9 @@ jobs:
         with:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: arduino/setup-protoc@v2
+        with:
+          version: "24.4"
       - name: run pedantic clippy
         run: |
           cargo clippy --workspace \
@@ -151,5 +128,5 @@ jobs:
 
   test:
     if: ${{ always() && !cancelled() }}
-    needs: [compiles, rust, rpc_client, doctest, clippy, lockfile]
+    needs: [compiles, rust, doctest, clippy, lockfile]
     uses: ./.github/workflows/reusable-success.yml
