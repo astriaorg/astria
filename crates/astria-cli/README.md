@@ -53,4 +53,15 @@ cargo build --release
 # delete deployment
 ./target/release/astria-cli rollup deplyoment delete \
   --config somerollupname-rollup-config.yaml
+  
+# create account on Sequencer
+./target/release/astria-cli sequencer account create
+
+# get balance of account on Sequencer
+./target/release/astria-cli sequencer balance get <ADDRESS> \
+  --sequencer_url <SEQUENCER_URL>
+  
+# get latest block height of Sequencer
+./target/release/astria-cli sequencer blockheight get \
+  --sequencer_url <SEQUENCER_URL>
 ```

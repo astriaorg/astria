@@ -49,7 +49,6 @@ pub struct BalanceGetArgs {
     #[clap(long)]
     pub(crate) sequencer_url: String,
     /// The address of the Sequencer account
-    #[clap(long)]
     pub(crate) address: AddressArg,
 }
 
