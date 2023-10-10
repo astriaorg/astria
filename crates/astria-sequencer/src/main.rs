@@ -26,12 +26,12 @@ async fn main() -> ExitCode {
     );
 
     #[cfg(feature = "mint")]
-    tokio::spawn({
+    tokio::spawn(async {
         let duration = std::time::Duration::from_secs(5);
         loop {
             eprintln!("MINT FEATURE IS ENABLED!");
             eprintln!("do not enable minting in production!");
-            tokio::sleep(duration).await;
+            tokio::time::sleep(duration).await;
         }
     });
 
