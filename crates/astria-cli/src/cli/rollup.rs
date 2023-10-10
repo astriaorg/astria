@@ -125,6 +125,10 @@ pub struct ConfigEditArgs {
     /// The filepath of the config to edit
     #[clap(long = "config")]
     pub(crate) config_path: String,
+    /// The key of the field to edit. Accepts dot notated yaml path.
+    pub(crate) key: String,
+    /// The value to set the field to
+    pub(crate) value: String,
 }
 
 #[derive(Args, Debug)]

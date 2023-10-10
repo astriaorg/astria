@@ -59,6 +59,10 @@ impl RollupDeploymentConfig {
     pub fn get_chart_release_name(&self) -> String {
         format!("{}-rollup", self.rollup.name)
     }
+
+    pub fn get_rollup_name(&self) -> String {
+        self.rollup.name.clone()
+    }
 }
 
 impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {

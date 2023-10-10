@@ -4,7 +4,10 @@ use std::{
         consts::OS,
     },
     fs::File,
-    io::Write,
+    io::{
+        Read,
+        Write,
+    },
     path::PathBuf,
     process::Command,
 };
@@ -45,6 +48,33 @@ fn helm_from_env() -> PathBuf {
         .map(PathBuf::from)
         .or_else(|| which::which("helm").ok())
         .expect(&msg)
+}
+
+fn update_yaml_value(
+    value: &mut serde_yaml::Value,
+    key: &str,
+    new_value: &str,
+) -> eyre::Result<()> {
+    let mut target = value;
+
+    let keys: Vec<&str> = key.split('.').collect();
+
+    for &key in keys.iter().take(keys.len() - 1) {
+        target = target
+            .get_mut(key)
+            .ok_or_else(|| eyre::eyre!("Invalid key path: {}", key))?;
+    }
+
+    let last_key = keys
+        .last()
+        .ok_or_else(|| eyre::eyre!("Key path is empty"))?;
+
+    if let Some(v) = target.get_mut(*last_key) {
+        *v = serde_yaml::Value::String(new_value.to_string());
+    } else {
+        return Err(eyre::eyre!("Invalid last key: {}", last_key));
+    }
+    Ok(())
 }
 
 /// Create a new rollup config file in the calling directory.
@@ -93,9 +123,22 @@ pub(crate) fn delete_config(args: &ConfigDeleteArgs) -> eyre::Result<()> {
     Ok(())
 }
 
-pub(crate) fn edit_config(args: &ConfigEditArgs) {
-    // TODO
-    println!("Edit Rollup Config {args:?}");
+pub(crate) fn edit_config(args: &ConfigEditArgs) -> eyre::Result<()> {
+    // get file contents
+    let path = PathBuf::from(&args.config_path);
+    let mut file = File::open(&path)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+
+    let mut yaml_value: serde_yaml::Value = serde_yaml::from_str(&contents)?;
+    update_yaml_value(&mut yaml_value, &args.key, &args.value)?;
+
+    // Write the updated YAML back to the file
+    let updated_yaml = serde_yaml::to_string(&yaml_value)?;
+    let mut file = File::create(&path)?;
+    file.write_all(updated_yaml.as_bytes())?;
+
+    Ok(())
 }
 
 /// Creates a deployment from a config file
@@ -234,9 +277,45 @@ pub(crate) fn list_deployments() -> eyre::Result<()> {
 
 #[cfg(test)]
 mod test {
-    use tempfile::tempdir;
+    use std::sync::Mutex;
+
+    use once_cell::sync::Lazy;
+    use tempfile::{
+        self,
+        TempDir,
+    };
 
     use super::*;
+
+    static CURRENT_DIR_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+    /// Run a closure with a temporary directory as the current directory.
+    /// This is useful for tests that want to change the current directory.
+    /// `set_current_env` is not thread safe, so it will cause flaky tests if not behind a mutex.
+    fn with_temp_directory<F>(closure: F)
+    where
+        F: FnOnce(&TempDir),
+    {
+        // Lock the mutex
+        let _guard = CURRENT_DIR_LOCK.lock().unwrap();
+
+        // Store the original current directory
+        let original_dir = env::current_dir().unwrap();
+
+        // Create a new temporary directory
+        let temp_dir = TempDir::new().unwrap();
+
+        // Change to the temporary directory
+        env::set_current_dir(&temp_dir).unwrap();
+
+        // Run the closure, passing it a reference to the temp directory
+        closure(&temp_dir);
+
+        // Restore the original current directory
+        env::set_current_dir(original_dir).unwrap();
+
+        temp_dir.close().unwrap();
+    }
 
     fn get_config_create_args() -> ConfigCreateArgs {
         ConfigCreateArgs {
@@ -256,32 +335,62 @@ mod test {
 
     #[test]
     fn test_create_config_file() {
-        let dir = tempdir().unwrap();
-        env::set_current_dir(&dir).unwrap();
+        with_temp_directory(|_dir| {
+            let args = get_config_create_args();
+            create_config(&args).unwrap();
 
-        let args = get_config_create_args();
-        create_config(&args).unwrap();
-
-        let file_path = dir.path().join("test-rollup-conf.yaml");
-        assert!(file_path.exists());
-
-        dir.close().unwrap();
+            let file_path = PathBuf::from("test-rollup-conf.yaml");
+            assert!(file_path.exists());
+        });
     }
 
     #[test]
     fn test_delete_config_file() {
-        let dir = tempdir().unwrap();
-        env::set_current_dir(&dir).unwrap();
+        with_temp_directory(|_dir| {
+            let file_path = PathBuf::from("test-rollup-conf.yaml");
+            File::create(&file_path).unwrap();
 
-        let file_path = dir.path().join("test-rollup-conf.yaml");
-        File::create(&file_path).unwrap();
+            let args = ConfigDeleteArgs {
+                config_path: file_path.to_str().unwrap().to_string(),
+            };
+            delete_config(&args).unwrap();
+            assert!(!file_path.exists());
+        });
+    }
 
-        let args = ConfigDeleteArgs {
-            config_path: file_path.to_str().unwrap().to_string(),
-        };
-        delete_config(&args).unwrap();
-        assert!(!file_path.exists());
+    #[test]
+    fn test_edit_config_file() {
+        with_temp_directory(|_dir| {
+            let args = get_config_create_args();
+            create_config(&args).unwrap();
 
-        dir.close().unwrap();
+            let file_path = PathBuf::from("test-rollup-conf.yaml");
+            let args = ConfigEditArgs {
+                config_path: file_path.to_str().unwrap().to_string(),
+                key: "config.rollup.name".to_string(),
+                value: "bugbug".to_string(),
+            };
+            edit_config(&args).unwrap();
+
+            let file = File::open(&file_path).unwrap();
+            let rollup: Rollup = serde_yaml::from_reader(file).unwrap();
+            assert_eq!(rollup.deployment_config.get_rollup_name(), "bugbug");
+        });
+    }
+
+    #[test]
+    fn test_edit_config_file_errors_for_wrong_key() {
+        with_temp_directory(|_dir| {
+            let args = get_config_create_args();
+            create_config(&args).unwrap();
+
+            let file_path = PathBuf::from("test-rollup-conf.yaml");
+            let args = ConfigEditArgs {
+                config_path: file_path.to_str().unwrap().to_string(),
+                key: "config.blahblah".to_string(),
+                value: "bugbug".to_string(),
+            };
+            assert!(edit_config(&args).is_err());
+        });
     }
 }
