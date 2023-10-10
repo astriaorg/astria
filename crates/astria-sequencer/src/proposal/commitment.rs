@@ -40,7 +40,7 @@ impl GeneratedCommitments {
 /// implemented as ( `chain_id` || root of merkle tree of the `sequence::Action`s ).
 /// This is somewhat arbitrary, but could be useful for proof of an action within the action tree.
 pub(crate) fn generate_sequence_actions_commitment(
-    signed_txs: Vec<SignedTransaction>,
+    signed_txs: &[SignedTransaction],
 ) -> GeneratedCommitments {
     use sequencer_validation::generate_action_tree_leaves;
     use tendermint::{
@@ -48,7 +48,7 @@ pub(crate) fn generate_sequence_actions_commitment(
         merkle::simple_hash_from_byte_vectors,
     };
 
-    let chain_id_to_txs = group_sequence_actions_by_chain_id(&signed_txs);
+    let chain_id_to_txs = group_sequence_actions_by_chain_id(signed_txs);
     let chain_ids = chain_id_to_txs.keys().cloned().collect::<Vec<_>>();
 
     // each leaf of the action tree is the root of a merkle tree of the `sequence::Action`s
@@ -118,7 +118,7 @@ mod test {
         let GeneratedCommitments {
             sequence_actions_commitment: commitment_0,
             ..
-        } = generate_sequence_actions_commitment(txs);
+        } = generate_sequence_actions_commitment(&txs);
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
@@ -131,7 +131,7 @@ mod test {
         let GeneratedCommitments {
             sequence_actions_commitment: commitment_1,
             ..
-        } = generate_sequence_actions_commitment(txs);
+        } = generate_sequence_actions_commitment(&txs);
         assert_eq!(commitment_0, commitment_1);
     }
 
@@ -217,7 +217,7 @@ mod test {
         let GeneratedCommitments {
             sequence_actions_commitment: actual,
             ..
-        } = generate_sequence_actions_commitment(txs);
+        } = generate_sequence_actions_commitment(&txs);
 
         let expected: [u8; 32] = [
             97, 82, 159, 138, 201, 12, 241, 95, 99, 19, 162, 205, 37, 38, 130, 165, 78, 185, 141,

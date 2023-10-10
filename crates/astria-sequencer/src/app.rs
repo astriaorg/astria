@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::{
-    ensure,
-    Context,
-};
+use anyhow::Context;
 use penumbra_storage::{
     ArcStateDeltaExt,
     Snapshot,
@@ -57,16 +54,6 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 #[derive(Clone, Debug)]
 pub(crate) struct App {
     state: InterBlockState,
-
-    /// set to `0` when `begin_block` is called, and set to `1` or `2` when
-    /// `deliver_tx` is called for the first two times.
-    /// this is a hack to allow the `sequence_actions_commitment` and `chain_ids_commitment`
-    /// to pass `deliver_tx`, as they're the first two "tx"s delivered.
-    ///
-    /// when the app is fully updated to ABCI++, `begin_block`, `deliver_tx`,
-    /// and `end_block` will all become one function `finalize_block`, so
-    /// this will not be needed.
-    processed_txs: u32,
 }
 
 impl App {
@@ -79,7 +66,7 @@ impl App {
 
         Self {
             state,
-            processed_txs: 0,
+            // processed_txs: 0,
         }
     }
 
@@ -137,28 +124,15 @@ impl App {
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
 
-        self.processed_txs = 0;
+        // self.processed_txs = 0;
         Ok(self.apply(state_tx))
     }
 
     #[instrument(name = "App:deliver_tx", skip(self))]
-    pub(crate) async fn deliver_tx(&mut self, tx: &[u8]) -> anyhow::Result<Vec<abci::Event>> {
-        use proto::{
-            generated::sequencer::v1alpha1 as raw,
-            native::sequencer::v1alpha1::SignedTransaction,
-            Message as _,
-        };
-        if self.processed_txs < 2 {
-            ensure!(tx.len() == 32);
-            self.processed_txs += 1;
-            return Ok(vec![]);
-        }
-
-        let raw_signed_tx = raw::SignedTransaction::decode(tx)
-            .context("failed deserializing raw signed protobuf transaction from bytes")?;
-        let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
-            .context("failed creating a verified signed transaction from the raw proto type")?;
-
+    pub(crate) async fn deliver_tx(
+        &mut self,
+        signed_tx: proto::native::sequencer::v1alpha1::SignedTransaction,
+    ) -> anyhow::Result<Vec<abci::Event>> {
         let signed_tx_2 = signed_tx.clone();
         let stateless = tokio::spawn(async move { transaction::check_stateless(&signed_tx_2) });
         let signed_tx_2 = signed_tx.clone();
@@ -186,12 +160,14 @@ impl App {
             .context("failed executing transaction")?;
         state_tx.apply();
 
+        // note: deliver_tx is now called before begin_block,
+        // so increment the logged height by 1.
         let height = self.state.get_block_height().await.expect(
             "block height must be set, as `begin_block` is always called before `deliver_tx`",
         );
         info!(
-            ?tx,
-            height,
+            ?signed_tx,
+            height = height + 1,
             sender = %Address::from_verification_key(signed_tx.verification_key()),
             "executed transaction"
         );
@@ -298,16 +274,13 @@ mod test {
     use ed25519_consensus::SigningKey;
     #[cfg(feature = "mint")]
     use proto::native::sequencer::v1alpha1::MintAction;
-    use proto::{
-        native::sequencer::v1alpha1::{
-            Address,
-            SequenceAction,
-            SudoAddressChangeAction,
-            TransferAction,
-            UnsignedTransaction,
-            ADDRESS_LEN,
-        },
-        Message as _,
+    use proto::native::sequencer::v1alpha1::{
+        Address,
+        SequenceAction,
+        SudoAddressChangeAction,
+        TransferAction,
+        UnsignedTransaction,
+        ADDRESS_LEN,
     };
     use tendermint::{
         abci::types::CommitInfo,
@@ -520,7 +493,6 @@ mod test {
     #[tokio::test]
     async fn app_deliver_tx_transfer() {
         let mut app = initialize_app(None, vec![]).await;
-        app.processed_txs = 2;
 
         // transfer funds from Alice to Bob
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
@@ -536,10 +508,9 @@ mod test {
                 .into(),
             ],
         };
-        let signed_tx = tx.into_signed(&alice_signing_key);
-        let bytes = signed_tx.into_raw().encode_to_vec();
 
-        app.deliver_tx(&bytes).await.unwrap();
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
         assert_eq!(
             app.state.get_account_balance(bob_address).await.unwrap(),
             value + 10u128.pow(19)
@@ -557,7 +528,6 @@ mod test {
         use rand::rngs::OsRng;
 
         let mut app = initialize_app(None, vec![]).await;
-        app.processed_txs = 2;
 
         // create a new key; will have 0 balance
         let keypair = SigningKey::new(OsRng);
@@ -575,9 +545,8 @@ mod test {
             ],
         };
         let signed_tx = tx.into_signed(&keypair);
-        let bytes = signed_tx.into_raw().encode_to_vec();
         let res = app
-            .deliver_tx(&bytes)
+            .deliver_tx(signed_tx)
             .await
             .unwrap_err()
             .root_cause()
@@ -588,7 +557,6 @@ mod test {
     #[tokio::test]
     async fn app_deliver_tx_sequence() {
         let mut app = initialize_app(None, vec![]).await;
-        app.processed_txs = 2;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let data = b"hello world".to_vec();
@@ -606,9 +574,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let bytes = signed_tx.into_raw().encode_to_vec();
-
-        app.deliver_tx(&bytes).await.unwrap();
+        app.deliver_tx(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         assert_eq!(
@@ -626,7 +592,6 @@ mod test {
             authority_sudo_key: alice_address,
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
-        app.processed_txs = 2;
 
         let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(&[1u8; 32]).unwrap();
         let update = tendermint::validator::Update {
@@ -642,9 +607,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let bytes = signed_tx.into_raw().encode_to_vec();
-
-        app.deliver_tx(&bytes).await.unwrap();
+        app.deliver_tx(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         let validator_updates = app.state.get_validator_updates().await.unwrap();
@@ -661,7 +624,6 @@ mod test {
             authority_sudo_key: alice_address,
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
-        app.processed_txs = 2;
 
         let new_address = address_from_hex_string(BOB_ADDRESS);
 
@@ -677,9 +639,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let bytes = signed_tx.into_raw().encode_to_vec();
-
-        app.deliver_tx(&bytes).await.unwrap();
+        app.deliver_tx(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         let sudo_address = app.state.get_sudo_address().await.unwrap();
@@ -696,7 +656,6 @@ mod test {
             authority_sudo_key: sudo_address,
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
-        app.processed_txs = 2;
 
         let tx = UnsignedTransaction {
             nonce: 0,
@@ -710,10 +669,8 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let bytes = signed_tx.into_raw().encode_to_vec();
-
         let res = app
-            .deliver_tx(&bytes)
+            .deliver_tx(signed_tx)
             .await
             .unwrap_err()
             .root_cause()
@@ -731,7 +688,6 @@ mod test {
             authority_sudo_key: alice_address,
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
-        app.processed_txs = 2;
 
         let bob_address = address_from_hex_string(BOB_ADDRESS);
         let value = 333_333;
@@ -747,8 +703,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let bytes = signed_tx.into_raw().encode_to_vec();
-        app.deliver_tx(&bytes).await.unwrap();
+        app.deliver_tx(signed_tx).await.unwrap();
 
         assert_eq!(
             app.state.get_account_balance(bob_address).await.unwrap(),
@@ -827,7 +782,6 @@ mod test {
     #[tokio::test]
     async fn app_deliver_tx_invalid_nonce() {
         let mut app = initialize_app(None, vec![]).await;
-        app.processed_txs = 2;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
@@ -845,8 +799,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let bytes = signed_tx.into_raw().encode_to_vec();
-        let response = app.deliver_tx(&bytes).await;
+        let response = app.deliver_tx(signed_tx).await;
 
         // check that tx was not executed by checking nonce and balance are unchanged
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 0);
