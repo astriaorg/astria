@@ -123,7 +123,7 @@ impl FromStr for GenesisAccountArg {
 #[derive(Args, Debug)]
 pub struct ConfigEditArgs {
     /// The filepath of the config to edit
-    #[clap(long = "config")]
+    #[clap(long = "config", env = "ROLLUP_CONFIG_PATH")]
     pub(crate) config_path: String,
     /// The key of the field to edit. Accepts dot notated yaml path.
     pub(crate) key: String,
@@ -134,7 +134,7 @@ pub struct ConfigEditArgs {
 #[derive(Args, Debug)]
 pub struct ConfigDeleteArgs {
     /// The filepath of the config to delete
-    #[clap(long = "config")]
+    #[clap(long = "config", env = "ROLLUP_CONFIG_PATH")]
     pub(crate) config_path: String,
 }
 
@@ -151,7 +151,7 @@ pub enum DeploymentCommand {
 #[derive(Args, Debug, Serialize)]
 pub struct DeploymentCreateArgs {
     /// The filepath of the config to deploy
-    #[clap(long = "config")]
+    #[clap(long = "config", env = "ROLLUP_CONFIG_PATH")]
     pub(crate) config_path: String,
     /// The faucet private key
     #[clap(long, env = "FAUCET_PRIVATE_KEY")]
@@ -170,7 +170,12 @@ pub struct DeploymentDeleteArgs {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
+    use assert_cmd;
+
     use super::*;
+    use crate::test_utils::with_temp_directory;
 
     #[test]
     fn test_from_str_with_balance() {
@@ -206,5 +211,55 @@ mod tests {
         assert!(is_valid_balance("100"));
         assert!(!is_valid_balance("not_a_number"));
         assert!(is_valid_balance("0"));
+    }
+
+    #[test]
+    fn test_envars_are_parsed_for_config_create() {
+        with_temp_directory(|_dir| {
+            let mut cmd = assert_cmd::Command::cargo_bin(env!("CARGO_PKG_NAME")).unwrap();
+
+            cmd.arg("rollup")
+                .arg("config")
+                .arg("create")
+                .env("ROLLUP_USE_TTY", "true")
+                .env("ROLLUP_LOG_LEVEL", "debug")
+                .env("ROLLUP_NAME", "testtest")
+                .env("ROLLUP_CHAIN_ID", "test_chain_id")
+                .env("ROLLUP_NETWORK_ID", "53")
+                .env("ROLLUP_SKIP_EMPTY_BLOCKS", "true")
+                .env("ROLLUP_GENESIS_ACCOUNTS", "0x1234abcd:1000")
+                .env("ROLLUP_SEQUENCER_INITIAL_BLOCK_HEIGHT", "10")
+                .env("ROLLUP_SEQUENCER_WEBSOCKET", "ws://localhost:8080")
+                .env("ROLLUP_SEQUENCER_RPC", "http://localhost:8081")
+                .env("ROLLUP_CELESTIA_FULL_NODE_URL", "http://celestia_node")
+                .assert()
+                .success();
+
+            assert!(PathBuf::from("testtest-rollup-conf.yaml").exists());
+        });
+    }
+
+    #[test]
+    fn test_error_when_incorrect_envar_values() {
+        with_temp_directory(|_dir| {
+            let mut cmd = assert_cmd::Command::cargo_bin(env!("CARGO_PKG_NAME")).unwrap();
+
+            cmd.arg("rollup")
+                .arg("config")
+                .arg("create")
+                .env("ROLLUP_USE_TTY", "not_a_bool")
+                .env("ROLLUP_LOG_LEVEL", "debug")
+                .env("ROLLUP_NAME", "testtest")
+                .env("ROLLUP_CHAIN_ID", "test_chain_id")
+                .env("ROLLUP_NETWORK_ID", "not_a_number")
+                .env("ROLLUP_SKIP_EMPTY_BLOCKS", "true")
+                .env("ROLLUP_GENESIS_ACCOUNTS", "0x1234abcd:1000")
+                .env("ROLLUP_SEQUENCER_INITIAL_BLOCK_HEIGHT", "10")
+                .env("ROLLUP_SEQUENCER_WEBSOCKET", "ws://localhost:8080")
+                .env("ROLLUP_SEQUENCER_RPC", "http://localhost:8081")
+                .env("ROLLUP_CELESTIA_FULL_NODE_URL", "http://celestia_node")
+                .assert()
+                .failure();
+        });
     }
 }
