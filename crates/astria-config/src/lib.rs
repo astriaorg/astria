@@ -6,8 +6,8 @@ use serde::{
 #[cfg(feature = "config-tests")]
 mod config_tests;
 
-#[cfg(feature = "derive")]
-pub use astria_config_derive::astria_config;
+#[cfg(feature = "attribute")]
+pub use astria_config_attribute::astria_config;
 #[cfg(feature = "config-tests")]
 pub use config_tests::{
     config_test_suite_test_should_fail_with_bad_prefix,

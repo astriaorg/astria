@@ -6,7 +6,7 @@ rust-version = "1.70.0"
 
 [dependencies]
 proto = { package = "astria-proto", path = "../astria-proto" }
-astria-config = { path = "../astria-config", features = ["derive"] }
+astria-config = { path = "../astria-config", features = ["attribute"] }
 sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 sequencer_types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }

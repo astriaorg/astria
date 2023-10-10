@@ -1,5 +1,5 @@
 [package]
-name = "astria-config-derive"
+name = "astria-config-attribute"
 version = "0.1.0"
 edition = "2021"
 
