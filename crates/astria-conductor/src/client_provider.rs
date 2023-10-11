@@ -46,7 +46,10 @@ pub(crate) struct ClientProvider {
 
 impl ClientProvider {
     pub(crate) async fn new(url: &str) -> eyre::Result<Self> {
-        use futures::FutureExt as _;
+        use futures::{
+            future::FusedFuture as _,
+            FutureExt as _,
+        };
         let url = url.to_string();
         let (client, driver) = WebSocketClient::new(&*url)
             .await
@@ -54,7 +57,7 @@ impl ClientProvider {
         let (client_tx, mut client_rx): (ClientTx, ClientRx) = mpsc::unbounded_channel();
         let _provider_loop = tokio::spawn(async move {
             let mut client = Some(client);
-            let mut driver_fut = Box::pin(driver.run()).fuse();
+            let mut driver_fut = driver.run().boxed().fuse();
             let mut reconnect = futures::future::Fuse::terminated();
             let mut pending_requests: Vec<oneshot::Sender<Result<WebSocketClient, Error>>> =
                 Vec::new();
@@ -64,24 +67,20 @@ impl ClientProvider {
                         warn!("websocket driver failed, attempting to reconnect");
                         client = None;
                         let url = url.clone();
-                        reconnect = tokio::spawn(async move { WebSocketClient::new(&*url).await }).fuse();
+                        reconnect = async move { WebSocketClient::new(&*url).await }.boxed().fuse();
                     }
 
-                    res = &mut reconnect => {
+                    res = &mut reconnect, if !reconnect.is_terminated() => {
                         match res {
-                            Ok(Ok((new_client, driver))) => {
-                                driver_fut = Box::pin(driver.run()).fuse();
+                            Ok((new_client, driver)) => {
+                                driver_fut = driver.run().boxed().fuse();
                                 for tx in pending_requests.drain(..) {
                                     let _ = tx.send(Ok(new_client.clone()));
                                 }
                                 client = Some(new_client);
                             }
-                            Ok(Err(e)) => {
-                                warn!(error.message = %e, error.cause = ?e, "failed to reestablish websocket connection; exiting");
-                                break;
-                            }
                             Err(e) => {
-                                warn!(error.message = %e, error.cause = ?e, "task trying to reestablish websocket failed; exiting");
+                                warn!(error.message = %e, error.cause = ?e, "failed to reestablish websocket connection; exiting");
                                 break;
                             }
                         }
