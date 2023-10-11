@@ -29,7 +29,7 @@ use crate::{
 };
 
 const EVM_ROLLUP_CHART_URL: &str =
-    "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.3.0.tgz";
+    "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.3.1.tgz";
 
 ///
 fn helm_from_env() -> PathBuf {
