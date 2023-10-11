@@ -123,7 +123,6 @@ impl App {
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
 
-        // self.processed_txs = 0;
         Ok(self.apply(state_tx))
     }
 
