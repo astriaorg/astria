@@ -35,7 +35,7 @@ pub struct Config {
     pub initial_sequencer_block_height: u32,
 }
 
-impl config::AstriaConfig for Config {
+impl config::Config for Config {
     const PREFIX: &'static str = "ASTRIA_CONDUCTOR_";
 }
 

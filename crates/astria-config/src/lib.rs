@@ -12,7 +12,7 @@ pub use config_tests::{
     example_env_config_is_up_to_date,
 };
 
-pub trait AstriaConfig: Serialize + DeserializeOwned {
+pub trait Config: Serialize + DeserializeOwned {
     const PREFIX: &'static str;
 
     fn get() -> Result<Self, figment::Error> {

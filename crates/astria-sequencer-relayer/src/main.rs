@@ -3,7 +3,7 @@ use astria_sequencer_relayer::{
     Config,
     SequencerRelayer,
 };
-use config::AstriaConfig as _;
+use config::Config as _;
 use tracing::info;
 
 #[tokio::main]

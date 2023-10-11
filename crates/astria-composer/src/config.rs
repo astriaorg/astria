@@ -32,7 +32,7 @@ pub struct Config {
     pub private_key: SecretString,
 }
 
-impl config::AstriaConfig for Config {
+impl config::Config for Config {
     const PREFIX: &'static str = "ASTRIA_COMPOSER_";
 }
 

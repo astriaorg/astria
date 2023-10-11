@@ -4,7 +4,7 @@ use astria_conductor::{
     conductor::Conductor,
     Config,
 };
-use config::AstriaConfig as _;
+use config::Config as _;
 use tracing::{
     error,
     info,

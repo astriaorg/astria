@@ -16,7 +16,7 @@ pub struct Config {
     pub log: String,
 }
 
-impl config::AstriaConfig for Config {
+impl config::Config for Config {
     const PREFIX: &'static str = "ASTRIA_SEQUENCER_";
 }
 

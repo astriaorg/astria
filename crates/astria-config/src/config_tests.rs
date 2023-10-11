@@ -3,7 +3,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::{
-    AstriaConfig,
+    Config,
     _internal,
 };
 
@@ -52,10 +52,7 @@ fn populate_environment_from_example(jail: &mut Jail, test_envar_prefix: &str, e
 /// }
 /// ```
 #[track_caller]
-pub fn example_env_config_is_up_to_date<'a, C>(example_env: &str)
-where
-    C: AstriaConfig,
-{
+pub fn example_env_config_is_up_to_date<'a, C: Config>(example_env: &str) {
     let test_prefix = format!("TESTTEST_{}", C::PREFIX);
 
     Jail::expect_with(|jail| {
@@ -66,10 +63,7 @@ where
 }
 
 #[track_caller]
-pub fn config_should_reject_unknown_var<'a, C>(example_env: &str)
-where
-    C: AstriaConfig,
-{
+pub fn config_should_reject_unknown_var<'a, C: Config>(example_env: &str) {
     let test_prefix = format!("TESTTEST_{}", C::PREFIX);
 
     Jail::expect_with(|jail| {
