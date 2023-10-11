@@ -32,7 +32,7 @@ cargo build --release
   --celestia.full-node-url http://celestia-service:26658 \
   --rollup.genesis-accounts 0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30:100000000000000000000
   
-# edit config (TODO)
+# edit config
 ./target/release/astria-cli rollup config edit \
   --config somerollupname-rollup-config.yaml
   <KEY> <VALUE>
@@ -46,6 +46,9 @@ cargo build --release
   --config somerollupname-rollup-config.yaml \
   --faucet-private-key <FAUCET_PRIVATE_KEY> \
   --sequencer-private-key <SEQUENCER_PRIVATE_KEY>
+  
+# NOTE - you can also run `deployment create` with `--dry-run` to see the
+#  generated k8s yaml without actually creating the deployment
   
 # list deployments
 ./target/release/astria-cli rollup deployment list

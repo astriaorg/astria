@@ -150,20 +150,26 @@ pub enum DeploymentCommand {
 
 #[derive(Args, Debug, Serialize)]
 pub struct DeploymentCreateArgs {
-    /// The filepath of the config to deploy
+    /// Filepath of the config to deploy
     #[clap(long = "config", env = "ROLLUP_CONFIG_PATH")]
     pub(crate) config_path: String,
-    /// The faucet private key
-    #[clap(long, env = "FAUCET_PRIVATE_KEY")]
+    /// Optional path to a rollup chart that can override the default remote helm chart
+    #[clap(long, env = "ROLLUP_CHART_PATH")]
+    pub(crate) chart_path: Option<String>,
+    /// Set if you want to do a dry run of the deployment
+    #[clap(long, env = "ROLLUP_DRY_RUN", default_value = "false")]
+    pub(crate) dry_run: bool,
+    /// Faucet private key
+    #[clap(long, env = "ROLLUP_FAUCET_PRIVATE_KEY")]
     pub(crate) faucet_private_key: String,
-    /// The sequencer private key
-    #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
+    /// Sequencer private key
+    #[clap(long, env = "ROLLUP_SEQUENCER_PRIVATE_KEY")]
     pub(crate) sequencer_private_key: String,
 }
 
 #[derive(Args, Debug)]
 pub struct DeploymentDeleteArgs {
-    /// The filepath of the config to delete
+    /// The filepath of the target deployment's config
     #[clap(long = "config")]
     pub(crate) config_path: String,
 }
