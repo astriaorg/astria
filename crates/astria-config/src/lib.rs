@@ -1,26 +1,25 @@
 use serde::{
-    Deserialize,
+    de::DeserializeOwned,
     Serialize,
 };
 
 #[cfg(feature = "config-tests")]
 mod config_tests;
 
-#[cfg(feature = "attribute")]
-pub use astria_config_attribute::astria_config;
 #[cfg(feature = "config-tests")]
 pub use config_tests::{
-    config_test_suite_test_should_fail_with_bad_prefix,
-    config_test_suite_test_should_populate_config_with_env_vars,
+    config_should_reject_unknown_var,
+    example_env_config_is_up_to_date,
 };
 
-pub trait AstriaConfig<'a>: Serialize + Deserialize<'a> {
+pub trait AstriaConfig: Serialize + DeserializeOwned {
     const PREFIX: &'static str;
 
     fn get() -> Result<Self, figment::Error> {
         Self::get_with_prefix(Self::PREFIX, _internal::Internal)
     }
 
+    #[doc(hidden)]
     fn get_with_prefix(
         prefix: &str,
         _internal: _internal::Internal,

@@ -46,8 +46,8 @@ path = "../astria-sequencer-client"
 features = ["http"]
 
 [dev-dependencies]
+config = { package = "astria-config", path = "../astria-config", features = ["config-tests"] }
 proto = { package = "astria-proto", path = "../astria-proto" }
-astria_config = { path = "../astria_config", features = ["config-tests"] }
 
 impl-serde = "0.4.0"
 tokio-test = "0.4.2"

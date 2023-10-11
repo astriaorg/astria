@@ -51,10 +51,10 @@ fn populate_environment_from_example(jail: &mut Jail, test_envar_prefix: &str, e
 ///     }
 /// }
 /// ```
-
-pub fn config_test_suite_test_should_populate_config_with_env_vars<'a, C>(example_env: &str)
+#[track_caller]
+pub fn example_env_config_is_up_to_date<'a, C>(example_env: &str)
 where
-    C: AstriaConfig<'a>,
+    C: AstriaConfig,
 {
     let test_prefix = format!("TESTTEST_{}", C::PREFIX);
 
@@ -65,9 +65,10 @@ where
     });
 }
 
-pub fn config_test_suite_test_should_fail_with_bad_prefix<'a, C>(example_env: &str)
+#[track_caller]
+pub fn config_should_reject_unknown_var<'a, C>(example_env: &str)
 where
-    C: AstriaConfig<'a>,
+    C: AstriaConfig,
 {
     let test_prefix = format!("TESTTEST_{}", C::PREFIX);
 

@@ -3,7 +3,7 @@ use astria_composer::{
     Composer,
     Config,
 };
-use astria_config::AstriaConfig as _;
+use config::AstriaConfig as _;
 use tracing::info;
 
 #[tokio::main]

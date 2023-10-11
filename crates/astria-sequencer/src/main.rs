@@ -1,10 +1,10 @@
 use std::process::ExitCode;
 
-use astria_config::AstriaConfig as _;
 use astria_sequencer::{
     Config,
     Sequencer,
 };
+use config::AstriaConfig as _;
 use tracing::info;
 
 // Following the BSD convention for failing to read config

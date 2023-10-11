@@ -1,11 +1,9 @@
-use astria_config::astria_config;
 use serde::{
     Deserialize,
     Serialize,
 };
 
 /// The global configuration for the driver and its components.
-#[astria_config(ASTRIA_CONDUCTOR_)]
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
@@ -36,25 +34,25 @@ pub struct Config {
     /// The Sequencer block height that the rollup genesis block was in
     pub initial_sequencer_block_height: u32,
 }
+
+impl config::AstriaConfig for Config {
+    const PREFIX: &'static str = "ASTRIA_CONDUCTOR_";
+}
+
 #[cfg(test)]
 mod test {
-    use astria_config::{
-        config_test_suite_test_should_fail_with_bad_prefix,
-        config_test_suite_test_should_populate_config_with_env_vars,
-    };
-
     use crate::Config;
 
     const EXAMPLE_ENV: &str = include_str!("../local.env.example");
 
     #[test]
-    fn test_config_passing() {
-        config_test_suite_test_should_populate_config_with_env_vars::<Config>(EXAMPLE_ENV);
+    fn example_env_config_is_up_to_date() {
+        config::example_env_config_is_up_to_date::<Config>(EXAMPLE_ENV);
     }
 
     #[test]
     #[should_panic]
     fn test_config_failing() {
-        config_test_suite_test_should_fail_with_bad_prefix::<Config>(EXAMPLE_ENV);
+        config::config_should_reject_unknown_var::<Config>(EXAMPLE_ENV);
     }
 }
