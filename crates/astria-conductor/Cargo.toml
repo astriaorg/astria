@@ -47,12 +47,9 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
 config = { package = "astria-config", path = "../astria-config", features = ["tests"] }
-base64 = { workspace = true }
-once_cell = { workspace = true }
-figment = { workspace = true, features = ["test"] }
-regex = { workspace = true }
-
 proto = { package = "astria-proto", path = "../astria-proto", features = [
   "server",
 ] }
+
+base64 = { workspace = true }
 tokio-stream = { version = "0.1.14", features = ["net"] }
