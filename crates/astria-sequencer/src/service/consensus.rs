@@ -146,9 +146,6 @@ impl Consensus {
                     .context("failed to end block")?,
             ),
             ConsensusRequest::Commit => {
-                // clear the cache of transaction execution results
-                self.execution_result.clear();
-                self.processed_txs = 0;
                 ConsensusResponse::Commit(self.commit().await.context("failed to commit")?)
             }
         })
@@ -245,6 +242,10 @@ impl Consensus {
 
     #[instrument(skip(self))]
     async fn commit(&mut self) -> anyhow::Result<response::Commit> {
+        // clear the cache of transaction execution results
+        self.execution_result.clear();
+        self.processed_txs = 0;
+
         let app_hash = self.app.commit(self.storage.clone()).await;
         Ok(response::Commit {
             data: app_hash.0.to_vec().into(),

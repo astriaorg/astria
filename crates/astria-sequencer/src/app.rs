@@ -158,7 +158,7 @@ impl App {
             .context("failed executing transaction")?;
         state_tx.apply();
 
-        // note: deliver_tx is now called before begin_block,
+        // note: deliver_tx is now called (internally) before begin_block,
         // so increment the logged height by 1.
         let height = self.state.get_block_height().await.expect(
             "block height must be set, as `begin_block` is always called before `deliver_tx`",
