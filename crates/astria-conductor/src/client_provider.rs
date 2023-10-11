@@ -63,7 +63,7 @@ impl ClientProvider {
         let (client_tx, mut client_rx): (ClientTx, ClientRx) = mpsc::unbounded_channel();
 
         info!(
-            max_attempts = 1024,
+            max_attempts = Self::RECONNECTION_ATTEMPTS,
             strategy = "exponential backoff",
             "connecting to sequencer websocket"
         );
