@@ -4,7 +4,6 @@ use astria_conductor::{
     conductor::Conductor,
     Config,
 };
-use config::Config as _;
 use tracing::{
     error,
     info,
@@ -16,7 +15,7 @@ const EX_CONFIG: u8 = 78;
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    let cfg = match Config::get() {
+    let cfg = match config::get::<Config>() {
         Err(e) => {
             eprintln!("failed reading config:\n{e:?}");
             // FIXME (https://github.com/astriaorg/astria/issues/368): might have to bubble up exit codes, since we might need

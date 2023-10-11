@@ -4,7 +4,6 @@ use astria_sequencer::{
     Config,
     Sequencer,
 };
-use config::Config as _;
 use tracing::info;
 
 // Following the BSD convention for failing to read config
@@ -13,7 +12,7 @@ const EX_CONFIG: u8 = 78;
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    let config = match Config::get() {
+    let config = match config::get::<Config>() {
         Ok(cfg) => cfg,
         Err(e) => {
             eprintln!("failed to read configuration:\n{e:?}");

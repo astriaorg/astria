@@ -3,12 +3,11 @@ use astria_composer::{
     Composer,
     Config,
 };
-use config::Config as _;
 use tracing::info;
 
 #[tokio::main]
 async fn main() {
-    let cfg = match Config::get() {
+    let cfg = match config::get::<Config>() {
         Ok(cfg) => cfg,
         Err(e) => {
             eprintln!("failed to read configuration: {e}");

@@ -12,6 +12,11 @@ pub use config_tests::{
     example_env_config_is_up_to_date,
 };
 
+/// Utility function to get a config without having to import the `Config` trait.
+pub fn get<T: Config>() -> Result<T, figment::Error> {
+    T::get()
+}
+
 pub trait Config: Serialize + DeserializeOwned {
     const PREFIX: &'static str;
 
