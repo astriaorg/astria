@@ -1,3 +1,26 @@
+//! A trait to read a config from the environment.
+//!
+//! # Example
+//! ```no_run
+//! use astria_config as config;
+//! use serde::{
+//!     Deserialize,
+//!     Serialize,
+//! };
+//!
+//! #[derive(Clone, Debug, Serialize, Deserialize)]
+//! #[serde(deny_unknown_fields)]
+//! pub struct MyConfig {
+//!     pub log: String,
+//!     pub api_listen_addr: std::net::SocketAddr,
+//! }
+//!
+//! impl config::Config for MyConfig {
+//!     const PREFIX: &'static str = "MY_SERVICE_";
+//! }
+//!
+//! let config: MyConfig = config::get().unwrap();
+//! ```
 use serde::{
     de::DeserializeOwned,
     Serialize,

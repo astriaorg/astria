@@ -34,7 +34,7 @@ mod test {
 
     #[test]
     #[should_panic]
-    fn test_config_failing() {
+    fn config_should_reject_unknown_var() {
         config::config_should_reject_unknown_var::<Config>(EXAMPLE_ENV);
     }
 }
