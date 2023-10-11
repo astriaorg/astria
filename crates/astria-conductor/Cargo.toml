@@ -46,7 +46,7 @@ sequencer-validation = { package = "astria-sequencer-validation", path = "../ast
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
-config = { package = "astria-config", path = "../astria-config", features = ["config-tests"] }
+config = { package = "astria-config", path = "../astria-config", features = ["tests"] }
 base64 = { workspace = true }
 once_cell = { workspace = true }
 figment = { workspace = true, features = ["test"] }

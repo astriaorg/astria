@@ -3,11 +3,11 @@ use serde::{
     Serialize,
 };
 
-#[cfg(feature = "config-tests")]
-mod config_tests;
+#[cfg(feature = "tests")]
+mod tests;
 
-#[cfg(feature = "config-tests")]
-pub use config_tests::{
+#[cfg(feature = "tests")]
+pub use tests::{
     config_should_reject_unknown_var,
     example_env_config_is_up_to_date,
 };

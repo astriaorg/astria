@@ -12,4 +12,4 @@ once_cell = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 
 [features]
-config-tests = ["figment/test", "dep:once_cell", "dep:regex"]
+tests = ["figment/test", "dep:once_cell", "dep:regex"]

@@ -53,4 +53,4 @@ regex = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 wiremock = { workspace = true }
-config = { package = "astria-config", path = "../astria-config", features = ["config-tests"] }
+config = { package = "astria-config", path = "../astria-config", features = ["tests"] }

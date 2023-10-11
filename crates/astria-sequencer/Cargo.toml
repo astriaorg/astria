@@ -40,4 +40,5 @@ figment = { workspace = true, features = ["env"] }
 once_cell = { workspace = true }
 figment = { workspace = true, features = ["test"] }
 regex = { workspace = true }
-config = { package = "astria-config", path = "../astria-config", features = ["config-tests"] }
+
+config = { package = "astria-config", path = "../astria-config", features = ["tests"] }
