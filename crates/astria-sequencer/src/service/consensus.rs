@@ -325,11 +325,17 @@ impl Consensus {
         Ok(())
     }
 
+    /// Executes the given transaction data, writing it to the app's `StateDelta`.
+    ///
+    /// The result of execution of every transaction which is successfully decoded
+    /// is stored in `self.execution_result`.
+    ///
+    /// Returns the transactions which were successfully decoded and executed
+    /// in both their [`SignedTransaction`] and raw bytes form.
     async fn execute_block_data(
         &mut self,
         txs: Vec<bytes::Bytes>,
     ) -> (Vec<SignedTransaction>, Vec<bytes::Bytes>) {
-        // let state_delta = Arc::new(StateDelta::new(state));
         let mut signed_txs = Vec::with_capacity(txs.len());
         let mut validated_txs = Vec::with_capacity(txs.len());
 
@@ -342,7 +348,7 @@ impl Consensus {
             .ok()
             .and_then(|raw_tx| SignedTransaction::try_from_raw(raw_tx)
                 .map_err(|err| {
-                    debug!(error = ?err, "could not convert raw signed transaction to native signed transaction");
+                    debug!(error = ?err, "failed to convert raw signed transaction to native signed transaction");
                     err
                 })
                 .ok()
@@ -354,16 +360,14 @@ impl Consensus {
             match self.app.deliver_tx(signed_tx.clone()).await {
                 Ok(events) => {
                     self.execution_result.insert(tx_hash.into(), Ok(events));
+                    signed_txs.push(signed_tx);
+                    validated_txs.push(tx);
                 }
                 Err(e) => {
-                    debug!(error = ?e, "failed to execute transaction, not including in block");
+                    debug!(?tx_hash, error = ?e, "failed to execute transaction, not including in block");
                     self.execution_result.insert(tx_hash.into(), Err(e));
-                    continue;
                 }
             }
-
-            signed_txs.push(signed_tx);
-            validated_txs.push(tx);
         }
 
         (signed_txs, validated_txs)

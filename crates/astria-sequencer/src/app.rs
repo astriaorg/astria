@@ -66,7 +66,6 @@ impl App {
 
         Self {
             state,
-            // processed_txs: 0,
         }
     }
 
