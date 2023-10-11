@@ -11,7 +11,7 @@ use color_eyre::{
 
 fn main() -> ExitCode {
     if let Err(err) = run() {
-        eprintln!("{err:#?}");
+        eprintln!("{err:?}");
         return ExitCode::FAILURE;
     }
 
