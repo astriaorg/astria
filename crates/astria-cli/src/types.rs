@@ -60,6 +60,7 @@ impl RollupDeploymentConfig {
         format!("{}-rollup", self.rollup.name)
     }
 
+    #[must_use]
     pub fn get_rollup_name(&self) -> String {
         self.rollup.name.clone()
     }

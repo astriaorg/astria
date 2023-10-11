@@ -249,7 +249,7 @@ pub(crate) fn delete_deployment(args: &DeploymentDeleteArgs) -> eyre::Result<()>
 /// # Errors
 ///
 /// * If the helm command fails
-pub(crate) fn list_deployments() -> eyre::Result<()> {
+pub(crate) fn list_deployments() {
     // call `helm list` with appropriate args
     let helm = helm_from_env();
     let mut cmd = Command::new(helm.clone());
@@ -271,8 +271,6 @@ pub(crate) fn list_deployments() -> eyre::Result<()> {
             println!("{}", String::from_utf8_lossy(&output.stdout));
         }
     };
-
-    Ok(())
 }
 
 #[cfg(test)]
@@ -289,10 +287,10 @@ mod test {
             skip_empty_blocks: false,
             genesis_accounts: vec![],
             sequencer_initial_block_height: None,
-            sequencer_websocket: "".to_string(),
-            sequencer_rpc: "".to_string(),
-            log_level: "".to_string(),
-            celestia_full_node_url: "".to_string(),
+            sequencer_websocket: String::new(),
+            sequencer_rpc: String::new(),
+            log_level: String::new(),
+            celestia_full_node_url: String::new(),
         }
     }
 
