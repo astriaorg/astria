@@ -1,36 +1,20 @@
-use std::collections::{
-    HashMap,
-    VecDeque,
-};
-
 use anyhow::{
-    anyhow,
     bail,
-    ensure,
     Context,
 };
 use penumbra_storage::Storage;
-use proto::{
-    generated::sequencer::v1alpha1 as raw,
-    native::sequencer::v1alpha1::SignedTransaction,
-    Message as _,
-};
 use sequencer_types::abci_code::AbciCode;
 use sha2::Digest as _;
-use tendermint::{
-    abci,
-    abci::{
-        request,
-        response,
-        ConsensusRequest,
-        ConsensusResponse,
-    },
+use tendermint::abci::{
+    request,
+    response,
+    ConsensusRequest,
+    ConsensusResponse,
 };
 use tokio::sync::mpsc;
 use tower_abci::BoxError;
 use tower_actor::Message;
 use tracing::{
-    debug,
     instrument,
     warn,
     Instrument,
@@ -39,30 +23,12 @@ use tracing::{
 use crate::{
     app::App,
     genesis::GenesisState,
-    proposal::commitment::{
-        generate_sequence_actions_commitment,
-        GeneratedCommitments,
-    },
 };
 
 pub(crate) struct Consensus {
     queue: mpsc::Receiver<Message<ConsensusRequest, ConsensusResponse, tower::BoxError>>,
     storage: Storage,
     app: App,
-
-    // cache of results of executing of transactions in prepare_proposal or process_proposal.
-    // cleared at the end of each block.
-    execution_result: HashMap<[u8; 32], anyhow::Result<Vec<abci::Event>>>,
-
-    /// set to `0` when `begin_block` is called, and set to `1` or `2` when
-    /// `deliver_tx` is called for the first two times.
-    /// this is a hack to allow the `sequence_actions_commitment` and `chain_ids_commitment`
-    /// to pass `deliver_tx`, as they're the first two "tx"s delivered.
-    ///
-    /// when the app is fully updated to ABCI++, `begin_block`, `deliver_tx`,
-    /// and `end_block` will all become one function `finalize_block`, so
-    /// this will not be needed.
-    processed_txs: u32,
 }
 
 impl Consensus {
@@ -75,8 +41,6 @@ impl Consensus {
             queue,
             storage,
             app,
-            execution_result: HashMap::new(),
-            processed_txs: 0,
         }
     }
 
@@ -182,6 +146,22 @@ impl Consensus {
     }
 
     #[instrument(skip(self))]
+    async fn handle_prepare_proposal(
+        &mut self,
+        prepare_proposal: request::PrepareProposal,
+    ) -> response::PrepareProposal {
+        self.app.prepare_proposal(prepare_proposal).await
+    }
+
+    #[instrument(skip(self))]
+    async fn handle_process_proposal(
+        &mut self,
+        process_proposal: request::ProcessProposal,
+    ) -> anyhow::Result<()> {
+        self.app.process_proposal(process_proposal).await
+    }
+
+    #[instrument(skip(self))]
     async fn begin_block(
         &mut self,
         begin_block: request::BeginBlock,
@@ -200,15 +180,10 @@ impl Consensus {
     async fn deliver_tx(&mut self, deliver_tx: request::DeliverTx) -> response::DeliverTx {
         use crate::transaction::InvalidNonce;
 
-        if self.processed_txs < 2 {
-            self.processed_txs += 1;
-            return response::DeliverTx::default();
-        }
-
         let tx_hash: [u8; 32] = sha2::Sha256::digest(&deliver_tx.tx).into();
         match self
-            .execution_result
-            .get(&tx_hash)
+            .app
+            .deliver_tx_after_execution(&tx_hash)
             .expect("all transactions in the block must have already been executed")
         {
             Ok(_events) => response::DeliverTx::default(),
@@ -242,136 +217,11 @@ impl Consensus {
 
     #[instrument(skip(self))]
     async fn commit(&mut self) -> anyhow::Result<response::Commit> {
-        // clear the cache of transaction execution results
-        self.execution_result.clear();
-        self.processed_txs = 0;
-
         let app_hash = self.app.commit(self.storage.clone()).await;
         Ok(response::Commit {
             data: app_hash.0.to_vec().into(),
             ..Default::default()
         })
-    }
-
-    /// Generates a commitment to the `sequence::Actions` in the block's transactions.
-    /// This is required so that a rollup can easily verify that the transactions it
-    /// receives are correct (ie. we actually included in a sequencer block, and none
-    /// are missing)
-    /// It puts this special "commitment" as the first transaction in a block.
-    /// When other validators receive the block, they know the first transaction is
-    /// supposed to be the commitment, and verifies that is it correct.
-    #[instrument(skip(self))]
-    async fn handle_prepare_proposal(
-        &mut self,
-        prepare_proposal: request::PrepareProposal,
-    ) -> response::PrepareProposal {
-        let (signed_txs, txs_to_include) = self.execute_block_data(prepare_proposal.txs).await;
-
-        // generate commitment to sequence::Actions and commitment to the chain IDs included in the
-        // sequence::Actions
-        let res = generate_sequence_actions_commitment(&signed_txs);
-
-        response::PrepareProposal {
-            txs: res.into_transactions(txs_to_include),
-        }
-    }
-
-    /// Generates a commitment to the `sequence::Actions` in the block's transactions
-    /// and ensures it matches the commitment created by the proposer, which
-    /// should be the first transaction in the block.
-    #[instrument(skip(self))]
-    async fn handle_process_proposal(
-        &mut self,
-        process_proposal: request::ProcessProposal,
-    ) -> anyhow::Result<()> {
-        let mut txs = VecDeque::from(process_proposal.txs);
-        let received_action_commitment: [u8; 32] = txs
-            .pop_front()
-            .context("no transaction commitment in proposal")?
-            .to_vec()
-            .try_into()
-            .map_err(|_| anyhow!("transaction commitment must be 32 bytes"))?;
-
-        let received_chain_ids_commitment: [u8; 32] = txs
-            .pop_front()
-            .context("no chain IDs commitment in proposal")?
-            .to_vec()
-            .try_into()
-            .map_err(|_| anyhow!("chain IDs commitment must be 32 bytes"))?;
-
-        let expected_txs_len = txs.len();
-
-        let (signed_txs, txs_to_include) = self.execute_block_data(txs.into()).await;
-
-        // all txs in the proposal should be deserializable and executable
-        ensure!(
-            txs_to_include.len() == expected_txs_len,
-            "transactions to be included do not match expected",
-        );
-
-        let GeneratedCommitments {
-            sequence_actions_commitment: expected_action_commitment,
-            chain_ids_commitment: expected_chain_ids_commitment,
-        } = generate_sequence_actions_commitment(&signed_txs);
-        ensure!(
-            received_action_commitment == expected_action_commitment,
-            "transaction commitment does not match expected",
-        );
-
-        ensure!(
-            received_chain_ids_commitment == expected_chain_ids_commitment,
-            "chain IDs commitment does not match expected",
-        );
-
-        Ok(())
-    }
-
-    /// Executes the given transaction data, writing it to the app's `StateDelta`.
-    ///
-    /// The result of execution of every transaction which is successfully decoded
-    /// is stored in `self.execution_result`.
-    ///
-    /// Returns the transactions which were successfully decoded and executed
-    /// in both their [`SignedTransaction`] and raw bytes form.
-    async fn execute_block_data(
-        &mut self,
-        txs: Vec<bytes::Bytes>,
-    ) -> (Vec<SignedTransaction>, Vec<bytes::Bytes>) {
-        let mut signed_txs = Vec::with_capacity(txs.len());
-        let mut validated_txs = Vec::with_capacity(txs.len());
-
-        for tx in txs {
-            let Some(signed_tx) = raw::SignedTransaction::decode(&*tx)
-            .map_err(|err| {
-                debug!(error = ?err, "failed to deserialize bytes as a signed transaction");
-                err
-            })
-            .ok()
-            .and_then(|raw_tx| SignedTransaction::try_from_raw(raw_tx)
-                .map_err(|err| {
-                    debug!(error = ?err, "failed to convert raw signed transaction to native signed transaction");
-                    err
-                })
-                .ok()
-            ) else {
-                continue;
-            };
-
-            let tx_hash = sha2::Sha256::digest(&tx);
-            match self.app.deliver_tx(signed_tx.clone()).await {
-                Ok(events) => {
-                    self.execution_result.insert(tx_hash.into(), Ok(events));
-                    signed_txs.push(signed_tx);
-                    validated_txs.push(tx);
-                }
-                Err(e) => {
-                    debug!(?tx_hash, error = ?e, "failed to execute transaction, not including in block");
-                    self.execution_result.insert(tx_hash.into(), Err(e));
-                }
-            }
-        }
-
-        (signed_txs, validated_txs)
     }
 }
 
@@ -400,6 +250,7 @@ mod test {
     };
 
     use super::*;
+    use crate::proposal::commitment::generate_sequence_actions_commitment;
 
     fn make_unsigned_tx() -> UnsignedTransaction {
         UnsignedTransaction {

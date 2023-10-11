@@ -1,13 +1,31 @@
-use std::sync::Arc;
+use std::{
+    collections::{
+        HashMap,
+        VecDeque,
+    },
+    sync::Arc,
+};
 
-use anyhow::Context;
+use anyhow::{
+    anyhow,
+    ensure,
+    Context,
+};
 use penumbra_storage::{
     ArcStateDeltaExt,
     Snapshot,
     StateDelta,
     Storage,
 };
-use proto::native::sequencer::v1alpha1::Address;
+use proto::{
+    generated::sequencer::v1alpha1 as raw,
+    native::sequencer::v1alpha1::{
+        Address,
+        SignedTransaction,
+    },
+    Message as _,
+};
+use sha2::Digest as _;
 use tendermint::abci::{
     self,
     Event,
@@ -33,6 +51,10 @@ use crate::{
     },
     component::Component,
     genesis::GenesisState,
+    proposal::commitment::{
+        generate_sequence_actions_commitment,
+        GeneratedCommitments,
+    },
     state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -51,9 +73,23 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 /// See also the [Penumbra reference] implementation.
 ///
 /// [Penumbra reference]: https://github.com/penumbra-zone/penumbra/blob/9cc2c644e05c61d21fdc7b507b96016ba6b9a935/app/src/app/mod.rs#L42
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct App {
     state: InterBlockState,
+
+    // cache of results of executing of transactions in prepare_proposal or process_proposal.
+    // cleared at the end of each block.
+    execution_result: HashMap<[u8; 32], anyhow::Result<Vec<abci::Event>>>,
+
+    /// set to `0` when `begin_block` is called, and set to `1` or `2` when
+    /// `deliver_tx` is called for the first two times.
+    /// this is a hack to allow the `sequence_actions_commitment` and `chain_ids_commitment`
+    /// to pass `deliver_tx`, as they're the first two "tx"s delivered.
+    ///
+    /// when the app is fully updated to ABCI++, `begin_block`, `deliver_tx`,
+    /// and `end_block` will all become one function `finalize_block`, so
+    /// this will not be needed.
+    processed_txs: u32,
 }
 
 impl App {
@@ -66,6 +102,8 @@ impl App {
 
         Self {
             state,
+            execution_result: HashMap::new(),
+            processed_txs: 0,
         }
     }
 
@@ -99,7 +137,137 @@ impl App {
         Ok(())
     }
 
-    #[instrument(name = "App:begin_block", skip(self))]
+    /// Generates a commitment to the `sequence::Actions` in the block's transactions.
+    /// This is required so that a rollup can easily verify that the transactions it
+    /// receives are correct (ie. we actually included in a sequencer block, and none
+    /// are missing)
+    /// It puts this special "commitment" as the first transaction in a block.
+    /// When other validators receive the block, they know the first transaction is
+    /// supposed to be the commitment, and verifies that is it correct.
+    #[instrument(name = "App::prepare_proposal", skip(self))]
+    pub(crate) async fn prepare_proposal(
+        &mut self,
+        prepare_proposal: abci::request::PrepareProposal,
+    ) -> abci::response::PrepareProposal {
+        // clear the cache of transaction execution results
+        self.execution_result.clear();
+        self.processed_txs = 0;
+
+        let (signed_txs, txs_to_include) = self.execute_block_data(prepare_proposal.txs).await;
+
+        // generate commitment to sequence::Actions and commitment to the chain IDs included in the
+        // sequence::Actions
+        let res = generate_sequence_actions_commitment(&signed_txs);
+
+        abci::response::PrepareProposal {
+            txs: res.into_transactions(txs_to_include),
+        }
+    }
+
+    /// Generates a commitment to the `sequence::Actions` in the block's transactions
+    /// and ensures it matches the commitment created by the proposer, which
+    /// should be the first transaction in the block.
+    #[instrument(name = "App::process_proposal", skip(self))]
+    pub(crate) async fn process_proposal(
+        &mut self,
+        process_proposal: abci::request::ProcessProposal,
+    ) -> anyhow::Result<()> {
+        // clear the cache of transaction execution results
+        self.execution_result.clear();
+        self.processed_txs = 0;
+
+        let mut txs = VecDeque::from(process_proposal.txs);
+        let received_action_commitment: [u8; 32] = txs
+            .pop_front()
+            .context("no transaction commitment in proposal")?
+            .to_vec()
+            .try_into()
+            .map_err(|_| anyhow!("transaction commitment must be 32 bytes"))?;
+
+        let received_chain_ids_commitment: [u8; 32] = txs
+            .pop_front()
+            .context("no chain IDs commitment in proposal")?
+            .to_vec()
+            .try_into()
+            .map_err(|_| anyhow!("chain IDs commitment must be 32 bytes"))?;
+
+        let expected_txs_len = txs.len();
+
+        let (signed_txs, txs_to_include) = self.execute_block_data(txs.into()).await;
+
+        // all txs in the proposal should be deserializable and executable
+        ensure!(
+            txs_to_include.len() == expected_txs_len,
+            "transactions to be included do not match expected",
+        );
+
+        let GeneratedCommitments {
+            sequence_actions_commitment: expected_action_commitment,
+            chain_ids_commitment: expected_chain_ids_commitment,
+        } = generate_sequence_actions_commitment(&signed_txs);
+        ensure!(
+            received_action_commitment == expected_action_commitment,
+            "transaction commitment does not match expected",
+        );
+
+        ensure!(
+            received_chain_ids_commitment == expected_chain_ids_commitment,
+            "chain IDs commitment does not match expected",
+        );
+
+        Ok(())
+    }
+
+    /// Executes the given transaction data, writing it to the app's `StateDelta`.
+    ///
+    /// The result of execution of every transaction which is successfully decoded
+    /// is stored in `self.execution_result`.
+    ///
+    /// Returns the transactions which were successfully decoded and executed
+    /// in both their [`SignedTransaction`] and raw bytes form.
+    async fn execute_block_data(
+        &mut self,
+        txs: Vec<bytes::Bytes>,
+    ) -> (Vec<SignedTransaction>, Vec<bytes::Bytes>) {
+        let mut signed_txs = Vec::with_capacity(txs.len());
+        let mut validated_txs = Vec::with_capacity(txs.len());
+
+        for tx in txs {
+            let Some(signed_tx) = raw::SignedTransaction::decode(&*tx)
+            .map_err(|err| {
+                debug!(error = ?err, "failed to deserialize bytes as a signed transaction");
+                err
+            })
+            .ok()
+            .and_then(|raw_tx| SignedTransaction::try_from_raw(raw_tx)
+                .map_err(|err| {
+                    debug!(error = ?err, "failed to convert raw signed transaction to native signed transaction");
+                    err
+                })
+                .ok()
+            ) else {
+                continue;
+            };
+
+            // store transaction execution result, indexed by tx hash
+            let tx_hash = sha2::Sha256::digest(&tx);
+            match self.deliver_tx(signed_tx.clone()).await {
+                Ok(events) => {
+                    self.execution_result.insert(tx_hash.into(), Ok(events));
+                    signed_txs.push(signed_tx);
+                    validated_txs.push(tx);
+                }
+                Err(e) => {
+                    debug!(?tx_hash, error = ?e, "failed to execute transaction, not including in block");
+                    self.execution_result.insert(tx_hash.into(), Err(e));
+                }
+            }
+        }
+
+        (signed_txs, validated_txs)
+    }
+
+    #[instrument(name = "App::begin_block", skip(self))]
     pub(crate) async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
@@ -126,7 +294,42 @@ impl App {
         Ok(self.apply(state_tx))
     }
 
-    #[instrument(name = "App:deliver_tx", skip(self))]
+    /// Called during the normal ABCI `deliver_tx` process, returning the results
+    /// of transaction execution during the proposal phase.
+    ///
+    /// Since transaction execution now happens in the proposal phase, results
+    /// are cached in the app and returned here during the usual ABCI block execution process.
+    ///
+    /// Note that the first two "transactions" in the block, which are the proposer-generated
+    /// commitments, are ignored.
+    #[instrument(name = "App::deliver_tx_after_execution", skip(self))]
+    pub(crate) fn deliver_tx_after_execution(
+        &mut self,
+        tx_hash: &[u8; 32],
+    ) -> Option<anyhow::Result<Vec<abci::Event>>> {
+        if self.processed_txs < 2 {
+            self.processed_txs += 1;
+            return Some(Ok(vec![]));
+        }
+
+        self.execution_result.remove(tx_hash)
+    }
+
+    /// Executes a signed transaction.
+    ///
+    /// Unlike the usual flow of an ABCI application, this is called during
+    /// the proposal phase, ie. `prepare_proposal` or `process_proposal`.
+    ///
+    /// This is because we disallow transactions that fail execution to be included
+    /// in a block's transaction data, as this would allow `sequence::Action`s to be
+    /// included for free. Instead, we execute transactions during the proposal phase,
+    /// and only include them in the block if they succeed.
+    ///
+    /// As a result, all transactions in a sequencer block are guaranteed to execute
+    /// successfully.
+    ///
+    /// Note that `begin_block` is now called *after* transaction execution.
+    #[instrument(name = "App::deliver_tx", skip(self))]
     pub(crate) async fn deliver_tx(
         &mut self,
         signed_tx: proto::native::sequencer::v1alpha1::SignedTransaction,
@@ -172,7 +375,7 @@ impl App {
         Ok(vec![])
     }
 
-    #[instrument(name = "App:end_block", skip(self))]
+    #[instrument(name = "App::end_block", skip(self))]
     pub(crate) async fn end_block(
         &mut self,
         end_block: &abci::request::EndBlock,
@@ -209,7 +412,7 @@ impl App {
         })
     }
 
-    #[instrument(name = "App:commit", skip(self))]
+    #[instrument(name = "App::commit", skip(self))]
     pub(crate) async fn commit(&mut self, storage: Storage) -> AppHash {
         // We need to extract the State we've built up to commit it.  Fill in a dummy state.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
