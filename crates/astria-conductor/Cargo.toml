@@ -46,7 +46,9 @@ sequencer-validation = { package = "astria-sequencer-validation", path = "../ast
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
-config = { package = "astria-config", path = "../astria-config", features = ["tests"] }
+config = { package = "astria-config", path = "../astria-config", features = [
+  "tests",
+] }
 proto = { package = "astria-proto", path = "../astria-proto", features = [
   "server",
 ] }

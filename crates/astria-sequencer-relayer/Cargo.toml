@@ -44,7 +44,9 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client", features = [
   "server",
 ] }
-config = { package = "astria-config", path = "../astria-config", features = ["tests"] }
+config = { package = "astria-config", path = "../astria-config", features = [
+  "tests",
+] }
 
 rand_core = { version = "0.6", features = ["getrandom"] }
 
