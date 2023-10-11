@@ -42,6 +42,7 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
 sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 tryhard = "0.5.1"
+humantime.workspace = true
 
 [dev-dependencies]
 once_cell = { workspace = true }

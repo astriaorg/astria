@@ -233,6 +233,7 @@ dependencies = [
  "figment",
  "futures",
  "hex",
+ "humantime",
  "once_cell",
  "prost",
  "prost-types",
