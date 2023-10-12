@@ -33,6 +33,7 @@ impl TryFrom<&ConfigCreateArgs> for Rollup {
 impl TryInto<String> for Rollup {
     type Error = eyre::Report;
 
+    /// Serializes Rollup to a yaml string
     fn try_into(self) -> eyre::Result<String> {
         let yaml_str = serde_yaml::to_string(&self)?;
         Ok(yaml_str)

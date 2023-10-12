@@ -50,6 +50,20 @@ fn helm_from_env() -> PathBuf {
         .expect(&msg)
 }
 
+/// Updates a key in a yaml file with a new value.
+///
+/// # Arguments
+///
+/// * `value` - The yaml to update
+/// * `key` - The key to update. Can be nested using dot notation.
+/// * `new_value` - The new value to set the key to
+///
+/// # Errors
+///
+/// * If the key path is invalid
+/// * If the last key is invalid, e.g. `a.b.c` where `c` does not exist
+/// * If the last key is not a string, e.g. `a.b.0` is incorrect
+/// * If the yaml cannot be updated
 fn update_yaml_value(
     value: &mut serde_yaml::Value,
     key: &str,
@@ -93,7 +107,7 @@ pub(crate) fn create_config(args: &ConfigCreateArgs) -> eyre::Result<()> {
     let rollup = Rollup::try_from(args)?;
     let filename = rollup.deployment_config.get_filename();
 
-    // create file config file
+    // create config file
     let mut output = File::create(&filename)?;
 
     // write args as yaml
@@ -366,5 +380,50 @@ mod test {
             };
             assert!(edit_config(&args).is_err());
         });
+    }
+
+    #[test]
+    fn test_update_yaml_value() {
+        let mut yaml_value: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            config:
+                rollup:
+                    name: test
+            "#,
+        )
+        .unwrap();
+
+        update_yaml_value(&mut yaml_value, "config.rollup.name", "bugbug").unwrap();
+
+        let updated: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+                config:
+                    rollup:
+                        name: bugbug
+                "#,
+        )
+        .unwrap();
+        assert_eq!(yaml_value, updated);
+    }
+
+    #[test]
+    fn test_update_yaml_value_errors() {
+        let mut yaml_value: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            config:
+                rollup:
+                    name: test
+            "#,
+        )
+        .unwrap();
+
+        // key doesn't exist
+        assert!(update_yaml_value(&mut yaml_value, "nonexistent", "bugbug").is_err());
+        assert!(update_yaml_value(&mut yaml_value, "config.blah", "bugbug").is_err());
+        assert!(update_yaml_value(&mut yaml_value, "config.rollup.name.blah", "bugbug").is_err());
+        // invalid last key
+        assert!(update_yaml_value(&mut yaml_value, "config.rollup.", "bugbug").is_err());
+        assert!(update_yaml_value(&mut yaml_value, "config.rollup.0", "bugbug").is_err());
+        assert!(update_yaml_value(&mut yaml_value, "config.rollup.[0]", "bugbug").is_err());
     }
 }
