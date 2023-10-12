@@ -113,6 +113,8 @@ impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         info!("Starting reader event loop.");
 
+        // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
+
         let mut interval = tokio::time::interval(self.celestia_poll_interval);
         loop {
             select!(
