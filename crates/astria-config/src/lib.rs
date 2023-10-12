@@ -12,6 +12,6 @@ pub use config::{
 };
 #[cfg(feature = "config-tests")]
 pub use config_tests::{
-    config_test_suite_test_should_fail_with_bad_prefix,
-    config_test_suite_test_should_populate_config_with_env_vars,
+    config_should_reject_unknown_var,
+    example_env_config_is_up_to_date,
 };

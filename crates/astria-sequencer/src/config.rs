@@ -21,8 +21,8 @@ pub struct Config {
 #[cfg(test)]
 mod test {
     use astria_config::{
-        config_test_suite_test_should_fail_with_bad_prefix,
-        config_test_suite_test_should_populate_config_with_env_vars,
+        config_should_reject_unknown_var,
+        example_env_config_is_up_to_date,
     };
 
     use crate::Config;
@@ -31,12 +31,12 @@ mod test {
 
     #[test]
     fn test_config_passing() {
-        config_test_suite_test_should_populate_config_with_env_vars::<Config>(EXAMPLE_ENV);
+        example_env_config_is_up_to_date::<Config>(EXAMPLE_ENV);
     }
 
     #[test]
     #[should_panic]
     fn test_config_failing() {
-        config_test_suite_test_should_fail_with_bad_prefix::<Config>(EXAMPLE_ENV);
+        config_should_reject_unknown_var::<Config>(EXAMPLE_ENV);
     }
 }

@@ -1,15 +1,13 @@
+use itertools::Itertools;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{
-    parse_macro_input,
-    spanned::Spanned,
-    Item,
-};
+use syn::{parse_macro_input, spanned::Spanned, Ident, Item};
 
 fn extract_struct_properties(item_ast: &Item) -> syn::Result<syn::Ident> {
+    let item_top_level_span = item_ast.span();
     let Item::Struct(ref item_struct) = item_ast else {
         return Err(syn::Error::new(
-            item_ast.span(),
+            item_top_level_span,
             "the astria_config proc macro can only be called on structs",
         ));
     };
@@ -17,22 +15,21 @@ fn extract_struct_properties(item_ast: &Item) -> syn::Result<syn::Ident> {
     let struct_name = item_struct.ident.clone();
 
     // Generates an vec of token-tree like structures of the atomicity we care about
-    let struct_fields = item_struct
+    let struct_fields: Vec<Ident> = item_struct
         .fields
         .iter()
         .map(|x| {
-            let field_ident = x.ident.clone().unwrap();
-            let field_ty = x.ty.clone();
-            let field_vis = x.vis.clone();
-
-            (field_ident, field_ty, field_vis)
+            x.ident.clone().ok_or(syn::Error::new(
+                item_top_level_span,
+                "Missing field identifier in struct",
+            ))
         })
-        .collect::<Vec<_>>();
+        .try_collect()?;
 
     // Check if log is a valid member of the config, otherwise throw compile error
     let true = struct_fields
         .iter()
-        .map(|x| x.0.to_string().to_lowercase())
+        .map(|x| x.to_string().to_lowercase())
         .collect::<Vec<_>>()
         .contains(&"log".to_string())
     else {
@@ -50,7 +47,10 @@ pub fn astria_config(attr: TokenStream, item: TokenStream) -> TokenStream {
     let item_ast = parse_macro_input!(item as Item);
     let attr_str = attr.to_string();
 
-    let struct_name: syn::Ident = extract_struct_properties(&item_ast).unwrap();
+    let struct_name = match extract_struct_properties(&item_ast) {
+        Ok(ident) => ident,
+        Err(err) => return err.to_compile_error().into(),
+    };
 
     let code_gen_ast = quote! {
         #item_ast

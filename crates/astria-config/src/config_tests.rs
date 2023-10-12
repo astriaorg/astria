@@ -1,3 +1,39 @@
+//! Test functions to ensure that a service's config and config examples are up to date.
+//!
+//! # Examples
+//!
+//! ```rust,ignore
+//! use astria_config::{example_env_config_is_up_to_date, config_should_reject_unknown_var};
+//! use serde::{
+//!     Deserialize,
+//!     Serialize,
+//! };
+//!
+//! #[derive(Clone, Debug, Serialize, Deserialize)]
+//! #[serde(deny_unknown_fields)]
+//! pub struct MyConfig {
+//!     pub log: String,
+//!     pub api_listen_addr: std::net::SocketAddr,
+//! }
+//!
+//! impl config::Config for MyConfig {
+//!     const PREFIX: &'static str = "MY_SERVICE_";
+//! }
+//!
+//! const EXAMPLE_ENV: &str = include_str!("../local.env.example");
+//!
+//! #[test]
+//! fn example_env_config_is_up_to_date() {
+//!     config::example_env_config_is_up_to_date::<Config>(EXAMPLE_ENV);
+//! }
+//!
+//! #[test]
+//! #[should_panic]
+//! fn config_should_reject_unknown_var() {
+//!     config::config_should_reject_unknown_var::<Config>(EXAMPLE_ENV);
+//! }
+//! ``
+
 use figment::Jail;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -22,34 +58,7 @@ fn populate_environment_from_example(jail: &mut Jail, test_envar_prefix: &str, e
     }
 }
 
-/// Test suite for testing configs according to the Astria spec
-/// # Example for running the test suite
-///
-/// ```rust,ignore
-/// mod test {
-///     use astria_config::{
-///         config_test_suite_test_should_fail_with_bad_prefix,
-///         config_test_suite_test_should_populate_config_with_env_vars,
-///     };
-///
-///     use crate::Config;
-///
-///     const EXAMPLE_ENV: &str = include_str!("../local.env.example");
-///
-///     #[test]
-///     fn test_config_passing() {
-///         config_test_suite_test_should_populate_config_with_env_vars::<Config>(EXAMPLE_ENV);
-///     }
-///
-///     #[test]
-///     #[should_panic]
-///     fn test_config_failing() {
-///         config_test_suite_test_should_fail_with_bad_prefix::<Config>(EXAMPLE_ENV);
-///     }
-/// }
-/// ```
-
-pub fn config_test_suite_test_should_populate_config_with_env_vars<'a, C>(example_env: &str)
+pub fn example_env_config_is_up_to_date<'a, C>(example_env: &str)
 where
     C: AstriaConfig<'a>,
 {
@@ -62,7 +71,7 @@ where
     });
 }
 
-pub fn config_test_suite_test_should_fail_with_bad_prefix<'a, C>(example_env: &str)
+pub fn config_should_reject_unknown_var<'a, C>(example_env: &str)
 where
     C: AstriaConfig<'a>,
 {
