@@ -17,9 +17,7 @@ use crate::cli::sequencer::{
 
 /// Generate new keypair
 fn get_new_signing_key() -> SigningKey {
-    let csprng = OsRng;
-    let signing_key: SigningKey = SigningKey::new(csprng);
-    signing_key
+    SigningKey::new(OsRng)
 }
 
 /// Get the public key from the signing key
