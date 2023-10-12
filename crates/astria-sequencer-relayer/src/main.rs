@@ -1,9 +1,9 @@
-use config::Config as _;
 use astria_sequencer_relayer::{
     telemetry,
     Config,
     SequencerRelayer,
 };
+use config::Config as _;
 use tracing::info;
 
 #[tokio::main]

@@ -1,7 +1,12 @@
 use itertools::Itertools;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, spanned::Spanned, Ident, Item};
+use syn::{
+    parse_macro_input,
+    spanned::Spanned,
+    Ident,
+    Item,
+};
 
 fn extract_struct_properties(item_ast: &Item) -> syn::Result<syn::Ident> {
     let item_top_level_span = item_ast.span();

@@ -33,7 +33,9 @@ tendermint-rpc = { workspace = true, features = ["http-client"] }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
-config = { package = "astria-config", path = "../astria-config", features = ["attribute"] }
+config = { package = "astria-config", path = "../astria-config", features = [
+  "attribute",
+] }
 astria-celestia-jsonrpc-client = { path = "../astria-celestia-jsonrpc-client" }
 astria-sequencer-validation = { path = "../astria-sequencer-validation" }
 proto = { package = "astria-proto", path = "../astria-proto" }
@@ -53,4 +55,6 @@ regex = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 wiremock = { workspace = true }
-config = { package = "astria-config", path = "../astria-config", features = ["config-tests"] }
+config = { package = "astria-config", path = "../astria-config", features = [
+  "config-tests",
+] }
