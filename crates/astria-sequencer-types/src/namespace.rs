@@ -40,10 +40,6 @@ impl Namespace {
 
     /// returns an 10-byte namespace given a byte slice by hashing
     /// the bytes with sha256 and returning the first 10 bytes.
-    ///
-    /// # Panics
-    ///
-    /// * If the hash is not 32 bytes
     #[must_use]
     #[allow(clippy::missing_panics_doc)]
     pub fn from_slice(bytes: &[u8]) -> Namespace {
