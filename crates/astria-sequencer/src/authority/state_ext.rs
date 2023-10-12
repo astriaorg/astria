@@ -125,7 +125,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
     async fn get_validator_updates(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
-            .nonconsensus_get_raw(VALIDATOR_UPDATES_KEY)
+            .nonverifiable_get_raw(VALIDATOR_UPDATES_KEY)
             .await
             .context("failed reading raw validator updates from state")?
         else {
@@ -165,7 +165,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip(self))]
     fn put_validator_updates(&mut self, validator_updates: ValidatorSet) -> Result<()> {
-        self.nonconsensus_put_raw(
+        self.nonverifiable_put_raw(
             VALIDATOR_UPDATES_KEY.to_vec(),
             serde_json::to_vec(&validator_updates)
                 .context("failed to serialize validator updates")?,
@@ -175,7 +175,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip(self))]
     fn clear_validator_updates(&mut self) {
-        self.nonconsensus_delete(VALIDATOR_UPDATES_KEY.to_vec());
+        self.nonverifiable_delete(VALIDATOR_UPDATES_KEY.to_vec());
     }
 }
 

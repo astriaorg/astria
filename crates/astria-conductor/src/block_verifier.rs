@@ -18,7 +18,7 @@ use ed25519_consensus::{
 };
 use prost::Message;
 use sequencer_client::{
-    tendermint::endpoint::validators,
+    tendermint_rpc::endpoint::validators,
     Client as _,
 };
 use tendermint::{
@@ -64,7 +64,7 @@ impl BlockVerifier {
             .get()
             .await
             .wrap_err("failed getting a client from the pool to get the current validator set")?
-            .validators(height, sequencer_client::tendermint::Paging::Default)
+            .validators(height, sequencer_client::tendermint_rpc::Paging::Default)
             .await
             .wrap_err("failed to get validator set")?;
 
@@ -78,7 +78,10 @@ impl BlockVerifier {
             .get()
             .await
             .wrap_err("failed getting a client from the pool to get the previous validator set")?
-            .validators(height - 1, sequencer_client::tendermint::Paging::Default)
+            .validators(
+                height - 1,
+                sequencer_client::tendermint_rpc::Paging::Default,
+            )
             .await
             .wrap_err("failed to get validator set")?;
 
