@@ -45,17 +45,18 @@ impl Namespace {
     ///
     /// * If the hash is not 32 bytes
     #[must_use]
-    #[allow(clippy::missing_panics_docs)]
+    #[allow(clippy::missing_panics_doc)]
     pub fn from_slice(bytes: &[u8]) -> Namespace {
-        let mut hasher = Sha256::new();
-        hasher.update(bytes);
-        let result = hasher.finalize();
-        #[allow(clippy::assertions_on_constants)]
         const _: () = assert!(
             NAMESPACE_ID_AVAILABLE_LEN <= 32,
             "this can only be violated if celestia had a breaking change fundamentally altering \
              the size of its namespace"
         );
+
+        let mut hasher = Sha256::new();
+        hasher.update(bytes);
+        let result = hasher.finalize();
+        #[allow(clippy::assertions_on_constants)]
         Namespace(
             result[0..NAMESPACE_ID_AVAILABLE_LEN]
                 .to_owned()
