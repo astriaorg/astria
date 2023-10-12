@@ -7,11 +7,6 @@ use clap::{
 use color_eyre::eyre;
 use serde::Serialize;
 
-/// Check if a string is a valid balance.
-fn is_valid_balance(s: &str) -> bool {
-    s.parse::<u128>().is_ok()
-}
-
 /// Manage your rollups
 #[derive(Debug, Subcommand)]
 pub enum Command {
@@ -83,7 +78,7 @@ pub struct ConfigCreateArgs {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct GenesisAccountArg {
     pub address: String,
-    pub balance: String,
+    pub balance: u128,
 }
 
 impl FromStr for GenesisAccountArg {
@@ -108,10 +103,9 @@ impl FromStr for GenesisAccountArg {
         }
 
         let balance_str = parts.next().unwrap_or("0");
-        if !is_valid_balance(balance_str) {
-            return Err(eyre::eyre!("Invalid balance"));
-        }
-        let balance = balance_str.to_string();
+        let balance = balance_str
+            .parse::<u128>()
+            .map_err(|e| eyre::eyre!("Invalid balance: {}", e))?;
 
         Ok(GenesisAccountArg {
             address,
@@ -188,7 +182,7 @@ mod tests {
         let input = "0x1234abcd:1000";
         let expected = GenesisAccountArg {
             address: "0x1234abcd".to_string(),
-            balance: "1000".to_string(),
+            balance: 1000,
         };
         let result: GenesisAccountArg = input.parse().unwrap();
         assert_eq!(result, expected);
@@ -199,7 +193,7 @@ mod tests {
         let input = "0x1234abcd";
         let expected = GenesisAccountArg {
             address: "0x1234abcd".to_string(),
-            balance: "0".to_string(),
+            balance: 0,
         };
         let result: GenesisAccountArg = input.parse().unwrap();
         assert_eq!(result, expected);
@@ -210,13 +204,6 @@ mod tests {
         let input = "0x1234abcd:invalid_balance";
         let result: Result<GenesisAccountArg, _> = input.parse();
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_is_valid_balance() {
-        assert!(is_valid_balance("100"));
-        assert!(!is_valid_balance("not_a_number"));
-        assert!(is_valid_balance("0"));
     }
 
     #[test]

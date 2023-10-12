@@ -126,7 +126,7 @@ pub struct RollupConfig {
 #[serde(rename_all = "camelCase")]
 struct GenesisAccount {
     address: String,
-    balance: String,
+    balance: u128,
 }
 
 impl From<GenesisAccountArg> for GenesisAccount {
@@ -173,11 +173,11 @@ mod tests {
             genesis_accounts: vec![
                 GenesisAccountArg {
                     address: "0xA5TR14".to_string(),
-                    balance: "10000".to_string(),
+                    balance: 10000,
                 },
                 GenesisAccountArg {
                     address: "0x420XYZ69".to_string(),
-                    balance: "420".to_string(),
+                    balance: 420,
                 },
             ],
             sequencer_initial_block_height: Some(10),
@@ -198,11 +198,11 @@ mod tests {
                     genesis_accounts: vec![
                         GenesisAccount {
                             address: "0xA5TR14".to_string(),
-                            balance: "10000".to_string(),
+                            balance: 10000,
                         },
                         GenesisAccount {
                             address: "0x420XYZ69".to_string(),
-                            balance: "420".to_string(),
+                            balance: 420,
                         },
                     ],
                 },
@@ -230,7 +230,7 @@ mod tests {
             skip_empty_blocks: false,
             genesis_accounts: vec![GenesisAccountArg {
                 address: "0xA5TR14".to_string(),
-                balance: "10000".to_string(),
+                balance: 10000,
             }],
             sequencer_initial_block_height: None,
             sequencer_websocket: "ws://localhost:8082".to_string(),
@@ -249,7 +249,7 @@ mod tests {
                     skip_empty_blocks: false,
                     genesis_accounts: vec![GenesisAccount {
                         address: "0xA5TR14".to_string(),
-                        balance: "10000".to_string(),
+                        balance: 10000,
                     }],
                 },
                 sequencer: SequencerConfig {
