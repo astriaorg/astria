@@ -9,6 +9,7 @@ use crate::cli::rollup::{
     GenesisAccountArg,
 };
 
+/// Rollup contains the deployment config for a rollup
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Rollup {
@@ -38,6 +39,8 @@ impl TryInto<String> for Rollup {
     }
 }
 
+/// Describes a rollup deployment config. Serializes to a yaml file for usage with Helm,
+/// thus the `rename_all = "camelCase"` naming convention.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RollupDeploymentConfig {

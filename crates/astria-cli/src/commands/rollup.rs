@@ -31,7 +31,7 @@ use crate::{
 const EVM_ROLLUP_CHART_URL: &str =
     "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.3.1.tgz";
 
-///
+/// Returns the path to the `helm` binary
 fn helm_from_env() -> PathBuf {
     let os_specific_hint = match OS {
         "macos" => "You could try running `brew install helm` or downloading a recent release from https://github.com/helm/helm/releases",
