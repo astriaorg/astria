@@ -10,8 +10,8 @@ use futures::{
     Future,
     FutureExt,
 };
-use penumbra_tower_trace::RequestExt as _;
-use tendermint::abci::{
+use penumbra_tower_trace::v037::RequestExt as _;
+use tendermint::v0_37::abci::{
     response::{
         ApplySnapshotChunk,
         ListSnapshots,

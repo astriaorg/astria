@@ -226,8 +226,8 @@ impl Conductor {
 
         sequencer_client_pool.close();
 
-        // wait 5 seconds for all tasks to shut down
-        // put the tasks into an Rc to make them 'static
+        info!("waiting 5 seconds for all tasks to shut down");
+        // put the tasks into an Rc to make them 'static so they can run on a local set
         let mut tasks = Rc::new(tasks);
         let local_set = LocalSet::new();
         local_set
@@ -236,14 +236,19 @@ impl Conductor {
                 let _ = timeout(
                     Duration::from_secs(5),
                     spawn_local(async move {
-                        while Rc::get_mut(&mut tasks)
+                        while let Some((name, res)) = Rc::get_mut(&mut tasks)
                             .expect(
                                 "only one Rc to the conductor tasks should exist; this is a bug",
                             )
                             .join_next()
                             .await
-                            .is_some()
-                        {}
+                        {
+                            match res {
+                                Ok(Ok(())) => info!(task.name = name, "task exited normally"),
+                                Ok(Err(err)) => warn!(task.name = name, error.message = %err, error.cause = ?err, "task exited with error"),
+                                Err(err) => warn!(task.name = name, error.message = %err, error.cause = ?err, "task failed"),
+                            }
+                        }
                     }),
                 )
                 .await;

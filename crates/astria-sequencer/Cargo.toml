@@ -11,15 +11,15 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 sequencer_types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }
 
 anyhow = "1"
+borsh = "0.10.3"
 matchit = "0.7.2"
-penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.56.0" }
-penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.56.0" }
+penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.61.0" }
+penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.61.0" }
 tower = "0.4"
-tower-abci = "0.8.0"
+tower-abci = "0.10.0"
 tower-actor = "0.1.0"
 
 async-trait = { workspace = true }
-borsh = { workspace = true }
 bytes = { workspace = true }
 ed25519-consensus = { workspace = true }
 futures = { workspace = true }
@@ -39,3 +39,7 @@ figment = { workspace = true, features = ["env"] }
 once_cell = { workspace = true }
 figment = { workspace = true, features = ["test"] }
 regex = { workspace = true }
+
+[features]
+default = []
+mint = []

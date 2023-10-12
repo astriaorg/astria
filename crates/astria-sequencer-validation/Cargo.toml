@@ -4,14 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ct-merkle = { git = "https://github.com/rozbb/ct-merkle", rev = "a3f3965c368946944425d59370783b3381a1fb4d", features = [
-  "serde",
-] }
-
 bytes = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 sha2 = { workspace = true }
+
+[dependencies.ct-merkle]
+git = "https://github.com/rozbb/ct-merkle"
+rev = "a3f3965c368946944425d59370783b3381a1fb4d"
+features = ["serde", "std"]
 
 [dev-dependencies]
 serde_json = { workspace = true }

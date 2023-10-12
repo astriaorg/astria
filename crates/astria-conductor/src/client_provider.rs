@@ -16,7 +16,7 @@ use tokio::{
     },
     task::JoinHandle,
 };
-use tracing::warn;
+use tracing::instrument::Instrumented;
 
 type ClientRx = mpsc::UnboundedReceiver<oneshot::Sender<Result<WebSocketClient, Error>>>;
 type ClientTx = mpsc::UnboundedSender<oneshot::Sender<Result<WebSocketClient, Error>>>;
@@ -41,47 +41,99 @@ pub(crate) enum Error {
 
 pub(crate) struct ClientProvider {
     client_tx: ClientTx,
-    _provider_loop: JoinHandle<()>,
+    _provider_loop: Instrumented<JoinHandle<()>>,
 }
 
 impl ClientProvider {
+    const RECONNECTION_ATTEMPTS: u32 = 1024;
+
     pub(crate) async fn new(url: &str) -> eyre::Result<Self> {
-        use futures::FutureExt as _;
-        let url = url.to_string();
-        let (client, driver) = WebSocketClient::new(&*url)
-            .await
-            .wrap_err("failed constructing a cometbft websocket client to read off sequencer")?;
+        use std::time::Duration;
+
+        use futures::{
+            future::FusedFuture as _,
+            FutureExt as _,
+        };
+        use tracing::{
+            info,
+            info_span,
+            warn,
+            Instrument as _,
+        };
         let (client_tx, mut client_rx): (ClientTx, ClientRx) = mpsc::unbounded_channel();
+
+        info!(
+            max_attempts = Self::RECONNECTION_ATTEMPTS,
+            strategy = "exponential backoff",
+            "connecting to sequencer websocket"
+        );
+        let retry_config = tryhard::RetryFutureConfig::new(Self::RECONNECTION_ATTEMPTS)
+            .exponential_backoff(Duration::from_secs(5))
+            .max_delay(Duration::from_secs(60))
+            .on_retry(
+                |attempt,
+                 next_delay: Option<Duration>,
+                 error: &sequencer_client::tendermint_rpc::Error| {
+                    let error = error.clone();
+                    let wait_duration = next_delay
+                        .map(humantime::format_duration)
+                        .map(tracing::field::display);
+                    async move {
+                        warn!(
+                            attempt,
+                            wait_duration,
+                            error.message = %error,
+                            error.cause = ?error,
+                            "attempt to connect to sequencer websocket failed; retrying after backoff",
+                        );
+                    }
+                },
+            );
+
+        let url_ = url.to_string();
         let _provider_loop = tokio::spawn(async move {
-            let mut client = Some(client);
-            let mut driver_fut = Box::pin(driver.run()).fuse();
-            let mut reconnect = futures::future::Fuse::terminated();
+            let mut client = None;
+            let mut driver_fut = futures::future::Fuse::terminated();
+            let mut reconnect = tryhard::retry_fn(|| {
+                let url = url_.clone();
+                async move { WebSocketClient::new(&*url).await }
+            })
+            .with_config(retry_config)
+            .boxed()
+            .fuse();
+
             let mut pending_requests: Vec<oneshot::Sender<Result<WebSocketClient, Error>>> =
                 Vec::new();
+
             loop {
                 select!(
-                    _ = &mut driver_fut => {
+                    _ = &mut driver_fut, if !driver_fut.is_terminated() => {
                         warn!("websocket driver failed, attempting to reconnect");
                         client = None;
-                        let url = url.clone();
-                        reconnect = tokio::spawn(async move { WebSocketClient::new(&*url).await }).fuse();
+                        reconnect = tryhard::retry_fn(|| {
+                            let url = url_.clone();
+                            async move {
+                                WebSocketClient::new(&*url).await
+                            }}).with_config(retry_config).boxed().fuse();
                     }
 
-                    res = &mut reconnect => {
+                    res = &mut reconnect, if !reconnect.is_terminated() => {
                         match res {
-                            Ok(Ok((new_client, driver))) => {
-                                driver_fut = Box::pin(driver.run()).fuse();
+                            Ok((new_client, driver)) => {
+                                info!("established a new websocket connection; handing out clients to all pending requests");
+                                driver_fut = driver.run().boxed().fuse();
                                 for tx in pending_requests.drain(..) {
                                     let _ = tx.send(Ok(new_client.clone()));
                                 }
                                 client = Some(new_client);
                             }
-                            Ok(Err(e)) => {
-                                warn!(error.message = %e, error.cause = ?e, "failed to reestablish websocket connection; exiting");
-                                break;
-                            }
                             Err(e) => {
-                                warn!(error.message = %e, error.cause = ?e, "task trying to reestablish websocket failed; exiting");
+                                warn!(
+                                    error.message = %e,
+                                    error.cause = ?e,
+                                    attempts = Self::RECONNECTION_ATTEMPTS,
+                                    "repeatedly failed to re-establish websocket connection; giving up",
+                                );
                                 break;
                             }
                         }
@@ -98,7 +150,7 @@ impl ClientProvider {
                     }
                 )
             }
-        });
+        }).instrument(info_span!("client provider loop", url));
 
         Ok(Self {
             client_tx,
