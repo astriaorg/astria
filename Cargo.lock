@@ -259,7 +259,7 @@ dependencies = [
 name = "astria-config"
 version = "0.1.0"
 dependencies = [
- "astria-config-derive",
+ "astria-config-attribute",
  "figment",
  "once_cell",
  "regex",
@@ -267,7 +267,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "astria-config-derive"
+name = "astria-config-attribute"
 version = "0.1.0"
 dependencies = [
  "itertools 0.11.0",

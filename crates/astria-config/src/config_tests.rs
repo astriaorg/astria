@@ -38,7 +38,10 @@ use figment::Jail;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::AstriaConfig;
+use crate::{
+    AstriaConfig,
+    _internal,
+};
 
 fn populate_environment_from_example(jail: &mut Jail, test_envar_prefix: &str, example_env: &str) {
     const RE_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[[:space:]]+").unwrap());
@@ -66,7 +69,7 @@ where
 
     Jail::expect_with(|jail| {
         populate_environment_from_example(jail, "TESTTEST", example_env);
-        C::from_environment(test_prefix.as_str()).unwrap();
+        C::get_with_prefix(test_prefix.as_str(), _internal::Internal).unwrap();
         Ok(())
     });
 }
@@ -81,7 +84,7 @@ where
         populate_environment_from_example(jail, "TESTTEST", example_env);
         let bad_prefix = format!("{}_FOOBAR", test_prefix);
         jail.set_env(bad_prefix, "BAZ");
-        C::from_environment(test_prefix.as_str()).unwrap();
+        C::get_with_prefix(test_prefix.as_str(), _internal::Internal).unwrap();
         Ok(())
     });
 }

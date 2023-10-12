@@ -2,6 +2,8 @@
 members = [
   "crates/astria-celestia-jsonrpc-client",
   "crates/astria-composer",
+  "crates/astria-config",
+  "crates/astria-config-attribute",
   "crates/astria-conductor",
   "crates/astria-proto",
   "crates/astria-sequencer",
@@ -12,8 +14,6 @@ members = [
   "crates/astria-sequencer-validation",
   "crates/astria-telemetry",
   "crates/astria-test-utils",
-  "crates/astria-config-derive",
-  "crates/astria-config",
 ]
 resolver = "2"
 

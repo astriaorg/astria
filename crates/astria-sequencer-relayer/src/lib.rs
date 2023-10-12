@@ -6,5 +6,6 @@ pub mod relayer;
 pub mod sequencer_relayer;
 pub mod validator;
 
+pub use config::Config;
 pub use sequencer_relayer::SequencerRelayer;
 pub use telemetry;

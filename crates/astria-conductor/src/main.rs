@@ -2,8 +2,9 @@ use std::process::ExitCode;
 
 use astria_conductor::{
     conductor::Conductor,
-    config::get_config,
+    Config,
 };
+use astria_config::AstriaConfig as _;
 use tracing::{
     error,
     info,
@@ -15,7 +16,7 @@ const EX_CONFIG: u8 = 78;
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    let cfg = match get_config() {
+    let cfg = match Config::get() {
         Err(e) => {
             eprintln!("failed reading config:\n{e:?}");
             // FIXME (https://github.com/astriaorg/astria/issues/368): might have to bubble up exit codes, since we might need
