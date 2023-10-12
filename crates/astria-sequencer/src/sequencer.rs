@@ -5,9 +5,9 @@ use anyhow::{
 };
 use penumbra_tower_trace::{
     trace::request_span,
-    RequestExt as _,
+    v037::RequestExt as _,
 };
-use tendermint::abci::ConsensusRequest;
+use tendermint::v0_37::abci::ConsensusRequest;
 use tower_abci::v037::Server;
 use tracing::{
     info,
@@ -69,7 +69,7 @@ impl Sequencer {
 
         info!(config.listen_addr, "starting sequencer");
         server
-            .listen(&config.listen_addr)
+            .listen_tcp(&config.listen_addr)
             .await
             .expect("should listen");
         Ok(())
