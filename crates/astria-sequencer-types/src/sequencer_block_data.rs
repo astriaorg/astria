@@ -57,6 +57,8 @@ pub enum Error {
     NoData,
     #[error("block has no data hash")]
     MissingDataHash,
+    #[error("last_commit field was unset even though last_commit_hash was set")]
+    MissingLastCommit,
     #[error("block has no last commit hash")]
     MissingLastCommitHash,
     #[error("failed decoding bytes to protobuf signed transaction")]
@@ -183,11 +185,8 @@ impl SequencerBlockData {
             .last_commit_hash
             .ok_or(Error::MissingLastCommitHash)?;
 
-        let calculated_last_commit_hash = calculate_last_commit_hash(
-            last_commit
-                .as_ref()
-                .expect("last_commit must be set if last_commit_hash is set"),
-        );
+        let calculated_last_commit_hash =
+            calculate_last_commit_hash(last_commit.as_ref().ok_or(Error::MissingLastCommit)?);
         if calculated_last_commit_hash != last_commit_hash {
             return Err(Error::LastCommitHashMismatch)?;
         }

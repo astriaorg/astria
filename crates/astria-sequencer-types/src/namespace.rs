@@ -45,15 +45,21 @@ impl Namespace {
     ///
     /// * If the hash is not 32 bytes
     #[must_use]
+    #[allow(clippy::missing_panic_docs)]
     pub fn from_slice(bytes: &[u8]) -> Namespace {
         let mut hasher = Sha256::new();
         hasher.update(bytes);
         let result = hasher.finalize();
+        const _: () = assert!(
+            NAMESPACE_ID_AVAILABLE_LEN <= 32,
+            "this can only be violated if celestia had a breaking change fundamentally altering \
+             the size of its namespace"
+        );
         Namespace(
             result[0..NAMESPACE_ID_AVAILABLE_LEN]
                 .to_owned()
                 .try_into()
-                .expect("cannot fail as hash is always 32 bytes"),
+                .expect("should not never fail unless sha256 no longer returns 32 bytes"),
         )
     }
 }
