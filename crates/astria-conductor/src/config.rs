@@ -16,6 +16,16 @@ pub enum CommitLevel {
     SoftAndFirm,
 }
 
+impl CommitLevel {
+    pub fn is_soft_only(&self) -> bool {
+        matches!(self, Self::SoftOnly)
+    }
+
+    pub fn is_firm_only(&self) -> bool {
+        matches!(self, Self::FirmOnly)
+    }
+}
+
 pub fn get() -> Result<Config, figment::Error> {
     Config::from_environment("ASTRIA_CONDUCTOR_")
 }

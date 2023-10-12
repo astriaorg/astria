@@ -12,6 +12,8 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+// use futures::FutureExt;
+use futures::future::Fuse;
 use tokio::{
     select,
     signal::unix::{
@@ -42,7 +44,6 @@ use crate::{
         self,
         ClientProvider,
     },
-    config::CommitLevel,
     data_availability,
     executor::Executor,
     sequencer,
@@ -64,7 +65,7 @@ pub struct Conductor {
     sequencer_client_pool: deadpool::managed::Pool<ClientProvider>,
 
     /// The channel over which the sequencer reader task notifies conductor that sync is completed.
-    sync_done: oneshot::Receiver<()>,
+    sync_done: Fuse<oneshot::Receiver<()>>,
 
     /// The data availability reader that is spawned after sync is completed.
     /// Constructed if constructed if `disable_finalization = false`.
@@ -77,6 +78,8 @@ impl Conductor {
     const SEQUENCER: &'static str = "sequencer";
 
     pub async fn new(cfg: Config) -> eyre::Result<Self> {
+        use futures::FutureExt;
+
         let mut tasks = JoinMap::new();
         let mut shutdown_channels = HashMap::new();
 
@@ -108,7 +111,9 @@ impl Conductor {
         // Spawn the sequencer task
         // Only spawn the sequencer::Reader if CommitLevel is not FirmOnly, also
         // send () to sync_done to start normal block execution behavior
-        let sync_done = if cfg.execution_commit_level != CommitLevel::FirmOnly {
+        let mut sync_done = futures::future::Fuse::terminated();
+        if !cfg.execution_commit_level.is_firm_only() {
+            // todo!("set up stuff");
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             let (sync_done_tx, sync_done_rx) = oneshot::channel();
             let sequencer_reader = sequencer::Reader::new(
@@ -120,18 +125,13 @@ impl Conductor {
             );
             tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
             shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
-            sync_done_rx
-        } else {
-            let (sync_done_tx, sync_done_rx) = oneshot::channel();
-            let _ = sync_done_tx.send(());
-            sync_done_rx
-        };
-
+            sync_done = sync_done_rx.fuse();
+        }
         // Construct the data availability reader without spawning it.
         // It will be executed after sync is done.
         let mut data_availability_reader = None;
         // Only spawn the data_availability::Reader if CommitLevel is not SoftOnly
-        if cfg.execution_commit_level != CommitLevel::SoftOnly {
+        if !cfg.execution_commit_level.is_soft_only() {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
             let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
