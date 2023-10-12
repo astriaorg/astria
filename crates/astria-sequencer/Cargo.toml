@@ -6,7 +6,7 @@ rust-version = "1.70.0"
 
 [dependencies]
 proto = { package = "astria-proto", path = "../astria-proto" }
-astria-config = { path = "../astria-config", features = ["attribute"] }
+config = { package = "astria-config", path = "../astria-config", features = ["attribute"] }
 sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 sequencer_types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }
@@ -40,4 +40,4 @@ figment = { workspace = true, features = ["env"] }
 once_cell = { workspace = true }
 figment = { workspace = true, features = ["test"] }
 regex = { workspace = true }
-astria-config = { path = "../astria-config", features = ["config-tests"] }
+config = { package = "astria-config", path = "../astria-config", features = ["config-tests"] }

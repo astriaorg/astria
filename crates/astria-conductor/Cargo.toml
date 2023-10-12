@@ -31,7 +31,7 @@ tokio-util = { workspace = true, features = ["rt"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
 
-astria-config = { path = "../astria-config", features = ["attribute"] }
+config = { package = "astria-config", path = "../astria-config", features = ["attribute"] }
 sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
   "http",
   "websocket",
@@ -46,7 +46,7 @@ sequencer-validation = { package = "astria-sequencer-validation", path = "../ast
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
-astria-config = { path = "../astria-config", features = ["config-tests"] }
+config = { package = "astria-config", path = "../astria-config", features = ["config-tests"] }
 base64 = { workspace = true }
 once_cell = { workspace = true }
 figment = { workspace = true, features = ["test"] }

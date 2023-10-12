@@ -1,4 +1,4 @@
-use astria_config::AstriaConfig as _;
+use config::Config as _;
 use astria_sequencer_relayer::{
     telemetry,
     Config,

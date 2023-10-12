@@ -1,6 +1,6 @@
 use std::process::ExitCode;
 
-use astria_config::AstriaConfig as _;
+use config::Config as _;
 use astria_sequencer::{
     Config,
     Sequencer,

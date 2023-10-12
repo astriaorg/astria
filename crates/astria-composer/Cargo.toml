@@ -8,7 +8,7 @@ rust-version = "1.70.0"
 
 [dependencies]
 proto = { package = "astria-proto", path = "../astria-proto" }
-astria-config = { path = "../astria-config", features = ["attribute"] }
+config = { package = "astria-config", path = "../astria-config", features = ["attribute"] }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 ethers = { version = "2.0.7", features = ["ws"] }
@@ -47,7 +47,7 @@ features = ["http"]
 
 [dev-dependencies]
 proto = { package = "astria-proto", path = "../astria-proto" }
-astria-config = { path = "../astria-config", features = ["config-tests"] }
+config = { package = "astria-config", path = "../astria-config", features = ["config-tests"] }
 
 impl-serde = "0.4.0"
 tokio-test = "0.4.2"

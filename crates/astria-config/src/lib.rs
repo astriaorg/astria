@@ -1,5 +1,29 @@
+//! A trait to read a config from the environment.
+//!
+//! # Example
+//! ```no_run
+//! use astria_config as config;
+//! use serde::{
+//!     Deserialize,
+//!     Serialize,
+//! };
+//!
+//! #[derive(Clone, Debug, Serialize, Deserialize)]
+//! #[serde(deny_unknown_fields)]
+//! pub struct MyConfig {
+//!     pub log: String,
+//!     pub api_listen_addr: std::net::SocketAddr,
+//! }
+//!
+//! impl config::Config for MyConfig {
+//!     const PREFIX: &'static str = "MY_SERVICE_";
+//! }
+//!
+//! let config: MyConfig = config::Config::get().unwrap();
+//! ```
+
 use serde::{
-    Deserialize,
+    de::DeserializeOwned,
     Serialize,
 };
 
@@ -14,7 +38,7 @@ pub use config_tests::{
     example_env_config_is_up_to_date,
 };
 
-pub trait AstriaConfig<'a>: Serialize + Deserialize<'a> {
+pub trait Config: Serialize + DeserializeOwned {
     const PREFIX: &'static str;
 
     fn get() -> Result<Self, figment::Error> {

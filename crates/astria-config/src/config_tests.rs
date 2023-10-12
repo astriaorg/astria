@@ -3,7 +3,7 @@
 //! # Examples
 //!
 //! ```rust,ignore
-//! use astria_config::{example_env_config_is_up_to_date, config_should_reject_unknown_var};
+//! use config::{example_env_config_is_up_to_date, config_should_reject_unknown_var};
 //! use serde::{
 //!     Deserialize,
 //!     Serialize,
@@ -39,10 +39,11 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::{
-    AstriaConfig,
+    Config,
     _internal,
 };
 
+#[track_caller]
 fn populate_environment_from_example(jail: &mut Jail, test_envar_prefix: &str, example_env: &str) {
     const RE_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[[:space:]]+").unwrap());
     const RE_END: Lazy<Regex> = Lazy::new(|| Regex::new(r"[[:space:]]+$").unwrap());
@@ -61,9 +62,10 @@ fn populate_environment_from_example(jail: &mut Jail, test_envar_prefix: &str, e
     }
 }
 
+#[track_caller]
 pub fn example_env_config_is_up_to_date<'a, C>(example_env: &str)
 where
-    C: AstriaConfig<'a>,
+    C: Config,
 {
     let test_prefix = format!("TESTTEST_{}", C::PREFIX);
 
@@ -76,7 +78,7 @@ where
 
 pub fn config_should_reject_unknown_var<'a, C>(example_env: &str)
 where
-    C: AstriaConfig<'a>,
+    C: Config,
 {
     let test_prefix = format!("TESTTEST_{}", C::PREFIX);
 

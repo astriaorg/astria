@@ -1,4 +1,4 @@
-use astria_config::astria_config;
+use config::astria_config;
 use serde::{
     Deserialize,
     Serialize,
@@ -38,23 +38,18 @@ pub struct Config {
 }
 #[cfg(test)]
 mod test {
-    use astria_config::{
-        config_should_reject_unknown_var,
-        example_env_config_is_up_to_date,
-    };
-
     use crate::Config;
 
     const EXAMPLE_ENV: &str = include_str!("../local.env.example");
 
     #[test]
-    fn test_config_passing() {
-        example_env_config_is_up_to_date::<Config>(EXAMPLE_ENV);
+    fn example_env_config_is_up_to_date() {
+        config::example_env_config_is_up_to_date::<Config>(EXAMPLE_ENV);
     }
 
     #[test]
     #[should_panic]
-    fn test_config_failing() {
-        config_should_reject_unknown_var::<Config>(EXAMPLE_ENV);
+    fn config_should_reject_unknown_var() {
+        config::config_should_reject_unknown_var::<Config>(EXAMPLE_ENV);
     }
 }
