@@ -49,13 +49,13 @@ pub struct BalanceGetArgs {
     #[clap(long)]
     pub(crate) sequencer_url: String,
     /// The address of the Sequencer account
-    pub(crate) address: AddressArg,
+    pub(crate) address: SequencerAddressArg,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct AddressArg(pub(crate) Address);
+pub(crate) struct SequencerAddressArg(pub(crate) Address);
 
-impl FromStr for AddressArg {
+impl FromStr for SequencerAddressArg {
     type Err = eyre::Report;
 
     /// Parse a string into a Sequencer Address

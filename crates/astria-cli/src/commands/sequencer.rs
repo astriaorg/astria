@@ -1,4 +1,5 @@
 use astria_sequencer_client::{
+    Address,
     HttpClient,
     SequencerClientExt,
 };
@@ -8,10 +9,6 @@ use color_eyre::{
 };
 use ed25519_consensus::SigningKey;
 use rand::rngs::OsRng;
-use sha2::{
-    Digest,
-    Sha256,
-};
 
 use crate::cli::sequencer::{
     BalanceGetArgs,
@@ -27,7 +24,6 @@ fn get_new_signing_key() -> SigningKey {
 
 /// Get the public key from the signing key
 fn get_public_key_pretty(signing_key: &SigningKey) -> String {
-    // hex encode public key for printing
     let verifying_key_bytes = signing_key.verification_key().to_bytes();
     hex::encode(verifying_key_bytes)
 }
@@ -40,12 +36,8 @@ fn get_private_key_pretty(signing_key: &SigningKey) -> String {
 
 /// Get the address from the signing key
 fn get_address_pretty(signing_key: &SigningKey) -> String {
-    // sha256 hash public key and take first 20 bytes to get address for printing
-    let verifying_key_bytes = signing_key.verification_key().to_bytes();
-    let mut hasher = Sha256::new();
-    hasher.update(verifying_key_bytes);
-    let address_bytes = hasher.finalize();
-    hex::encode(&address_bytes[..20])
+    let address = Address::from_verification_key(signing_key.verification_key());
+    hex::encode(address.to_vec())
 }
 
 /// Generates a new ED25519 keypair and prints the public key, private key, and address
