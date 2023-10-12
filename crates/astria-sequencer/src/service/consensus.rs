@@ -5,7 +5,7 @@ use anyhow::{
 use penumbra_storage::Storage;
 use sequencer_types::abci_code::AbciCode;
 use sha2::Digest as _;
-use tendermint::abci::{
+use tendermint::v0_37::abci::{
     request,
     response,
     ConsensusRequest,
