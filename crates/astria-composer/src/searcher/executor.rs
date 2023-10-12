@@ -24,7 +24,7 @@ use secrecy::{
     Zeroize as _,
 };
 use sequencer_client::{
-    tendermint::endpoint::broadcast::tx_sync,
+    tendermint_rpc::endpoint::broadcast::tx_sync,
     Address,
     NonceResponse,
     SequencerClientExt,

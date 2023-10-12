@@ -14,7 +14,6 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
       else \
         apt update; \
       fi; \
-      apt install -y librocksdb-dev:arm64; \
     elif [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
       rustup target add x86_64-unknown-linux-gnu; \
       if [ "$BUILDPLATFORM" != "linux/amd64" ]; then \
@@ -23,7 +22,6 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
       else \
         apt update; \
       fi; \
-      apt install -y librocksdb-dev:amd64; \
     fi; \
     apt install -y libclang-dev clang;
 
@@ -39,8 +37,7 @@ COPY --from=planner /build/recipe.json recipe.json
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 ARG TARGETBINARY
-RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then export ROCKSDB_LIB_DIR=/usr/lib/aarch64-linux-gnu; \
-    elif [ "$TARGETPLATFORM" = "linux/amd64" ]; then export ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu; fi; \
+RUN \
     if [ "$TARGETPLATFORM" = "linux/arm64" ] && [ "$BUILDPLATFORM" != "linux/arm64" ]; then \
       export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
         CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
@@ -60,8 +57,7 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then export ROCKSDB_LIB_DIR=/usr/l
     
 COPY . .
 
-RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then export ROCKSDB_LIB_DIR=/usr/lib/aarch64-linux-gnu; \
-    elif [ "$TARGETPLATFORM" = "linux/amd64" ]; then export ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu; fi; \
+RUN \
     if [ "$TARGETPLATFORM" = "linux/arm64" ] && [ "$BUILDPLATFORM" != "linux/arm64" ]; then \
       export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
         CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
@@ -89,19 +85,8 @@ FROM debian:bookworm-slim
 ARG TARGETBINARY
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
-RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
-      if [ "$BUILDPLATFORM" != "linux/arm64" ]; then \
-        dpkg --add-architecture arm64; \
-      fi; \
-      apt update; \
-      apt install -y librocksdb-dev:arm64; \
-    elif [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
-      if [ "$BUILDPLATFORM" != "linux/amd64" ]; then \
-        dpkg --add-architecture amd64; \
-      fi; \
-      apt update; \
-      apt install -y librocksdb-dev:amd64; \
-    fi; \
+RUN \
+    apt update; \
     apt install -y wget ca-certificates; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*;

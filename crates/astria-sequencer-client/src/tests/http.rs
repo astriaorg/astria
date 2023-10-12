@@ -12,7 +12,7 @@ use tendermint::{
     Hash,
 };
 use tendermint_rpc::{
-    endpoint::broadcast::tx_commit::DialectResponse,
+    endpoint::broadcast::tx_commit::v0_37::DialectResponse,
     response::Wrapper,
     Id,
 };
@@ -28,7 +28,7 @@ use wiremock::{
 };
 
 use crate::{
-    tendermint::endpoint::broadcast::tx_sync,
+    tendermint_rpc::endpoint::broadcast::tx_sync,
     HttpClient,
     SequencerClientExt as _,
 };
@@ -98,7 +98,7 @@ async fn register_broadcast_tx_sync_response(
 
 async fn register_broadcast_tx_commit_response(
     server: &MockServer,
-    response: DialectResponse<tendermint_rpc::dialect::v0_37::Event>,
+    response: DialectResponse,
 ) -> MockGuard {
     let wrapper = Wrapper::new_with_id(Id::Num(1), Some(response), None);
     Mock::given(body_partial_json(json!({
@@ -214,7 +214,7 @@ async fn submit_tx_commit() {
         client,
     } = MockSequencer::start().await;
 
-    let server_response = DialectResponse::<tendermint_rpc::dialect::v0_37::Event> {
+    let server_response = DialectResponse {
         check_tx: dialect::CheckTx::default(),
         deliver_tx: dialect::DeliverTx::default(),
         hash: Hash::Sha256([0; 32]),
@@ -226,5 +226,5 @@ async fn submit_tx_commit() {
 
     let response = client.submit_transaction_commit(signed_tx).await.unwrap();
     assert_eq!(response.check_tx.code, 0.into());
-    assert_eq!(response.deliver_tx.code, 0.into());
+    assert_eq!(response.tx_result.code, 0.into());
 }
