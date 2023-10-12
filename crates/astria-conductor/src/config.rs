@@ -9,6 +9,23 @@ use serde::{
     Serialize,
 };
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum CommitLevel {
+    SoftOnly,
+    FirmOnly,
+    SoftAndFirm,
+}
+
+impl CommitLevel {
+    pub fn is_soft_only(&self) -> bool {
+        matches!(self, Self::SoftOnly)
+    }
+
+    pub fn is_firm_only(&self) -> bool {
+        matches!(self, Self::FirmOnly)
+    }
+}
+
 pub fn get() -> Result<Config, figment::Error> {
     Config::from_environment("ASTRIA_CONDUCTOR_")
 }
@@ -31,9 +48,6 @@ pub struct Config {
     /// Address of the RPC server for execution
     pub execution_rpc_url: String,
 
-    /// Disable reading from the DA layer and block finalization
-    pub disable_finalization: bool,
-
     /// log directive to use for telemetry.
     pub log: String,
 
@@ -42,6 +56,10 @@ pub struct Config {
 
     /// The Sequencer block height that the rollup genesis block was in
     pub initial_sequencer_block_height: u32,
+
+    /// The execution commit level used for controlling how blocks are sent to
+    /// the execution layer.
+    pub execution_commit_level: CommitLevel,
 }
 
 impl Config {
