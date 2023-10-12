@@ -168,7 +168,7 @@ async fn execute_unexecuted_da_block_with_transactions() {
     let expected_exection_hash = hash(&mock.executor.execution_state);
 
     mock.executor
-        .handle_block_received_from_data_availability(block)
+        .execute_and_finalize_blocks_from_celestia(vec![block])
         .await
         .unwrap();
 
@@ -182,11 +182,11 @@ async fn execute_unexecuted_da_block_with_transactions() {
 async fn skip_unexecuted_da_block_with_no_transactions() {
     let mut mock = start_mock(true).await;
 
-    let block: SequencerBlockSubset = get_test_block_subset();
+    let block = get_test_block_subset();
     let previous_execution_state = mock.executor.execution_state.clone();
 
     mock.executor
-        .handle_block_received_from_data_availability(block)
+        .execute_and_finalize_blocks_from_celestia(vec![block])
         .await
         .unwrap();
 
@@ -198,16 +198,30 @@ async fn skip_unexecuted_da_block_with_no_transactions() {
 #[tokio::test]
 async fn execute_unexecuted_da_block_with_no_transactions() {
     let mut mock = start_mock(false).await;
-    let block: SequencerBlockSubset = get_test_block_subset();
+    let block = get_test_block_subset();
     let expected_execution_state = hash(&mock.executor.execution_state);
 
     mock.executor
-        .handle_block_received_from_data_availability(block)
+        .execute_and_finalize_blocks_from_celestia(vec![block])
         .await
         .unwrap();
 
     assert_eq!(expected_execution_state, mock.executor.execution_state);
     // should be empty because block was executed and finalized, which
     // deletes it from the map
+    assert!(mock.executor.sequencer_hash_to_execution_hash.is_empty());
+}
+
+#[tokio::test]
+async fn empty_message_from_data_availability_is_dropped() {
+    let mut mock = start_mock(false).await;
+    let expected_execution_state = mock.executor.execution_state.clone();
+
+    mock.executor
+        .execute_and_finalize_blocks_from_celestia(vec![])
+        .await
+        .unwrap();
+
+    assert_eq!(expected_execution_state, mock.executor.execution_state);
     assert!(mock.executor.sequencer_hash_to_execution_hash.is_empty());
 }
