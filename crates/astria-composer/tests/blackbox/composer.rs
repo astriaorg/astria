@@ -21,7 +21,8 @@ use crate::helper::spawn_composer;
 #[tokio::test]
 async fn tx_from_one_rollup_is_received_by_sequencer() {
     let test_composer = spawn_composer(&["test1"]).await;
-    let mock_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1", 42, None).await;
+    let mock_guard =
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1", 42, None).await;
     test_composer.rollup_nodes["test1"]
         .push_tx(Transaction::default())
         .unwrap();
@@ -38,8 +39,10 @@ async fn tx_from_two_rollups_are_received_by_sequencer() {
     use futures::future::join;
 
     let test_composer = spawn_composer(&["test1", "test2"]).await;
-    let test1_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1", 42, None).await;
-    let test2_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test2", 43, None).await;
+    let test1_guard =
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1", 42, None).await;
+    let test2_guard =
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test2", 43, None).await;
     test_composer.rollup_nodes["test1"]
         .push_tx(Transaction::default())
         .unwrap();
@@ -82,11 +85,10 @@ async fn test_tx_integrity() {
     },"#;
 
     let tx: Transaction = serde_json::from_str(tx).unwrap();
-    let mock_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1", 42, Some(tx)).await;
+    let mock_guard =
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1", 42, Some(tx)).await;
 
-    test_composer.rollup_nodes["test1"]
-        .push_tx(tx)
-        .unwrap();
+    test_composer.rollup_nodes["test1"].push_tx(tx).unwrap();
     tokio::time::timeout(
         Duration::from_millis(100),
         mock_guard.wait_until_satisfied(),
@@ -102,7 +104,7 @@ async fn mount_broadcast_tx_sync_mock(
     server: &MockServer,
     expected_chain_id: &'static str,
     expected_nonce: u32,
-    expected_tx: Option<Transaction>
+    expected_tx: Option<Transaction>,
 ) -> MockGuard {
     use proto::{
         generated::sequencer::v1alpha1 as raw,
@@ -125,7 +127,10 @@ async fn mount_broadcast_tx_sync_mock(
             panic!("mocked sequencer expected a sequence action");
         };
         if let Some(tx_data) = &expected_tx {
-            assert_eq!(serde_json::from_slice::<Transaction>(sequence_action.data.as_slice()).unwrap(), *tx_data)
+            assert_eq!(
+                serde_json::from_slice::<Transaction>(sequence_action.data.as_slice()).unwrap(),
+                *tx_data
+            )
         }
         sequence_action.chain_id == expected_chain_id.as_bytes()
             && signed_tx.unsigned_transaction().nonce == expected_nonce
