@@ -12,7 +12,7 @@ pub use proto::native::sequencer::v1alpha1::{
     NonceResponse,
     SignedTransaction,
 };
-pub use tendermint_rpc as tendermint;
+pub use tendermint_rpc;
 #[cfg(feature = "http")]
 pub use tendermint_rpc::HttpClient;
 #[cfg(feature = "websocket")]

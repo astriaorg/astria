@@ -28,7 +28,7 @@ use wiremock::{
 };
 
 use crate::{
-    tendermint::endpoint::broadcast::tx_sync,
+    tendermint_rpc::endpoint::broadcast::tx_sync,
     HttpClient,
     SequencerClientExt as _,
 };
