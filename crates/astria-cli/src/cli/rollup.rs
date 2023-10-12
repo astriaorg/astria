@@ -7,6 +7,11 @@ use clap::{
 use color_eyre::eyre;
 use serde::Serialize;
 
+/// Remove the 0x prefix from a hex string if present
+fn strip_0x_prefix(s: &str) -> &str {
+    if s.starts_with("0x") { &s[2..] } else { s }
+}
+
 /// Manage your rollups
 #[derive(Debug, Subcommand)]
 pub enum Command {
@@ -91,15 +96,21 @@ impl FromStr for GenesisAccountArg {
     ///
     /// * If the address is missing
     /// * If the address is empty
+    /// * If the address is not a valid im
     fn from_str(s: &str) -> eyre::Result<Self, Self::Err> {
         let mut parts = s.splitn(2, ':');
 
-        let address = parts
-            .next()
-            .ok_or_else(|| eyre::eyre!("Missing address"))?
-            .to_string();
+        let address = parts.next().ok_or_else(|| eyre::eyre!("Missing address"))?;
+        let address = strip_0x_prefix(address).to_string();
         if address.is_empty() {
             return Err(eyre::eyre!("Empty address"));
+        }
+        let decoded =
+            hex::decode(&address).map_err(|e| eyre::eyre!("Invalid hex address: {}", e))?;
+        if decoded.len() != 20 {
+            return Err(eyre::eyre!(
+                "Address must be a 20-byte hex string, or 40 characters."
+            ));
         }
 
         let balance_str = parts.next().unwrap_or("0");
@@ -178,10 +189,10 @@ mod tests {
     use crate::test_utils::with_temp_directory;
 
     #[test]
-    fn test_from_str_with_balance() {
-        let input = "0x1234abcd:1000";
+    fn test_genesis_account_arg_from_str_with_balance() {
+        let input = "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30:1000";
         let expected = GenesisAccountArg {
-            address: "0x1234abcd".to_string(),
+            address: "aC21B97d35Bf75A7dAb16f35b111a50e78A72F30".to_string(),
             balance: 1000,
         };
         let result: GenesisAccountArg = input.parse().unwrap();
@@ -189,10 +200,10 @@ mod tests {
     }
 
     #[test]
-    fn test_from_str_without_balance() {
-        let input = "0x1234abcd";
+    fn test_genesis_account_arg_from_str_without_balance() {
+        let input = "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30";
         let expected = GenesisAccountArg {
-            address: "0x1234abcd".to_string(),
+            address: "aC21B97d35Bf75A7dAb16f35b111a50e78A72F30".to_string(),
             balance: 0,
         };
         let result: GenesisAccountArg = input.parse().unwrap();
@@ -200,10 +211,28 @@ mod tests {
     }
 
     #[test]
-    fn test_from_str_invalid_balance() {
-        let input = "0x1234abcd:invalid_balance";
+    fn test_genesis_account_arg_from_str_invalid_balance() {
+        let input = "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30:invalid_balance";
         let result: Result<GenesisAccountArg, _> = input.parse();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_genesis_account_arg_from_str_invalid_address() {
+        let input = "0x1234abcd:1000";
+        let result: Result<GenesisAccountArg, _> = input.parse();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_genesis_account_arg_from_str_no_0x_prefix() {
+        let input = "aC21B97d35Bf75A7dAb16f35b111a50e78A72F30:1000";
+        let expected = GenesisAccountArg {
+            address: "aC21B97d35Bf75A7dAb16f35b111a50e78A72F30".to_string(),
+            balance: 1000,
+        };
+        let result: GenesisAccountArg = input.parse().unwrap();
+        assert_eq!(result, expected);
     }
 
     #[test]
