@@ -45,8 +45,9 @@ use crate::{
 
 mod sync;
 
-type ResubFut =
-    future::Fuse<Pin<Box<dyn Future<Output = eyre::Result<NewBlocksStream>> + Send + 'static>>>;
+type ResubFut = future::Fuse<
+    Pin<Box<dyn Future<Output = Result<NewBlocksStream, ResubscriptionError>> + Send + 'static>>,
+>;
 
 pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
@@ -186,9 +187,16 @@ impl Reader {
                 }
 
                 res = &mut resubscribe, if !resubscribe.is_terminated() => {
-                    if let Err(e) = assign_new_blocks_subscription(&mut new_blocks, res) {
-                        error!(error.message = %e, error.cause = ?e, "failed to resubscribe to get new blocks from sequencer; exiting reader");
-                        break 'reader_loop Err(e).wrap_err("failed to resubscribe to new blocks from sequencer");
+                    match res {
+                        Ok(new_subscription) => {
+                          new_blocks = new_subscription.fuse();
+                        }
+                        Err(err) => {
+                            let error: &(dyn std::error::Error + 'static) = &err;
+                            warn!(error, "failed resubscribing to new blocks stream; trying again");
+                            let pool = pool.clone();
+                            resubscribe = subscribe_new_blocks(pool).boxed().fuse();
+                        }
                     }
                 }
             }
@@ -196,26 +204,82 @@ impl Reader {
     }
 }
 
-fn assign_new_blocks_subscription(
-    subscription: &mut stream::Fuse<NewBlocksStream>,
-    res: eyre::Result<NewBlocksStream>,
-) -> eyre::Result<()> {
-    use futures::stream::StreamExt as _;
-
-    let new_subscription = res.wrap_err("failed subscribing to new blocks from sequencer")?;
-    *subscription = new_subscription.fuse();
-
-    Ok(())
+#[derive(Debug, thiserror::Error)]
+enum ResubscriptionError {
+    #[error("failed getting a sequencer client from the pool")]
+    Pool(#[from] deadpool::managed::PoolError<crate::client_provider::Error>),
+    #[error("JSONRPC to subscribe to new blocks failed")]
+    JsonRpc(#[from] sequencer_client::extension_trait::SubscriptionFailed),
+    #[error("back off failed after 1024 attempts")]
+    BackoffFailed,
 }
 
-async fn subscribe_new_blocks(pool: Pool<ClientProvider>) -> eyre::Result<NewBlocksStream> {
+impl Clone for ResubscriptionError {
+    fn clone(&self) -> Self {
+        use deadpool::managed::{
+            HookError,
+            PoolError,
+        };
+        match self {
+            Self::Pool(e) => {
+                let e = match e {
+                    PoolError::Timeout(t) => PoolError::Timeout(*t),
+                    PoolError::Backend(e) => PoolError::Backend(e.clone()),
+                    PoolError::Closed => PoolError::Closed,
+                    PoolError::NoRuntimeSpecified => PoolError::NoRuntimeSpecified,
+                    PoolError::PostCreateHook(HookError::Message(s)) => {
+                        PoolError::PostCreateHook(HookError::Message(s.clone()))
+                    }
+                    PoolError::PostCreateHook(HookError::StaticMessage(m)) => {
+                        PoolError::PostCreateHook(HookError::StaticMessage(m))
+                    }
+                    PoolError::PostCreateHook(HookError::Backend(e)) => {
+                        PoolError::PostCreateHook(HookError::Backend(e.clone()))
+                    }
+                };
+                Self::Pool(e)
+            }
+            Self::JsonRpc(e) => ResubscriptionError::JsonRpc(e.clone()),
+            Self::BackoffFailed => ResubscriptionError::BackoffFailed,
+        }
+    }
+}
+
+async fn subscribe_new_blocks(
+    pool: Pool<ClientProvider>,
+) -> Result<NewBlocksStream, ResubscriptionError> {
     use sequencer_client::SequencerSubscriptionClientExt as _;
-    pool.get()
-        .await
-        .wrap_err("failed getting a sequencer client from the pool")?
-        .subscribe_new_block_data()
-        .await
-        .wrap_err("failed subscribing to sequencer to receive new blocks")
+    let retry_config = tryhard::RetryFutureConfig::new(1024)
+        .fixed_backoff(std::time::Duration::from_secs(10))
+        .on_retry(
+            |attempt, next_delay: Option<std::time::Duration>, error: &ResubscriptionError| {
+                let error = error.clone();
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                async move {
+                    let error: &(dyn std::error::Error + 'static) = &error;
+                    warn!(
+                        attempt,
+                        wait_duration,
+                        error,
+                        "attempt to resubscribe to new blocks from sequencer failed; retrying \
+                         after backoff",
+                    );
+                }
+            },
+        );
+
+    tryhard::retry_fn(move || {
+        let pool = pool.clone();
+        async move {
+            let subscription = pool.get().await?.subscribe_new_block_data().await?;
+            Ok(subscription)
+        }
+    })
+    .with_config(retry_config)
+    .await
+    .map_err(|_| ResubscriptionError::BackoffFailed)
 }
 
 fn forward_pending_block(

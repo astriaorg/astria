@@ -293,7 +293,7 @@ pub enum NewBlockStreamError {
     Rpc(#[source] tendermint_rpc::Error),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[error("failed subscribing to new cometbft blocks")]
 pub struct SubscriptionFailed {
     #[from]
