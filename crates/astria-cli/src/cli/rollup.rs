@@ -9,7 +9,11 @@ use serde::Serialize;
 
 /// Remove the 0x prefix from a hex string if present
 fn strip_0x_prefix(s: &str) -> &str {
-    if s.starts_with("0x") { &s[2..] } else { s }
+    if let Some(stripped) = s.strip_prefix("0x") {
+        stripped
+    } else {
+        s
+    }
 }
 
 /// Manage your rollups
