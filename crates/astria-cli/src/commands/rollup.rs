@@ -188,8 +188,6 @@ pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()>
         .arg("--values")
         .arg(rollup.deployment_config.get_filename())
         .arg("--set")
-        // FIXME - is this the best place to set disable_finalization to true?
-        //  bc we probably don't want it in the config file for them to change right now
         .arg("config.rollup.disableFinalization=true")
         .arg("--set")
         .arg(format!(
