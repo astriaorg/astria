@@ -100,7 +100,7 @@ impl FromStr for GenesisAccountArg {
     ///
     /// * If the address is missing
     /// * If the address is empty
-    /// * If the address is not a valid im
+    /// * If the address is not a valid hex string that decodes to 20 bytes
     fn from_str(s: &str) -> eyre::Result<Self, Self::Err> {
         let mut parts = s.splitn(2, ':');
 
