@@ -31,7 +31,7 @@ pub(super) async fn start_pool(url: &str) -> eyre::Result<Pool<ClientProvider>> 
         .wrap_err("failed to create sequencer client pool")
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 pub(crate) enum Error {
     #[error("the client provider failed to reconnect and is permanently closed")]
     Failed,
