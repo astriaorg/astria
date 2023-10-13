@@ -248,9 +248,12 @@ impl Clone for ResubscriptionError {
 async fn subscribe_new_blocks(
     pool: Pool<ClientProvider>,
 ) -> Result<NewBlocksStream, ResubscriptionError> {
+    use std::time::Duration;
+
     use sequencer_client::SequencerSubscriptionClientExt as _;
-    let retry_config = tryhard::RetryFutureConfig::new(1024)
-        .fixed_backoff(std::time::Duration::from_secs(10))
+    let retry_config = tryhard::RetryFutureConfig::new(10)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(10))
         .on_retry(
             |attempt, next_delay: Option<std::time::Duration>, error: &ResubscriptionError| {
                 let error = error.clone();
