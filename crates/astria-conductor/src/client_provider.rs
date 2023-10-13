@@ -107,8 +107,16 @@ impl ClientProvider {
 
             loop {
                 select!(
-                    _ = &mut driver_fut, if !driver_fut.is_terminated() => {
-                        warn!("websocket driver failed, attempting to reconnect");
+                    res = &mut driver_fut, if !driver_fut.is_terminated() => {
+                        let (reason, err) = match res {
+                            Ok(()) => ("received exit command", None),
+                            Err(e) => ("error", Some(e)),
+                        };
+                        warn!(
+                            error.message = err.as_ref().map(tracing::field::display),
+                            error.cause = err.as_ref().map(tracing::field::debug),
+                            reason,
+                            "websocket driver exited, attempting to reconnect");
                         client = None;
                         reconnect = tryhard::retry_fn(|| {
                             let url = url_.clone();
