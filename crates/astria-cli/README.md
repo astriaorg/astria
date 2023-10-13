@@ -1,5 +1,10 @@
 # Astria CLI
 
+Astria CLI is a command line tool for interacting with the Sequencer network
+and for managing your own rollup deployments. You can create a
+Sequencer account, check balances, generate rollup deployment configurations,
+deploy rollups, and more.
+
 ## Dependencies
 
 - kubectl
