@@ -15,7 +15,7 @@ use crate::cli::sequencer::{
     BlockHeightGetArgs,
 };
 
-/// Generate new keypair
+/// Generate a new signing key (this is also called a secret key by other implementations)
 fn get_new_signing_key() -> SigningKey {
     SigningKey::new(OsRng)
 }
@@ -109,8 +109,30 @@ mod test {
 
     #[test]
     fn test_get_new_signing_key() {
-        let _signing_key = get_new_signing_key();
-        // assert!(signing_key.is_valid());
+        // generates seed of 32 bytes
+        let key1 = get_new_signing_key();
+        assert_eq!(key1.to_bytes().len(), 32, "Signing key is not 32 bytes");
+
+        // generates different values
+        let key2 = get_new_signing_key();
+        assert_ne!(
+            key1.to_bytes(),
+            key2.to_bytes(),
+            "Two signing key seeds are unexpectedly equal"
+        );
+    }
+
+    #[test]
+    fn test_signing_key_is_valid() {
+        let key = get_new_signing_key();
+        let msg = "Hello, world!";
+        let signature = key.sign(msg.as_bytes());
+
+        let verification_key = key.verification_key();
+        assert!(
+            verification_key.verify(&signature, msg.as_bytes()).is_ok(),
+            "Signature verification failed"
+        );
     }
 
     #[test]

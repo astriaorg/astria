@@ -82,3 +82,28 @@ pub struct BlockHeightGetArgs {
     #[clap(long)]
     pub(crate) sequencer_url: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sequencer_address_arg_from_str_valid() {
+        let hex_str = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0";
+        let bytes = hex::decode(hex_str).unwrap();
+        let expected_address = Address::try_from_slice(&bytes).unwrap();
+
+        let sequencer_address_arg: SequencerAddressArg = hex_str.parse().unwrap();
+        assert_eq!(sequencer_address_arg, SequencerAddressArg(expected_address));
+    }
+
+    #[test]
+    fn test_sequencer_address_arg_from_str_invalid() {
+        let hex_str = "invalidhexstr";
+        let result: eyre::Result<SequencerAddressArg> = hex_str.parse();
+        assert!(result.is_err());
+
+        let error_message = format!("{:?}", result.unwrap_err());
+        assert!(error_message.contains("failed to decode address"));
+    }
+}

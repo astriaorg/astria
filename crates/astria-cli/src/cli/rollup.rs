@@ -253,7 +253,10 @@ mod tests {
                 .env("ROLLUP_CHAIN_ID", "test_chain_id")
                 .env("ROLLUP_NETWORK_ID", "53")
                 .env("ROLLUP_SKIP_EMPTY_BLOCKS", "true")
-                .env("ROLLUP_GENESIS_ACCOUNTS", "0x1234abcd:1000")
+                .env(
+                    "ROLLUP_GENESIS_ACCOUNTS",
+                    "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30:1000",
+                )
                 .env("ROLLUP_SEQUENCER_INITIAL_BLOCK_HEIGHT", "10")
                 .env("ROLLUP_SEQUENCER_WEBSOCKET", "ws://localhost:8080")
                 .env("ROLLUP_SEQUENCER_RPC", "http://localhost:8081")
@@ -279,7 +282,10 @@ mod tests {
                 .env("ROLLUP_CHAIN_ID", "test_chain_id")
                 .env("ROLLUP_NETWORK_ID", "not_a_number")
                 .env("ROLLUP_SKIP_EMPTY_BLOCKS", "true")
-                .env("ROLLUP_GENESIS_ACCOUNTS", "0x1234abcd:1000")
+                .env(
+                    "ROLLUP_GENESIS_ACCOUNTS",
+                    "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30:1000",
+                )
                 .env("ROLLUP_SEQUENCER_INITIAL_BLOCK_HEIGHT", "10")
                 .env("ROLLUP_SEQUENCER_WEBSOCKET", "ws://localhost:8080")
                 .env("ROLLUP_SEQUENCER_RPC", "http://localhost:8081")
