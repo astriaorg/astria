@@ -186,26 +186,21 @@ impl Reader {
                 }
 
                 res = &mut resubscribe, if !resubscribe.is_terminated() => {
-                    if let Err(e) = assign_new_blocks_subscription(&mut new_blocks, res) {
-                        error!(error.message = %e, error.cause = ?e, "failed to resubscribe to get new blocks from sequencer; exiting reader");
-                        break 'reader_loop Err(e).wrap_err("failed to resubscribe to new blocks from sequencer");
+                    match res {
+                        Ok(new_subscription) => {
+                          new_blocks = new_subscription.fuse();
+                        }
+                        Err(err) => {
+                            let error: &(dyn std::error::Error + 'static) = err.as_ref();
+                            warn!(error, "failed resubscribing to new blocks stream; trying again");
+                            let pool = pool.clone();
+                            resubscribe = subscribe_new_blocks(pool).boxed().fuse();
+                        }
                     }
                 }
             }
         }
     }
-}
-
-fn assign_new_blocks_subscription(
-    subscription: &mut stream::Fuse<NewBlocksStream>,
-    res: eyre::Result<NewBlocksStream>,
-) -> eyre::Result<()> {
-    use futures::stream::StreamExt as _;
-
-    let new_subscription = res.wrap_err("failed subscribing to new blocks from sequencer")?;
-    *subscription = new_subscription.fuse();
-
-    Ok(())
 }
 
 async fn subscribe_new_blocks(pool: Pool<ClientProvider>) -> eyre::Result<NewBlocksStream> {
