@@ -76,10 +76,6 @@ pub struct ConfigCreateArgs {
     pub sequencer_websocket: String,
     #[clap(long = "sequencer.rpc", env = "ROLLUP_SEQUENCER_RPC")]
     pub sequencer_rpc: String,
-
-    // celestia config
-    #[clap(long = "celestia.full-node-url", env = "ROLLUP_CELESTIA_FULL_NODE_URL")]
-    pub celestia_full_node_url: String,
 }
 
 /// `GenesisAccount` is a struct that represents a genesis account to be funded.
@@ -242,7 +238,7 @@ mod tests {
     #[test]
     fn test_envars_are_parsed_for_config_create() {
         with_temp_directory(|_dir| {
-            let mut cmd = assert_cmd::Command::cargo_bin(env!("CARGO_PKG_NAME")).unwrap();
+            let mut cmd = assert_cmd::Command::cargo_bin("astria-cli").unwrap();
 
             cmd.arg("rollup")
                 .arg("config")
@@ -260,7 +256,6 @@ mod tests {
                 .env("ROLLUP_SEQUENCER_INITIAL_BLOCK_HEIGHT", "10")
                 .env("ROLLUP_SEQUENCER_WEBSOCKET", "ws://localhost:8080")
                 .env("ROLLUP_SEQUENCER_RPC", "http://localhost:8081")
-                .env("ROLLUP_CELESTIA_FULL_NODE_URL", "http://celestia_node")
                 .assert()
                 .success();
 
@@ -271,7 +266,7 @@ mod tests {
     #[test]
     fn test_error_when_incorrect_envar_values() {
         with_temp_directory(|_dir| {
-            let mut cmd = assert_cmd::Command::cargo_bin(env!("CARGO_PKG_NAME")).unwrap();
+            let mut cmd = assert_cmd::Command::cargo_bin("astria-cli").unwrap();
 
             cmd.arg("rollup")
                 .arg("config")
@@ -289,7 +284,6 @@ mod tests {
                 .env("ROLLUP_SEQUENCER_INITIAL_BLOCK_HEIGHT", "10")
                 .env("ROLLUP_SEQUENCER_WEBSOCKET", "ws://localhost:8080")
                 .env("ROLLUP_SEQUENCER_RPC", "http://localhost:8081")
-                .env("ROLLUP_CELESTIA_FULL_NODE_URL", "http://celestia_node")
                 .assert()
                 .failure();
         });

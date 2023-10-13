@@ -317,7 +317,6 @@ mod test {
             sequencer_websocket: String::new(),
             sequencer_rpc: String::new(),
             log_level: String::new(),
-            celestia_full_node_url: String::new(),
         }
     }
 

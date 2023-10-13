@@ -34,7 +34,6 @@ cargo build --release
   --sequencer.initial-block-height 1 \
   --sequencer.websocket ws://sequencer-service:26657/websocket \
   --sequencer.rpc http://sequencer-service:26657 \
-  --celestia.full-node-url http://celestia-service:26658 \
   --rollup.genesis-accounts 0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30:100000000000000000000
   
 # edit config
