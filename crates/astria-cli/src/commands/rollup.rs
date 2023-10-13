@@ -28,9 +28,6 @@ use crate::{
     types::Rollup,
 };
 
-const EVM_ROLLUP_CHART_URL: &str =
-    "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.3.1.tgz";
-
 /// Returns the path to the `helm` binary
 fn helm_from_env() -> PathBuf {
     let os_specific_hint = match OS {
@@ -173,12 +170,6 @@ pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()>
     let file = File::open(path)?;
     let rollup: Rollup = serde_yaml::from_reader(file)?;
 
-    let chart_path = if let Some(chart_path) = &args.chart_path {
-        chart_path.to_string()
-    } else {
-        EVM_ROLLUP_CHART_URL.to_string()
-    };
-
     // call `helm install` with appropriate args.
     // setting values via the generated config file.
     let helm = helm_from_env();
@@ -200,7 +191,7 @@ pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()>
             args.sequencer_private_key.clone()
         ))
         .arg(rollup.deployment_config.get_chart_release_name())
-        .arg(chart_path);
+        .arg(&args.chart_path);
 
     if args.dry_run {
         cmd.arg("--dry-run");

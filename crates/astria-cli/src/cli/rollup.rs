@@ -159,8 +159,12 @@ pub struct DeploymentCreateArgs {
     #[clap(long = "config", env = "ROLLUP_CONFIG_PATH")]
     pub(crate) config_path: String,
     /// Optional path to a rollup chart that can override the default remote helm chart
-    #[clap(long, env = "ROLLUP_CHART_PATH")]
-    pub(crate) chart_path: Option<String>,
+    #[clap(
+        long,
+        env = "ROLLUP_CHART_PATH",
+        default_value = "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.3.1.tgz"
+    )]
+    pub(crate) chart_path: String,
     /// Set if you want to do a dry run of the deployment
     #[clap(long, env = "ROLLUP_DRY_RUN", default_value = "false")]
     pub(crate) dry_run: bool,
