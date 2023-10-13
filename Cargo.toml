@@ -22,7 +22,7 @@ axum = "0.6.16"
 backon = "0.4.1"
 base64 = "0.21"
 bytes = "1.4"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4" }
 color-eyre = "0.6"
 ed25519-consensus = "2.1.0"
 eyre = "0.6"
