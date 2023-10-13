@@ -16,7 +16,11 @@ static CURRENT_DIR_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 ///
 /// A mutex is required because `set_current_env` is not thread safe, which
 /// causes flaky tests when run in parallel and it's called in multiple tests.
-pub(crate) fn with_temp_directory<F>(closure: F)
+///
+/// # Panics
+///
+/// Panics if the current directory cannot be set to the temporary directory.
+pub fn with_temp_directory<F>(closure: F)
 where
     F: FnOnce(&TempDir),
 {

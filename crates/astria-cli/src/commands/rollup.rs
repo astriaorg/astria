@@ -300,8 +300,9 @@ pub(crate) fn list_deployments() {
 
 #[cfg(test)]
 mod test {
+    use test_utils::with_temp_directory;
+
     use super::*;
-    use crate::test_utils::with_temp_directory;
 
     fn get_config_create_args() -> ConfigCreateArgs {
         ConfigCreateArgs {
