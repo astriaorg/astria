@@ -190,6 +190,8 @@ impl managed::Manager for ClientProvider {
         _obj: &mut Self::Type,
         _: &managed::Metrics,
     ) -> managed::RecycleResult<Self::Error> {
-        Ok(())
+        Err(deadpool::managed::RecycleError::StaticMessage(
+            "client automatically invalidated",
+        ))
     }
 }
