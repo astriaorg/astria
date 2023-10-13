@@ -179,8 +179,6 @@ pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()>
         .arg("--values")
         .arg(rollup.deployment_config.get_filename())
         .arg("--set")
-        .arg("config.rollup.disableFinalization=true")
-        .arg("--set")
         .arg(format!(
             "config.faucet.privateKey={}",
             args.faucet_private_key.clone()
