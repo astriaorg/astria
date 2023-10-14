@@ -58,8 +58,8 @@ cargo build --release
 # FAUCET_PRIVATE_KEY - 64 character hex string. private key of account used to
 #  fund the faucet. This will often be the private key of an address used in
 #  the `rollup.genesis-accounts` argument for `rollup config create` above.
-# SEQUENCER_PRIVATE_KEY - private key of account used to wrap transactions for
-#  submission to the sequencer.
+# SEQUENCER_PRIVATE_KEY - 64 character hex string. private key of account used
+#  to wrap transactions for submission to the sequencer.
 ./target/release/astria-cli rollup deployment create \
   --config somerollupname-rollup-config.yaml \
   --faucet-private-key <FAUCET_PRIVATE_KEY> \
