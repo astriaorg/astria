@@ -7,11 +7,11 @@ deploy rollups, and more.
 
 ## Dependencies
 
-* rust - https://www.rust-lang.org/tools/install
-* docker - https://docs.docker.com/get-docker/
-* kubectl - https://kubernetes.io/docs/tasks/tools/
-* kind - https://kind.sigs.k8s.io/docs/user/quick-start/#installation 
-* helm - https://helm.sh/docs/intro/install/
+* rust - <https://www.rust-lang.org/tools/install>
+* docker - <https://docs.docker.com/get-docker/>
+* kubectl - <https://kubernetes.io/docs/tasks/tools/>
+* kind - <https://kind.sigs.k8s.io/docs/user/quick-start/#installation>
+* helm - <https://helm.sh/docs/intro/install/>
 
 ## Setup
 
