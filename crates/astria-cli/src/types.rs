@@ -123,14 +123,15 @@ pub struct RollupConfig {
 #[serde(rename_all = "camelCase")]
 struct GenesisAccount {
     address: String,
-    balance: u128,
+    // NOTE - string because yaml will serialize large ints w/ scientific notation
+    balance: String,
 }
 
 impl From<GenesisAccountArg> for GenesisAccount {
     fn from(arg: GenesisAccountArg) -> Self {
         Self {
             address: arg.address,
-            balance: arg.balance,
+            balance: arg.balance.to_string(),
         }
     }
 }
@@ -188,11 +189,11 @@ mod tests {
                     genesis_accounts: vec![
                         GenesisAccount {
                             address: "0xA5TR14".to_string(),
-                            balance: 10000,
+                            balance: "10000".to_string(),
                         },
                         GenesisAccount {
                             address: "0x420XYZ69".to_string(),
-                            balance: 420,
+                            balance: "420".to_string(),
                         },
                     ],
                 },
@@ -207,7 +208,10 @@ mod tests {
         let result1 = Rollup::try_from(&args1)?;
         assert_eq!(result1, expected_config1);
 
-        // Case 2: No optional args provided, should default
+        // Case 2: No `Option` wrapped args provided. Tests defaults that are decided
+        //  explicitly in the `try_from` impl.
+        // NOTE - there are some defaults that are handled in the arg struct,
+        //  like the sequencer ws and rpc urls, so we still must pass them in here.
         let args2 = ConfigCreateArgs {
             use_tty: false,
             log_level: "info".to_string(),
@@ -235,7 +239,7 @@ mod tests {
                     skip_empty_blocks: false,
                     genesis_accounts: vec![GenesisAccount {
                         address: "0xA5TR14".to_string(),
-                        balance: 10000,
+                        balance: "10000".to_string(),
                     }],
                 },
                 sequencer: SequencerConfig {

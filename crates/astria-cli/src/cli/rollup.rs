@@ -129,7 +129,7 @@ impl FromStr for GenesisAccountArg {
         let balance_str = parts.next().unwrap_or("0");
         let balance = balance_str
             .parse::<u128>()
-            .map_err(|e| eyre::eyre!("Invalid balance: {}", e))?;
+            .map_err(|e| eyre::eyre!("Invalid balance. Could not parse to u128: {}", e))?;
 
         Ok(GenesisAccountArg {
             address,
