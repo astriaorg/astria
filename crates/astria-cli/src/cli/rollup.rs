@@ -64,6 +64,7 @@ pub struct ConfigCreateArgs {
     #[clap(long = "rollup.skip-empty-blocks", env = "ROLLUP_SKIP_EMPTY_BLOCKS")]
     pub skip_empty_blocks: bool,
 
+    /// List of genesis accounts to fund, in the form of `address:balance`
     #[clap(long = "rollup.genesis-accounts", env = "ROLLUP_GENESIS_ACCOUNTS", num_args = 1..)]
     pub genesis_accounts: Vec<GenesisAccountArg>,
 
@@ -90,7 +91,7 @@ pub struct ConfigCreateArgs {
     pub sequencer_rpc: String,
 }
 
-/// `GenesisAccount` is a struct that represents a genesis account to be funded.
+/// `GenesisAccountArg` is a struct that represents a genesis account to be funded.
 /// It has the form of `address:balance`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct GenesisAccountArg {
