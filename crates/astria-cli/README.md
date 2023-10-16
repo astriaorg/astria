@@ -34,16 +34,12 @@ cargo build --release
 
 # create a rollup config
 ./target/release/astria-cli rollup config create \
-  --use-tty \
-  --log-level DEBUG \
-  --rollup.name somerollupname \
-  --rollup.chain-id somechainid \
-  --rollup.network-id 42 \
-  --rollup.skip-empty-blocks \
-  --sequencer.initial-block-height 1 \
-  --sequencer.websocket wss://rpc.sequencer.dusk-1.devnet.astria.org/websocket \
-  --sequencer.rpc https://rpc.sequencer.dusk-1.devnet.astria.org \
-  --rollup.genesis-accounts 0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30:100000000000000000000
+    --use-tty \
+    --log-level DEBUG \
+    --rollup.name steezechain \
+    --rollup.network-id 42 \
+    --rollup.skip-empty-blocks \
+    --rollup.genesis-accounts 0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30:100000000000000000000
   
 # edit config
 ./target/release/astria-cli rollup config edit \

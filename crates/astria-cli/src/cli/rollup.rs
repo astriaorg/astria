@@ -7,6 +7,9 @@ use clap::{
 use color_eyre::eyre;
 use serde::Serialize;
 
+const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-1.devnet.astria.org";
+const DEFAULT_SEQUENCER_WS: &str = "wss://rpc.sequencer.dusk-1.devnet.astria.org/websocket";
+
 /// Remove the 0x prefix from a hex string if present
 fn strip_0x_prefix(s: &str) -> &str {
     if let Some(stripped) = s.strip_prefix("0x") {
@@ -50,11 +53,11 @@ pub struct ConfigCreateArgs {
     pub log_level: String,
 
     // rollup config
-    #[clap(long = "rollup.name", env = "ROLLUP_NAME")]
     /// The name of the rollup
+    #[clap(long = "rollup.name", env = "ROLLUP_NAME")]
     pub name: String,
-    #[clap(long = "rollup.chain-id", env = "ROLLUP_CHAIN_ID", required = false)]
     /// Optional. Will be derived from the rollup name if not provided
+    #[clap(long = "rollup.chain-id", env = "ROLLUP_CHAIN_ID", required = false)]
     pub chain_id: Option<String>,
     #[clap(long = "rollup.network-id", env = "ROLLUP_NETWORK_ID")]
     pub network_id: u64,
@@ -65,16 +68,25 @@ pub struct ConfigCreateArgs {
     pub genesis_accounts: Vec<GenesisAccountArg>,
 
     // sequencer config
+    /// Optional. If not set, will be determined from the current block height of the sequencer
     #[clap(
         long = "sequencer.initial-block-height",
-        env = "ROLLUP_SEQUENCER_INITIAL_BLOCK_HEIGHT",
-        required = false
+        env = "ROLLUP_SEQUENCER_INITIAL_BLOCK_HEIGHT"
     )]
-    /// Optional. If not set, will be determined from the current block height of the sequencer
     pub sequencer_initial_block_height: Option<u64>,
-    #[clap(long = "sequencer.websocket", env = "ROLLUP_SEQUENCER_WEBSOCKET")]
+    /// Optional. If not set, will be default to the devnet sequencer websocket address
+    #[clap(
+        long = "sequencer.websocket", 
+        env = "ROLLUP_SEQUENCER_WEBSOCKET", 
+        default_value = DEFAULT_SEQUENCER_WS
+    )]
     pub sequencer_websocket: String,
-    #[clap(long = "sequencer.rpc", env = "ROLLUP_SEQUENCER_RPC")]
+    /// Optional. If not set, will be default to the devnet sequencer rpc address
+    #[clap(
+        long = "sequencer.rpc", 
+        env = "ROLLUP_SEQUENCER_RPC", 
+        default_value = DEFAULT_SEQUENCER_RPC
+    )]
     pub sequencer_rpc: String,
 }
 
