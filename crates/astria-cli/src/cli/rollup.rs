@@ -7,6 +7,8 @@ use clap::{
 use color_eyre::eyre;
 use serde::Serialize;
 
+const DEFAULT_ROLLUP_CHART_PATH: &str =
+    "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.4.0.tgz";
 const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-1.devnet.astria.org";
 const DEFAULT_SEQUENCER_WS: &str = "wss://rpc.sequencer.dusk-1.devnet.astria.org/websocket";
 
@@ -175,7 +177,7 @@ pub struct DeploymentCreateArgs {
     #[clap(
         long,
         env = "ROLLUP_CHART_PATH",
-        default_value = "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.3.1.tgz"
+        default_value = DEFAULT_ROLLUP_CHART_PATH
     )]
     pub(crate) chart_path: String,
     /// Set if you want to do a dry run of the deployment
