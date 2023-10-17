@@ -38,7 +38,6 @@ where
     temp_dir.close().unwrap();
 }
 
-
 /// Run an async closure with a temporary directory as the current directory.
 /// This is useful for cleaning up after tests that test code that creates files.
 ///
