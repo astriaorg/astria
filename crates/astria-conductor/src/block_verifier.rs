@@ -117,7 +117,7 @@ fn validate_signed_namespace_data(
     let key = data.public_key();
     let proposer_public_key = key.as_bytes();
     ensure!(
-        &proposer_public_key[..] == &*expected_proposer_public_key,
+        proposer_public_key[..] == *expected_proposer_public_key,
         "public key mismatch: expected {}, got {}",
         hex::encode(expected_proposer_public_key),
         hex::encode(proposer_public_key),
