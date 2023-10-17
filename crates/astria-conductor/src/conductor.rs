@@ -4,10 +4,7 @@ use std::{
     time::Duration,
 };
 
-use astria_sequencer_types::{
-    ChainId,
-    Namespace,
-};
+use astria_sequencer_types::ChainId;
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -142,7 +139,9 @@ impl Conductor {
                 std::time::Duration::from_secs(3),
                 executor_tx.clone(),
                 block_verifier,
-                Namespace::from_slice(cfg.chain_id.as_bytes()),
+                celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(
+                    cfg.chain_id.as_ref(),
+                ),
                 shutdown_rx,
             )
             .await

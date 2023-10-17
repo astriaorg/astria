@@ -67,7 +67,12 @@ pub struct ConfigCreateArgs {
     pub skip_empty_blocks: bool,
 
     /// List of genesis accounts to fund, in the form of `address:balance`
-    #[clap(long = "rollup.genesis-accounts", env = "ROLLUP_GENESIS_ACCOUNTS", num_args = 1..)]
+    #[clap(
+        long = "rollup.genesis-accounts", 
+        env = "ROLLUP_GENESIS_ACCOUNTS", 
+        num_args = 1..,
+        value_delimiter = ','
+    )]
     pub genesis_accounts: Vec<GenesisAccountArg>,
 
     // sequencer config

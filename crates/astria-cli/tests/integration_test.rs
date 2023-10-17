@@ -19,7 +19,8 @@ fn test_envars_are_parsed_for_config_create() {
             .env("ROLLUP_SKIP_EMPTY_BLOCKS", "true")
             .env(
                 "ROLLUP_GENESIS_ACCOUNTS",
-                "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30:1000",
+                "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30:1000,\
+                 aC21B97d35Bf75A7dAb16f35b111a50e78A72F30:1000",
             )
             .env("ROLLUP_SEQUENCER_INITIAL_BLOCK_HEIGHT", "10")
             .env("ROLLUP_SEQUENCER_WEBSOCKET", "ws://localhost:8080")
