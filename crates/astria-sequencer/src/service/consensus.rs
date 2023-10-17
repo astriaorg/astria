@@ -1,9 +1,5 @@
-use std::collections::VecDeque;
-
 use anyhow::{
-    anyhow,
     bail,
-    ensure,
     Context,
 };
 use penumbra_storage::Storage;
@@ -26,10 +22,6 @@ use tracing::{
 use crate::{
     app::App,
     genesis::GenesisState,
-    proposal::commitment::{
-        generate_sequence_actions_commitment,
-        GeneratedCommitments,
-    },
 };
 
 pub(crate) struct Consensus {
@@ -88,11 +80,13 @@ impl Consensus {
                     .context("failed initializing chain")?,
             ),
             ConsensusRequest::PrepareProposal(prepare_proposal) => {
-                ConsensusResponse::PrepareProposal(handle_prepare_proposal(prepare_proposal))
+                ConsensusResponse::PrepareProposal(
+                    self.handle_prepare_proposal(prepare_proposal).await,
+                )
             }
             ConsensusRequest::ProcessProposal(process_proposal) => {
                 ConsensusResponse::ProcessProposal(
-                    match handle_process_proposal(process_proposal) {
+                    match self.handle_process_proposal(process_proposal).await {
                         Ok(()) => response::ProcessProposal::Accept,
                         Err(e) => {
                             warn!(error = ?e, "rejecting proposal");
@@ -151,6 +145,22 @@ impl Consensus {
     }
 
     #[instrument(skip(self))]
+    async fn handle_prepare_proposal(
+        &mut self,
+        prepare_proposal: request::PrepareProposal,
+    ) -> response::PrepareProposal {
+        self.app.prepare_proposal(prepare_proposal).await
+    }
+
+    #[instrument(skip(self))]
+    async fn handle_process_proposal(
+        &mut self,
+        process_proposal: request::ProcessProposal,
+    ) -> anyhow::Result<()> {
+        self.app.process_proposal(process_proposal).await
+    }
+
+    #[instrument(skip(self))]
     async fn begin_block(
         &mut self,
         begin_block: request::BeginBlock,
@@ -167,8 +177,16 @@ impl Consensus {
 
     #[instrument(skip(self))]
     async fn deliver_tx(&mut self, deliver_tx: request::DeliverTx) -> response::DeliverTx {
+        use sha2::Digest as _;
+
         use crate::transaction::InvalidNonce;
-        match self.app.deliver_tx(&deliver_tx.tx).await {
+
+        let tx_hash: [u8; 32] = sha2::Sha256::digest(&deliver_tx.tx).into();
+        match self
+            .app
+            .deliver_tx_after_execution(&tx_hash)
+            .expect("all transactions in the block must have already been executed")
+        {
             Ok(_events) => response::DeliverTx::default(),
             Err(e) => {
                 // we don't want to panic on failing to deliver_tx as that would crash the entire
@@ -208,78 +226,15 @@ impl Consensus {
     }
 }
 
-/// Generates a commitment to the `sequence::Actions` in the block's transactions.
-/// This is required so that a rollup can easily verify that the transactions it
-/// receives are correct (ie. we actually included in a sequencer block, and none
-/// are missing)
-/// It puts this special "commitment" as the first transaction in a block.
-/// When other validators receive the block, they know the first transaction is
-/// supposed to be the commitment, and verifies that is it correct.
-#[instrument]
-fn handle_prepare_proposal(
-    prepare_proposal: request::PrepareProposal,
-) -> response::PrepareProposal {
-    // generate commitment to sequence::Actions and commitment to the chain IDs included in the
-    // sequence::Actions
-    let res = generate_sequence_actions_commitment(prepare_proposal.txs);
-
-    response::PrepareProposal {
-        txs: res.into_transactions(),
-    }
-}
-
-/// Generates a commitment to the `sequence::Actions` in the block's transactions
-/// and ensures it matches the commitment created by the proposer, which
-/// should be the first transaction in the block.
-#[instrument]
-fn handle_process_proposal(process_proposal: request::ProcessProposal) -> anyhow::Result<()> {
-    let mut txs = VecDeque::from(process_proposal.txs);
-    let received_action_commitment: [u8; 32] = txs
-        .pop_front()
-        .context("no transaction commitment in proposal")?
-        .to_vec()
-        .try_into()
-        .map_err(|_| anyhow!("transaction commitment must be 32 bytes"))?;
-
-    let received_chain_ids_commitment: [u8; 32] = txs
-        .pop_front()
-        .context("no chain IDs commitment in proposal")?
-        .to_vec()
-        .try_into()
-        .map_err(|_| anyhow!("chain IDs commitment must be 32 bytes"))?;
-
-    let expected_txs_len = txs.len();
-
-    let GeneratedCommitments {
-        sequence_actions_commitment: expected_action_commitment,
-        chain_ids_commitment: expected_chain_ids_commitment,
-        txs_to_include,
-    } = generate_sequence_actions_commitment(txs.into());
-    ensure!(
-        received_action_commitment == expected_action_commitment,
-        "transaction commitment does not match expected",
-    );
-
-    ensure!(
-        received_chain_ids_commitment == expected_chain_ids_commitment,
-        "chain IDs commitment does not match expected",
-    );
-
-    // all txs in the proposal should be deserializable
-    ensure!(
-        txs_to_include.len() == expected_txs_len,
-        "transactions to be included do not match expected",
-    );
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod test {
     use std::str::FromStr;
 
     use bytes::Bytes;
-    use ed25519_consensus::SigningKey;
+    use ed25519_consensus::{
+        SigningKey,
+        VerificationKey,
+    };
     use proto::{
         native::sequencer::v1alpha1::{
             Address,
@@ -296,6 +251,7 @@ mod test {
     };
 
     use super::*;
+    use crate::proposal::commitment::generate_sequence_actions_commitment;
 
     fn make_unsigned_tx() -> UnsignedTransaction {
         UnsignedTransaction {
@@ -336,49 +292,63 @@ mod test {
         }
     }
 
-    #[test]
-    fn prepare_and_process_proposal() {
+    #[tokio::test]
+    async fn prepare_and_process_proposal() {
         let signing_key = SigningKey::new(OsRng);
+        let mut consensus_service =
+            new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.into_raw().encode_to_vec();
-
+        let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let res = generate_sequence_actions_commitment(txs.clone());
-        assert_eq!(txs, res.txs_to_include);
 
-        let prepare_proposal = new_prepare_proposal_request(res.txs_to_include.clone());
-        let prepare_proposal_response = handle_prepare_proposal(prepare_proposal);
+        let res = generate_sequence_actions_commitment(&vec![signed_tx]);
+
+        let prepare_proposal = new_prepare_proposal_request(txs.clone());
+        let prepare_proposal_response = consensus_service
+            .handle_prepare_proposal(prepare_proposal)
+            .await;
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
-                txs: res.into_transactions()
+                txs: res.into_transactions(txs)
             }
         );
 
+        let mut consensus_service =
+            new_consensus_service(Some(signing_key.verification_key())).await;
         let process_proposal = new_process_proposal_request(prepare_proposal_response.txs);
-        handle_process_proposal(process_proposal).unwrap();
+        consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .unwrap();
     }
 
-    #[test]
-    fn process_proposal_ok() {
+    #[tokio::test]
+    async fn process_proposal_ok() {
         let signing_key = SigningKey::new(OsRng);
+        let mut consensus_service =
+            new_consensus_service(Some(signing_key.verification_key())).await;
         let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.into_raw().encode_to_vec();
+        let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.into()];
-        let res = generate_sequence_actions_commitment(txs.clone());
-        assert_eq!(txs, res.txs_to_include);
-
-        let process_proposal = new_process_proposal_request(res.into_transactions());
-        handle_process_proposal(process_proposal).unwrap();
+        let res = generate_sequence_actions_commitment(&vec![signed_tx]);
+        let process_proposal = new_process_proposal_request(res.into_transactions(txs));
+        consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .unwrap();
     }
 
-    #[test]
-    fn process_proposal_fail_missing_action_commitment() {
+    #[tokio::test]
+    async fn process_proposal_fail_missing_action_commitment() {
+        let mut consensus_service = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![]);
         assert!(
-            handle_process_proposal(process_proposal)
+            consensus_service
+                .handle_process_proposal(process_proposal)
+                .await
                 .err()
                 .unwrap()
                 .to_string()
@@ -386,11 +356,14 @@ mod test {
         );
     }
 
-    #[test]
-    fn process_proposal_fail_wrong_commitment_length() {
+    #[tokio::test]
+    async fn process_proposal_fail_wrong_commitment_length() {
+        let mut consensus_service = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![[0u8; 16].to_vec().into()]);
         assert!(
-            handle_process_proposal(process_proposal)
+            consensus_service
+                .handle_process_proposal(process_proposal)
+                .await
                 .err()
                 .unwrap()
                 .to_string()
@@ -398,14 +371,17 @@ mod test {
         );
     }
 
-    #[test]
-    fn process_proposal_fail_wrong_commitment_value() {
+    #[tokio::test]
+    async fn process_proposal_fail_wrong_commitment_value() {
+        let mut consensus_service = new_consensus_service(None).await;
         let process_proposal = new_process_proposal_request(vec![
             [99u8; 32].to_vec().into(),
             [99u8; 32].to_vec().into(),
         ]);
         assert!(
-            handle_process_proposal(process_proposal)
+            consensus_service
+                .handle_process_proposal(process_proposal)
+                .await
                 .err()
                 .unwrap()
                 .to_string()
@@ -413,28 +389,34 @@ mod test {
         );
     }
 
-    #[test]
-    fn prepare_proposal_empty_block() {
+    #[tokio::test]
+    async fn prepare_proposal_empty_block() {
+        let mut consensus_service = new_consensus_service(None).await;
         let txs = vec![];
-        let res = generate_sequence_actions_commitment(txs.clone());
-        assert_eq!(txs, res.txs_to_include);
-        let prepare_proposal = new_prepare_proposal_request(res.txs_to_include.clone());
+        let res = generate_sequence_actions_commitment(&txs.clone());
+        let prepare_proposal = new_prepare_proposal_request(vec![]);
 
-        let prepare_proposal_response = handle_prepare_proposal(prepare_proposal);
+        let prepare_proposal_response = consensus_service
+            .handle_prepare_proposal(prepare_proposal)
+            .await;
         assert_eq!(
             prepare_proposal_response,
             response::PrepareProposal {
-                txs: res.into_transactions(),
+                txs: res.into_transactions(vec![]),
             }
         );
     }
 
-    #[test]
-    fn process_proposal_ok_empty_block() {
+    #[tokio::test]
+    async fn process_proposal_ok_empty_block() {
+        let mut consensus_service = new_consensus_service(None).await;
         let txs = vec![];
-        let res = generate_sequence_actions_commitment(txs);
-        let process_proposal = new_process_proposal_request(res.into_transactions());
-        handle_process_proposal(process_proposal).unwrap();
+        let res = generate_sequence_actions_commitment(&txs);
+        let process_proposal = new_process_proposal_request(res.into_transactions(vec![]));
+        consensus_service
+            .handle_process_proposal(process_proposal)
+            .await
+            .unwrap();
     }
 
     /// Returns a default tendermint block header for test purposes.
@@ -479,13 +461,24 @@ mod test {
         }
     }
 
-    async fn new_consensus_service() -> Consensus {
+    async fn new_consensus_service(funded_key: Option<VerificationKey>) -> Consensus {
+        let accounts = if funded_key.is_some() {
+            vec![crate::genesis::Account {
+                address: Address::from_verification_key(funded_key.unwrap()),
+                balance: 10u128.pow(19),
+            }]
+        } else {
+            vec![]
+        };
+        let genesis_state = GenesisState {
+            accounts,
+            authority_sudo_key: Address::from([0; 20]),
+        };
+
         let storage = penumbra_storage::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
-        app.init_chain(GenesisState::default(), vec![])
-            .await
-            .unwrap();
+        app.init_chain(genesis_state, vec![]).await.unwrap();
 
         let (_tx, rx) = mpsc::channel(1);
         Consensus::new(storage.clone(), app, rx)
@@ -493,17 +486,17 @@ mod test {
 
     #[tokio::test]
     async fn block_lifecycle() {
-        let mut consensus_service = new_consensus_service().await;
-
         let signing_key = SigningKey::new(OsRng);
+        let mut consensus_service =
+            new_consensus_service(Some(signing_key.verification_key())).await;
+
         let tx = make_unsigned_tx();
         let signed_tx = tx.into_signed(&signing_key);
-        let tx_bytes = signed_tx.into_raw().encode_to_vec();
+        let tx_bytes = signed_tx.clone().into_raw().encode_to_vec();
         let txs = vec![tx_bytes.clone().into()];
-        let res = generate_sequence_actions_commitment(txs.clone());
-        assert_eq!(txs, res.txs_to_include);
+        let res = generate_sequence_actions_commitment(&vec![signed_tx]);
 
-        let txs = res.into_transactions();
+        let txs = res.into_transactions(txs);
         let process_proposal = new_process_proposal_request(txs.clone());
         consensus_service
             .handle_request(ConsensusRequest::ProcessProposal(process_proposal))
