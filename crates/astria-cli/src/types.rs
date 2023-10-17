@@ -67,6 +67,15 @@ impl RollupDeploymentConfig {
     pub fn get_rollup_name(&self) -> String {
         self.rollup.name.clone()
     }
+
+    #[must_use]
+    pub fn get_initial_sequencer_height(&self) -> u64 {
+        self.sequencer.initial_block_height
+    }
+
+    pub fn set_initial_sequencer_height(&mut self, new_height: u64) {
+        self.sequencer.initial_block_height = new_height;
+    }
 }
 
 impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
@@ -80,7 +89,7 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
 
         let sequencer_initial_block_height = args.sequencer_initial_block_height.unwrap_or({
             // TODO - get current block height from sequencer
-            1
+            0
         });
 
         let genesis_accounts = args

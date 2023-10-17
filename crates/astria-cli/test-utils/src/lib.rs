@@ -3,13 +3,16 @@ use std::{
     sync::{
         Mutex,
         PoisonError,
-    },
+    }, future::Future,
 };
+
+use tokio::sync::Mutex as AsyncMutex;
 
 use once_cell::sync::Lazy;
 use tempfile::TempDir;
 
 static CURRENT_DIR_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+static ASYNC_CURRENT_DIR_LOCK: Lazy<AsyncMutex<()>> = Lazy::new(|| AsyncMutex::new(()));
 
 /// Run a closure with a temporary directory as the current directory.
 /// This is useful for cleaning up after tests that test code that creates files.
@@ -32,5 +35,18 @@ where
     let temp_dir = TempDir::new().unwrap();
     env::set_current_dir(&temp_dir).unwrap();
     closure(&temp_dir);
+    temp_dir.close().unwrap();
+}
+
+pub async fn with_temp_directory_async<F>(closure: impl FnOnce(&TempDir) -> F)
+where
+    F: Future<Output = ()>,
+{
+    // ignore poisoning
+    let _guard = ASYNC_CURRENT_DIR_LOCK.lock().await;
+
+    let temp_dir = TempDir::new().unwrap();
+    env::set_current_dir(&temp_dir).unwrap();
+    closure(&temp_dir).await;
     temp_dir.close().unwrap();
 }
