@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use astria_sequencer_relayer::data_availability::{
+use astria_sequencer_types::calculate_last_commit_hash;
+use celestia_client::{
     RollupNamespaceData,
     SequencerNamespaceData,
     SignedNamespaceData,
 };
-use astria_sequencer_types::calculate_last_commit_hash;
 use color_eyre::eyre::{
     self,
     bail,
@@ -56,7 +56,7 @@ impl BlockVerifier {
         data: &SignedNamespaceData<SequencerNamespaceData>,
     ) -> eyre::Result<()> {
         // get validator set for this height
-        let height: u32 = data.data.header.height.value().try_into().expect(
+        let height: u32 = data.data().header.height.value().try_into().expect(
             "a tendermint height (currently non-negative i32) should always fit into a u32",
         );
         let current_validator_set = self
@@ -85,8 +85,12 @@ impl BlockVerifier {
             .await
             .wrap_err("failed to get validator set")?;
 
-        validate_sequencer_namespace_data(&current_validator_set, &parent_validator_set, &data.data)
-            .wrap_err("failed validataing sequencer data inside signed namespace data")
+        validate_sequencer_namespace_data(
+            &current_validator_set,
+            &parent_validator_set,
+            data.data(),
+        )
+        .wrap_err("failed validating sequencer data inside signed namespace data")
     }
 }
 
@@ -103,10 +107,6 @@ fn validate_signed_namespace_data(
     validator_set: &validators::Response,
     data: &SignedNamespaceData<SequencerNamespaceData>,
 ) -> eyre::Result<()> {
-    // verify the block signature
-    data.verify()
-        .wrap_err("failed to verify signature of signed namepsace data")?;
-
     // find proposer address for this height
     let expected_proposer_public_key = get_proposer(validator_set)
         .wrap_err("failed to get proposer from validator set")?
@@ -114,9 +114,10 @@ fn validate_signed_namespace_data(
         .to_bytes();
 
     // verify the namespace data signing public key matches the proposer public key
-    let proposer_public_key = &data.public_key;
+    let key = data.public_key();
+    let proposer_public_key = key.as_bytes();
     ensure!(
-        proposer_public_key == &expected_proposer_public_key,
+        proposer_public_key[..] == *expected_proposer_public_key,
         "public key mismatch: expected {}, got {}",
         hex::encode(expected_proposer_public_key),
         hex::encode(proposer_public_key),
@@ -505,12 +506,12 @@ mod test {
             chain_ids_commitment: MerkleTree::from_leaves(vec![test_chain_id.to_vec()]).root(),
         };
 
-        let rollup_namespace_data = RollupNamespaceData::new(
+        let rollup_namespace_data = RollupNamespaceData {
             block_hash,
-            astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
-            vec![test_tx],
-            action_tree.prove_inclusion(0).unwrap(),
-        );
+            chain_id: astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
+            rollup_txs: vec![test_tx],
+            inclusion_proof: action_tree.prove_inclusion(0).unwrap(),
+        };
 
         validate_sequencer_namespace_data(
             &validator_set,
