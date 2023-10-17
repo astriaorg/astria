@@ -24,6 +24,21 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
       fi; \
     fi; \
     apt install -y libclang-dev clang;
+RUN \
+  PROTOC_VERSION=24.4; \
+  if [ "$BUILDPLATFORM" = "linux/amd64" ]; then \
+    PROTOC_PLATFORM="linux-x86_64"; \
+  elif [ "$BUILDPLATFORM" = "linux/arm64" ]; then \
+    PROTOC_PLATFORM="linux-aarch_64"; \
+  fi; \
+  PROTOC_PKG=protoc-"$PROTOC_VERSION"-"$PROTOC_PLATFORM".zip; \
+  PROTOC_SRC="https://github.com/protocolbuffers/protobuf/releases/download/v"$PROTOC_VERSION"/$PROTOC_PKG"; \
+  curl -OL "$PROTOC_SRC"; \
+  unzip "$PROTOC_PKG" -d ./protoc/; \
+  install -d /usr/local/bin /usr/local/include/google/protobuf/compiler/; \
+  install ./protoc/bin/* -Dt /usr/local/bin; \
+  install ./protoc/include/google/protobuf/* -Dt /usr/local/include/google/protobuf; \
+  install ./protoc/include/google/protobuf/compiler/* -Dt /usr/local/include/google/protobuf/compiler;
 
 # install targets
 FROM chef AS planner
@@ -53,6 +68,7 @@ RUN \
     else \
       TARGET_TRIPLE=$(uname -m)-unknown-linux-gnu; \
     fi; \
+    export PROTOC=/usr/local/bin/protoc; \
     cargo chef cook --release --bin $TARGETBINARY --target $TARGET_TRIPLE --recipe-path recipe.json;
     
 COPY . .
@@ -73,6 +89,7 @@ RUN \
     else \
       TARGET_TRIPLE=$(uname -m)-unknown-linux-gnu; \
     fi; \
+    export PROTOC=/usr/local/bin/protoc; \
     cargo build --release --target $TARGET_TRIPLE --bin $TARGETBINARY;
 
 # replace this with `--out` or `--out-dir` once stable

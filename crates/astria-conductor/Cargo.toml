@@ -33,7 +33,7 @@ tokio-util = { workspace = true, features = ["rt"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
 
-astria-sequencer-relayer = { path = "../astria-sequencer-relayer" }
+celestia_client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 astria-sequencer-types = { path = "../astria-sequencer-types" }
 proto = { package = "astria-proto", path = "../astria-proto", features = [
   "client",
