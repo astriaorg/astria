@@ -4,7 +4,6 @@ use anyhow::{
 };
 use penumbra_storage::Storage;
 use sequencer_types::abci_code::AbciCode;
-use sha2::Digest as _;
 use tendermint::v0_37::abci::{
     request,
     response,
@@ -178,6 +177,8 @@ impl Consensus {
 
     #[instrument(skip(self))]
     async fn deliver_tx(&mut self, deliver_tx: request::DeliverTx) -> response::DeliverTx {
+        use sha2::Digest as _;
+
         use crate::transaction::InvalidNonce;
 
         let tx_hash: [u8; 32] = sha2::Sha256::digest(&deliver_tx.tx).into();

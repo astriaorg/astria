@@ -138,6 +138,7 @@ impl App {
     }
 
     /// Generates a commitment to the `sequence::Actions` in the block's transactions.
+    ///
     /// This is required so that a rollup can easily verify that the transactions it
     /// receives are correct (ie. we actually included in a sequencer block, and none
     /// are missing)
@@ -196,6 +197,9 @@ impl App {
         let (signed_txs, txs_to_include) = self.execute_block_data(txs.into()).await;
 
         // all txs in the proposal should be deserializable and executable
+        // if any txs were not deserializeable or executable, they would not have been
+        // returned by `execute_block_data`, thus the length of `txs_to_include`
+        // will be shorter than that of `txs`.
         ensure!(
             txs_to_include.len() == expected_txs_len,
             "transactions to be included do not match expected",
