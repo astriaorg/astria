@@ -130,13 +130,8 @@ impl Searcher {
         let (status, _) = watch::channel(Status::default());
 
         let (executor_tx, executor_rx) = mpsc::channel(256);
-        let executor = Executor::new(
-            &cfg.sequencer_url,
-            &cfg.private_key,
-            executor_tx.clone(),
-            executor_rx,
-        )
-        .wrap_err("executor construction from config failed")?;
+        let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx)
+            .wrap_err("executor construction from config failed")?;
 
         let executor_status = executor.subscribe();
 
