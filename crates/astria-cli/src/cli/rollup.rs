@@ -128,7 +128,7 @@ impl FromStr for GenesisAccountArg {
             ));
         }
 
-        let balance_str = parts.next().unwrap_or("0");
+        let balance_str = parts.next().unwrap_or("1000000000000000000");
         let balance = balance_str
             .parse::<u128>()
             .map_err(|e| eyre::eyre!("Invalid balance. Could not parse to u128: {}", e))?;
@@ -218,7 +218,7 @@ mod tests {
         let input = "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30";
         let expected = GenesisAccountArg {
             address: "aC21B97d35Bf75A7dAb16f35b111a50e78A72F30".to_string(),
-            balance: 0,
+            balance: 1000000000000000000,
         };
         let result: GenesisAccountArg = input.parse().unwrap();
         assert_eq!(result, expected);
