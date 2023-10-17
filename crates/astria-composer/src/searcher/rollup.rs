@@ -24,7 +24,7 @@ impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad(
             "invalid rollup definition, must be `<chainid>::<url>, with <chainid> being \
-             alphanumeric ascii",
+             alphanumeric ascii and -",
         )
     }
 }
@@ -36,8 +36,8 @@ impl Rollup {
         static ROLLUP_RE: Lazy<Regex> = Lazy::new(|| {
             Regex::new(
                 r"(?x)
-                ^(?P<chain_id>[[:alnum:]]+?)
-                    # lazily match all alphanumeric ascii;
+                ^(?P<chain_id>[[:alnum:]-]+?)
+                    # lazily match all alphanumeric ascii and dash;
                     # case insignificant, but we will lowercase later
                 ::
                 (?P<url>.+)
@@ -87,26 +87,26 @@ mod tests {
 
     #[test]
     fn parse_single_rollup_valid() {
-        let rollups = expect_parse_rollups("chain1::http://some.url");
+        let rollups = expect_parse_rollups("chain-1::http://some.url");
         assert_eq!(rollups.len(), 1, "\nparsed: {rollups:#?}");
-        assert_eq!(rollups[0].chain_id, "chain1");
+        assert_eq!(rollups[0].chain_id, "chain-1");
         assert_eq!(rollups[0].url, "http://some.url");
     }
 
     #[test]
     fn parse_mixed_case_chain_id_is_lowercased() {
-        let rollups = expect_parse_rollups("ChAiN1::http://some.url");
+        let rollups = expect_parse_rollups("ChAiN-1::http://some.url");
         assert_eq!(rollups.len(), 1, "\nparsed: {rollups:#?}");
-        assert_eq!(rollups[0].chain_id, "chain1");
+        assert_eq!(rollups[0].chain_id, "chain-1");
         assert_eq!(rollups[0].url, "http://some.url");
     }
 
     #[test]
     fn parse_three_rollups_valid() {
         let rollups =
-            expect_parse_rollups("chain1::http://some.url,another::ws://ws.domain,last::foo.bar");
+            expect_parse_rollups("chain-1::http://some.url,another::ws://ws.domain,last::foo.bar");
         assert_eq!(rollups.len(), 3, "\nparsed: {rollups:#?}");
-        assert_eq!(rollups[0].chain_id, "chain1");
+        assert_eq!(rollups[0].chain_id, "chain-1");
         assert_eq!(rollups[0].url, "http://some.url");
         assert_eq!(rollups[1].chain_id, "another");
         assert_eq!(rollups[1].url, "ws://ws.domain");
@@ -116,20 +116,20 @@ mod tests {
 
     #[should_panic]
     #[test]
-    fn parse_with_non_alnum_chain_id_fails() {
+    fn parse_with_non_alnum_non_dash_chain_id_fails() {
         expect_parse_rollups("chain_1::http://some.url");
     }
 
     #[should_panic]
     #[test]
     fn parse_without_double_colon_fails() {
-        expect_parse_rollups("chain1:http://some.url");
+        expect_parse_rollups("chain-1:http://some.url");
     }
 
     #[test]
     fn parse_with_triple_colon_is_valid() {
-        let rollups = expect_parse_rollups("chain1:::http://some.url");
-        assert_eq!(rollups[0].chain_id, "chain1");
+        let rollups = expect_parse_rollups("chain-1:::http://some.url");
+        assert_eq!(rollups[0].chain_id, "chain-1");
         assert_eq!(rollups[0].url, ":http://some.url");
     }
 }
