@@ -80,7 +80,7 @@ pub struct ConfigCreateArgs {
     pub genesis_accounts: Vec<GenesisAccountArg>,
 
     // sequencer config
-    /// Optional. If not set, will be default to a fetch of latest sequencer block.
+    /// Optional. If not set, will be determined from the current block height of the sequencer
     #[clap(
         long = "sequencer.initial-block-height",
         env = "ROLLUP_SEQUENCER_INITIAL_BLOCK_HEIGHT"

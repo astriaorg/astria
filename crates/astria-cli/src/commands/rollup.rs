@@ -337,7 +337,8 @@ mod test {
 
             let file_path = PathBuf::from("test-rollup-conf.yaml");
             assert!(file_path.exists());
-        }).await;
+        })
+        .await;
     }
 
     #[test]
@@ -371,7 +372,8 @@ mod test {
             let file = File::open(&file_path).unwrap();
             let rollup: Rollup = serde_yaml::from_reader(file).unwrap();
             assert_eq!(rollup.deployment_config.get_rollup_name(), "bugbug");
-        }).await;
+        })
+        .await;
     }
 
     #[tokio::test]
@@ -387,7 +389,8 @@ mod test {
                 value: "bugbug".to_string(),
             };
             assert!(edit_config(&args).is_err());
-        }).await;
+        })
+        .await;
     }
 
     #[test]
