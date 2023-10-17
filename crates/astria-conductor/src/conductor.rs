@@ -12,6 +12,8 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+// use futures::FutureExt;
+use futures::future::Fuse;
 use tokio::{
     select,
     signal::unix::{
@@ -63,7 +65,7 @@ pub struct Conductor {
     sequencer_client_pool: deadpool::managed::Pool<ClientProvider>,
 
     /// The channel over which the sequencer reader task notifies conductor that sync is completed.
-    sync_done: oneshot::Receiver<()>,
+    sync_done: Fuse<oneshot::Receiver<()>>,
 
     /// The data availability reader that is spawned after sync is completed.
     /// Constructed if constructed if `disable_finalization = false`.
@@ -71,11 +73,13 @@ pub struct Conductor {
 }
 
 impl Conductor {
-    const DATA_AVAILABILITY: &str = "data_availability";
-    const EXECUTOR: &str = "executor";
-    const SEQUENCER: &str = "sequencer";
+    const DATA_AVAILABILITY: &'static str = "data_availability";
+    const EXECUTOR: &'static str = "executor";
+    const SEQUENCER: &'static str = "sequencer";
 
     pub async fn new(cfg: Config) -> eyre::Result<Self> {
+        use futures::FutureExt;
+
         let mut tasks = JoinMap::new();
         let mut shutdown_channels = HashMap::new();
 
@@ -105,7 +109,11 @@ impl Conductor {
             .wrap_err("failed to create sequencer client pool")?;
 
         // Spawn the sequencer task
-        let sync_done = {
+        // Only spawn the sequencer::Reader if CommitLevel is not FirmOnly, also
+        // send () to sync_done to start normal block execution behavior
+        let mut sync_done = futures::future::Fuse::terminated();
+        if !cfg.execution_commit_level.is_firm_only() {
+            // todo!("set up stuff");
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             let (sync_done_tx, sync_done_rx) = oneshot::channel();
             let sequencer_reader = sequencer::Reader::new(
@@ -117,16 +125,17 @@ impl Conductor {
             );
             tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
             shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
-            sync_done_rx
-        };
-
+            sync_done = sync_done_rx.fuse();
+        }
         // Construct the data availability reader without spawning it.
         // It will be executed after sync is done.
         let mut data_availability_reader = None;
-        if !cfg.disable_finalization {
+        // Only spawn the data_availability::Reader if CommitLevel is not SoftOnly
+        if !cfg.execution_commit_level.is_soft_only() {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
             let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
+            // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
             let reader = data_availability::Reader::new(
                 &cfg.celestia_node_url,
                 &cfg.celestia_bearer_token,
@@ -217,8 +226,8 @@ impl Conductor {
 
         sequencer_client_pool.close();
 
-        // wait 5 seconds for all tasks to shut down
-        // put the tasks into an Rc to make them 'static
+        info!("waiting 5 seconds for all tasks to shut down");
+        // put the tasks into an Rc to make them 'static so they can run on a local set
         let mut tasks = Rc::new(tasks);
         let local_set = LocalSet::new();
         local_set
@@ -227,14 +236,19 @@ impl Conductor {
                 let _ = timeout(
                     Duration::from_secs(5),
                     spawn_local(async move {
-                        while Rc::get_mut(&mut tasks)
+                        while let Some((name, res)) = Rc::get_mut(&mut tasks)
                             .expect(
                                 "only one Rc to the conductor tasks should exist; this is a bug",
                             )
                             .join_next()
                             .await
-                            .is_some()
-                        {}
+                        {
+                            match res {
+                                Ok(Ok(())) => info!(task.name = name, "task exited normally"),
+                                Ok(Err(err)) => warn!(task.name = name, error.message = %err, error.cause = ?err, "task exited with error"),
+                                Err(err) => warn!(task.name = name, error.message = %err, error.cause = ?err, "task failed"),
+                            }
+                        }
                     }),
                 )
                 .await;

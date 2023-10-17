@@ -1,12 +1,13 @@
 [package]
 name = "astria-conductor"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 rust-version = "1.70.0"
 
 [dependencies]
-sync_wrapper = "0.1.2"
 async-trait = "0.1.73"
+tryhard = "0.5.1"
+
 base64 = { workspace = true }
 color-eyre = { workspace = true }
 deadpool = { version = "0.10.0", default-features = false, features = [
@@ -16,6 +17,7 @@ ed25519-consensus = { workspace = true }
 figment = { workspace = true, features = ["env"] }
 futures = { workspace = true }
 hex = { workspace = true }
+humantime = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
 rand = { workspace = true }

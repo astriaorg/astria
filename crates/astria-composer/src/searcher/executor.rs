@@ -35,7 +35,7 @@ use secrecy::{
     Zeroize as _,
 };
 use sequencer_client::{
-    tendermint::endpoint::broadcast::tx_sync,
+    tendermint_rpc::endpoint::broadcast::tx_sync,
     Address,
     NonceResponse,
     SequencerClientExt,
@@ -302,17 +302,20 @@ impl Executor {
         let nonce_response = (|| {
             let client = self.sequencer_client.clone();
             let address = self.address;
-            async move {
-                client.get_latest_nonce(address).await
-            }
+            async move { client.get_latest_nonce(address).await }
         })
         .retry(&backoff)
-        .notify(|err, dur|
-            warn!(error.msg = %err, retry_in = %format_duration(dur), "failed getting nonce for {:?}; retrying", self.address))
+        .notify(|err, dur| {
+            warn!(
+                error.message = %err,
+                error.cause = ?err,
+                retry_in = %format_duration(dur),
+                address = %self.address,
+                "failed getting nonce; retrying",
+            );
+        })
         .await
-        .wrap_err(
-            "failed to retrieve initial nonce from sequencer after several retries",
-        )?;
+        .wrap_err("failed to retrieve initial nonce from sequencer after several retries")?;
 
         self.nonce = Arc::new(Some(nonce_response.nonce));
         info!(

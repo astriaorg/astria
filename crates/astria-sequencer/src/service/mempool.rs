@@ -11,7 +11,7 @@ use futures::{
     FutureExt,
 };
 use penumbra_storage::Storage;
-use tendermint::abci::{
+use tendermint::v0_37::abci::{
     request,
     response,
     MempoolRequest,
@@ -26,7 +26,7 @@ use crate::accounts::state_ext::StateReadExt;
 /// Mempool handles [`request::CheckTx`] abci requests.
 //
 /// It performs a stateless check of the given transaction,
-/// returning a [`tendermint::abci::response::CheckTx`].
+/// returning a [`tendermint::v0_37::abci::response::CheckTx`].
 #[derive(Clone)]
 pub(crate) struct Mempool {
     storage: Storage,
@@ -50,7 +50,7 @@ impl Service<MempoolRequest> for Mempool {
     }
 
     fn call(&mut self, req: MempoolRequest) -> Self::Future {
-        use penumbra_tower_trace::RequestExt as _;
+        use penumbra_tower_trace::v037::RequestExt as _;
         let span = req.create_span();
         let storage = self.storage.clone();
         async move {

@@ -145,6 +145,7 @@ pub struct Client {
 
 impl Client {
     /// Construct a celestia client using a predefined [`HttpClient`].
+    #[must_use]
     pub fn from_jsonrpsee_client(inner: jsonrpsee::http_client::HttpClient) -> Self {
         Self {
             inner,
