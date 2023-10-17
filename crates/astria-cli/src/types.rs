@@ -165,7 +165,7 @@ mod tests {
             genesis_accounts: vec![
                 GenesisAccountArg {
                     address: "0xA5TR14".to_string(),
-                    balance: 1000000000000000000,
+                    balance: 1_000_000_000_000_000_000,
                 },
                 GenesisAccountArg {
                     address: "0x420XYZ69".to_string(),

@@ -218,7 +218,7 @@ mod tests {
         let input = "0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30";
         let expected = GenesisAccountArg {
             address: "aC21B97d35Bf75A7dAb16f35b111a50e78A72F30".to_string(),
-            balance: 1000000000000000000,
+            balance: 1_000_000_000_000_000_000,
         };
         let result: GenesisAccountArg = input.parse().unwrap();
         assert_eq!(result, expected);
