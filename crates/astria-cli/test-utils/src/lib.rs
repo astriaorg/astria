@@ -38,6 +38,16 @@ where
     temp_dir.close().unwrap();
 }
 
+
+/// Run an async closure with a temporary directory as the current directory.
+/// This is useful for cleaning up after tests that test code that creates files.
+///
+/// A mutex is required because `set_current_env` is not thread safe, which
+/// causes flaky tests when run in parallel and it's called in multiple tests.
+///
+/// # Panics
+///
+/// Panics if the current directory cannot be set to the temporary directory.
 pub async fn with_temp_directory_async<F>(closure: impl FnOnce(&TempDir) -> F)
 where
     F: Future<Output = ()>,
