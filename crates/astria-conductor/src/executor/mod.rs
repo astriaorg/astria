@@ -155,7 +155,7 @@ impl Executor {
 
                             if let Err(e) = self.execute_block(block_subset).await {
                                 error!(
-                                    height = height,
+                                    sequencer_block_height = height,
                                     error = ?e,
                                     "failed to execute block"
                                 );
@@ -192,7 +192,7 @@ impl Executor {
     async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Vec<u8>>> {
         if self.disable_empty_block_execution && block.rollup_transactions.is_empty() {
             debug!(
-                height = block.header.height.value(),
+                sequencer_block_height = block.header.height.value(),
                 "no transactions in block, skipping execution"
             );
             return Ok(None);
@@ -200,7 +200,7 @@ impl Executor {
 
         if let Some(execution_hash) = self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
             debug!(
-                height = block.header.height.value(),
+                sequencer_block_height = block.header.height.value(),
                 execution_hash = hex::encode(execution_hash),
                 "block already executed"
             );
@@ -209,7 +209,7 @@ impl Executor {
 
         let prev_block_hash = self.execution_state.clone();
         info!(
-            height = block.header.height.value(),
+            sequencer_block_height = block.header.height.value(),
             parent_block_hash = hex::encode(&prev_block_hash),
             "executing block with given parent block",
         );
