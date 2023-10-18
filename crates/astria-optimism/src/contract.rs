@@ -12,7 +12,7 @@ abigen!(
     },
 );
 
-/// Returns a new ready-only [`OptimismPortal`] contract instance.
+/// Returns a new read-only [`OptimismPortal`] contract instance.
 pub fn get_optimism_portal_read_only<P: JsonRpcClient>(
     provider: Arc<Provider<P>>,
     contract_address: Address,

@@ -19,7 +19,7 @@ use zeroize::{
 /// `Validator` holds the ed25519 keys to sign and verify tendermint
 /// messages. It also contains its address (`AccountId`) in the tendermint network.
 #[derive(Clone, Debug, Zeroize, ZeroizeOnDrop)]
-pub struct Validator {
+pub(crate) struct Validator {
     /// The tendermint validator account address; defined as
     /// Sha256(verification_key)[..20].
     #[zeroize(skip)]
@@ -34,30 +34,18 @@ pub struct Validator {
 }
 
 impl Validator {
-    pub fn address(&self) -> &account::Id {
-        &self.address
-    }
-
-    pub fn signing_key(&self) -> &SigningKey {
-        &self.signing_key
-    }
-
-    pub fn verification_key(&self) -> &VerificationKey {
-        &self.verification_key
-    }
-
     /// Constructs a `Validator` from a json formatted tendermint private validator key.
     ///
     /// This file is frequently called `private_validator_key.json` and is generated during
     /// the initialization of a tendermint node.
     #[instrument(skip_all, fields(path = %path.as_ref().display(), err))]
-    pub fn from_path(path: impl AsRef<Path>) -> eyre::Result<Self> {
+    pub(crate) fn from_path(path: impl AsRef<Path>) -> eyre::Result<Self> {
         let key = PrivValidatorKey::load_json_file(&path.as_ref())
             .wrap_err("failed reading private validator key from file")?;
         Self::from_priv_validator_key(key)
     }
 
-    pub fn from_priv_validator_key(key: PrivValidatorKey) -> eyre::Result<Self> {
+    pub(crate) fn from_priv_validator_key(key: PrivValidatorKey) -> eyre::Result<Self> {
         let PrivValidatorKey {
             address,
             pub_key,
