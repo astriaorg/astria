@@ -88,8 +88,7 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
             .unwrap_or(format!("{}-chain", args.name));
 
         let sequencer_initial_block_height = args.sequencer_initial_block_height.unwrap_or({
-            // TODO - get current block height from sequencer
-            0
+            0 // Invalid sequencer height, can be fetched later
         });
 
         let genesis_accounts = args

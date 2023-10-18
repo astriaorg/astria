@@ -107,6 +107,7 @@ pub(crate) async fn create_config(args: &ConfigCreateArgs) -> eyre::Result<()> {
     // create rollup from args
     let mut rollup = Rollup::try_from(args)?;
 
+    // Height 0 is invalid, but can be used to mark "latest"
     if rollup.deployment_config.get_initial_sequencer_height() == 0 {
         let sequencer_client = HttpClient::new(args.sequencer_rpc.as_str())
             .wrap_err("failed constructing http sequencer client")?;
