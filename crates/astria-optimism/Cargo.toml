@@ -1,0 +1,10 @@
+[package]
+name = "astria-optimism"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ethers = "2.0"
+eyre = { workspace = true }
+hex = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

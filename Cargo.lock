@@ -255,6 +255,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-optimism"
+version = "0.1.0"
+dependencies = [
+ "ethers",
+ "eyre",
+ "hex",
+ "tokio",
+]
+
+[[package]]
 name = "astria-proto"
 version = "0.1.0"
 dependencies = [
