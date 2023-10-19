@@ -114,7 +114,7 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
 pub struct RollupConfig {
     name: String,
     chain_id: String,
-    // NOTE - String here because
+    // NOTE - String here because yaml will serialize large ints w/ scientific notation
     network_id: String,
     skip_empty_blocks: bool,
     genesis_accounts: Vec<GenesisAccount>,
