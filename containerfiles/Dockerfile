@@ -1,5 +1,5 @@
 # build stage
-FROM --platform=$BUILDPLATFORM lukemathwalker/cargo-chef:0.1.61-rust-1.70.0-bookworm AS chef
+FROM --platform=$BUILDPLATFORM lukemathwalker/cargo-chef:0.1.62-rust-1.72.0-bookworm AS chef
 
 WORKDIR /build/
 
@@ -14,7 +14,6 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
       else \
         apt update; \
       fi; \
-      apt install -y librocksdb-dev:arm64; \
     elif [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
       rustup target add x86_64-unknown-linux-gnu; \
       if [ "$BUILDPLATFORM" != "linux/amd64" ]; then \
@@ -23,9 +22,23 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
       else \
         apt update; \
       fi; \
-      apt install -y librocksdb-dev:amd64; \
     fi; \
     apt install -y libclang-dev clang;
+RUN \
+  PROTOC_VERSION=24.4; \
+  if [ "$BUILDPLATFORM" = "linux/amd64" ]; then \
+    PROTOC_PLATFORM="linux-x86_64"; \
+  elif [ "$BUILDPLATFORM" = "linux/arm64" ]; then \
+    PROTOC_PLATFORM="linux-aarch_64"; \
+  fi; \
+  PROTOC_PKG=protoc-"$PROTOC_VERSION"-"$PROTOC_PLATFORM".zip; \
+  PROTOC_SRC="https://github.com/protocolbuffers/protobuf/releases/download/v"$PROTOC_VERSION"/$PROTOC_PKG"; \
+  curl -OL "$PROTOC_SRC"; \
+  unzip "$PROTOC_PKG" -d ./protoc/; \
+  install -d /usr/local/bin /usr/local/include/google/protobuf/compiler/; \
+  install ./protoc/bin/* -Dt /usr/local/bin; \
+  install ./protoc/include/google/protobuf/* -Dt /usr/local/include/google/protobuf; \
+  install ./protoc/include/google/protobuf/compiler/* -Dt /usr/local/include/google/protobuf/compiler;
 
 # install targets
 FROM chef AS planner
@@ -39,8 +52,7 @@ COPY --from=planner /build/recipe.json recipe.json
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 ARG TARGETBINARY
-RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then export ROCKSDB_LIB_DIR=/usr/lib/aarch64-linux-gnu; \
-    elif [ "$TARGETPLATFORM" = "linux/amd64" ]; then export ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu; fi; \
+RUN \
     if [ "$TARGETPLATFORM" = "linux/arm64" ] && [ "$BUILDPLATFORM" != "linux/arm64" ]; then \
       export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
         CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
@@ -56,12 +68,12 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then export ROCKSDB_LIB_DIR=/usr/l
     else \
       TARGET_TRIPLE=$(uname -m)-unknown-linux-gnu; \
     fi; \
+    export PROTOC=/usr/local/bin/protoc; \
     cargo chef cook --release --bin $TARGETBINARY --target $TARGET_TRIPLE --recipe-path recipe.json;
     
 COPY . .
 
-RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then export ROCKSDB_LIB_DIR=/usr/lib/aarch64-linux-gnu; \
-    elif [ "$TARGETPLATFORM" = "linux/amd64" ]; then export ROCKSDB_LIB_DIR=/usr/lib/x86_64-linux-gnu; fi; \
+RUN \
     if [ "$TARGETPLATFORM" = "linux/arm64" ] && [ "$BUILDPLATFORM" != "linux/arm64" ]; then \
       export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
         CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
@@ -77,6 +89,7 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then export ROCKSDB_LIB_DIR=/usr/l
     else \
       TARGET_TRIPLE=$(uname -m)-unknown-linux-gnu; \
     fi; \
+    export PROTOC=/usr/local/bin/protoc; \
     cargo build --release --target $TARGET_TRIPLE --bin $TARGETBINARY;
 
 # replace this with `--out` or `--out-dir` once stable
@@ -89,19 +102,8 @@ FROM debian:bookworm-slim
 ARG TARGETBINARY
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
-RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
-      if [ "$BUILDPLATFORM" != "linux/arm64" ]; then \
-        dpkg --add-architecture arm64; \
-      fi; \
-      apt update; \
-      apt install -y librocksdb-dev:arm64; \
-    elif [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
-      if [ "$BUILDPLATFORM" != "linux/amd64" ]; then \
-        dpkg --add-architecture amd64; \
-      fi; \
-      apt update; \
-      apt install -y librocksdb-dev:amd64; \
-    fi; \
+RUN \
+    apt update; \
     apt install -y wget ca-certificates; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*;

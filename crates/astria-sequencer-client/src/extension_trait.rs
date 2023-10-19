@@ -293,7 +293,7 @@ pub enum NewBlockStreamError {
     Rpc(#[source] tendermint_rpc::Error),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[error("failed subscribing to new cometbft blocks")]
 pub struct SubscriptionFailed {
     #[from]
@@ -307,6 +307,9 @@ impl NewBlockStreamError {
                 EventData::NewBlock {
                     ..
                 } => "new-block",
+                EventData::LegacyNewBlock {
+                    ..
+                } => "legacy-new-block",
                 EventData::Tx {
                     ..
                 } => "tx",
@@ -356,13 +359,13 @@ pub trait SequencerSubscriptionClientExt: SubscriptionClient {
             .map_err(NewBlockStreamError::Rpc)
             .and_then(|event| {
                 future::ready(match event.data {
-                    EventData::NewBlock {
+                    EventData::LegacyNewBlock {
                         block: Some(block),
                         ..
-                    } => SequencerBlockData::from_tendermint_block(block)
+                    } => SequencerBlockData::from_tendermint_block(*block)
                         .map_err(NewBlockStreamError::CometBftConversion),
 
-                    EventData::NewBlock {
+                    EventData::LegacyNewBlock {
                         block: None, ..
                     } => Err(NewBlockStreamError::NoBlock),
 
