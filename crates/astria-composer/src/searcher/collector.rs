@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -9,7 +7,6 @@ use ethers::providers::{
     ProviderError,
     Ws,
 };
-use humantime::format_duration;
 use tokio::sync::{
     mpsc::{
         error::SendTimeoutError,
@@ -19,7 +16,6 @@ use tokio::sync::{
 };
 use tracing::{
     debug,
-    info,
     instrument,
     warn,
 };
@@ -103,16 +99,40 @@ impl Collector {
         let Self {
             chain_id,
             searcher_channel,
-            status: _status,
+            status,
             url,
         } = self;
 
-        let client = GethClient::connect(&url)
-            .await
-            .wrap_err("failed connecting to eth")?;
+        let retry_config = tryhard::RetryFutureConfig::new(1024)
+            .exponential_backoff(Duration::from_millis(500))
+            .max_delay(Duration::from_secs(60))
+            .on_retry(
+                |attempt, next_delay: Option<Duration>, error: &ProviderError| {
+                    let error = error as &(dyn std::error::Error + 'static);
+                    let wait_duration = next_delay
+                        .map(humantime::format_duration)
+                        .map(tracing::field::display);
+                    warn!(
+                        attempt,
+                        wait_duration,
+                        error,
+                        "attempt to connect to geth node failed; retrying after backoff",
+                    );
+                    futures::future::ready(())
+                },
+            );
+
+        let client = tryhard::retry_fn(|| {
+            let url = url.clone();
+            async move { Provider::<Ws>::connect(&url).await }
+        })
+        .with_config(retry_config)
+        .await
+        .wrap_err("failed connecting to geth after several retries; giving up")?;
+
+        status.send_modify(|status| status.is_connected = true);
 
         let mut tx_stream = client
-            .inner
             .subscribe_full_pending_txs()
             .await
             .wrap_err("failed to subscribe eth client to full pending transactions")?;
@@ -146,34 +166,5 @@ impl Collector {
             }
         }
         Ok(())
-    }
-}
-
-/// A thin wrapper around [`Provider<Ws>`] to add timeouts.
-///
-/// Currently only provides a timeout around for `get_net_version`.
-/// Also currently only with Geth nodes
-/// TODO(https://github.com/astriaorg/astria/issues/216): add timeouts for
-/// `subscribe_full_pendings_txs` (more complex because it's a stream).
-#[derive(Clone, Debug)]
-struct GethClient {
-    inner: Provider<Ws>,
-}
-
-impl GethClient {
-    async fn connect(url: &str) -> Result<Self, ProviderError> {
-        let inner = Provider::connect(url).await?;
-        Ok(Self {
-            inner,
-        })
-    }
-
-    /// Wrapper around [`Provider::get_net_version`] with a 1s timeout.
-    async fn get_net_version(&self) -> eyre::Result<String> {
-        use ethers::providers::Middleware as _;
-        tokio::time::timeout(Duration::from_secs(1), self.inner.get_net_version())
-            .await
-            .wrap_err("request timed out")?
-            .wrap_err("RPC returned with error")
     }
 }
