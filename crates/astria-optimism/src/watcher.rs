@@ -57,7 +57,7 @@ pub fn convert_deposit_event_to_deposit_tx(
 
     Ok(DepositTransaction {
         tx: ethers::types::TransactionRequest {
-            from: from.into(),
+            from: Some(from),
             to: to.map(std::convert::Into::into),
             gas: Some(gas_limit.into()),
             gas_price: None,

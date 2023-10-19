@@ -191,9 +191,12 @@ impl Executor {
                             while let Some(deposit_tx) = self.queued_deposit_txs.pop_front() {
                                 deposit_txs.push(deposit_tx);
                             }
+                            let prefix: Vec<u8> = vec![0x7e];
                             let deposit_txs = deposit_txs
                                 .into_iter()
-                                .map(|tx| tx.rlp().to_vec())
+                                .map(|tx| {
+                                    [prefix.clone(), tx.rlp().to_vec()].concat()
+                                })
                                 .collect::<Vec<Vec<u8>>>();
 
                             let response = self
