@@ -4,16 +4,16 @@ use astria_sequencer_types::{
     ChainId,
     SequencerBlockData,
 };
-use proto::generated::execution::v1alpha2::{
-    execution_service_client::ExecutionServiceClient,
-    Block,
-};
 use color_eyre::eyre::{
     self,
     Result,
     WrapErr as _,
 };
 use prost_types::Timestamp as ProstTimestamp;
+use proto::generated::execution::v1alpha2::{
+    execution_service_client::ExecutionServiceClient,
+    Block,
+};
 use tendermint::{
     Hash,
     Time,
@@ -220,7 +220,10 @@ impl Executor {
             return Ok(None);
         }
 
-        if let Some(execution_block) = self.sequencer_hash_to_execution_block.get(&block.block_hash) {
+        if let Some(execution_block) = self
+            .sequencer_hash_to_execution_block
+            .get(&block.block_hash)
+        {
             debug!(
                 sequencer_block_height = block.header.height.value(),
                 execution_hash = hex::encode(&execution_block.hash),
