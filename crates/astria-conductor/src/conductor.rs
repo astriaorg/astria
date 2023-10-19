@@ -91,15 +91,7 @@ impl Conductor {
             let provider = Provider::<Ws>::connect("ws://localhost:8545")
                 .await
                 .wrap_err("failed to connect to provider")?;
-            let contract_address: [u8; 20] =
-                hex::decode("F87a0abe1b875489CA84ab1E4FE47A2bF52C7C64")
-                    .unwrap()
-                    .try_into()
-                    .unwrap();
-            let optimism_portal_contract = optimism::contract::get_optimism_portal_read_only(
-                std::sync::Arc::new(provider),
-                contract_address.into(),
-            );
+
             let executor = Executor::new(
                 &cfg.execution_rpc_url,
                 ChainId::new(cfg.chain_id.as_bytes().to_vec())
@@ -107,7 +99,7 @@ impl Conductor {
                 cfg.disable_empty_block_execution,
                 block_rx,
                 shutdown_rx,
-                optimism_portal_contract,
+                Some(provider),
             )
             .await
             .wrap_err("failed to construct executor")?;

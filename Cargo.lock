@@ -438,6 +438,7 @@ dependencies = [
  "eyre",
  "futures",
  "hex",
+ "rlp",
  "tokio",
 ]
 

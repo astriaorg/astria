@@ -72,6 +72,32 @@ pub fn convert_deposit_event_to_deposit_tx(
     })
 }
 
+pub fn rlp_encode_deposit_transaction(tx: &DepositTransaction) -> Vec<u8> {
+    const NUM_TX_FIELDS: usize = 8;
+    let mut rlp = rlp::RlpStream::new();
+    rlp.begin_list(NUM_TX_FIELDS);
+
+    let gas: u64 = tx.tx.gas.unwrap_or_default().as_u64();
+    rlp.append(&tx.source_hash.unwrap_or_default());
+    rlp.append(&tx.tx.from.unwrap_or_default());
+    rlp_opt(&mut rlp, &tx.tx.to);
+    rlp.append(&tx.mint.unwrap_or_default());
+    rlp.append(&tx.tx.value.unwrap_or_default());
+    rlp.append(&gas);
+    rlp.append(&tx.is_system_tx.unwrap_or_default());
+    rlp.append(&tx.tx.data.as_deref().unwrap_or_default());
+
+    rlp.out().freeze().into()
+}
+
+fn rlp_opt<T: rlp::Encodable>(rlp: &mut rlp::RlpStream, opt: &Option<T>) {
+    if let Some(inner) = opt {
+        rlp.append(inner);
+    } else {
+        rlp.append(&"");
+    }
+}
+
 // from OptimismPortal.sol:
 // `bytes memory opaqueData = abi.encodePacked(msg.value, _value, _gasLimit, _isCreation,
 // _data);`
@@ -115,6 +141,43 @@ mod test {
 
     use super::*;
     use crate::contract::*;
+
+    #[test]
+    fn rlp_encode_deposit_transaction_go() {
+        // result from Go
+        let expected = hex::decode("f860a07113be8bbb6ff4bb99fae05639cf76cdecf5a1afbc033b9a01d8bb16b00b9a8094a0ee7a142d267c1f36714e4a8f75612f20a7972094a0ee7a142d267c1f36714e4a8f75612f20a79720872386f26fc10000872386f26fc100008252088080").unwrap();
+
+        let from: Address = TryInto::<[u8; 20]>::try_into(
+            hex::decode("a0Ee7A142d267C1f36714E4a8F75612F20a79720").unwrap(),
+        )
+        .unwrap()
+        .try_into()
+        .unwrap();
+        let to: Option<Address> = Some(from);
+        let value: U256 = 10_000_000_000_000_000u64.into();
+        let source_hash: [u8; 32] =
+            hex::decode("7113be8bbb6ff4bb99fae05639cf76cdecf5a1afbc033b9a01d8bb16b00b9a80")
+                .unwrap()
+                .try_into()
+                .unwrap();
+        let tx = DepositTransaction {
+            tx: ethers::types::TransactionRequest {
+                from: Some(from),
+                to: to.map(std::convert::Into::into),
+                gas: Some(21000.into()),
+                gas_price: None,
+                value: Some(value),
+                data: None,
+                nonce: None,
+                chain_id: None,
+            },
+            source_hash: Some(source_hash.into()),
+            mint: Some(value),
+            is_system_tx: Some(false),
+        };
+        let encoded = rlp_encode_deposit_transaction(&tx);
+        assert_eq!(encoded, expected);
+    }
 
     /// Listens to [`TransactionDeposited`] events on the [`OptimismPortal`] contract.
     ///

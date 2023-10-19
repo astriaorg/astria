@@ -121,6 +121,7 @@ async fn start_mock(disable_empty_block_execution: bool) -> MockEnvironment {
         disable_empty_block_execution,
         block_rx,
         shutdown_rx,
+        None,
     )
     .await
     .unwrap();

@@ -1,6 +1,9 @@
-use std::collections::{
-    HashMap,
-    VecDeque,
+use std::{
+    collections::{
+        HashMap,
+        VecDeque,
+    },
+    sync::Arc,
 };
 
 use astria_sequencer_types::{
@@ -110,7 +113,8 @@ pub(crate) struct Executor {
     /// Chose to execute empty blocks or not
     disable_empty_block_execution: bool,
 
-    optimism_portal_contract: OptimismPortal<Provider<Ws>>,
+    ethereum_provider: Arc<Provider<Ws>>,
+    optimism_portal_contract: Option<OptimismPortal<Provider<Ws>>>,
     queued_deposit_txs: VecDeque<OptimismDepositedTransactionRequest>,
 }
 
@@ -121,7 +125,8 @@ impl Executor {
         disable_empty_block_execution: bool,
         cmd_rx: Receiver,
         shutdown: oneshot::Receiver<()>,
-        optimism_portal_contract: OptimismPortal<Provider<Ws>>,
+        ethereum_provider: Option<Provider<Ws>>,
+        // optimism_portal_contract: Option<OptimismPortal<Provider<Ws>>>,
     ) -> Result<Self> {
         let mut execution_rpc_client = ExecutionRpcClient::new(server_addr)
             .await
@@ -130,7 +135,22 @@ impl Executor {
             .call_init_state()
             .await
             .wrap_err("could not initialize execution rpc client state")?;
+        info!(
+            block_hash = hex::encode(&init_state_response.block_hash),
+            "initial execution block hash",
+        );
         let execution_state = init_state_response.block_hash;
+
+        // TODO pass via config
+        let contract_address: [u8; 20] = hex::decode("F87a0abe1b875489CA84ab1E4FE47A2bF52C7C64")
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let ethereum_provider = Arc::new(ethereum_provider.expect("TODO"));
+        let optimism_portal_contract = optimism::contract::get_optimism_portal_read_only(
+            ethereum_provider.clone(),
+            contract_address.into(),
+        );
         Ok(Self {
             cmd_rx,
             shutdown,
@@ -139,7 +159,8 @@ impl Executor {
             execution_state,
             sequencer_hash_to_execution_hash: HashMap::new(),
             disable_empty_block_execution,
-            optimism_portal_contract,
+            ethereum_provider,
+            optimism_portal_contract: Some(optimism_portal_contract),
             queued_deposit_txs: VecDeque::new(),
         })
     }
@@ -149,6 +170,8 @@ impl Executor {
         // TODO: configure starting block
         let events = self
             .optimism_portal_contract
+            .as_ref()
+            .expect("TODO remove")
             .event::<TransactionDepositedFilter>()
             .from_block(1);
         let mut stream = events.stream().await?.with_meta();
@@ -184,6 +207,7 @@ impl Executor {
                                 ethereum_log_index = ?meta.log_index,
                                 "queuing deposit transaction",
                             );
+                            println!("deposit tx: {:?}", deposit_tx);
                             self.queued_deposit_txs.push_back(deposit_tx);
 
                             // HACK just execute stuff for now to see if it works
@@ -195,13 +219,15 @@ impl Executor {
                             let deposit_txs = deposit_txs
                                 .into_iter()
                                 .map(|tx| {
-                                    [prefix.clone(), tx.rlp().to_vec()].concat()
+                                    [prefix.clone(), optimism::watcher::rlp_encode_deposit_transaction(&tx).to_vec()].concat()
                                 })
                                 .collect::<Vec<Vec<u8>>>();
-
+                            //let timestamp = (tendermint::Time::now() + std::time::Duration::from_secs(10)).unwrap();
+                            let block = self.ethereum_provider.get_block(meta.block_hash).await.wrap_err("failed to get eth block")?.expect("TODO eth block must exist");
+                            let timestamp = tendermint::Time::from_unix_timestamp(block.timestamp.as_u64() as i64, 0).unwrap();
                             let response = self
                                 .execution_rpc_client
-                                .call_do_block(self.execution_state.clone(), deposit_txs, Some(convert_tendermint_to_prost_timestamp(tendermint::Time::now())?))
+                                .call_do_block(self.execution_state.clone(), deposit_txs, Some(convert_tendermint_to_prost_timestamp(timestamp)?))
                                 .await?;
                             self.execution_state = response.block_hash.clone();
 
