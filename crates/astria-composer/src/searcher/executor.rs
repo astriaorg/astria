@@ -24,10 +24,13 @@ use futures::{
     Future,
 };
 use humantime::format_duration;
-use proto::native::sequencer::v1alpha1::{
-    Action,
-    SignedTransaction,
-    UnsignedTransaction,
+use proto::{
+    generated::sequencer,
+    native::sequencer::v1alpha1::{
+        Action,
+        SignedTransaction,
+        UnsignedTransaction,
+    },
 };
 use secrecy::{
     ExposeSecret as _,
@@ -96,7 +99,9 @@ impl Status {
     }
 }
 
-type ExecutionFut =
+type NonceFut =
+    Fuse<Pin<Box<dyn Future<Output = Result<UnsignedTransaction, SequencerClientError>> + Send>>>;
+type SubmissionFut =
     Fuse<Pin<Box<dyn Future<Output = Result<SignedTransaction, ExecutionError>> + Send>>>;
 
 impl Executor {
@@ -139,43 +144,64 @@ impl Executor {
         self.status.subscribe()
     }
 
-    /// Returns the transaction execution fused future. The future will populate the nonce, sign and
-    /// submit the bundle of actions to the sequencer.
-    fn bundle_execution(&mut self, bundle: Vec<Action>) -> ExecutionFut {
-        let curr_nonce =
-            Arc::get_mut(&mut self.nonce).expect("should only be called once at a time");
+    /// Gets the next nonce to sign over and increments the given counter.
+    /// If the current counter is `None`, this will fetch the latest nonce from the sequencer.
+    fn attach_nonce_fut(&mut self, bundle: Vec<Action>) -> NonceFut {
+        // clone client and address
         let sequencer_client = self.sequencer_client.clone();
         let address = self.address;
-        let sequencer_key = &self.sequencer_key;
+        let nonce = *self.nonce;
 
         async move {
-            let nonce = get_and_increment_nonce(curr_nonce, sequencer_client.clone(), address)
-                .await
-                .map_err(ExecutionError::NonceRetreivalFailed)?;
+            if let Some(curr_nonce) = nonce {
+                debug!(nonce = curr_nonce, "attached nonce to unsigned transaction");
 
-            let tx = UnsignedTransaction {
-                nonce,
-                actions: bundle,
+                Ok(UnsignedTransaction {
+                    nonce: curr_nonce,
+                    actions: bundle,
+                })
+            } else {
+                debug!("nonce currently set to None. retrieving new nonce from sequencer");
+                let rsp = sequencer_client.get_latest_nonce(address).await?;
+
+                info!(nonce = rsp.nonce, "retrieved nonce from sequencer");
+
+                Ok(UnsignedTransaction {
+                    nonce: rsp.nonce,
+                    actions: bundle,
+                })
             }
-            .into_signed(&sequencer_key);
+        }
+        .boxed()
+        .fuse()
+    }
+
+    /// Returns the transaction execution fused future. The future will populate the nonce, sign and
+    /// submit the bundle of actions to the sequencer.
+    fn sign_and_submit_fut(&mut self, unsigned_tx: UnsignedTransaction) -> SubmissionFut {
+        let sequencer_client = self.sequencer_client.clone();
+        let sequencer_key = self.sequencer_key.clone();
+
+        async move {
+            let signed_tx = unsigned_tx.into_signed(&sequencer_key);
 
             let submission_rsp = sequencer_client
-                .submit_transaction_sync(tx.clone())
+                .submit_transaction_sync(signed_tx.clone())
                 .await
                 .map_err(|e| ExecutionError::TransactionSubmissionFailed {
                     error: e,
-                    transaction: tx.clone(),
+                    transaction: signed_tx.clone(),
                 })?;
 
             match AbciCode::from_tendermint(submission_rsp.code) {
-                Some(AbciCode::OK) => Ok(tx),
+                Some(AbciCode::OK) => Ok(signed_tx),
                 Some(AbciCode::INVALID_NONCE) => Err(ExecutionError::InvalidNonce {
-                    nonce,
-                    transaction: tx,
+                    nonce: signed_tx.unsigned_transaction().nonce,
+                    transaction: signed_tx,
                 }),
                 _ => Err(ExecutionError::UnknownDeliverTxFailure {
                     code: submission_rsp.code,
-                    transaction: tx,
+                    transaction: signed_tx,
                 }),
             }
         }
@@ -183,10 +209,7 @@ impl Executor {
         .fuse()
     }
 
-    fn bundle_resubmission_from_transaction(
-        &mut self,
-        transaction: SignedTransaction,
-    ) -> ExecutionFut {
+    fn bundle_resubmission_from_transaction(&mut self, transaction: SignedTransaction) -> NonceFut {
         // reset nonce
         info!(old_nonce = *self.nonce, "resetting nonce to None");
         *Arc::get_mut(&mut self.nonce)
@@ -199,7 +222,7 @@ impl Executor {
         };
 
         // reexecute bundle to attach new nonce
-        self.bundle_execution(bundle)
+        self.attach_nonce_fut(bundle)
     }
 
     /// Run the Executor loop, calling `process_bundle` on each bundle received from the channel.
@@ -212,16 +235,34 @@ impl Executor {
             .await
             .wrap_err("failed retrieving initial nonce from sequencer")?;
 
-        let mut execution_fut = Fuse::terminated();
+        let mut submission_fut = Fuse::terminated();
+        let mut nonce_fut = Fuse::terminated();
         loop {
             select! {
-                // in flight submission
-                Some(bundle) = self.executor_rx.recv(), if execution_fut.is_terminated() => {
-                    debug!(bundle = ?bundle, "received bundle from channel");
-                    execution_fut = self.bundle_execution(bundle);
+                // receive new bundle for processing
+                Some(bundle) = self.executor_rx.recv(), if nonce_fut.is_terminated() && submission_fut.is_terminated() => {
+                    debug!(bundle = ?bundle, "executor received bundle for processing");
+                    nonce_fut = self.attach_nonce_fut(bundle);
                 },
-                // resubmission
-                ret = &mut execution_fut, if !execution_fut.is_terminated() => {
+                // nonce
+                ret = &mut nonce_fut, if !nonce_fut.is_terminated() => {
+                    match ret {
+                        Ok(unsigned_tx) => {
+                            // update self.nonce for next transaction
+                            *Arc::get_mut(&mut self.nonce).expect("should only be called once at a time") =
+                                Some(unsigned_tx.nonce + 1);
+                            // set submission_fut
+                            submission_fut = self.sign_and_submit_fut(unsigned_tx);
+                        }
+                        Err(e) => {
+                            error!(error.msg = %e, "failed to retrieve nonce from sequencer; executor shutting down");
+                            break;
+                        }
+                        _ => { }
+                    }
+                }
+                // submission
+                ret = &mut submission_fut, if !submission_fut.is_terminated() => {
                     match ret {
                        Err(ExecutionError::InvalidNonce {
                                nonce,
@@ -233,27 +274,27 @@ impl Executor {
                                    "invalid nonce returned from sequencer; retrieving new nonce and \
                                     resubmitting the transaction"
                                );
-                               execution_fut = self.bundle_resubmission_from_transaction(transaction)
+                               nonce_fut = self.bundle_resubmission_from_transaction(transaction);
                            }
-                           Err(ExecutionError::UnknownDeliverTxFailure {
-                               code,
-                               transaction,
-                           }) => {
-                               warn!(
-                                   code=?code,
-                                   transaction = ?transaction,
-                                   "unknown error code returned from sequencer; skipping this \
-                                    transaction"
-                               );
-                           }
-                           Err(ExecutionError::NonceRetreivalFailed(e)) => {
-                               error!(error.msg = %e, "failed to retrieve nonce from sequencer; executor shutting down");
-                               break;
-                           }
-                           Err(ExecutionError::TransactionSubmissionFailed{ error:e, transaction }) => {
-                               error!(error.msg = %e, transaction = ?transaction, "failed to submit transaction to sequencer; executor shutting down");
-                               break;
-                           }
+                    Err(ExecutionError::UnknownDeliverTxFailure {
+                        code,
+                        transaction,
+                    }) => {
+                        warn!(
+                            code=?code,
+                            transaction = ?transaction,
+                            "unknown error code returned from sequencer; skipping this \
+                             transaction"
+                        );
+                    }
+                    Err(ExecutionError::NonceRetreivalFailed(e)) => {
+                        error!(error.msg = %e, "failed to retrieve nonce from sequencer; executor shutting down");
+                        break;
+                    }
+                    Err(ExecutionError::TransactionSubmissionFailed{ error:e, transaction }) => {
+                        error!(error.msg = %e, transaction = ?transaction, "failed to submit transaction to sequencer; executor shutting down");
+                        break;
+                    }
                        Ok(tx) => {
                            let nonce = tx.unsigned_transaction().nonce;
                            info!(
@@ -327,31 +368,6 @@ impl Executor {
             status.is_connected = true;
         });
         Ok(())
-    }
-}
-
-/// Gets the next nonce to sign over and increments the given counter.
-/// If the current counter is `None`, this will fetch the latest nonce from the sequencer.
-async fn get_and_increment_nonce(
-    nonce: &mut Option<u32>,
-    sequencer_client: SequencerClient,
-    address: Address,
-) -> Result<u32, SequencerClientError> {
-    if let Some(nonce) = nonce {
-        let curr_nonce = *nonce;
-        *nonce = *nonce + 1;
-
-        info!(prev_nonce = *nonce, curr_nonce, "incremented nonce");
-
-        Ok(curr_nonce)
-    } else {
-        debug!("nonce currently set to None. retrieving new nonce from sequencer");
-        let rsp = sequencer_client.get_latest_nonce(address).await?;
-        *nonce = Some(rsp.nonce + 1);
-
-        info!(nonce = *nonce, "retrieved nonce from sequencer");
-
-        Ok(rsp.nonce)
     }
 }
 
