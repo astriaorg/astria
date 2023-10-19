@@ -1,131 +1,269 @@
-use std::time::Duration;
+use std::{
+    collections::HashMap,
+    rc::Rc,
+    time::Duration,
+};
 
+use astria_sequencer_types::ChainId;
 use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+// use futures::FutureExt;
+use futures::future::Fuse;
 use tokio::{
     select,
     signal::unix::{
         signal,
         SignalKind,
     },
-    sync::watch,
-    task::JoinHandle,
-    time,
+    sync::{
+        mpsc,
+        oneshot,
+        watch,
+    },
+    task::{
+        spawn_local,
+        LocalSet,
+    },
+    time::timeout,
 };
+use tokio_util::task::JoinMap;
 use tracing::{
     error,
     info,
+    warn,
 };
 
 use crate::{
-    driver::DriverCommand,
+    block_verifier::BlockVerifier,
+    client_provider::{
+        self,
+        ClientProvider,
+    },
+    data_availability,
+    executor::Executor,
+    sequencer,
     Config,
-    Driver,
 };
+
 pub struct Conductor {
+    /// Listens for several unix signals and notifies its subscribers.
     signals: SignalReceiver,
-    driver: Driver,
-    executor_join_handle: JoinHandle<eyre::Result<()>>,
-    reader_join_handle: Option<JoinHandle<eyre::Result<()>>>,
+
+    /// The different long-running tasks that make up the conductor;
+    tasks: JoinMap<&'static str, eyre::Result<()>>,
+
+    /// Channels to the long-running tasks to shut them down gracefully
+    shutdown_channels: HashMap<&'static str, oneshot::Sender<()>>,
+
+    /// The object pool of sequencer clients that restarts the websocket connection
+    /// on failure.
+    sequencer_client_pool: deadpool::managed::Pool<ClientProvider>,
+
+    /// The channel over which the sequencer reader task notifies conductor that sync is completed.
+    sync_done: Fuse<oneshot::Receiver<()>>,
+
+    /// The data availability reader that is spawned after sync is completed.
+    /// Constructed if constructed if `disable_finalization = false`.
+    data_availability_reader: Option<data_availability::Reader>,
 }
 
 impl Conductor {
+    const DATA_AVAILABILITY: &'static str = "data_availability";
+    const EXECUTOR: &'static str = "executor";
+    const SEQUENCER: &'static str = "sequencer";
+
     pub async fn new(cfg: Config) -> eyre::Result<Self> {
+        use futures::FutureExt;
+
+        let mut tasks = JoinMap::new();
+        let mut shutdown_channels = HashMap::new();
+
         let signals = spawn_signal_handler();
-        // spawn our driver
-        let (driver, executor_join_handle, reader_join_handle) = Driver::new(cfg)
+
+        // Spawn the executor task.
+        let executor_tx = {
+            let (block_tx, block_rx) = mpsc::unbounded_channel();
+            let (shutdown_tx, shutdown_rx) = oneshot::channel();
+            let executor = Executor::new(
+                &cfg.execution_rpc_url,
+                ChainId::new(cfg.chain_id.as_bytes().to_vec())
+                    .wrap_err("failed to create chain ID")?,
+                cfg.disable_empty_block_execution,
+                block_rx,
+                shutdown_rx,
+            )
             .await
-            .wrap_err("failed initializing driver")?;
+            .wrap_err("failed to construct executor")?;
+            tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
+            shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
+            block_tx
+        };
+
+        let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
+            .await
+            .wrap_err("failed to create sequencer client pool")?;
+
+        // Spawn the sequencer task
+        // Only spawn the sequencer::Reader if CommitLevel is not FirmOnly, also
+        // send () to sync_done to start normal block execution behavior
+        let mut sync_done = futures::future::Fuse::terminated();
+        if !cfg.execution_commit_level.is_firm_only() {
+            // todo!("set up stuff");
+            let (shutdown_tx, shutdown_rx) = oneshot::channel();
+            let (sync_done_tx, sync_done_rx) = oneshot::channel();
+            let sequencer_reader = sequencer::Reader::new(
+                cfg.initial_sequencer_block_height,
+                sequencer_client_pool.clone(),
+                shutdown_rx,
+                executor_tx.clone(),
+                sync_done_tx,
+            );
+            tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
+            shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
+            sync_done = sync_done_rx.fuse();
+        }
+        // Construct the data availability reader without spawning it.
+        // It will be executed after sync is done.
+        let mut data_availability_reader = None;
+        // Only spawn the data_availability::Reader if CommitLevel is not SoftOnly
+        if !cfg.execution_commit_level.is_soft_only() {
+            let (shutdown_tx, shutdown_rx) = oneshot::channel();
+            shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
+            let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
+            // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
+            let reader = data_availability::Reader::new(
+                &cfg.celestia_node_url,
+                &cfg.celestia_bearer_token,
+                std::time::Duration::from_secs(3),
+                executor_tx.clone(),
+                block_verifier,
+                celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(
+                    cfg.chain_id.as_ref(),
+                ),
+                shutdown_rx,
+            )
+            .await
+            .wrap_err("failed constructing data availability reader")?;
+            data_availability_reader = Some(reader);
+        };
+
         Ok(Self {
             signals,
-            driver,
-            executor_join_handle,
-            reader_join_handle,
+            tasks,
+            sequencer_client_pool,
+            shutdown_channels,
+            sync_done,
+            data_availability_reader,
         })
     }
 
     pub async fn run_until_stopped(self) -> eyre::Result<()> {
+        use futures::future::{
+            FusedFuture as _,
+            FutureExt as _,
+        };
+
         let Self {
             signals:
                 SignalReceiver {
                     mut reload_rx,
                     mut stop_rx,
                 },
-            driver,
-            executor_join_handle: mut executor,
-            reader_join_handle: mut reader,
+            mut tasks,
+            shutdown_channels,
+            sequencer_client_pool,
+            sync_done,
+            mut data_availability_reader,
         } = self;
-        let driver_tx = driver.cmd_tx.clone();
-        let mut driver = tokio::spawn(driver.run());
-        let mut interval = time::interval(Duration::from_secs(3));
+
+        let mut sync_done = sync_done.fuse();
 
         loop {
             select! {
-                // FIXME: The bias should only be on the signal channels. The the two
-                //       handlers should have the same bias.
+                // FIXME: The bias should only be on the signal channels. The two handlers should have the same bias.
                 biased;
 
                 _ = stop_rx.changed() => {
                     info!("shutting down conductor");
-                    if let Some(e) = driver_tx.send(DriverCommand::Shutdown).err() {
-                        error!(
-                            error.msg = %e,
-                            error.cause = ?e,
-                            "error sending Shutdown command to driver"
-                        );
-                    }
                     break;
                 }
 
                 _ = reload_rx.changed() => {
                     info!("reloading is currently not implemented");
                 }
-                // request new blocks every X seconds
-                _ = interval.tick() => {
-                    if let Some(e) = driver_tx.send(DriverCommand::GetNewBlocks).err() {
-                        // the only error that can happen here is SendError which occurs
-                        // if the driver's receiver channel is dropped
-                        error!(
-                            error.msg = %e,
-                            error.cause = ?e,
-                            "error sending GetNewBlocks command to driver"
+
+                res = &mut sync_done, if !sync_done.is_terminated() => {
+                    match res {
+                        Ok(()) => info!("received sync-complete signal from sequencer reader"),
+                        Err(e) => warn!(error.message = %e, error.cause = ?e, "sync-complete channel failed prematurely"),
+                    }
+                    if let Some(data_availability_reader) = data_availability_reader.take() {
+                        info!("starting data availability reader");
+                        tasks.spawn(
+                            Self::DATA_AVAILABILITY,
+                            data_availability_reader.run_until_stopped(),
                         );
-                        break;
                     }
                 }
 
-                res = &mut driver => {
+                Some((name, res)) = tasks.join_next() => {
                     match res {
-                        Ok(Ok(())) => error!("driver task exited unexpectedly"),
-                        Ok(Err(e)) => error!(error.msg = %e, error.cause = ?e, "driver exited with error"),
-                        Err(e) => error!(error.msg = %e, error.cause = ?e, "driver task failed"),
+                        Ok(Ok(())) => error!(task.name = name, "task exited unexpectedly, shutting down"),
+                        Ok(Err(e)) => error!(task.name = name, error.message = %e, error.cause = ?e, "task exited with error; shutting down"),
+                        Err(e) => error!(task.name = name, error.message = %e, error.cause = ?e, "task failed; shutting down"),
                     }
-                    break;
-                }
-
-                res = &mut executor => {
-                    match res {
-                        Ok(Ok(())) => error!("executor task exited unexpectedly"),
-                        Ok(Err(e)) => error!(error.msg = %e, error.cause = ?e, "executor exited with error"),
-                        Err(e) => error!(error.msg = %e, error.cause = ?e, "executor task failed"),
-                    }
-                    break;
-                }
-
-
-                res = async { reader.as_mut().unwrap().await }, if reader.is_some() => {
-                    match res {
-                        Ok(Ok(())) => error!("reader task exited unexpectedly"),
-                        Ok(Err(e)) => error!(error.msg = %e, error.cause = ?e, "reader exited with error"),
-                        Err(e) => error!(error.msg = %e, error.cause = ?e, "reader task failed"),
-                    }
-                    break;
                 }
             }
         }
 
+        info!("sending shutdown command to all tasks");
+        for (_, channel) in shutdown_channels {
+            let _ = channel.send(());
+        }
+
+        sequencer_client_pool.close();
+
+        info!("waiting 5 seconds for all tasks to shut down");
+        // put the tasks into an Rc to make them 'static so they can run on a local set
+        let mut tasks = Rc::new(tasks);
+        let local_set = LocalSet::new();
+        local_set
+            .run_until(async {
+                let mut tasks = tasks.clone();
+                let _ = timeout(
+                    Duration::from_secs(5),
+                    spawn_local(async move {
+                        while let Some((name, res)) = Rc::get_mut(&mut tasks)
+                            .expect(
+                                "only one Rc to the conductor tasks should exist; this is a bug",
+                            )
+                            .join_next()
+                            .await
+                        {
+                            match res {
+                                Ok(Ok(())) => info!(task.name = name, "task exited normally"),
+                                Ok(Err(err)) => warn!(task.name = name, error.message = %err, error.cause = ?err, "task exited with error"),
+                                Err(err) => warn!(task.name = name, error.message = %err, error.cause = ?err, "task failed"),
+                            }
+                        }
+                    }),
+                )
+                .await;
+            })
+            .await;
+
+        if !tasks.is_empty() {
+            warn!(
+                number = tasks.len(),
+                "aborting tasks that haven't shutdown yet"
+            );
+            Rc::get_mut(&mut tasks)
+                .expect("only one Rc to the conductor tasks should exist; this is a bug")
+                .shutdown()
+                .await;
+        }
         Ok(())
     }
 }

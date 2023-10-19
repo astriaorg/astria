@@ -38,3 +38,6 @@ lint-toml:
 
 lint-md:
   markdownlint-cli2 "**/*.md" "#target" "#.github"
+
+install-cli:
+  cargo install --path ./crates/astria-cli --locked

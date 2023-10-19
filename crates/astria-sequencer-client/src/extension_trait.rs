@@ -80,6 +80,7 @@ impl std::error::Error for Error {
         match &self.inner {
             ErrorKind::AbciQueryDeserialization(e) => Some(e),
             ErrorKind::TendermintRpc(e) => Some(e),
+            ErrorKind::Deserialization(e) => Some(e),
         }
     }
 }
@@ -91,6 +92,14 @@ impl Error {
         &self.inner
     }
 
+    #[must_use]
+    pub fn as_tendermint_rpc(&self) -> Option<&TendermintRpcError> {
+        match self.kind() {
+            ErrorKind::TendermintRpc(e) => Some(e),
+            _ => None,
+        }
+    }
+
     /// Convenience function to construct `Error` containing an `AbciQueryDeserializationError`.
     fn abci_query_deserialization(
         target: &'static str,
@@ -99,6 +108,15 @@ impl Error {
     ) -> Self {
         Self {
             inner: ErrorKind::abci_query_deserialization(target, response, inner),
+        }
+    }
+
+    fn deserialization<T>(target: &'static str, inner: T) -> Self
+    where
+        T: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
+    {
+        Self {
+            inner: ErrorKind::deserialization(target, inner.into()),
         }
     }
 
@@ -152,6 +170,27 @@ pub struct TendermintRpcError {
 }
 
 impl TendermintRpcError {
+    /// Utility to check if the underlying error is related to the transport failing.
+    ///
+    /// This is useful when trying to understand if a request failed because the underlying
+    /// connection failed.
+    #[must_use]
+    pub fn is_transport(&self) -> bool {
+        use tendermint_rpc::error::ErrorDetail;
+        match &self.inner.detail() {
+            // - ChannelSend is returned if the channel that WebSocketClient uses to communicate
+            //   with the driver fails. This is the case if the driver has already failed, but the
+            //   client still in use (there is no feedback mechanism between driver and its clients
+            //   other than client commands failing).
+            // - ClientInternal is returned by WebSocketClient if the channel the client sent to the
+            //   websocket driver is dropped. This is the case if the driver recives the channel as
+            //   part of a client's requests to the driver to send a message over the websocket, but
+            //   then exits, dropping channel.
+            ErrorDetail::ChannelSend(_) | ErrorDetail::ClientInternal(_) => true,
+            _other => false,
+        }
+    }
+
     /// Returns the error returned by the underlying tendermint RPC call.
     #[must_use]
     pub fn inner(&self) -> &tendermint_rpc::error::Error {
@@ -177,12 +216,35 @@ impl std::error::Error for TendermintRpcError {
     }
 }
 
+#[derive(Debug)]
+pub struct DeserializationError {
+    inner: Box<dyn std::error::Error + Send + Sync + 'static>,
+    target: &'static str,
+}
+
+impl std::fmt::Display for DeserializationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "failed deserializing cometbft response to {}",
+            self.target,
+        )
+    }
+}
+
+impl std::error::Error for DeserializationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&*self.inner)
+    }
+}
+
 /// The collection of different errors that can occur when using the extension trait.
 ///
 /// Note that none of the errors contained herein are constructable outside this crate.
 #[derive(Debug)]
 pub enum ErrorKind {
     AbciQueryDeserialization(AbciQueryDeserializationError),
+    Deserialization(DeserializationError),
     TendermintRpc(TendermintRpcError),
 }
 
@@ -196,6 +258,16 @@ impl ErrorKind {
         Self::AbciQueryDeserialization(AbciQueryDeserializationError {
             inner,
             response: Box::new(response),
+            target,
+        })
+    }
+
+    fn deserialization(
+        target: &'static str,
+        inner: Box<dyn std::error::Error + Send + Sync + 'static>,
+    ) -> Self {
+        Self::Deserialization(DeserializationError {
+            inner,
             target,
         })
     }
@@ -221,7 +293,7 @@ pub enum NewBlockStreamError {
     Rpc(#[source] tendermint_rpc::Error),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[error("failed subscribing to new cometbft blocks")]
 pub struct SubscriptionFailed {
     #[from]
@@ -235,6 +307,9 @@ impl NewBlockStreamError {
                 EventData::NewBlock {
                     ..
                 } => "new-block",
+                EventData::LegacyNewBlock {
+                    ..
+                } => "legacy-new-block",
                 EventData::Tx {
                     ..
                 } => "tx",
@@ -284,13 +359,13 @@ pub trait SequencerSubscriptionClientExt: SubscriptionClient {
             .map_err(NewBlockStreamError::Rpc)
             .and_then(|event| {
                 future::ready(match event.data {
-                    EventData::NewBlock {
+                    EventData::LegacyNewBlock {
                         block: Some(block),
                         ..
-                    } => SequencerBlockData::from_tendermint_block(block)
+                    } => SequencerBlockData::from_tendermint_block(*block)
                         .map_err(NewBlockStreamError::CometBftConversion),
 
-                    EventData::NewBlock {
+                    EventData::LegacyNewBlock {
                         block: None, ..
                     } => Err(NewBlockStreamError::NoBlock),
 
@@ -403,6 +478,32 @@ pub trait SequencerClientExt: Client {
         // This makes use of the fact that a height `None` and `Some(0)` are
         // treated the same.
         self.get_nonce(address, 0).await
+    }
+
+    /// Get the latest sequencer block.
+    ///
+    /// This is a convenience method that converts the result [`Client::latest_block`]
+    /// to `SequencerBlockData`.
+    async fn latest_sequencer_block(&self) -> Result<SequencerBlockData, Error> {
+        let rsp = self
+            .latest_block()
+            .await
+            .map_err(|e| Error::tendermint_rpc("latest_block", e))?;
+        SequencerBlockData::from_tendermint_block(rsp.block)
+            .map_err(|e| Error::deserialization("SequencerBlockData", e))
+    }
+
+    /// Get the sequencer block at the provided height.
+    ///
+    /// This is a convenience method that converts the result [`Client::block`]
+    /// to `SequencerBlockData`.
+    async fn sequencer_block(&self, height: u32) -> Result<SequencerBlockData, Error> {
+        let rsp = self
+            .block(height)
+            .await
+            .map_err(|e| Error::tendermint_rpc("block", e))?;
+        SequencerBlockData::from_tendermint_block(rsp.block)
+            .map_err(|e| Error::deserialization("SequencerBlockData", e))
     }
 
     /// Submits the given transaction to the Sequencer node.

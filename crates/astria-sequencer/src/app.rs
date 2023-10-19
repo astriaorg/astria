@@ -1,6 +1,13 @@
-use std::sync::Arc;
+use std::{
+    collections::{
+        HashMap,
+        VecDeque,
+    },
+    sync::Arc,
+};
 
 use anyhow::{
+    anyhow,
     ensure,
     Context,
 };
@@ -10,7 +17,15 @@ use penumbra_storage::{
     StateDelta,
     Storage,
 };
-use proto::native::sequencer::v1alpha1::Address;
+use proto::{
+    generated::sequencer::v1alpha1 as raw,
+    native::sequencer::v1alpha1::{
+        Address,
+        SignedTransaction,
+    },
+    Message as _,
+};
+use sha2::Digest as _;
 use tendermint::abci::{
     self,
     Event,
@@ -36,6 +51,10 @@ use crate::{
     },
     component::Component,
     genesis::GenesisState,
+    proposal::commitment::{
+        generate_sequence_actions_commitment,
+        GeneratedCommitments,
+    },
     state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -54,9 +73,13 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 /// See also the [Penumbra reference] implementation.
 ///
 /// [Penumbra reference]: https://github.com/penumbra-zone/penumbra/blob/9cc2c644e05c61d21fdc7b507b96016ba6b9a935/app/src/app/mod.rs#L42
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct App {
     state: InterBlockState,
+
+    // cache of results of executing of transactions in prepare_proposal or process_proposal.
+    // cleared at the end of each block.
+    execution_result: HashMap<[u8; 32], anyhow::Result<Vec<abci::Event>>>,
 
     /// set to `0` when `begin_block` is called, and set to `1` or `2` when
     /// `deliver_tx` is called for the first two times.
@@ -79,6 +102,7 @@ impl App {
 
         Self {
             state,
+            execution_result: HashMap::new(),
             processed_txs: 0,
         }
     }
@@ -113,7 +137,141 @@ impl App {
         Ok(())
     }
 
-    #[instrument(name = "App:begin_block", skip(self))]
+    /// Generates a commitment to the `sequence::Actions` in the block's transactions.
+    ///
+    /// This is required so that a rollup can easily verify that the transactions it
+    /// receives are correct (ie. we actually included in a sequencer block, and none
+    /// are missing)
+    /// It puts this special "commitment" as the first transaction in a block.
+    /// When other validators receive the block, they know the first transaction is
+    /// supposed to be the commitment, and verifies that is it correct.
+    #[instrument(name = "App::prepare_proposal", skip(self))]
+    pub(crate) async fn prepare_proposal(
+        &mut self,
+        prepare_proposal: abci::request::PrepareProposal,
+    ) -> abci::response::PrepareProposal {
+        // clear the cache of transaction execution results
+        self.execution_result.clear();
+        self.processed_txs = 0;
+
+        let (signed_txs, txs_to_include) = self.execute_block_data(prepare_proposal.txs).await;
+
+        // generate commitment to sequence::Actions and commitment to the chain IDs included in the
+        // sequence::Actions
+        let res = generate_sequence_actions_commitment(&signed_txs);
+
+        abci::response::PrepareProposal {
+            txs: res.into_transactions(txs_to_include),
+        }
+    }
+
+    /// Generates a commitment to the `sequence::Actions` in the block's transactions
+    /// and ensures it matches the commitment created by the proposer, which
+    /// should be the first transaction in the block.
+    #[instrument(name = "App::process_proposal", skip(self))]
+    pub(crate) async fn process_proposal(
+        &mut self,
+        process_proposal: abci::request::ProcessProposal,
+    ) -> anyhow::Result<()> {
+        // clear the cache of transaction execution results
+        self.execution_result.clear();
+        self.processed_txs = 0;
+
+        let mut txs = VecDeque::from(process_proposal.txs);
+        let received_action_commitment: [u8; 32] = txs
+            .pop_front()
+            .context("no transaction commitment in proposal")?
+            .to_vec()
+            .try_into()
+            .map_err(|_| anyhow!("transaction commitment must be 32 bytes"))?;
+
+        let received_chain_ids_commitment: [u8; 32] = txs
+            .pop_front()
+            .context("no chain IDs commitment in proposal")?
+            .to_vec()
+            .try_into()
+            .map_err(|_| anyhow!("chain IDs commitment must be 32 bytes"))?;
+
+        let expected_txs_len = txs.len();
+
+        let (signed_txs, txs_to_include) = self.execute_block_data(txs.into()).await;
+
+        // all txs in the proposal should be deserializable and executable
+        // if any txs were not deserializeable or executable, they would not have been
+        // returned by `execute_block_data`, thus the length of `txs_to_include`
+        // will be shorter than that of `txs`.
+        ensure!(
+            txs_to_include.len() == expected_txs_len,
+            "transactions to be included do not match expected",
+        );
+
+        let GeneratedCommitments {
+            sequence_actions_commitment: expected_action_commitment,
+            chain_ids_commitment: expected_chain_ids_commitment,
+        } = generate_sequence_actions_commitment(&signed_txs);
+        ensure!(
+            received_action_commitment == expected_action_commitment,
+            "transaction commitment does not match expected",
+        );
+
+        ensure!(
+            received_chain_ids_commitment == expected_chain_ids_commitment,
+            "chain IDs commitment does not match expected",
+        );
+
+        Ok(())
+    }
+
+    /// Executes the given transaction data, writing it to the app's `StateDelta`.
+    ///
+    /// The result of execution of every transaction which is successfully decoded
+    /// is stored in `self.execution_result`.
+    ///
+    /// Returns the transactions which were successfully decoded and executed
+    /// in both their [`SignedTransaction`] and raw bytes form.
+    async fn execute_block_data(
+        &mut self,
+        txs: Vec<bytes::Bytes>,
+    ) -> (Vec<SignedTransaction>, Vec<bytes::Bytes>) {
+        let mut signed_txs = Vec::with_capacity(txs.len());
+        let mut validated_txs = Vec::with_capacity(txs.len());
+
+        for tx in txs {
+            let Some(signed_tx) = raw::SignedTransaction::decode(&*tx)
+            .map_err(|err| {
+                debug!(error = ?err, "failed to deserialize bytes as a signed transaction");
+                err
+            })
+            .ok()
+            .and_then(|raw_tx| SignedTransaction::try_from_raw(raw_tx)
+                .map_err(|err| {
+                    debug!(error = ?err, "failed to convert raw signed transaction to native signed transaction");
+                    err
+                })
+                .ok()
+            ) else {
+                continue;
+            };
+
+            // store transaction execution result, indexed by tx hash
+            let tx_hash = sha2::Sha256::digest(&tx);
+            match self.deliver_tx(signed_tx.clone()).await {
+                Ok(events) => {
+                    self.execution_result.insert(tx_hash.into(), Ok(events));
+                    signed_txs.push(signed_tx);
+                    validated_txs.push(tx);
+                }
+                Err(e) => {
+                    debug!(?tx_hash, error = ?e, "failed to execute transaction, not including in block");
+                    self.execution_result.insert(tx_hash.into(), Err(e));
+                }
+            }
+        }
+
+        (signed_txs, validated_txs)
+    }
+
+    #[instrument(name = "App::begin_block", skip(self))]
     pub(crate) async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
@@ -137,28 +295,49 @@ impl App {
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
 
-        self.processed_txs = 0;
         Ok(self.apply(state_tx))
     }
 
-    #[instrument(name = "App:deliver_tx", skip(self))]
-    pub(crate) async fn deliver_tx(&mut self, tx: &[u8]) -> anyhow::Result<Vec<abci::Event>> {
-        use proto::{
-            generated::sequencer::v1alpha1 as raw,
-            native::sequencer::v1alpha1::SignedTransaction,
-            Message as _,
-        };
+    /// Called during the normal ABCI `deliver_tx` process, returning the results
+    /// of transaction execution during the proposal phase.
+    ///
+    /// Since transaction execution now happens in the proposal phase, results
+    /// are cached in the app and returned here during the usual ABCI block execution process.
+    ///
+    /// Note that the first two "transactions" in the block, which are the proposer-generated
+    /// commitments, are ignored.
+    #[instrument(name = "App::deliver_tx_after_execution", skip(self))]
+    pub(crate) fn deliver_tx_after_execution(
+        &mut self,
+        tx_hash: &[u8; 32],
+    ) -> Option<anyhow::Result<Vec<abci::Event>>> {
         if self.processed_txs < 2 {
-            ensure!(tx.len() == 32);
             self.processed_txs += 1;
-            return Ok(vec![]);
+            return Some(Ok(vec![]));
         }
 
-        let raw_signed_tx = raw::SignedTransaction::decode(tx)
-            .context("failed deserializing raw signed protobuf transaction from bytes")?;
-        let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
-            .context("failed creating a verified signed transaction from the raw proto type")?;
+        self.execution_result.remove(tx_hash)
+    }
 
+    /// Executes a signed transaction.
+    ///
+    /// Unlike the usual flow of an ABCI application, this is called during
+    /// the proposal phase, ie. `prepare_proposal` or `process_proposal`.
+    ///
+    /// This is because we disallow transactions that fail execution to be included
+    /// in a block's transaction data, as this would allow `sequence::Action`s to be
+    /// included for free. Instead, we execute transactions during the proposal phase,
+    /// and only include them in the block if they succeed.
+    ///
+    /// As a result, all transactions in a sequencer block are guaranteed to execute
+    /// successfully.
+    ///
+    /// Note that `begin_block` is now called *after* transaction execution.
+    #[instrument(name = "App::deliver_tx", skip(self))]
+    pub(crate) async fn deliver_tx(
+        &mut self,
+        signed_tx: proto::native::sequencer::v1alpha1::SignedTransaction,
+    ) -> anyhow::Result<Vec<abci::Event>> {
         let signed_tx_2 = signed_tx.clone();
         let stateless = tokio::spawn(async move { transaction::check_stateless(&signed_tx_2) });
         let signed_tx_2 = signed_tx.clone();
@@ -186,19 +365,21 @@ impl App {
             .context("failed executing transaction")?;
         state_tx.apply();
 
+        // note: deliver_tx is now called (internally) before begin_block,
+        // so increment the logged height by 1.
         let height = self.state.get_block_height().await.expect(
             "block height must be set, as `begin_block` is always called before `deliver_tx`",
         );
         info!(
-            ?tx,
-            height,
+            ?signed_tx,
+            height = height + 1,
             sender = %Address::from_verification_key(signed_tx.verification_key()),
             "executed transaction"
         );
         Ok(vec![])
     }
 
-    #[instrument(name = "App:end_block", skip(self))]
+    #[instrument(name = "App::end_block", skip(self))]
     pub(crate) async fn end_block(
         &mut self,
         end_block: &abci::request::EndBlock,
@@ -235,7 +416,7 @@ impl App {
         })
     }
 
-    #[instrument(name = "App:commit", skip(self))]
+    #[instrument(name = "App::commit", skip(self))]
     pub(crate) async fn commit(&mut self, storage: Storage) -> AppHash {
         // We need to extract the State we've built up to commit it.  Fill in a dummy state.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
@@ -296,15 +477,15 @@ impl App {
 #[cfg(test)]
 mod test {
     use ed25519_consensus::SigningKey;
-    use proto::{
-        native::sequencer::v1alpha1::{
-            Address,
-            SequenceAction,
-            TransferAction,
-            UnsignedTransaction,
-            ADDRESS_LEN,
-        },
-        Message as _,
+    #[cfg(feature = "mint")]
+    use proto::native::sequencer::v1alpha1::MintAction;
+    use proto::native::sequencer::v1alpha1::{
+        Address,
+        SequenceAction,
+        SudoAddressChangeAction,
+        TransferAction,
+        UnsignedTransaction,
+        ADDRESS_LEN,
     };
     use tendermint::{
         abci::types::CommitInfo,
@@ -517,7 +698,6 @@ mod test {
     #[tokio::test]
     async fn app_deliver_tx_transfer() {
         let mut app = initialize_app(None, vec![]).await;
-        app.processed_txs = 2;
 
         // transfer funds from Alice to Bob
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
@@ -533,10 +713,9 @@ mod test {
                 .into(),
             ],
         };
-        let signed_tx = tx.into_signed(&alice_signing_key);
-        let bytes = signed_tx.into_raw().encode_to_vec();
 
-        app.deliver_tx(&bytes).await.unwrap();
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
         assert_eq!(
             app.state.get_account_balance(bob_address).await.unwrap(),
             value + 10u128.pow(19)
@@ -554,7 +733,6 @@ mod test {
         use rand::rngs::OsRng;
 
         let mut app = initialize_app(None, vec![]).await;
-        app.processed_txs = 2;
 
         // create a new key; will have 0 balance
         let keypair = SigningKey::new(OsRng);
@@ -572,9 +750,8 @@ mod test {
             ],
         };
         let signed_tx = tx.into_signed(&keypair);
-        let bytes = signed_tx.into_raw().encode_to_vec();
         let res = app
-            .deliver_tx(&bytes)
+            .deliver_tx(signed_tx)
             .await
             .unwrap_err()
             .root_cause()
@@ -585,7 +762,6 @@ mod test {
     #[tokio::test]
     async fn app_deliver_tx_sequence() {
         let mut app = initialize_app(None, vec![]).await;
-        app.processed_txs = 2;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let data = b"hello world".to_vec();
@@ -603,9 +779,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let bytes = signed_tx.into_raw().encode_to_vec();
-
-        app.deliver_tx(&bytes).await.unwrap();
+        app.deliver_tx(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         assert_eq!(
@@ -623,7 +797,6 @@ mod test {
             authority_sudo_key: alice_address,
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
-        app.processed_txs = 2;
 
         let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(&[1u8; 32]).unwrap();
         let update = tendermint::validator::Update {
@@ -639,14 +812,110 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let bytes = signed_tx.into_raw().encode_to_vec();
-
-        app.deliver_tx(&bytes).await.unwrap();
+        app.deliver_tx(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         let validator_updates = app.state.get_validator_updates().await.unwrap();
         assert_eq!(validator_updates.len(), 1);
         assert_eq!(validator_updates.get(&pub_key.into()).unwrap(), &update);
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_sudo_address_change() {
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_key: alice_address,
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let new_address = address_from_hex_string(BOB_ADDRESS);
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                proto::native::sequencer::v1alpha1::Action::SudoAddressChange(
+                    SudoAddressChangeAction {
+                        new_address,
+                    },
+                ),
+            ],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+
+        let sudo_address = app.state.get_sudo_address().await.unwrap();
+        assert_eq!(sudo_address, new_address);
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_sudo_address_change_error() {
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let sudo_address = address_from_hex_string(CAROL_ADDRESS);
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_key: sudo_address,
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                proto::native::sequencer::v1alpha1::Action::SudoAddressChange(
+                    SudoAddressChangeAction {
+                        new_address: alice_address,
+                    },
+                ),
+            ],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        let res = app
+            .deliver_tx(signed_tx)
+            .await
+            .unwrap_err()
+            .root_cause()
+            .to_string();
+        assert!(res.contains("signer is not the sudo key"));
+    }
+
+    #[cfg(feature = "mint")]
+    #[tokio::test]
+    async fn app_deliver_tx_mint() {
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_key: alice_address,
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let bob_address = address_from_hex_string(BOB_ADDRESS);
+        let value = 333_333;
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                MintAction {
+                    to: bob_address,
+                    amount: value,
+                }
+                .into(),
+            ],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+
+        assert_eq!(
+            app.state.get_account_balance(bob_address).await.unwrap(),
+            value + 10u128.pow(19)
+        );
+        assert_eq!(app.state.get_account_nonce(bob_address).await.unwrap(), 0);
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
     }
 
     #[tokio::test]
@@ -718,7 +987,6 @@ mod test {
     #[tokio::test]
     async fn app_deliver_tx_invalid_nonce() {
         let mut app = initialize_app(None, vec![]).await;
-        app.processed_txs = 2;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
@@ -736,8 +1004,7 @@ mod test {
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
-        let bytes = signed_tx.into_raw().encode_to_vec();
-        let response = app.deliver_tx(&bytes).await;
+        let response = app.deliver_tx(signed_tx).await;
 
         // check that tx was not executed by checking nonce and balance are unchanged
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 0);

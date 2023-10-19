@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use astria_sequencer_relayer::data_availability::{
+use astria_sequencer_types::calculate_last_commit_hash;
+use celestia_client::{
     RollupNamespaceData,
     SequencerNamespaceData,
     SignedNamespaceData,
 };
-use astria_sequencer_types::calculate_last_commit_hash;
 use color_eyre::eyre::{
     self,
     bail,
@@ -18,9 +18,8 @@ use ed25519_consensus::{
 };
 use prost::Message;
 use sequencer_client::{
-    tendermint::endpoint::validators,
+    tendermint_rpc::endpoint::validators,
     Client as _,
-    HttpClient,
 };
 use tendermint::{
     account,
@@ -35,17 +34,18 @@ use tendermint::{
 use tracing::instrument;
 
 /// `BlockVerifier` is verifying blocks received from celestia.
-#[derive(Debug)]
+#[derive(Clone)]
 pub(crate) struct BlockVerifier {
-    sequencer_client: HttpClient,
+    pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
 }
 
 impl BlockVerifier {
-    pub(crate) fn new(sequencer_url: &str) -> eyre::Result<Self> {
-        Ok(Self {
-            sequencer_client: HttpClient::new(sequencer_url)
-                .wrap_err("failed to construct sequencer client")?,
-        })
+    pub(crate) fn new(
+        pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
+    ) -> Self {
+        Self {
+            pool,
+        }
     }
 
     /// validates `SignedNamespaceData` received from Celestia.
@@ -56,95 +56,68 @@ impl BlockVerifier {
         data: &SignedNamespaceData<SequencerNamespaceData>,
     ) -> eyre::Result<()> {
         // get validator set for this height
-        let height: u32 = data.data.header.height.value().try_into().expect(
+        let height: u32 = data.data().header.height.value().try_into().expect(
             "a tendermint height (currently non-negative i32) should always fit into a u32",
         );
-        let validator_set = self
-            .sequencer_client
-            .validators(height, sequencer_client::tendermint::Paging::Default)
-            .await
-            .wrap_err("failed to get validator set")?;
-
-        validate_signed_namespace_data(validator_set, data)
-    }
-
-    /// validates `RollupNamespaceData` received from Celestia.
-    /// uses the given `SequencerNamespaceData` to validate the rollup data inclusion proof;
-    /// ie. that the rollup data received was actually what was included in a sequencer block,
-    /// (no transactions were added or omitted incorrectly, and the ordering is correct).
-    pub(crate) async fn validate_rollup_data(
-        &self,
-        sequencer_namespace_data: &SequencerNamespaceData,
-        rollup_data: &RollupNamespaceData,
-    ) -> eyre::Result<()> {
-        self.validate_sequencer_namespace_data(sequencer_namespace_data)
-            .await
-            .wrap_err("failed to validate sequencer block header and last commit")?;
-
-        // validate that rollup data was included in the sequencer block
-        rollup_data
-            .verify_inclusion_proof(sequencer_namespace_data.action_tree_root)
-            .wrap_err("failed to verify rollup data inclusion proof")?;
-        Ok(())
-    }
-
-    /// performs various validation checks on the sequencer data received from Celestia.
-    ///
-    /// checks performed:
-    /// - the proposer of the sequencer block matches the expected proposer for the block height
-    ///   from tendermint
-    /// - the signer of the SignedNamespaceData the proposer
-    /// - the signature is valid
-    /// - the root of the merkle tree of all the header fields matches the block's block_hash
-    /// - the root of the merkle tree of all transactions in the block matches the block's data_hash
-    /// - the inclusion proof of the action tree root inside `data_hash` is valid
-    /// - validate the block was actually finalized; ie >2/3 stake signed off on it
-    async fn validate_sequencer_namespace_data(
-        &self,
-        data: &SequencerNamespaceData,
-    ) -> eyre::Result<()> {
-        // sequencer block's height
-        let height: u32 = data.header.height.value().try_into().expect(
-            "a tendermint height (currently non-negative i32) should always fit into a u32",
-        );
-
-        // get the validator set for this height
         let current_validator_set = self
-            .sequencer_client
-            .validators(height, sequencer_client::tendermint::Paging::Default)
+            .pool
+            .get()
+            .await
+            .wrap_err("failed getting a client from the pool to get the current validator set")?
+            .validators(height, sequencer_client::tendermint_rpc::Paging::Default)
             .await
             .wrap_err("failed to get validator set")?;
+
+        validate_signed_namespace_data(&current_validator_set, data)
+            .wrap_err("failed validating signed namespace data")?;
 
         // get validator set for the previous height, as the commit contained
         // in the block is for the previous height
         let parent_validator_set = self
-            .sequencer_client
-            .validators(height - 1, sequencer_client::tendermint::Paging::Default)
+            .pool
+            .get()
+            .await
+            .wrap_err("failed getting a client from the pool to get the previous validator set")?
+            .validators(
+                height - 1,
+                sequencer_client::tendermint_rpc::Paging::Default,
+            )
             .await
             .wrap_err("failed to get validator set")?;
 
-        validate_sequencer_namespace_data(current_validator_set, parent_validator_set, data)
+        validate_sequencer_namespace_data(
+            &current_validator_set,
+            &parent_validator_set,
+            data.data(),
+        )
+        .wrap_err("failed validating sequencer data inside signed namespace data")
     }
 }
 
+pub(crate) fn validate_rollup_data(
+    rollup_data: &RollupNamespaceData,
+    action_tree_root: [u8; 32],
+) -> eyre::Result<()> {
+    rollup_data
+        .verify_inclusion_proof(action_tree_root)
+        .wrap_err("failed to verify rollup data inclusion proof")
+}
+
 fn validate_signed_namespace_data(
-    validator_set: validators::Response,
+    validator_set: &validators::Response,
     data: &SignedNamespaceData<SequencerNamespaceData>,
 ) -> eyre::Result<()> {
-    // verify the block signature
-    data.verify()
-        .wrap_err("failed to verify signature of signed namepsace data")?;
-
     // find proposer address for this height
-    let expected_proposer_public_key = get_proposer(&validator_set)
+    let expected_proposer_public_key = get_proposer(validator_set)
         .wrap_err("failed to get proposer from validator set")?
         .pub_key
         .to_bytes();
 
     // verify the namespace data signing public key matches the proposer public key
-    let proposer_public_key = &data.public_key;
+    let key = data.public_key();
+    let proposer_public_key = key.as_bytes();
     ensure!(
-        proposer_public_key == &expected_proposer_public_key,
+        proposer_public_key[..] == *expected_proposer_public_key,
         "public key mismatch: expected {}, got {}",
         hex::encode(expected_proposer_public_key),
         hex::encode(proposer_public_key),
@@ -154,10 +127,12 @@ fn validate_signed_namespace_data(
 }
 
 fn validate_sequencer_namespace_data(
-    current_validator_set: validators::Response,
-    parent_validator_set: validators::Response,
+    current_validator_set: &validators::Response,
+    parent_validator_set: &validators::Response,
     data: &SequencerNamespaceData,
 ) -> eyre::Result<()> {
+    use sha2::Digest as _;
+
     let SequencerNamespaceData {
         block_hash,
         header,
@@ -170,7 +145,7 @@ fn validate_sequencer_namespace_data(
 
     // find proposer address for this height
     let expected_proposer_address = account::Id::from(
-        get_proposer(&current_validator_set)
+        get_proposer(current_validator_set)
             .wrap_err("failed to get proposer from validator set")?
             .pub_key,
     );
@@ -197,7 +172,7 @@ fn validate_sequencer_namespace_data(
             // verify that the validator votes on the previous block have >2/3 voting power
             let last_commit = last_commit.clone();
             let chain_id = header.chain_id.clone();
-            ensure_commit_has_quorum(&last_commit, &parent_validator_set, chain_id.as_ref())
+            ensure_commit_has_quorum(&last_commit, parent_validator_set, chain_id.as_ref())
                 .wrap_err("failed to ensure commit has quorum")?
 
             // TODO: commit is for previous block; how do we handle this? (#50)
@@ -224,8 +199,9 @@ fn validate_sequencer_namespace_data(
     let Some(data_hash) = header.data_hash else {
         bail!("data hash should not be empty");
     };
+    let action_tree_root_hash = sha2::Sha256::digest(action_tree_root);
     action_tree_root_inclusion_proof
-        .verify(action_tree_root, data_hash)
+        .verify(&action_tree_root_hash, data_hash)
         .wrap_err("failed to verify action tree root inclusion proof")?;
 
     // validate the chain IDs commitment
@@ -463,9 +439,10 @@ mod test {
         let action_tree = MerkleTree::from_leaves(vec![vec![1, 2, 3], vec![4, 5, 6]]);
         let action_tree_root = action_tree.root();
 
-        let tx_tree = MerkleTree::from_leaves(vec![action_tree_root.to_vec()]);
+        let txs = vec![action_tree_root.to_vec()];
+        let (data_hash, tx_tree) =
+            astria_sequencer_types::sequencer_block_data::calculate_data_hash_and_tx_tree(&txs);
         let action_tree_root_inclusion_proof = tx_tree.prove_inclusion(0).unwrap();
-        let data_hash = tx_tree.root();
 
         let mut header = astria_sequencer_types::test_utils::default_header();
         let height = header.height.value() as u32;
@@ -486,8 +463,8 @@ mod test {
         };
 
         validate_sequencer_namespace_data(
-            validator_set,
-            make_test_validator_set(height - 1).0,
+            &validator_set,
+            &make_test_validator_set(height - 1).0,
             &sequencer_namespace_data,
         )
         .unwrap();
@@ -504,9 +481,10 @@ mod test {
         let action_tree = MerkleTree::from_leaves(leaves);
         let action_tree_root = action_tree.root();
 
-        let tx_tree = MerkleTree::from_leaves(vec![action_tree_root.to_vec()]);
+        let txs = vec![action_tree_root.to_vec()];
+        let (data_hash, tx_tree) =
+            astria_sequencer_types::sequencer_block_data::calculate_data_hash_and_tx_tree(&txs);
         let action_tree_root_inclusion_proof = tx_tree.prove_inclusion(0).unwrap();
-        let data_hash = tx_tree.root();
 
         let mut header = astria_sequencer_types::test_utils::default_header();
         let height = header.height.value() as u32;
@@ -528,16 +506,16 @@ mod test {
             chain_ids_commitment: MerkleTree::from_leaves(vec![test_chain_id.to_vec()]).root(),
         };
 
-        let rollup_namespace_data = RollupNamespaceData::new(
+        let rollup_namespace_data = RollupNamespaceData {
             block_hash,
-            astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
-            vec![test_tx],
-            action_tree.prove_inclusion(0).unwrap(),
-        );
+            chain_id: astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
+            rollup_txs: vec![test_tx],
+            inclusion_proof: action_tree.prove_inclusion(0).unwrap(),
+        };
 
         validate_sequencer_namespace_data(
-            validator_set,
-            make_test_validator_set(height - 1).0,
+            &validator_set,
+            &make_test_validator_set(height - 1).0,
             &sequencer_namespace_data,
         )
         .unwrap();

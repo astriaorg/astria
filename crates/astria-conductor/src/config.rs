@@ -1,3 +1,5 @@
+//! The conductor configuration.
+
 use figment::{
     providers::Env,
     Figment,
@@ -7,11 +9,27 @@ use serde::{
     Serialize,
 };
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum CommitLevel {
+    SoftOnly,
+    FirmOnly,
+    SoftAndFirm,
+}
+
+impl CommitLevel {
+    pub fn is_soft_only(&self) -> bool {
+        matches!(self, Self::SoftOnly)
+    }
+
+    pub fn is_firm_only(&self) -> bool {
+        matches!(self, Self::FirmOnly)
+    }
+}
+
 pub fn get() -> Result<Config, figment::Error> {
     Config::from_environment("ASTRIA_CONDUCTOR_")
 }
 
-/// The global configuration for the driver and its components.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
@@ -20,9 +38,6 @@ pub struct Config {
 
     /// The JWT bearer token supplied with each jsonrpc call
     pub celestia_bearer_token: String,
-
-    /// URL of the Tendermint node (sequencer/metro)
-    pub tendermint_url: String,
 
     /// URL of the sequencer cometbft websocket
     pub sequencer_url: String,
@@ -33,9 +48,6 @@ pub struct Config {
     /// Address of the RPC server for execution
     pub execution_rpc_url: String,
 
-    /// Disable reading from the DA layer and block finalization
-    pub disable_finalization: bool,
-
     /// log directive to use for telemetry.
     pub log: String,
 
@@ -43,7 +55,11 @@ pub struct Config {
     pub disable_empty_block_execution: bool,
 
     /// The Sequencer block height that the rollup genesis block was in
-    pub initial_sequencer_block_height: u64,
+    pub initial_sequencer_block_height: u32,
+
+    /// The execution commit level used for controlling how blocks are sent to
+    /// the execution layer.
+    pub execution_commit_level: CommitLevel,
 }
 
 impl Config {
