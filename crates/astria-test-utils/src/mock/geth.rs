@@ -8,12 +8,12 @@
 //!
 //! The intended use for the mock is to:
 //!
-//! 1. spawn a server with [`MockGeth::spawn`];
+//! 1. spawn a server with [`Geth::spawn`];
 //! 2. establish a websocket connection using its local socket address at [`MockGet::local_addr`],
 //!    for example with [`Provider::<Ws>::connect`];
 //! 3. subscribe to its mocked `eth_subscribe` JSONRPC using
 //!    [`Middleware::subscribe_full_pending_txs`];
-//! 4. push new transactions into the server using [`MockGeth::push_tx`], which will subsequently be
+//! 4. push new transactions into the server using [`Geth::push_tx`], which will subsequently be
 //!    sent to all suscribers and can be observed by the client.
 //!
 //! # Examples
@@ -22,29 +22,35 @@
 //! # tokio_test::block_on( async {
 //! use std::time::Duration;
 //!
+//! use astria_test_utils::mock::Geth;
 //! use ethers::{
-//!     providers::{Middleware as _, Provider, StreamExt as _, Ws},
+//!     providers::{
+//!         Middleware as _,
+//!         Provider,
+//!         StreamExt as _,
+//!         Ws,
+//!     },
 //!     types::Transaction,
 //! };
-//! use jsonrpsee_ethers::MockGeth;
 //!
 //! println!("connecting!!");
-//! let mock_geth = MockGeth::spawn().await;
+//! let mock_geth = Geth::spawn().await;
 //! let server_addr = mock_geth.local_addr();
 //!
 //! tokio::spawn(async move {
 //!     loop {
-//! #       // FIXME: remove the sleep. at the moment this doc tests only passes when
-//! #       //        when expclitly sleeping. Why?
+//! #       // FIXME: remove the sleep. at the moment this doc tests only passes
+//! #       //        when explicitly sleeping. Why?
 //!         tokio::time::sleep(Duration::from_secs(1)).await;
 //!         let r = mock_geth.push_tx(Transaction::default());
 //!     }
-//! })
+//! });
 //!
 //! let geth_client = Provider::<Ws>::connect(format!("ws://{server_addr}"))
 //!     .await
 //!     .expect("client should be able to conenct to local ws server");
-//! let mut new_txs = geth_client.subscribe_full_pending_txs()
+//! let mut new_txs = geth_client
+//!     .subscribe_full_pending_txs()
 //!     .await
 //!     .unwrap()
 //!     .take(3);
@@ -62,7 +68,6 @@ use jsonrpsee::{
         async_trait,
         SubscriptionResult,
     },
-    proc_macros::rpc,
     server::IdProvider,
     types::{
         ErrorObjectOwned,
@@ -98,16 +103,26 @@ impl IdProvider for RandomU256IdProvider {
     }
 }
 
-// The mockserver has to be able to handle an `eth_subscribe` RPC with parameters
-// `"newPendingTransactions"` and `true`
-#[rpc(server)]
-pub trait Geth {
-    #[subscription(name = "eth_subscribe", item = Transaction, unsubscribe = "eth_unsubscribe")]
-    async fn eth_subscribe(&self, target: String, full_txs: Option<bool>) -> SubscriptionResult;
+mod __rpc_traits {
+    use jsonrpsee::{
+        core::SubscriptionResult,
+        proc_macros::rpc,
+        types::ErrorObjectOwned,
+    };
+    // The mockserver has to be able to handle an `eth_subscribe` RPC with parameters
+    // `"newPendingTransactions"` and `true`
+    #[rpc(server)]
+    pub trait Geth {
+        #[subscription(name = "eth_subscribe", item = Transaction, unsubscribe = "eth_unsubscribe")]
+        async fn eth_subscribe(&self, target: String, full_txs: Option<bool>)
+        -> SubscriptionResult;
 
-    #[method(name = "net_version")]
-    async fn net_version(&self) -> Result<String, ErrorObjectOwned>;
+        #[method(name = "net_version")]
+        async fn net_version(&self) -> Result<String, ErrorObjectOwned>;
+    }
 }
+
+pub use __rpc_traits::GethServer;
 
 pub struct GethImpl {
     new_tx_sender: Sender<Transaction>,
@@ -147,7 +162,10 @@ impl GethServer for GethImpl {
     }
 }
 
-pub struct MockGeth {
+/// A mocked geth server for subscribing to new transactions.
+///
+/// Allows for explicitly pushing transactions to subscribed clients.
+pub struct Geth {
     /// The local address to which the mocked jsonrpc server is bound.
     local_addr: SocketAddr,
     /// A channel over which new transactions can be inserted into the mocked
@@ -157,9 +175,11 @@ pub struct MockGeth {
     _server_task_handle: tokio::task::JoinHandle<()>,
 }
 
-impl MockGeth {
+impl Geth {
     /// Spawns a new mocked geth server.
+    ///
     /// # Panics
+    ///
     /// Panics if the server fails to start.
     pub async fn spawn() -> Self {
         use jsonrpsee::server::Server;

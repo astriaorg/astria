@@ -360,6 +360,7 @@ dependencies = [
  "astria-proto",
  "astria-sequencer-client",
  "astria-telemetry",
+ "astria-test-utils",
  "async-trait",
  "axum",
  "backon",
@@ -371,8 +372,6 @@ dependencies = [
  "hex",
  "humantime",
  "hyper",
- "impl-serde",
- "jsonrpsee",
  "once_cell",
  "rand 0.8.5",
  "regex",
@@ -383,7 +382,6 @@ dependencies = [
  "tendermint 0.33.2",
  "tendermint-rpc",
  "tokio",
- "tokio-test",
  "tokio-util 0.7.9",
  "tracing",
  "tryhard",
@@ -598,6 +596,18 @@ version = "0.1.0"
 dependencies = [
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "astria-test-utils"
+version = "0.1.0"
+dependencies = [
+ "ethers",
+ "impl-serde",
+ "jsonrpsee",
+ "rand 0.8.5",
+ "tokio",
+ "tokio-test",
 ]
 
 [[package]]

@@ -13,6 +13,7 @@ members = [
   "crates/astria-sequencer-utils",
   "crates/astria-sequencer-validation",
   "crates/astria-telemetry",
+  "crates/astria-test-utils",
 ]
 resolver = "2"
 
