@@ -14,13 +14,18 @@ use tokio::{
         mpsc::{
             self,
             Receiver,
+            Sender,
         },
         watch,
     },
-    task::JoinSet,
+    task::{
+        JoinError,
+        JoinSet,
+    },
 };
 use tracing::{
     error,
+    instrument,
     warn,
 };
 
@@ -44,7 +49,9 @@ pub(super) struct Searcher {
     collectors: HashMap<String, Collector>,
     collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
     // A channel on which the searcher receives transactions from its collectors.
-    new_transactions: Receiver<collector::Transaction>,
+    new_transactions_rx: Receiver<collector::Transaction>,
+    new_transactions_tx: Sender<collector::Transaction>,
+    rollups: HashMap<String, String>,
     collector_tasks: tokio_util::task::JoinMap<String, eyre::Result<()>>,
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
@@ -78,11 +85,7 @@ impl Searcher {
     /// Errors are returned in the following scenarios:
     /// + failed to connect to the eth RPC server;
     /// + failed to construct a sequencer clinet
-    pub(super) async fn from_config(cfg: &Config) -> eyre::Result<Self> {
-        use futures::{
-            FutureExt as _,
-            StreamExt as _,
-        };
+    pub(super) fn from_config(cfg: &Config) -> eyre::Result<Self> {
         use rollup::Rollup;
         let rollups = cfg
             .rollups
@@ -92,36 +95,16 @@ impl Searcher {
             .collect::<Result<HashMap<_, _>, _>>()
             .wrap_err("failed parsing provided <chain_id>::<url> pairs as rollups")?;
 
-        let (tx_sender, new_transactions) = mpsc::channel(256);
+        let (new_transactions_tx, new_transactions_rx) = mpsc::channel(256);
 
-        let mut create_collectors = rollups
-            .into_iter()
+        let collectors = rollups
+            .iter()
             .map(|(chain_id, url)| {
-                let task_name = chain_id.clone();
-                tokio::spawn(Collector::new(chain_id, url, tx_sender.clone()))
-                    .map(move |result| (task_name, result))
+                let collector =
+                    Collector::new(chain_id.clone(), url.clone(), new_transactions_tx.clone());
+                (chain_id.clone(), collector)
             })
-            .collect::<futures::stream::FuturesUnordered<_>>();
-        // TODO(https://github.com/astriaorg/astria/issues/287): add timeouts or abort handles
-        // so this doesn't stall the entire server from coming up.
-        let mut collectors = HashMap::new();
-        while let Some((chain_id, join_result)) = create_collectors.next().await {
-            match join_result {
-                Err(err) => {
-                    return Err(err).wrap_err_with(|| {
-                        format!("task starting collector for {chain_id} panicked")
-                    });
-                }
-                Ok(Err(err)) => {
-                    return Err(err)
-                        .wrap_err_with(|| format!("failed starting collector for {chain_id}"));
-                }
-                Ok(Ok(collector)) => {
-                    collectors.insert(chain_id, collector);
-                }
-            }
-        }
-
+            .collect::<HashMap<_, _>>();
         let collector_statuses = collectors
             .iter()
             .map(|(chain_id, collector)| (chain_id.clone(), collector.subscribe()))
@@ -139,12 +122,14 @@ impl Searcher {
             status,
             collectors,
             collector_statuses,
-            new_transactions,
+            new_transactions_rx,
+            new_transactions_tx,
             collector_tasks: tokio_util::task::JoinMap::new(),
             conversion_tasks: JoinSet::new(),
             executor_tx,
             executor_status,
             executor: Some(executor),
+            rollups,
         })
     }
 
@@ -209,7 +194,7 @@ impl Searcher {
         loop {
             select!(
                 // serialize and sign sequencer tx for incoming pending rollup txs
-                Some(rollup_tx) = self.new_transactions.recv() => self.bundle_pending_tx(rollup_tx),
+                Some(rollup_tx) = self.new_transactions_rx.recv() => self.bundle_pending_tx(rollup_tx),
 
                 // submit signed sequencer txs to sequencer
                 Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
@@ -221,6 +206,10 @@ impl Searcher {
                             "conversion task failed while trying to convert pending rollup transaction to signed sequencer transaction",
                         ),
                     }
+                }
+
+                Some((rollup, collector_exit)) = self.collector_tasks.join_next() => {
+                    self.respawn_exited_collector(rollup, collector_exit);
                 }
 
                 ret = &mut executor_handle => {
@@ -249,6 +238,38 @@ impl Searcher {
         }
 
         Ok(())
+    }
+
+    #[instrument(skip_all, fields(rollup))]
+    fn respawn_exited_collector(
+        &mut self,
+        rollup: String,
+        exit_result: Result<eyre::Result<()>, JoinError>,
+    ) {
+        match exit_result {
+            Ok(Ok(())) => warn!("collector exited unexpectedly; respawning"),
+            Ok(Err(e)) => {
+                let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                warn!(error, "collector exit with error; respawning");
+            }
+            Err(e) => {
+                let error = &e as &(dyn std::error::Error + 'static);
+                warn!(error, "collector task failed; respawning");
+            }
+        }
+        let Some(url) = self.rollups.get(&rollup) else {
+            warn!("rollup has no entry in rollup->url map; not respawning it");
+            return;
+        };
+        let collector = Collector::new(
+            rollup.clone(),
+            url.clone(),
+            self.new_transactions_tx.clone(),
+        );
+        self.collector_statuses
+            .insert(rollup.clone(), collector.subscribe());
+        self.collector_tasks
+            .spawn(rollup, collector.run_until_stopped());
     }
 
     /// Spawns all collector on the collector task set.
