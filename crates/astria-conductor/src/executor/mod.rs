@@ -28,6 +28,7 @@ use tokio::{
         oneshot,
     },
 };
+use tonic::transport::Channel;
 use tracing::{
     debug,
     error,
@@ -80,7 +81,7 @@ pub(crate) struct Executor {
     shutdown: oneshot::Receiver<()>,
 
     /// The execution rpc client that we use to send messages to the execution service
-    execution_rpc_client: ExecutionRpcClient,
+    execution_rpc_client: ExecutionServiceClient<Channel>,
 
     /// Chain ID
     chain_id: ChainId,
@@ -111,7 +112,7 @@ impl Executor {
         cmd_rx: Receiver,
         shutdown: oneshot::Receiver<()>,
     ) -> Result<Self> {
-        let mut execution_rpc_client = ExecutionServiceClient::connect(server_addr)
+        let mut execution_rpc_client = ExecutionServiceClient::connect(server_addr.to_owned())
             .await
             .wrap_err("failed to create execution rpc client")?;
         let commitment_state = execution_rpc_client
@@ -244,7 +245,7 @@ impl Executor {
 
         let executed_block = self
             .execution_rpc_client
-            .call_execute_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
+            .call_execute_block(prev_block_hash, block.rollup_transactions, timestamp)
             .await?;
 
         // store block hash returned by execution client, as we need it to finalize the block later
@@ -308,12 +309,12 @@ impl Executor {
             return Ok(());
         };
         let sequencer_block_hash = block.block_hash;
-        let maybe_execution_block = self
+        let maybe_executed_block = self
             .sequencer_hash_to_execution_block
             .get(&sequencer_block_hash)
             .cloned();
-        match maybe_execution_block {
-            Some(execution_block) => {
+        match maybe_executed_block {
+            Some(executed_block) => {
                 // this case means block has already been executed.
                 self.update_firm_commitment(executed_block.clone())
                     .await
@@ -333,7 +334,7 @@ impl Executor {
                 // execute_block will check if our namespace has txs; if so, it'll return the
                 // resulting execution block hash, otherwise None
                 let Some(executed_block) = self
-                    .execute_block(block)
+                    .execute_block(block.clone())
                     .await
                     .wrap_err("failed to execute block")?
                 else {

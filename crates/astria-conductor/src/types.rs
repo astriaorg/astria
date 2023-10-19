@@ -1,4 +1,4 @@
-use astria_proto::generated::execution::v1alpha2::{
+use proto::generated::execution::v1alpha2::{
     Block,
     CommitmentState,
 };
