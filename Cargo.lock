@@ -394,6 +394,7 @@ name = "astria-conductor"
 version = "0.7.0"
 dependencies = [
  "astria-celestia-client",
+ "astria-optimism",
  "astria-proto",
  "astria-sequencer-client",
  "astria-sequencer-types",
@@ -404,6 +405,7 @@ dependencies = [
  "color-eyre",
  "deadpool 0.10.0",
  "ed25519-consensus",
+ "ethers",
  "figment",
  "futures",
  "hex",
@@ -434,6 +436,7 @@ version = "0.1.0"
 dependencies = [
  "ethers",
  "eyre",
+ "futures",
  "hex",
  "tokio",
 ]

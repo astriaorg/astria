@@ -1,30 +1,11 @@
 use ethers::{
-    abi::ParamType,
     contract::EthAbiType,
     prelude::*,
     types::transaction::optimism_deposited::OptimismDepositedTransactionRequest as DepositTransaction,
 };
+use eyre::WrapErr as _;
 
-use crate::contract::{
-    OptimismPortal,
-    TransactionDepositedFilter,
-};
-
-/// Listens to [`TransactionDeposited`] events on the [`OptimismPortal`] contract.
-///
-/// # Errors
-///
-/// - if the event stream fails to initialize.
-pub async fn listen_to_deposit_events(contract: OptimismPortal<Provider<Ws>>) -> eyre::Result<()> {
-    let events = contract.event::<TransactionDepositedFilter>().from_block(1);
-    let mut stream = events.stream().await?.with_meta().take(1);
-
-    while let Some(Ok((event, meta))) = stream.next().await {
-        println!("TransactionDeposited event: {event:?} {meta:?}");
-    }
-
-    Ok(())
-}
+use crate::contract::TransactionDepositedFilter;
 
 #[derive(Clone, EthAbiType)]
 struct TransactionDepositedOpaqueData {
@@ -45,13 +26,12 @@ struct TransactionDepositedOpaqueData {
 /// # Errors
 ///
 /// - if the opaque data in the event cannot be decoded.
+/// - if the decoded event data cannot be converted into the correct types.
 pub fn convert_deposit_event_to_deposit_tx(
     event: TransactionDepositedFilter,
     block_hash: H256,
     log_index: U256,
 ) -> eyre::Result<DepositTransaction> {
-    use abi::Detokenize as _;
-
     let TransactionDepositedFilter {
         from,
         to,
@@ -59,32 +39,21 @@ pub fn convert_deposit_event_to_deposit_tx(
         opaque_data,
     } = event;
 
-    // from OptimismPortal.sol:
-    // `bytes memory opaqueData = abi.encodePacked(msg.value, _value, _gasLimit, _isCreation,
-    // _data);`
-    let opaque_data_param_types = vec![
-        ParamType::Uint(256),
-        ParamType::Uint(256),
-        ParamType::Uint(64),
-        ParamType::Bool,
-        ParamType::Bytes,
-    ];
-
     // abi-decode the opaque data
-    let tokens = abi::decode_whole(&opaque_data_param_types, &opaque_data)?;
     let TransactionDepositedOpaqueData {
         msg_value,
         value,
         gas_limit,
         is_creation,
         data,
-    } = TransactionDepositedOpaqueData::from_tokens(tokens)?;
+    } = decode_packed_opaque_data(&opaque_data).wrap_err("failed to decode opaque data")?;
     let mint = if msg_value.is_zero() {
         None
     } else {
         Some(msg_value)
     };
     let to = if is_creation { None } else { Some(to) };
+    let data = if data.len() == 0 { None } else { Some(data) };
 
     Ok(DepositTransaction {
         tx: ethers::types::TransactionRequest {
@@ -93,13 +62,42 @@ pub fn convert_deposit_event_to_deposit_tx(
             gas: Some(gas_limit.into()),
             gas_price: None,
             value: Some(value),
-            data: Some(data),
+            data,
             nonce: None,
             chain_id: None,
         },
         source_hash: Some(get_user_deposit_source_hash(block_hash, log_index).into()),
         mint,
         is_system_tx: Some(false),
+    })
+}
+
+// from OptimismPortal.sol:
+// `bytes memory opaqueData = abi.encodePacked(msg.value, _value, _gasLimit, _isCreation,
+// _data);`
+//
+// ethers-rs has no decode_packed :/
+fn decode_packed_opaque_data(data: &Bytes) -> eyre::Result<TransactionDepositedOpaqueData> {
+    const MIN_LEN: usize = 32;
+    if data.len() < MIN_LEN {
+        return Err(eyre::eyre!(
+            "data is too short to be packed opaque data: {} < {}",
+            data.len(),
+            MIN_LEN
+        ));
+    }
+
+    let msg_value = U256::from_big_endian(&data[..32]);
+    let value = U256::from_big_endian(&data[32..64]);
+    let gas_limit = u64::from_be_bytes(data[64..72].try_into().unwrap());
+    let is_creation = data[72] != 0;
+    let data = data[73..].to_vec().into();
+    Ok(TransactionDepositedOpaqueData {
+        msg_value,
+        value,
+        gas_limit,
+        is_creation,
+        data,
     })
 }
 
@@ -117,6 +115,22 @@ mod test {
 
     use super::*;
     use crate::contract::*;
+
+    /// Listens to [`TransactionDeposited`] events on the [`OptimismPortal`] contract.
+    ///
+    /// # Errors
+    ///
+    /// - if the event stream fails to initialize.
+    async fn listen_to_deposit_events(contract: OptimismPortal<Provider<Ws>>) -> eyre::Result<()> {
+        let events = contract.event::<TransactionDepositedFilter>().from_block(1);
+        let mut stream = events.stream().await?.with_meta().take(1);
+
+        while let Some(Ok((event, meta))) = stream.next().await {
+            println!("TransactionDeposited event: {event:?} {meta:?}");
+        }
+
+        Ok(())
+    }
 
     #[tokio::test]
     async fn test_listen_to_deposit_events() {

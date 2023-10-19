@@ -14,6 +14,7 @@ deadpool = { version = "0.10.0", default-features = false, features = [
   "managed",
 ] }
 ed25519-consensus = { workspace = true }
+ethers = {version = "2.0", features = ["optimism", "ws"] }
 figment = { workspace = true, features = ["env"] }
 futures = { workspace = true }
 hex = { workspace = true }
@@ -35,6 +36,7 @@ tracing = { workspace = true }
 
 celestia_client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 astria-sequencer-types = { path = "../astria-sequencer-types" }
+optimism = { package = "astria-optimism", path = "../astria-optimism" }
 proto = { package = "astria-proto", path = "../astria-proto", features = [
   "client",
 ] }

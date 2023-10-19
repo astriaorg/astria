@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{
+    HashMap,
+    VecDeque,
+};
 
 use astria_sequencer_types::{
     ChainId,
@@ -8,6 +11,15 @@ use color_eyre::eyre::{
     self,
     Result,
     WrapErr as _,
+};
+use ethers::prelude::*;
+use optimism::{
+    contract::{
+        OptimismPortal,
+        TransactionDepositedFilter,
+    },
+    watcher::convert_deposit_event_to_deposit_tx,
+    OptimismDepositedTransactionRequest,
 };
 use prost_types::Timestamp as ProstTimestamp;
 use tendermint::{
@@ -97,6 +109,9 @@ pub(crate) struct Executor {
 
     /// Chose to execute empty blocks or not
     disable_empty_block_execution: bool,
+
+    optimism_portal_contract: OptimismPortal<Provider<Ws>>,
+    queued_deposit_txs: VecDeque<OptimismDepositedTransactionRequest>,
 }
 
 impl Executor {
@@ -106,6 +121,7 @@ impl Executor {
         disable_empty_block_execution: bool,
         cmd_rx: Receiver,
         shutdown: oneshot::Receiver<()>,
+        optimism_portal_contract: OptimismPortal<Provider<Ws>>,
     ) -> Result<Self> {
         let mut execution_rpc_client = ExecutionRpcClient::new(server_addr)
             .await
@@ -123,11 +139,20 @@ impl Executor {
             execution_state,
             sequencer_hash_to_execution_hash: HashMap::new(),
             disable_empty_block_execution,
+            optimism_portal_contract,
+            queued_deposit_txs: VecDeque::new(),
         })
     }
 
     #[instrument(skip_all)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+        // TODO: configure starting block
+        let events = self
+            .optimism_portal_contract
+            .event::<TransactionDepositedFilter>()
+            .from_block(1);
+        let mut stream = events.stream().await?.with_meta();
+
         loop {
             select!(
                 biased;
@@ -138,6 +163,51 @@ impl Executor {
                         Ok(()) => info!("received shutdown signal; shutting down"),
                     }
                     break;
+                }
+
+                res = stream.next() => {
+                    match res {
+                        None => {
+                            warn!("event stream closed unexpectedly; shutting down");
+                            break;
+                        }
+                        Some(Ok((event, meta))) => {
+                            let deposit_tx = match convert_deposit_event_to_deposit_tx(event, meta.block_hash, meta.log_index) {
+                                Ok(deposit_tx) => deposit_tx,
+                                Err(e) => {
+                                    warn!(error.message = %e, "failed to convert deposit event to deposit tx");
+                                    continue;
+                                }
+                            };
+                            info!(
+                                ethereum_block_hash = ?meta.block_hash,
+                                ethereum_log_index = ?meta.log_index,
+                                "queuing deposit transaction",
+                            );
+                            self.queued_deposit_txs.push_back(deposit_tx);
+
+                            // HACK just execute stuff for now to see if it works
+                            let mut deposit_txs = Vec::new();
+                            while let Some(deposit_tx) = self.queued_deposit_txs.pop_front() {
+                                deposit_txs.push(deposit_tx);
+                            }
+                            let deposit_txs = deposit_txs
+                                .into_iter()
+                                .map(|tx| tx.rlp().to_vec())
+                                .collect::<Vec<Vec<u8>>>();
+
+                            let response = self
+                                .execution_rpc_client
+                                .call_do_block(self.execution_state.clone(), deposit_txs, Some(convert_tendermint_to_prost_timestamp(tendermint::Time::now())?))
+                                .await?;
+                            self.execution_state = response.block_hash.clone();
+
+                        }
+                        Some(Err(e)) => {
+                            warn!(error.message = %e, "event stream returned with error; shutting down");
+                            break;
+                        }
+                    }
                 }
 
                 cmd = self.cmd_rx.recv() => {
@@ -217,9 +287,21 @@ impl Executor {
         let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
+        // gather and encode deposit transactions
+        let mut deposit_txs = Vec::new();
+        while let Some(deposit_tx) = self.queued_deposit_txs.pop_front() {
+            deposit_txs.push(deposit_tx);
+        }
+        let deposit_txs = deposit_txs
+            .into_iter()
+            .map(|tx| tx.rlp().to_vec())
+            .collect::<Vec<Vec<u8>>>();
+
+        let rollup_transactions = [deposit_txs, block.rollup_transactions].concat();
+
         let response = self
             .execution_rpc_client
-            .call_do_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
+            .call_do_block(prev_block_hash, rollup_transactions, Some(timestamp))
             .await?;
         self.execution_state = response.block_hash.clone();
 
