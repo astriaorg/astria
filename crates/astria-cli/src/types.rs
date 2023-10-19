@@ -218,7 +218,7 @@ mod tests {
             log_level: "info".to_string(),
             name: "rollup2".to_string(),
             chain_id: None,
-            network_id: 2211011801,
+            network_id: 2_211_011_801,
             skip_empty_blocks: false,
             genesis_accounts: vec![GenesisAccountArg {
                 address: "0xA5TR14".to_string(),
