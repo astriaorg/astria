@@ -24,6 +24,7 @@ use futures::{
 };
 use sequencer_client::{
     extension_trait::NewBlocksStream,
+    tendermint::block::Height,
     NewBlockStreamError,
 };
 use tokio::{
@@ -40,7 +41,6 @@ use tracing::{
 use crate::{
     client_provider::ClientProvider,
     executor,
-    executor::ExecutorCommand,
 };
 
 mod sync;
@@ -111,24 +111,22 @@ impl Reader {
                 return Err(e).wrap_err("first sequencer block returned from subscription was bad");
             }
             Some(Ok(block)) => {
-                let height = block.header().height.value();
-                pending_blocks.push_back(futures::future::ready(Ok(block)));
+                let height = block.header().height;
+                pending_blocks.push_back(futures::future::ready(block));
                 height
             }
         };
 
-        let next_height: u32 = latest_height.try_into().wrap_err(
-            "failed converting the cometbft height to u32, but this should always work",
-        )?;
+        let mut next_height = latest_height;
 
         info!(
-            height.initial = start_sync_height,
-            height.latest = next_height,
+            height.initial = %start_sync_height,
+            height.latest = %next_height,
             "syncing sequencer between configured initial and latest retrieved height"
         );
 
         let mut sync = sync::run(
-            start_sync_height,
+            start_sync_height.into(),
             next_height,
             pool.clone(),
             executor_tx.clone(),
@@ -138,7 +136,7 @@ impl Reader {
 
         let mut sync_done = Some(sync_done);
         let mut resubscribe = future::Fuse::terminated();
-        'reader_loop: loop {
+        let exit_reason = 'reader_loop: loop {
             select! {
                 shutdown = &mut shutdown => {
                     let ret = match shutdown {
@@ -182,11 +180,21 @@ impl Reader {
 
                 // Regular pending blocks will be submitted to the executor in the order they were received.
                 // The condition on `sync` ensures that blocks from the sync process are forwarded first.
-                Some(res) = pending_blocks.next(), if sync.is_terminated() => {
-                    if let Err(e) = forward_pending_block_or_resync(next_height, executor_tx.clone(), pool.clone(), &mut pending_blocks, &mut sync, res) {
-                        let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                        error!(error, "failed forwarding sequencer block during normal operation; bailing");
-                        break 'reader_loop Err(e).wrap_err("failed forwarding sequencer block during normal operation");
+                Some(block) = pending_blocks.next(), if sync.is_terminated() => {
+                    match forward_block_or_resync(
+                        block,
+                        next_height,
+                        &mut pending_blocks,
+                        &mut sync,
+                        pool.clone(),
+                        executor_tx.clone())
+                    {
+                        Err(e) => {
+                            let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                            error!(error, "fatally failed to handle new pending block; exiting reader loop");
+                            break 'reader_loop Err(e);
+                        }
+                        Ok(new_next_height) => next_height = new_next_height,
                     }
                 }
 
@@ -204,7 +212,8 @@ impl Reader {
                     }
                 }
             }
-        }
+        };
+        exit_reason
     }
 }
 
@@ -289,69 +298,82 @@ async fn subscribe_new_blocks(
     .map_err(|_| ResubscriptionError::BackoffFailed)
 }
 
-fn forward_pending_block_or_resync(
-    expected_height: u32,
-    executor_tx: executor::Sender,
-    pool: Pool<ClientProvider>,
-    pending_blocks: &mut FuturesOrdered<Ready<Result<SequencerBlockData, NewBlockStreamError>>>,
+/// Forwards a sequencer block to the executor if it contains the expected height, or reschedules
+/// the block for later while fetching blocks for all missing heights.
+///
+/// Returns the next expected height.
+///
+/// The following cases are considered:
+///
+/// 1. if `h == h'` the block is forwarded to the executor. `h+1` is returned as the next expected
+///    height.
+/// 2. if `h < h'` the block is dropped because its height `h'` is below the expected height `h`.
+///    `h` is returned as the next expected height (i.e. no change in the expected height).
+/// 3. if `h > h'` a re-sync is scheduled for the range `h..h'`, the block is pushed to the front of
+///    the queue to be forwarded later. `h'` (the height of the re-scheduled block) is returned as
+///    the next expected height.
+#[instrument(
+    skip_all,
+    fields(
+        height.expected = %expected_height,
+        height.block = %block.header().height,
+        block.hash = %block.block_hash()
+    )
+)]
+fn forward_block_or_resync(
+    block: SequencerBlockData,
+    expected_height: Height,
+    pending_blocks: &mut FuturesOrdered<Ready<SequencerBlockData>>,
     sync: &mut future::Fuse<Pin<Box<dyn Future<Output = eyre::Result<()>> + Send>>>,
-    res: Result<SequencerBlockData, NewBlockStreamError>,
-) -> eyre::Result<u32> {
+    pool: Pool<ClientProvider>,
+    executor_tx: executor::Sender,
+) -> eyre::Result<Height> {
     use futures::FutureExt as _;
-    let block = match res {
-        Err(e) => {
-            warn!(error.message = %e, error.cause = ?e, "response from sequencer block subscription was bad; dropping it");
-            return Ok(expected_height);
-        }
-        Ok(block) => block,
-    };
-    let block_height = block
-        .header()
-        .height
-        .value()
-        .try_into()
-        .wrap_err("failed converting cometbft to u32, although this should always work")?;
+
+    let block_height = block.header().height;
 
     match expected_height.cmp(&block_height) {
         // received block is at expected height: send to the executor
         std::cmp::Ordering::Equal => {
-            executor_tx
-                .send(ExecutorCommand::FromSequencer {
-                    block: Box::new(block),
-                })
-                .wrap_err("failed sending new block received from sequencer to executor")?;
-            Ok(expected_height + 1)
+            let () = executor_tx
+                .send(block.into())
+                .wrap_err("forwarding sequencer block to executor failed")?;
+            Ok(expected_height.increment())
         }
         // received block is above expected height: start a re-sync and reschedule the block at its
         // height
         std::cmp::Ordering::Less => {
-            pending_blocks.push_front(future::ready(Ok(block)));
-            *sync = sync::run(expected_height, block_height, pool, executor_tx)
+            pending_blocks.push_front(future::ready(block));
+            let missing_start = expected_height;
+            let missing_end = block_height;
+            *sync = sync::run(missing_start, missing_end, pool, executor_tx)
                 .boxed()
                 .fuse();
             Ok(block_height)
         }
         // received block is below expected height: drop it
-        std::cmp::Ordering::Greater => {
-            warn!(
-                height.expected = expected_height,
-                height.block = block_height,
-                "height in block was below expected; dropping block"
-            );
-            Ok(expected_height)
-        }
+        std::cmp::Ordering::Greater => Ok(expected_height),
     }
 }
 
 fn schedule_for_forwarding_or_resubscribe(
     resubscribe: &mut ResubFut,
-    pending_blocks: &mut FuturesOrdered<Ready<Result<SequencerBlockData, NewBlockStreamError>>>,
+    pending_blocks: &mut FuturesOrdered<Ready<SequencerBlockData>>,
     pool: Pool<ClientProvider>,
     res: Option<Result<SequencerBlockData, NewBlockStreamError>>,
 ) {
     use futures::future::FutureExt as _;
     if let Some(res) = res {
-        pending_blocks.push_back(futures::future::ready(res));
+        match res {
+            Err(e) => {
+                let error = &e as &(dyn std::error::Error + 'static);
+                warn!(
+                    error,
+                    "block received from sequencer subscription was bad; dropping it"
+                );
+            }
+            Ok(block) => pending_blocks.push_back(futures::future::ready(block)),
+        }
     } else {
         warn!("sequencer new-block subscription closed unexpectedly; attempting to resubscribe");
         *resubscribe = subscribe_new_blocks(pool).boxed().fuse();

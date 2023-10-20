@@ -69,6 +69,14 @@ pub(crate) enum ExecutorCommand {
     FromCelestia(Vec<SequencerBlockSubset>),
 }
 
+impl From<SequencerBlockData> for ExecutorCommand {
+    fn from(block: SequencerBlockData) -> Self {
+        Self::FromSequencer {
+            block: Box::new(block),
+        }
+    }
+}
+
 pub(crate) struct Executor {
     /// Channel on which executor commands are received.
     cmd_rx: Receiver,
