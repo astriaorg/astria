@@ -49,7 +49,7 @@ pub enum ConfigCommand {
     Delete(ConfigDeleteArgs),
 }
 
-#[derive(Args, Debug, Serialize)]
+#[derive(Args, Debug, Serialize, Clone)]
 pub struct ConfigCreateArgs {
     #[clap(long, env = "ROLLUP_USE_TTY")]
     pub use_tty: bool,

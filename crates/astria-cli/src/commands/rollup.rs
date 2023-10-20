@@ -105,22 +105,22 @@ fn update_yaml_value(
 /// * If the yaml cannot be written to the file
 pub(crate) async fn create_config(args: &ConfigCreateArgs) -> eyre::Result<()> {
     // create rollup from args
-    let mut rollup = Rollup::try_from(args)?;
+    let mut conf = (*args).clone();
 
-    // Height 0 is invalid, but can be used to mark "latest"
-    if rollup.deployment_config.get_initial_sequencer_height() == 0 {
-        let sequencer_client = HttpClient::new(args.sequencer_rpc.as_str())
+    // Fetch the latest block from sequencer if none specified.
+    if conf.sequencer_initial_block_height.is_none() {
+        let sequencer_client = HttpClient::new(conf.sequencer_rpc.as_str())
             .wrap_err("failed constructing http sequencer client")?;
         let res = sequencer_client
             .latest_sequencer_block()
             .await
-            .wrap_err("failed to get sequencer block")?;
+            .wrap_err("failed to get sequencer block for initial sequencer height")?;
 
         let new_height: u64 = res.header().height.into();
-        rollup
-            .deployment_config
-            .set_initial_sequencer_height(new_height);
+        conf.sequencer_initial_block_height = Some(new_height);
     }
+
+    let rollup = Rollup::try_from(&conf)?;
     let filename = rollup.deployment_config.get_filename();
 
     // create config file
