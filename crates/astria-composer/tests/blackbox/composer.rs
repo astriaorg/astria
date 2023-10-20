@@ -100,12 +100,12 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
     )
     .await;
 
-    // Expect nonce 0 again so that the resubmitted tx is accepted
+    // Expect nonce 1 again so that the resubmitted tx is accepted
     let valid_nonce_guard =
         mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1", 1).await;
 
     // Push a tx to the rollup node so that it is picked up by the composer and submitted with the
-    // stored nonce of 42, triggering the nonce refetch process
+    // stored nonce of 0, triggering the nonce refetch process
     test_composer.rollup_nodes["test1"]
         .push_tx(Transaction::default())
         .unwrap();
