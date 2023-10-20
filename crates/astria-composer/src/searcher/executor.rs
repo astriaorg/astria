@@ -107,11 +107,9 @@ impl Executor {
         private_key: &SecretString,
         executor_rx: mpsc::Receiver<Vec<Action>>,
     ) -> eyre::Result<Self> {
-        // connect to sequencer node
         let sequencer_client =
             SequencerClient::new(sequencer_url).wrap_err("failed constructing sequencer client")?;
 
-        // create signing key for sequencer txs
         let mut private_key_bytes: [u8; 32] = hex::decode(private_key.expose_secret())
             .wrap_err("failed to decode private key bytes from hex string")?
             .try_into()
@@ -120,10 +118,8 @@ impl Executor {
             SigningKey::try_from(private_key_bytes).wrap_err("failed to parse sequencer key")?;
         private_key_bytes.zeroize();
 
-        // create address from signing key
         let sequencer_address = Address::from_verification_key(sequencer_key.verification_key());
 
-        // create channel for status reporting
         let (status, _) = watch::channel(Status::new());
 
         Ok(Self {
@@ -141,10 +137,9 @@ impl Executor {
         self.status.subscribe()
     }
 
-    /// Gets the next nonce to sign over and increments the given counter.
-    /// If the current counter is `None`, this will fetch the latest nonce from the sequencer.
+    /// Returns a fused future that attaches the nonce to the given bundle. If the stored nonce is
+    /// `None`, the future will retrieve the latest nonce from the sequencer.
     fn attach_nonce_fut(&mut self, bundle: Vec<Action>) -> NonceFut {
-        // clone client and address
         let sequencer_client = self.sequencer_client.clone();
         let address = self.address;
         let nonce = *self.nonce;
@@ -173,8 +168,8 @@ impl Executor {
         .fuse()
     }
 
-    /// Returns the transaction execution fused future. The future will populate the nonce, sign and
-    /// submit the bundle of actions to the sequencer.
+    /// Returns the transaction execution fused future. The future will sign the
+    /// `UnsignedTransaction` and submit the resulting `SignedTransaction` to the sequencer.
     fn sign_and_submit_fut(&mut self, unsigned_tx: UnsignedTransaction) -> SubmissionFut {
         let sequencer_client = self.sequencer_client.clone();
         let sequencer_key = self.sequencer_key.clone();
@@ -182,6 +177,7 @@ impl Executor {
         async move {
             let signed_tx = unsigned_tx.into_signed(&sequencer_key);
 
+            debug!(?signed_tx, "submitting signed transaction to the sequencer");
             let submission_rsp = sequencer_client
                 .submit_transaction_sync(signed_tx.clone())
                 .await
@@ -192,10 +188,7 @@ impl Executor {
 
             match AbciCode::from_tendermint(submission_rsp.code) {
                 Some(AbciCode::OK) => Ok(signed_tx),
-                Some(AbciCode::INVALID_NONCE) => Err(ExecutionError::InvalidNonce {
-                    nonce: signed_tx.unsigned_transaction().nonce,
-                    transaction: signed_tx,
-                }),
+                Some(AbciCode::INVALID_NONCE) => Err(ExecutionError::InvalidNonce(signed_tx)),
                 _ => Err(ExecutionError::UnknownDeliverTxFailure {
                     code: submission_rsp.code,
                     transaction: signed_tx,
@@ -206,6 +199,8 @@ impl Executor {
         .fuse()
     }
 
+    /// Resets the nonce to `None` and returns a nonce refetch fused future for the payload of the
+    /// `SignedTransaction`.
     fn bundle_resubmission_from_transaction(&mut self, transaction: SignedTransaction) -> NonceFut {
         // reset nonce
         info!(old_nonce = *self.nonce, "resetting nonce to None");
@@ -241,14 +236,14 @@ impl Executor {
                     debug!(bundle = ?bundle, "executor received bundle for processing");
                     nonce_fut = self.attach_nonce_fut(bundle);
                 },
-                // nonce
+                // attach nonce
                 ret = &mut nonce_fut, if !nonce_fut.is_terminated() => {
                     match ret {
                         Ok(unsigned_tx) => {
                             // update self.nonce for next transaction
                             *Arc::get_mut(&mut self.nonce).expect("should only be called once at a time") =
                                 Some(unsigned_tx.nonce + 1);
-                            // set submission_fut
+
                             submission_fut = self.sign_and_submit_fut(unsigned_tx);
                         }
                         Err(e) => {
@@ -257,45 +252,48 @@ impl Executor {
                         }
                     }
                 }
-                // submission
+                // submit to sequencer
                 ret = &mut submission_fut, if !submission_fut.is_terminated() => {
                     match ret {
-                       Err(ExecutionError::InvalidNonce {
-                               nonce,
-                               transaction,
-                           })
-                           => {
-                               warn!(
-                                   nonce,
-                                   "invalid nonce returned from sequencer; retrieving new nonce and \
-                                    resubmitting the transaction"
-                               );
-                               nonce_fut = self.bundle_resubmission_from_transaction(transaction);
-                           }
-                    Err(ExecutionError::UnknownDeliverTxFailure {
-                        code,
-                        transaction,
-                    }) => {
-                        warn!(
-                            code=?code,
-                            transaction = ?transaction,
-                            "unknown error code returned from sequencer; skipping this \
-                             transaction"
-                        );
-                    }
-                    Err(ExecutionError::TransactionSubmissionFailed{ error:e, transaction }) => {
-                        error!(error.msg = %e, transaction = ?transaction, "failed to submit transaction to sequencer; executor shutting down");
-                        break;
-                    }
-                       Ok(tx) => {
-                           let nonce = tx.unsigned_transaction().nonce;
-                           info!(
-                               tx = ?tx,
-                               nonce = ?nonce,
-                               "transaction submitted to sequencer successfully with nonce {}",
-                               nonce
-                           );
-                       }
+                        Err(ExecutionError::InvalidNonce(transaction)) => {
+                            let nonce = transaction.unsigned_transaction().nonce;
+                            warn!(
+                                nonce,
+                                "invalid nonce error returned from sequencer; retrieving new nonce and \
+                                 resubmitting the transaction"
+                            );
+                            nonce_fut = self.bundle_resubmission_from_transaction(transaction);
+                        }
+                        Err(ExecutionError::UnknownDeliverTxFailure {
+                            code,
+                            transaction,
+                        }) => {
+                            warn!(
+                                code=?code,
+                                transaction = ?transaction,
+                                "unknown error code returned from sequencer; skipping this \
+                                 transaction"
+                            );
+                        }
+                        Err(ExecutionError::TransactionSubmissionFailed {
+                            error: e,
+                            transaction
+                        }) => {
+                            error!(
+                                error.msg = %e,
+                                transaction = ?transaction,
+                                "failed to submit transaction to sequencer; executor shutting down");
+                            break;
+                        }
+                        Ok(tx) => {
+                            let nonce = tx.unsigned_transaction().nonce;
+                            info!(
+                                tx = ?tx,
+                                nonce = ?nonce,
+                                "transaction submitted to sequencer successfully with nonce {}",
+                                nonce
+                            );
+                        }
                     }
                 }
             }
@@ -371,10 +369,7 @@ enum ExecutionError {
         transaction: SignedTransaction,
     },
     #[error("transaction submission failed due to invalid nonce")]
-    InvalidNonce {
-        nonce: u32,
-        transaction: SignedTransaction,
-    },
+    InvalidNonce(SignedTransaction),
     #[error("transaction submission failed with unknown error code")]
     UnknownDeliverTxFailure {
         code: tendermint::abci::Code,
