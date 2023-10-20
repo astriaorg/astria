@@ -24,13 +24,10 @@ use futures::{
     Future,
 };
 use humantime::format_duration;
-use proto::{
-    generated::sequencer,
-    native::sequencer::v1alpha1::{
-        Action,
-        SignedTransaction,
-        UnsignedTransaction,
-    },
+use proto::native::sequencer::v1alpha1::{
+    Action,
+    SignedTransaction,
+    UnsignedTransaction,
 };
 use secrecy::{
     ExposeSecret as _,
@@ -258,7 +255,6 @@ impl Executor {
                             error!(error.msg = %e, "failed to retrieve nonce from sequencer; executor shutting down");
                             break;
                         }
-                        _ => { }
                     }
                 }
                 // submission
@@ -286,10 +282,6 @@ impl Executor {
                             "unknown error code returned from sequencer; skipping this \
                              transaction"
                         );
-                    }
-                    Err(ExecutionError::NonceRetreivalFailed(e)) => {
-                        error!(error.msg = %e, "failed to retrieve nonce from sequencer; executor shutting down");
-                        break;
                     }
                     Err(ExecutionError::TransactionSubmissionFailed{ error:e, transaction }) => {
                         error!(error.msg = %e, transaction = ?transaction, "failed to submit transaction to sequencer; executor shutting down");
@@ -373,8 +365,6 @@ impl Executor {
 
 #[derive(Debug, thiserror::Error)]
 enum ExecutionError {
-    #[error("failed to communicate with sequencer")]
-    NonceRetreivalFailed(SequencerClientError),
     #[error("failed to submit sequencer transaction")]
     TransactionSubmissionFailed {
         error: SequencerClientError,
