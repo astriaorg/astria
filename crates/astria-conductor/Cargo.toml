@@ -33,20 +33,22 @@ tokio-util = { workspace = true, features = ["rt"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
 
-celestia_client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
-astria-sequencer-types = { path = "../astria-sequencer-types" }
+celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 proto = { package = "astria-proto", path = "../astria-proto", features = [
   "client",
 ] }
 sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
   "websocket",
 ] }
+astria-sequencer-types = { path = "../astria-sequencer-types" }
 sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
+astria-sequencer-types = { path = "../astria-sequencer-types", features = ["test-utils"] }
 once_cell = { workspace = true }
 figment = { workspace = true, features = ["test"] }
+jsonrpsee = { workspace = true, features = ["server"] }
 regex = { workspace = true }
 
 proto = { package = "astria-proto", path = "../astria-proto", features = [

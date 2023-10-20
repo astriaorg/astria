@@ -46,7 +46,7 @@ mod tests;
 /// The channel for sending commands to the executor task.
 pub(crate) type Sender = UnboundedSender<ExecutorCommand>;
 /// The channel the executor task uses to listen for commands.
-type Receiver = UnboundedReceiver<ExecutorCommand>;
+pub(crate) type Receiver = UnboundedReceiver<ExecutorCommand>;
 
 // Given `Time`, convert to protobuf timestamp
 fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> {

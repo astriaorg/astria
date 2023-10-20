@@ -301,8 +301,6 @@ async fn subscribe_new_blocks(
 /// Forwards a sequencer block to the executor if it contains the expected height, or reschedules
 /// the block for later while fetching blocks for all missing heights.
 ///
-/// Returns the next expected height.
-///
 /// The following cases are considered:
 ///
 /// 1. if `h == h'` the block is forwarded to the executor. `h+1` is returned as the next expected
@@ -312,6 +310,13 @@ async fn subscribe_new_blocks(
 /// 3. if `h > h'` a re-sync is scheduled for the range `h..h'`, the block is pushed to the front of
 ///    the queue to be forwarded later. `h'` (the height of the re-scheduled block) is returned as
 ///    the next expected height.
+///
+/// # Returns
+/// Returns the next expected height, depending on the cases discussed above.
+///
+/// # Errors
+/// Returns an error if a block could not be sent to the executor. This is fatal
+/// and can only happen if the executor is shut down.
 #[instrument(
     skip_all,
     fields(
@@ -377,5 +382,160 @@ fn schedule_for_forwarding_or_resubscribe(
     } else {
         warn!("sequencer new-block subscription closed unexpectedly; attempting to resubscribe");
         *resubscribe = subscribe_new_blocks(pool).boxed().fuse();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        future::Future,
+        pin::Pin,
+    };
+
+    use astria_sequencer_types::{
+        sequencer_block_data::SequencerBlockData,
+        test_utils::create_tendermint_block,
+    };
+    use color_eyre::eyre;
+    use futures::{
+        future::{
+            self,
+            Fuse,
+            FusedFuture as _,
+            Ready,
+        },
+        stream::FuturesOrdered,
+    };
+
+    use super::forward_block_or_resync;
+    use crate::{
+        client_provider::mock::TestPool,
+        executor::ExecutorCommand,
+    };
+
+    struct ForwardBlockOrResyncEnvironment {
+        pending_blocks: FuturesOrdered<Ready<SequencerBlockData>>,
+        sync: future::Fuse<Pin<Box<dyn Future<Output = eyre::Result<()>> + Send>>>,
+        test_pool: TestPool,
+        executor_rx: crate::executor::Receiver,
+        executor_tx: crate::executor::Sender,
+    }
+
+    impl ForwardBlockOrResyncEnvironment {
+        async fn setup() -> Self {
+            let pending_blocks = FuturesOrdered::new();
+            let sync = Fuse::terminated();
+            let test_pool = TestPool::setup().await;
+            let (executor_tx, executor_rx) = tokio::sync::mpsc::unbounded_channel();
+            Self {
+                pending_blocks,
+                sync,
+                test_pool,
+                executor_rx,
+                executor_tx,
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn block_at_expected_height_is_forwarded() {
+        let expected_height = 5u32.into();
+        let mut tendermint_block = create_tendermint_block();
+        tendermint_block.header.height = expected_height;
+        let expected_block = SequencerBlockData::from_tendermint_block(tendermint_block)
+            .expect("the tendermint block should be well formed");
+
+        let mut env = ForwardBlockOrResyncEnvironment::setup().await;
+        let next_height = forward_block_or_resync(
+            expected_block.clone(),
+            expected_height,
+            &mut env.pending_blocks,
+            &mut env.sync,
+            env.test_pool.pool.clone(),
+            env.executor_tx,
+        )
+        .expect("the receiver is alive");
+        assert!(
+            env.pending_blocks.is_empty(),
+            "block should not be rescheduled"
+        );
+        assert!(env.sync.is_terminated(), "resync should not be triggered");
+        let ExecutorCommand::FromSequencer {
+            block: actual_block,
+        } = env
+            .executor_rx
+            .try_recv()
+            .expect("block should be forwarded")
+        else {
+            panic!("value sent to executor should be a ExecutorCommand::FromSequencer variant");
+        };
+        assert_eq!(expected_block, *actual_block, "block should not change");
+        assert_eq!(
+            expected_height.increment(),
+            next_height,
+            "next height should be previous height + 1"
+        );
+    }
+
+    #[tokio::test]
+    async fn future_block_triggers_resync() {
+        let expected_height = 5u32.into();
+        let future_height = 8u32.into();
+        let mut tendermint_block = create_tendermint_block();
+        tendermint_block.header.height = future_height;
+        let expected_block = SequencerBlockData::from_tendermint_block(tendermint_block)
+            .expect("the tendermint block should be well formed");
+
+        let mut env = ForwardBlockOrResyncEnvironment::setup().await;
+        let next_height = forward_block_or_resync(
+            expected_block.clone(),
+            expected_height,
+            &mut env.pending_blocks,
+            &mut env.sync,
+            env.test_pool.pool.clone(),
+            env.executor_tx,
+        )
+        .expect("the receiver is alive");
+        assert_eq!(1, env.pending_blocks.len(), "block should be rescheduled");
+        assert!(!env.sync.is_terminated(), "sync should be triggered");
+        env.executor_rx
+            .try_recv()
+            .expect_err("block should be rescheduled, not fowarded");
+        assert_eq!(
+            future_height, next_height,
+            "next height should be that of the future block"
+        );
+    }
+
+    #[tokio::test]
+    async fn older_block_is_dropped() {
+        let expected_height = 5u32.into();
+        let mut tendermint_block = create_tendermint_block();
+        tendermint_block.header.height = 3u32.into();
+        let expected_block = SequencerBlockData::from_tendermint_block(tendermint_block)
+            .expect("the tendermint block should be well formed");
+
+        let mut env = ForwardBlockOrResyncEnvironment::setup().await;
+        let next_height = forward_block_or_resync(
+            expected_block.clone(),
+            expected_height,
+            &mut env.pending_blocks,
+            &mut env.sync,
+            env.test_pool.pool.clone(),
+            env.executor_tx,
+        )
+        .expect("the receiver is alive");
+        assert!(
+            env.pending_blocks.is_empty(),
+            "block should not be rescheduled"
+        );
+        assert!(env.sync.is_terminated(), "resync should not be triggered");
+        env.executor_rx
+            .try_recv()
+            .expect_err("block should be dropped, not fowarded");
+        assert_eq!(
+            expected_height, next_height,
+            "next height should be the same expected height",
+        );
     }
 }
