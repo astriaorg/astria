@@ -251,7 +251,7 @@ mod tests {
                     }],
                 },
                 sequencer: SequencerConfig {
-                    initial_block_height: 0, // Default value
+                    initial_block_height: 1, // Default value
                     websocket: "ws://localhost:8082".to_string(),
                     rpc: "http://localhost:8083".to_string(),
                 },
