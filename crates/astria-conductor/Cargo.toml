@@ -45,7 +45,9 @@ sequencer-validation = { package = "astria-sequencer-validation", path = "../ast
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
-astria-sequencer-types = { path = "../astria-sequencer-types", features = ["test-utils"] }
+astria-sequencer-types = { path = "../astria-sequencer-types", features = [
+  "test-utils",
+] }
 once_cell = { workspace = true }
 figment = { workspace = true, features = ["test"] }
 jsonrpsee = { workspace = true, features = ["server"] }
