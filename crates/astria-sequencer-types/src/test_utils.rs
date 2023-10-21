@@ -1,7 +1,10 @@
+//! Utilities that are intended to be used in tests but not outside of it.
+
+#![allow(clippy::missing_panics_doc)]
+
 use sequencer_validation::MerkleTree;
 use tendermint::block::Header;
 
-#[allow(clippy::missing_panics_doc)]
 #[must_use]
 /// Returns a default tendermint block header for test purposes.
 pub fn default_header() -> Header {
