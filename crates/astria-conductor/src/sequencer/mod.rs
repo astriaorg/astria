@@ -136,7 +136,7 @@ impl Reader {
 
         let mut sync_done = Some(sync_done);
         let mut resubscribe = future::Fuse::terminated();
-        let exit_reason = 'reader_loop: loop {
+        'reader_loop: loop {
             select! {
                 shutdown = &mut shutdown => {
                     let ret = match shutdown {
@@ -212,8 +212,7 @@ impl Reader {
                     }
                 }
             }
-        };
-        exit_reason
+        }
     }
 }
 
@@ -340,7 +339,7 @@ fn forward_block_or_resync(
     match expected_height.cmp(&block_height) {
         // received block is at expected height: send to the executor
         std::cmp::Ordering::Equal => {
-            let () = executor_tx
+            executor_tx
                 .send(block.into())
                 .wrap_err("forwarding sequencer block to executor failed")?;
             Ok(expected_height.increment())
