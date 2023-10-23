@@ -179,9 +179,9 @@ mod tests {
     };
 
     #[test]
-    fn test_from_cli_args() -> eyre::Result<()> {
+    fn test_from_all_cli_args() -> eyre::Result<()> {
         // Case 1: All args provided
-        let args1 = ConfigCreateArgs {
+        let args = ConfigCreateArgs {
             use_tty: true,
             log_level: "debug".to_string(),
             name: "rollup1".to_string(),
@@ -205,7 +205,7 @@ mod tests {
             namespace: "test-cluster".to_string(),
         };
 
-        let expected_config1 = Rollup {
+        let expected_config = Rollup {
             namespace: "test-cluster".to_string(),
             deployment_config: RollupDeploymentConfig {
                 use_tty: true,
@@ -237,14 +237,19 @@ mod tests {
             },
         };
 
-        let result1 = Rollup::try_from(&args1)?;
-        assert_eq!(result1, expected_config1);
+        let result = Rollup::try_from(&args)?;
+        assert_eq!(result, expected_config);
 
-        // Case 2: No `Option` wrapped args provided. Tests defaults that are decided
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_minimum_cli_args() -> eyre::Result<()> {
+        // No `Option` wrapped args provided. Tests defaults that are decided
         //  explicitly in the `try_from` impl.
         // NOTE - there are some defaults that are handled in the arg struct,
         //  like the sequencer ws and rpc urls, so we still must pass them in here.
-        let args2 = ConfigCreateArgs {
+        let args = ConfigCreateArgs {
             use_tty: false,
             log_level: "info".to_string(),
             name: "rollup2".to_string(),
@@ -262,7 +267,7 @@ mod tests {
             namespace: "astria-dev-cluster".to_string(),
         };
 
-        let expected_config2 = Rollup {
+        let expected_config = Rollup {
             namespace: "astria-dev-cluster".to_string(),
             deployment_config: RollupDeploymentConfig {
                 use_tty: false,
@@ -288,8 +293,8 @@ mod tests {
             },
         };
 
-        let result2 = Rollup::try_from(&args2)?;
-        assert_eq!(result2, expected_config2);
+        let result = Rollup::try_from(&args)?;
+        assert_eq!(result, expected_config);
 
         Ok(())
     }
