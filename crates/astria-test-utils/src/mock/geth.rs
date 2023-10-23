@@ -122,6 +122,7 @@ mod __rpc_traits {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub use __rpc_traits::GethServer;
 
 #[derive(Clone, Debug)]
@@ -233,6 +234,10 @@ impl Geth {
 
     /// Sends an Abort command to all subscription tasks, causing them to exit and close the
     /// subscriptions.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same error as tokio's [`Sender::send`].
     pub fn abort(&self) -> Result<usize, SendError<SubscriptionCommand>> {
         self.command.send(SubscriptionCommand::Abort)
     }
