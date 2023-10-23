@@ -11,6 +11,7 @@ use ethers::{
     utils::AnvilInstance,
 };
 
+// TODO: feature-gate
 #[allow(dead_code)]
 pub(crate) async fn deploy_mock_optimism_portal()
 -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {

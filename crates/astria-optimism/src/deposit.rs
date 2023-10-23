@@ -162,17 +162,15 @@ mod test {
     async fn listen_to_deposit_events(
         contract: OptimismPortal<Provider<Ws>>,
         tx: oneshot::Sender<(TransactionDepositedFilter, LogMeta)>,
-    ) -> eyre::Result<()> {
+    ) {
         let events = contract.event::<TransactionDepositedFilter>().from_block(1);
-        let mut stream = events.stream().await?.with_meta().take(1);
+        let mut stream = events.stream().await.unwrap().with_meta().take(1);
 
         if let Some(Ok((event, meta))) = stream.next().await {
             tx.send((event, meta)).unwrap();
         } else {
             panic!("listening to TransactionDeposited event stream failed");
         }
-
-        Ok(())
     }
 
     #[tokio::test]
@@ -187,9 +185,7 @@ mod test {
 
         let (tx, rx) = oneshot::channel();
         tokio::spawn(async move {
-            listen_to_deposit_events(contract_read_only, tx)
-                .await
-                .unwrap();
+            listen_to_deposit_events(contract_read_only, tx).await;
         });
 
         let value = 10_000_000_000_000_000u128;
