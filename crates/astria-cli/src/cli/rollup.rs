@@ -112,7 +112,7 @@ pub struct ConfigCreateArgs {
     pub hostname: String,
     /// Configures the k8s namespace rollup will be deployed to
     #[clap(long, env = "ROLLUP_NAMESPACE", default_value = DEFAULT_NAMESPACE)]
-    pub(crate) namespace: String,
+    pub namespace: String,
 }
 
 /// `GenesisAccountArg` is a struct that represents a genesis account to be funded.
