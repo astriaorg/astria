@@ -17,11 +17,14 @@ tendermint-proto = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
-celestia-jsonrpc-client = { package = "astria-celestia-jsonrpc-client", path = "../astria-celestia-jsonrpc-client" }
 proto = { package = "astria-proto", path = "../astria-proto" }
 sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 
+ed25519-consensus = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
+
+[features]
+test-utils = ["dep:ed25519-consensus", "dep:rand"]
+
 [dev-dependencies]
-ct-merkle = { version = "0.1", features = ["serde"] }
-ed25519-consensus = { workspace = true }
-rand = { workspace = true }
+astria-sequencer-types = { path = ".", features = ["test-utils"] }

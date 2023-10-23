@@ -46,7 +46,7 @@ mod tests;
 /// The channel for sending commands to the executor task.
 pub(crate) type Sender = UnboundedSender<ExecutorCommand>;
 /// The channel the executor task uses to listen for commands.
-type Receiver = UnboundedReceiver<ExecutorCommand>;
+pub(crate) type Receiver = UnboundedReceiver<ExecutorCommand>;
 
 // Given `Time`, convert to protobuf timestamp
 fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> {
@@ -67,6 +67,14 @@ pub(crate) enum ExecutorCommand {
     FromSequencer { block: Box<SequencerBlockData> },
     /// used when a block is received from the reader (Celestia)
     FromCelestia(Vec<SequencerBlockSubset>),
+}
+
+impl From<SequencerBlockData> for ExecutorCommand {
+    fn from(block: SequencerBlockData) -> Self {
+        Self::FromSequencer {
+            block: Box::new(block),
+        }
+    }
 }
 
 pub(crate) struct Executor {
@@ -155,7 +163,7 @@ impl Executor {
 
                             if let Err(e) = self.execute_block(block_subset).await {
                                 error!(
-                                    height = height,
+                                    sequencer_block_height = height,
                                     error = ?e,
                                     "failed to execute block"
                                 );
@@ -192,7 +200,7 @@ impl Executor {
     async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Vec<u8>>> {
         if self.disable_empty_block_execution && block.rollup_transactions.is_empty() {
             debug!(
-                height = block.header.height.value(),
+                sequencer_block_height = block.header.height.value(),
                 "no transactions in block, skipping execution"
             );
             return Ok(None);
@@ -200,7 +208,7 @@ impl Executor {
 
         if let Some(execution_hash) = self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
             debug!(
-                height = block.header.height.value(),
+                sequencer_block_height = block.header.height.value(),
                 execution_hash = hex::encode(execution_hash),
                 "block already executed"
             );
@@ -209,7 +217,7 @@ impl Executor {
 
         let prev_block_hash = self.execution_state.clone();
         info!(
-            height = block.header.height.value(),
+            sequencer_block_height = block.header.height.value(),
             parent_block_hash = hex::encode(&prev_block_hash),
             "executing block with given parent block",
         );

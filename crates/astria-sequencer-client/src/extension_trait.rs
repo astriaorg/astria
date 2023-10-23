@@ -293,7 +293,7 @@ pub enum NewBlockStreamError {
     Rpc(#[source] tendermint_rpc::Error),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 #[error("failed subscribing to new cometbft blocks")]
 pub struct SubscriptionFailed {
     #[from]
@@ -389,11 +389,15 @@ pub trait SequencerClientExt: Client {
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be read as an
     ///   `astria.sequencer.v1alpha1.BalanceResponse`.
-    async fn get_balance<A: Into<Address> + Send>(
+    async fn get_balance<AddressT, HeightT>(
         &self,
-        address: A,
-        height: u32,
-    ) -> Result<BalanceResponse, Error> {
+        address: AddressT,
+        height: HeightT,
+    ) -> Result<BalanceResponse, Error>
+    where
+        AddressT: Into<Address> + Send,
+        HeightT: Into<tendermint::block::Height> + Send,
+    {
         use proto::Message as _;
         const PREFIX: &[u8] = b"accounts/balance/";
 
@@ -427,23 +431,25 @@ pub trait SequencerClientExt: Client {
     ) -> Result<BalanceResponse, Error> {
         // This makes use of the fact that a height `None` and `Some(0)` are
         // treated the same.
-        self.get_balance(address, 0).await
+        self.get_balance(address, 0u32).await
     }
 
     /// Returns the nonce of the given account at the given height.
-    ///
-    /// If `height = None`, the latest height is used.
     ///
     /// # Errors
     ///
     /// - If calling tendermint `abci_query` RPC fails.
     /// - If the bytes contained in the abci query response cannot be read as an
     ///   `astria.sequencer.v1alpha1.NonceResponse`.
-    async fn get_nonce<A: Into<Address> + Send>(
+    async fn get_nonce<AddressT, HeightT>(
         &self,
-        address: A,
-        height: u32,
-    ) -> Result<NonceResponse, Error> {
+        address: AddressT,
+        height: HeightT,
+    ) -> Result<NonceResponse, Error>
+    where
+        AddressT: Into<Address> + Send,
+        HeightT: Into<tendermint::block::Height> + Send,
+    {
         use proto::Message as _;
         const PREFIX: &[u8] = b"accounts/nonce/";
 
@@ -477,7 +483,7 @@ pub trait SequencerClientExt: Client {
     ) -> Result<NonceResponse, Error> {
         // This makes use of the fact that a height `None` and `Some(0)` are
         // treated the same.
-        self.get_nonce(address, 0).await
+        self.get_nonce(address, 0u32).await
     }
 
     /// Get the latest sequencer block.
@@ -497,9 +503,12 @@ pub trait SequencerClientExt: Client {
     ///
     /// This is a convenience method that converts the result [`Client::block`]
     /// to `SequencerBlockData`.
-    async fn sequencer_block(&self, height: u32) -> Result<SequencerBlockData, Error> {
+    async fn sequencer_block<HeightT>(&self, height: HeightT) -> Result<SequencerBlockData, Error>
+    where
+        HeightT: Into<tendermint::block::Height> + Send,
+    {
         let rsp = self
-            .block(height)
+            .block(height.into())
             .await
             .map_err(|e| Error::tendermint_rpc("block", e))?;
         SequencerBlockData::from_tendermint_block(rsp.block)

@@ -1,0 +1,32 @@
+[package]
+name = "astria-cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "astria-cli"
+test = false
+bench = false
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { workspace = true, features = ["derive", "env"] }
+color-eyre = { workspace = true }
+ed25519-consensus = { workspace = true }
+hex = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_yaml = "0.9.25"
+sha2 = { workspace = true }
+tokio = { workspace = true, features = ["rt", "macros"] }
+tracing = { workspace = true }
+which = { workspace = true }
+
+[dependencies.astria-sequencer-client]
+package = "astria-sequencer-client"
+path = "../astria-sequencer-client"
+features = ["http"]
+
+[dev-dependencies]
+assert_cmd = "2.0.12"
+test-utils = { path = "./test-utils" }

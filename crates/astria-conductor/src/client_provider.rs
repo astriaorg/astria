@@ -31,7 +31,7 @@ pub(super) async fn start_pool(url: &str) -> eyre::Result<Pool<ClientProvider>> 
         .wrap_err("failed to create sequencer client pool")
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, thiserror::Error)]
 pub(crate) enum Error {
     #[error("the client provider failed to reconnect and is permanently closed")]
     Failed,
@@ -93,7 +93,7 @@ impl ClientProvider {
         let url_ = url.to_string();
         let _provider_loop = tokio::spawn(async move {
             let mut client = None;
-            let mut driver_fut = futures::future::Fuse::terminated();
+            let mut driver_task = futures::future::Fuse::terminated();
             let mut reconnect = tryhard::retry_fn(|| {
                 let url = url_.clone();
                 async move { WebSocketClient::new(&*url).await }
@@ -107,8 +107,17 @@ impl ClientProvider {
 
             loop {
                 select!(
-                    _ = &mut driver_fut, if !driver_fut.is_terminated() => {
-                        warn!("websocket driver failed, attempting to reconnect");
+                    res = &mut driver_task, if !driver_task.is_terminated() => {
+                        let (reason, err) = match res {
+                            Ok(Ok(())) => ("received exit command", None),
+                            Ok(Err(e)) => ("error", Some(eyre::Report::new(e).wrap_err("driver task exited with error"))),
+                            Err(e) => ("panic", Some(eyre::Report::new(e).wrap_err("driver task failed"))),
+                        };
+                        warn!(
+                            error.message = err.as_ref().map(tracing::field::display),
+                            error.cause = err.as_ref().map(tracing::field::debug),
+                            reason,
+                            "websocket driver exited, attempting to reconnect");
                         client = None;
                         reconnect = tryhard::retry_fn(|| {
                             let url = url_.clone();
@@ -121,7 +130,7 @@ impl ClientProvider {
                         match res {
                             Ok((new_client, driver)) => {
                                 info!("established a new websocket connection; handing out clients to all pending requests");
-                                driver_fut = driver.run().boxed().fuse();
+                                driver_task = tokio::spawn(driver.run()).fuse();
                                 for tx in pending_requests.drain(..) {
                                     let _ = tx.send(Ok(new_client.clone()));
                                 }
@@ -181,6 +190,48 @@ impl managed::Manager for ClientProvider {
         _obj: &mut Self::Type,
         _: &managed::Metrics,
     ) -> managed::RecycleResult<Self::Error> {
-        Ok(())
+        Err(deadpool::managed::RecycleError::StaticMessage(
+            "client automatically invalidated",
+        ))
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod mock {
+    use deadpool::managed::Pool;
+    use jsonrpsee::{
+        server::{
+            Server,
+            ServerHandle,
+        },
+        RpcModule,
+    };
+
+    use super::{
+        start_pool,
+        ClientProvider,
+    };
+
+    pub(crate) struct TestPool {
+        pub(crate) _handle: ServerHandle,
+        pub(crate) pool: Pool<ClientProvider>,
+    }
+
+    impl TestPool {
+        /// Creates a connection pool with connected to a barebones jsonrpc server that's only
+        /// there to establish connections. The server provides no additional functionality.
+        /// Useful to line up types in tests.
+        pub(crate) async fn setup() -> Self {
+            let server = Server::builder().build("127.0.0.1:0").await.unwrap();
+            let mut module = RpcModule::new(());
+            module.register_method("say_hello", |_, _| "lo").unwrap();
+            let address = server.local_addr().unwrap();
+            let _handle = server.start(module);
+            let pool = start_pool(&format!("ws://{address}")).await.unwrap();
+            Self {
+                _handle,
+                pool,
+            }
+        }
     }
 }

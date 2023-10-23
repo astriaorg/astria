@@ -1,8 +1,10 @@
 [workspace]
 members = [
-  "crates/astria-celestia-jsonrpc-client",
+  "crates/astria-celestia-client",
+  "crates/astria-celestia-mock",
   "crates/astria-composer",
   "crates/astria-conductor",
+  "crates/astria-cli",
   "crates/astria-proto",
   "crates/astria-sequencer",
   "crates/astria-sequencer-client",
@@ -11,7 +13,6 @@ members = [
   "crates/astria-sequencer-utils",
   "crates/astria-sequencer-validation",
   "crates/astria-telemetry",
-  "crates/astria-test-utils",
 ]
 resolver = "2"
 
@@ -21,6 +22,7 @@ axum = "0.6.16"
 backon = "0.4.1"
 base64 = "0.21"
 bytes = "1.4"
+clap = "4"
 color-eyre = "0.6"
 ed25519-consensus = "2.1.0"
 eyre = "0.6"
@@ -30,14 +32,6 @@ hex = "0.4"
 humantime = "2.1.0"
 hyper = "0.14"
 jsonrpsee = { version = "0.20" }
-# marking k8s as using k8s 1.26 here to make it clear that we are targetting 1.26
-# in the tests
-k8s-openapi = { version = "0.18.0", features = ["v1_26"] }
-# disabling default features and enablinbg rustls to ensure openssl is not linked anywhere;
-# similar as for reqwest
-kube = { version = "0.82.2", default-features = false, features = [
-  "rustls-tls",
-] }
 once_cell = "1.17.1"
 sha2 = "0.10"
 serde = "1"
@@ -61,6 +55,11 @@ tokio = "1.28"
 tokio-util = "0.7.9"
 tonic = "0.9"
 tracing = "0.1"
-tracing-subscriber = "0.3"
 which = "4.4.0"
 wiremock = "0.5"
+
+[patch.crates-io]
+tendermint = { git = "https://github.com/astriaorg/tendermint-rs", branch = "v0.33.2-reqwest-backport" }
+tendermint-config = { git = "https://github.com/astriaorg/tendermint-rs", branch = "v0.33.2-reqwest-backport" }
+tendermint-proto = { git = "https://github.com/astriaorg/tendermint-rs", branch = "v0.33.2-reqwest-backport" }
+tendermint-rpc = { git = "https://github.com/astriaorg/tendermint-rs", branch = "v0.33.2-reqwest-backport" }
