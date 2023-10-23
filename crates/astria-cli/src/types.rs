@@ -50,6 +50,7 @@ pub struct RollupDeploymentConfig {
     log_level: String,
     rollup: RollupConfig,
     sequencer: SequencerConfig,
+    ingress: IngressConfig,
 }
 
 impl RollupDeploymentConfig {
@@ -105,6 +106,9 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
                 websocket: args.sequencer_websocket.clone(),
                 rpc: args.sequencer_rpc.clone(),
             },
+            ingress: IngressConfig {
+                hostname: args.hostname.clone(),
+            },
         })
     }
 }
@@ -145,6 +149,12 @@ struct SequencerConfig {
     rpc: String,
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IngressConfig {
+    hostname: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,6 +186,7 @@ mod tests {
             sequencer_initial_block_height: Some(10),
             sequencer_websocket: "ws://localhost:8080".to_string(),
             sequencer_rpc: "http://localhost:8081".to_string(),
+            hostname: "test.com".to_string(),
         };
 
         let expected_config1 = Rollup {
@@ -203,6 +214,9 @@ mod tests {
                     websocket: "ws://localhost:8080".to_string(),
                     rpc: "http://localhost:8081".to_string(),
                 },
+                ingress: IngressConfig {
+                    hostname: "test.com".to_string(),
+                },
             },
         };
 
@@ -227,6 +241,7 @@ mod tests {
             sequencer_initial_block_height: None,
             sequencer_websocket: "ws://localhost:8082".to_string(),
             sequencer_rpc: "http://localhost:8083".to_string(),
+            hostname: "localdev.me".to_string(),
         };
 
         let expected_config2 = Rollup {
@@ -247,6 +262,9 @@ mod tests {
                     initial_block_height: 0, // Default value
                     websocket: "ws://localhost:8082".to_string(),
                     rpc: "http://localhost:8083".to_string(),
+                },
+                ingress: IngressConfig {
+                    hostname: "localdev.me".to_string(), // default value
                 },
             },
         };

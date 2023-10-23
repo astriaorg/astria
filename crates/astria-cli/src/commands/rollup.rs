@@ -189,7 +189,9 @@ pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()>
             args.sequencer_private_key.clone()
         ))
         .arg(rollup.deployment_config.get_chart_release_name())
-        .arg(&args.chart_path);
+        .arg(&args.chart_path)
+        .arg(format!("--namespace={}", args.namespace.clone()))
+        .arg("--create-namespace");
 
     if args.dry_run {
         cmd.arg("--dry-run");
