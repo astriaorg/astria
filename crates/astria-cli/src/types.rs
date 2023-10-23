@@ -13,10 +13,10 @@ use crate::cli::rollup::{
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Rollup {
-    // TODO - namespace
+    pub(crate) namespace: String,
     #[serde(rename = "config")]
     pub(crate) deployment_config: RollupDeploymentConfig,
-    pub(crate) namespace: String,
+    pub(crate) ingress: IngressConfig,
 }
 
 impl TryFrom<&ConfigCreateArgs> for Rollup {
@@ -24,10 +24,12 @@ impl TryFrom<&ConfigCreateArgs> for Rollup {
 
     fn try_from(args: &ConfigCreateArgs) -> eyre::Result<Self> {
         let deployment_config = RollupDeploymentConfig::try_from(args)?;
+        let ingress = IngressConfig::from(args);
 
         Ok(Self {
-            deployment_config,
             namespace: args.namespace.clone(),
+            deployment_config,
+            ingress,
         })
     }
 }
@@ -51,8 +53,7 @@ pub struct RollupDeploymentConfig {
     use_tty: bool,
     log_level: String,
     rollup: RollupConfig,
-    sequencer: SequencerConfig,
-    ingress: IngressConfig,
+    sequencer: SequencerConfig
 }
 
 impl RollupDeploymentConfig {
@@ -69,6 +70,14 @@ impl RollupDeploymentConfig {
     #[must_use]
     pub fn get_rollup_name(&self) -> String {
         self.rollup.name.clone()
+    }
+}
+
+impl From<&ConfigCreateArgs> for IngressConfig {
+    fn from(args: &ConfigCreateArgs) -> Self {
+        Self {
+            hostname: args.hostname.clone()
+        }
     }
 }
 
@@ -107,9 +116,6 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
                 initial_block_height: sequencer_initial_block_height,
                 websocket: args.sequencer_websocket.clone(),
                 rpc: args.sequencer_rpc.clone(),
-            },
-            ingress: IngressConfig {
-                hostname: args.hostname.clone(),
             },
         })
     }
@@ -189,9 +195,11 @@ mod tests {
             sequencer_websocket: "ws://localhost:8080".to_string(),
             sequencer_rpc: "http://localhost:8081".to_string(),
             hostname: "test.com".to_string(),
+            namespace: "test-cluster".to_string(),
         };
 
         let expected_config1 = Rollup {
+            namespace: "test-cluster".to_string(),
             deployment_config: RollupDeploymentConfig {
                 use_tty: true,
                 log_level: "debug".to_string(),
@@ -216,9 +224,9 @@ mod tests {
                     websocket: "ws://localhost:8080".to_string(),
                     rpc: "http://localhost:8081".to_string(),
                 },
-                ingress: IngressConfig {
-                    hostname: "test.com".to_string(),
-                },
+            },
+            ingress: IngressConfig {
+                hostname: "test.com".to_string(),
             },
         };
 
@@ -244,9 +252,11 @@ mod tests {
             sequencer_websocket: "ws://localhost:8082".to_string(),
             sequencer_rpc: "http://localhost:8083".to_string(),
             hostname: "localdev.me".to_string(),
+            namespace: "astria-dev-cluster".to_string(),
         };
 
         let expected_config2 = Rollup {
+            namespace: "astria-dev-cluster".to_string(),
             deployment_config: RollupDeploymentConfig {
                 use_tty: false,
                 log_level: "info".to_string(),
@@ -265,9 +275,9 @@ mod tests {
                     websocket: "ws://localhost:8082".to_string(),
                     rpc: "http://localhost:8083".to_string(),
                 },
-                ingress: IngressConfig {
-                    hostname: "localdev.me".to_string(), // default value
-                },
+            },
+            ingress: IngressConfig {
+                hostname: "localdev.me".to_string(),
             },
         };
 
