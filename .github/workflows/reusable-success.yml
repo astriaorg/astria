@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ always() && !cancelled() }}
     steps:
-      - if: !inputs.success
+      - if: ${{ !inputs.success }}
         run: exit 1
-      - if: inputs.success
+      - if: ${{ inputs.success }}
         run: exit 0
