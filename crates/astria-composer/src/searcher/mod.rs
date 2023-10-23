@@ -254,7 +254,7 @@ impl Searcher {
             &self.rollups,
             rollup,
             exit_result,
-        )
+        );
     }
 
     /// Spawns all collector on the collector task set.

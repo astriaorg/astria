@@ -38,7 +38,7 @@ impl Composer {
     ///
     /// An error is returned if the searcher fails to be initialized.
     /// See `[Searcher::from_config]` for its error scenarios.
-    pub async fn from_config(cfg: &Config) -> eyre::Result<Self> {
+    pub fn from_config(cfg: &Config) -> eyre::Result<Self> {
         // parse api url from config
         debug!("creating searcher");
         let searcher = Searcher::from_config(cfg).wrap_err("failed to initialize searcher")?;
