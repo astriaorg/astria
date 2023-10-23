@@ -51,7 +51,7 @@ mod tests;
 /// The channel for sending commands to the executor task.
 pub(crate) type Sender = UnboundedSender<ExecutorCommand>;
 /// The channel the executor task uses to listen for commands.
-type Receiver = UnboundedReceiver<ExecutorCommand>;
+pub(crate) type Receiver = UnboundedReceiver<ExecutorCommand>;
 
 // Given `Time`, convert to protobuf timestamp
 fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> {
@@ -72,6 +72,14 @@ pub(crate) enum ExecutorCommand {
     FromSequencer { block: Box<SequencerBlockData> },
     /// used when a block is received from the reader (Celestia)
     FromCelestia(Vec<SequencerBlockSubset>),
+}
+
+impl From<SequencerBlockData> for ExecutorCommand {
+    fn from(block: SequencerBlockData) -> Self {
+        Self::FromSequencer {
+            block: Box::new(block),
+        }
+    }
 }
 
 pub(crate) struct Executor {
