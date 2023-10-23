@@ -273,7 +273,7 @@ pub(crate) fn list_deployments() {
     let helm = helm_from_env();
     let mut cmd = Command::new(helm.clone());
     // FIXME - right now it lists all helm releases, not just rollup release
-    cmd.arg("list");
+    cmd.arg("list").arg("-A");
 
     match cmd.output() {
         Err(e) => {

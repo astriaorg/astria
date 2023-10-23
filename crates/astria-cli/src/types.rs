@@ -53,7 +53,7 @@ pub struct RollupDeploymentConfig {
     use_tty: bool,
     log_level: String,
     rollup: RollupConfig,
-    sequencer: SequencerConfig
+    sequencer: SequencerConfig,
 }
 
 impl RollupDeploymentConfig {
@@ -76,7 +76,7 @@ impl RollupDeploymentConfig {
 impl From<&ConfigCreateArgs> for IngressConfig {
     fn from(args: &ConfigCreateArgs) -> Self {
         Self {
-            hostname: args.hostname.clone()
+            hostname: args.hostname.clone(),
         }
     }
 }
