@@ -124,18 +124,22 @@ impl Collector {
 
         let client = tryhard::retry_fn(|| {
             let url = url.clone();
-            async move { Provider::<Ws>::connect(&url).await }
+            async move {
+                let websocket_client = Ws::connect_with_reconnects(url, 0).await?;
+                Ok(Provider::new(websocket_client))
+            }
         })
         .with_config(retry_config)
         .await
         .wrap_err("failed connecting to geth after several retries; giving up")?;
 
-        status.send_modify(|status| status.is_connected = true);
-
         let mut tx_stream = client
             .subscribe_full_pending_txs()
             .await
             .wrap_err("failed to subscribe eth client to full pending transactions")?;
+
+        status.send_modify(|status| status.is_connected = true);
+
         while let Some(tx) = tx_stream.next().await {
             debug!(transaction.hash = %tx.hash, "collected transaction from rollup");
             match searcher_channel

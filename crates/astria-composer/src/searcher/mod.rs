@@ -23,6 +23,7 @@ use tokio::{
         JoinSet,
     },
 };
+use tokio_util::task::JoinMap;
 use tracing::{
     error,
     instrument,
@@ -52,7 +53,7 @@ pub(super) struct Searcher {
     new_transactions_rx: Receiver<collector::Transaction>,
     new_transactions_tx: Sender<collector::Transaction>,
     rollups: HashMap<String, String>,
-    collector_tasks: tokio_util::task::JoinMap<String, eyre::Result<()>>,
+    collector_tasks: JoinMap<String, eyre::Result<()>>,
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
     conversion_tasks: JoinSet<Vec<Action>>,
@@ -124,7 +125,7 @@ impl Searcher {
             collector_statuses,
             new_transactions_rx,
             new_transactions_tx,
-            collector_tasks: tokio_util::task::JoinMap::new(),
+            collector_tasks: JoinMap::new(),
             conversion_tasks: JoinSet::new(),
             executor_tx,
             executor_status,
@@ -209,7 +210,7 @@ impl Searcher {
                 }
 
                 Some((rollup, collector_exit)) = self.collector_tasks.join_next() => {
-                    self.respawn_exited_collector(rollup, collector_exit);
+                    self.reconnect_exited_collector(rollup, collector_exit);
                 }
 
                 ret = &mut executor_handle => {
@@ -241,35 +242,19 @@ impl Searcher {
     }
 
     #[instrument(skip_all, fields(rollup))]
-    fn respawn_exited_collector(
+    fn reconnect_exited_collector(
         &mut self,
         rollup: String,
         exit_result: Result<eyre::Result<()>, JoinError>,
     ) {
-        match exit_result {
-            Ok(Ok(())) => warn!("collector exited unexpectedly; respawning"),
-            Ok(Err(e)) => {
-                let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                warn!(error, "collector exit with error; respawning");
-            }
-            Err(e) => {
-                let error = &e as &(dyn std::error::Error + 'static);
-                warn!(error, "collector task failed; respawning");
-            }
-        }
-        let Some(url) = self.rollups.get(&rollup) else {
-            warn!("rollup has no entry in rollup->url map; not respawning it");
-            return;
-        };
-        let collector = Collector::new(
-            rollup.clone(),
-            url.clone(),
+        reconnect_exited_collector(
+            &mut self.collector_statuses,
+            &mut self.collector_tasks,
             self.new_transactions_tx.clone(),
-        );
-        self.collector_statuses
-            .insert(rollup.clone(), collector.subscribe());
-        self.collector_tasks
-            .spawn(rollup, collector.run_until_stopped());
+            &self.rollups,
+            rollup,
+            exit_result,
+        )
     }
 
     /// Spawns all collector on the collector task set.
@@ -337,5 +322,109 @@ impl Searcher {
             .send_modify(|status| status.executor_connected = true);
 
         Ok(())
+    }
+}
+
+fn reconnect_exited_collector(
+    collector_statuses: &mut HashMap<String, watch::Receiver<collector::Status>>,
+    collector_tasks: &mut JoinMap<String, eyre::Result<()>>,
+    new_transactions_tx: Sender<collector::Transaction>,
+    rollups: &HashMap<String, String>,
+    rollup: String,
+    exit_result: Result<eyre::Result<()>, JoinError>,
+) {
+    match exit_result {
+        Ok(Ok(())) => warn!("collector exited unexpectedly; reconnecting"),
+        Ok(Err(e)) => {
+            let error: &(dyn std::error::Error + 'static) = e.as_ref();
+            warn!(error, "collector exit with error; reconnecting");
+        }
+        Err(e) => {
+            let error = &e as &(dyn std::error::Error + 'static);
+            warn!(error, "collector task failed; reconnecting");
+        }
+    }
+    let Some(url) = rollups.get(&rollup) else {
+        warn!(
+            "rollup should have had an entry in the rollup->url map but doesn't; not reconnecting \
+             it"
+        );
+        return;
+    };
+    let collector = Collector::new(rollup.clone(), url.clone(), new_transactions_tx);
+    collector_statuses.insert(rollup.clone(), collector.subscribe());
+    collector_tasks.spawn(rollup, collector.run_until_stopped());
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use ethers::types::Transaction;
+    use tokio_util::task::JoinMap;
+
+    use crate::searcher::collector::Collector;
+
+    /// This tests the `reconnect_exited_collector` handler.
+    #[tokio::test]
+    async fn collector_is_reconnected_after_exit() {
+        let mock_geth = test_utils::mock::Geth::spawn().await;
+        let rollup_name = "test".to_string();
+        let rollup_url = format!("ws://{}", mock_geth.local_addr());
+        let rollups = HashMap::from([(rollup_name.clone(), rollup_url.clone())]);
+
+        let (tx, mut rx) = tokio::sync::mpsc::channel(16);
+
+        let mut collector_tasks = JoinMap::new();
+        let collector = Collector::new(rollup_name.clone(), rollup_url.clone(), tx.clone());
+        let mut status = collector.subscribe();
+        collector_tasks.spawn(rollup_name.clone(), collector.run_until_stopped());
+        status
+            .wait_for(|status| status.is_connected())
+            .await
+            .unwrap();
+        let expected_transaction = Transaction::default();
+        let _ = mock_geth
+            .push_tx(expected_transaction.clone().into())
+            .unwrap();
+        let collector_tx = rx.recv().await.unwrap();
+
+        assert_eq!(rollup_name, collector_tx.chain_id);
+        assert_eq!(expected_transaction, collector_tx.inner);
+
+        let _ = mock_geth.abort().unwrap();
+
+        let (chain_id, exit_result) = collector_tasks.join_next().await.unwrap();
+        assert_eq!(chain_id, rollup_name);
+        assert!(collector_tasks.is_empty());
+
+        // after aborting pushing a new tx to subscribers should fail as there are no broadcast
+        // receivers
+        assert!(mock_geth.push_tx(Transaction::default()).is_err());
+
+        let mut statuses = HashMap::new();
+        super::reconnect_exited_collector(
+            &mut statuses,
+            &mut collector_tasks,
+            tx.clone(),
+            &rollups,
+            rollup_name.clone(),
+            exit_result,
+        );
+
+        assert!(collector_tasks.contains_key(&rollup_name));
+        statuses
+            .get_mut(&rollup_name)
+            .unwrap()
+            .wait_for(|status| status.is_connected())
+            .await
+            .unwrap();
+        let _ = mock_geth
+            .push_tx(expected_transaction.clone().into())
+            .unwrap();
+        let collector_tx = rx.recv().await.unwrap();
+
+        assert_eq!(rollup_name, collector_tx.chain_id);
+        assert_eq!(expected_transaction, collector_tx.inner);
     }
 }
