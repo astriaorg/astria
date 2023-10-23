@@ -11,7 +11,7 @@ const DEFAULT_ROLLUP_CHART_PATH: &str =
     "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.4.3.tgz";
 const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-1.devnet.astria.org";
 const DEFAULT_SEQUENCER_WS: &str = "wss://rpc.sequencer.dusk-1.devnet.astria.org/websocket";
-const DEFAULT_LOG_LEVEL: &str = "info";
+const DEFAULT_LOG_LEVEL: &str = "debug";
 const DEFAULT_NETWORK_ID: u64 = 1337;
 const DEFAULT_HOSTNAME: &str = "localdev.me";
 const DEFAULT_NAMESPACE: &str = "astria-dev-cluster";
