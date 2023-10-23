@@ -300,15 +300,16 @@ async fn subscribe_new_blocks(
 /// Forwards a sequencer block to the executor if it contains the expected height, or reschedules
 /// the block for later while fetching blocks for all missing heights.
 ///
-/// The following cases are considered:
+/// The following cases are considered (with `h` the next height expected by the sequencer reader,
+/// and `k` the height recorded in the block):
 ///
-/// 1. if `h == h'` the block is forwarded to the executor. `h+1` is returned as the next expected
+/// 1. if `h == k` the block is forwarded to the executor. `h+1` is returned as the next expected
 ///    height.
-/// 2. if `h < h'` the block is dropped because its height `h'` is below the expected height `h`.
-///    `h` is returned as the next expected height (i.e. no change in the expected height).
-/// 3. if `h > h'` a re-sync is scheduled for the range `h..h'`, the block is pushed to the front of
-///    the queue to be forwarded later. `h'` (the height of the re-scheduled block) is returned as
-///    the next expected height.
+/// 2. if `h < k` the block is dropped. `h` is returned as the next expected height (i.e. there is
+///    no change in the expected height).
+/// 3. if `h > k` a re-sync is scheduled for the range `h..k` (exluding `k`), the block is pushed to
+///    the front of the queue to be forwarded later. `k` (the height of the re-scheduled block) is
+///    returned as the next expected height.
 ///
 /// # Returns
 /// Returns the next expected height, depending on the cases discussed above.
