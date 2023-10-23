@@ -190,7 +190,9 @@ pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()>
         ))
         .arg(rollup.deployment_config.get_chart_release_name())
         .arg(&args.chart_path)
-        .arg(format!("--namespace={}", args.namespace.clone()))
+        .arg("--set")
+        .arg(format!("namespace={}", rollup.namespace))
+        .arg(format!("--namespace={}", rollup.namespace))
         .arg("--create-namespace");
 
     if args.dry_run {
@@ -237,7 +239,8 @@ pub(crate) fn delete_deployment(args: &DeploymentDeleteArgs) -> eyre::Result<()>
     let helm = helm_from_env();
     let mut cmd = Command::new(helm.clone());
     cmd.arg("uninstall")
-        .arg(rollup.deployment_config.get_chart_release_name());
+        .arg(rollup.deployment_config.get_chart_release_name())
+        .arg(format!("--namespace={}", rollup.namespace));
 
     match cmd.output() {
         Err(e) => {
@@ -307,6 +310,8 @@ mod test {
             sequencer_websocket: String::new(),
             sequencer_rpc: String::new(),
             log_level: String::new(),
+            hostname: String::new(),
+            namespace: String::new(),
         }
     }
 

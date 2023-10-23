@@ -16,6 +16,7 @@ pub struct Rollup {
     // TODO - namespace
     #[serde(rename = "config")]
     pub(crate) deployment_config: RollupDeploymentConfig,
+    pub(crate) namespace: String,
 }
 
 impl TryFrom<&ConfigCreateArgs> for Rollup {
@@ -26,6 +27,7 @@ impl TryFrom<&ConfigCreateArgs> for Rollup {
 
         Ok(Self {
             deployment_config,
+            namespace: args.namespace.clone(),
         })
     }
 }
