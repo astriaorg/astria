@@ -195,3 +195,43 @@ impl managed::Manager for ClientProvider {
         ))
     }
 }
+
+#[cfg(test)]
+pub(crate) mod mock {
+    use deadpool::managed::Pool;
+    use jsonrpsee::{
+        server::{
+            Server,
+            ServerHandle,
+        },
+        RpcModule,
+    };
+
+    use super::{
+        start_pool,
+        ClientProvider,
+    };
+
+    pub(crate) struct TestPool {
+        pub(crate) _handle: ServerHandle,
+        pub(crate) pool: Pool<ClientProvider>,
+    }
+
+    impl TestPool {
+        /// Creates a connection pool with connected to a barebones jsonrpc server that's only
+        /// there to establish connections. The server provides no additional functionality.
+        /// Useful to line up types in tests.
+        pub(crate) async fn setup() -> Self {
+            let server = Server::builder().build("127.0.0.1:0").await.unwrap();
+            let mut module = RpcModule::new(());
+            module.register_method("say_hello", |_, _| "lo").unwrap();
+            let address = server.local_addr().unwrap();
+            let _handle = server.start(module);
+            let pool = start_pool(&format!("ws://{address}")).await.unwrap();
+            Self {
+                _handle,
+                pool,
+            }
+        }
+    }
+}

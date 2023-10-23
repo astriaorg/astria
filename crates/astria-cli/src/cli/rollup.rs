@@ -11,6 +11,8 @@ const DEFAULT_ROLLUP_CHART_PATH: &str =
     "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.4.3.tgz";
 const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-1.devnet.astria.org";
 const DEFAULT_SEQUENCER_WS: &str = "wss://rpc.sequencer.dusk-1.devnet.astria.org/websocket";
+const DEFAULT_LOG_LEVEL: &str = "info";
+const DEFAULT_NETWORK_ID: u64 = 1337;
 const DEFAULT_HOSTNAME: &str = "localdev.me";
 const DEFAULT_NAMESPACE: &str = "astria-dev-cluster";
 
@@ -49,11 +51,11 @@ pub enum ConfigCommand {
     Delete(ConfigDeleteArgs),
 }
 
-#[derive(Args, Debug, Serialize)]
+#[derive(Args, Debug, Serialize, Clone)]
 pub struct ConfigCreateArgs {
     #[clap(long, env = "ROLLUP_USE_TTY")]
     pub use_tty: bool,
-    #[clap(long, env = "ROLLUP_LOG_LEVEL")]
+    #[clap(long, env = "ROLLUP_LOG_LEVEL", default_value = DEFAULT_LOG_LEVEL)]
     pub log_level: String,
 
     // rollup config
@@ -63,8 +65,10 @@ pub struct ConfigCreateArgs {
     /// Optional. Will be derived from the rollup name if not provided
     #[clap(long = "rollup.chain-id", env = "ROLLUP_CHAIN_ID", required = false)]
     pub chain_id: Option<String>,
-    #[clap(long = "rollup.network-id", env = "ROLLUP_NETWORK_ID")]
+    /// The Network ID for the EVM chain
+    #[clap(long = "rollup.network-id", env = "ROLLUP_NETWORK_ID", default_value_t = DEFAULT_NETWORK_ID)]
     pub network_id: u64,
+    /// When enabled, rollup will skip blocks which contain zero transactions.
     #[clap(long = "rollup.skip-empty-blocks", env = "ROLLUP_SKIP_EMPTY_BLOCKS")]
     pub skip_empty_blocks: bool,
 
