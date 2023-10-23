@@ -1,19 +1,5 @@
 use std::net::SocketAddr;
 
-// use celestia_client::celestia_tendermint::serializers::timestamp;
-// use proto::generated::execution::v1alpha1::{
-//     execution_service_server::{
-//         ExecutionService,
-//         ExecutionServiceServer,
-//     },
-//     DoBlockRequest,
-//     DoBlockResponse,
-//     FinalizeBlockRequest,
-//     FinalizeBlockResponse,
-//     InitStateRequest,
-//     InitStateResponse,
-// };
-// TODO: add v1a2 stuff here and remove v1a1
 use proto::generated::execution::v1alpha2::{
     execution_service_server::{
         ExecutionService,
@@ -22,7 +8,6 @@ use proto::generated::execution::v1alpha2::{
     BatchGetBlocksRequest,
     BatchGetBlocksResponse,
     Block,
-    // BlockIdentifier,
     CommitmentState,
     ExecuteBlockRequest,
     GetBlockRequest,
@@ -71,9 +56,16 @@ impl MockExecutionServer {
     }
 }
 
+fn new_basic_block() -> Block {
+    Block {
+        number: 0,
+        hash: vec![],
+        parent_block_hash: vec![],
+        timestamp: None,
+    }
+}
+
 struct ExecutionServiceImpl;
-// TODO: add data for soft and firm commits
-// TODO: also add number info here
 
 #[tonic::async_trait]
 impl ExecutionService for ExecutionServiceImpl {
@@ -95,15 +87,12 @@ impl ExecutionService for ExecutionServiceImpl {
         &self,
         request: tonic::Request<ExecuteBlockRequest>,
     ) -> std::result::Result<tonic::Response<Block>, tonic::Status> {
-        // let number = request.into_inner().number;
-        // TODO: add a number to ExecutionServiceImpl
-        // let number = self.number + 1;
         let loc_request = request.into_inner();
         let parent_block_hash = loc_request.prev_block_hash.clone();
         let hash = hash(&parent_block_hash);
         let timestamp = loc_request.timestamp.unwrap_or_default();
         Ok(tonic::Response::new(Block {
-            number: 0, // TODO: add a number to ExecutionServiceImpl
+            number: 0, // we don't do anything with the number in the mock, can always be 0
             hash,
             parent_block_hash,
             timestamp: Some(timestamp),
@@ -114,38 +103,20 @@ impl ExecutionService for ExecutionServiceImpl {
         &self,
         _request: tonic::Request<GetCommitmentStateRequest>,
     ) -> std::result::Result<tonic::Response<CommitmentState>, tonic::Status> {
-        unimplemented!("get_commitment_state")
+        Ok(tonic::Response::new(CommitmentState {
+            soft: Some(new_basic_block()),
+            firm: Some(new_basic_block()),
+        }))
     }
 
     async fn update_commitment_state(
         &self,
-        _request: tonic::Request<UpdateCommitmentStateRequest>,
+        request: tonic::Request<UpdateCommitmentStateRequest>,
     ) -> std::result::Result<tonic::Response<CommitmentState>, tonic::Status> {
-        unimplemented!("update_commitment_state")
+        Ok(tonic::Response::new(
+            request.into_inner().commitment_state.unwrap(),
+        ))
     }
-
-    // async fn init_state(
-    //     &self,
-    //     _request: tonic::Request<InitStateRequest>,
-    // ) -> std::result::Result<tonic::Response<InitStateResponse>, tonic::Status> { let hasher =
-    //   sha2::Sha256::new(); Ok(tonic::Response::new(InitStateResponse { block_hash:
-    //   hasher.finalize().to_vec(), }))
-    // }
-
-    // async fn do_block(
-    //     &self,
-    //     _request: tonic::Request<DoBlockRequest>,
-    // ) -> std::result::Result<tonic::Response<DoBlockResponse>, tonic::Status> { let
-    //   prev_block_hash = _request.into_inner().prev_block_hash; let res = hash(&prev_block_hash);
-    //   Ok(tonic::Response::new(DoBlockResponse { block_hash: res.to_vec(), }))
-    // }
-
-    // async fn finalize_block(
-    //     &self,
-    //     _request: tonic::Request<FinalizeBlockRequest>,
-    // ) -> std::result::Result<tonic::Response<FinalizeBlockResponse>, tonic::Status> {
-    //   Ok(tonic::Response::new(FinalizeBlockResponse {}))
-    // }
 }
 
 fn hash(s: &[u8]) -> Vec<u8> {
@@ -198,6 +169,7 @@ async fn start_mock(disable_empty_block_execution: bool) -> MockEnvironment {
 async fn execute_sequencer_block_without_txs() {
     let mut mock = start_mock(false).await;
 
+    // using soft hash here as sequencer blocks are executed on top of the soft commitment
     let expected_exection_hash = hash(&mock.executor.commitment_state.soft.hash);
     let block = get_test_block_subset();
 
@@ -227,7 +199,8 @@ async fn execute_unexecuted_da_block_with_transactions() {
     let mut block = get_test_block_subset();
     block.rollup_transactions.push(b"test_transaction".to_vec());
 
-    let expected_exection_hash = hash(&mock.executor.commitment_state.soft.hash);
+    // using firm hash here as da blocks are executed on top of the firm commitment
+    let expected_exection_hash = hash(&mock.executor.commitment_state.firm.hash);
 
     mock.executor
         .execute_and_finalize_blocks_from_celestia(vec![block])
@@ -248,7 +221,8 @@ async fn skip_unexecuted_da_block_with_no_transactions() {
     let mut mock = start_mock(true).await;
 
     let block = get_test_block_subset();
-    let previous_execution_state = mock.executor.commitment_state.soft.hash.clone();
+    // using firm hash here as da blocks are executed on top of the firm commitment
+    let previous_execution_state = mock.executor.commitment_state.firm.hash.clone();
 
     mock.executor
         .execute_and_finalize_blocks_from_celestia(vec![block])
@@ -267,7 +241,8 @@ async fn skip_unexecuted_da_block_with_no_transactions() {
 async fn execute_unexecuted_da_block_with_no_transactions() {
     let mut mock = start_mock(false).await;
     let block = get_test_block_subset();
-    let expected_execution_state = hash(&mock.executor.commitment_state.soft.hash);
+    // using firm hash here as da blocks are executed on top of the firm commitment
+    let expected_execution_state = hash(&mock.executor.commitment_state.firm.hash);
 
     mock.executor
         .execute_and_finalize_blocks_from_celestia(vec![block])
@@ -286,7 +261,8 @@ async fn execute_unexecuted_da_block_with_no_transactions() {
 #[tokio::test]
 async fn empty_message_from_data_availability_is_dropped() {
     let mut mock = start_mock(false).await;
-    let expected_execution_state = mock.executor.commitment_state.soft.hash.clone();
+    // using firm hash here as da blocks are executed on top of the firm commitment
+    let expected_execution_state = mock.executor.commitment_state.firm.hash.clone();
 
     mock.executor
         .execute_and_finalize_blocks_from_celestia(vec![])
@@ -295,7 +271,7 @@ async fn empty_message_from_data_availability_is_dropped() {
 
     assert_eq!(
         expected_execution_state,
-        mock.executor.commitment_state.soft.hash
+        mock.executor.commitment_state.firm.hash
     );
     assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
 }
