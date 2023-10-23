@@ -1,7 +1,7 @@
 use ethers::{
     contract::EthAbiType,
     prelude::*,
-    types::transaction::optimism_deposited::OptimismDepositedTransactionRequest as DepositTransaction,
+    types::transaction::optimism::DepositTransaction,
 };
 use eyre::WrapErr as _;
 
@@ -66,36 +66,10 @@ pub fn convert_deposit_event_to_deposit_tx(
             nonce: None,
             chain_id: None,
         },
-        source_hash: Some(get_user_deposit_source_hash(block_hash, log_index).into()),
+        source_hash: get_user_deposit_source_hash(block_hash, log_index).into(),
         mint,
-        is_system_tx: Some(false),
+        is_system_tx: false,
     })
-}
-
-pub fn rlp_encode_deposit_transaction(tx: &DepositTransaction) -> Vec<u8> {
-    const NUM_TX_FIELDS: usize = 8;
-    let mut rlp = rlp::RlpStream::new();
-    rlp.begin_list(NUM_TX_FIELDS);
-
-    let gas: u64 = tx.tx.gas.unwrap_or_default().as_u64();
-    rlp.append(&tx.source_hash.unwrap_or_default());
-    rlp.append(&tx.tx.from.unwrap_or_default());
-    rlp_opt(&mut rlp, &tx.tx.to);
-    rlp.append(&tx.mint.unwrap_or_default());
-    rlp.append(&tx.tx.value.unwrap_or_default());
-    rlp.append(&gas);
-    rlp.append(&tx.is_system_tx.unwrap_or_default());
-    rlp.append(&tx.tx.data.as_deref().unwrap_or_default());
-
-    rlp.out().freeze().into()
-}
-
-fn rlp_opt<T: rlp::Encodable>(rlp: &mut rlp::RlpStream, opt: &Option<T>) {
-    if let Some(inner) = opt {
-        rlp.append(inner);
-    } else {
-        rlp.append(&"");
-    }
 }
 
 // from OptimismPortal.sol:
@@ -171,12 +145,16 @@ mod test {
                 nonce: None,
                 chain_id: None,
             },
-            source_hash: Some(source_hash.into()),
+            source_hash: source_hash.into(),
             mint: Some(value),
-            is_system_tx: Some(false),
+            is_system_tx: false,
         };
-        let encoded = rlp_encode_deposit_transaction(&tx);
-        assert_eq!(encoded, expected);
+        // let encoded = rlp_encode_deposit_transaction(&tx);
+        // assert_eq!(encoded, expected);
+
+        let encoded = tx.rlp();
+        println!("{:?}", hex::encode(&encoded));
+        assert_eq!(encoded.as_ref(), &expected);
     }
 
     /// Listens to [`TransactionDeposited`] events on the [`OptimismPortal`] contract.
@@ -197,6 +175,7 @@ mod test {
 
     #[tokio::test]
     async fn test_listen_to_deposit_events() {
+        const anvil_chain_id: u64 = 31337;
         let provider = Arc::new(
             Provider::<Ws>::connect("ws://localhost:8545")
                 .await
@@ -204,7 +183,8 @@ mod test {
         );
         let wallet = "2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6"
             .parse::<LocalWallet>()
-            .unwrap();
+            .unwrap()
+            .with_chain_id(anvil_chain_id);
         let contract_address: [u8; 20] = hex::decode("F87a0abe1b875489CA84ab1E4FE47A2bF52C7C64")
             .unwrap()
             .try_into()

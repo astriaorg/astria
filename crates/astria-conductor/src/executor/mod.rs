@@ -21,8 +21,8 @@ use optimism::{
         OptimismPortal,
         TransactionDepositedFilter,
     },
-    watcher::convert_deposit_event_to_deposit_tx,
-    OptimismDepositedTransactionRequest,
+    deposit::convert_deposit_event_to_deposit_tx,
+    DepositTransaction,
 };
 use prost_types::Timestamp as ProstTimestamp;
 use tendermint::{
@@ -115,7 +115,7 @@ pub(crate) struct Executor {
 
     ethereum_provider: Arc<Provider<Ws>>,
     optimism_portal_contract: Option<OptimismPortal<Provider<Ws>>>,
-    queued_deposit_txs: VecDeque<OptimismDepositedTransactionRequest>,
+    queued_deposit_txs: VecDeque<DepositTransaction>,
 }
 
 impl Executor {
@@ -219,7 +219,7 @@ impl Executor {
                             let deposit_txs = deposit_txs
                                 .into_iter()
                                 .map(|tx| {
-                                    [prefix.clone(), optimism::watcher::rlp_encode_deposit_transaction(&tx).to_vec()].concat()
+                                    [prefix.clone(), tx.rlp().to_vec()].concat()
                                 })
                                 .collect::<Vec<Vec<u8>>>();
                             //let timestamp = (tendermint::Time::now() + std::time::Duration::from_secs(10)).unwrap();

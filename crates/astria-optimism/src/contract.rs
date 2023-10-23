@@ -26,7 +26,7 @@ pub fn get_optimism_portal_with_signer<P: JsonRpcClient>(
     wallet: Wallet<SigningKey>,
     contract_address: Address,
 ) -> OptimismPortal<SignerMiddleware<Arc<Provider<P>>, Wallet<SigningKey>>> {
-    let signer = SignerMiddleware::new(provider, wallet.with_chain_id(31337u64));
+    let signer = SignerMiddleware::new(provider, wallet);
     let client = std::sync::Arc::new(signer);
     OptimismPortal::new(contract_address, client)
 }
@@ -63,6 +63,7 @@ pub async fn make_deposit_transaction<M: Middleware + 'static>(
     Ok(receipt)
 }
 
+/// Returns the minimum gas limit for a deposit transaction with the given data length.
 fn get_minimum_gas_limit(data_len: usize) -> u64 {
     let base = 21000;
     let per_byte = 16;
@@ -71,14 +72,21 @@ fn get_minimum_gas_limit(data_len: usize) -> u64 {
 
 #[cfg(test)]
 mod test {
+    use ethers::core::utils::Anvil;
+
     use super::*;
 
     #[tokio::test]
     async fn test_make_deposit_transaction() {
+        const anvil_chain_id: u64 = 31337;
+
+        let anvil = Anvil::new().spawn();
+
         let provider = Provider::<Http>::try_from("http://localhost:8545").unwrap();
         let wallet = "2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6"
             .parse::<LocalWallet>()
-            .unwrap();
+            .unwrap()
+            .with_chain_id(anvil_chain_id);
         let contract_addr: [u8; 20] = hex::decode("F87a0abe1b875489CA84ab1E4FE47A2bF52C7C64")
             .unwrap()
             .try_into()
@@ -92,10 +100,11 @@ mod test {
             .unwrap();
         let value = 10_000_000_000_000_000u128;
 
-        let receipt = make_deposit_transaction(contract, Some(to.into()), value.into(), None)
-            .await
-            .unwrap()
-            .unwrap();
+        let receipt: TransactionReceipt =
+            make_deposit_transaction(contract, Some(to.into()), value.into(), None)
+                .await
+                .unwrap()
+                .unwrap();
         println!("{receipt:?}");
         assert_eq!(receipt.status.unwrap(), 1.into());
     }

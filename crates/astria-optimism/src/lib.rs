@@ -1,4 +1,4 @@
 pub mod contract;
-pub mod watcher;
+pub mod deposit;
 
-pub use ethers::types::transaction::optimism_deposited::OptimismDepositedTransactionRequest;
+pub use ethers::types::transaction::optimism::DepositTransaction;
