@@ -105,7 +105,7 @@ fn update_yaml_value(
 /// * If the yaml cannot be written to the file
 pub(crate) async fn create_config(args: &ConfigCreateArgs) -> eyre::Result<()> {
     // create rollup from args
-    let mut conf = (*args).clone();
+    let mut conf = args.clone();
 
     // Fetch the latest block from sequencer if none specified.
     if conf.sequencer_initial_block_height.is_none() {
