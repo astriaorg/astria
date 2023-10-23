@@ -6,7 +6,5 @@ edition = "2021"
 [dependencies]
 ethers = {version = "2.0", features = ["optimism", "ws"] }
 eyre = { workspace = true }
-futures = { workspace = true }
 hex = { workspace = true }
-rlp = "0.5"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

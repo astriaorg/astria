@@ -67,6 +67,15 @@ impl RollupDeploymentConfig {
     pub fn get_rollup_name(&self) -> String {
         self.rollup.name.clone()
     }
+
+    #[must_use]
+    pub fn get_initial_sequencer_height(&self) -> u64 {
+        self.sequencer.initial_block_height
+    }
+
+    pub fn set_initial_sequencer_height(&mut self, new_height: u64) {
+        self.sequencer.initial_block_height = new_height;
+    }
 }
 
 impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
@@ -78,10 +87,8 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
             .clone()
             .unwrap_or(format!("{}-chain", args.name));
 
-        let sequencer_initial_block_height = args.sequencer_initial_block_height.unwrap_or({
-            // TODO - get current block height from sequencer
-            0
-        });
+        // Set to block 1 if nothing set.
+        let sequencer_initial_block_height = args.sequencer_initial_block_height.unwrap_or(1);
 
         let genesis_accounts = args
             .genesis_accounts
@@ -96,7 +103,7 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
             rollup: RollupConfig {
                 name: args.name.clone(),
                 chain_id,
-                network_id: args.network_id,
+                network_id: args.network_id.to_string(),
                 skip_empty_blocks: args.skip_empty_blocks,
                 genesis_accounts,
             },
@@ -114,7 +121,8 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
 pub struct RollupConfig {
     name: String,
     chain_id: String,
-    network_id: u64,
+    // NOTE - String here because yaml will serialize large ints w/ scientific notation
+    network_id: String,
     skip_empty_blocks: bool,
     genesis_accounts: Vec<GenesisAccount>,
 }
@@ -184,7 +192,7 @@ mod tests {
                 rollup: RollupConfig {
                     name: "rollup1".to_string(),
                     chain_id: "chain1".to_string(),
-                    network_id: 1,
+                    network_id: "1".to_string(),
                     skip_empty_blocks: true,
                     genesis_accounts: vec![
                         GenesisAccount {
@@ -217,7 +225,7 @@ mod tests {
             log_level: "info".to_string(),
             name: "rollup2".to_string(),
             chain_id: None,
-            network_id: 2,
+            network_id: 2_211_011_801,
             skip_empty_blocks: false,
             genesis_accounts: vec![GenesisAccountArg {
                 address: "0xA5TR14".to_string(),
@@ -235,7 +243,7 @@ mod tests {
                 rollup: RollupConfig {
                     name: "rollup2".to_string(),
                     chain_id: "rollup2-chain".to_string(), // Derived from name
-                    network_id: 2,
+                    network_id: "2211011801".to_string(),
                     skip_empty_blocks: false,
                     genesis_accounts: vec![GenesisAccount {
                         address: "0xA5TR14".to_string(),
@@ -243,7 +251,7 @@ mod tests {
                     }],
                 },
                 sequencer: SequencerConfig {
-                    initial_block_height: 0, // Default value
+                    initial_block_height: 1, // Default value
                     websocket: "ws://localhost:8082".to_string(),
                     rpc: "http://localhost:8083".to_string(),
                 },

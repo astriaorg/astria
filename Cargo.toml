@@ -60,7 +60,7 @@ which = "4.4.0"
 wiremock = "0.5"
 
 [patch.crates-io]
-ethers = { git = "https://github.com/noot/ethers-rs", rev = "4c1ea8e181609ab87184fad69b58652147d8b637" }
+ethers = { git = "https://github.com/gakonst/ethers-rs", rev = "4acfa9d4e093022aa1bdbe9490e0ffa927494ec1" }
 tendermint = { git = "https://github.com/astriaorg/tendermint-rs", branch = "v0.33.2-reqwest-backport" }
 tendermint-config = { git = "https://github.com/astriaorg/tendermint-rs", branch = "v0.33.2-reqwest-backport" }
 tendermint-proto = { git = "https://github.com/astriaorg/tendermint-rs", branch = "v0.33.2-reqwest-backport" }

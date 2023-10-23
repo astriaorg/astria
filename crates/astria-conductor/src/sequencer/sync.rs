@@ -8,6 +8,7 @@ use deadpool::managed::{
     PoolError,
 };
 use futures::stream::FuturesOrdered;
+use sequencer_client::tendermint::block::Height;
 use tokio::select;
 use tracing::{
     error,
@@ -31,8 +32,8 @@ enum Error {
 
 #[instrument(skip(client_pool))]
 pub(super) async fn run(
-    start: u32,
-    end: u32,
+    start: Height,
+    end: Height,
     client_pool: Pool<ClientProvider>,
     executor: crate::executor::Sender,
 ) -> eyre::Result<()> {
@@ -41,6 +42,14 @@ pub(super) async fn run(
         StreamExt as _,
     };
 
+    let start: u32 = start
+        .value()
+        .try_into()
+        .wrap_err("start cometbft height overflowed u32")?;
+    let end: u32 = end
+        .value()
+        .try_into()
+        .wrap_err("end cometbft height overflowed u32")?;
     let mut height_stream = futures::stream::iter(start..end);
     let mut block_stream = FuturesOrdered::new();
 
