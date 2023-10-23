@@ -47,7 +47,9 @@ features = ["http"]
 
 [dev-dependencies]
 proto = { package = "astria-proto", path = "../astria-proto" }
-test_utils = { package = "astria-test-utils", path = "../astria-test-utils", features = ["geth"] }
+test_utils = { package = "astria-test-utils", path = "../astria-test-utils", features = [
+  "geth",
+] }
 tokio-test = { workspace = true }
 
 figment = { workspace = true, features = ["test"] }
