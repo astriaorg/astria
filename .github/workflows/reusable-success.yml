@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ always() && !cancelled() }}
     steps:
+      - run: echo ${{ toJson(needs) }}
       - if: ${{ contains(needs.*.result, 'failure') }}
         run: exit 1
       - if: ${{ !contains(needs.*.result, 'failure') }}
