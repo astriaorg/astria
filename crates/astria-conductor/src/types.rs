@@ -1,11 +1,11 @@
-use proto::generated::execution::v1alpha2::{
-    Block,
-    CommitmentState,
-};
 use astria_sequencer_types::{
     ChainId,
     RawSequencerBlockData,
     SequencerBlockData,
+};
+use proto::generated::execution::v1alpha2::{
+    Block,
+    CommitmentState,
 };
 use tendermint::{
     block::Header,
