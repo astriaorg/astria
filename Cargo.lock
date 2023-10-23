@@ -2010,6 +2010,7 @@ version = "2.0.10"
 source = "git+https://github.com/gakonst/ethers-rs?rev=4acfa9d4e093022aa1bdbe9490e0ffa927494ec1#4acfa9d4e093022aa1bdbe9490e0ffa927494ec1"
 dependencies = [
  "ethers-core",
+ "ethers-solc",
  "reqwest",
  "semver 1.0.20",
  "serde",

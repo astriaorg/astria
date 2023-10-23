@@ -72,40 +72,24 @@ fn get_minimum_gas_limit(data_len: usize) -> u64 {
 
 #[cfg(test)]
 mod test {
-    use ethers::core::utils::Anvil;
-
     use super::*;
 
     #[tokio::test]
     async fn test_make_deposit_transaction() {
-        const anvil_chain_id: u64 = 31337;
+        let (contract_address, provider, wallet, _anvil_instance) =
+            crate::test_utils::deploy_mock_optimism_portal().await;
 
-        let anvil = Anvil::new().spawn();
+        // get contract object
+        let to = wallet.address();
+        let contract = get_optimism_portal_with_signer(provider, wallet, contract_address);
 
-        let provider = Provider::<Http>::try_from("http://localhost:8545").unwrap();
-        let wallet = "2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6"
-            .parse::<LocalWallet>()
-            .unwrap()
-            .with_chain_id(anvil_chain_id);
-        let contract_addr: [u8; 20] = hex::decode("F87a0abe1b875489CA84ab1E4FE47A2bF52C7C64")
-            .unwrap()
-            .try_into()
-            .unwrap();
-        let contract =
-            get_optimism_portal_with_signer(Arc::new(provider), wallet, contract_addr.into());
-
-        let to: [u8; 20] = hex::decode("a0Ee7A142d267C1f36714E4a8F75612F20a79720")
-            .unwrap()
-            .try_into()
-            .unwrap();
+        // submit deposit transaction
         let value = 10_000_000_000_000_000u128;
-
         let receipt: TransactionReceipt =
-            make_deposit_transaction(contract, Some(to.into()), value.into(), None)
+            make_deposit_transaction(contract, Some(to), value.into(), None)
                 .await
                 .unwrap()
                 .unwrap();
-        println!("{receipt:?}");
         assert_eq!(receipt.status.unwrap(), 1.into());
     }
 }

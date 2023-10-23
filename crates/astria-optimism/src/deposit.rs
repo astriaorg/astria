@@ -111,7 +111,7 @@ fn get_user_deposit_source_hash(block_hash: H256, log_index: U256) -> [u8; 32] {
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
+    use tokio::sync::oneshot;
 
     use super::*;
     use crate::contract::*;
@@ -149,11 +149,8 @@ mod test {
             mint: Some(value),
             is_system_tx: false,
         };
-        // let encoded = rlp_encode_deposit_transaction(&tx);
-        // assert_eq!(encoded, expected);
 
         let encoded = tx.rlp();
-        println!("{:?}", hex::encode(&encoded));
         assert_eq!(encoded.as_ref(), &expected);
     }
 
@@ -162,12 +159,17 @@ mod test {
     /// # Errors
     ///
     /// - if the event stream fails to initialize.
-    async fn listen_to_deposit_events(contract: OptimismPortal<Provider<Ws>>) -> eyre::Result<()> {
+    async fn listen_to_deposit_events(
+        contract: OptimismPortal<Provider<Ws>>,
+        tx: oneshot::Sender<(TransactionDepositedFilter, LogMeta)>,
+    ) -> eyre::Result<()> {
         let events = contract.event::<TransactionDepositedFilter>().from_block(1);
         let mut stream = events.stream().await?.with_meta().take(1);
 
-        while let Some(Ok((event, meta))) = stream.next().await {
-            println!("TransactionDeposited event: {event:?} {meta:?}");
+        if let Some(Ok((event, meta))) = stream.next().await {
+            tx.send((event, meta)).unwrap();
+        } else {
+            panic!("listening to TransactionDeposited event stream failed");
         }
 
         Ok(())
@@ -175,39 +177,32 @@ mod test {
 
     #[tokio::test]
     async fn test_listen_to_deposit_events() {
-        const anvil_chain_id: u64 = 31337;
-        let provider = Arc::new(
-            Provider::<Ws>::connect("ws://localhost:8545")
-                .await
-                .unwrap(),
-        );
-        let wallet = "2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6"
-            .parse::<LocalWallet>()
-            .unwrap()
-            .with_chain_id(anvil_chain_id);
-        let contract_address: [u8; 20] = hex::decode("F87a0abe1b875489CA84ab1E4FE47A2bF52C7C64")
-            .unwrap()
-            .try_into()
-            .unwrap();
-        let contract =
-            get_optimism_portal_with_signer(provider.clone(), wallet, contract_address.into());
-        let contract_read_only = get_optimism_portal_read_only(provider, contract_address.into());
+        let (contract_address, provider, wallet, _anvil_instance) =
+            crate::test_utils::deploy_mock_optimism_portal().await;
 
+        // get contract objects
+        let to = wallet.address();
+        let contract = get_optimism_portal_with_signer(provider.clone(), wallet, contract_address);
+        let contract_read_only = get_optimism_portal_read_only(provider, contract_address);
+
+        let (tx, rx) = oneshot::channel();
         tokio::spawn(async move {
-            listen_to_deposit_events(contract_read_only).await.unwrap();
+            listen_to_deposit_events(contract_read_only, tx)
+                .await
+                .unwrap();
         });
 
-        let to: [u8; 20] = hex::decode("a0Ee7A142d267C1f36714E4a8F75612F20a79720")
-            .unwrap()
-            .try_into()
-            .unwrap();
         let value = 10_000_000_000_000_000u128;
 
-        let receipt = make_deposit_transaction(contract, Some(to.into()), value.into(), None)
+        let receipt = make_deposit_transaction(contract, Some(to), value.into(), None)
             .await
             .unwrap()
             .unwrap();
-        println!("{receipt:?}");
         assert_eq!(receipt.status.unwrap(), 1.into());
+
+        let (event, meta) = rx.await.expect("expected TransactionDeposited event");
+        let deposit_tx =
+            convert_deposit_event_to_deposit_tx(event, meta.block_hash, meta.log_index).unwrap();
+        assert_eq!(deposit_tx.tx.value.unwrap(), value.into());
     }
 }
