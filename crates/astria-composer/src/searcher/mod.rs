@@ -47,12 +47,17 @@ use executor::Executor;
 pub(super) struct Searcher {
     // Channel to report the internal status of the searcher to other parts of the system.
     status: watch::Sender<Status>,
+    // The collection of collectors and their chain IDs.
     collectors: HashMap<String, Collector>,
+    // The collection of the collector statuses.
     collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
-    // A channel on which the searcher receives transactions from its collectors.
+    // The rx part of the channel on which the searcher receives transactions from its collectors.
     new_transactions_rx: Receiver<collector::Transaction>,
+    // The tx part that collectors use to send transactions to their parent searcher.
     new_transactions_tx: Sender<collector::Transaction>,
+    // The map of chain ID to the URLs to which collectors should connect.
     rollups: HashMap<String, String>,
+    // The set of tasks tracking if the collectors are still running.
     collector_tasks: JoinMap<String, eyre::Result<()>>,
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
@@ -345,7 +350,7 @@ fn reconnect_exited_collector(
         }
     }
     let Some(url) = rollups.get(&rollup) else {
-        warn!(
+        error!(
             "rollup should have had an entry in the rollup->url map but doesn't; not reconnecting \
              it"
         );
