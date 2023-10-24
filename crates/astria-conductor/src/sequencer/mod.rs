@@ -141,7 +141,8 @@ impl Reader {
                 shutdown = &mut shutdown => {
                     let ret = match shutdown {
                         Err(e) => {
-                            warn!(error.message = %e, "shutdown channel closed unexpectedly; shutting down");
+                            let error = &e as &(dyn std::error::Error + 'static);
+                            warn!(error, "shutdown channel closed unexpectedly; shutting down");
                             Err(e).wrap_err("shut down channel closed unexpectedly")
                         }
                         Ok(()) => {
@@ -154,7 +155,8 @@ impl Reader {
 
                 res = &mut sync, if !sync.is_terminated() => {
                     if let Err(e) = res {
-                        warn!(error.message = %e, error.cause = ?e, "sync failed; continuing with normal operation");
+                        let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                        warn!(error, "sync failed; continuing with normal operation");
                     } else {
                         info!("sync finished successfully");
                     }

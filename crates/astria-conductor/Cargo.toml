@@ -6,7 +6,6 @@ rust-version = "1.70.0"
 
 [dependencies]
 async-trait = "0.1.73"
-tryhard = "0.5.1"
 
 base64 = { workspace = true }
 color-eyre = { workspace = true }
@@ -33,6 +32,7 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tokio-util = { workspace = true, features = ["rt"] }
 tonic = { workspace = true }
 tracing = { workspace = true }
+tryhard = { workspace = true }
 
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 astria-sequencer-types = { path = "../astria-sequencer-types" }

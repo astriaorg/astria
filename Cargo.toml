@@ -14,6 +14,7 @@ members = [
   "crates/astria-sequencer-utils",
   "crates/astria-sequencer-validation",
   "crates/astria-telemetry",
+  "crates/astria-test-utils",
 ]
 resolver = "2"
 
@@ -53,9 +54,11 @@ tendermint-proto = "0.33.2"
 tendermint-rpc = "0.33.2"
 thiserror = "1"
 tokio = "1.28"
+tokio-test = "0.4.2"
 tokio-util = "0.7.9"
 tonic = "0.9"
 tracing = "0.1"
+tryhard = "0.5.1"
 which = "4.4.0"
 wiremock = "0.5"
 
