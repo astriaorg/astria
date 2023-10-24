@@ -363,7 +363,10 @@ mod tests {
     use ethers::types::Transaction;
     use tokio_util::task::JoinMap;
 
-    use crate::searcher::collector::Collector;
+    use crate::searcher::collector::{
+        self,
+        Collector,
+    };
 
     /// This tests the `reconnect_exited_collector` handler.
     #[tokio::test]
@@ -384,9 +387,7 @@ mod tests {
             .await
             .unwrap();
         let expected_transaction = Transaction::default();
-        let _ = mock_geth
-            .push_tx(expected_transaction.clone().into())
-            .unwrap();
+        let _ = mock_geth.push_tx(expected_transaction.clone()).unwrap();
         let collector_tx = rx.recv().await.unwrap();
 
         assert_eq!(rollup_name, collector_tx.chain_id);
@@ -416,12 +417,10 @@ mod tests {
         statuses
             .get_mut(&rollup_name)
             .unwrap()
-            .wait_for(|status| status.is_connected())
+            .wait_for(collector::Status::is_connected)
             .await
             .unwrap();
-        let _ = mock_geth
-            .push_tx(expected_transaction.clone().into())
-            .unwrap();
+        let _ = mock_geth.push_tx(expected_transaction.clone()).unwrap();
         let collector_tx = rx.recv().await.unwrap();
 
         assert_eq!(rollup_name, collector_tx.chain_id);
