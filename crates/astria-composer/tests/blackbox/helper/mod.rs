@@ -64,7 +64,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
             .into(),
     };
     let (composer_addr, composer) = {
-        let composer = Composer::from_config(config).unwrap();
+        let composer = Composer::from_config(&config).unwrap();
         let composer_addr = composer.local_addr();
         let task = tokio::spawn(composer.run_until_stopped());
         (composer_addr, task)
