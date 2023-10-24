@@ -109,6 +109,15 @@ impl Conductor {
         // Only spawn the sequencer::Reader if CommitLevel is not FirmOnly, also
         // send () to sync_done to start normal block execution behavior
         let mut sync_done = futures::future::Fuse::terminated();
+
+        // if only using firm blocks
+        if cfg.execution_commit_level.is_firm_only() {
+            // kill the sync to just run normally
+            let (sync_done_tx, sync_done_rx) = oneshot::channel();
+            sync_done = sync_done_rx.fuse();
+            let _ = sync_done_tx.send(());
+        }
+
         if !cfg.execution_commit_level.is_firm_only() {
             // todo!("set up stuff");
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
