@@ -113,6 +113,8 @@ impl Conductor {
                 provider,
                 #[cfg(feature = "optimism")]
                 contract_address,
+                #[cfg(feature = "optimism")]
+                cfg.initial_ethereum_l1_block_height,
             )
             .await
             .wrap_err("failed to construct executor")?;

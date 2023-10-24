@@ -68,6 +68,11 @@ pub struct Config {
     /// Contract address of the OptimismPortal contract on L1
     #[cfg(feature = "optimism")]
     pub optimism_portal_contract_address: String,
+
+    /// The block height of the Ethereum L1 chain that the
+    /// OptimismPortal contract was deployed at
+    #[cfg(feature = "optimism")]
+    pub initial_ethereum_l1_block_height: u64,
 }
 
 impl Config {

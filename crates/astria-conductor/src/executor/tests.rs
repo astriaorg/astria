@@ -129,6 +129,8 @@ async fn start_mock(disable_empty_block_execution: bool) -> MockEnvironment {
         provider.as_ref().clone(),
         #[cfg(feature = "optimism")]
         contract_address,
+        #[cfg(feature = "optimism")]
+        1,
     )
     .await
     .unwrap();

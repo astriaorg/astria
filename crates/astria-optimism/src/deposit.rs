@@ -77,6 +77,7 @@ pub fn convert_deposit_event_to_deposit_tx(
 // _data);`
 //
 // ethers-rs has no decode_packed :/
+// see [this issue](https://github.com/gakonst/ethers-rs/issues/2643)
 fn decode_packed_opaque_data(data: &Bytes) -> eyre::Result<TransactionDepositedOpaqueData> {
     const MIN_LEN: usize = 32;
     if data.len() < MIN_LEN {

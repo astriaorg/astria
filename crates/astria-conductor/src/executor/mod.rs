@@ -127,6 +127,8 @@ pub(crate) struct Executor {
     optimism_portal_contract: OptimismPortal<Provider<Ws>>,
     #[cfg(feature = "optimism")]
     queued_deposit_txs: VecDeque<DepositTransaction>,
+    #[cfg(feature = "optimism")]
+    initial_ethereum_l1_block_height: u64,
 }
 
 impl Executor {
@@ -138,6 +140,7 @@ impl Executor {
         shutdown: oneshot::Receiver<()>,
         #[cfg(feature = "optimism")] ethereum_provider: Provider<Ws>,
         #[cfg(feature = "optimism")] optimism_portal_contract_address: Address,
+        #[cfg(feature = "optimism")] initial_ethereum_l1_block_height: u64,
     ) -> Result<Self> {
         let mut execution_rpc_client = ExecutionRpcClient::new(server_addr)
             .await
@@ -169,17 +172,18 @@ impl Executor {
             optimism_portal_contract,
             #[cfg(feature = "optimism")]
             queued_deposit_txs: VecDeque::new(),
+            #[cfg(feature = "optimism")]
+            initial_ethereum_l1_block_height,
         })
     }
 
     #[instrument(skip_all)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         #[cfg(feature = "optimism")]
-        // TODO: configure starting L1 block
         let events = self
             .optimism_portal_contract
             .event::<TransactionDepositedFilter>()
-            .from_block(1);
+            .from_block(self.initial_ethereum_l1_block_height);
         #[cfg(feature = "optimism")]
         let mut stream = events.stream().await?.with_meta();
 
@@ -197,40 +201,9 @@ impl Executor {
                 }
 
                 cmd = self.cmd_rx.recv() => {
-                    let Some(cmd) = cmd else {
-                        error!("cmd channel closed unexpectedly; shutting down");
+                    if let Err(e) = self.handle_executor_command(cmd).await {
+                        error!(error.message = %e, "failed to handle executor command, breaking from executor loop");
                         break;
-                    };
-                    match cmd {
-                        ExecutorCommand::FromSequencer {
-                            block,
-                        } => {
-                            let height = block.header().height.value();
-                            let block_subset =
-                                SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id);
-
-                            if let Err(e) = self.execute_block(block_subset).await {
-                                error!(
-                                    sequencer_block_height = height,
-                                    error = ?e,
-                                    "failed to execute block"
-                                );
-                            }
-                        }
-
-                        ExecutorCommand::FromCelestia(blocks) => {
-                            if let Err(e) = self
-                                .execute_and_finalize_blocks_from_celestia(blocks)
-                                .await
-                            {
-                                error!(
-                                    error.message = %e,
-                                    error.cause = ?e,
-                                    "failed to finalize block; stopping executor"
-                                );
-                                break;
-                            }
-                        }
                     }
                 }
             );
@@ -248,40 +221,9 @@ impl Executor {
                 }
 
                 cmd = self.cmd_rx.recv() => {
-                    let Some(cmd) = cmd else {
-                        error!("cmd channel closed unexpectedly; shutting down");
+                    if let Err(e) = self.handle_executor_command(cmd).await {
+                        error!(error.message = %e, "failed to handle executor command, breaking from executor loop");
                         break;
-                    };
-                    match cmd {
-                        ExecutorCommand::FromSequencer {
-                            block,
-                        } => {
-                            let height = block.header().height.value();
-                            let block_subset =
-                                SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id);
-
-                            if let Err(e) = self.execute_block(block_subset).await {
-                                error!(
-                                    sequencer_block_height = height,
-                                    error = ?e,
-                                    "failed to execute block"
-                                );
-                            }
-                        }
-
-                        ExecutorCommand::FromCelestia(blocks) => {
-                            if let Err(e) = self
-                                .execute_and_finalize_blocks_from_celestia(blocks)
-                                .await
-                            {
-                                error!(
-                                    error.message = %e,
-                                    error.cause = ?e,
-                                    "failed to finalize block; stopping executor"
-                                );
-                                break;
-                            }
-                        }
                     }
                 }
 
@@ -314,6 +256,48 @@ impl Executor {
                 }
             )
         }
+        Ok(())
+    }
+
+    /// Handle a command received on the command channel.
+    ///
+    /// If this function returns an error, the executor will shut down.
+    ///
+    /// # Errors
+    ///
+    /// - if the command channel is closed unexpectedly
+    /// - if execution or finalization of a block from celestia fails
+    async fn handle_executor_command(&mut self, cmd: Option<ExecutorCommand>) -> eyre::Result<()> {
+        let Some(cmd) = cmd else {
+            return Err(eyre::eyre!(
+                "cmd channel closed unexpectedly; shutting down"
+            ));
+        };
+
+        match cmd {
+            ExecutorCommand::FromSequencer {
+                block,
+            } => {
+                let height = block.header().height.value();
+                let block_subset =
+                    SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id);
+
+                if let Err(e) = self.execute_block(block_subset).await {
+                    error!(
+                        sequencer_block_height = height,
+                        error = ?e,
+                        "failed to execute block"
+                    );
+                }
+            }
+
+            ExecutorCommand::FromCelestia(blocks) => {
+                self.execute_and_finalize_blocks_from_celestia(blocks)
+                    .await
+                    .wrap_err("failed to finalize block; stopping executor")?;
+            }
+        }
+
         Ok(())
     }
 
