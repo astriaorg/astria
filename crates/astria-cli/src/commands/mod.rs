@@ -52,7 +52,7 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                 RollupCommand::Config {
                     command,
                 } => match command {
-                    ConfigCommand::Create(args) => rollup::create_config(&args)?,
+                    ConfigCommand::Create(args) => rollup::create_config(&args).await?,
                     ConfigCommand::Edit(args) => rollup::edit_config(&args)?,
                     ConfigCommand::Delete(args) => rollup::delete_config(&args)?,
                 },
