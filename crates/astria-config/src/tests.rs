@@ -54,8 +54,8 @@ static TEST_PREFIX: Lazy<String> = Lazy::new(|| {
 });
 
 fn populate_environment_from_example(jail: &mut Jail, unique_test_prefix: &str, example_env: &str) {
-    const RE_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[[:space:]]+").unwrap());
-    const RE_END: Lazy<Regex> = Lazy::new(|| Regex::new(r"[[:space:]]+$").unwrap());
+    static RE_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[[:space:]]+").unwrap());
+    static RE_END: Lazy<Regex> = Lazy::new(|| Regex::new(r"[[:space:]]+$").unwrap());
 
     for line in example_env.lines() {
         if let Some((key, val)) = line.trim().split_once('=') {
