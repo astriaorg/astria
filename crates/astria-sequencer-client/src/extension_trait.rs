@@ -23,6 +23,7 @@
 use std::{
     future,
     pin::Pin,
+    sync::Arc,
 };
 
 use async_trait::async_trait;
@@ -64,7 +65,7 @@ const _: () = {
 /// 2. the returned bytes contained in an `abci_query` RPC response cannot be deserialized as a
 ///    sequencer query response.
 /// 3. the sequencer query response is not the expected one.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Error {
     inner: ErrorKind,
 }
@@ -111,12 +112,12 @@ impl Error {
         }
     }
 
-    fn deserialization<T>(target: &'static str, inner: T) -> Self
-    where
-        T: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
-    {
+    fn deserialization<T: std::error::Error + Send + Sync + 'static>(
+        target: &'static str,
+        inner: T,
+    ) -> Self {
         Self {
-            inner: ErrorKind::deserialization(target, inner.into()),
+            inner: ErrorKind::deserialization(target, inner),
         }
     }
 
@@ -129,7 +130,7 @@ impl Error {
 }
 
 /// Error if deserialization of the bytes in an abci query response failed.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct AbciQueryDeserializationError {
     inner: proto::DecodeError,
     response: Box<tendermint_rpc::endpoint::abci_query::AbciQuery>,
@@ -163,7 +164,7 @@ impl std::error::Error for AbciQueryDeserializationError {
 }
 
 /// Error if the rpc call using the underlying [`tendermint-rpc::client::Client`] failed.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TendermintRpcError {
     inner: tendermint_rpc::error::Error,
     rpc: &'static str,
@@ -216,9 +217,9 @@ impl std::error::Error for TendermintRpcError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DeserializationError {
-    inner: Box<dyn std::error::Error + Send + Sync + 'static>,
+    inner: Arc<dyn std::error::Error + Send + Sync>,
     target: &'static str,
 }
 
@@ -241,7 +242,7 @@ impl std::error::Error for DeserializationError {
 /// The collection of different errors that can occur when using the extension trait.
 ///
 /// Note that none of the errors contained herein are constructable outside this crate.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum ErrorKind {
     AbciQueryDeserialization(AbciQueryDeserializationError),
     Deserialization(DeserializationError),
@@ -262,12 +263,12 @@ impl ErrorKind {
         })
     }
 
-    fn deserialization(
+    fn deserialization<T: std::error::Error + Send + Sync + 'static>(
         target: &'static str,
-        inner: Box<dyn std::error::Error + Send + Sync + 'static>,
+        inner: T,
     ) -> Self {
         Self::Deserialization(DeserializationError {
-            inner,
+            inner: Arc::new(inner),
             target,
         })
     }

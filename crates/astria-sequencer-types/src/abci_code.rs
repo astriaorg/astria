@@ -24,7 +24,7 @@ impl AbciCode {
     }
 
     #[must_use]
-    pub fn from_tendermint(code: tendermint::abci::Code) -> Option<Self> {
+    pub fn from_cometbft(code: tendermint::abci::Code) -> Option<Self> {
         match code.value() {
             0 => Some(Self::OK),
             1 => Some(Self::UNKNOWN_PATH),

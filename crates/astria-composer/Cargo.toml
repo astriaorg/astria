@@ -30,6 +30,7 @@ regex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tendermint = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = [
   "macros",
   "rt-multi-thread",
@@ -38,7 +39,8 @@ tokio = { workspace = true, features = [
 ] }
 tokio-util = { workspace = true, features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
-thiserror = { workspace = true }
+tryhard = { workspace = true }
+pin-project-lite = "0.2.13"
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"

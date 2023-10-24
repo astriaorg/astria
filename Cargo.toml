@@ -55,6 +55,7 @@ tokio = "1.28"
 tokio-util = "0.7.9"
 tonic = "0.9"
 tracing = "0.1"
+tryhard = "0.5.1"
 which = "4.4.0"
 wiremock = "0.5"
 
