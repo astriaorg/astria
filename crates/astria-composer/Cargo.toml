@@ -39,6 +39,7 @@ tokio = { workspace = true, features = [
 tokio-util = { workspace = true, features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
 thiserror = { workspace = true }
+tryhard = { workspace = true }
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"
@@ -51,11 +52,11 @@ path = "../astria-sequencer-types"
 
 [dev-dependencies]
 proto = { package = "astria-proto", path = "../astria-proto" }
-
-impl-serde = "0.4.0"
-tokio-test = "0.4.2"
+test_utils = { package = "astria-test-utils", path = "../astria-test-utils", features = [
+  "geth",
+] }
+tokio-test = { workspace = true }
 
 figment = { workspace = true, features = ["test"] }
-jsonrpsee = { workspace = true, features = ["macros", "server"] }
 tendermint-rpc = { workspace = true }
 wiremock = { workspace = true }
