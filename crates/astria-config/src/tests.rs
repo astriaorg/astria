@@ -45,7 +45,15 @@ use crate::{
     _internal,
 };
 
-fn populate_environment_from_example(jail: &mut Jail, test_envar_prefix: &str, example_env: &str) {
+static TEST_PREFIX: Lazy<String> = Lazy::new(|| {
+    use names::{
+        Generator,
+        Name,
+    };
+    Generator::with_naming(Name::Numbered).next().unwrap()
+});
+
+fn populate_environment_from_example(jail: &mut Jail, unique_test_prefix: &str, example_env: &str) {
     const RE_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[[:space:]]+").unwrap());
     const RE_END: Lazy<Regex> = Lazy::new(|| Regex::new(r"[[:space:]]+$").unwrap());
 
@@ -55,9 +63,7 @@ fn populate_environment_from_example(jail: &mut Jail, test_envar_prefix: &str, e
                 !(RE_END.is_match(key) || RE_START.is_match(val)),
                 "env vars must not contain spaces in assignment\n{line}"
             );
-            let prefixed_key = format!("{test_envar_prefix}_{key}");
-            dbg!(&prefixed_key);
-            dbg!(&val);
+            let prefixed_key = format!("{unique_test_prefix}_{key}");
             jail.set_env(prefixed_key, val);
         }
     }
@@ -65,24 +71,26 @@ fn populate_environment_from_example(jail: &mut Jail, test_envar_prefix: &str, e
 
 #[track_caller]
 pub fn example_env_config_is_up_to_date<'a, C: Config>(example_env: &str) {
-    let test_prefix = format!("TESTTEST_{}", C::PREFIX);
+    let unique_test_prefix = Lazy::force(&TEST_PREFIX);
+    let full_test_prefix = format!("{unique_test_prefix}_{}", C::PREFIX);
 
     Jail::expect_with(|jail| {
-        populate_environment_from_example(jail, "TESTTEST", example_env);
-        C::get_with_prefix(test_prefix.as_str(), _internal::Internal).unwrap();
+        populate_environment_from_example(jail, unique_test_prefix, example_env);
+        C::get_with_prefix(&full_test_prefix, _internal::Internal).unwrap();
         Ok(())
     });
 }
 
 #[track_caller]
 pub fn config_should_reject_unknown_var<'a, C: Config>(example_env: &str) {
-    let test_prefix = format!("TESTTEST_{}", C::PREFIX);
+    let unique_test_prefix = Lazy::force(&TEST_PREFIX);
+    let full_test_prefix = format!("{unique_test_prefix}_{}", C::PREFIX);
 
     Jail::expect_with(|jail| {
-        populate_environment_from_example(jail, "TESTTEST", example_env);
-        let bad_prefix = format!("{}_FOOBAR", test_prefix);
-        jail.set_env(bad_prefix, "BAZ");
-        C::get_with_prefix(test_prefix.as_str(), _internal::Internal).unwrap_err();
+        populate_environment_from_example(jail, unique_test_prefix, example_env);
+        let bad_var = format!("{full_test_prefix}_FOOBAR");
+        jail.set_env(bad_var, "BAZ");
+        C::get_with_prefix(&full_test_prefix, _internal::Internal).unwrap_err();
         Ok(())
     });
 }
