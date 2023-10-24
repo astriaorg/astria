@@ -166,7 +166,8 @@ pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequenc
         celestia_bearer_token: "".into(),
         gas_limit: 100000,
         block_time: 1000,
-        validator_key_file: _keyfile.path().to_string_lossy().to_string(),
+        disable_relay_all: true,
+        validator_key_file: Some(_keyfile.path().to_string_lossy().to_string()),
         rpc_port: 0,
         log: "".into(),
     };
