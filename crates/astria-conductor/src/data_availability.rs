@@ -134,7 +134,10 @@ impl Reader {
                 shutdown_res = &mut self.shutdown => {
                     match shutdown_res {
                         Ok(()) => info!("received shutdown command; exiting"),
-                        Err(e) => warn!(error.message = %e, error.cause = ?e, "shutdown receiver dropped; exiting"),
+                        Err(e) => {
+                            let error = &e as &(dyn std::error::Error + 'static);
+                            warn!(error, "shutdown receiver dropped; exiting");
+                        }
                     }
                     break;
                 }
@@ -179,12 +182,17 @@ impl Reader {
     ) {
         let latest_height = match latest_height_res {
             Err(e) => {
-                warn!(error.message = %e, error.cause = ?e, "task querying celestia for latest height failed");
+                let error = &e as &(dyn std::error::Error + 'static);
+                warn!(error, "task querying celestia for latest height failed");
                 return;
             }
 
             Ok(Err(e)) => {
-                warn!(error.message = %e, error.cause = ?e, "task querying celestia for latest height returned with an error");
+                let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                warn!(
+                    error,
+                    "task querying celestia for latest height returned with an error"
+                );
                 return;
             }
 
@@ -240,12 +248,17 @@ impl Reader {
     ) {
         let sequencer_data = match sequencer_data_res {
             Err(e) => {
-                warn!(error.message = %e, error.cause = ?e, "task querying celestia for sequencer data failed");
+                let error = &e as &(dyn std::error::Error + 'static);
+                warn!(error, "task querying celestia for sequencer data failed");
                 return;
             }
 
             Ok(Err(e)) => {
-                warn!(error.message = %e, error.cause = ?e, "task querying celestia for sequencer data returned with an error");
+                let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                warn!(
+                    error,
+                    "task querying celestia for sequencer data returned with an error"
+                );
                 return;
             }
 
@@ -289,11 +302,16 @@ impl Reader {
     ) -> eyre::Result<()> {
         let subsets = match sequencer_subsets_res {
             Err(e) => {
-                warn!(error.message = %e, error.cause = ?e, "task processing sequencer data failed");
+                let error = &e as &(dyn std::error::Error + 'static);
+                warn!(error, "task processing sequencer data failed");
                 return Ok(());
             }
             Ok(Err(e)) => {
-                warn!(error.message = %e, error.cause = ?e, "task processing sequencer data returned with an error");
+                let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                warn!(
+                    error,
+                    "task processing sequencer data returned with an error"
+                );
                 return Ok(());
             }
             Ok(Ok(subsets)) => subsets,
@@ -324,10 +342,12 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
     while let Some((block_hash, verification_result)) = verification_tasks.join_next().await {
         match verification_result {
             Err(e) => {
-                warn!(%block_hash, error.message = %e, error.cause = ?e, "task verifying sequencer data retrieved from celestia failed; dropping block")
+                let error = &e as &(dyn std::error::Error + 'static);
+                warn!(%block_hash, error, "task verifying sequencer data retrieved from celestia failed; dropping block")
             }
             Ok(Err(e)) => {
-                warn!(%block_hash, error.message = %e, error.cause = ?e, "task verifying sequencer data retrieved from celestia returned with an error; dropping block")
+                let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                warn!(%block_hash, error, "task verifying sequencer data retrieved from celestia returned with an error; dropping block")
             }
             Ok(Ok(data)) => {
                 fetch_and_verify_rollups.spawn(
@@ -370,7 +390,8 @@ async fn fetch_verify_rollup_blob_and_forward_to_assembly(
         .await
     {
         Err(e) => {
-            warn!(error.message = %e, error.cause = ?e, "failed to get rollup data from celestia");
+            let error = &e as &(dyn std::error::Error + 'static);
+            warn!(error, "failed to get rollup data from celestia");
             return;
         }
         Ok(rollups) if rollups.is_empty() => {
