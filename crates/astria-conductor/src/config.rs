@@ -60,6 +60,14 @@ pub struct Config {
     /// The execution commit level used for controlling how blocks are sent to
     /// the execution layer.
     pub execution_commit_level: CommitLevel,
+
+    /// Websocket URL of Ethereum L1 node
+    #[cfg(feature = "optimism")]
+    pub ethereum_l1_url: String,
+
+    /// Contract address of the OptimismPortal contract on L1
+    #[cfg(feature = "optimism")]
+    pub optimism_portal_contract_address: String,
 }
 
 impl Config {

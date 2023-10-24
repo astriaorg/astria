@@ -9,7 +9,8 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
-// use futures::FutureExt;
+#[cfg(feature = "optimism")]
+use ethers::prelude::*;
 use futures::future::Fuse;
 use tokio::{
     select,
@@ -87,10 +88,19 @@ impl Conductor {
             let (block_tx, block_rx) = mpsc::unbounded_channel();
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-            use ethers::prelude::*;
-            let provider = Provider::<Ws>::connect("ws://localhost:8545")
+            #[cfg(feature = "optimism")]
+            let provider = Provider::<Ws>::connect(cfg.ethereum_l1_url)
                 .await
                 .wrap_err("failed to connect to provider")?;
+            #[cfg(feature = "optimism")]
+            let contract_address = Address::try_from(
+                TryInto::<[u8; 20]>::try_into(
+                    hex::decode(cfg.optimism_portal_contract_address)
+                        .wrap_err("failed to decode contract address as hex")?,
+                )
+                .map_err(|_| eyre::eyre!("contract address must be 20 bytes"))?,
+            )
+            .wrap_err("failed to parse contract address")?;
 
             let executor = Executor::new(
                 &cfg.execution_rpc_url,
@@ -99,7 +109,10 @@ impl Conductor {
                 cfg.disable_empty_block_execution,
                 block_rx,
                 shutdown_rx,
-                Some(provider),
+                #[cfg(feature = "optimism")]
+                provider,
+                #[cfg(feature = "optimism")]
+                contract_address,
             )
             .await
             .wrap_err("failed to construct executor")?;

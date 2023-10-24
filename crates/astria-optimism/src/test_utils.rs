@@ -11,9 +11,17 @@ use ethers::{
     utils::AnvilInstance,
 };
 
-// TODO: feature-gate
-#[allow(dead_code)]
-pub(crate) async fn deploy_mock_optimism_portal()
+/// Starts a local anvil instance and deploys the `MockOptimismPortal` contract to it.
+///
+/// Returns the contract address, provider, wallet, and anvil instance.
+///
+/// # Panics
+///
+/// - if the contract cannot be found in the expected path
+/// - if the contract cannot be compiled
+/// - if the provider fails to connect to the anvil instance
+/// - if the contract fails to deploy
+pub async fn deploy_mock_optimism_portal()
 -> (Address, Arc<Provider<Ws>>, LocalWallet, AnvilInstance) {
     // compile contract for testing
     let source = Path::new(&env!("CARGO_MANIFEST_DIR")).join("contracts/MockOptimismPortal.sol");

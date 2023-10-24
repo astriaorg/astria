@@ -1,10 +1,4 @@
-use std::{
-    collections::{
-        HashMap,
-        VecDeque,
-    },
-    sync::Arc,
-};
+use std::collections::HashMap;
 
 use astria_sequencer_types::{
     ChainId,
@@ -14,15 +8,6 @@ use color_eyre::eyre::{
     self,
     Result,
     WrapErr as _,
-};
-use ethers::prelude::*;
-use optimism::{
-    contract::{
-        OptimismPortal,
-        TransactionDepositedFilter,
-    },
-    deposit::convert_deposit_event_to_deposit_tx,
-    DepositTransaction,
 };
 use prost_types::Timestamp as ProstTimestamp;
 use tendermint::{
@@ -45,6 +30,23 @@ use tracing::{
     info,
     instrument,
     warn,
+};
+#[cfg(feature = "optimism")]
+use {
+    ethers::prelude::*,
+    ethers::types::transaction::eip2718::TypedTransaction,
+    optimism::{
+        contract::{
+            OptimismPortal,
+            TransactionDepositedFilter,
+        },
+        deposit::convert_deposit_event_to_deposit_tx,
+        DepositTransaction,
+    },
+    std::{
+        collections::VecDeque,
+        sync::Arc,
+    },
 };
 
 use crate::{
@@ -121,8 +123,9 @@ pub(crate) struct Executor {
     /// Chose to execute empty blocks or not
     disable_empty_block_execution: bool,
 
-    ethereum_provider: Arc<Provider<Ws>>,
-    optimism_portal_contract: Option<OptimismPortal<Provider<Ws>>>,
+    #[cfg(feature = "optimism")]
+    optimism_portal_contract: OptimismPortal<Provider<Ws>>,
+    #[cfg(feature = "optimism")]
     queued_deposit_txs: VecDeque<DepositTransaction>,
 }
 
@@ -133,8 +136,8 @@ impl Executor {
         disable_empty_block_execution: bool,
         cmd_rx: Receiver,
         shutdown: oneshot::Receiver<()>,
-        ethereum_provider: Option<Provider<Ws>>,
-        // optimism_portal_contract: Option<OptimismPortal<Provider<Ws>>>,
+        #[cfg(feature = "optimism")] ethereum_provider: Provider<Ws>,
+        #[cfg(feature = "optimism")] optimism_portal_contract_address: Address,
     ) -> Result<Self> {
         let mut execution_rpc_client = ExecutionRpcClient::new(server_addr)
             .await
@@ -149,15 +152,10 @@ impl Executor {
         );
         let execution_state = init_state_response.block_hash;
 
-        // TODO pass via config
-        let contract_address: [u8; 20] = hex::decode("F87a0abe1b875489CA84ab1E4FE47A2bF52C7C64")
-            .unwrap()
-            .try_into()
-            .unwrap();
-        let ethereum_provider = Arc::new(ethereum_provider.expect("TODO"));
+        #[cfg(feature = "optimism")]
         let optimism_portal_contract = optimism::contract::get_optimism_portal_read_only(
-            ethereum_provider.clone(),
-            contract_address.into(),
+            Arc::new(ethereum_provider),
+            optimism_portal_contract_address,
         );
         Ok(Self {
             cmd_rx,
@@ -167,24 +165,26 @@ impl Executor {
             execution_state,
             sequencer_hash_to_execution_hash: HashMap::new(),
             disable_empty_block_execution,
-            ethereum_provider,
-            optimism_portal_contract: Some(optimism_portal_contract),
+            #[cfg(feature = "optimism")]
+            optimism_portal_contract,
+            #[cfg(feature = "optimism")]
             queued_deposit_txs: VecDeque::new(),
         })
     }
 
     #[instrument(skip_all)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        // TODO: configure starting block
+        #[cfg(feature = "optimism")]
+        // TODO: configure starting L1 block
         let events = self
             .optimism_portal_contract
-            .as_ref()
-            .expect("TODO remove")
             .event::<TransactionDepositedFilter>()
             .from_block(1);
+        #[cfg(feature = "optimism")]
         let mut stream = events.stream().await?.with_meta();
 
         loop {
+            #[cfg(not(feature = "optimism"))]
             select!(
                 biased;
 
@@ -194,57 +194,6 @@ impl Executor {
                         Ok(()) => info!("received shutdown signal; shutting down"),
                     }
                     break;
-                }
-
-                res = stream.next() => {
-                    match res {
-                        None => {
-                            warn!("event stream closed unexpectedly; shutting down");
-                            break;
-                        }
-                        Some(Ok((event, meta))) => {
-                            let deposit_tx = match convert_deposit_event_to_deposit_tx(event, meta.block_hash, meta.log_index) {
-                                Ok(deposit_tx) => deposit_tx,
-                                Err(e) => {
-                                    warn!(error.message = %e, "failed to convert deposit event to deposit tx");
-                                    continue;
-                                }
-                            };
-                            info!(
-                                ethereum_block_hash = ?meta.block_hash,
-                                ethereum_log_index = ?meta.log_index,
-                                "queuing deposit transaction",
-                            );
-                            println!("deposit tx: {:?}", deposit_tx);
-                            self.queued_deposit_txs.push_back(deposit_tx);
-
-                            // HACK just execute stuff for now to see if it works
-                            let mut deposit_txs = Vec::new();
-                            while let Some(deposit_tx) = self.queued_deposit_txs.pop_front() {
-                                deposit_txs.push(deposit_tx);
-                            }
-                            let prefix: Vec<u8> = vec![0x7e];
-                            let deposit_txs = deposit_txs
-                                .into_iter()
-                                .map(|tx| {
-                                    [prefix.clone(), tx.rlp().to_vec()].concat()
-                                })
-                                .collect::<Vec<Vec<u8>>>();
-                            //let timestamp = (tendermint::Time::now() + std::time::Duration::from_secs(10)).unwrap();
-                            let block = self.ethereum_provider.get_block(meta.block_hash).await.wrap_err("failed to get eth block")?.expect("TODO eth block must exist");
-                            let timestamp = tendermint::Time::from_unix_timestamp(block.timestamp.as_u64() as i64, 0).unwrap();
-                            let response = self
-                                .execution_rpc_client
-                                .call_do_block(self.execution_state.clone(), deposit_txs, Some(convert_tendermint_to_prost_timestamp(timestamp)?))
-                                .await?;
-                            self.execution_state = response.block_hash.clone();
-
-                        }
-                        Some(Err(e)) => {
-                            warn!(error.message = %e, "event stream returned with error; shutting down");
-                            break;
-                        }
-                    }
                 }
 
                 cmd = self.cmd_rx.recv() => {
@@ -281,6 +230,85 @@ impl Executor {
                                 );
                                 break;
                             }
+                        }
+                    }
+                }
+            );
+
+            #[cfg(feature = "optimism")]
+            select!(
+                biased;
+
+                shutdown = &mut self.shutdown => {
+                    match shutdown {
+                        Err(e) => warn!(error.message = %e, "shutdown channel return with error; shutting down"),
+                        Ok(()) => info!("received shutdown signal; shutting down"),
+                    }
+                    break;
+                }
+
+                cmd = self.cmd_rx.recv() => {
+                    let Some(cmd) = cmd else {
+                        error!("cmd channel closed unexpectedly; shutting down");
+                        break;
+                    };
+                    match cmd {
+                        ExecutorCommand::FromSequencer {
+                            block,
+                        } => {
+                            let height = block.header().height.value();
+                            let block_subset =
+                                SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id);
+
+                            if let Err(e) = self.execute_block(block_subset).await {
+                                error!(
+                                    sequencer_block_height = height,
+                                    error = ?e,
+                                    "failed to execute block"
+                                );
+                            }
+                        }
+
+                        ExecutorCommand::FromCelestia(blocks) => {
+                            if let Err(e) = self
+                                .execute_and_finalize_blocks_from_celestia(blocks)
+                                .await
+                            {
+                                error!(
+                                    error.message = %e,
+                                    error.cause = ?e,
+                                    "failed to finalize block; stopping executor"
+                                );
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                res = stream.next() => {
+                    match res {
+                        None => {
+                            warn!("event stream closed unexpectedly; shutting down");
+                            break;
+                        }
+                        Some(Ok((event, meta))) => {
+                            let deposit_tx = match convert_deposit_event_to_deposit_tx(event, meta.block_hash, meta.log_index) {
+                                Ok(deposit_tx) => deposit_tx,
+                                Err(e) => {
+                                    warn!(error.message = %e, "failed to convert deposit event to deposit tx");
+                                    continue;
+                                }
+                            };
+                            info!(
+                                ethereum_block_hash = ?meta.block_hash,
+                                ethereum_log_index = ?meta.log_index,
+                                "queuing deposit transaction",
+                            );
+                            self.queued_deposit_txs.push_back(deposit_tx);
+                        }
+                        Some(Err(e)) => {
+                            warn!(error.message = %e, "event stream returned with error; shutting down");
+                            break;
                         }
                     }
                 }
@@ -324,17 +352,23 @@ impl Executor {
         let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
-        // gather and encode deposit transactions
-        let mut deposit_txs = Vec::new();
-        while let Some(deposit_tx) = self.queued_deposit_txs.pop_front() {
-            deposit_txs.push(deposit_tx);
-        }
-        let deposit_txs = deposit_txs
-            .into_iter()
-            .map(|tx| tx.rlp().to_vec())
-            .collect::<Vec<Vec<u8>>>();
+        #[cfg(feature = "optimism")]
+        let rollup_transactions = {
+            // gather and encode deposit transactions
+            let mut deposit_txs = Vec::new();
+            while let Some(deposit_tx) = self.queued_deposit_txs.pop_front() {
+                deposit_txs.push(deposit_tx);
+            }
+            let deposit_txs = deposit_txs
+                .into_iter()
+                .map(|tx| TypedTransaction::DepositTransaction(tx).rlp().to_vec())
+                .collect::<Vec<Vec<u8>>>();
 
-        let rollup_transactions = [deposit_txs, block.rollup_transactions].concat();
+            [deposit_txs, block.rollup_transactions].concat()
+        };
+
+        #[cfg(not(feature = "optimism"))]
+        let rollup_transactions = block.rollup_transactions;
 
         let response = self
             .execution_rpc_client

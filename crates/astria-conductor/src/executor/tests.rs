@@ -113,6 +113,10 @@ async fn start_mock(disable_empty_block_execution: bool) -> MockEnvironment {
     let chain_id = ChainId::new(b"test".to_vec()).unwrap();
     let server_url = format!("http://{}", _server.local_addr());
 
+    #[cfg(feature = "optimism")]
+    let (contract_address, provider, _wallet, _anvil) =
+        optimism::test_utils::deploy_mock_optimism_portal().await;
+
     let (_block_tx, block_rx) = mpsc::unbounded_channel();
     let (_shutdown_tx, shutdown_rx) = oneshot::channel();
     let executor = Executor::new(
@@ -121,7 +125,10 @@ async fn start_mock(disable_empty_block_execution: bool) -> MockEnvironment {
         disable_empty_block_execution,
         block_rx,
         shutdown_rx,
-        None,
+        #[cfg(feature = "optimism")]
+        provider.as_ref().clone(),
+        #[cfg(feature = "optimism")]
+        contract_address,
     )
     .await
     .unwrap();

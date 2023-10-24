@@ -59,3 +59,7 @@ proto = { package = "astria-proto", path = "../astria-proto", features = [
   "server",
 ] }
 tokio-stream = { version = "0.1.14", features = ["net"] }
+
+[features]
+default = []
+optimism = []
