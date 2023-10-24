@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ethers = {version = "2.0", features = ["optimism", "ethers-solc", "ws"] }
+ethers = { version = "2.0", features = ["optimism", "ethers-solc", "ws"] }
 eyre = { workspace = true }
 hex = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

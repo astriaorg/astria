@@ -14,7 +14,7 @@ deadpool = { version = "0.10.0", default-features = false, features = [
   "managed",
 ] }
 ed25519-consensus = { workspace = true }
-ethers = {version = "2.0", features = ["optimism", "ws"] }
+ethers = { version = "2.0", features = ["optimism", "ws"] }
 figment = { workspace = true, features = ["env"] }
 futures = { workspace = true }
 hex = { workspace = true }
