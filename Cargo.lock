@@ -360,6 +360,7 @@ dependencies = [
  "astria-proto",
  "astria-sequencer-client",
  "astria-telemetry",
+ "astria-test-utils",
  "async-trait",
  "axum",
  "backon",
@@ -371,8 +372,6 @@ dependencies = [
  "hex",
  "humantime",
  "hyper",
- "impl-serde",
- "jsonrpsee",
  "once_cell",
  "rand 0.8.5",
  "regex",
@@ -386,6 +385,7 @@ dependencies = [
  "tokio-test",
  "tokio-util 0.7.9",
  "tracing",
+ "tryhard",
  "wiremock",
 ]
 
@@ -598,6 +598,19 @@ version = "0.1.0"
 dependencies = [
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "astria-test-utils"
+version = "0.1.0"
+dependencies = [
+ "ethers",
+ "impl-serde",
+ "jsonrpsee",
+ "rand 0.8.5",
+ "tokio",
+ "tokio-test",
+ "tracing",
 ]
 
 [[package]]
@@ -4097,7 +4110,7 @@ checksum = "8bdf592881d821b83d471f8af290226c8d51402259e9bb5be7f9f8bdebbb11ac"
 dependencies = [
  "bytes",
  "heck",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "log",
  "multimap",
  "once_cell",
@@ -4131,7 +4144,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "265baba7fabd416cf5078179f7d2cbeca4ce7a9041111900675ea7c4cb8a4c32"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "proc-macro2",
  "quote",
  "syn 2.0.38",
