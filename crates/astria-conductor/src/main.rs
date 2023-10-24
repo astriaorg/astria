@@ -40,14 +40,16 @@ async fn main() -> ExitCode {
 
     let conductor = match Conductor::new(cfg).await {
         Err(e) => {
-            error!(error.msg = %e, error.cause = ?e, "failed initializing conductor");
+            let error: &(dyn std::error::Error + 'static) = e.as_ref();
+            error!(error, "failed initializing conductor");
             return ExitCode::FAILURE;
         }
         Ok(conductor) => conductor,
     };
 
     if let Err(e) = conductor.run_until_stopped().await {
-        error!(error.msg = %e, error.cause = ?e, "conductor stopped unexpectedly");
+        let error: &(dyn std::error::Error + 'static) = e.as_ref();
+        error!(error, "conductor stopped unexpectedly");
         return ExitCode::FAILURE;
     }
 
