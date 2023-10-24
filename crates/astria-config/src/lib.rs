@@ -43,24 +43,71 @@
 //!
 //! + `tests`: gives access to test functions that to ensure that a crate's config is up-to-date and
 //!   in sync with its example. See [`tests`] for how to use them.
-use serde::{
-    de::DeserializeOwned,
-    Serialize,
-};
+use std::fmt::Display;
+
+use serde::de::DeserializeOwned;
 
 #[cfg(feature = "tests")]
 pub mod tests;
 
-// Utility function to get a config without having to import the `Config` trait.
-pub fn get<T: Config>() -> Result<T, figment::Error> {
+/// The error that is returned if reading a config from the environment fails.
+#[derive(Clone, Debug)]
+pub struct Error {
+    inner: figment::Error,
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("failed reading config from process environment")
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.inner)
+    }
+}
+
+impl From<figment::Error> for Error {
+    fn from(inner: figment::Error) -> Self {
+        Self {
+            inner,
+        }
+    }
+}
+
+/// Utility function to get a config without having to import the `Config` trait.
+pub fn get<T: Config>() -> Result<T, Error> {
     T::get()
 }
 
-pub trait Config: core::fmt::Debug + Serialize + DeserializeOwned {
+/// A utility trait for easily creating a config from the environment.
+///
+/// Works for types allowing serde deserialization.
+/// ```no_run
+/// # use std::net::SocketAddr;
+/// # use astria_config as config;
+/// # use serde::Deserialize;
+/// # use config::Error;
+///
+/// #[derive(Clone, Debug, Deserialize)]
+/// pub struct MyConfig {
+///     pub log: String,
+///     pub api_listen_addr: SocketAddr,
+/// }
+///
+/// impl config::Config for MyConfig {
+///     const PREFIX: &'static str = "MY_SERVICE_";
+/// }
+///
+/// let config: MyConfig = config::get()?;
+/// # Ok::<_, Error>(())
+/// ```
+pub trait Config: core::fmt::Debug + DeserializeOwned {
     const PREFIX: &'static str;
 
-    fn get() -> Result<Self, figment::Error> {
-        Self::get_with_prefix(Self::PREFIX, _internal::Internal)
+    fn get() -> Result<Self, Error> {
+        Ok(Self::get_with_prefix(Self::PREFIX, _internal::Internal)?)
     }
 
     #[doc(hidden)]
