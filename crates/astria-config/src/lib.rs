@@ -88,9 +88,9 @@ pub fn get<T: Config>() -> Result<T, Error> {
 /// A utility trait for easily creating a config from the environment.
 ///
 /// Works for types allowing serde deserialization. Environment variables
-/// are expected to have the form `<Config::PREFIX><fieldname>`. It is
-/// recommended to set the prefix should with a trailing underscore
-/// `PREFIX = MY_CONFIG_`.
+/// are expected to have the form `<Config::PREFIX><fieldname>`. It is recommended
+/// to set the prefix with a trailing underscore `PREFIX = MY_CONFIG_`
+/// for readability.
 ///
 /// # Usage
 ///
@@ -119,8 +119,7 @@ pub trait Config: core::fmt::Debug + DeserializeOwned {
     /// Creates `Self` by reading its fields from the environment.
     ///
     /// # Errors
-    /// Returns an error if the a config field could not be read from
-    /// the environment.
+    /// Returns an error if a config field could not be read from the environment.
     fn get() -> Result<Self, Error> {
         Ok(Self::get_with_prefix(Self::PREFIX, _internal::Internal)?)
     }
