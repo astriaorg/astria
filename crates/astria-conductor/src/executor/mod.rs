@@ -132,6 +132,7 @@ pub(crate) struct Executor {
 }
 
 impl Executor {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new(
         server_addr: &str,
         chain_id: ChainId,
