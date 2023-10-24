@@ -78,7 +78,7 @@ jobs:
   doctest:
     runs-on: ubuntu-22.04
     needs: run_checker
-    if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
+    if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.72.0
