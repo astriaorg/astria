@@ -11,8 +11,10 @@ const DEFAULT_ROLLUP_CHART_PATH: &str =
     "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.4.3.tgz";
 const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-1.devnet.astria.org";
 const DEFAULT_SEQUENCER_WS: &str = "wss://rpc.sequencer.dusk-1.devnet.astria.org/websocket";
-const DEFAULT_LOG_LEVEL: &str = "info";
+const DEFAULT_LOG_LEVEL: &str = "debug";
 const DEFAULT_NETWORK_ID: u64 = 1337;
+const DEFAULT_HOSTNAME: &str = "localdev.me";
+const DEFAULT_NAMESPACE: &str = "astria-dev-cluster";
 
 /// Remove the 0x prefix from a hex string if present
 fn strip_0x_prefix(s: &str) -> &str {
@@ -100,6 +102,17 @@ pub struct ConfigCreateArgs {
         default_value = DEFAULT_SEQUENCER_RPC
     )]
     pub sequencer_rpc: String,
+    /// Optional. Will default to 'localdev.me' for local deployments. Will need to separately
+    /// configure other hosts
+    #[clap(
+        long = "hostname", 
+        env = "ROLLUP_HOSTNAME", 
+        default_value = DEFAULT_HOSTNAME
+    )]
+    pub hostname: String,
+    /// Configures the k8s namespace rollup will be deployed to
+    #[clap(long, env = "ROLLUP_NAMESPACE", default_value = DEFAULT_NAMESPACE)]
+    pub namespace: String,
 }
 
 /// `GenesisAccountArg` is a struct that represents a genesis account to be funded.
