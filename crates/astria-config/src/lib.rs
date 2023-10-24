@@ -77,13 +77,23 @@ impl From<figment::Error> for Error {
 }
 
 /// Utility function to get a config without having to import the `Config` trait.
+///
+/// # Errors
+///
+/// Returns the same error as `<T as Config>::get`.
 pub fn get<T: Config>() -> Result<T, Error> {
     T::get()
 }
 
 /// A utility trait for easily creating a config from the environment.
 ///
-/// Works for types allowing serde deserialization.
+/// Works for types allowing serde deserialization. Environment variables
+/// are expected to have the form `<Config::PREFIX><fieldname>`. It is
+/// recommended to set the prefix should with a trailing underscore
+/// `PREFIX = MY_CONFIG_`.
+///
+/// # Usage
+///
 /// ```no_run
 /// # use std::net::SocketAddr;
 /// # use astria_config as config;
@@ -106,6 +116,11 @@ pub fn get<T: Config>() -> Result<T, Error> {
 pub trait Config: core::fmt::Debug + DeserializeOwned {
     const PREFIX: &'static str;
 
+    /// Creates `Self` by reading its fields from the environment.
+    ///
+    /// # Errors
+    /// Returns an error if the a config field could not be read from
+    /// the environment.
     fn get() -> Result<Self, Error> {
         Ok(Self::get_with_prefix(Self::PREFIX, _internal::Internal)?)
     }

@@ -69,8 +69,16 @@ fn populate_environment_from_example(jail: &mut Jail, unique_test_prefix: &str, 
     }
 }
 
+/// Asserts that a config `C` can be created from a string holding env vars.
+///
+/// Such an example environment string could for example be produced by using
+/// `include_str!` on a file holding an example config.
+///
+/// # Panics
+/// As this is intended to be used as a test options and results are unwrapped,
+/// producing panics.
 #[track_caller]
-pub fn example_env_config_is_up_to_date<'a, C: Config>(example_env: &str) {
+pub fn example_env_config_is_up_to_date<C: Config>(example_env: &str) {
     let unique_test_prefix = Lazy::force(&TEST_PREFIX);
     let full_test_prefix = format!("{unique_test_prefix}_{}", C::PREFIX);
 
@@ -81,8 +89,19 @@ pub fn example_env_config_is_up_to_date<'a, C: Config>(example_env: &str) {
     });
 }
 
+/// Asserts that a config `C` would reject unknown env vars in string holding env vars.
+///
+/// Such an example environment string could for example be produced by using
+/// `include_str!` on a file holding an example config.
+///
+/// This effectively tests that a config has `#[serde(deny_unknown_vars)]` set
+/// as other solutions reuqire more work.
+///
+/// # Panics
+/// As this is intended to be used as a test options and results are unwrapped,
+/// producing panics.
 #[track_caller]
-pub fn config_should_reject_unknown_var<'a, C: Config>(example_env: &str) {
+pub fn config_should_reject_unknown_var<C: Config>(example_env: &str) {
     let unique_test_prefix = Lazy::force(&TEST_PREFIX);
     let full_test_prefix = format!("{unique_test_prefix}_{}", C::PREFIX);
 
