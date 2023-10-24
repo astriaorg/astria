@@ -430,6 +430,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-config"
+version = "0.1.0"
+dependencies = [
+ "figment",
+ "once_cell",
+ "regex",
+ "serde",
+]
+
+[[package]]
 name = "astria-proto"
 version = "0.1.0"
 dependencies = [

@@ -4,6 +4,7 @@ members = [
   "crates/astria-celestia-mock",
   "crates/astria-composer",
   "crates/astria-conductor",
+  "crates/astria-config",
   "crates/astria-cli",
   "crates/astria-proto",
   "crates/astria-sequencer",
