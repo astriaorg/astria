@@ -22,7 +22,7 @@ async fn main() {
 
     info!(config = cfg_ser, "initializing composer",);
 
-    Composer::from_config(cfg)
+    Composer::from_config(&cfg)
         .expect("failed creating composer")
         .run_until_stopped()
         .await;
