@@ -56,7 +56,7 @@ pub fn get<T: Config>() -> Result<T, figment::Error> {
     T::get()
 }
 
-pub trait Config: Serialize + DeserializeOwned {
+pub trait Config: core::fmt::Debug + Serialize + DeserializeOwned {
     const PREFIX: &'static str;
 
     fn get() -> Result<Self, figment::Error> {

@@ -82,7 +82,7 @@ pub fn config_should_reject_unknown_var<'a, C: Config>(example_env: &str) {
         populate_environment_from_example(jail, "TESTTEST", example_env);
         let bad_prefix = format!("{}_FOOBAR", test_prefix);
         jail.set_env(bad_prefix, "BAZ");
-        C::get_with_prefix(test_prefix.as_str(), _internal::Internal).unwrap();
+        C::get_with_prefix(test_prefix.as_str(), _internal::Internal).unwrap_err();
         Ok(())
     });
 }

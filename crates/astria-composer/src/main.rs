@@ -1,13 +1,13 @@
 use astria_composer::{
-    config,
     telemetry,
     Composer,
+    Config,
 };
 use tracing::info;
 
 #[tokio::main]
 async fn main() {
-    let cfg = match config::get() {
+    let cfg: Config = match config::get() {
         Ok(cfg) => cfg,
         Err(e) => {
             eprintln!("failed to read configuration: {e}");
@@ -22,7 +22,7 @@ async fn main() {
 
     info!(config = cfg_ser, "initializing composer",);
 
-    Composer::from_config(&cfg)
+    Composer::from_config(cfg)
         .expect("failed creating composer")
         .run_until_stopped()
         .await;

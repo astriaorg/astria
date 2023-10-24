@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.70.0"
 
 [dependencies]
+config = { package = "astria-config", path = "../astria-config" }
 proto = { package = "astria-proto", path = "../astria-proto" }
 sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
@@ -33,12 +34,9 @@ tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
 tracing = { workspace = true }
-figment = { workspace = true, features = ["env"] }
 
 [dev-dependencies]
-once_cell = { workspace = true }
-figment = { workspace = true, features = ["test"] }
-regex = { workspace = true }
+config = { package = "astria-config", path = "../astria-config", features = ["tests"] }
 
 [features]
 default = []
