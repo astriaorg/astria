@@ -36,7 +36,9 @@ tokio = { workspace = true, features = ["rt", "tracing"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
-config = { package = "astria-config", path = "../astria-config", features = ["tests"] }
+config = { package = "astria-config", path = "../astria-config", features = [
+  "tests",
+] }
 
 [features]
 default = []

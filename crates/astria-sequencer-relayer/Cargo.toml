@@ -41,7 +41,9 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
 celestia-mock = { package = "astria-celestia-mock", path = "../astria-celestia-mock" }
-config = { package = "astria-config", path = "../astria-config", features = ["tests"] }
+config = { package = "astria-config", path = "../astria-config", features = [
+  "tests",
+] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 
 jsonrpsee = { workspace = true, features = ["server"] }
