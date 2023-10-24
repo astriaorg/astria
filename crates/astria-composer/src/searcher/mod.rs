@@ -383,7 +383,7 @@ mod tests {
         let mut status = collector.subscribe();
         collector_tasks.spawn(rollup_name.clone(), collector.run_until_stopped());
         status
-            .wait_for(|status| status.is_connected())
+            .wait_for(collector::Status::is_connected)
             .await
             .unwrap();
         let expected_transaction = Transaction::default();
