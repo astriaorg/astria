@@ -409,7 +409,6 @@ impl Relayer {
                     self.fee,
                     self.gas_limit,
                     self.queued_blocks.clone(),
-                    self.validator.clone(),
                 )));
                 self.queued_blocks.clear();
             }
@@ -457,7 +456,6 @@ async fn submit_blocks_to_celestia(
     fee: u64,
     gas_limit: u64,
     sequencer_block_data: Vec<SequencerBlockData>,
-    validator: Validator,
 ) -> eyre::Result<u64> {
     use celestia_client::{
         celestia_types::blob::SubmitOptions,
@@ -472,7 +470,6 @@ async fn submit_blocks_to_celestia(
         .submit_sequencer_blocks(
             SEQUENCER_NAMESPACE,
             sequencer_block_data,
-            &validator.signing_key,
             SubmitOptions {
                 fee: Some(fee),
                 gas_limit: Some(gas_limit),

@@ -4,7 +4,6 @@ pub mod client;
 pub use blob_space::{
     RollupNamespaceData,
     SequencerNamespaceData,
-    SignedNamespaceData,
 };
 pub use celestia_rpc;
 pub use celestia_tendermint;
