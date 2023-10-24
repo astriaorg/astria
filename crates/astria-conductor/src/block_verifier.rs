@@ -56,25 +56,29 @@ impl BlockVerifier {
         let height: u32 = data.header.height.value().try_into().expect(
             "a tendermint height (currently non-negative i32) should always fit into a u32",
         );
-        let current_validator_set = self
-            .pool
-            .get()
-            .await
-            .wrap_err("failed getting a client from the pool to get the current validator set")?
+
+        let client =
+            self.pool.get().await.wrap_err(
+                "failed getting a client from the pool to get the current validator set",
+            )?;
+        let block_resp = client.block(height).await.wrap_err("failed to get block")?;
+        ensure!(
+            block_resp.block_id.hash == data.block_hash,
+            "ignoring SequencerNamespaceData with height {} due to block hash mismatch: expected \
+             {}, got {}",
+            height,
+            hex::encode(block_resp.block_id.hash),
+            hex::encode(data.block_hash),
+        );
+
+        let current_validator_set = client
             .validators(height, sequencer_client::tendermint_rpc::Paging::Default)
             .await
             .wrap_err("failed to get validator set")?;
 
-        // validate_signed_namespace_data(&current_validator_set, data)
-        //     .wrap_err("failed validating signed namespace data")?;
-
         // get validator set for the previous height, as the commit contained
         // in the block is for the previous height
-        let parent_validator_set = self
-            .pool
-            .get()
-            .await
-            .wrap_err("failed getting a client from the pool to get the previous validator set")?
+        let parent_validator_set = client
             .validators(
                 height - 1,
                 sequencer_client::tendermint_rpc::Paging::Default,
