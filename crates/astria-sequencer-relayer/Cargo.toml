@@ -41,7 +41,9 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
 celestia-mock = { package = "astria-celestia-mock", path = "../astria-celestia-mock" }
-sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types", features = ["test-utils"] }
+sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types", features = [
+  "test-utils",
+] }
 
 rand_core = { version = "0.6", features = ["getrandom"] }
 
