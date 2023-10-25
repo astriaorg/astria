@@ -50,7 +50,7 @@ use tracing::{
 pub(super) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
-    // Channel for receving bundles to pack, sign, and submit
+    // Channel for receiving bundles to pack, sign, and submit
     executor_rx: mpsc::Receiver<Vec<Action>>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
