@@ -1,7 +1,7 @@
 # Astria Proto
 
 This repo contains all the protobuf packages for Astria. All rust code generated
-from the protobuf files in [`proto/`](`./proto/`) is commited to this repository
+from the protobuf files in [`proto/`](`./proto/`) is committed to this repository
 and no extra tools are needed to encode to/decode from protobuf.
 
 Only when changing protobuf definitions and regenerating the Rust code from
