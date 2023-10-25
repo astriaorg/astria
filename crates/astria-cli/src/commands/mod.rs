@@ -7,26 +7,20 @@ use color_eyre::{
 };
 use tracing::instrument;
 
-use crate::{
-    cli::{
-        rollup::{
-            Command as RollupCommand,
-            ConfigCommand,
-            DeploymentCommand,
-        },
-        sequencer::{
-            AccountCommand,
-            BalanceCommand,
-            BlockHeightCommand,
-            Command as SequencerCommand,
-        },
-        Cli,
-        Command,
+use crate::cli::{
+    rollup::{
+        Command as RollupCommand,
+        ConfigCommand,
+        DeploymentCommand,
     },
-    commands::sequencer::{
-        get_balance,
-        get_block_height,
+    sequencer::{
+        AccountCommand,
+        BalanceCommand,
+        BlockHeightCommand,
+        Command as SequencerCommand,
     },
+    Cli,
+    Command,
 };
 
 /// Checks what function needs to be run and calls it with the appropriate arguments
@@ -71,16 +65,19 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                     command,
                 } => match command {
                     AccountCommand::Create => sequencer::create_account(),
+                    AccountCommand::Balance(args) => sequencer::get_balance(&args).await?,
+                    AccountCommand::Nonce(args) => sequencer::get_nonce(&args).await?,
                 },
                 SequencerCommand::Balance {
                     command,
                 } => match command {
-                    BalanceCommand::Get(args) => get_balance(&args).await?,
+                    BalanceCommand::Get(args) => sequencer::get_balance(&args).await?,
                 },
+                SequencerCommand::Transfer(args) => sequencer::send_amount(&args).await?,
                 SequencerCommand::BlockHeight {
                     command,
                 } => match command {
-                    BlockHeightCommand::Get(args) => get_block_height(&args).await?,
+                    BlockHeightCommand::Get(args) => sequencer::get_block_height(&args).await?,
                 },
             },
         }

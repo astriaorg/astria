@@ -344,6 +344,7 @@ name = "astria-cli"
 version = "0.1.0"
 dependencies = [
  "assert_cmd",
+ "astria-proto",
  "astria-sequencer-client",
  "clap",
  "color-eyre",
