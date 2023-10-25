@@ -5,20 +5,24 @@ use astria_sequencer_client::{
 };
 use color_eyre::{
     eyre,
-    eyre::eyre,
-    eyre::{Context, ensure},
+    eyre::{
+        ensure,
+        eyre,
+        Context,
+    },
 };
 use ed25519_consensus::SigningKey;
+use proto::native::sequencer::v1alpha1::{
+    Action,
+    TransferAction,
+    UnsignedTransaction,
+};
 use rand::rngs::OsRng;
 
 use crate::cli::sequencer::{
     BasicAccountArgs,
     BlockHeightGetArgs,
     TransferArgs,
-};
-use proto::native::sequencer::v1alpha1::{
-    Action,
-    TransferAction, UnsignedTransaction,
 };
 
 /// Generate a new signing key (this is also called a secret key by other implementations)
@@ -85,7 +89,6 @@ pub(crate) async fn get_balance(args: &BasicAccountArgs) -> eyre::Result<()> {
 }
 
 // Gets the balance of a Sequencer account
-///
 /// # Arguments
 ///
 /// * `args` - The arguments passed to the command
@@ -145,12 +148,12 @@ pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<
 ///
 /// * If the http client cannot be created
 /// * If the latest block height cannot be retrieved
-pub(crate) async fn send_amount(args: &TransferArgs) -> eyre::Result<()> {
-     // Build the signing_key
-     let private_key_bytes: [u8; 32] = hex::decode(args.private_key.as_str())
-     .wrap_err("failed to decode private key bytes from hex string")?
-     .try_into()
-     .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
+pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
+    // Build the signing_key
+    let private_key_bytes: [u8; 32] = hex::decode(args.private_key.as_str())
+        .wrap_err("failed to decode private key bytes from hex string")?
+        .try_into()
+        .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
     let sequencer_key =
         SigningKey::try_from(private_key_bytes).wrap_err("failed to parse sequencer key")?;
 
@@ -166,15 +169,16 @@ pub(crate) async fn send_amount(args: &TransferArgs) -> eyre::Result<()> {
         .get_latest_nonce(from_address)
         .await
         .wrap_err("failed to get nonce")?;
-    
+
     // Build and submit tx
     let tx = UnsignedTransaction {
         nonce: nonce_res.nonce,
         actions: vec![Action::Transfer(TransferAction {
-            to: to_address, 
+            to: to_address,
             amount: args.amount,
         })],
-    }.into_signed(&sequencer_key);
+    }
+    .into_signed(&sequencer_key);
     let res = sequencer_client
         .submit_transaction_commit(tx)
         .await

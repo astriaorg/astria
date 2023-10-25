@@ -32,7 +32,7 @@ pub enum Command {
         command: BlockHeightCommand,
     },
     /// Command for sending balance between accounts
-    Transfer(TransferArgs)
+    Transfer(TransferArgs),
 }
 
 #[derive(Debug, Subcommand)]

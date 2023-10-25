@@ -73,7 +73,7 @@ pub async fn run(cli: Cli) -> eyre::Result<()> {
                 } => match command {
                     BalanceCommand::Get(args) => sequencer::get_balance(&args).await?,
                 },
-                SequencerCommand::Transfer(args) => sequencer::send_amount(&args).await?,
+                SequencerCommand::Transfer(args) => sequencer::send_transfer(&args).await?,
                 SequencerCommand::BlockHeight {
                     command,
                 } => match command {
