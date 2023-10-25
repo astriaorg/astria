@@ -8,12 +8,12 @@
 //!
 //! The intended use for the mock is to:
 //!
-//! 1. spawn a server with [`MockGeth::spawn`];
+//! 1. spawn a server with [`Geth::spawn`];
 //! 2. establish a websocket connection using its local socket address at [`MockGet::local_addr`],
 //!    for example with [`Provider::<Ws>::connect`];
 //! 3. subscribe to its mocked `eth_subscribe` JSONRPC using
 //!    [`Middleware::subscribe_full_pending_txs`];
-//! 4. push new transactions into the server using [`MockGeth::push_tx`], which will subsequently be
+//! 4. push new transactions into the server using [`Geth::push_tx`], which will subsequently be
 //!    sent to all suscribers and can be observed by the client.
 //!
 //! # Examples
@@ -22,29 +22,35 @@
 //! # tokio_test::block_on( async {
 //! use std::time::Duration;
 //!
+//! use astria_test_utils::mock::Geth;
 //! use ethers::{
-//!     providers::{Middleware as _, Provider, StreamExt as _, Ws},
+//!     providers::{
+//!         Middleware as _,
+//!         Provider,
+//!         StreamExt as _,
+//!         Ws,
+//!     },
 //!     types::Transaction,
 //! };
-//! use jsonrpsee_ethers::MockGeth;
 //!
 //! println!("connecting!!");
-//! let mock_geth = MockGeth::spawn().await;
+//! let mock_geth = Geth::spawn().await;
 //! let server_addr = mock_geth.local_addr();
 //!
 //! tokio::spawn(async move {
 //!     loop {
-//! #       // FIXME: remove the sleep. at the moment this doc tests only passes when
-//! #       //        when expclitly sleeping. Why?
+//! #       // FIXME: remove the sleep. at the moment this doc tests only passes
+//! #       //        when explicitly sleeping. Why?
 //!         tokio::time::sleep(Duration::from_secs(1)).await;
-//!         let r = mock_geth.push_tx(Transaction::default());
+//!         let r = mock_geth.push_tx(Transaction::default().into());
 //!     }
-//! })
+//! });
 //!
 //! let geth_client = Provider::<Ws>::connect(format!("ws://{server_addr}"))
 //!     .await
 //!     .expect("client should be able to conenct to local ws server");
-//! let mut new_txs = geth_client.subscribe_full_pending_txs()
+//! let mut new_txs = geth_client
+//!     .subscribe_full_pending_txs()
 //!     .await
 //!     .unwrap()
 //!     .take(3);
@@ -56,13 +62,14 @@
 
 use std::net::SocketAddr;
 
+#[allow(clippy::module_name_repetitions)]
+pub use __rpc_traits::GethServer;
 use ethers::types::Transaction;
 use jsonrpsee::{
     core::{
         async_trait,
         SubscriptionResult,
     },
-    proc_macros::rpc,
     server::IdProvider,
     types::{
         ErrorObjectOwned,
@@ -98,19 +105,40 @@ impl IdProvider for RandomU256IdProvider {
     }
 }
 
-// The mockserver has to be able to handle an `eth_subscribe` RPC with parameters
-// `"newPendingTransactions"` and `true`
-#[rpc(server)]
-pub trait Geth {
-    #[subscription(name = "eth_subscribe", item = Transaction, unsubscribe = "eth_unsubscribe")]
-    async fn eth_subscribe(&self, target: String, full_txs: Option<bool>) -> SubscriptionResult;
+mod __rpc_traits {
+    use jsonrpsee::{
+        core::SubscriptionResult,
+        proc_macros::rpc,
+        types::ErrorObjectOwned,
+    };
+    // The mockserver has to be able to handle an `eth_subscribe` RPC with parameters
+    // `"newPendingTransactions"` and `true`
+    #[rpc(server)]
+    pub trait Geth {
+        #[subscription(name = "eth_subscribe", item = Transaction, unsubscribe = "eth_unsubscribe")]
+        async fn eth_subscribe(&self, target: String, full_txs: Option<bool>)
+        -> SubscriptionResult;
 
-    #[method(name = "net_version")]
-    async fn net_version(&self) -> Result<String, ErrorObjectOwned>;
+        #[method(name = "net_version")]
+        async fn net_version(&self) -> Result<String, ErrorObjectOwned>;
+    }
 }
 
+#[derive(Clone, Debug)]
+pub enum SubscriptionCommand {
+    Abort,
+    Send(Transaction),
+}
+
+impl From<Transaction> for SubscriptionCommand {
+    fn from(transaction: Transaction) -> Self {
+        Self::Send(transaction)
+    }
+}
+
+#[allow(clippy::module_name_repetitions)]
 pub struct GethImpl {
-    new_tx_sender: Sender<Transaction>,
+    command: Sender<SubscriptionCommand>,
 }
 
 #[async_trait]
@@ -122,6 +150,8 @@ impl GethServer for GethImpl {
         full_txs: Option<bool>,
     ) -> SubscriptionResult {
         use jsonrpsee::server::SubscriptionMessage;
+        tracing::debug!("received eth_subription request");
+
         assert_eq!(
             ("newPendingTransactions", Some(true)),
             (&*subscription_target, full_txs),
@@ -129,17 +159,24 @@ impl GethServer for GethImpl {
             parameters [\"newPendingTransaction\", true]",
         );
         let sink = pending.accept().await?;
-        let mut rx = self.new_tx_sender.subscribe();
+        let mut rx = self.command.subscribe();
         loop {
             tokio::select!(
                 biased;
-                () = sink.closed() => break,
-                Ok(new_tx) = rx.recv() => sink.send(
-                    SubscriptionMessage::from_json(&new_tx)?
-                ).await?,
+                () = sink.closed() => break Err("subscription closed by client".into()),
+                Ok(cmd) = rx.recv() => {
+                    match cmd {
+                        SubscriptionCommand::Abort => {
+                            tracing::debug!("abort command received; exiting eth_subscription");
+                            break Err("mock received abort command".into());
+                        }
+                        SubscriptionCommand::Send(tx) => {
+                            let _ = sink.send(SubscriptionMessage::from_json(&tx)?).await?;
+                        }
+                    }
+                }
             );
         }
-        Ok(())
     }
 
     async fn net_version(&self) -> Result<String, ErrorObjectOwned> {
@@ -147,19 +184,24 @@ impl GethServer for GethImpl {
     }
 }
 
-pub struct MockGeth {
+/// A mocked geth server for subscribing to new transactions.
+///
+/// Allows for explicitly pushing transactions to subscribed clients.
+pub struct Geth {
     /// The local address to which the mocked jsonrpc server is bound.
     local_addr: SocketAddr,
     /// A channel over which new transactions can be inserted into the mocked
     /// server so that they are forwarded to a client that subscribed to new
     /// pending transactions over websocket.
-    new_tx_sender: Sender<Transaction>,
+    command: Sender<SubscriptionCommand>,
     _server_task_handle: tokio::task::JoinHandle<()>,
 }
 
-impl MockGeth {
+impl Geth {
     /// Spawns a new mocked geth server.
+    ///
     /// # Panics
+    ///
     /// Panics if the server fails to start.
     pub async fn spawn() -> Self {
         use jsonrpsee::server::Server;
@@ -172,15 +214,15 @@ impl MockGeth {
         let local_addr = server
             .local_addr()
             .expect("server should have a local addr");
-        let (new_tx_sender, _) = channel(256);
+        let (command, _) = channel(256);
         let mock_geth_impl = GethImpl {
-            new_tx_sender: new_tx_sender.clone(),
+            command: command.clone(),
         };
         let handle = server.start(mock_geth_impl.into_rpc());
         let server_task_handle = tokio::spawn(handle.stopped());
         Self {
             local_addr,
-            new_tx_sender,
+            command,
             _server_task_handle: server_task_handle,
         }
     }
@@ -188,6 +230,16 @@ impl MockGeth {
     #[must_use]
     pub fn local_addr(&self) -> SocketAddr {
         self.local_addr
+    }
+
+    /// Sends an Abort command to all subscription tasks, causing them to exit and close the
+    /// subscriptions.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same error as tokio's [`Sender::send`].
+    pub fn abort(&self) -> Result<usize, SendError<SubscriptionCommand>> {
+        self.command.send(SubscriptionCommand::Abort)
     }
 
     /// Push a new transaction into the mocket geth server.
@@ -199,7 +251,7 @@ impl MockGeth {
     /// # Errors
     ///
     /// Returns the same error as tokio's [`Sender::send`].
-    pub fn push_tx(&self, tx: Transaction) -> Result<usize, SendError<Transaction>> {
-        self.new_tx_sender.send(tx)
+    pub fn push_tx(&self, tx: Transaction) -> Result<usize, SendError<SubscriptionCommand>> {
+        self.command.send(tx.into())
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "astria-composer"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 rust-version = "1.70.0"
 
@@ -38,6 +38,7 @@ tokio = { workspace = true, features = [
 ] }
 tokio-util = { workspace = true, features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
+tryhard = { workspace = true }
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"
@@ -46,11 +47,11 @@ features = ["http"]
 
 [dev-dependencies]
 proto = { package = "astria-proto", path = "../astria-proto" }
-
-impl-serde = "0.4.0"
-tokio-test = "0.4.2"
+test_utils = { package = "astria-test-utils", path = "../astria-test-utils", features = [
+  "geth",
+] }
+tokio-test = { workspace = true }
 
 figment = { workspace = true, features = ["test"] }
-jsonrpsee = { workspace = true, features = ["macros", "server"] }
 tendermint-rpc = { workspace = true }
 wiremock = { workspace = true }

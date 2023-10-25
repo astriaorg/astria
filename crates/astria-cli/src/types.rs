@@ -13,9 +13,10 @@ use crate::cli::rollup::{
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Rollup {
-    // TODO - namespace
+    pub(crate) namespace: String,
     #[serde(rename = "config")]
     pub(crate) deployment_config: RollupDeploymentConfig,
+    pub(crate) ingress: IngressConfig,
 }
 
 impl TryFrom<&ConfigCreateArgs> for Rollup {
@@ -23,9 +24,12 @@ impl TryFrom<&ConfigCreateArgs> for Rollup {
 
     fn try_from(args: &ConfigCreateArgs) -> eyre::Result<Self> {
         let deployment_config = RollupDeploymentConfig::try_from(args)?;
+        let ingress = IngressConfig::from(args);
 
         Ok(Self {
+            namespace: args.namespace.clone(),
             deployment_config,
+            ingress,
         })
     }
 }
@@ -75,6 +79,14 @@ impl RollupDeploymentConfig {
 
     pub fn set_initial_sequencer_height(&mut self, new_height: u64) {
         self.sequencer.initial_block_height = new_height;
+    }
+}
+
+impl From<&ConfigCreateArgs> for IngressConfig {
+    fn from(args: &ConfigCreateArgs) -> Self {
+        Self {
+            hostname: args.hostname.clone(),
+        }
     }
 }
 
@@ -152,6 +164,12 @@ struct SequencerConfig {
     rpc: String,
 }
 
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IngressConfig {
+    hostname: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -161,9 +179,9 @@ mod tests {
     };
 
     #[test]
-    fn test_from_cli_args() -> eyre::Result<()> {
+    fn test_from_all_cli_args() -> eyre::Result<()> {
         // Case 1: All args provided
-        let args1 = ConfigCreateArgs {
+        let args = ConfigCreateArgs {
             use_tty: true,
             log_level: "debug".to_string(),
             name: "rollup1".to_string(),
@@ -183,9 +201,12 @@ mod tests {
             sequencer_initial_block_height: Some(10),
             sequencer_websocket: "ws://localhost:8080".to_string(),
             sequencer_rpc: "http://localhost:8081".to_string(),
+            hostname: "test.com".to_string(),
+            namespace: "test-cluster".to_string(),
         };
 
-        let expected_config1 = Rollup {
+        let expected_config = Rollup {
+            namespace: "test-cluster".to_string(),
             deployment_config: RollupDeploymentConfig {
                 use_tty: true,
                 log_level: "debug".to_string(),
@@ -211,16 +232,24 @@ mod tests {
                     rpc: "http://localhost:8081".to_string(),
                 },
             },
+            ingress: IngressConfig {
+                hostname: "test.com".to_string(),
+            },
         };
 
-        let result1 = Rollup::try_from(&args1)?;
-        assert_eq!(result1, expected_config1);
+        let result = Rollup::try_from(&args)?;
+        assert_eq!(result, expected_config);
 
-        // Case 2: No `Option` wrapped args provided. Tests defaults that are decided
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_minimum_cli_args() -> eyre::Result<()> {
+        // No `Option` wrapped args provided. Tests defaults that are decided
         //  explicitly in the `try_from` impl.
         // NOTE - there are some defaults that are handled in the arg struct,
         //  like the sequencer ws and rpc urls, so we still must pass them in here.
-        let args2 = ConfigCreateArgs {
+        let args = ConfigCreateArgs {
             use_tty: false,
             log_level: "info".to_string(),
             name: "rollup2".to_string(),
@@ -234,9 +263,12 @@ mod tests {
             sequencer_initial_block_height: None,
             sequencer_websocket: "ws://localhost:8082".to_string(),
             sequencer_rpc: "http://localhost:8083".to_string(),
+            hostname: "localdev.me".to_string(),
+            namespace: "astria-dev-cluster".to_string(),
         };
 
-        let expected_config2 = Rollup {
+        let expected_config = Rollup {
+            namespace: "astria-dev-cluster".to_string(),
             deployment_config: RollupDeploymentConfig {
                 use_tty: false,
                 log_level: "info".to_string(),
@@ -256,10 +288,13 @@ mod tests {
                     rpc: "http://localhost:8083".to_string(),
                 },
             },
+            ingress: IngressConfig {
+                hostname: "localdev.me".to_string(),
+            },
         };
 
-        let result2 = Rollup::try_from(&args2)?;
-        assert_eq!(result2, expected_config2);
+        let result = Rollup::try_from(&args)?;
+        assert_eq!(result, expected_config);
 
         Ok(())
     }

@@ -30,7 +30,7 @@ enum Error {
     Request(#[from] sequencer_client::extension_trait::Error),
 }
 
-#[instrument(skip(client_pool))]
+#[instrument(name = "sync sequencer", skip(client_pool, executor))]
 pub(super) async fn run(
     start: Height,
     end: Height,
@@ -68,8 +68,9 @@ pub(super) async fn run(
 
             Some((height, res)) = block_stream.next() => {
                 match res {
-                    Err(Error::Request(e)) => {
-                        warn!(height, error.message = %e, error.cause = ?e, "failed getting sequencer block; rescheduling");
+                    Err(Error::Request(error)) => {
+                        let error = &error as &(dyn std::error::Error + 'static);
+                        warn!(height, error, "failed getting sequencer block; rescheduling");
                         let pool = client_pool.clone();
                         block_stream.push_front(async move {
                             get_client_then_block(pool, height).await
@@ -77,14 +78,16 @@ pub(super) async fn run(
                     }
 
                     Err(Error::Pool(e)) => {
-                        error!(height, error.message = %e, error.cause = ?e, "failed getting a client from the pool; aborting sync");
+                        let error = &e as &(dyn std::error::Error + 'static);
+                        error!(height, error, "failed getting a client from the pool; aborting sync");
                         break 'sync Err(e).wrap_err("failed getting a client from the pool");
                     }
 
                     Ok(block) => {
                         let block = Box::new(block);
                         if let Err(e) = executor.send(crate::executor::ExecutorCommand::FromSequencer { block }) {
-                            error!(height, error.message = %e, error.cause = ?e, "failed forwarding block to executor; aborting async");
+                            let error = &e as &(dyn std::error::Error + 'static);
+                            error!(height, error, "failed forwarding block to executor; aborting async");
                             break 'sync Err(e).wrap_err("failed forwarding block to executor");
                         }
                     }

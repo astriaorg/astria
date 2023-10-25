@@ -109,6 +109,15 @@ impl Conductor {
         // Only spawn the sequencer::Reader if CommitLevel is not FirmOnly, also
         // send () to sync_done to start normal block execution behavior
         let mut sync_done = futures::future::Fuse::terminated();
+
+        // if only using firm blocks
+        if cfg.execution_commit_level.is_firm_only() {
+            // kill the sync to just run normally
+            let (sync_done_tx, sync_done_rx) = oneshot::channel();
+            sync_done = sync_done_rx.fuse();
+            let _ = sync_done_tx.send(());
+        }
+
         if !cfg.execution_commit_level.is_firm_only() {
             // todo!("set up stuff");
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -197,7 +206,10 @@ impl Conductor {
                 res = &mut sync_done, if !sync_done.is_terminated() => {
                     match res {
                         Ok(()) => info!("received sync-complete signal from sequencer reader"),
-                        Err(e) => warn!(error.message = %e, error.cause = ?e, "sync-complete channel failed prematurely"),
+                        Err(e) => {
+                            let error = &e as &(dyn std::error::Error + 'static);
+                            warn!(error, "sync-complete channel failed prematurely");
+                        }
                     }
                     if let Some(data_availability_reader) = data_availability_reader.take() {
                         info!("starting data availability reader");
@@ -211,8 +223,14 @@ impl Conductor {
                 Some((name, res)) = tasks.join_next() => {
                     match res {
                         Ok(Ok(())) => error!(task.name = name, "task exited unexpectedly, shutting down"),
-                        Ok(Err(e)) => error!(task.name = name, error.message = %e, error.cause = ?e, "task exited with error; shutting down"),
-                        Err(e) => error!(task.name = name, error.message = %e, error.cause = ?e, "task failed; shutting down"),
+                        Ok(Err(e)) => {
+                            let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                            error!(task.name = name, error, "task exited with error; shutting down");
+                        }
+                        Err(e) => {
+                            let error = &e as &(dyn std::error::Error + 'static);
+                            error!(task.name = name, error, "task failed; shutting down");
+                        }
                     }
                 }
             }
@@ -244,8 +262,14 @@ impl Conductor {
                         {
                             match res {
                                 Ok(Ok(())) => info!(task.name = name, "task exited normally"),
-                                Ok(Err(err)) => warn!(task.name = name, error.message = %err, error.cause = ?err, "task exited with error"),
-                                Err(err) => warn!(task.name = name, error.message = %err, error.cause = ?err, "task failed"),
+                                Ok(Err(e)) => {
+                                    let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                                    error!(task.name = name, error, "task exited with error");
+                                }
+                                Err(e) => {
+                                    let error = &e as &(dyn std::error::Error + 'static);
+                                    error!(task.name = name, error, "task failed");
+                                }
                             }
                         }
                     }),

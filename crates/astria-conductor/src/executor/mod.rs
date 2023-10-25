@@ -10,6 +10,10 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use prost_types::Timestamp as ProstTimestamp;
+use proto::generated::execution::v1alpha2::{
+    execution_service_client::ExecutionServiceClient,
+    Block,
+};
 use tendermint::{
     Hash,
     Time,
@@ -24,6 +28,7 @@ use tokio::{
         oneshot,
     },
 };
+use tonic::transport::Channel;
 use tracing::{
     debug,
     error,
@@ -33,11 +38,11 @@ use tracing::{
 };
 
 use crate::{
-    execution_client::{
-        ExecutionClient,
-        ExecutionRpcClient,
+    execution_client::ExecutionClientExt,
+    types::{
+        ExecutorCommitmentState,
+        SequencerBlockSubset,
     },
-    types::SequencerBlockSubset,
 };
 
 #[cfg(test)]
@@ -84,24 +89,24 @@ pub(crate) struct Executor {
     shutdown: oneshot::Receiver<()>,
 
     /// The execution rpc client that we use to send messages to the execution service
-    execution_rpc_client: ExecutionRpcClient,
+    execution_rpc_client: ExecutionServiceClient<Channel>,
 
     /// Chain ID
     chain_id: ChainId,
 
-    /// Tracks the state of the execution chain
-    execution_state: Vec<u8>,
+    /// Tracks SOFT and FIRM on the execution chain
+    commitment_state: ExecutorCommitmentState,
 
-    /// map of sequencer block hash to execution block hash
+    /// map of sequencer block hash to execution block
     ///
     /// this is required because when we receive sequencer blocks (from network or DA),
     /// we only know the sequencer block hash, but not the execution block hash,
     /// as the execution block hash is created by executing the block.
     /// as well, the execution layer is not aware of the sequencer block hash.
-    /// we need to track the mapping of sequencer block hash -> execution block hash
+    /// we need to track the mapping of sequencer block hash -> execution block
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
-    sequencer_hash_to_execution_hash: HashMap<Hash, Vec<u8>>,
+    sequencer_hash_to_execution_block: HashMap<Hash, Block>,
 
     /// Chose to execute empty blocks or not
     disable_empty_block_execution: bool,
@@ -115,21 +120,21 @@ impl Executor {
         cmd_rx: Receiver,
         shutdown: oneshot::Receiver<()>,
     ) -> Result<Self> {
-        let mut execution_rpc_client = ExecutionRpcClient::new(server_addr)
+        let mut execution_rpc_client = ExecutionServiceClient::connect(server_addr.to_owned())
             .await
             .wrap_err("failed to create execution rpc client")?;
-        let init_state_response = execution_rpc_client
-            .call_init_state()
+        let commitment_state = execution_rpc_client
+            .call_get_commitment_state()
             .await
-            .wrap_err("could not initialize execution rpc client state")?;
-        let execution_state = init_state_response.block_hash;
+            .wrap_err("executor failed to get commitment state")?;
+
         Ok(Self {
             cmd_rx,
             shutdown,
             execution_rpc_client,
             chain_id,
-            execution_state,
-            sequencer_hash_to_execution_hash: HashMap::new(),
+            commitment_state,
+            sequencer_hash_to_execution_block: HashMap::new(),
             disable_empty_block_execution,
         })
     }
@@ -161,12 +166,26 @@ impl Executor {
                             let block_subset =
                                 SequencerBlockSubset::from_sequencer_block_data(*block, &self.chain_id);
 
-                            if let Err(e) = self.execute_block(block_subset).await {
-                                error!(
-                                    sequencer_block_height = height,
-                                    error = ?e,
-                                    "failed to execute block"
-                                );
+                            let executed_block_result = self.execute_block(block_subset).await;
+                            match executed_block_result {
+                                Ok(Some(executed_block)) => {
+                                    if let Err(e) = self.update_soft_commitment(executed_block.clone()).await {
+                                        error!(
+                                            height = height,
+                                            error = ?e,
+                                            "failed to update soft commitment"
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    error!(
+                                        height = height,
+                                        error = ?e,
+                                        "failed to execute block"
+                                    );
+                                }
+                                // execution was skipped
+                                Ok(None) => {}
                             }
                         }
 
@@ -175,11 +194,8 @@ impl Executor {
                                 .execute_and_finalize_blocks_from_celestia(blocks)
                                 .await
                             {
-                                error!(
-                                    error.message = %e,
-                                    error.cause = ?e,
-                                    "failed to finalize block; stopping executor"
-                                );
+                                let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                                error!(error, "failed to finalize block; stopping executor");
                                 break;
                             }
                         }
@@ -197,7 +213,7 @@ impl Executor {
     /// if the block has already been executed, it returns the previously-computed
     /// execution block hash.
     /// if there are no relevant transactions in the SequencerBlock, it returns None.
-    async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Vec<u8>>> {
+    async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Block>> {
         if self.disable_empty_block_execution && block.rollup_transactions.is_empty() {
             debug!(
                 sequencer_block_height = block.header.height.value(),
@@ -206,16 +222,19 @@ impl Executor {
             return Ok(None);
         }
 
-        if let Some(execution_hash) = self.sequencer_hash_to_execution_hash.get(&block.block_hash) {
+        if let Some(execution_block) = self
+            .sequencer_hash_to_execution_block
+            .get(&block.block_hash)
+        {
             debug!(
                 sequencer_block_height = block.header.height.value(),
-                execution_hash = hex::encode(execution_hash),
+                execution_hash = hex::encode(&execution_block.hash),
                 "block already executed"
             );
-            return Ok(Some(execution_hash.clone()));
+            return Ok(Some(execution_block.clone()));
         }
 
-        let prev_block_hash = self.execution_state.clone();
+        let prev_block_hash = self.commitment_state.soft.hash.clone();
         info!(
             sequencer_block_height = block.header.height.value(),
             parent_block_hash = hex::encode(&prev_block_hash),
@@ -225,23 +244,60 @@ impl Executor {
         let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
-        let response = self
+        let executed_block = self
             .execution_rpc_client
-            .call_do_block(prev_block_hash, block.rollup_transactions, Some(timestamp))
+            .call_execute_block(prev_block_hash, block.rollup_transactions, timestamp)
             .await?;
-        self.execution_state = response.block_hash.clone();
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
             sequencer_block_hash = ?block.block_hash,
             sequencer_block_height = block.header.height.value(),
-            execution_block_hash = hex::encode(&response.block_hash),
+            execution_block_hash = hex::encode(&executed_block.hash),
             "executed sequencer block",
         );
-        self.sequencer_hash_to_execution_hash
-            .insert(block.block_hash, response.block_hash.clone());
 
-        Ok(Some(response.block_hash))
+        // store block returned by execution client, as we need it to finalize the block later
+        self.sequencer_hash_to_execution_block
+            .insert(block.block_hash, executed_block.clone());
+
+        Ok(Some(executed_block))
+    }
+
+    /// Updates the commitment state on the execution layer.
+    /// Updates the local `commitment_state` with the new values.
+    async fn update_commitment_states(&mut self, firm: Block, soft: Block) -> Result<()> {
+        let new_commitment_state = self
+            .execution_rpc_client
+            .call_update_commitment_state(firm, soft)
+            .await
+            .wrap_err("executor failed to update commitment state")?;
+        self.commitment_state = new_commitment_state;
+        Ok(())
+    }
+
+    /// Updates both firm and soft commitments.
+    async fn update_commitments(&mut self, block: Block) -> Result<()> {
+        self.update_commitment_states(block.clone(), block)
+            .await
+            .wrap_err("executor failed to update both commitments")?;
+        Ok(())
+    }
+
+    /// Updates only firm commitment and leaves soft commitment the same.
+    async fn update_firm_commitment(&mut self, firm: Block) -> Result<()> {
+        self.update_commitment_states(firm, self.commitment_state.soft.clone())
+            .await
+            .wrap_err("executor failed to update firm commitment")?;
+        Ok(())
+    }
+
+    /// Updates only soft commitment and leaves firm commitment the same.
+    async fn update_soft_commitment(&mut self, soft: Block) -> Result<()> {
+        self.update_commitment_states(self.commitment_state.firm.clone(), soft)
+            .await
+            .wrap_err("executor failed to update soft commitment")?;
+        Ok(())
     }
 
     async fn execute_and_finalize_blocks_from_celestia(
@@ -254,14 +310,19 @@ impl Executor {
             return Ok(());
         };
         let sequencer_block_hash = block.block_hash;
-        let maybe_execution_block_hash = self
-            .sequencer_hash_to_execution_hash
+        let maybe_executed_block = self
+            .sequencer_hash_to_execution_block
             .get(&sequencer_block_hash)
             .cloned();
-        match maybe_execution_block_hash {
-            Some(execution_block_hash) => {
-                self.finalize_block(execution_block_hash, sequencer_block_hash)
-                    .await?;
+        match maybe_executed_block {
+            Some(executed_block) => {
+                // this case means block has already been executed.
+                self.update_firm_commitment(executed_block.clone())
+                    .await
+                    .wrap_err("executor failed to update firm commitment")?;
+                // remove the sequencer block hash from the map, as it's been firmly committed
+                self.sequencer_hash_to_execution_block
+                    .remove(&block.block_hash);
             }
             None => {
                 // this means either:
@@ -273,48 +334,26 @@ impl Executor {
                 // try executing the block as it hasn't been executed before
                 // execute_block will check if our namespace has txs; if so, it'll return the
                 // resulting execution block hash, otherwise None
-                let Some(execution_block_hash) = self
-                    .execute_block(block)
+                let Some(executed_block) = self
+                    .execute_block(block.clone())
                     .await
                     .wrap_err("failed to execute block")?
                 else {
                     // no txs for our namespace, nothing to do
-                    debug!("execute_block returned None; skipping finalize_block");
+                    debug!("execute_block returned None; skipping call_update_commitment_state");
                     return Ok(());
                 };
 
-                // finalize the block after it's been executed
-                self.finalize_block(execution_block_hash, sequencer_block_hash)
-                    .await?;
+                // when we execute a block received from da, nothing else has been executed on top
+                // of it, so we set FIRM and SOFT to this executed block
+                self.update_commitments(executed_block)
+                    .await
+                    .wrap_err("executor failed to update both commitments")?;
+                // remove the sequencer block hash from the map, as it's been firmly committed
+                self.sequencer_hash_to_execution_block
+                    .remove(&block.block_hash);
             }
         };
-        Ok(())
-    }
-
-    /// This function finalizes the given execution block on the execution layer by calling
-    /// the execution service's FinalizeBlock function.
-    /// note that this function clears the respective entry in the
-    /// `sequencer_hash_to_execution_hash` map.
-    ///
-    /// # Errors
-    ///
-    /// This function returns an error if:
-    /// - the call to the execution service's FinalizeBlock function fails
-    #[instrument(ret, err, skip_all, fields(
-        execution_block_hash = hex::encode(&execution_block_hash),
-        sequencer_block_hash = hex::encode(sequencer_block_hash),
-    ))]
-    async fn finalize_block(
-        &mut self,
-        execution_block_hash: Vec<u8>,
-        sequencer_block_hash: Hash,
-    ) -> Result<()> {
-        self.execution_rpc_client
-            .call_finalize_block(execution_block_hash)
-            .await
-            .wrap_err("failed to finalize block")?;
-        self.sequencer_hash_to_execution_hash
-            .remove(&sequencer_block_hash);
         Ok(())
     }
 }

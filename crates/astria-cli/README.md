@@ -68,7 +68,7 @@ cargo build --release
 ./target/release/astria-cli rollup deployment list
 
 # delete deployment
-./target/release/astria-cli rollup deplyoment delete \
+./target/release/astria-cli rollup deployment delete \
   --config somerollupname-rollup-config.yaml
   
 # get balance of account on Sequencer
