@@ -79,12 +79,13 @@ impl ClientProvider {
                         .map(humantime::format_duration)
                         .map(tracing::field::display);
                     async move {
+                        let error = &error as &(dyn std::error::Error + 'static);
                         warn!(
                             attempt,
                             wait_duration,
-                            error.message = %error,
-                            error.cause = ?error,
-                            "attempt to connect to sequencer websocket failed; retrying after backoff",
+                            error,
+                            "attempt to connect to sequencer websocket failed; retrying after \
+                             backoff",
                         );
                     }
                 },
@@ -113,9 +114,9 @@ impl ClientProvider {
                             Ok(Err(e)) => ("error", Some(eyre::Report::new(e).wrap_err("driver task exited with error"))),
                             Err(e) => ("panic", Some(eyre::Report::new(e).wrap_err("driver task failed"))),
                         };
+                        let error: Option<&(dyn std::error::Error + 'static)> = err.as_ref().map(|e| e.as_ref());
                         warn!(
-                            error.message = err.as_ref().map(tracing::field::display),
-                            error.cause = err.as_ref().map(tracing::field::debug),
+                            error,
                             reason,
                             "websocket driver exited, attempting to reconnect");
                         client = None;
@@ -137,9 +138,9 @@ impl ClientProvider {
                                 client = Some(new_client);
                             }
                             Err(e) => {
+                                let error = &e as &(dyn std::error::Error + 'static);
                                 warn!(
-                                    error.message = %e,
-                                    error.cause = ?e,
+                                    error,
                                     attempts = Self::RECONNECTION_ATTEMPTS,
                                     "repeatedly failed to re-establish websocket connection; giving up",
                                 );

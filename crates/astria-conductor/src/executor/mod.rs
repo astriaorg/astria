@@ -194,11 +194,8 @@ impl Executor {
                                 .execute_and_finalize_blocks_from_celestia(blocks)
                                 .await
                             {
-                                error!(
-                                    error.message = %e,
-                                    error.cause = ?e,
-                                    "failed to finalize block; stopping executor"
-                                );
+                                let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                                error!(error, "failed to finalize block; stopping executor");
                                 break;
                             }
                         }
