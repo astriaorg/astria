@@ -45,8 +45,9 @@ impl SequencerBlockSubset {
     }
 }
 
-/// `ExecutorCommitmentState` is a struct that contains the firm and soft Blocks from the execution
-/// client. This is a utility type to avoid dealing with Option<Block>s all over the place.
+/// `ExecutorCommitmentState` is a struct that contains the firm and soft [`Block`]s from the
+/// execution client. This is a utility type to avoid dealing with Option<Block>s all over the
+/// place.
 #[derive(Clone, Debug)]
 pub(crate) struct ExecutorCommitmentState {
     pub(crate) firm: Block,
