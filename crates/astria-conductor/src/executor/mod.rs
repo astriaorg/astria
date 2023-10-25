@@ -177,12 +177,6 @@ impl Executor {
                                         );
                                     }
                                 }
-                                Ok(None) => {
-                                    error!(
-                                        height = height,
-                                        "block execution with empty return"
-                                    );
-                                }
                                 Err(e) => {
                                     error!(
                                         height = height,
@@ -190,6 +184,8 @@ impl Executor {
                                         "failed to execute block"
                                     );
                                 }
+                                // execution was skipped
+                                Ok(None) => {}
                             }
                         }
 
