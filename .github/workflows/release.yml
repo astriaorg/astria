@@ -63,3 +63,5 @@ jobs:
     needs: [proto, conductor, composer, sequencer, sequencer-relayer]
     if: ${{ always() && !cancelled() }}
     uses: ./.github/workflows/reusable-success.yml
+    with:
+      success: ${{ !contains(needs.*.result, 'failure') }}
