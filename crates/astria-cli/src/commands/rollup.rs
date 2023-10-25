@@ -12,6 +12,10 @@ use std::{
     process::Command,
 };
 
+use astria_sequencer_client::{
+    HttpClient,
+    SequencerClientExt,
+};
 use color_eyre::{
     eyre,
     eyre::Context,
@@ -99,9 +103,24 @@ fn update_yaml_value(
 /// * If the config file cannot be created
 /// * If the arguments cannot be serialized to yaml
 /// * If the yaml cannot be written to the file
-pub(crate) fn create_config(args: &ConfigCreateArgs) -> eyre::Result<()> {
+pub(crate) async fn create_config(args: &ConfigCreateArgs) -> eyre::Result<()> {
     // create rollup from args
-    let rollup = Rollup::try_from(args)?;
+    let mut conf = args.clone();
+
+    // Fetch the latest block from sequencer if none specified.
+    if conf.sequencer_initial_block_height.is_none() {
+        let sequencer_client = HttpClient::new(conf.sequencer_rpc.as_str())
+            .wrap_err("failed constructing http sequencer client")?;
+        let res = sequencer_client
+            .latest_sequencer_block()
+            .await
+            .wrap_err("failed to get sequencer block for initial sequencer height")?;
+
+        let new_height: u64 = res.header().height.into();
+        conf.sequencer_initial_block_height = Some(new_height);
+    }
+
+    let rollup = Rollup::try_from(&conf)?;
     let filename = rollup.deployment_config.get_filename();
 
     // create config file
@@ -189,7 +208,11 @@ pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()>
             args.sequencer_private_key.clone()
         ))
         .arg(rollup.deployment_config.get_chart_release_name())
-        .arg(&args.chart_path);
+        .arg(&args.chart_path)
+        .arg("--set")
+        .arg(format!("namespace={}", rollup.namespace))
+        .arg(format!("--namespace={}", rollup.namespace))
+        .arg("--create-namespace");
 
     if args.dry_run {
         cmd.arg("--dry-run");
@@ -235,7 +258,8 @@ pub(crate) fn delete_deployment(args: &DeploymentDeleteArgs) -> eyre::Result<()>
     let helm = helm_from_env();
     let mut cmd = Command::new(helm.clone());
     cmd.arg("uninstall")
-        .arg(rollup.deployment_config.get_chart_release_name());
+        .arg(rollup.deployment_config.get_chart_release_name())
+        .arg(format!("--namespace={}", rollup.namespace));
 
     match cmd.output() {
         Err(e) => {
@@ -268,7 +292,7 @@ pub(crate) fn list_deployments() {
     let helm = helm_from_env();
     let mut cmd = Command::new(helm.clone());
     // FIXME - right now it lists all helm releases, not just rollup release
-    cmd.arg("list");
+    cmd.arg("list").arg("-A");
 
     match cmd.output() {
         Err(e) => {
@@ -289,7 +313,10 @@ pub(crate) fn list_deployments() {
 
 #[cfg(test)]
 mod test {
-    use test_utils::with_temp_directory;
+    use test_utils::{
+        with_temp_directory,
+        with_temp_directory_async,
+    };
 
     use super::*;
 
@@ -301,22 +328,25 @@ mod test {
             network_id: 0,
             skip_empty_blocks: false,
             genesis_accounts: vec![],
-            sequencer_initial_block_height: None,
+            sequencer_initial_block_height: Some(1),
             sequencer_websocket: String::new(),
             sequencer_rpc: String::new(),
             log_level: String::new(),
+            hostname: String::new(),
+            namespace: String::new(),
         }
     }
 
-    #[test]
-    fn test_create_config_file() {
-        with_temp_directory(|_dir| {
+    #[tokio::test]
+    async fn test_create_config_file() {
+        with_temp_directory_async(|_dir| async {
             let args = get_config_create_args();
-            create_config(&args).unwrap();
+            create_config(&args).await.unwrap();
 
             let file_path = PathBuf::from("test-rollup-conf.yaml");
             assert!(file_path.exists());
-        });
+        })
+        .await;
     }
 
     #[test]
@@ -333,11 +363,11 @@ mod test {
         });
     }
 
-    #[test]
-    fn test_edit_config_file() {
-        with_temp_directory(|_dir| {
+    #[tokio::test]
+    async fn test_edit_config_file() {
+        with_temp_directory_async(|_dir| async {
             let args = get_config_create_args();
-            create_config(&args).unwrap();
+            create_config(&args).await.unwrap();
 
             let file_path = PathBuf::from("test-rollup-conf.yaml");
             let args = ConfigEditArgs {
@@ -350,14 +380,15 @@ mod test {
             let file = File::open(&file_path).unwrap();
             let rollup: Rollup = serde_yaml::from_reader(file).unwrap();
             assert_eq!(rollup.deployment_config.get_rollup_name(), "bugbug");
-        });
+        })
+        .await;
     }
 
-    #[test]
-    fn test_edit_config_file_errors_for_wrong_key() {
-        with_temp_directory(|_dir| {
+    #[tokio::test]
+    async fn test_edit_config_file_errors_for_wrong_key() {
+        with_temp_directory_async(|_dir| async {
             let args = get_config_create_args();
-            create_config(&args).unwrap();
+            create_config(&args).await.unwrap();
 
             let file_path = PathBuf::from("test-rollup-conf.yaml");
             let args = ConfigEditArgs {
@@ -366,7 +397,8 @@ mod test {
                 value: "bugbug".to_string(),
             };
             assert!(edit_config(&args).is_err());
-        });
+        })
+        .await;
     }
 
     #[test]

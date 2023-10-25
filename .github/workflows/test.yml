@@ -76,7 +76,7 @@ jobs:
           --all-targets \
 
   doctest:
-    runs-on: ubuntu-22.04
+    runs-on: buildjet-8vcpu-ubuntu-2204
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
@@ -84,15 +84,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.72.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
-          cache-provider: "github"
+          cache-provider: "buildjet"
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
-      - name: Run doctests
+      - name: run doctests
         run: cargo test --doc --all-features
 
   clippy:
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    runs-on: buildjet-8vcpu-ubuntu-2204
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
     steps:

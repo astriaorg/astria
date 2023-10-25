@@ -10,10 +10,11 @@ use astria_composer::{
     Composer,
 };
 use once_cell::sync::Lazy;
+use test_utils::mock::Geth;
 use tokio::task::JoinHandle;
 use tracing::debug;
 use wiremock::MockGuard;
-pub mod mock_geth;
+
 pub mod mock_sequencer;
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
@@ -27,7 +28,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 
 pub struct TestComposer {
     pub composer: JoinHandle<()>,
-    pub rollup_nodes: HashMap<String, mock_geth::MockGeth>,
+    pub rollup_nodes: HashMap<String, Geth>,
     pub sequencer: wiremock::MockServer,
     pub setup_guard: MockGuard,
 }
@@ -48,7 +49,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
     let mut rollup_nodes = HashMap::new();
     let mut rollups = String::new();
     for id in rollup_ids {
-        let geth = mock_geth::MockGeth::spawn().await;
+        let geth = Geth::spawn().await;
         let execution_url = format!("ws://{}", geth.local_addr());
         rollup_nodes.insert((*id).to_string(), geth);
         rollups.push_str(&format!("{id}::{execution_url},"));
@@ -65,7 +66,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
             .into(),
     };
     let (composer_addr, composer) = {
-        let composer = Composer::from_config(&config).await.unwrap();
+        let composer = Composer::from_config(&config).unwrap();
         let composer_addr = composer.local_addr();
         let task = tokio::spawn(composer.run_until_stopped());
         (composer_addr, task)
