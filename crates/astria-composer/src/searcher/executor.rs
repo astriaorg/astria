@@ -73,7 +73,7 @@ pub(super) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
     // Channel for receiving action bundles for submission to the sequencer.
-    bundles: mpsc::Receiver<Vec<Action>>,
+    new_bundles: mpsc::Receiver<Vec<Action>>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
     sequencer_client: sequencer_client::HttpClient,
@@ -112,7 +112,7 @@ impl Executor {
     pub(super) fn new(
         sequencer_url: &str,
         private_key: &SecretString,
-        bundles: mpsc::Receiver<Vec<Action>>,
+        new_bundles: mpsc::Receiver<Vec<Action>>,
     ) -> eyre::Result<Self> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
@@ -131,7 +131,7 @@ impl Executor {
 
         Ok(Self {
             status,
-            bundles,
+            new_bundles,
             sequencer_client,
             sequencer_key,
             nonce: 0,
@@ -171,7 +171,7 @@ impl Executor {
                 }
 
                 // receive new bundle for processing
-                Some(bundle) = self.bundles.recv(), if submission_fut.is_terminated() => {
+                Some(bundle) = self.new_bundles.recv(), if submission_fut.is_terminated() => {
                     // TODO(https://github.com/astriaorg/astria/issues/476): Attach the hash of the
                     // bundle to the span. Linked GH issue is for agreeing on a hash for `SignedTransaction`,
                     // but both should be addressed.
