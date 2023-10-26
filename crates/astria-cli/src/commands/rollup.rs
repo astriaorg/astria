@@ -313,6 +313,7 @@ pub(crate) fn list_deployments() {
 
 #[cfg(test)]
 mod test {
+    use once_cell::sync::Lazy;
     use test_utils::{
         with_temp_directory,
         with_temp_directory_async,
@@ -320,10 +321,18 @@ mod test {
 
     use super::*;
 
-    fn get_config_create_args() -> ConfigCreateArgs {
+    static TEST_PREFIX: Lazy<String> = Lazy::new(|| {
+        use names::{
+            Generator,
+            Name,
+        };
+        Generator::with_naming(Name::Numbered).next().unwrap()
+    });
+
+    fn get_config_create_args(name: &String) -> ConfigCreateArgs {
         ConfigCreateArgs {
             use_tty: false,
-            name: "test".to_string(),
+            name: name,
             chain_id: None,
             network_id: 0,
             skip_empty_blocks: false,
@@ -339,8 +348,9 @@ mod test {
 
     #[tokio::test]
     async fn test_create_config_file() {
+        let unique_test_prefix = Lazy::force(&TEST_PREFIX);
         with_temp_directory_async(|_dir| async {
-            let args = get_config_create_args();
+            let args = get_config_create_args(unique_test_prefix);
             create_config(&args).await.unwrap();
 
             let file_path = PathBuf::from("test-rollup-conf.yaml");
@@ -365,8 +375,9 @@ mod test {
 
     #[tokio::test]
     async fn test_edit_config_file() {
+        let unique_test_prefix = Lazy::force(&TEST_PREFIX);
         with_temp_directory_async(|_dir| async {
-            let args = get_config_create_args();
+            let args = get_config_create_args(unique_test_prefix);
             create_config(&args).await.unwrap();
 
             let file_path = PathBuf::from("test-rollup-conf.yaml");
@@ -386,8 +397,9 @@ mod test {
 
     #[tokio::test]
     async fn test_edit_config_file_errors_for_wrong_key() {
+        let unique_test_prefix = Lazy::force(&TEST_PREFIX);
         with_temp_directory_async(|_dir| async {
-            let args = get_config_create_args();
+            let args = get_config_create_args(unique_test_prefix);
             create_config(&args).await.unwrap();
 
             let file_path = PathBuf::from("test-rollup-conf.yaml");
