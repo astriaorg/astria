@@ -329,10 +329,10 @@ mod test {
         Generator::with_naming(Name::Numbered).next().unwrap()
     });
 
-    fn get_config_create_args(name: &String) -> ConfigCreateArgs {
+    fn get_config_create_args(name: &str) -> ConfigCreateArgs {
         ConfigCreateArgs {
             use_tty: false,
-            name: name,
+            name: name.to_string(),
             chain_id: None,
             network_id: 0,
             skip_empty_blocks: false,
@@ -353,7 +353,7 @@ mod test {
             let args = get_config_create_args(unique_test_prefix);
             create_config(&args).await.unwrap();
 
-            let file_path = PathBuf::from("test-rollup-conf.yaml");
+            let file_path = PathBuf::from(format!("{unique_test_prefix}-rollup-conf.yaml"));
             assert!(file_path.exists());
         })
         .await;
@@ -361,8 +361,9 @@ mod test {
 
     #[test]
     fn test_delete_config_file() {
+        let unique_test_prefix = Lazy::force(&TEST_PREFIX);
         with_temp_directory(|_dir| {
-            let file_path = PathBuf::from("test-rollup-conf.yaml");
+            let file_path = PathBuf::from(format!("{unique_test_prefix}-rollup-conf.yaml"));
             File::create(&file_path).unwrap();
 
             let args = ConfigDeleteArgs {
@@ -380,7 +381,7 @@ mod test {
             let args = get_config_create_args(unique_test_prefix);
             create_config(&args).await.unwrap();
 
-            let file_path = PathBuf::from("test-rollup-conf.yaml");
+            let file_path = PathBuf::from(format!("{unique_test_prefix}-rollup-conf.yaml"));
             let args = ConfigEditArgs {
                 config_path: file_path.to_str().unwrap().to_string(),
                 key: "config.rollup.name".to_string(),
@@ -402,7 +403,7 @@ mod test {
             let args = get_config_create_args(unique_test_prefix);
             create_config(&args).await.unwrap();
 
-            let file_path = PathBuf::from("test-rollup-conf.yaml");
+            let file_path = PathBuf::from(format!("{unique_test_prefix}-rollup-conf.yaml"));
             let args = ConfigEditArgs {
                 config_path: file_path.to_str().unwrap().to_string(),
                 key: "config.blahblah".to_string(),
