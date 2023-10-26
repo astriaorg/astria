@@ -65,7 +65,7 @@ pub(super) struct Searcher {
     // The Executor object that is responsible for signing and submitting sequencer transactions.
     executor: Option<Executor>,
     // A channel on which to send the `Executor` bundles for attaching a nonce to, sign and submit
-    executor_tx: mpsc::Sender<Vec<Action>>,
+    bundle_tx: mpsc::Sender<Vec<Action>>,
     // Channel from which to read the internal status of the executor.
     executor_status: watch::Receiver<executor::Status>,
 }
@@ -118,8 +118,8 @@ impl Searcher {
 
         let (status, _) = watch::channel(Status::default());
 
-        let (executor_tx, executor_rx) = mpsc::channel(256);
-        let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx)
+        let (bundle_tx, bundle_rx) = mpsc::channel(256);
+        let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, bundle_rx)
             .wrap_err("executor construction from config failed")?;
 
         let executor_status = executor.subscribe();
@@ -132,7 +132,7 @@ impl Searcher {
             new_transactions_tx,
             collector_tasks: JoinMap::new(),
             conversion_tasks: JoinSet::new(),
-            executor_tx,
+            bundle_tx,
             executor_status,
             executor: Some(executor),
             rollups,
@@ -167,7 +167,7 @@ impl Searcher {
 
     async fn handle_bundle_execution(&self, bundle: Vec<Action>) {
         // send bundle to executor
-        if let Err(e) = self.executor_tx.send(bundle).await {
+        if let Err(e) = self.bundle_tx.send(bundle).await {
             error!(
                 error.message = %e,
                 error.cause_chain = ?e,

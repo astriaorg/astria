@@ -355,8 +355,9 @@ dependencies = [
 
 [[package]]
 name = "astria-composer"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
+ "astria-config",
  "astria-proto",
  "astria-sequencer-client",
  "astria-sequencer-types",
@@ -368,7 +369,6 @@ dependencies = [
  "color-eyre",
  "ed25519-consensus",
  "ethers",
- "figment",
  "futures",
  "hex",
  "humantime",
@@ -398,6 +398,7 @@ name = "astria-conductor"
 version = "0.7.0"
 dependencies = [
  "astria-celestia-client",
+ "astria-config",
  "astria-proto",
  "astria-sequencer-client",
  "astria-sequencer-types",
@@ -408,16 +409,13 @@ dependencies = [
  "color-eyre",
  "deadpool 0.10.0",
  "ed25519-consensus",
- "figment",
  "futures",
  "hex",
  "humantime",
  "jsonrpsee",
- "once_cell",
  "prost 0.11.9",
  "prost-types 0.11.9",
  "rand 0.8.5",
- "regex",
  "reqwest",
  "serde",
  "serde_json",
@@ -431,6 +429,17 @@ dependencies = [
  "tonic",
  "tracing",
  "tryhard",
+]
+
+[[package]]
+name = "astria-config"
+version = "0.1.0"
+dependencies = [
+ "figment",
+ "names",
+ "once_cell",
+ "regex",
+ "serde",
 ]
 
 [[package]]
@@ -455,6 +464,7 @@ name = "astria-sequencer"
 version = "0.4.1"
 dependencies = [
  "anyhow",
+ "astria-config",
  "astria-proto",
  "astria-sequencer-types",
  "astria-sequencer-validation",
@@ -463,16 +473,13 @@ dependencies = [
  "borsh",
  "bytes",
  "ed25519-consensus",
- "figment",
  "futures",
  "hex",
  "matchit",
- "once_cell",
  "penumbra-storage",
  "penumbra-tower-trace",
  "prost 0.11.9",
  "rand 0.8.5",
- "regex",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -514,6 +521,7 @@ version = "0.5.1"
 dependencies = [
  "astria-celestia-client",
  "astria-celestia-mock",
+ "astria-config",
  "astria-proto",
  "astria-sequencer-types",
  "astria-sequencer-validation",
@@ -525,7 +533,6 @@ dependencies = [
  "dirs",
  "ed25519-consensus",
  "eyre",
- "figment",
  "futures",
  "hex",
  "http",
@@ -535,7 +542,6 @@ dependencies = [
  "once_cell",
  "prost 0.11.9",
  "rand_core 0.6.4",
- "regex",
  "reqwest",
  "serde",
  "serde_json",
@@ -3414,6 +3420,15 @@ name = "multimap"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
+
+[[package]]
+name = "names"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7bddcd3bf5144b6392de80e04c347cd7fab2508f6df16a85fc496ecd5cec39bc"
+dependencies = [
+ "rand 0.8.5",
+]
 
 [[package]]
 name = "new_debug_unreachable"

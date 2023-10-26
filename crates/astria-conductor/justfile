@@ -8,6 +8,9 @@ default_env := 'local'
 copy-env TYPE=default_env:
   cp {{ TYPE }}.env.example .env
 
+fmt:
+  cargo +nightly fmt
+
 run:
   cargo run
 
