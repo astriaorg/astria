@@ -394,10 +394,6 @@ async fn fetch_verify_rollup_blob_and_forward_to_assembly(
             warn!(error, "failed to get rollup data from celestia");
             return;
         }
-        Ok(rollups) if rollups.is_empty() => {
-            info!("could not find rollup data");
-            return;
-        }
         Ok(rollups) => rollups,
     };
 
@@ -410,13 +406,12 @@ async fn fetch_verify_rollup_blob_and_forward_to_assembly(
         block_verifier::validate_rollup_data(rollup, data.data().action_tree_root).is_ok()
     });
     match rollups.len() {
-        0 => info!("all received rollups failed verification; not forwarding to assembler"),
-        1 => {
+        0 | 1 => {
             info!("one rollup successfully verified; forwarding to block assembler");
             let subset = SequencerBlockSubset {
                 block_hash: data.data().block_hash,
                 header: data.data().header.clone(),
-                rollup_transactions: rollups.swap_remove(0).rollup_txs,
+                rollup_transactions: rollups.pop().map_or(vec![], |txs| txs.rollup_txs),
             };
             if block_tx.send(subset).await.is_err() {
                 warn!("failed sending validated rollup data to block assembler; receiver dropped");
