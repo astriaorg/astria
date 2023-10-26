@@ -60,6 +60,9 @@ pub struct SequencerBlockData {
     /// The commitment to the chain IDs of the rollup data.
     /// The merkle root of the tree where the leaves are the chain IDs.
     chain_ids_commitment: [u8; 32],
+    /// The inclusion proof that the chain IDs commitment is included
+    /// in `Header::data_hash`.
+    chain_ids_commitment_inclusion_proof: InclusionProof,
 }
 ```
 
@@ -123,6 +126,8 @@ block data it receives, it must verify the following:
 5. the `rollup_txs` inside `RollupNamespaceData` is contained within the
    `action_tree_root`
 6. the `chain_ids_commitment` is a valid commitment to `rollup_chain_ids`
+7. the `data_hash` inside the header contains the `chain_ids_commitment`
+    for the block.
 
 Let's go through these one-by-one.
 
@@ -184,7 +189,15 @@ publishing the data (which would be undetectable to rollup nodes without forcing
 them to pull the entire block's data), we also add a commitment to the chain IDs
 in the block inside the block's transaction data. We ensure that the
 `rollup_chain_ids` inside `SequencerNamespaceData` match the
-`chain_ids_commitment`.
+`chain_ids_commitment`. This proves that no chain IDs were omitted from the published block,
+as if any were omitted, then the `chain_ids_commitment` would not match the 
+commitment generated from `rollup_chain_ids`.
+
+### 7. `chain_ids_commitment_inclusion_proof`
+
+Similarly to verification of `action_tree_root` inside `data_hash`, we also verify
+an inclusion proof of `chain_ids_commitment` inside `data_hash` when receiving a
+published block. 
 
 ## Exit point
 
