@@ -87,7 +87,7 @@ pub(super) struct Executor {
 
 impl Drop for Executor {
     fn drop(&mut self) {
-        self.sequencer_key.zeroize()
+        self.sequencer_key.zeroize();
     }
 }
 
@@ -311,7 +311,7 @@ pin_project! {
 
     impl PinnedDrop for SubmitFut {
         fn drop(this: Pin<&mut Self>) {
-            this.project().signing_key.zeroize()
+            this.project().signing_key.zeroize();
         }
     }
 }
