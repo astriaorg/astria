@@ -313,26 +313,14 @@ pub(crate) fn list_deployments() {
 
 #[cfg(test)]
 mod test {
-    use once_cell::sync::Lazy;
-    use test_utils::{
-        with_temp_directory,
-        with_temp_directory_async,
-    };
+    use test_utils::with_temp_directory;
 
     use super::*;
 
-    static TEST_PREFIX: Lazy<String> = Lazy::new(|| {
-        use names::{
-            Generator,
-            Name,
-        };
-        Generator::with_naming(Name::Numbered).next().unwrap()
-    });
-
-    fn get_config_create_args(name: &str) -> ConfigCreateArgs {
+    fn get_config_create_args() -> ConfigCreateArgs {
         ConfigCreateArgs {
             use_tty: false,
-            name: name.to_string(),
+            name: "test".to_string(),
             chain_id: None,
             network_id: 0,
             skip_empty_blocks: false,
@@ -348,22 +336,20 @@ mod test {
 
     #[tokio::test]
     async fn test_create_config_file() {
-        let unique_test_prefix = Lazy::force(&TEST_PREFIX);
-        with_temp_directory_async(|_dir| async {
-            let args = get_config_create_args(unique_test_prefix);
+        with_temp_directory(|_dir| async {
+            let args = get_config_create_args();
             create_config(&args).await.unwrap();
 
-            let file_path = PathBuf::from(format!("{unique_test_prefix}-rollup-conf.yaml"));
+            let file_path = PathBuf::from("test-rollup-conf.yaml");
             assert!(file_path.exists());
         })
         .await;
     }
 
-    #[test]
-    fn test_delete_config_file() {
-        let unique_test_prefix = Lazy::force(&TEST_PREFIX);
-        with_temp_directory(|_dir| {
-            let file_path = PathBuf::from(format!("{unique_test_prefix}-rollup-conf.yaml"));
+    #[tokio::test]
+    async fn test_delete_config_file() {
+        with_temp_directory(|_dir| async {
+            let file_path = PathBuf::from("test-rollup-conf.yaml");
             File::create(&file_path).unwrap();
 
             let args = ConfigDeleteArgs {
@@ -371,17 +357,16 @@ mod test {
             };
             delete_config(&args).unwrap();
             assert!(!file_path.exists());
-        });
+        }).await;
     }
 
     #[tokio::test]
     async fn test_edit_config_file() {
-        let unique_test_prefix = Lazy::force(&TEST_PREFIX);
-        with_temp_directory_async(|_dir| async {
-            let args = get_config_create_args(unique_test_prefix);
+        with_temp_directory(|_dir| async {
+            let args = get_config_create_args();
             create_config(&args).await.unwrap();
 
-            let file_path = PathBuf::from(format!("{unique_test_prefix}-rollup-conf.yaml"));
+            let file_path = PathBuf::from("test-rollup-conf.yaml");
             let args = ConfigEditArgs {
                 config_path: file_path.to_str().unwrap().to_string(),
                 key: "config.rollup.name".to_string(),
@@ -398,12 +383,11 @@ mod test {
 
     #[tokio::test]
     async fn test_edit_config_file_errors_for_wrong_key() {
-        let unique_test_prefix = Lazy::force(&TEST_PREFIX);
-        with_temp_directory_async(|_dir| async {
-            let args = get_config_create_args(unique_test_prefix);
+        with_temp_directory(|_dir| async {
+            let args = get_config_create_args();
             create_config(&args).await.unwrap();
 
-            let file_path = PathBuf::from(format!("{unique_test_prefix}-rollup-conf.yaml"));
+            let file_path = PathBuf::from("test-rollup-conf.yaml");
             let args = ConfigEditArgs {
                 config_path: file_path.to_str().unwrap().to_string(),
                 key: "config.blahblah".to_string(),
