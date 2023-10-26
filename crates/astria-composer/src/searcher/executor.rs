@@ -268,7 +268,7 @@ async fn submit_tx(
                         attempt,
                         wait_duration,
                         error,
-                        "failed getting latest nonce from sequencer; retrying after backoff",
+                        "failed submitting transaction to sequencer; retrying after backoff",
                     );
                 }
                 .instrument(span)
