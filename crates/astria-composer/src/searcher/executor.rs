@@ -11,7 +11,6 @@ use std::{
 
 use color_eyre::eyre::{
     self,
-    bail,
     eyre,
     Context,
 };
@@ -150,7 +149,8 @@ impl Executor {
     /// # Errors
     /// An error is returned if connecting to the sequencer fails.
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        let mut submission_fut = Fuse::terminated();
+        use tracing::instrument::Instrumented;
+        let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
         self.nonce = get_latest_nonce(self.sequencer_client.clone(), self.address)
             .await
             .wrap_err("failed getting initial nonce from sequencer")?;
@@ -162,7 +162,11 @@ impl Executor {
                 rsp = &mut submission_fut, if !submission_fut.is_terminated() => {
                     match rsp {
                         Ok(new_nonce) => self.nonce = new_nonce,
-                        Err(_e) => bail!("eyeyey"),
+                        Err(e) => {
+                            let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                            error!(error, "failed submitting bundle to sequencer; aborting executor");
+                            break Err(e).wrap_err("failed submitting bundle to sequencer");
+                        }
                     }
                 }
 
@@ -268,7 +272,7 @@ async fn submit_tx(
                         attempt,
                         wait_duration,
                         error,
-                        "failed submitting transaction to sequencer; retrying after backoff",
+                        "failed sending transaction to sequencer; retrying after backoff",
                     );
                 }
                 .instrument(span)
@@ -277,12 +281,12 @@ async fn submit_tx(
     tryhard::retry_fn(|| {
         let client = client.clone();
         let tx = tx.clone();
-        let span = info_span!(parent: span.clone(), "attempt submission");
+        let span = info_span!(parent: span.clone(), "attempt send");
         async move { client.submit_transaction_sync(tx).await }.instrument(span)
     })
     .with_config(retry_config)
     .await
-    .wrap_err("failed submitting a signed transaction after 1024 attempts")
+    .wrap_err("failed sending transaction after 1024 attempts")
 }
 
 pin_project! {
@@ -316,7 +320,7 @@ pin_project! {
     #[project = SubmitStateProj]
     enum SubmitState {
         NotStarted,
-        WaitingForSubmit {
+        WaitingForSend {
             #[pin]
             fut: Pin<Box<dyn Future<Output = eyre::Result<tx_sync::Response>> + Send>>,
         },
@@ -341,12 +345,12 @@ impl Future for SubmitFut {
                         actions: this.bundle.clone(),
                     }
                     .into_signed(this.signing_key);
-                    SubmitState::WaitingForSubmit {
+                    SubmitState::WaitingForSend {
                         fut: submit_tx(this.client.clone(), tx).boxed(),
                     }
                 }
 
-                SubmitStateProj::WaitingForSubmit {
+                SubmitStateProj::WaitingForSend {
                     fut,
                 } => match ready!(fut.poll(cx)) {
                     Ok(rsp) => match AbciCode::from_cometbft(rsp.code) {
@@ -375,12 +379,9 @@ impl Future for SubmitFut {
                     },
                     Err(e) => {
                         let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                        error!(
-                            error,
-                            "critically failed submitting transaction to sequencer"
-                        );
+                        error!(error, "failed sending transaction to sequencer");
                         return Poll::Ready(
-                            Err(e).wrap_err("failed submitting transaction to sequencer"),
+                            Err(e).wrap_err("failed sending transaction to sequencer"),
                         );
                     }
                 },
@@ -395,7 +396,7 @@ impl Future for SubmitFut {
                             actions: this.bundle.clone(),
                         }
                         .into_signed(this.signing_key);
-                        SubmitState::WaitingForSubmit {
+                        SubmitState::WaitingForSend {
                             fut: submit_tx(this.client.clone(), tx).boxed(),
                         }
                     }
