@@ -86,6 +86,12 @@ pub(super) struct Executor {
     address: Address,
 }
 
+impl Drop for Executor {
+    fn drop(&mut self) {
+        self.sequencer_key.zeroize()
+    }
+}
+
 #[derive(Debug)]
 pub(super) struct Status {
     is_connected: bool,
@@ -279,7 +285,6 @@ async fn submit_tx(
     .wrap_err("failed submitting a signed transaction after 1024 attempts")
 }
 
-// TODO: zeroize this
 pin_project! {
     /// A future to submit a bundle to the sequencer, returning the next nonce that should be used for the next submission.
     ///
@@ -298,6 +303,12 @@ pin_project! {
         #[pin]
         state: SubmitState,
         bundle: Vec<Action>,
+    }
+
+    impl PinnedDrop for SubmitFut {
+        fn drop(this: Pin<&mut Self>) {
+            this.project().signing_key.zeroize()
+        }
     }
 }
 
