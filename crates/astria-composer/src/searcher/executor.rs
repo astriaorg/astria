@@ -245,7 +245,7 @@ async fn get_latest_nonce(
     skip_all,
     fields(
         nonce = tx.unsigned_transaction().nonce,
-        transaction.hash = hex::encode(tx.to_raw().encode_to_vec()),
+        transaction.hash = hex::encode(sha256(&tx.to_raw().encode_to_vec())),
     )
 )]
 async fn submit_tx(
@@ -413,4 +413,14 @@ impl Future for SubmitFut {
             self.as_mut().project().state.set(new_state);
         }
     }
+}
+
+fn sha256(data: &[u8]) -> [u8; 32] {
+    use sha2::{
+        Digest as _,
+        Sha256,
+    };
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    hasher.finalize().into()
 }
