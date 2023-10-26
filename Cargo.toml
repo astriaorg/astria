@@ -4,6 +4,7 @@ members = [
   "crates/astria-celestia-mock",
   "crates/astria-composer",
   "crates/astria-conductor",
+  "crates/astria-config",
   "crates/astria-cli",
   "crates/astria-proto",
   "crates/astria-sequencer",
@@ -27,7 +28,6 @@ clap = "4"
 color-eyre = "0.6"
 ed25519-consensus = "2.1.0"
 eyre = "0.6"
-figment = "0.10.8"
 futures = "0.3"
 hex = "0.4"
 humantime = "2.1.0"
