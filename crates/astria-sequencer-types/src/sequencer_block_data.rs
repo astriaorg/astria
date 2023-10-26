@@ -33,8 +33,22 @@ use crate::tendermint::calculate_last_commit_hash;
 pub enum Error {
     #[error("failed converting bytes to action tree root: expected 32 bytes")]
     ActionTreeRootConversion(#[source] TryFromSliceError),
+    #[error("failed to generate inclusion proof for action tree root")]
+    ActionTreeRootInclusionProof(sequencer_validation::IndexOutOfBounds),
+    #[error(
+        "failed to verify data hash in cometbft header against inclusion proof and action tree \
+         root in sequencer block body"
+    )]
+    ActionTreeRootVerification(#[source] sequencer_validation::VerificationFailure),
     #[error("failed converting bytes to chain IDs commitment: expected 32 bytes")]
     ChainIdsCommitmentConversion(#[source] TryFromSliceError),
+    #[error("failed to generate inclusion proof for chain IDs commitment")]
+    ChainIdsCommitmentInclusionProof(sequencer_validation::IndexOutOfBounds),
+    #[error(
+        "failed to verify chain IDs commitment in cometbft header against inclusion proof and \
+         chain IDs commitment in sequencer block body"
+    )]
+    ChainIdsCommitmentVerification(#[source] sequencer_validation::VerificationFailure),
     #[error(
         "data hash stored tendermint header does not match action tree root reconstructed from \
          data"
@@ -45,10 +59,6 @@ pub enum Error {
          sequencer block"
     )]
     HashOfHeaderBlockHashMismatach,
-    #[error("failed to generate inclusion proof for action tree root")]
-    ActionTreeRootInclusionProof(sequencer_validation::IndexOutOfBounds),
-    #[error("failed to generate inclusion proof for chain IDs commitment")]
-    ChainIdsCommitmentInclusionProof(sequencer_validation::IndexOutOfBounds),
     #[error("chain ID must be 32 bytes or less")]
     InvalidChainIdLength,
     #[error(
@@ -73,16 +83,6 @@ pub enum Error {
     ReadingJson(#[source] serde_json::Error),
     #[error("chain IDs commitment does not match the one calculated from the rollup data")]
     ReconstructedChainIdsCommitmentMismatch,
-    #[error(
-        "failed to verify data hash in cometbft header against inclusion proof and action tree \
-         root in sequencer block body"
-    )]
-    ActionTreeRootVerification(#[source] sequencer_validation::VerificationFailure),
-    #[error(
-        "failed to verify chain IDs commitment in cometbft header against inclusion proof and \
-         chain IDs commitment in sequencer block body"
-    )]
-    ChainIdsCommitmentVerification(#[source] sequencer_validation::VerificationFailure),
     #[error("failed writing sequencer block data as json")]
     WritingJson(#[source] serde_json::Error),
 }
