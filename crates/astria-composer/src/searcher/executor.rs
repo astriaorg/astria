@@ -79,8 +79,6 @@ pub(super) struct Executor {
     sequencer_client: sequencer_client::HttpClient,
     // Private key used to sign sequencer transactions
     sequencer_key: SigningKey,
-    // Nonce of the sequencer account we sign with.
-    nonce: u32,
     // The sequencer address associated with the private key
     address: Address,
 }
@@ -134,7 +132,6 @@ impl Executor {
             new_bundles,
             sequencer_client,
             sequencer_key,
-            nonce: 0,
             address: sequencer_address,
         })
     }
@@ -151,7 +148,7 @@ impl Executor {
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         use tracing::instrument::Instrumented;
         let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
-        self.nonce = get_latest_nonce(self.sequencer_client.clone(), self.address)
+        let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address)
             .await
             .wrap_err("failed getting initial nonce from sequencer")?;
         self.status.send_modify(|status| status.is_connected = true);
@@ -161,7 +158,7 @@ impl Executor {
 
                 rsp = &mut submission_fut, if !submission_fut.is_terminated() => {
                     match rsp {
-                        Ok(new_nonce) => self.nonce = new_nonce,
+                        Ok(new_nonce) => nonce = new_nonce,
                         Err(e) => {
                             let error: &(dyn std::error::Error + 'static) = e.as_ref();
                             error!(error, "failed submitting bundle to sequencer; aborting executor");
@@ -178,13 +175,13 @@ impl Executor {
                     let span =  info_span!(
                         "submit bundle",
                         address = %self.address,
-                        nonce.initial = self.nonce,
+                        nonce.initial = nonce,
                         bundle.len = bundle.len(),
                     );
                     submission_fut = SubmitFut {
                         client: self.sequencer_client.clone(),
                         address: self.address,
-                        nonce: self.nonce,
+                        nonce,
                         signing_key: self.sequencer_key.clone(),
                         state: SubmitState::NotStarted,
                         bundle,
