@@ -145,6 +145,7 @@ impl Executor {
     ///
     /// # Errors
     /// An error is returned if connecting to the sequencer fails.
+    #[instrument(skip_all, fields(address = %self.address))]
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         use tracing::instrument::Instrumented;
         let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
@@ -174,7 +175,6 @@ impl Executor {
                     // but both should be addressed.
                     let span =  info_span!(
                         "submit bundle",
-                        address = %self.address,
                         nonce.initial = nonce,
                         bundle.len = bundle.len(),
                     );
