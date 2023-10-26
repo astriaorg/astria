@@ -83,3 +83,5 @@ jobs:
     needs: [proto, rust, toml, markdown, pr_title]
     if: ${{ always() && !cancelled() }}
     uses: ./.github/workflows/reusable-success.yml
+    with:
+      success: ${{ !contains(needs.*.result, 'failure') }}
