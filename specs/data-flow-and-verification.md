@@ -189,15 +189,15 @@ publishing the data (which would be undetectable to rollup nodes without forcing
 them to pull the entire block's data), we also add a commitment to the chain IDs
 in the block inside the block's transaction data. We ensure that the
 `rollup_chain_ids` inside `SequencerNamespaceData` match the
-`chain_ids_commitment`. This proves that no chain IDs were omitted from the published block,
-as if any were omitted, then the `chain_ids_commitment` would not match the 
-commitment generated from `rollup_chain_ids`.
+`chain_ids_commitment`. This proves that no chain IDs were omitted from the
+published block, as if any were omitted, then the `chain_ids_commitment` would
+not match the commitment generated from `rollup_chain_ids`.
 
 ### 7. `chain_ids_commitment_inclusion_proof`
 
 Similarly to verification of `action_tree_root` inside `data_hash`, we also verify
 an inclusion proof of `chain_ids_commitment` inside `data_hash` when receiving a
-published block. 
+published block.
 
 ## Exit point
 
