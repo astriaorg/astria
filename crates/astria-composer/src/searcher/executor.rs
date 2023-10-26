@@ -176,7 +176,7 @@ impl Executor {
                     // bundle to the span. Linked GH issue is for agreeing on a hash for `SignedTransaction`,
                     // but both should be addressed.
                     let span =  info_span!(
-                        "execute bundle",
+                        "submit bundle",
                         address = %self.address,
                         nonce.initial = self.nonce,
                         bundle.len = bundle.len(),
