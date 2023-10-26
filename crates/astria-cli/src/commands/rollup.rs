@@ -357,7 +357,8 @@ mod test {
             };
             delete_config(&args).unwrap();
             assert!(!file_path.exists());
-        }).await;
+        })
+        .await;
     }
 
     #[tokio::test]
