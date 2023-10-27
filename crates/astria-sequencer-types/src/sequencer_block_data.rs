@@ -57,6 +57,8 @@ pub enum Error {
     NoData,
     #[error("block has no data hash")]
     MissingDataHash,
+    #[error("last_commit field was unset even though last_commit_hash was set")]
+    MissingLastCommit,
     #[error("block has no last commit hash")]
     MissingLastCommitHash,
     #[error("failed decoding bytes to protobuf signed transaction")]
@@ -138,6 +140,8 @@ impl SequencerBlockData {
     /// - if the block's height is >1 and it does not contain a last commit or last commit hash
     /// - if the block's last commit hash does not match the one calculated from the block's commit
     pub fn try_from_raw(raw: RawSequencerBlockData) -> Result<Self, Error> {
+        use sha2::Digest as _;
+
         let RawSequencerBlockData {
             block_hash,
             header,
@@ -154,8 +158,9 @@ impl SequencerBlockData {
         }
 
         let data_hash = header.data_hash.ok_or(Error::MissingDataHash)?;
+        let action_tree_root_hash = sha2::Sha256::digest(action_tree_root);
         action_tree_root_inclusion_proof
-            .verify(&action_tree_root, data_hash)
+            .verify(&action_tree_root_hash, data_hash)
             .map_err(Error::Verification)?;
 
         // genesis and height 1 do not have a last commit
@@ -176,11 +181,8 @@ impl SequencerBlockData {
             .last_commit_hash
             .ok_or(Error::MissingLastCommitHash)?;
 
-        let calculated_last_commit_hash = calculate_last_commit_hash(
-            last_commit
-                .as_ref()
-                .expect("last_commit must be set if last_commit_hash is set"),
-        );
+        let calculated_last_commit_hash =
+            calculate_last_commit_hash(last_commit.as_ref().ok_or(Error::MissingLastCommit)?);
         if calculated_last_commit_hash != last_commit_hash {
             return Err(Error::LastCommitHashMismatch)?;
         }
@@ -360,7 +362,8 @@ impl SequencerBlockData {
     }
 }
 
-fn calculate_data_hash_and_tx_tree(txs: &[Vec<u8>]) -> ([u8; 32], MerkleTree) {
+#[must_use]
+pub fn calculate_data_hash_and_tx_tree(txs: &[Vec<u8>]) -> ([u8; 32], MerkleTree) {
     let hashed_txs = txs.iter().map(|tx| sha256_hash(tx)).collect::<Vec<_>>();
     let tx_tree = MerkleTree::from_leaves(hashed_txs);
     let calculated_data_hash = tx_tree.root();
@@ -418,6 +421,7 @@ mod test {
 
     use super::SequencerBlockData;
     use crate::{
+        sequencer_block_data::calculate_data_hash_and_tx_tree,
         test_utils::make_test_commit_and_hash,
         RawSequencerBlockData,
     };
@@ -433,7 +437,7 @@ mod test {
                 vec![0x44, 0x55, 0x66],
                 vec![0x77, 0x88, 0x99],
             ];
-            let tree = MerkleTree::from_leaves(transactions);
+            let (_, tree) = calculate_data_hash_and_tx_tree(&transactions);
             (
                 action_tree_root,
                 tree.prove_inclusion(0).unwrap(),
@@ -471,7 +475,7 @@ mod test {
                 vec![0x44, 0x55, 0x66],
                 vec![0x77, 0x88, 0x99],
             ];
-            let tree = MerkleTree::from_leaves(transactions);
+            let (_, tree) = calculate_data_hash_and_tx_tree(&transactions);
             (
                 action_tree_root,
                 tree.prove_inclusion(0).unwrap(),
@@ -551,5 +555,15 @@ mod test {
             .unwrap();
         let (data_hash, _) = super::calculate_data_hash_and_tx_tree(&[tx]);
         assert_eq!(data_hash.to_vec(), expected_data_hash);
+    }
+
+    #[test]
+    fn tendermint_block_to_sequencer_block() {
+        let block = crate::test_utils::create_tendermint_block();
+        let block_data = SequencerBlockData::from_tendermint_block(block).unwrap();
+
+        // convert to raw and back, which performs all necessary validations
+        let raw = block_data.into_raw();
+        SequencerBlockData::try_from_raw(raw).unwrap();
     }
 }

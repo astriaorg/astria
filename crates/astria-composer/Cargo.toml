@@ -1,16 +1,18 @@
 [package]
 name = "astria-composer"
-version = "0.2.0"
+version = "0.2.4"
 edition = "2021"
 rust-version = "1.70.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+config = { package = "astria-config", path = "../astria-config" }
 proto = { package = "astria-proto", path = "../astria-proto" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 ethers = { version = "2.0.7", features = ["ws"] }
+pin-project-lite = "0.2.13"
 secrecy = { version = "0.8", features = ["serde"] }
 
 async-trait = { workspace = true }
@@ -18,7 +20,6 @@ axum = { workspace = true }
 backon = { workspace = true }
 color-eyre = { workspace = true }
 ed25519-consensus = { workspace = true }
-figment = { workspace = true, features = ["env"] }
 futures = { workspace = true }
 humantime = { workspace = true }
 hyper = { workspace = true }
@@ -29,28 +30,37 @@ rand = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
 tendermint = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = [
   "macros",
   "rt-multi-thread",
   "sync",
   "time",
 ] }
-tokio-util = { version = "0.7.8", features = ["rt"] }
+tokio-util = { workspace = true, features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
+tryhard = { workspace = true }
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"
 path = "../astria-sequencer-client"
 features = ["http"]
 
+[dependencies.sequencer-types]
+package = "astria-sequencer-types"
+path = "../astria-sequencer-types"
+
 [dev-dependencies]
+config = { package = "astria-config", path = "../astria-config", features = [
+  "tests",
+] }
 proto = { package = "astria-proto", path = "../astria-proto" }
+test_utils = { package = "astria-test-utils", path = "../astria-test-utils", features = [
+  "geth",
+] }
+tokio-test = { workspace = true }
 
-impl-serde = "0.4.0"
-tokio-test = "0.4.2"
-
-figment = { workspace = true, features = ["test"] }
-jsonrpsee = { workspace = true, features = ["macros", "server"] }
 tendermint-rpc = { workspace = true }
 wiremock = { workspace = true }

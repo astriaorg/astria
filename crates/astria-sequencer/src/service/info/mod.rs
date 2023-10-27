@@ -12,15 +12,13 @@ use futures::{
     FutureExt,
 };
 use penumbra_storage::Storage;
-use penumbra_tower_trace::RequestExt as _;
-use tendermint::abci::{
+use penumbra_tower_trace::v037::RequestExt as _;
+use tendermint::v0_37::abci::{
     request,
     response::{
         self,
         Echo,
-        SetOption,
     },
-    Code,
     InfoRequest,
     InfoResponse,
 };
@@ -97,12 +95,6 @@ impl Info {
                 message: echo.message,
             })),
             InfoRequest::Query(req) => Ok(InfoResponse::Query(self.handle_abci_query(req).await)),
-            // this was removed after v0.34
-            InfoRequest::SetOption(_) => Ok(InfoResponse::SetOption(SetOption {
-                code: Code::default(),
-                log: "SetOption is not supported".to_string(),
-                info: "SetOption is not supported".to_string(),
-            })),
         }
     }
 
@@ -157,7 +149,7 @@ impl Service<InfoRequest> for Info {
 mod test {
     use penumbra_storage::StateDelta;
     use proto::native::sequencer::v1alpha1::Address;
-    use tendermint::abci::{
+    use tendermint::v0_37::abci::{
         request,
         InfoRequest,
         InfoResponse,

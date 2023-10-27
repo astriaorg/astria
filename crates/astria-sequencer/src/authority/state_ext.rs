@@ -23,6 +23,10 @@ use serde::{
     Deserialize,
     Serialize,
 };
+use tendermint::{
+    account,
+    validator,
+};
 use tracing::instrument;
 
 /// Newtype wrapper to read and write an address from rocksdb.
@@ -33,14 +37,14 @@ struct SudoAddress([u8; ADDRESS_LEN]);
 ///
 /// Contains a map of hex-encoded public keys to validator updates.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) struct ValidatorSet(HashMap<String, tendermint::validator::Update>);
+pub(crate) struct ValidatorSet(HashMap<account::Id, validator::Update>);
 
 impl ValidatorSet {
-    pub(crate) fn new_from_updates(updates: Vec<tendermint::validator::Update>) -> Self {
+    pub(crate) fn new_from_updates(updates: Vec<validator::Update>) -> Self {
         let validator_set = updates
             .into_iter()
-            .map(|update| (update.pub_key.to_hex(), update))
-            .collect();
+            .map(|update| (account::Id::from(update.pub_key), update))
+            .collect::<HashMap<_, _>>();
         Self(validator_set)
     }
 
@@ -50,15 +54,17 @@ impl ValidatorSet {
     }
 
     #[cfg(test)]
-    pub(crate) fn get(
-        &self,
-        pub_key: &tendermint::public_key::PublicKey,
-    ) -> Option<&tendermint::validator::Update> {
-        self.0.get(&pub_key.to_hex())
+    pub(crate) fn get(&self, address: &account::Id) -> Option<&validator::Update> {
+        self.0.get(address)
     }
 
-    pub(crate) fn push_update(&mut self, update: tendermint::validator::Update) {
-        self.0.insert(update.pub_key.to_hex(), update);
+    pub(crate) fn push_update(&mut self, update: validator::Update) {
+        let address = tendermint::account::Id::from(update.pub_key);
+        self.0.insert(address, update);
+    }
+
+    pub(crate) fn remove(&mut self, address: &account::Id) {
+        self.0.remove(address);
     }
 
     /// Apply updates to the validator set.
@@ -66,15 +72,15 @@ impl ValidatorSet {
     /// If the power of a validator is set to 0, remove it from the set.
     /// Otherwise, update the validator's power.
     pub(crate) fn apply_updates(&mut self, validator_updates: ValidatorSet) {
-        for (pub_key, update) in validator_updates.0 {
+        for (address, update) in validator_updates.0 {
             match update.power.value() {
-                0 => self.0.remove(&pub_key),
-                _ => self.0.insert(pub_key, update),
+                0 => self.0.remove(&address),
+                _ => self.0.insert(address, update),
             };
         }
     }
 
-    pub(crate) fn into_tendermint_validator_updates(self) -> Vec<tendermint::validator::Update> {
+    pub(crate) fn into_tendermint_validator_updates(self) -> Vec<validator::Update> {
         self.0.into_values().collect::<Vec<_>>()
     }
 }
@@ -119,7 +125,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
     async fn get_validator_updates(&self) -> Result<ValidatorSet> {
         let Some(bytes) = self
-            .nonconsensus_get_raw(VALIDATOR_UPDATES_KEY)
+            .nonverifiable_get_raw(VALIDATOR_UPDATES_KEY)
             .await
             .context("failed reading raw validator updates from state")?
         else {
@@ -159,7 +165,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip(self))]
     fn put_validator_updates(&mut self, validator_updates: ValidatorSet) -> Result<()> {
-        self.nonconsensus_put_raw(
+        self.nonverifiable_put_raw(
             VALIDATOR_UPDATES_KEY.to_vec(),
             serde_json::to_vec(&validator_updates)
                 .context("failed to serialize validator updates")?,
@@ -169,7 +175,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip(self))]
     fn clear_validator_updates(&mut self) {
-        self.nonconsensus_delete(VALIDATOR_UPDATES_KEY.to_vec());
+        self.nonverifiable_delete(VALIDATOR_UPDATES_KEY.to_vec());
     }
 }
 

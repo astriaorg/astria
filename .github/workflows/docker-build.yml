@@ -13,6 +13,11 @@ on:
       - "v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+--[a-z]+**"
   # trigger on pull request updates when target is `main` branch
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
     branches:
       - "main"
 
@@ -60,3 +65,5 @@ jobs:
     if: ${{ always() && !cancelled() }}
     needs: [composer, conductor, sequencer, sequencer-relayer]
     uses: ./.github/workflows/reusable-success.yml
+    with:
+      success: ${{ !contains(needs.*.result, 'failure') }}

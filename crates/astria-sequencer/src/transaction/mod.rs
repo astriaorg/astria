@@ -3,6 +3,8 @@ pub(crate) mod action_handler;
 use std::fmt;
 
 pub(crate) use action_handler::ActionHandler;
+#[cfg(not(feature = "mint"))]
+use anyhow::bail;
 use anyhow::{
     ensure,
     Context as _,
@@ -93,6 +95,15 @@ impl ActionHandler for UnsignedTransaction {
                 Action::ValidatorUpdate(act) => act
                     .check_stateless()
                     .context("stateless check failed for ValidatorUpdateAction")?,
+                Action::SudoAddressChange(act) => act
+                    .check_stateless()
+                    .context("stateless check failed for SudoAddressChangeAction")?,
+                #[cfg(feature = "mint")]
+                Action::Mint(act) => act
+                    .check_stateless()
+                    .context("stateless check failed for MintAction")?,
+                #[cfg(not(feature = "mint"))]
+                _ => bail!("unsupported action type: {:?}", action),
             }
         }
         Ok(())
@@ -122,6 +133,17 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for ValidatorUpdateAction")?,
+                Action::SudoAddressChange(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for SudoAddressChangeAction")?,
+                #[cfg(feature = "mint")]
+                Action::Mint(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for MintAction")?,
+                #[cfg(not(feature = "mint"))]
+                _ => bail!("unsupported action type: {:?}", action),
             }
         }
 
@@ -164,6 +186,19 @@ impl ActionHandler for UnsignedTransaction {
                         .await
                         .context("execution failed for ValidatorUpdateAction")?;
                 }
+                Action::SudoAddressChange(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for SudoAddressChangeAction")?;
+                }
+                #[cfg(feature = "mint")]
+                Action::Mint(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for MintAction")?;
+                }
+                #[cfg(not(feature = "mint"))]
+                _ => bail!("unsupported action type: {:?}", action),
             }
         }
 

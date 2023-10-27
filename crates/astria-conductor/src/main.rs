@@ -1,8 +1,8 @@
 use std::process::ExitCode;
 
 use astria_conductor::{
-    conductor::Conductor,
-    config,
+    Conductor,
+    Config,
 };
 use tracing::{
     error,
@@ -15,7 +15,7 @@ const EX_CONFIG: u8 = 78;
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    let cfg = match config::get() {
+    let cfg: Config = match config::get() {
         Err(e) => {
             eprintln!("failed reading config:\n{e:?}");
             // FIXME (https://github.com/astriaorg/astria/issues/368): might have to bubble up exit codes, since we might need
@@ -40,14 +40,16 @@ async fn main() -> ExitCode {
 
     let conductor = match Conductor::new(cfg).await {
         Err(e) => {
-            error!(error.msg = %e, error.cause = ?e, "failed initializing conductor");
+            let error: &(dyn std::error::Error + 'static) = e.as_ref();
+            error!(error, "failed initializing conductor");
             return ExitCode::FAILURE;
         }
         Ok(conductor) => conductor,
     };
 
     if let Err(e) = conductor.run_until_stopped().await {
-        error!(error.msg = %e, error.cause = ?e, "conductor stopped unexpectedly");
+        let error: &(dyn std::error::Error + 'static) = e.as_ref();
+        error!(error, "conductor stopped unexpectedly");
         return ExitCode::FAILURE;
     }
 

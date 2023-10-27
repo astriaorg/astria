@@ -1,0 +1,11 @@
+default:
+  @just --list
+
+set dotenv-load
+set fallback
+
+run:
+  cargo run
+
+test:
+  cargo test -- --nocapture --color always

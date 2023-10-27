@@ -1,88 +1,154 @@
-use astria_proto::generated::execution::v1alpha1::{
-    execution_service_client::ExecutionServiceClient,
-    DoBlockRequest,
-    DoBlockResponse,
-    FinalizeBlockRequest,
-    InitStateRequest,
-    InitStateResponse,
+use color_eyre::eyre::{
+    Result,
+    WrapErr,
 };
-use color_eyre::eyre::Result;
 use prost_types::Timestamp;
+use proto::generated::execution::v1alpha2::{
+    execution_service_client::ExecutionServiceClient,
+    BatchGetBlocksRequest,
+    BatchGetBlocksResponse,
+    Block,
+    BlockIdentifier,
+    CommitmentState,
+    ExecuteBlockRequest,
+    GetBlockRequest,
+    GetCommitmentStateRequest,
+    UpdateCommitmentStateRequest,
+};
 use tonic::transport::Channel;
-use tracing::info;
 
+use crate::types::ExecutorCommitmentState;
+
+/// Extension trait for the ExecutionServiceClient that makes it easier to interact with the
+/// execution client.
 #[async_trait::async_trait]
-pub(crate) trait ExecutionClient {
-    async fn call_do_block(
+pub(crate) trait ExecutionClientExt {
+    async fn call_batch_get_blocks(
+        &mut self,
+        identifiers: Vec<BlockIdentifier>,
+    ) -> Result<BatchGetBlocksResponse>;
+
+    async fn call_execute_block(
         &mut self,
         prev_block_hash: Vec<u8>,
         transactions: Vec<Vec<u8>>,
-        timestamp: Option<Timestamp>,
-    ) -> Result<DoBlockResponse>;
+        timestamp: Timestamp,
+    ) -> Result<Block>;
 
-    async fn call_finalize_block(&mut self, block_hash: Vec<u8>) -> Result<()>;
+    async fn call_get_block(&mut self, identifier: BlockIdentifier) -> Result<Block>;
 
-    async fn call_init_state(&mut self) -> Result<InitStateResponse>;
-}
+    async fn call_get_commitment_state(&mut self) -> Result<ExecutorCommitmentState>;
 
-/// Represents an RpcClient. Wrapping the auto generated client here.
-pub(crate) struct ExecutionRpcClient {
-    /// The actual rpc client
-    client: ExecutionServiceClient<Channel>,
-}
-
-impl ExecutionRpcClient {
-    /// Creates a new RPC Client
-    ///
-    /// # Arguments
-    ///
-    /// * `address` - The address of the RPC server that we want to communicate with.
-    pub(crate) async fn new(address: &str) -> Result<Self> {
-        let client = ExecutionServiceClient::connect(address.to_owned()).await?;
-        info!("Connected to execution service at {}", address);
-        Ok(ExecutionRpcClient {
-            client,
-        })
-    }
+    async fn call_update_commitment_state(
+        &mut self,
+        firm: Block,
+        soft: Block,
+    ) -> Result<ExecutorCommitmentState>;
 }
 
 #[async_trait::async_trait]
-impl ExecutionClient for ExecutionRpcClient {
-    /// Calls remote procedure DoBlock
+impl ExecutionClientExt for ExecutionServiceClient<Channel> {
+    /// Calls remote procedure BatchGetBlocks
+    ///
+    /// # Arguments
+    ///
+    /// * `identifiers` - List of block identifiers describes which blocks we want to get
+    async fn call_batch_get_blocks(
+        &mut self,
+        identifiers: Vec<BlockIdentifier>,
+    ) -> Result<BatchGetBlocksResponse> {
+        let request = BatchGetBlocksRequest {
+            identifiers,
+        };
+        let response = self
+            .batch_get_blocks(request)
+            .await
+            .wrap_err("failed to batch get blocks")?
+            .into_inner();
+        Ok(response)
+    }
+
+    /// Calls remote procedure ExecuteBlock
     ///
     /// # Arguments
     ///
     /// * `prev_block_hash` - Block hash of the parent block
     /// * `transactions` - List of transactions extracted from the sequencer block
     /// * `timestamp` - Optional timestamp of the sequencer block
-    async fn call_do_block(
+    async fn call_execute_block(
         &mut self,
         prev_block_hash: Vec<u8>,
         transactions: Vec<Vec<u8>>,
-        timestamp: Option<Timestamp>,
-    ) -> Result<DoBlockResponse> {
-        let request = DoBlockRequest {
+        timestamp: Timestamp,
+    ) -> Result<Block> {
+        let request = ExecuteBlockRequest {
             prev_block_hash,
             transactions,
-            timestamp,
+            timestamp: Some(timestamp),
         };
-        let response = self.client.do_block(request).await?.into_inner();
+        let response = self
+            .execute_block(request)
+            .await
+            .wrap_err("failed to execute block")?
+            .into_inner();
         Ok(response)
     }
 
-    /// Calls remote procedure FinalizeBlock
-    async fn call_finalize_block(&mut self, block_hash: Vec<u8>) -> Result<()> {
-        let request = FinalizeBlockRequest {
-            block_hash,
+    /// Calls remote procedure GetBlock
+    ///
+    /// # Arguments
+    ///
+    /// * `identifier` - The identifier describes the block we want to get
+    async fn call_get_block(&mut self, identifier: BlockIdentifier) -> Result<Block> {
+        let request = GetBlockRequest {
+            identifier: Some(identifier),
         };
-        self.client.finalize_block(request).await?;
-        Ok(())
+        let response = self
+            .get_block(request)
+            .await
+            .wrap_err("failed to get block")?
+            .into_inner();
+        Ok(response)
     }
 
-    /// Calls remote procedure InitState
-    async fn call_init_state(&mut self) -> Result<InitStateResponse> {
-        let request = InitStateRequest {};
-        let response = self.client.init_state(request).await?.into_inner();
-        Ok(response)
+    /// Calls remote procedure GetCommitmentState
+    async fn call_get_commitment_state(&mut self) -> Result<ExecutorCommitmentState> {
+        let request = GetCommitmentStateRequest {};
+        let response = self
+            .get_commitment_state(request)
+            .await
+            .wrap_err("failed to get commitment state")?
+            .into_inner();
+        let commitment_state =
+            ExecutorCommitmentState::from_execution_client_commitment_state(response);
+        Ok(commitment_state)
+    }
+
+    /// Calls remote procedure UpdateCommitmentState
+    ///
+    /// # Arguments
+    ///
+    /// * `firm` - The firm block
+    /// * `soft` - The soft block
+    async fn call_update_commitment_state(
+        &mut self,
+        firm: Block,
+        soft: Block,
+    ) -> Result<ExecutorCommitmentState> {
+        let commitment_state = CommitmentState {
+            firm: Some(firm),
+            soft: Some(soft),
+        };
+        let request = UpdateCommitmentStateRequest {
+            commitment_state: Some(commitment_state),
+        };
+        let response = self
+            .update_commitment_state(request)
+            .await
+            .wrap_err("failed to update commitment state")?
+            .into_inner();
+        let commitment_state =
+            ExecutorCommitmentState::from_execution_client_commitment_state(response);
+        Ok(commitment_state)
     }
 }

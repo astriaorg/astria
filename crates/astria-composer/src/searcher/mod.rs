@@ -14,13 +14,19 @@ use tokio::{
         mpsc::{
             self,
             Receiver,
+            Sender,
         },
         watch,
     },
-    task::JoinSet,
+    task::{
+        JoinError,
+        JoinSet,
+    },
 };
+use tokio_util::task::JoinMap;
 use tracing::{
     error,
+    instrument,
     warn,
 };
 
@@ -41,18 +47,25 @@ use executor::Executor;
 pub(super) struct Searcher {
     // Channel to report the internal status of the searcher to other parts of the system.
     status: watch::Sender<Status>,
+    // The collection of collectors and their chain IDs.
     collectors: HashMap<String, Collector>,
+    // The collection of the collector statuses.
     collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
-    // A channel on which the searcher receives transactions from its collectors.
-    new_transactions: Receiver<collector::Transaction>,
-    collector_tasks: tokio_util::task::JoinMap<String, eyre::Result<()>>,
+    // The rx part of the channel on which the searcher receives transactions from its collectors.
+    new_transactions_rx: Receiver<collector::Transaction>,
+    // The tx part that collectors use to send transactions to their parent searcher.
+    new_transactions_tx: Sender<collector::Transaction>,
+    // The map of chain ID to the URLs to which collectors should connect.
+    rollups: HashMap<String, String>,
+    // The set of tasks tracking if the collectors are still running.
+    collector_tasks: JoinMap<String, eyre::Result<()>>,
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
     conversion_tasks: JoinSet<Vec<Action>>,
     // The Executor object that is responsible for signing and submitting sequencer transactions.
     executor: Option<Executor>,
     // A channel on which to send the `Executor` bundles for attaching a nonce to, sign and submit
-    executor_tx: mpsc::Sender<Vec<Action>>,
+    bundle_tx: mpsc::Sender<Vec<Action>>,
     // Channel from which to read the internal status of the executor.
     executor_status: watch::Receiver<executor::Status>,
 }
@@ -78,11 +91,7 @@ impl Searcher {
     /// Errors are returned in the following scenarios:
     /// + failed to connect to the eth RPC server;
     /// + failed to construct a sequencer clinet
-    pub(super) async fn from_config(cfg: &Config) -> eyre::Result<Self> {
-        use futures::{
-            FutureExt as _,
-            StreamExt as _,
-        };
+    pub(super) fn from_config(cfg: &Config) -> eyre::Result<Self> {
         use rollup::Rollup;
         let rollups = cfg
             .rollups
@@ -92,36 +101,16 @@ impl Searcher {
             .collect::<Result<HashMap<_, _>, _>>()
             .wrap_err("failed parsing provided <chain_id>::<url> pairs as rollups")?;
 
-        let (tx_sender, new_transactions) = mpsc::channel(256);
+        let (new_transactions_tx, new_transactions_rx) = mpsc::channel(256);
 
-        let mut create_collectors = rollups
-            .into_iter()
+        let collectors = rollups
+            .iter()
             .map(|(chain_id, url)| {
-                let task_name = chain_id.clone();
-                tokio::spawn(Collector::new(chain_id, url, tx_sender.clone()))
-                    .map(move |result| (task_name, result))
+                let collector =
+                    Collector::new(chain_id.clone(), url.clone(), new_transactions_tx.clone());
+                (chain_id.clone(), collector)
             })
-            .collect::<futures::stream::FuturesUnordered<_>>();
-        // TODO(https://github.com/astriaorg/astria/issues/287): add timeouts or abort handles
-        // so this doesn't stall the entire server from coming up.
-        let mut collectors = HashMap::new();
-        while let Some((chain_id, join_result)) = create_collectors.next().await {
-            match join_result {
-                Err(err) => {
-                    return Err(err).wrap_err_with(|| {
-                        format!("task starting collector for {chain_id} panicked")
-                    });
-                }
-                Ok(Err(err)) => {
-                    return Err(err)
-                        .wrap_err_with(|| format!("failed starting collector for {chain_id}"));
-                }
-                Ok(Ok(collector)) => {
-                    collectors.insert(chain_id, collector);
-                }
-            }
-        }
-
+            .collect::<HashMap<_, _>>();
         let collector_statuses = collectors
             .iter()
             .map(|(chain_id, collector)| (chain_id.clone(), collector.subscribe()))
@@ -129,8 +118,8 @@ impl Searcher {
 
         let (status, _) = watch::channel(Status::default());
 
-        let (executor_tx, executor_rx) = mpsc::channel(256);
-        let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, executor_rx)
+        let (bundle_tx, bundle_rx) = mpsc::channel(256);
+        let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, bundle_rx)
             .wrap_err("executor construction from config failed")?;
 
         let executor_status = executor.subscribe();
@@ -139,12 +128,14 @@ impl Searcher {
             status,
             collectors,
             collector_statuses,
-            new_transactions,
-            collector_tasks: tokio_util::task::JoinMap::new(),
+            new_transactions_rx,
+            new_transactions_tx,
+            collector_tasks: JoinMap::new(),
             conversion_tasks: JoinSet::new(),
-            executor_tx,
+            bundle_tx,
             executor_status,
             executor: Some(executor),
+            rollups,
         })
     }
 
@@ -176,7 +167,7 @@ impl Searcher {
 
     async fn handle_bundle_execution(&self, bundle: Vec<Action>) {
         // send bundle to executor
-        if let Err(e) = self.executor_tx.send(bundle).await {
+        if let Err(e) = self.bundle_tx.send(bundle).await {
             error!(
                 error.message = %e,
                 error.cause_chain = ?e,
@@ -209,7 +200,7 @@ impl Searcher {
         loop {
             select!(
                 // serialize and sign sequencer tx for incoming pending rollup txs
-                Some(rollup_tx) = self.new_transactions.recv() => self.bundle_pending_tx(rollup_tx),
+                Some(rollup_tx) = self.new_transactions_rx.recv() => self.bundle_pending_tx(rollup_tx),
 
                 // submit signed sequencer txs to sequencer
                 Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
@@ -221,6 +212,10 @@ impl Searcher {
                             "conversion task failed while trying to convert pending rollup transaction to signed sequencer transaction",
                         ),
                     }
+                }
+
+                Some((rollup, collector_exit)) = self.collector_tasks.join_next() => {
+                    self.reconnect_exited_collector(rollup, collector_exit);
                 }
 
                 ret = &mut executor_handle => {
@@ -249,6 +244,22 @@ impl Searcher {
         }
 
         Ok(())
+    }
+
+    #[instrument(skip_all, fields(rollup))]
+    fn reconnect_exited_collector(
+        &mut self,
+        rollup: String,
+        exit_result: Result<eyre::Result<()>, JoinError>,
+    ) {
+        reconnect_exited_collector(
+            &mut self.collector_statuses,
+            &mut self.collector_tasks,
+            self.new_transactions_tx.clone(),
+            &self.rollups,
+            rollup,
+            exit_result,
+        );
     }
 
     /// Spawns all collector on the collector task set.
@@ -316,5 +327,108 @@ impl Searcher {
             .send_modify(|status| status.executor_connected = true);
 
         Ok(())
+    }
+}
+
+fn reconnect_exited_collector(
+    collector_statuses: &mut HashMap<String, watch::Receiver<collector::Status>>,
+    collector_tasks: &mut JoinMap<String, eyre::Result<()>>,
+    new_transactions_tx: Sender<collector::Transaction>,
+    rollups: &HashMap<String, String>,
+    rollup: String,
+    exit_result: Result<eyre::Result<()>, JoinError>,
+) {
+    match exit_result {
+        Ok(Ok(())) => warn!("collector exited unexpectedly; reconnecting"),
+        Ok(Err(e)) => {
+            let error: &(dyn std::error::Error + 'static) = e.as_ref();
+            warn!(error, "collector exit with error; reconnecting");
+        }
+        Err(e) => {
+            let error = &e as &(dyn std::error::Error + 'static);
+            warn!(error, "collector task failed; reconnecting");
+        }
+    }
+    let Some(url) = rollups.get(&rollup) else {
+        error!(
+            "rollup should have had an entry in the rollup->url map but doesn't; not reconnecting \
+             it"
+        );
+        return;
+    };
+    let collector = Collector::new(rollup.clone(), url.clone(), new_transactions_tx);
+    collector_statuses.insert(rollup.clone(), collector.subscribe());
+    collector_tasks.spawn(rollup, collector.run_until_stopped());
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use ethers::types::Transaction;
+    use tokio_util::task::JoinMap;
+
+    use crate::searcher::collector::{
+        self,
+        Collector,
+    };
+
+    /// This tests the `reconnect_exited_collector` handler.
+    #[tokio::test]
+    async fn collector_is_reconnected_after_exit() {
+        let mock_geth = test_utils::mock::Geth::spawn().await;
+        let rollup_name = "test".to_string();
+        let rollup_url = format!("ws://{}", mock_geth.local_addr());
+        let rollups = HashMap::from([(rollup_name.clone(), rollup_url.clone())]);
+
+        let (tx, mut rx) = tokio::sync::mpsc::channel(16);
+
+        let mut collector_tasks = JoinMap::new();
+        let collector = Collector::new(rollup_name.clone(), rollup_url.clone(), tx.clone());
+        let mut status = collector.subscribe();
+        collector_tasks.spawn(rollup_name.clone(), collector.run_until_stopped());
+        status
+            .wait_for(collector::Status::is_connected)
+            .await
+            .unwrap();
+        let expected_transaction = Transaction::default();
+        let _ = mock_geth.push_tx(expected_transaction.clone()).unwrap();
+        let collector_tx = rx.recv().await.unwrap();
+
+        assert_eq!(rollup_name, collector_tx.chain_id);
+        assert_eq!(expected_transaction, collector_tx.inner);
+
+        let _ = mock_geth.abort().unwrap();
+
+        let (chain_id, exit_result) = collector_tasks.join_next().await.unwrap();
+        assert_eq!(chain_id, rollup_name);
+        assert!(collector_tasks.is_empty());
+
+        // after aborting pushing a new tx to subscribers should fail as there are no broadcast
+        // receivers
+        assert!(mock_geth.push_tx(Transaction::default()).is_err());
+
+        let mut statuses = HashMap::new();
+        super::reconnect_exited_collector(
+            &mut statuses,
+            &mut collector_tasks,
+            tx.clone(),
+            &rollups,
+            rollup_name.clone(),
+            exit_result,
+        );
+
+        assert!(collector_tasks.contains_key(&rollup_name));
+        statuses
+            .get_mut(&rollup_name)
+            .unwrap()
+            .wait_for(collector::Status::is_connected)
+            .await
+            .unwrap();
+        let _ = mock_geth.push_tx(expected_transaction.clone()).unwrap();
+        let collector_tx = rx.recv().await.unwrap();
+
+        assert_eq!(rollup_name, collector_tx.chain_id);
+        assert_eq!(expected_transaction, collector_tx.inner);
     }
 }

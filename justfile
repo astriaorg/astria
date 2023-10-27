@@ -36,5 +36,8 @@ fmt-toml:
 lint-toml:
   taplo format --check
 
-lint-yaml:
+lint-md:
   markdownlint-cli2 "**/*.md" "#target" "#.github"
+
+install-cli:
+  cargo install --path ./crates/astria-cli --locked

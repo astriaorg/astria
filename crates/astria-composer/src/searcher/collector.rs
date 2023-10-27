@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -9,7 +7,6 @@ use ethers::providers::{
     ProviderError,
     Ws,
 };
-use humantime::format_duration;
 use tokio::sync::{
     mpsc::{
         error::SendTimeoutError,
@@ -19,7 +16,6 @@ use tokio::sync::{
 };
 use tracing::{
     debug,
-    info,
     instrument,
     warn,
 };
@@ -45,12 +41,12 @@ pub(super) struct Collector {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to.
     chain_id: String,
-    // The client for getting new pending transactions from an ethereum rollup.
-    client: GethClient,
     // The channel on which the collector sends new txs to the searcher.
-    searcher_channel: Sender<Transaction>,
+    new_bundles: Sender<Transaction>,
     // The status of this collector instance.
     status: watch::Sender<Status>,
+    /// Rollup URL
+    url: String,
 }
 
 #[derive(Debug)]
@@ -72,21 +68,14 @@ impl Status {
 
 impl Collector {
     /// Initializes a new collector instance
-    pub(super) async fn new(
-        chain_id: String,
-        url: String,
-        searcher_channel: Sender<Transaction>,
-    ) -> eyre::Result<Self> {
-        let client = GethClient::connect(&url)
-            .await
-            .wrap_err("failed connecting to eth")?;
+    pub(super) fn new(chain_id: String, url: String, new_bundles: Sender<Transaction>) -> Self {
         let (status, _) = watch::channel(Status::new());
-        Ok(Self {
+        Self {
             chain_id,
-            client,
-            searcher_channel,
+            new_bundles,
             status,
-        })
+            url,
+        }
     }
 
     /// Subscribe to the collector's status.
@@ -102,24 +91,54 @@ impl Collector {
 
         use ethers::providers::Middleware as _;
         use futures::stream::StreamExt as _;
-        self.wait_for_geth(5, Duration::from_secs(5), 2.0)
-            .await
-            .wrap_err("failed connecting ")?;
 
         let Self {
             chain_id,
-            client,
-            searcher_channel,
-            ..
+            new_bundles,
+            status,
+            url,
         } = self;
 
+        let retry_config = tryhard::RetryFutureConfig::new(1024)
+            .exponential_backoff(Duration::from_millis(500))
+            .max_delay(Duration::from_secs(60))
+            .on_retry(
+                |attempt, next_delay: Option<Duration>, error: &ProviderError| {
+                    let error = error as &(dyn std::error::Error + 'static);
+                    let wait_duration = next_delay
+                        .map(humantime::format_duration)
+                        .map(tracing::field::display);
+                    warn!(
+                        attempt,
+                        wait_duration,
+                        error,
+                        "attempt to connect to geth node failed; retrying after backoff",
+                    );
+                    futures::future::ready(())
+                },
+            );
+
+        let client = tryhard::retry_fn(|| {
+            let url = url.clone();
+            async move {
+                let websocket_client = Ws::connect_with_reconnects(url, 0).await?;
+                Ok(Provider::new(websocket_client))
+            }
+        })
+        .with_config(retry_config)
+        .await
+        .wrap_err("failed connecting to geth after several retries; giving up")?;
+
         let mut tx_stream = client
-            .inner
             .subscribe_full_pending_txs()
             .await
             .wrap_err("failed to subscribe eth client to full pending transactions")?;
+
+        status.send_modify(|status| status.is_connected = true);
+
         while let Some(tx) = tx_stream.next().await {
-            match searcher_channel
+            debug!(transaction.hash = %tx.hash, "collected transaction from rollup");
+            match new_bundles
                 .send_timeout(
                     Transaction {
                         chain_id: chain_id.clone(),
@@ -147,90 +166,5 @@ impl Collector {
             }
         }
         Ok(())
-    }
-
-    /// Wait until a connection to eth is established.
-    ///
-    /// This function tries to establish a connection to eth by
-    /// querying its net_version RPC. If it fails, it retries for another `n_retries`
-    /// times with exponential backoff.
-    ///
-    /// # Errors
-    ///
-    /// An error is returned if calling eth failed after `n_retries + 1` times.
-    #[instrument(skip_all, fields(
-    retries.max_number = n_retries,
-    retries.initial_delay = %format_duration(delay),
-    retries.exponential_factor = factor,
-))]
-    async fn wait_for_geth(
-        &self,
-        n_retries: usize,
-        delay: Duration,
-        factor: f32,
-    ) -> eyre::Result<()> {
-        use backon::{
-            ExponentialBuilder,
-            Retryable as _,
-        };
-        debug!(
-            "attempting
-  to connect to eth"
-        );
-        let backoff = ExponentialBuilder::default()
-            .with_min_delay(delay)
-            .with_factor(factor)
-            .with_max_times(n_retries);
-        let version = (|| {
-            let client = self.client.clone();
-            // This is using `get_net_version` because that's what ethers' `Middleware` is
-            // implementing. Maybe the `net_listening` RPC would be better, but ethers
-            // does not have that.
-            async move { client.get_net_version().await }
-        })
-        .retry(&backoff)
-        .notify(|err, dur| {
-            warn!(error.msg = %err, retry_in = %format_duration(dur), "failed issuing
-  RPC; retrying");
-        })
-        .await
-        .wrap_err(
-            "failed to retrieve net version from eth after seferal
-  retries",
-        )?;
-        info!(version, rpc = "net_version", "RPC was successful");
-        self.status.send_modify(|status| {
-            status.is_connected = true;
-        });
-        Ok(())
-    }
-}
-
-/// A thin wrapper around [`Provider<Ws>`] to add timeouts.
-///
-/// Currently only provides a timeout around for `get_net_version`.
-/// Also currently only with Geth nodes
-/// TODO(https://github.com/astriaorg/astria/issues/216): add timeouts for
-/// `subscribe_full_pendings_txs` (more complex because it's a stream).
-#[derive(Clone, Debug)]
-struct GethClient {
-    inner: Provider<Ws>,
-}
-
-impl GethClient {
-    async fn connect(url: &str) -> Result<Self, ProviderError> {
-        let inner = Provider::connect(url).await?;
-        Ok(Self {
-            inner,
-        })
-    }
-
-    /// Wrapper around [`Provider::get_net_version`] with a 1s timeout.
-    async fn get_net_version(&self) -> eyre::Result<String> {
-        use ethers::providers::Middleware as _;
-        tokio::time::timeout(Duration::from_secs(1), self.inner.get_net_version())
-            .await
-            .wrap_err("request timed out")?
-            .wrap_err("RPC returned with error")
     }
 }
