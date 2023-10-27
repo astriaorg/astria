@@ -42,7 +42,7 @@ pub(super) struct Collector {
     // action belongs to.
     chain_id: String,
     // The channel on which the collector sends new txs to the searcher.
-    searcher_channel: Sender<Transaction>,
+    new_bundles: Sender<Transaction>,
     // The status of this collector instance.
     status: watch::Sender<Status>,
     /// Rollup URL
@@ -68,15 +68,11 @@ impl Status {
 
 impl Collector {
     /// Initializes a new collector instance
-    pub(super) fn new(
-        chain_id: String,
-        url: String,
-        searcher_channel: Sender<Transaction>,
-    ) -> Self {
+    pub(super) fn new(chain_id: String, url: String, new_bundles: Sender<Transaction>) -> Self {
         let (status, _) = watch::channel(Status::new());
         Self {
             chain_id,
-            searcher_channel,
+            new_bundles,
             status,
             url,
         }
@@ -98,7 +94,7 @@ impl Collector {
 
         let Self {
             chain_id,
-            searcher_channel,
+            new_bundles,
             status,
             url,
         } = self;
@@ -142,7 +138,7 @@ impl Collector {
 
         while let Some(tx) = tx_stream.next().await {
             debug!(transaction.hash = %tx.hash, "collected transaction from rollup");
-            match searcher_channel
+            match new_bundles
                 .send_timeout(
                     Transaction {
                         chain_id: chain_id.clone(),
