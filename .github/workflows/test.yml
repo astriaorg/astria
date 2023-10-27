@@ -69,7 +69,7 @@ jobs:
           version: "24.4"
       - name: Build tests
         run: |
-          cargo nextest --no-run --release --workspace \
+          cargo nextest run --no-run --release --workspace \
           --locked \
           --all-features \
           --all-targets
@@ -105,7 +105,10 @@ jobs:
         with:
           version: "24.4"
       - name: run doctests
-        run: cargo llvm-cov test --doc --all-features -codecov --output-path codecov.json
+        run: |
+         cargo +nightly llvm-cov test --doc \
+         --all-features \
+         --codecov --output-path codecov.json
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
