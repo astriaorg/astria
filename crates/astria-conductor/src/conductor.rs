@@ -7,15 +7,9 @@ use std::{
 use astria_sequencer_types::ChainId;
 use color_eyre::eyre::{
     self,
-    Result,
     WrapErr as _,
 };
-// use futures::FutureExt;
 use futures::future::Fuse;
-use proto::generated::execution::v1alpha2::{
-    execution_service_client::ExecutionServiceClient,
-    GetCommitmentStateRequest,
-};
 use tokio::{
     select,
     signal::unix::{
@@ -89,7 +83,7 @@ impl Conductor {
         let signals = spawn_signal_handler();
 
         // Spawn the executor task.
-        let executor_tx = {
+        let (executor_tx, init_sequencer_height) = {
             let (block_tx, block_rx) = mpsc::unbounded_channel();
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             let executor = Executor::new(
@@ -97,14 +91,18 @@ impl Conductor {
                 ChainId::new(cfg.chain_id.as_bytes().to_vec())
                     .wrap_err("failed to create chain ID")?,
                 cfg.disable_empty_block_execution,
+                cfg.initial_sequencer_block_height,
                 block_rx,
                 shutdown_rx,
             )
             .await
             .wrap_err("failed to construct executor")?;
+            let init_sequencer_height = executor.executable_block_height.clone();
+
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
             shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
-            block_tx
+
+            (block_tx, init_sequencer_height)
         };
 
         let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
@@ -126,15 +124,10 @@ impl Conductor {
 
         if !cfg.execution_commit_level.is_firm_only() {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
-            let (sync_done_tx, sync_done_rx) = oneshot::channel();
-
-            // get the commitment state from the execution client
-            let commitment_state = get_commitment_state(cfg.execution_rpc_url.to_owned())
-                .await
-                .wrap_err("failed to get commitment state")?;
+            let (sync_done_tx, sync_done_rx) = oneshot::channel();    
 
             let sequencer_reader = sequencer::Reader::new(
-                cfg.initial_sequencer_block_height + commitment_state.soft.number,
+                init_sequencer_height,
                 sequencer_client_pool.clone(),
                 shutdown_rx,
                 executor_tx.clone(),
@@ -343,18 +336,4 @@ fn spawn_signal_handler() -> SignalReceiver {
         reload_rx,
         stop_rx,
     }
-}
-
-async fn get_commitment_state(rpc_url: String) -> Result<ExecutorCommitmentState> {
-    let mut execution_rpc_client = ExecutionServiceClient::connect(rpc_url)
-        .await
-        .wrap_err("failed to create execution rpc client")?;
-    let commitment_state_resp = execution_rpc_client
-        .get_commitment_state(GetCommitmentStateRequest {})
-        .await
-        .wrap_err("executor failed to get commitment state")?;
-    let commitment_state = ExecutorCommitmentState::from_execution_client_commitment_state(
-        commitment_state_resp.get_ref().clone(),
-    );
-    Ok(commitment_state)
 }

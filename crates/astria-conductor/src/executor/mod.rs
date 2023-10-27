@@ -97,6 +97,9 @@ pub(crate) struct Executor {
     /// Tracks SOFT and FIRM on the execution chain
     commitment_state: ExecutorCommitmentState,
 
+    /// Tracks the height of the next sequencer block that can be executed
+    pub(crate) executable_block_height: u32,
+
     /// map of sequencer block hash to execution block
     ///
     /// this is required because when we receive sequencer blocks (from network or DA),
@@ -117,6 +120,7 @@ impl Executor {
         server_addr: &str,
         chain_id: ChainId,
         disable_empty_block_execution: bool,
+        init_sequencer_height: u32,
         cmd_rx: Receiver,
         shutdown: oneshot::Receiver<()>,
     ) -> Result<Self> {
@@ -128,12 +132,15 @@ impl Executor {
             .await
             .wrap_err("executor failed to get commitment state")?;
 
+        let executable_block_height = commitment_state.soft.number + init_sequencer_height;
+
         Ok(Self {
             cmd_rx,
             shutdown,
             execution_rpc_client,
             chain_id,
             commitment_state,
+            executable_block_height,
             sequencer_hash_to_execution_block: HashMap::new(),
             disable_empty_block_execution,
         })
@@ -222,6 +229,22 @@ impl Executor {
             return Ok(None);
         }
 
+        if self.executable_block_height > block.header.height.value() as u32 {
+            debug!(
+                sequencer_block_height = block.header.height.value(),
+                executable_block_height = self.executable_block_height,
+                "skipping execution of stale block"
+            );
+            return Ok(None);
+        } else if self.executable_block_height < block.header.height.value() as u32 {
+            debug!(
+                sequencer_block_height = block.header.height.value(),
+                executable_block_height = self.executable_block_height,
+                "skipping execution of future block"
+            );
+            return Ok(None);
+        }
+
         if let Some(execution_block) = self
             .sequencer_hash_to_execution_block
             .get(&block.block_hash)
@@ -248,6 +271,7 @@ impl Executor {
             .execution_rpc_client
             .call_execute_block(prev_block_hash, block.rollup_transactions, timestamp)
             .await?;
+        self.executable_block_height += 1;
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
