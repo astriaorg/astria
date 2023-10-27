@@ -87,6 +87,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
           files: codecov.json
+          flags: tests
           fail_ci_if_error: true
 
   doctest:
@@ -116,6 +117,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
           files: codecov.json
+          flags: doctest
           fail_ci_if_error: true
 
   clippy:

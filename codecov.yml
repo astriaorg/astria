@@ -29,10 +29,14 @@ component_management:
       name: sequencer-relayer
       paths:
         - crates/astria-sequencer-relayer/**
+    - component_id: cli
+      name: cli
+      paths:
+        - crates/astria-cli/**
     - component_id: celestia
       name: celestia-client
       paths:
-        - crates/astria-celestia-jsonrpc-client/**
+        - crates/astria-celestia-client/**
     - component_id: common
       name: common
       paths:
@@ -42,3 +46,5 @@ component_management:
         - crates/astria-telemetry/**
         - crates/astria-sequencer-client/**
 
+ignore:
+  - 'crates/astria-proto/src/proto/generated/**'
