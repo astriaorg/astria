@@ -56,7 +56,6 @@ async fn tx_from_two_rollups_are_received_by_sequencer() {
     let test_guard =
         mount_broadcast_tx_sync_mock(&test_composer.sequencer, vec!["test1", "test2"], vec![0, 1])
             .await;
-
     test_composer.rollup_nodes["test1"]
         .push_tx(Transaction::default())
         .unwrap();
@@ -69,7 +68,25 @@ async fn tx_from_two_rollups_are_received_by_sequencer() {
         test_guard.wait_until_satisfied(),
     )
     .await
-    .expect("mocked sequencer should have received a broadcast message from composer");
+    .expect("mocked sequencer should have received a broadcast messages from composer");
+
+    // Validate that the received nonces and chain_ids were unique
+    let mut received_nonces: Vec<u32> = vec![];
+    let mut received_chain_ids: Vec<Vec<u8>> = vec![];
+    for request in test_guard.received_requests().await {
+        let (chain_id, nonce) = chain_id_nonce_from_request(&request);
+        assert!(
+            !received_nonces.contains(&nonce),
+            "duplicate nonce received"
+        );
+        received_nonces.push(nonce);
+
+        assert!(
+            !received_chain_ids.contains(&chain_id),
+            "duplicate chain id received"
+        );
+        received_chain_ids.push(chain_id);
+    }
 }
 
 #[tokio::test]
@@ -134,37 +151,19 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
 }
 
 /// Deserizalizes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
-/// verifies that the contained sequence action is for the given `expected_chain_id` and `nonce`.
+/// verifies that the contained sequence action is in the given `expected_chain_ids` and
+/// `expected_nonces`.
 async fn mount_broadcast_tx_sync_mock(
     server: &MockServer,
     expected_chain_ids: Vec<&'static str>,
     expected_nonces: Vec<u32>,
 ) -> MockGuard {
-    use proto::{
-        generated::sequencer::v1alpha1 as raw,
-        native::sequencer::v1alpha1::SignedTransaction,
-        Message as _,
-    };
     let expected_calls = expected_nonces.len().try_into().unwrap();
     let matcher = move |request: &Request| {
-        let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
-            serde_json::from_slice(&request.body)
-                .expect("can't deserialize to JSONRPC wrapped tx_sync::Request");
-        let raw_signed_tx = raw::SignedTransaction::decode(&*wrapped_tx_sync_req.params().tx)
-            .expect("can't deserialize signed sequencer tx from broadcast jsonrpc request");
-        let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
-            .expect("can't convert raw signed tx to checked signed tx");
-        debug!(?signed_tx, "sequencer mock received signed transaction");
-        let Some(sent_action) = signed_tx.actions().get(0) else {
-            panic!("received transaction contained no actions");
-        };
-        let Some(sequence_action) = sent_action.as_sequence() else {
-            panic!("mocked sequencer expected a sequence action");
-        };
+        let (chain_id, nonce) = chain_id_nonce_from_request(request);
 
-        let valid_chain_id =
-            expected_chain_ids.contains(&std::str::from_utf8(&sequence_action.chain_id).unwrap());
-        let valid_nonce = expected_nonces.contains(&signed_tx.unsigned_transaction().nonce);
+        let valid_chain_id = expected_chain_ids.contains(&std::str::from_utf8(&chain_id).unwrap());
+        let valid_nonce = expected_nonces.contains(&nonce);
 
         valid_chain_id && valid_nonce
     };
@@ -178,7 +177,7 @@ async fn mount_broadcast_tx_sync_mock(
         }),
         None,
     );
-    
+
     Mock::given(matcher)
         .respond_with(ResponseTemplate::new(200).set_body_json(&jsonrpc_rsp))
         .up_to_n_times(expected_calls)
@@ -194,27 +193,9 @@ async fn mount_broadcast_tx_sync_invalid_nonce_mock(
     server: &MockServer,
     expected_chain_id: &'static str,
 ) -> MockGuard {
-    use proto::{
-        generated::sequencer::v1alpha1 as raw,
-        native::sequencer::v1alpha1::SignedTransaction,
-        Message as _,
-    };
     let matcher = move |request: &Request| {
-        let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
-            serde_json::from_slice(&request.body)
-                .expect("can't deserialize to JSONRPC wrapped tx_sync::Request");
-        let raw_signed_tx = raw::SignedTransaction::decode(&*wrapped_tx_sync_req.params().tx)
-            .expect("can't deserialize signed sequencer tx from broadcast jsonrpc request");
-        let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
-            .expect("can't convert raw signed tx to checked signed tx");
-        debug!(?signed_tx, "sequencer mock received signed transaction");
-        let Some(sent_action) = signed_tx.actions().get(0) else {
-            panic!("received transaction contained no actions");
-        };
-        let Some(sequence_action) = sent_action.as_sequence() else {
-            panic!("mocked sequencer expected a sequence action");
-        };
-        sequence_action.chain_id == expected_chain_id.as_bytes()
+        let (chain_id, _) = chain_id_nonce_from_request(request);
+        chain_id == expected_chain_id.as_bytes()
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
@@ -232,4 +213,32 @@ async fn mount_broadcast_tx_sync_invalid_nonce_mock(
         .expect(1)
         .mount_as_scoped(server)
         .await
+}
+
+fn chain_id_nonce_from_request(request: &Request) -> (Vec<u8>, u32) {
+    use proto::{
+        generated::sequencer::v1alpha1 as raw,
+        native::sequencer::v1alpha1::SignedTransaction,
+        Message as _,
+    };
+
+    let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
+        serde_json::from_slice(&request.body)
+            .expect("can't deserialize to JSONRPC wrapped tx_sync::Request");
+    let raw_signed_tx = raw::SignedTransaction::decode(&*wrapped_tx_sync_req.params().tx)
+        .expect("can't deserialize signed sequencer tx from broadcast jsonrpc request");
+    let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
+        .expect("can't convert raw signed tx to checked signed tx");
+    debug!(?signed_tx, "sequencer mock received signed transaction");
+    let Some(sent_action) = signed_tx.actions().get(0) else {
+        panic!("received transaction contained no actions");
+    };
+    let Some(sequence_action) = sent_action.as_sequence() else {
+        panic!("mocked sequencer expected a sequence action");
+    };
+
+    (
+        sequence_action.chain_id.clone(),
+        signed_tx.unsigned_transaction().nonce,
+    )
 }
