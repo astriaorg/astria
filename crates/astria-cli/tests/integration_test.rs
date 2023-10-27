@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use assert_cmd::Command;
 use test_utils::with_temp_directory;
 
-#[test]
-fn test_envars_are_parsed_for_config_create() {
-    with_temp_directory(|_dir| {
+#[tokio::test]
+async fn test_envars_are_parsed_for_config_create() {
+    with_temp_directory(|_dir| async {
         let mut cmd = Command::cargo_bin("astria-cli").unwrap();
 
         cmd.arg("rollup")
@@ -29,12 +29,13 @@ fn test_envars_are_parsed_for_config_create() {
             .success();
 
         assert!(PathBuf::from("testtest-rollup-conf.yaml").exists());
-    });
+    })
+    .await;
 }
 
-#[test]
-fn test_error_when_incorrect_envar_values() {
-    with_temp_directory(|_dir| {
+#[tokio::test]
+async fn test_error_when_incorrect_envar_values() {
+    with_temp_directory(|_dir| async {
         let mut cmd = Command::cargo_bin("astria-cli").unwrap();
 
         cmd.arg("rollup")
@@ -55,5 +56,6 @@ fn test_error_when_incorrect_envar_values() {
             .env("ROLLUP_SEQUENCER_RPC", "http://localhost:8081")
             .assert()
             .failure();
-    });
+    })
+    .await;
 }
