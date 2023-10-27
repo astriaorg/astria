@@ -43,7 +43,6 @@ use crate::{
     data_availability,
     executor::Executor,
     sequencer,
-    types::ExecutorCommitmentState,
     Config,
 };
 
@@ -97,7 +96,7 @@ impl Conductor {
             )
             .await
             .wrap_err("failed to construct executor")?;
-            let init_sequencer_height = executor.executable_block_height.clone();
+            let init_sequencer_height = executor.executable_block_height;
 
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
             shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
@@ -124,7 +123,7 @@ impl Conductor {
 
         if !cfg.execution_commit_level.is_firm_only() {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
-            let (sync_done_tx, sync_done_rx) = oneshot::channel();    
+            let (sync_done_tx, sync_done_rx) = oneshot::channel();
 
             let sequencer_reader = sequencer::Reader::new(
                 init_sequencer_height,

@@ -151,6 +151,7 @@ async fn start_mock(disable_empty_block_execution: bool) -> MockEnvironment {
         &server_url,
         chain_id,
         disable_empty_block_execution,
+        1,
         block_rx,
         shutdown_rx,
     )
