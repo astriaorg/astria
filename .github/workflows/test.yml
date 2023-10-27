@@ -51,9 +51,9 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@1.72.0
         with:
-          toolchain: llvm-tools-preview
+          components: llvm-tools-preview
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
