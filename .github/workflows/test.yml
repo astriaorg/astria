@@ -71,14 +71,14 @@ jobs:
           version: "24.4"
       - name: Build tests
         run: |
-          cargo nextest run --no-run --release --workspace \
+          cargo llvm-cov nextest run --no-run --release --workspace \
           --locked \
           --all-features \
           --all-targets
       - name: Run tests
         timeout-minutes: 20
         run: |
-          cargo llvm-cov nextest run --release --workspace \
+          cargo llvm-cov nextest --release --workspace \
           --locked \
           --all-features \
           --all-targets \
