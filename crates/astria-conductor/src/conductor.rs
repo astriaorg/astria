@@ -7,10 +7,15 @@ use std::{
 use astria_sequencer_types::ChainId;
 use color_eyre::eyre::{
     self,
+    Result,
     WrapErr as _,
 };
 // use futures::FutureExt;
 use futures::future::Fuse;
+use proto::generated::execution::v1alpha2::{
+    execution_service_client::ExecutionServiceClient,
+    GetCommitmentStateRequest,
+};
 use tokio::{
     select,
     signal::unix::{
@@ -44,6 +49,7 @@ use crate::{
     data_availability,
     executor::Executor,
     sequencer,
+    types::ExecutorCommitmentState,
     Config,
 };
 
@@ -119,11 +125,16 @@ impl Conductor {
         }
 
         if !cfg.execution_commit_level.is_firm_only() {
-            // todo!("set up stuff");
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             let (sync_done_tx, sync_done_rx) = oneshot::channel();
+
+            // get the commitment state from the execution client
+            let commitment_state = get_commitment_state(cfg.execution_rpc_url.to_owned())
+                .await
+                .wrap_err("failed to get commitment state")?;
+
             let sequencer_reader = sequencer::Reader::new(
-                cfg.initial_sequencer_block_height,
+                cfg.initial_sequencer_block_height + commitment_state.soft.number,
                 sequencer_client_pool.clone(),
                 shutdown_rx,
                 executor_tx.clone(),
@@ -332,4 +343,18 @@ fn spawn_signal_handler() -> SignalReceiver {
         reload_rx,
         stop_rx,
     }
+}
+
+async fn get_commitment_state(rpc_url: String) -> Result<ExecutorCommitmentState> {
+    let mut execution_rpc_client = ExecutionServiceClient::connect(rpc_url)
+        .await
+        .wrap_err("failed to create execution rpc client")?;
+    let commitment_state_resp = execution_rpc_client
+        .get_commitment_state(GetCommitmentStateRequest {})
+        .await
+        .wrap_err("executor failed to get commitment state")?;
+    let commitment_state = ExecutorCommitmentState::from_execution_client_commitment_state(
+        commitment_state_resp.get_ref().clone(),
+    );
+    Ok(commitment_state)
 }
