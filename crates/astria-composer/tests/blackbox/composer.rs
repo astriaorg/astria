@@ -30,7 +30,8 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
     .await
     .expect("setup guard failed");
 
-    let mock_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1", 0).await;
+    let mock_guard =
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, vec!["test1"], vec![0]).await;
     test_composer.rollup_nodes["test1"]
         .push_tx(Transaction::default())
         .unwrap();
@@ -44,8 +45,6 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
 
 #[tokio::test]
 async fn tx_from_two_rollups_are_received_by_sequencer() {
-    use futures::future::join;
-
     let test_composer = spawn_composer(&["test1", "test2"]).await;
     tokio::time::timeout(
         Duration::from_millis(100),
@@ -54,21 +53,23 @@ async fn tx_from_two_rollups_are_received_by_sequencer() {
     .await
     .expect("setup guard failed");
 
-    let test1_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1", 0).await;
-    let test2_guard = mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test2", 1).await;
+    let test_guard =
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, vec!["test1", "test2"], vec![0, 1])
+            .await;
+
     test_composer.rollup_nodes["test1"]
         .push_tx(Transaction::default())
         .unwrap();
     test_composer.rollup_nodes["test2"]
         .push_tx(Transaction::default())
         .unwrap();
-    let all_guards = join(
-        test1_guard.wait_until_satisfied(),
-        test2_guard.wait_until_satisfied(),
-    );
-    tokio::time::timeout(Duration::from_millis(100), all_guards)
-        .await
-        .expect("mocked sequencer should have received a broadcast message from composer");
+
+    tokio::time::timeout(
+        Duration::from_millis(100),
+        test_guard.wait_until_satisfied(),
+    )
+    .await
+    .expect("mocked sequencer should have received a broadcast message from composer");
 }
 
 #[tokio::test]
@@ -102,7 +103,7 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
 
     // Expect nonce 1 again so that the resubmitted tx is accepted
     let valid_nonce_guard =
-        mount_broadcast_tx_sync_mock(&test_composer.sequencer, "test1", 1).await;
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, vec!["test1"], vec![1]).await;
 
     // Push a tx to the rollup node so that it is picked up by the composer and submitted with the
     // stored nonce of 0, triggering the nonce refetch process
@@ -136,14 +137,15 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
 /// verifies that the contained sequence action is for the given `expected_chain_id` and `nonce`.
 async fn mount_broadcast_tx_sync_mock(
     server: &MockServer,
-    expected_chain_id: &'static str,
-    expected_nonce: u32,
+    expected_chain_ids: Vec<&'static str>,
+    expected_nonces: Vec<u32>,
 ) -> MockGuard {
     use proto::{
         generated::sequencer::v1alpha1 as raw,
         native::sequencer::v1alpha1::SignedTransaction,
         Message as _,
     };
+    let expected_calls = expected_nonces.len().try_into().unwrap();
     let matcher = move |request: &Request| {
         let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
             serde_json::from_slice(&request.body)
@@ -159,8 +161,12 @@ async fn mount_broadcast_tx_sync_mock(
         let Some(sequence_action) = sent_action.as_sequence() else {
             panic!("mocked sequencer expected a sequence action");
         };
-        sequence_action.chain_id == expected_chain_id.as_bytes()
-            && signed_tx.unsigned_transaction().nonce == expected_nonce
+
+        let valid_chain_id =
+            expected_chain_ids.contains(&std::str::from_utf8(&sequence_action.chain_id).unwrap());
+        let valid_nonce = expected_nonces.contains(&signed_tx.unsigned_transaction().nonce);
+
+        valid_chain_id && valid_nonce
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
@@ -172,10 +178,11 @@ async fn mount_broadcast_tx_sync_mock(
         }),
         None,
     );
+    
     Mock::given(matcher)
         .respond_with(ResponseTemplate::new(200).set_body_json(&jsonrpc_rsp))
-        .up_to_n_times(1)
-        .expect(1)
+        .up_to_n_times(expected_calls)
+        .expect(expected_calls)
         .mount_as_scoped(server)
         .await
 }
