@@ -71,7 +71,7 @@ jobs:
           version: "24.4"
       - name: Build tests
         run: |
-          cargo llvm-cov nextest --no-run --release --workspace \
+          cargo nextest --no-run --release --workspace \
           --locked \
           --all-features \
           --all-targets
