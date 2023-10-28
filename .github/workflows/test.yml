@@ -69,13 +69,7 @@ jobs:
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
-      - name: Build tests
-        run: |
-          cargo nextest run --no-run --release --workspace \
-          --locked \
-          --all-features \
-          --all-targets
-      - name: Run tests
+      - name: Build & Run tests
         timeout-minutes: 20
         run: |
           cargo llvm-cov nextest --release --workspace \
@@ -83,7 +77,6 @@ jobs:
           --all-features \
           --all-targets \
           --no-fail-fast \
-          --no-clean \
           --codecov --output-path codecov.json
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
