@@ -337,56 +337,59 @@ impl Executor {
         &mut self,
         blocks: Vec<SequencerBlockSubset>,
     ) -> Result<()> {
-        // FIXME: actually process all blocks.
-        let Some(block) = blocks.get(0).cloned() else {
+        if blocks.is_empty() {
             info!("received a message from data availability without blocks; skipping execution");
             return Ok(());
-        };
-        let sequencer_block_hash = block.block_hash;
-        let maybe_executed_block = self
-            .sequencer_hash_to_execution_block
-            .get(&sequencer_block_hash)
-            .cloned();
-        match maybe_executed_block {
-            Some(executed_block) => {
-                // this case means block has already been executed.
-                self.update_firm_commitment(executed_block.clone())
-                    .await
-                    .wrap_err("executor failed to update firm commitment")?;
-                // remove the sequencer block hash from the map, as it's been firmly committed
-                self.sequencer_hash_to_execution_block
-                    .remove(&block.block_hash);
-            }
-            None => {
-                // this means either:
-                // - we didn't receive the block from the sequencer stream, or
-                // - we received it, but the sequencer block didn't contain
-                // any transactions for this rollup namespace, thus nothing was executed
-                // on receiving this block.
+        }
+        for block in blocks.into_iter() {
+            let sequencer_block_hash = block.block_hash;
+            let maybe_executed_block = self
+                .sequencer_hash_to_execution_block
+                .get(&sequencer_block_hash)
+                .cloned();
+            match maybe_executed_block {
+                Some(executed_block) => {
+                    // this case means block has already been executed.
+                    self.update_firm_commitment(executed_block)
+                        .await
+                        .wrap_err("executor failed to update firm commitment")?;
+                    // remove the sequencer block hash from the map, as it's been firmly committed
+                    self.sequencer_hash_to_execution_block
+                        .remove(&sequencer_block_hash);
+                }
+                None => {
+                    // this means either:
+                    // - we didn't receive the block from the sequencer stream, or
+                    // - we received it, but the sequencer block didn't contain
+                    // any transactions for this rollup namespace, thus nothing was executed
+                    // on receiving this block.
 
-                // try executing the block as it hasn't been executed before
-                // execute_block will check if our namespace has txs; if so, it'll return the
-                // resulting execution block hash, otherwise None
-                let Some(executed_block) = self
-                    .execute_block(block.clone())
-                    .await
-                    .wrap_err("failed to execute block")?
-                else {
-                    // no txs for our namespace, nothing to do
-                    debug!("execute_block returned None; skipping call_update_commitment_state");
-                    return Ok(());
-                };
+                    // try executing the block as it hasn't been executed before
+                    // execute_block will check if our namespace has txs; if so, it'll return the
+                    // resulting execution block hash, otherwise None
+                    let Some(executed_block) = self
+                        .execute_block(block)
+                        .await
+                        .wrap_err("failed to execute block")?
+                    else {
+                        // no txs for our namespace, nothing to do
+                        debug!(
+                            "execute_block returned None; skipping call_update_commitment_state"
+                        );
+                        return Ok(());
+                    };
 
-                // when we execute a block received from da, nothing else has been executed on top
-                // of it, so we set FIRM and SOFT to this executed block
-                self.update_commitments(executed_block)
-                    .await
-                    .wrap_err("executor failed to update both commitments")?;
-                // remove the sequencer block hash from the map, as it's been firmly committed
-                self.sequencer_hash_to_execution_block
-                    .remove(&block.block_hash);
-            }
-        };
+                    // when we execute a block received from da, nothing else has been executed on
+                    // top of it, so we set FIRM and SOFT to this executed block
+                    self.update_commitments(executed_block)
+                        .await
+                        .wrap_err("executor failed to update both commitments")?;
+                    // remove the sequencer block hash from the map, as it's been firmly committed
+                    self.sequencer_hash_to_execution_block
+                        .remove(&sequencer_block_hash);
+                }
+            };
+        }
         Ok(())
     }
 
