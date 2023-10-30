@@ -29,6 +29,7 @@ jobs:
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check that each crate compiles individually (circumventing workspace wide dependency resolution)
         run: cargo hack check --all --all-features
 
@@ -63,6 +64,7 @@ jobs:
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build tests
         run: |
           cargo test --no-run --release --workspace \
@@ -78,7 +80,7 @@ jobs:
   doctest:
     runs-on: buildjet-8vcpu-ubuntu-2204
     needs: run_checker
-    if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
+    if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@1.72.0
@@ -88,6 +90,7 @@ jobs:
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: run doctests
         run: cargo test --doc --all-features
 
@@ -110,6 +113,7 @@ jobs:
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: run pedantic clippy
         run: |
           cargo clippy --workspace \
@@ -130,3 +134,5 @@ jobs:
     if: ${{ always() && !cancelled() }}
     needs: [compiles, rust, doctest, clippy, lockfile]
     uses: ./.github/workflows/reusable-success.yml
+    with:
+      success: ${{ !contains(needs.*.result, 'failure') }}

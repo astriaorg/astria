@@ -14,7 +14,6 @@ deadpool = { version = "0.10.0", default-features = false, features = [
 ] }
 ed25519-consensus = { workspace = true }
 ethers = { version = "2.0", features = ["optimism", "ws"] }
-figment = { workspace = true, features = ["env"] }
 futures = { workspace = true }
 hex = { workspace = true }
 humantime = { workspace = true }
@@ -37,6 +36,7 @@ tryhard = { workspace = true }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 astria-sequencer-types = { path = "../astria-sequencer-types" }
 optimism = { package = "astria-optimism", path = "../astria-optimism" }
+config = { package = "astria-config", path = "../astria-config" }
 proto = { package = "astria-proto", path = "../astria-proto", features = [
   "client",
 ] }
@@ -47,14 +47,14 @@ sequencer-validation = { package = "astria-sequencer-validation", path = "../ast
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
+jsonrpsee = { workspace = true, features = ["server"] }
+
 astria-sequencer-types = { path = "../astria-sequencer-types", features = [
   "test-utils",
 ] }
-once_cell = { workspace = true }
-figment = { workspace = true, features = ["test"] }
-jsonrpsee = { workspace = true, features = ["server"] }
-regex = { workspace = true }
-
+config = { package = "astria-config", path = "../astria-config", features = [
+  "tests",
+] }
 proto = { package = "astria-proto", path = "../astria-proto", features = [
   "server",
 ] }

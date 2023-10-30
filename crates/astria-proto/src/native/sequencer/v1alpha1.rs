@@ -124,6 +124,20 @@ impl SignedTransaction {
         }
     }
 
+    #[must_use]
+    pub fn to_raw(&self) -> raw::SignedTransaction {
+        let Self {
+            signature,
+            verification_key,
+            transaction,
+        } = self;
+        raw::SignedTransaction {
+            signature: signature.to_bytes().to_vec(),
+            public_key: verification_key.to_bytes().to_vec(),
+            transaction: Some(transaction.to_raw()),
+        }
+    }
+
     /// Attempt to convert from a raw, unchecked protobuf [`raw::SignedTransaction`].
     ///
     /// # Errors

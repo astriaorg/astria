@@ -2,13 +2,17 @@ name: Reusable Success Check
 
 on:
   workflow_call:
+    inputs:
+      success:
+        required: true
+        type: boolean
 
 jobs:
   success:
     runs-on: ubuntu-latest
     if: ${{ always() && !cancelled() }}
     steps:
-      - if: ${{ contains(needs.*.result, 'failure') }}
+      - if: ${{ !inputs.success }}
         run: exit 1
-      - if: ${{ !contains(needs.*.result, 'failure') }}
+      - if: ${{ inputs.success }}
         run: exit 0

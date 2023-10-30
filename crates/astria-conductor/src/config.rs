@@ -1,9 +1,5 @@
 //! The conductor configuration.
 
-use figment::{
-    providers::Env,
-    Figment,
-};
 use serde::{
     Deserialize,
     Serialize,
@@ -26,11 +22,7 @@ impl CommitLevel {
     }
 }
 
-pub fn get() -> Result<Config, figment::Error> {
-    Config::from_environment("ASTRIA_CONDUCTOR_")
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
     /// URL of the Celestia Node
@@ -75,60 +67,23 @@ pub struct Config {
     pub initial_ethereum_l1_block_height: u64,
 }
 
-impl Config {
-    fn from_environment(envar_prefix: &str) -> Result<Config, figment::Error> {
-        Figment::new()
-            .merge(Env::prefixed("RUST_").split("_").only(&["log"]))
-            .merge(Env::prefixed(envar_prefix))
-            .extract()
-    }
+impl config::Config for Config {
+    const PREFIX: &'static str = "ASTRIA_CONDUCTOR_";
 }
 
 #[cfg(test)]
 mod tests {
-    use figment::Jail;
-    use once_cell::sync::Lazy;
-    use regex::Regex;
-
     use super::Config;
 
     const EXAMPLE_ENV: &str = include_str!("../local.env.example");
 
-    fn populate_environment_from_example(jail: &mut Jail, test_envar_prefix: &str) {
-        static RE_START: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[[:space:]]+").unwrap());
-        static RE_END: Lazy<Regex> = Lazy::new(|| Regex::new(r"[[:space:]]+$").unwrap());
-        for line in EXAMPLE_ENV.lines() {
-            if let Some((key, val)) = line.trim().split_once('=') {
-                if RE_END.is_match(key) || RE_START.is_match(val) {
-                    panic!("env vars must not contain spaces in assignment\n{line}");
-                }
-                let prefixed_key = format!("{}_{}", test_envar_prefix, key);
-                jail.set_env(prefixed_key, val);
-            }
-        }
+    #[test]
+    fn example_env_config_is_up_to_date() {
+        config::tests::example_env_config_is_up_to_date::<Config>(EXAMPLE_ENV);
     }
 
     #[test]
-    fn ensure_example_env_is_in_sync() {
-        let test_envar_prefix = "TESTTEST";
-        let full_envar_prefix = format!("{}_{}", test_envar_prefix, "ASTRIA_CONDUCTOR_");
-        Jail::expect_with(|jail| {
-            populate_environment_from_example(jail, test_envar_prefix);
-            Config::from_environment(full_envar_prefix.as_str()).unwrap();
-            Ok(())
-        });
-    }
-
-    #[test]
-    #[should_panic]
-    fn extra_env_vars_are_rejected() {
-        let test_envar_prefix = "TESTTEST";
-        let full_envar_prefix = format!("{}_{}", test_envar_prefix, "ASTRIA_CONDUCTOR_");
-        Jail::expect_with(|jail| {
-            populate_environment_from_example(jail, test_envar_prefix);
-            jail.set_env("TESTTEST_ASTRIA_CONDUCTOR_FOOBAR", "BAZ");
-            Config::from_environment(full_envar_prefix.as_str()).unwrap();
-            Ok(())
-        });
+    fn config_should_reject_unknown_var() {
+        config::tests::config_should_reject_unknown_var::<Config>(EXAMPLE_ENV);
     }
 }

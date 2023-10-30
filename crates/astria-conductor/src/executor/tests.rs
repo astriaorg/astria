@@ -1,16 +1,18 @@
 use std::net::SocketAddr;
 
-use proto::generated::execution::v1alpha1::{
+use proto::generated::execution::v1alpha2::{
     execution_service_server::{
         ExecutionService,
         ExecutionServiceServer,
     },
-    DoBlockRequest,
-    DoBlockResponse,
-    FinalizeBlockRequest,
-    FinalizeBlockResponse,
-    InitStateRequest,
-    InitStateResponse,
+    BatchGetBlocksRequest,
+    BatchGetBlocksResponse,
+    Block,
+    CommitmentState,
+    ExecuteBlockRequest,
+    GetBlockRequest,
+    GetCommitmentStateRequest,
+    UpdateCommitmentStateRequest,
 };
 use sha2::Digest as _;
 use tokio::{
@@ -54,36 +56,66 @@ impl MockExecutionServer {
     }
 }
 
+fn new_basic_block() -> Block {
+    Block {
+        number: 0,
+        hash: vec![],
+        parent_block_hash: vec![],
+        timestamp: None,
+    }
+}
+
 struct ExecutionServiceImpl;
 
 #[tonic::async_trait]
 impl ExecutionService for ExecutionServiceImpl {
-    async fn init_state(
+    async fn get_block(
         &self,
-        _request: tonic::Request<InitStateRequest>,
-    ) -> std::result::Result<tonic::Response<InitStateResponse>, tonic::Status> {
-        let hasher = sha2::Sha256::new();
-        Ok(tonic::Response::new(InitStateResponse {
-            block_hash: hasher.finalize().to_vec(),
+        _request: tonic::Request<GetBlockRequest>,
+    ) -> std::result::Result<tonic::Response<Block>, tonic::Status> {
+        unimplemented!("get_block")
+    }
+
+    async fn batch_get_blocks(
+        &self,
+        _request: tonic::Request<BatchGetBlocksRequest>,
+    ) -> std::result::Result<tonic::Response<BatchGetBlocksResponse>, tonic::Status> {
+        unimplemented!("batch_get_blocks")
+    }
+
+    async fn execute_block(
+        &self,
+        request: tonic::Request<ExecuteBlockRequest>,
+    ) -> std::result::Result<tonic::Response<Block>, tonic::Status> {
+        let loc_request = request.into_inner();
+        let parent_block_hash = loc_request.prev_block_hash.clone();
+        let hash = hash(&parent_block_hash);
+        let timestamp = loc_request.timestamp.unwrap_or_default();
+        Ok(tonic::Response::new(Block {
+            number: 0, // we don't do anything with the number in the mock, can always be 0
+            hash,
+            parent_block_hash,
+            timestamp: Some(timestamp),
         }))
     }
 
-    async fn do_block(
+    async fn get_commitment_state(
         &self,
-        _request: tonic::Request<DoBlockRequest>,
-    ) -> std::result::Result<tonic::Response<DoBlockResponse>, tonic::Status> {
-        let prev_block_hash = _request.into_inner().prev_block_hash;
-        let res = hash(&prev_block_hash);
-        Ok(tonic::Response::new(DoBlockResponse {
-            block_hash: res.to_vec(),
+        _request: tonic::Request<GetCommitmentStateRequest>,
+    ) -> std::result::Result<tonic::Response<CommitmentState>, tonic::Status> {
+        Ok(tonic::Response::new(CommitmentState {
+            soft: Some(new_basic_block()),
+            firm: Some(new_basic_block()),
         }))
     }
 
-    async fn finalize_block(
+    async fn update_commitment_state(
         &self,
-        _request: tonic::Request<FinalizeBlockRequest>,
-    ) -> std::result::Result<tonic::Response<FinalizeBlockResponse>, tonic::Status> {
-        Ok(tonic::Response::new(FinalizeBlockResponse {}))
+        request: tonic::Request<UpdateCommitmentStateRequest>,
+    ) -> std::result::Result<tonic::Response<CommitmentState>, tonic::Status> {
+        Ok(tonic::Response::new(
+            request.into_inner().commitment_state.unwrap(),
+        ))
     }
 }
 
@@ -147,7 +179,8 @@ async fn start_mock(disable_empty_block_execution: bool) -> MockEnvironment {
 async fn execute_sequencer_block_without_txs() {
     let mut mock = start_mock(false).await;
 
-    let expected_exection_hash = hash(&mock.executor.execution_state);
+    // using soft hash here as sequencer blocks are executed on top of the soft commitment
+    let expected_exection_hash = hash(&mock.executor.commitment_state.soft.hash);
     let block = get_test_block_subset();
 
     let execution_block_hash = mock
@@ -155,7 +188,8 @@ async fn execute_sequencer_block_without_txs() {
         .execute_block(block)
         .await
         .unwrap()
-        .expect("expected execution block hash");
+        .expect("expected execution block hash")
+        .hash;
     assert_eq!(expected_exection_hash, execution_block_hash);
 }
 
@@ -175,17 +209,21 @@ async fn execute_unexecuted_da_block_with_transactions() {
     let mut block = get_test_block_subset();
     block.rollup_transactions.push(b"test_transaction".to_vec());
 
-    let expected_exection_hash = hash(&mock.executor.execution_state);
+    // using firm hash here as da blocks are executed on top of the firm commitment
+    let expected_exection_hash = hash(&mock.executor.commitment_state.firm.hash);
 
     mock.executor
         .execute_and_finalize_blocks_from_celestia(vec![block])
         .await
         .unwrap();
 
-    assert_eq!(expected_exection_hash, mock.executor.execution_state);
+    assert_eq!(
+        expected_exection_hash,
+        mock.executor.commitment_state.firm.hash
+    );
     // should be empty because 1 block was executed and finalized, which
     // deletes it from the map
-    assert!(mock.executor.sequencer_hash_to_execution_hash.is_empty());
+    assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
 }
 
 #[tokio::test]
@@ -193,45 +231,57 @@ async fn skip_unexecuted_da_block_with_no_transactions() {
     let mut mock = start_mock(true).await;
 
     let block = get_test_block_subset();
-    let previous_execution_state = mock.executor.execution_state.clone();
+    // using firm hash here as da blocks are executed on top of the firm commitment
+    let previous_execution_state = mock.executor.commitment_state.firm.hash.clone();
 
     mock.executor
         .execute_and_finalize_blocks_from_celestia(vec![block])
         .await
         .unwrap();
 
-    assert_eq!(previous_execution_state, mock.executor.execution_state,);
+    assert_eq!(
+        previous_execution_state,
+        mock.executor.commitment_state.firm.hash,
+    );
     // should be empty because nothing was executed
-    assert!(mock.executor.sequencer_hash_to_execution_hash.is_empty());
+    assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
 }
 
 #[tokio::test]
 async fn execute_unexecuted_da_block_with_no_transactions() {
     let mut mock = start_mock(false).await;
     let block = get_test_block_subset();
-    let expected_execution_state = hash(&mock.executor.execution_state);
+    // using firm hash here as da blocks are executed on top of the firm commitment
+    let expected_execution_state = hash(&mock.executor.commitment_state.firm.hash);
 
     mock.executor
         .execute_and_finalize_blocks_from_celestia(vec![block])
         .await
         .unwrap();
 
-    assert_eq!(expected_execution_state, mock.executor.execution_state);
+    assert_eq!(
+        expected_execution_state,
+        mock.executor.commitment_state.firm.hash
+    );
     // should be empty because block was executed and finalized, which
     // deletes it from the map
-    assert!(mock.executor.sequencer_hash_to_execution_hash.is_empty());
+    assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
 }
 
 #[tokio::test]
 async fn empty_message_from_data_availability_is_dropped() {
     let mut mock = start_mock(false).await;
-    let expected_execution_state = mock.executor.execution_state.clone();
+    // using firm hash here as da blocks are executed on top of the firm commitment
+    let expected_execution_state = mock.executor.commitment_state.firm.hash.clone();
 
     mock.executor
         .execute_and_finalize_blocks_from_celestia(vec![])
         .await
         .unwrap();
 
-    assert_eq!(expected_execution_state, mock.executor.execution_state);
-    assert!(mock.executor.sequencer_hash_to_execution_hash.is_empty());
+    assert_eq!(
+        expected_execution_state,
+        mock.executor.commitment_state.firm.hash
+    );
+    assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
 }
