@@ -133,6 +133,20 @@ impl Executor {
             .await
             .wrap_err("executor failed to get commitment state")?;
 
+        // The `executable_block_height` is the height of the sequencer block
+        // where the Conductor sync will be started. The `init_sequencer_height`
+        // is set when the rollup is first created and let's us know that this
+        // rollup's genesis block is in block K of the sequencer chain.
+        // The `commitment_state.soft.number` is the block height of the most
+        // recently executed block on the rollup and is pulled from the rollup
+        // the Conductor is associated with on startup of the Conductor (N
+        // blocks have already been executed on the rollup).
+        // `executable_block_height` represents where the Condutor sync should
+        // start:
+        // `executable_block_height` = sequencer block K + executed block N
+        // By setting this value we prevent the reexecution of blocks on the
+        // rollup. If block M is the most recent sequencer block, we then know
+        // that we need to sync blocks from `executable_block_height` to M.
         let executable_block_height = commitment_state.soft.number + init_sequencer_height;
 
         Ok(Self {
