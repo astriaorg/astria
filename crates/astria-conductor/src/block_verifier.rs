@@ -115,6 +115,7 @@ fn validate_sequencer_namespace_data(
         action_tree_root,
         action_tree_root_inclusion_proof,
         chain_ids_commitment,
+        chain_ids_commitment_inclusion_proof,
     } = data;
 
     // find proposer address for this height
@@ -177,6 +178,12 @@ fn validate_sequencer_namespace_data(
     action_tree_root_inclusion_proof
         .verify(&action_tree_root_hash, data_hash)
         .wrap_err("failed to verify action tree root inclusion proof")?;
+
+    // validate the chain IDs commitment was included inside `data_hash`
+    let chain_ids_commitment_hash = sha2::Sha256::digest(chain_ids_commitment);
+    chain_ids_commitment_inclusion_proof
+        .verify(&chain_ids_commitment_hash, data_hash)
+        .wrap_err("failed to verify chain IDs commitment inclusion proof")?;
 
     // validate the chain IDs commitment
     let leaves = data
@@ -412,11 +419,13 @@ mod test {
     fn validate_sequencer_namespace_data_last_commit_none_ok() {
         let action_tree = MerkleTree::from_leaves(vec![vec![1, 2, 3], vec![4, 5, 6]]);
         let action_tree_root = action_tree.root();
+        let chain_ids_commitment = MerkleTree::from_leaves(vec![]).root();
 
-        let txs = vec![action_tree_root.to_vec()];
+        let txs = vec![action_tree_root.to_vec(), chain_ids_commitment.to_vec()];
         let (data_hash, tx_tree) =
             astria_sequencer_types::sequencer_block_data::calculate_data_hash_and_tx_tree(&txs);
         let action_tree_root_inclusion_proof = tx_tree.prove_inclusion(0).unwrap();
+        let chain_ids_commitment_inclusion_proof = tx_tree.prove_inclusion(1).unwrap();
 
         let mut header = astria_sequencer_types::test_utils::default_header();
         let height = header.height.value() as u32;
@@ -433,7 +442,8 @@ mod test {
             rollup_chain_ids: vec![],
             action_tree_root,
             action_tree_root_inclusion_proof,
-            chain_ids_commitment: MerkleTree::from_leaves(vec![]).root(),
+            chain_ids_commitment,
+            chain_ids_commitment_inclusion_proof,
         };
 
         validate_sequencer_namespace_data(
@@ -454,11 +464,13 @@ mod test {
 
         let action_tree = MerkleTree::from_leaves(leaves);
         let action_tree_root = action_tree.root();
+        let chain_ids_commitment = MerkleTree::from_leaves(vec![test_chain_id.to_vec()]).root();
 
-        let txs = vec![action_tree_root.to_vec()];
+        let txs = vec![action_tree_root.to_vec(), chain_ids_commitment.to_vec()];
         let (data_hash, tx_tree) =
             astria_sequencer_types::sequencer_block_data::calculate_data_hash_and_tx_tree(&txs);
         let action_tree_root_inclusion_proof = tx_tree.prove_inclusion(0).unwrap();
+        let chain_ids_commitment_inclusion_proof = tx_tree.prove_inclusion(1).unwrap();
 
         let mut header = astria_sequencer_types::test_utils::default_header();
         let height = header.height.value() as u32;
@@ -477,7 +489,8 @@ mod test {
             ],
             action_tree_root,
             action_tree_root_inclusion_proof,
-            chain_ids_commitment: MerkleTree::from_leaves(vec![test_chain_id.to_vec()]).root(),
+            chain_ids_commitment,
+            chain_ids_commitment_inclusion_proof,
         };
 
         let rollup_namespace_data = RollupNamespaceData {

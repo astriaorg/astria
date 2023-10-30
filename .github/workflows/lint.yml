@@ -11,6 +11,7 @@ jobs:
 
   pr_title:
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v2
       - uses: CondeNast/conventional-pull-request-action@v0.2.0

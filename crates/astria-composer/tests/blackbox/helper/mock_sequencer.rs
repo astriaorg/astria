@@ -10,26 +10,31 @@ use wiremock::{
         body_string_contains,
     },
     Mock,
+    MockGuard,
     MockServer,
     ResponseTemplate,
 };
 
-pub async fn start() -> MockServer {
+pub async fn start() -> (MockServer, MockGuard) {
     use proto::generated::sequencer::v1alpha1::NonceResponse;
     let server = MockServer::start().await;
-    mount_abci_query_mock(
+    let startup_guard = mount_abci_query_mock(
         &server,
         "accounts/nonce",
         NonceResponse {
-            height: 42,
-            nonce: 42,
+            height: 0,
+            nonce: 0,
         },
     )
     .await;
-    server
+    (server, startup_guard)
 }
 
-async fn mount_abci_query_mock(server: &MockServer, query_path: &str, response: impl Message) {
+pub async fn mount_abci_query_mock(
+    server: &MockServer,
+    query_path: &str,
+    response: impl Message,
+) -> MockGuard {
     let expected_body = json!({
         "method": "abci_query"
     });
@@ -47,7 +52,8 @@ async fn mount_abci_query_mock(server: &MockServer, query_path: &str, response: 
                 .set_body_json(&wrapper)
                 .append_header("Content-Type", "application/json"),
         )
+        .up_to_n_times(1)
         .expect(1)
-        .mount(server)
-        .await;
+        .mount_as_scoped(server)
+        .await
 }

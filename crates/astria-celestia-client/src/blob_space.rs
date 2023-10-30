@@ -52,6 +52,7 @@ pub struct SequencerNamespaceData {
     pub action_tree_root: [u8; 32],
     pub action_tree_root_inclusion_proof: InclusionProof,
     pub chain_ids_commitment: [u8; 32],
+    pub chain_ids_commitment_inclusion_proof: InclusionProof,
 }
 
 #[derive(Debug, thiserror::Error)]

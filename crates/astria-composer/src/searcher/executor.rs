@@ -3,20 +3,35 @@
 /// - Transaction signing
 /// - Managing the connection to the sequencer
 /// - Submitting transactions to the sequencer
-use std::time::Duration;
+use std::{
+    pin::Pin,
+    task::Poll,
+    time::Duration,
+};
 
 use color_eyre::eyre::{
     self,
-    bail,
     eyre,
     Context,
 };
 use ed25519_consensus::SigningKey;
-use humantime::format_duration;
-use proto::native::sequencer::v1alpha1::{
-    Action,
-    SignedTransaction,
-    UnsignedTransaction,
+use futures::{
+    future::{
+        Fuse,
+        FusedFuture as _,
+        FutureExt as _,
+    },
+    ready,
+    Future,
+};
+use pin_project_lite::pin_project;
+use proto::{
+    native::sequencer::v1alpha1::{
+        Action,
+        SignedTransaction,
+        UnsignedTransaction,
+    },
+    Message as _,
 };
 use secrecy::{
     ExposeSecret as _,
@@ -26,19 +41,26 @@ use secrecy::{
 use sequencer_client::{
     tendermint_rpc::endpoint::broadcast::tx_sync,
     Address,
-    NonceResponse,
-    SequencerClientExt,
+    SequencerClientExt as _,
 };
-use tokio::sync::{
-    mpsc,
-    watch,
+use sequencer_types::abci_code::AbciCode;
+use tokio::{
+    select,
+    sync::{
+        mpsc,
+        watch,
+    },
 };
 use tracing::{
     debug,
     error,
     info,
+    info_span,
     instrument,
     warn,
+    warn_span,
+    Instrument,
+    Span,
 };
 
 /// The `Executor` interfaces with the sequencer. It handles account nonces, transaction signing,
@@ -50,17 +72,21 @@ use tracing::{
 pub(super) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
-    // Channel for receiving bundles to pack, sign, and submit
-    executor_rx: mpsc::Receiver<Vec<Action>>,
+    // Channel for receiving action bundles for submission to the sequencer.
+    new_bundles: mpsc::Receiver<Vec<Action>>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
-    sequencer_client: SequencerClient,
+    sequencer_client: sequencer_client::HttpClient,
     // Private key used to sign sequencer transactions
     sequencer_key: SigningKey,
-    // Nonce of the sequencer account we sign with
-    nonce: Option<u32>,
     // The sequencer address associated with the private key
     address: Address,
+}
+
+impl Drop for Executor {
+    fn drop(&mut self) {
+        self.sequencer_key.zeroize();
+    }
 }
 
 #[derive(Debug)]
@@ -84,13 +110,11 @@ impl Executor {
     pub(super) fn new(
         sequencer_url: &str,
         private_key: &SecretString,
-        executor_rx: mpsc::Receiver<Vec<Action>>,
+        new_bundles: mpsc::Receiver<Vec<Action>>,
     ) -> eyre::Result<Self> {
-        // connect to sequencer node
-        let sequencer_client =
-            SequencerClient::new(sequencer_url).wrap_err("failed constructing sequencer client")?;
+        let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
+            .wrap_err("failed constructing sequencer client")?;
 
-        // create signing key for sequencer txs
         let mut private_key_bytes: [u8; 32] = hex::decode(private_key.expose_secret())
             .wrap_err("failed to decode private key bytes from hex string")?
             .try_into()
@@ -99,18 +123,15 @@ impl Executor {
             SigningKey::try_from(private_key_bytes).wrap_err("failed to parse sequencer key")?;
         private_key_bytes.zeroize();
 
-        // create address from signing key
         let sequencer_address = Address::from_verification_key(sequencer_key.verification_key());
 
-        // create channel for status reporting
         let (status, _) = watch::channel(Status::new());
 
         Ok(Self {
             status,
-            executor_rx,
+            new_bundles,
             sequencer_client,
             sequencer_key,
-            nonce: None,
             address: sequencer_address,
         })
     }
@@ -120,178 +141,283 @@ impl Executor {
         self.status.subscribe()
     }
 
-    /// Gets the next nonce to sign over if it exists and increments the stored nonce counter
-    fn get_and_increment_nonce(&mut self) -> Option<u32> {
-        self.nonce.map(|curr_nonce| {
-            self.nonce = Some(curr_nonce + 1);
-            curr_nonce
-        })
-    }
-
-    /// Sugmits a signed transaction to the sequencer node.
-    /// TODO: handle failed tx submission due to nonce
-    async fn submit_tx(&self, signed_tx: SignedTransaction) -> eyre::Result<()> {
-        let rsp = self
-            .sequencer_client
-            .submit_transaction_sync(signed_tx)
-            .await
-            .wrap_err("failed submitting transaction to sequencer")?;
-        if rsp.code.is_err() {
-            bail!(
-                "submitting transaction to sequencer returned with error code; code: `{code}`; \
-                 log: `{log}`; hash: `{hash}`",
-                code = rsp.code.value(),
-                log = rsp.log,
-                hash = rsp.hash,
-            );
-        }
-        Ok(())
-    }
-
-    /// Signs and submits the bundle of actions to the sequencer.
-    async fn sign_and_submit(&mut self, actions: Vec<Action>) -> eyre::Result<()> {
-        let nonce = self
-            .get_and_increment_nonce()
-            .ok_or(eyre!("no nonce stored; cannot process bundle"))?;
-
-        let tx = UnsignedTransaction {
-            nonce,
-            actions,
-        }
-        .into_signed(&self.sequencer_key);
-
-        self.submit_tx(tx)
-            .await
-            .wrap_err("failed submitting signed actions to sequencer")?;
-        Ok(())
-    }
-
     /// Run the Executor loop, calling `process_bundle` on each bundle received from the channel.
     ///
     /// # Errors
     /// An error is returned if connecting to the sequencer fails.
+    #[instrument(skip_all, fields(address = %self.address))]
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        // set up connection to sequencer
-        self.init_nonce_from_sequencer(5, Duration::from_secs(5), 2.0)
+        use tracing::instrument::Instrumented;
+        let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
+        let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address)
             .await
-            .wrap_err("failed retrieving initial nonce from sequencer")?;
+            .wrap_err("failed getting initial nonce from sequencer")?;
+        self.status.send_modify(|status| status.is_connected = true);
+        loop {
+            select! {
+                biased;
 
-        while let Some(bundle) = self.executor_rx.recv().await {
-            if let Err(e) = self.sign_and_submit(bundle).await {
-                // FIXME: currently this will fail both when there is an issue with the nonce and
-                // when unable to reach the sequencer. As there is currently no error returned by
-                // the sequencer for invalid nonces, there is nothing to handle. This should be
-                // changed after #364 is merged in a followup PR to handle nonce failues.
-                error!(
-                    error.message = %e,
-                    error.cause_chain = ?e,
-                    "failed submitting the bundle to the sequencer; bailing",
-                );
-                break;
+                rsp = &mut submission_fut, if !submission_fut.is_terminated() => {
+                    match rsp {
+                        Ok(new_nonce) => nonce = new_nonce,
+                        Err(e) => {
+                            let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                            error!(error, "failed submitting bundle to sequencer; aborting executor");
+                            break Err(e).wrap_err("failed submitting bundle to sequencer");
+                        }
+                    }
+                }
+
+                // receive new bundle for processing
+                Some(bundle) = self.new_bundles.recv(), if submission_fut.is_terminated() => {
+                    // TODO(https://github.com/astriaorg/astria/issues/476): Attach the hash of the
+                    // bundle to the span. Linked GH issue is for agreeing on a hash for `SignedTransaction`,
+                    // but both should be addressed.
+                    let span =  info_span!(
+                        "submit bundle",
+                        nonce.initial = nonce,
+                        bundle.len = bundle.len(),
+                    );
+                    submission_fut = SubmitFut {
+                        client: self.sequencer_client.clone(),
+                        address: self.address,
+                        nonce,
+                        signing_key: self.sequencer_key.clone(),
+                        state: SubmitState::NotStarted,
+                        bundle,
+                    }
+                    .instrument(span)
+                    .fuse();
+                }
             }
         }
-        Ok(())
     }
+}
 
-    /// Wait until a connection to the sequencer is established.
-    ///
-    /// This function tries to establish a connection to the sequencer by
-    /// querying its `abci_info` RPC. If it fails, it retries for another `n_retries`
-    /// times with exponential backoff.
-    ///
-    /// # Errors
-    ///
-    /// An error is returned if calling the sequencer failed for `n_retries + 1` times.
-    #[instrument(skip_all, fields(
-        retries.max_number = n_retries,
-        retries.initial_delay = %format_duration(delay),
-        retries.exponential_factor = factor,
-    ))]
-    async fn init_nonce_from_sequencer(
-        &mut self,
-        n_retries: usize,
-        delay: Duration,
-        factor: f32,
-    ) -> eyre::Result<()> {
-        use backon::{
-            ExponentialBuilder,
-            Retryable as _,
-        };
-        debug!("attempting to connect to sequencer",);
-        let backoff = ExponentialBuilder::default()
-            .with_min_delay(delay)
-            .with_factor(factor)
-            .with_max_times(n_retries);
-        let nonce_response = (|| {
-            let client = self.sequencer_client.clone();
-            let address = self.address;
-            async move { client.get_latest_nonce(address).await }
-        })
-        .retry(&backoff)
-        .notify(|err, dur| {
-            warn!(
-                error.message = %err,
-                error.cause = ?err,
-                retry_in = %format_duration(dur),
-                address = %self.address,
-                "failed getting nonce; retrying",
-            );
-        })
-        .await
-        .wrap_err("failed to retrieve initial nonce from sequencer after several retries")?;
-
-        self.nonce = Some(nonce_response.nonce);
-        info!(
-            nonce_response.nonce,
-            "retrieved initial nonce from sequencer successfully"
+/// Queries the sequencer for the latest nonce with an exponential backoff
+#[instrument(name = "get latest nonce", skip_all, fields(%address))]
+async fn get_latest_nonce(
+    client: sequencer_client::HttpClient,
+    address: Address,
+) -> eyre::Result<u32> {
+    debug!("fetching latest nonce from sequencer");
+    let span = Span::current();
+    let retry_config = tryhard::RetryFutureConfig::new(1024)
+        .exponential_backoff(Duration::from_millis(200))
+        .max_delay(Duration::from_secs(60))
+        .on_retry(
+            |attempt,
+             next_delay: Option<Duration>,
+             err: &sequencer_client::extension_trait::Error| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                let err = err.clone();
+                let span = warn_span!(parent: span.clone(), "report attempt failure");
+                async move {
+                    let error = &err as &(dyn std::error::Error + 'static);
+                    warn!(
+                        attempt,
+                        wait_duration,
+                        error,
+                        "failed getting latest nonce from sequencer; retrying after backoff",
+                    );
+                }
+                .instrument(span)
+            },
         );
-
-        self.status.send_modify(|status| {
-            status.is_connected = true;
-        });
-        Ok(())
-    }
-}
-/// A thin wrapper around [`sequencer_client::Client`] to add timeouts.
-///
-/// Currently only provides a timeout for `abci_info`.
-#[derive(Clone, Debug)]
-struct SequencerClient {
-    inner: sequencer_client::HttpClient,
+    tryhard::retry_fn(|| {
+        let client = client.clone();
+        let span = info_span!(parent: span.clone(), "attempt get nonce");
+        async move { client.get_latest_nonce(address).await.map(|rsp| rsp.nonce) }.instrument(span)
+    })
+    .with_config(retry_config)
+    .await
+    .wrap_err("failed getting latest nonce from sequencer after 1024 attempts")
 }
 
-impl SequencerClient {
-    #[instrument]
-    fn new(url: &str) -> eyre::Result<Self> {
-        let inner = sequencer_client::HttpClient::new(url)
-            .wrap_err("failed to construct sequencer client")?;
-        Ok(Self {
-            inner,
-        })
+/// Queries the sequencer for the latest nonce with an exponential backoff
+#[instrument(
+    name = "submit signed transaction",
+    skip_all,
+    fields(
+        nonce = tx.unsigned_transaction().nonce,
+        transaction.hash = hex::encode(sha256(&tx.to_raw().encode_to_vec())),
+    )
+)]
+async fn submit_tx(
+    client: sequencer_client::HttpClient,
+    tx: SignedTransaction,
+) -> eyre::Result<tx_sync::Response> {
+    debug!("submitting signed transaction to sequencer");
+    let span = Span::current();
+    let retry_config = tryhard::RetryFutureConfig::new(1024)
+        .exponential_backoff(Duration::from_millis(200))
+        .max_delay(Duration::from_secs(60))
+        .on_retry(
+            |attempt,
+             next_delay: Option<Duration>,
+             err: &sequencer_client::extension_trait::Error| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                let err = err.clone();
+                let span = warn_span!(parent: span.clone(), "report attempt failure");
+                async move {
+                    let error = &err as &(dyn std::error::Error + 'static);
+                    warn!(
+                        attempt,
+                        wait_duration,
+                        error,
+                        "failed sending transaction to sequencer; retrying after backoff",
+                    );
+                }
+                .instrument(span)
+            },
+        );
+    tryhard::retry_fn(|| {
+        let client = client.clone();
+        let tx = tx.clone();
+        let span = info_span!(parent: span.clone(), "attempt send");
+        async move { client.submit_transaction_sync(tx).await }.instrument(span)
+    })
+    .with_config(retry_config)
+    .await
+    .wrap_err("failed sending transaction after 1024 attempts")
+}
+
+pin_project! {
+    /// A future to submit a bundle to the sequencer, returning the next nonce that should be used for the next submission.
+    ///
+    /// The future will fetch a new nonce from the sequencer if a submission returned an `INVALID_NONCE` error code.
+    ///
+    /// The future will only return an error if it ultimately failed submitting a transaction due to the underlying
+    /// transport failing. This can be taken as a break condition to exit the executor loop.
+    ///
+    /// If the sequencer returned a non-zero abci code (albeit not `INVALID_NONCE`), this future will return with
+    /// that nonce it used to submit the non-zero abci code request.
+    struct SubmitFut {
+        client: sequencer_client::HttpClient,
+        address: Address,
+        nonce: u32,
+        signing_key: SigningKey,
+        #[pin]
+        state: SubmitState,
+        bundle: Vec<Action>,
     }
 
-    /// Wrapper around [`Client::get_latest_nonce`] with a 1s timeout.
-    async fn get_latest_nonce(&self, address: Address) -> eyre::Result<NonceResponse> {
-        tokio::time::timeout(
-            Duration::from_secs(1),
-            self.inner.get_latest_nonce(address.0),
-        )
-        .await
-        .wrap_err("request timed out")?
-        .wrap_err("RPC returned with error")
+    impl PinnedDrop for SubmitFut {
+        fn drop(this: Pin<&mut Self>) {
+            this.project().signing_key.zeroize();
+        }
     }
+}
 
-    /// Wrapper around [`Client::submit_transaction_sync`] with a 1s timeout.
-    async fn submit_transaction_sync(
-        &self,
-        signed_tx: SignedTransaction,
-    ) -> eyre::Result<tx_sync::Response> {
-        tokio::time::timeout(
-            Duration::from_secs(1),
-            self.inner.submit_transaction_sync(signed_tx),
-        )
-        .await
-        .wrap_err("request timed out")?
-        .wrap_err("RPC returned with error")
+pin_project! {
+    #[project = SubmitStateProj]
+    enum SubmitState {
+        NotStarted,
+        WaitingForSend {
+            #[pin]
+            fut: Pin<Box<dyn Future<Output = eyre::Result<tx_sync::Response>> + Send>>,
+        },
+        WaitingForNonce {
+            #[pin]
+            fut: Pin<Box<dyn Future<Output = eyre::Result<u32>> + Send>>,
+        }
     }
+}
+
+impl Future for SubmitFut {
+    type Output = eyre::Result<u32>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        loop {
+            let this = self.as_mut().project();
+
+            let new_state = match this.state.project() {
+                SubmitStateProj::NotStarted => {
+                    let tx = UnsignedTransaction {
+                        nonce: *this.nonce,
+                        actions: this.bundle.clone(),
+                    }
+                    .into_signed(this.signing_key);
+                    SubmitState::WaitingForSend {
+                        fut: submit_tx(this.client.clone(), tx).boxed(),
+                    }
+                }
+
+                SubmitStateProj::WaitingForSend {
+                    fut,
+                } => match ready!(fut.poll(cx)) {
+                    Ok(rsp) => match AbciCode::from_cometbft(rsp.code) {
+                        Some(AbciCode::OK) => {
+                            info!("sequencer responded with AbciCode zero; submission successful");
+                            return Poll::Ready(Ok(*this.nonce + 1));
+                        }
+                        Some(AbciCode::INVALID_NONCE) => {
+                            info!(
+                                "sequencer responded with `invalid nonce` abci code; fetching new \
+                                 nonce"
+                            );
+                            SubmitState::WaitingForNonce {
+                                fut: get_latest_nonce(this.client.clone(), *this.address).boxed(),
+                            }
+                        }
+                        _other => {
+                            warn!(
+                                abci.code = rsp.code.value(),
+                                abci.log = rsp.log,
+                                "sequencer responded with non-zero abci code; the bundle is \
+                                 likely lost",
+                            );
+                            return Poll::Ready(Ok(*this.nonce));
+                        }
+                    },
+                    Err(e) => {
+                        let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                        error!(error, "failed sending transaction to sequencer");
+                        return Poll::Ready(
+                            Err(e).wrap_err("failed sending transaction to sequencer"),
+                        );
+                    }
+                },
+
+                SubmitStateProj::WaitingForNonce {
+                    fut,
+                } => match ready!(fut.poll(cx)) {
+                    Ok(nonce) => {
+                        *this.nonce = nonce;
+                        let tx = UnsignedTransaction {
+                            nonce: *this.nonce,
+                            actions: this.bundle.clone(),
+                        }
+                        .into_signed(this.signing_key);
+                        SubmitState::WaitingForSend {
+                            fut: submit_tx(this.client.clone(), tx).boxed(),
+                        }
+                    }
+                    Err(e) => {
+                        let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                        error!(
+                            error,
+                            "critically failed getting a new nonce from the sequencer",
+                        );
+                        return Poll::Ready(Err(e).wrap_err("failed getting nonce from sequencer"));
+                    }
+                },
+            };
+            self.as_mut().project().state.set(new_state);
+        }
+    }
+}
+
+fn sha256(data: &[u8]) -> [u8; 32] {
+    use sha2::{
+        Digest as _,
+        Sha256,
+    };
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    hasher.finalize().into()
 }
