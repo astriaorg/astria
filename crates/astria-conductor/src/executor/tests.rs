@@ -151,7 +151,7 @@ async fn start_mock(disable_empty_block_execution: bool) -> MockEnvironment {
         &server_url,
         chain_id,
         disable_empty_block_execution,
-        1,
+        1, // genesis block is always block 0, first executable block will always be block 1
         block_rx,
         shutdown_rx,
     )
@@ -275,4 +275,44 @@ async fn empty_message_from_data_availability_is_dropped() {
         mock.executor.commitment_state.firm.hash
     );
     assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
+}
+
+#[tokio::test]
+async fn try_execute_out_of_order_block_from_sequencer() {
+    let mut mock = start_mock(false).await;
+    let mut block = get_test_block_subset();
+
+    // 0 is always the genesis block, so this should fail
+    block.header.height = (0 as u32).into();
+    let execution_result = mock.executor.execute_block(block.clone()).await;
+    assert!(execution_result.is_err());
+
+    // the first block to execute should always be 1, this should fail as it is
+    // in the future
+    block.header.height = (2 as u32).into();
+    let execution_result = mock.executor.execute_block(block).await;
+    assert!(execution_result.is_err());
+}
+
+#[tokio::test]
+async fn try_execute_out_of_order_block_from_celestia() {
+    let mut mock = start_mock(false).await;
+    let mut block = get_test_block_subset();
+
+    // 0 is always the genesis block, so this should fail
+    block.header.height = (0 as u32).into();
+    let execution_result = mock
+        .executor
+        .execute_and_finalize_blocks_from_celestia(vec![block.clone()])
+        .await;
+    assert!(execution_result.is_err());
+
+    // the first block to execute should always be 1, this should fail as it is
+    // in the future
+    block.header.height = (2 as u32).into();
+    let execution_result = mock
+        .executor
+        .execute_and_finalize_blocks_from_celestia(vec![block])
+        .await;
+    assert!(execution_result.is_err());
 }

@@ -214,13 +214,14 @@ impl Executor {
         Ok(())
     }
 
-    /// checks for relevant transactions in the SequencerBlock and attempts
-    /// to execute them via the execution service function DoBlock.
-    /// if there are relevant transactions that successfully execute,
+    /// Checks for relevant transactions in the SequencerBlock and attempts
+    /// to execute them via the execution service function ExecuteBlock.
+    /// If there are relevant transactions that successfully execute,
     /// it returns the resulting execution block hash.
-    /// if the block has already been executed, it returns the previously-computed
+    /// If the block has already been executed, it returns the previously-computed
     /// execution block hash.
     /// if there are no relevant transactions in the SequencerBlock, it returns None.
+    /// If the block is out of order, it returns an error.
     async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Block>> {
         if self.disable_empty_block_execution && block.rollup_transactions.is_empty() {
             debug!(
