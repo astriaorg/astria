@@ -283,13 +283,13 @@ async fn try_execute_out_of_order_block_from_sequencer() {
     let mut block = get_test_block_subset();
 
     // 0 is always the genesis block, so this should fail
-    block.header.height = (0 as u32).into();
+    block.header.height = 0_u32.into();
     let execution_result = mock.executor.execute_block(block.clone()).await;
     assert!(execution_result.is_err());
 
     // the first block to execute should always be 1, this should fail as it is
     // in the future
-    block.header.height = (2 as u32).into();
+    block.header.height = 2_u32.into();
     let execution_result = mock.executor.execute_block(block).await;
     assert!(execution_result.is_err());
 }
@@ -300,7 +300,7 @@ async fn try_execute_out_of_order_block_from_celestia() {
     let mut block = get_test_block_subset();
 
     // 0 is always the genesis block, so this should fail
-    block.header.height = (0 as u32).into();
+    block.header.height = 0_u32.into();
     let execution_result = mock
         .executor
         .execute_and_finalize_blocks_from_celestia(vec![block.clone()])
@@ -309,7 +309,7 @@ async fn try_execute_out_of_order_block_from_celestia() {
 
     // the first block to execute should always be 1, this should fail as it is
     // in the future
-    block.header.height = (2 as u32).into();
+    block.header.height = 2_u32.into();
     let execution_result = mock
         .executor
         .execute_and_finalize_blocks_from_celestia(vec![block])
