@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use astria_sequencer_types::{
     ChainId,
@@ -8,6 +11,18 @@ use color_eyre::eyre::{
     self,
     Result,
     WrapErr as _,
+};
+use ethers::{
+    prelude::*,
+    types::transaction::eip2718::TypedTransaction,
+};
+use optimism::{
+    contract::{
+        OptimismPortal,
+        TransactionDepositedFilter,
+    },
+    deposit::convert_deposit_event_to_deposit_tx,
+    DepositTransaction,
 };
 use prost_types::Timestamp as ProstTimestamp;
 use proto::generated::execution::v1alpha2::{
@@ -35,23 +50,6 @@ use tracing::{
     info,
     instrument,
     warn,
-};
-#[cfg(feature = "optimism")]
-use {
-    ethers::prelude::*,
-    ethers::types::transaction::eip2718::TypedTransaction,
-    optimism::{
-        contract::{
-            OptimismPortal,
-            TransactionDepositedFilter,
-        },
-        deposit::convert_deposit_event_to_deposit_tx,
-        DepositTransaction,
-    },
-    std::{
-        collections::VecDeque,
-        sync::Arc,
-    },
 };
 
 use crate::{
@@ -128,12 +126,84 @@ pub(crate) struct Executor {
     /// Chose to execute empty blocks or not
     disable_empty_block_execution: bool,
 
-    #[cfg(feature = "optimism")]
+    pre_execution_hook: Option<Box<dyn PreExecutionHook>>,
+}
+
+#[async_trait::async_trait]
+pub(crate) trait PreExecutionHook: Send + Sync {
+    async fn populate_rollup_transactions(
+        &mut self,
+        sequenced_transactions: Vec<Vec<u8>>,
+    ) -> Result<Vec<Vec<u8>>>;
+}
+
+pub(crate) struct OptimismWatcher {
+    provider: Arc<Provider<Ws>>,
     optimism_portal_contract: OptimismPortal<Provider<Ws>>,
-    #[cfg(feature = "optimism")]
-    queued_deposit_txs: VecDeque<DepositTransaction>,
-    #[cfg(feature = "optimism")]
-    initial_ethereum_l1_block_height: u64,
+    from_block_height: u64,
+    to_block_height: u64,
+}
+
+impl OptimismWatcher {
+    pub(crate) async fn new(
+        ethereum_provider: Provider<Ws>,
+        optimism_portal_contract_address: Address,
+        initial_ethereum_l1_block_height: u64,
+    ) -> Self {
+        let provider = Arc::new(ethereum_provider);
+        let optimism_portal_contract = optimism::contract::get_optimism_portal_read_only(
+            provider.clone(),
+            optimism_portal_contract_address,
+        );
+
+        Self {
+            provider,
+            optimism_portal_contract,
+            from_block_height: initial_ethereum_l1_block_height,
+            to_block_height: initial_ethereum_l1_block_height,
+        }
+    }
+
+    pub(crate) async fn query_events(
+        &mut self,
+    ) -> Result<Vec<(TransactionDepositedFilter, LogMeta)>> {
+        let to_block = self.provider.get_block_number().await?;
+        let event_filter = self
+            .optimism_portal_contract
+            .event::<TransactionDepositedFilter>()
+            .from_block(self.from_block_height)
+            .to_block(to_block);
+
+        let events = event_filter
+            .query_with_meta()
+            .await
+            .map_err(|e| eyre::eyre!(e))?;
+        self.to_block_height = to_block.as_u64();
+        Ok(events)
+    }
+}
+
+#[async_trait::async_trait]
+impl PreExecutionHook for OptimismWatcher {
+    async fn populate_rollup_transactions(
+        &mut self,
+        sequenced_transactions: Vec<Vec<u8>>,
+    ) -> Result<Vec<Vec<u8>>> {
+        let deposit_events = self.query_events().await?;
+        let deposit_txs = deposit_events
+            .into_iter()
+            .map(|(event, meta)| {
+                convert_deposit_event_to_deposit_tx(event, meta.block_hash, meta.log_index)
+            })
+            .collect::<Result<Vec<DepositTransaction>>>()?;
+
+        let deposit_txs = deposit_txs
+            .into_iter()
+            .map(|tx| TypedTransaction::DepositTransaction(tx).rlp().to_vec())
+            .collect::<Vec<Vec<u8>>>();
+
+        Ok([deposit_txs, sequenced_transactions].concat())
+    }
 }
 
 impl Executor {
@@ -144,9 +214,7 @@ impl Executor {
         disable_empty_block_execution: bool,
         cmd_rx: Receiver,
         shutdown: oneshot::Receiver<()>,
-        #[cfg(feature = "optimism")] ethereum_provider: Provider<Ws>,
-        #[cfg(feature = "optimism")] optimism_portal_contract_address: Address,
-        #[cfg(feature = "optimism")] initial_ethereum_l1_block_height: u64,
+        hook: Option<Box<dyn PreExecutionHook>>,
     ) -> Result<Self> {
         let mut execution_rpc_client = ExecutionServiceClient::connect(server_addr.to_owned())
             .await
@@ -162,11 +230,6 @@ impl Executor {
             "initial execution commitment state",
         );
 
-        #[cfg(feature = "optimism")]
-        let optimism_portal_contract = optimism::contract::get_optimism_portal_read_only(
-            Arc::new(ethereum_provider),
-            optimism_portal_contract_address,
-        );
         Ok(Self {
             cmd_rx,
             shutdown,
@@ -175,27 +238,13 @@ impl Executor {
             commitment_state,
             sequencer_hash_to_execution_block: HashMap::new(),
             disable_empty_block_execution,
-            #[cfg(feature = "optimism")]
-            optimism_portal_contract,
-            #[cfg(feature = "optimism")]
-            queued_deposit_txs: VecDeque::new(),
-            #[cfg(feature = "optimism")]
-            initial_ethereum_l1_block_height,
+            pre_execution_hook: hook,
         })
     }
 
     #[instrument(skip_all)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        #[cfg(feature = "optimism")]
-        let events = self
-            .optimism_portal_contract
-            .event::<TransactionDepositedFilter>()
-            .from_block(self.initial_ethereum_l1_block_height);
-        #[cfg(feature = "optimism")]
-        let mut stream = events.stream().await?.with_meta();
-
         loop {
-            #[cfg(not(feature = "optimism"))]
             select!(
                 biased;
 
@@ -211,54 +260,6 @@ impl Executor {
                     if let Err(e) = self.handle_executor_command(cmd).await {
                         error!(error.message = %e, "failed to handle executor command, breaking from executor loop");
                         break;
-                    }
-                }
-            );
-
-            #[cfg(feature = "optimism")]
-            select!(
-                biased;
-
-                shutdown = &mut self.shutdown => {
-                    match shutdown {
-                        Err(e) => warn!(error.message = %e, "shutdown channel return with error; shutting down"),
-                        Ok(()) => info!("received shutdown signal; shutting down"),
-                    }
-                    break;
-                }
-
-                cmd = self.cmd_rx.recv() => {
-                    if let Err(e) = self.handle_executor_command(cmd).await {
-                        error!(error.message = %e, "failed to handle executor command, breaking from executor loop");
-                        break;
-                    }
-                }
-
-                res = stream.next() => {
-                    match res {
-                        None => {
-                            warn!("event stream closed unexpectedly; shutting down");
-                            break;
-                        }
-                        Some(Ok((event, meta))) => {
-                            let deposit_tx = match convert_deposit_event_to_deposit_tx(event, meta.block_hash, meta.log_index) {
-                                Ok(deposit_tx) => deposit_tx,
-                                Err(e) => {
-                                    warn!(error.message = %e, "failed to convert deposit event to deposit tx");
-                                    continue;
-                                }
-                            };
-                            info!(
-                                ethereum_block_hash = ?meta.block_hash,
-                                ethereum_log_index = ?meta.log_index,
-                                "queuing deposit transaction",
-                            );
-                            self.queued_deposit_txs.push_back(deposit_tx);
-                        }
-                        Some(Err(e)) => {
-                            warn!(error.message = %e, "event stream returned with error; shutting down");
-                            break;
-                        }
                     }
                 }
             )
@@ -360,23 +361,12 @@ impl Executor {
         let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
-        #[cfg(feature = "optimism")]
-        let rollup_transactions = {
-            // gather and encode deposit transactions
-            let mut deposit_txs = Vec::new();
-            while let Some(deposit_tx) = self.queued_deposit_txs.pop_front() {
-                deposit_txs.push(deposit_tx);
-            }
-            let deposit_txs = deposit_txs
-                .into_iter()
-                .map(|tx| TypedTransaction::DepositTransaction(tx).rlp().to_vec())
-                .collect::<Vec<Vec<u8>>>();
-
-            [deposit_txs, block.rollup_transactions].concat()
+        let rollup_transactions = if let Some(ref mut hook) = self.pre_execution_hook {
+            hook.populate_rollup_transactions(block.rollup_transactions)
+                .await?
+        } else {
+            block.rollup_transactions
         };
-
-        #[cfg(not(feature = "optimism"))]
-        let rollup_transactions = block.rollup_transactions;
 
         let executed_block = self
             .execution_rpc_client

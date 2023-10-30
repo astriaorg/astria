@@ -53,22 +53,24 @@ pub struct Config {
     /// the execution layer.
     pub execution_commit_level: CommitLevel,
 
-    /// Websocket URL of Ethereum L1 node
-    #[cfg(feature = "optimism")]
-    pub ethereum_l1_url: String,
-
-    /// Contract address of the OptimismPortal contract on L1
-    #[cfg(feature = "optimism")]
-    pub optimism_portal_contract_address: String,
-
-    /// The block height of the Ethereum L1 chain that the
-    /// OptimismPortal contract was deployed at
-    #[cfg(feature = "optimism")]
-    pub initial_ethereum_l1_block_height: u64,
+    pub enable_optimism: Option<OptimismConfig>,
 }
 
 impl config::Config for Config {
     const PREFIX: &'static str = "ASTRIA_CONDUCTOR_";
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OptimismConfig {
+    /// Websocket URL of Ethereum L1 node
+    pub ethereum_l1_url: String,
+
+    /// Contract address of the OptimismPortal contract on L1
+    pub optimism_portal_contract_address: String,
+
+    /// The block height of the Ethereum L1 chain that the
+    /// OptimismPortal contract was deployed at
+    pub initial_ethereum_l1_block_height: u64,
 }
 
 #[cfg(test)]
