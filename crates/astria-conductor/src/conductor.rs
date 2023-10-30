@@ -82,7 +82,7 @@ impl Conductor {
         let signals = spawn_signal_handler();
 
         // Spawn the executor task.
-        let (executor_tx, init_sequencer_height) = {
+        let (executor_tx, sync_start_block_height) = {
             let (block_tx, block_rx) = mpsc::unbounded_channel();
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             let executor = Executor::new(
@@ -96,12 +96,12 @@ impl Conductor {
             )
             .await
             .wrap_err("failed to construct executor")?;
-            let init_sequencer_height = executor.executable_block_height;
+            let executable_sequencer_block_height = executor.executable_block_height;
 
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
             shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
 
-            (block_tx, init_sequencer_height)
+            (block_tx, executable_sequencer_block_height)
         };
 
         let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
@@ -126,7 +126,7 @@ impl Conductor {
             let (sync_done_tx, sync_done_rx) = oneshot::channel();
 
             let sequencer_reader = sequencer::Reader::new(
-                init_sequencer_height,
+                sync_start_block_height,
                 sequencer_client_pool.clone(),
                 shutdown_rx,
                 executor_tx.clone(),
