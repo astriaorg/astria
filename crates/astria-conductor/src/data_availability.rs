@@ -407,7 +407,7 @@ async fn fetch_verify_rollup_blob_and_forward_to_assembly(
     });
     match rollups.len() {
         0 | 1 => {
-            info!("one rollup successfully verified; forwarding to block assembler");
+            info!("rollup data found; forwarding to block assembler");
             let subset = SequencerBlockSubset {
                 block_hash: data.data().block_hash,
                 header: data.data().header.clone(),
