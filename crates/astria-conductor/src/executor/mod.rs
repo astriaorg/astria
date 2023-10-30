@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::Arc,
-};
+use std::collections::HashMap;
 
 use astria_sequencer_types::{
     ChainId,
@@ -12,18 +9,7 @@ use color_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use ethers::{
-    prelude::*,
-    types::transaction::eip2718::TypedTransaction,
-};
-use optimism::{
-    contract::{
-        OptimismPortal,
-        TransactionDepositedFilter,
-    },
-    deposit::convert_deposit_event_to_deposit_tx,
-    DepositTransaction,
-};
+use hook::PreExecutionHook;
 use prost_types::Timestamp as ProstTimestamp;
 use proto::generated::execution::v1alpha2::{
     execution_service_client::ExecutionServiceClient,
@@ -59,6 +45,9 @@ use crate::{
         SequencerBlockSubset,
     },
 };
+
+pub(crate) mod hook;
+pub(crate) mod optimism;
 
 #[cfg(test)]
 mod tests;
@@ -127,83 +116,6 @@ pub(crate) struct Executor {
     disable_empty_block_execution: bool,
 
     pre_execution_hook: Option<Box<dyn PreExecutionHook>>,
-}
-
-#[async_trait::async_trait]
-pub(crate) trait PreExecutionHook: Send + Sync {
-    async fn populate_rollup_transactions(
-        &mut self,
-        sequenced_transactions: Vec<Vec<u8>>,
-    ) -> Result<Vec<Vec<u8>>>;
-}
-
-pub(crate) struct OptimismWatcher {
-    provider: Arc<Provider<Ws>>,
-    optimism_portal_contract: OptimismPortal<Provider<Ws>>,
-    from_block_height: u64,
-    to_block_height: u64,
-}
-
-impl OptimismWatcher {
-    pub(crate) async fn new(
-        ethereum_provider: Provider<Ws>,
-        optimism_portal_contract_address: Address,
-        initial_ethereum_l1_block_height: u64,
-    ) -> Self {
-        let provider = Arc::new(ethereum_provider);
-        let optimism_portal_contract = optimism::contract::get_optimism_portal_read_only(
-            provider.clone(),
-            optimism_portal_contract_address,
-        );
-
-        Self {
-            provider,
-            optimism_portal_contract,
-            from_block_height: initial_ethereum_l1_block_height,
-            to_block_height: initial_ethereum_l1_block_height,
-        }
-    }
-
-    pub(crate) async fn query_events(
-        &mut self,
-    ) -> Result<Vec<(TransactionDepositedFilter, LogMeta)>> {
-        let to_block = self.provider.get_block_number().await?;
-        let event_filter = self
-            .optimism_portal_contract
-            .event::<TransactionDepositedFilter>()
-            .from_block(self.from_block_height)
-            .to_block(to_block);
-
-        let events = event_filter
-            .query_with_meta()
-            .await
-            .map_err(|e| eyre::eyre!(e))?;
-        self.to_block_height = to_block.as_u64();
-        Ok(events)
-    }
-}
-
-#[async_trait::async_trait]
-impl PreExecutionHook for OptimismWatcher {
-    async fn populate_rollup_transactions(
-        &mut self,
-        sequenced_transactions: Vec<Vec<u8>>,
-    ) -> Result<Vec<Vec<u8>>> {
-        let deposit_events = self.query_events().await?;
-        let deposit_txs = deposit_events
-            .into_iter()
-            .map(|(event, meta)| {
-                convert_deposit_event_to_deposit_tx(event, meta.block_hash, meta.log_index)
-            })
-            .collect::<Result<Vec<DepositTransaction>>>()?;
-
-        let deposit_txs = deposit_txs
-            .into_iter()
-            .map(|tx| TypedTransaction::DepositTransaction(tx).rlp().to_vec())
-            .collect::<Vec<Vec<u8>>>();
-
-        Ok([deposit_txs, sequenced_transactions].concat())
-    }
 }
 
 impl Executor {

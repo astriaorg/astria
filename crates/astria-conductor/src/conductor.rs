@@ -100,7 +100,7 @@ impl Conductor {
                 )
                 .wrap_err("failed to parse contract address")?;
 
-                let optimism_handler = crate::executor::OptimismWatcher::new(
+                let optimism_handler = crate::executor::optimism::Handler::new(
                     provider,
                     contract_address,
                     optimism_config.initial_ethereum_l1_block_height,
