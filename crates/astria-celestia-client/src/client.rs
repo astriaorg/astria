@@ -227,6 +227,7 @@ fn assemble_blobs_from_sequencer_block_data(
         action_tree_root,
         action_tree_root_inclusion_proof,
         chain_ids_commitment,
+        chain_ids_commitment_inclusion_proof,
     } = block_data.into_raw();
 
     let action_tree_leaves = generate_action_tree_leaves(rollup_data.clone());
@@ -272,6 +273,7 @@ fn assemble_blobs_from_sequencer_block_data(
         action_tree_root,
         action_tree_root_inclusion_proof,
         chain_ids_commitment,
+        chain_ids_commitment_inclusion_proof,
     };
 
     let signed_data = SignedNamespaceData::from_data_and_key(sequencer_namespace_data, signing_key);

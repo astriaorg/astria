@@ -313,10 +313,7 @@ pub(crate) fn list_deployments() {
 
 #[cfg(test)]
 mod test {
-    use test_utils::{
-        with_temp_directory,
-        with_temp_directory_async,
-    };
+    use test_utils::with_temp_directory;
 
     use super::*;
 
@@ -339,7 +336,7 @@ mod test {
 
     #[tokio::test]
     async fn test_create_config_file() {
-        with_temp_directory_async(|_dir| async {
+        with_temp_directory(|_dir| async {
             let args = get_config_create_args();
             create_config(&args).await.unwrap();
 
@@ -349,9 +346,9 @@ mod test {
         .await;
     }
 
-    #[test]
-    fn test_delete_config_file() {
-        with_temp_directory(|_dir| {
+    #[tokio::test]
+    async fn test_delete_config_file() {
+        with_temp_directory(|_dir| async {
             let file_path = PathBuf::from("test-rollup-conf.yaml");
             File::create(&file_path).unwrap();
 
@@ -360,12 +357,13 @@ mod test {
             };
             delete_config(&args).unwrap();
             assert!(!file_path.exists());
-        });
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn test_edit_config_file() {
-        with_temp_directory_async(|_dir| async {
+        with_temp_directory(|_dir| async {
             let args = get_config_create_args();
             create_config(&args).await.unwrap();
 
@@ -386,7 +384,7 @@ mod test {
 
     #[tokio::test]
     async fn test_edit_config_file_errors_for_wrong_key() {
-        with_temp_directory_async(|_dir| async {
+        with_temp_directory(|_dir| async {
             let args = get_config_create_args();
             create_config(&args).await.unwrap();
 
