@@ -22,7 +22,6 @@ pub(crate) struct Handler {
     provider: Arc<Provider<Ws>>,
     optimism_portal_contract: OptimismPortal<Provider<Ws>>,
     from_block_height: u64,
-    to_block_height: u64,
 }
 
 impl Handler {
@@ -41,7 +40,6 @@ impl Handler {
             provider,
             optimism_portal_contract,
             from_block_height: initial_ethereum_l1_block_height,
-            to_block_height: initial_ethereum_l1_block_height,
         }
     }
 
@@ -57,7 +55,10 @@ impl Handler {
             .query_with_meta()
             .await
             .map_err(|e| eyre::eyre!(e))?;
-        self.to_block_height = to_block.as_u64();
+
+        // event filter `from` and `to` blocks are inclusive (ie. we read events from those blocks),
+        // so we set the next block height to read from as the highest we read from + 1.
+        self.from_block_height = to_block.as_u64() + 1;
         Ok(events)
     }
 }
