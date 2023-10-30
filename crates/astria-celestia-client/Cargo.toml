@@ -15,7 +15,7 @@ sha2 = "0.10"
 tendermint = { workspace = true }
 thiserror = { workspace = true }
 
-sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
+merkle = { package = "astria-merkle", path = "../astria-merkle" }
 sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }
 
 ### Celestia specific imports

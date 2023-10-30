@@ -10,7 +10,6 @@ use sequencer_types::{
     RawSequencerBlockData,
     SequencerBlockData,
 };
-use sequencer_validation::IndexOutOfBounds;
 
 use crate::{
     blob_space::{
@@ -206,21 +205,16 @@ pub enum BlobAssemblyError {
         source: serde_json::Error,
         index: usize,
     },
-    #[error("failed to generate inclusion proof for the transaction at index `{index}`")]
-    GenerateInclusionProof {
-        source: IndexOutOfBounds,
-        index: usize,
-    },
+    #[error(
+        "failed to construct inclusion proof for the transaction at index `{index}` because its \
+         index was outside the tree"
+    )]
+    ConstructProof { index: usize },
 }
 
 fn assemble_blobs_from_sequencer_block_data(
     block_data: SequencerBlockData,
 ) -> Result<Vec<Blob>, BlobAssemblyError> {
-    use sequencer_validation::{
-        generate_action_tree_leaves,
-        MerkleTree,
-    };
-
     let mut blobs = Vec::with_capacity(block_data.rollup_data().len() + 1);
     let mut chain_ids = Vec::with_capacity(block_data.rollup_data().len());
 
@@ -234,16 +228,16 @@ fn assemble_blobs_from_sequencer_block_data(
         chain_ids_commitment_inclusion_proof,
     } = block_data.into_raw();
 
-    let action_tree_leaves = generate_action_tree_leaves(rollup_data.clone());
-    let action_tree = MerkleTree::from_leaves(action_tree_leaves);
+    let action_tree =
+        sequencer_types::sequencer_block_data::generate_merkle_tree_from_grouped_txs(&rollup_data);
 
     for (i, (chain_id, transactions)) in rollup_data.into_iter().enumerate() {
-        let inclusion_proof = action_tree.prove_inclusion(i).map_err(|source| {
-            BlobAssemblyError::GenerateInclusionProof {
-                source,
-                index: i,
-            }
-        })?;
+        let inclusion_proof =
+            action_tree
+                .construct_proof(i)
+                .ok_or(BlobAssemblyError::ConstructProof {
+                    index: i,
+                })?;
 
         let rollup_namespace_data = RollupNamespaceData {
             block_hash,

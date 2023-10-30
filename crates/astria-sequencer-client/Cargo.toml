@@ -21,7 +21,7 @@ websocket = ["tendermint-rpc/websocket-client"]
 
 [dev-dependencies]
 ed25519-consensus = { workspace = true }
-hex-literal = "0.4.1"
+hex-literal = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
