@@ -107,16 +107,12 @@ pub(crate) struct Executor {
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
     sequencer_hash_to_execution_block: HashMap<Hash, Block>,
-
-    /// Chose to execute empty blocks or not
-    disable_empty_block_execution: bool,
 }
 
 impl Executor {
     pub(crate) async fn new(
         server_addr: &str,
         chain_id: ChainId,
-        disable_empty_block_execution: bool,
         cmd_rx: Receiver,
         shutdown: oneshot::Receiver<()>,
     ) -> Result<Self> {
@@ -135,7 +131,6 @@ impl Executor {
             chain_id,
             commitment_state,
             sequencer_hash_to_execution_block: HashMap::new(),
-            disable_empty_block_execution,
         })
     }
 
@@ -214,14 +209,6 @@ impl Executor {
     /// execution block hash.
     /// if there are no relevant transactions in the SequencerBlock, it returns None.
     async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Block>> {
-        if self.disable_empty_block_execution && block.rollup_transactions.is_empty() {
-            debug!(
-                sequencer_block_height = block.header.height.value(),
-                "no transactions in block, skipping execution"
-            );
-            return Ok(None);
-        }
-
         if let Some(execution_block) = self
             .sequencer_hash_to_execution_block
             .get(&block.block_hash)

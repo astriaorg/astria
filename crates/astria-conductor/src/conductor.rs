@@ -90,7 +90,6 @@ impl Conductor {
                 &cfg.execution_rpc_url,
                 ChainId::new(cfg.chain_id.as_bytes().to_vec())
                     .wrap_err("failed to create chain ID")?,
-                cfg.disable_empty_block_execution,
                 block_rx,
                 shutdown_rx,
             )
