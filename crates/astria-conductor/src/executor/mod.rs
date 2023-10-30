@@ -98,7 +98,7 @@ pub(crate) struct Executor {
     commitment_state: ExecutorCommitmentState,
 
     /// Tracks the height of the next sequencer block that can be executed
-    pub(crate) executable_block_height: u32,
+    executable_block_height: u32,
 
     /// map of sequencer block hash to execution block
     ///
@@ -386,5 +386,9 @@ impl Executor {
             }
         };
         Ok(())
+    }
+
+    pub(crate) fn get_executable_block_height(&self) -> u32 {
+        self.executable_block_height
     }
 }

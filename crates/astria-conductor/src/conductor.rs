@@ -96,7 +96,7 @@ impl Conductor {
             )
             .await
             .wrap_err("failed to construct executor")?;
-            let executable_sequencer_block_height = executor.executable_block_height;
+            let executable_sequencer_block_height = executor.get_executable_block_height();
 
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
             shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
