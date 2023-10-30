@@ -6,6 +6,7 @@ use astria_sequencer_types::{
 };
 use color_eyre::eyre::{
     self,
+    eyre,
     Result,
     WrapErr as _,
 };
@@ -229,27 +230,13 @@ impl Executor {
             return Ok(None);
         }
 
-        match self
-            .executable_block_height
-            .cmp(&(block.header.height.value() as u32))
-        {
-            std::cmp::Ordering::Less => {
-                debug!(
-                    sequencer_block_height = block.header.height.value(),
-                    executable_block_height = self.executable_block_height,
-                    "skipping execution of future block"
-                );
-                return Ok(None);
-            }
-            std::cmp::Ordering::Greater => {
-                debug!(
-                    sequencer_block_height = block.header.height.value(),
-                    executable_block_height = self.executable_block_height,
-                    "skipping execution of stale block"
-                );
-                return Ok(None);
-            }
-            _ => {}
+        if self.executable_block_height as u64 != block.header.height.value() {
+            error!(
+                sequencer_block_height = block.header.height.value(),
+                executable_block_height = self.executable_block_height,
+                "block received out of order;"
+            );
+            return Err(eyre!("block received out of order"));
         }
 
         if let Some(execution_block) = self
