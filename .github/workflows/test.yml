@@ -72,11 +72,8 @@ jobs:
         with:
           version: "24.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: install foundry
-        run: | 
-          curl -L https://foundry.paradigm.xyz | bash
-          source /home/runner/.bashrc
-          foundryup
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
       - name: Build tests
         run: |
           cargo test --no-run --release --workspace \
