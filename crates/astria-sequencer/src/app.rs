@@ -77,6 +77,11 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 pub(crate) struct App {
     state: InterBlockState,
 
+    // set to true when `prepare_proposal` is called, indicating we are the proposer for this slot.
+    // set to false when `commit` is called, finalizing the block.
+    // when this is se to true, `process_proposal` is not executed, as we have already executed
+    // the transactions for the block during `prepare_proposal`, and re-executing them would
+    // cause failure.
     is_proposer: bool,
 
     // cache of results of executing of transactions in prepare_proposal or process_proposal.

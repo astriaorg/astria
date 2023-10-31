@@ -244,6 +244,7 @@ impl Executor {
         let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
+        let tx_count = block.rollup_transactions.len();
         let executed_block = self
             .execution_rpc_client
             .call_execute_block(prev_block_hash, block.rollup_transactions, timestamp)
@@ -254,6 +255,7 @@ impl Executor {
             sequencer_block_hash = ?block.block_hash,
             sequencer_block_height = block.header.height.value(),
             execution_block_hash = hex::encode(&executed_block.hash),
+            tx_count,
             "executed sequencer block",
         );
 
