@@ -191,7 +191,7 @@ mod test {
 
         let value = 10_000_000_000_000_000u128;
 
-        let receipt = make_deposit_transaction(contract, Some(to), value.into(), None)
+        let receipt = make_deposit_transaction(&contract, Some(to), value.into(), None)
             .await
             .unwrap()
             .unwrap();

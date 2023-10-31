@@ -1,10 +1,6 @@
 use std::sync::Arc;
 
-use ethers::{
-    prelude::*,
-    types::transaction::eip2718::TypedTransaction,
-};
-use optimism::{
+use astria_optimism::{
     contract::{
         OptimismPortal,
         TransactionDepositedFilter,
@@ -12,6 +8,11 @@ use optimism::{
     deposit::convert_deposit_event_to_deposit_tx,
     DepositTransaction,
 };
+use ethers::{
+    prelude::*,
+    types::transaction::eip2718::TypedTransaction,
+};
+use tracing::debug;
 
 use super::{
     eyre,
@@ -26,18 +27,17 @@ pub(crate) struct Handler {
 
 impl Handler {
     pub(crate) async fn new(
-        ethereum_provider: Provider<Ws>,
+        ethereum_provider: Arc<Provider<Ws>>,
         optimism_portal_contract_address: Address,
         initial_ethereum_l1_block_height: u64,
     ) -> Self {
-        let provider = Arc::new(ethereum_provider);
-        let optimism_portal_contract = optimism::contract::get_optimism_portal_read_only(
-            provider.clone(),
+        let optimism_portal_contract = astria_optimism::contract::get_optimism_portal_read_only(
+            ethereum_provider.clone(),
             optimism_portal_contract_address,
         );
 
         Self {
-            provider,
+            provider: ethereum_provider,
             optimism_portal_contract,
             from_block_height: initial_ethereum_l1_block_height,
         }
@@ -70,18 +70,31 @@ impl crate::executor::PreExecutionHook for Handler {
         sequenced_transactions: Vec<Vec<u8>>,
     ) -> Result<Vec<Vec<u8>>> {
         let deposit_events = self.query_events().await?;
-        let deposit_txs = deposit_events
-            .into_iter()
-            .map(|(event, meta)| {
-                convert_deposit_event_to_deposit_tx(event, meta.block_hash, meta.log_index)
-            })
-            .collect::<Result<Vec<DepositTransaction>>>()?;
+        let deposit_txs = convert_deposit_events_to_encoded_txs(deposit_events)?;
 
-        let deposit_txs = deposit_txs
-            .into_iter()
-            .map(|tx| TypedTransaction::DepositTransaction(tx).rlp().to_vec())
-            .collect::<Vec<Vec<u8>>>();
+        debug!(
+            num_deposit_txs = deposit_txs.len(),
+            num_sequenced_txs = sequenced_transactions.len(),
+            "populated rollup transactions"
+        );
 
         Ok([deposit_txs, sequenced_transactions].concat())
     }
+}
+
+pub(crate) fn convert_deposit_events_to_encoded_txs(
+    deposit_events: Vec<(TransactionDepositedFilter, LogMeta)>,
+) -> Result<Vec<Vec<u8>>> {
+    let deposit_txs = deposit_events
+        .into_iter()
+        .map(|(event, meta)| {
+            convert_deposit_event_to_deposit_tx(event, meta.block_hash, meta.log_index)
+        })
+        .collect::<Result<Vec<DepositTransaction>>>()?;
+
+    let deposit_txs = deposit_txs
+        .into_iter()
+        .map(|tx| TypedTransaction::DepositTransaction(tx).rlp().to_vec())
+        .collect::<Vec<Vec<u8>>>();
+    Ok(deposit_txs)
 }

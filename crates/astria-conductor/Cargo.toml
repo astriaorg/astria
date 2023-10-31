@@ -35,7 +35,7 @@ tryhard = { workspace = true }
 
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 astria-sequencer-types = { path = "../astria-sequencer-types" }
-optimism = { package = "astria-optimism", path = "../astria-optimism" }
+astria-optimism = { path = "../astria-optimism" }
 config = { package = "astria-config", path = "../astria-config" }
 proto = { package = "astria-proto", path = "../astria-proto", features = [
   "client",

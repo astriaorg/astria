@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     rc::Rc,
+    sync::Arc,
     time::Duration,
 };
 
@@ -88,9 +89,11 @@ impl Conductor {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
             let executor = if let Some(optimism_config) = cfg.enable_optimism {
-                let provider = Provider::<Ws>::connect(optimism_config.ethereum_l1_url)
-                    .await
-                    .wrap_err("failed to connect to provider")?;
+                let provider = Arc::new(
+                    Provider::<Ws>::connect(optimism_config.ethereum_l1_url)
+                        .await
+                        .wrap_err("failed to connect to provider")?,
+                );
                 let contract_address = Address::try_from(
                     TryInto::<[u8; 20]>::try_into(
                         hex::decode(optimism_config.optimism_portal_contract_address)

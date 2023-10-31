@@ -43,7 +43,7 @@ pub fn get_optimism_portal_with_signer<P: JsonRpcClient>(
 /// - if the transaction fails to submit.
 /// - if the pending transaction fails to be included.
 pub async fn make_deposit_transaction<M: Middleware + 'static>(
-    contract: OptimismPortal<M>,
+    contract: &OptimismPortal<M>,
     to: Option<Address>,
     value: U256,
     data: Option<Bytes>,
@@ -86,7 +86,7 @@ mod test {
         // submit deposit transaction
         let value = 10_000_000_000_000_000u128;
         let receipt: TransactionReceipt =
-            make_deposit_transaction(contract, Some(to), value.into(), None)
+            make_deposit_transaction(&contract, Some(to), value.into(), None)
                 .await
                 .unwrap()
                 .unwrap();
