@@ -72,6 +72,9 @@ jobs:
         with:
           version: "24.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: install foundry
+        run: | 
+          curl -L https://foundry.paradigm.xyz | bash
       - name: Build tests
         run: |
           cargo test --no-run --release --workspace \
