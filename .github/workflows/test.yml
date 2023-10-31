@@ -75,6 +75,7 @@ jobs:
       - name: install foundry
         run: | 
           curl -L https://foundry.paradigm.xyz | bash
+          foundryup
       - name: Build tests
         run: |
           cargo test --no-run --release --workspace \
