@@ -77,6 +77,15 @@ type InterBlockState = Arc<StateDelta<Snapshot>>;
 pub(crate) struct App {
     state: InterBlockState,
 
+    // set to true when `prepare_proposal` is called, indicating we are the proposer for this
+    // block. set to false when `process_proposal` is called, as it's called during the prevote
+    // phase for that block.
+    //
+    // if true, `process_proposal` is not executed, as this means we are the proposer of that
+    // block, and we have already executed the transactions for the block during
+    // `prepare_proposal`, and re-executing them would cause failure.
+    is_proposer: bool,
+
     // cache of results of executing of transactions in prepare_proposal or process_proposal.
     // cleared at the end of each block.
     execution_result: HashMap<[u8; 32], anyhow::Result<Vec<abci::Event>>>,
@@ -102,6 +111,7 @@ impl App {
 
         Self {
             state,
+            is_proposer: false,
             execution_result: HashMap::new(),
             processed_txs: 0,
         }
@@ -153,6 +163,7 @@ impl App {
         // clear the cache of transaction execution results
         self.execution_result.clear();
         self.processed_txs = 0;
+        self.is_proposer = true;
 
         let (signed_txs, txs_to_include) = self.execute_block_data(prepare_proposal.txs).await;
 
@@ -173,6 +184,19 @@ impl App {
         &mut self,
         process_proposal: abci::request::ProcessProposal,
     ) -> anyhow::Result<()> {
+        // if we proposed this block (ie. prepare_proposal was called directly before this), then
+        // we skip execution for this `process_proposal` call.
+        //
+        // if we didn't propose this block, `self.is_proposer` will be `false`, so
+        // we will execute the block as normal.
+        if self.is_proposer {
+            debug!("skipping process_proposal as we are the proposer for this block");
+            self.is_proposer = false;
+            return Ok(());
+        }
+
+        self.is_proposer = false;
+
         // clear the cache of transaction execution results
         self.execution_result.clear();
         self.processed_txs = 0;
@@ -409,6 +433,7 @@ impl App {
         state_tx.clear_validator_updates();
 
         let events = self.apply(state_tx);
+
         Ok(abci::response::EndBlock {
             validator_updates: validator_updates.into_tendermint_validator_updates(),
             events,
