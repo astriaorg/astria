@@ -284,7 +284,7 @@ fn assemble_blobs_from_sequencer_block_data(
 }
 
 /// Filters out blobs that cannot be deserialized to `RollupNamespaceData`,
-/// whose block hash does not match that of `sequencer_data`, respectively, or that
+/// whose block hash does not match that of `sequencer_data` or that
 /// have the wrong namespace.
 fn filter_and_convert_rollup_data_blobs(
     blobs: &[Blob],
