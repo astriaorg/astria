@@ -133,8 +133,8 @@ impl Executor {
             .await
             .wrap_err("executor failed to get commitment state")?;
 
-        // The `executable_block_height` is the height of the sequencer block
-        // where the Conductor sync will be started. The `init_sequencer_height`
+        // The `executable_block_height` is the height of the fist sequencer block
+        // that can be executed on top of the rollup state. The `init_sequencer_height`
         // is set when the rollup is first created and let's us know that this
         // rollup's genesis block is in block K of the sequencer chain.
         // The `commitment_state.soft.number` is the block height of the most

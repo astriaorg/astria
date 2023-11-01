@@ -125,13 +125,9 @@ impl Conductor {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             let (sync_done_tx, sync_done_rx) = oneshot::channel();
 
-            // the `sync_start_block_height` below is the height at which the sync
-            // of Conductor will start. This value is a combination of the
-            // initial sequencer block height, which is set in the config when
-            // the rollup is first created, plus the height of the most recently
-            // executed block on the rollup.
-            // sync_start_block_height =
-            //   initial sequencer block height + most recently executed block height
+            // The `sync_start_block_height` represents the height of the next
+            // sequencer block that can be executed on top of the rollup state.
+            // This value is derived by the Executor.
             let sequencer_reader = sequencer::Reader::new(
                 sync_start_block_height,
                 sequencer_client_pool.clone(),
