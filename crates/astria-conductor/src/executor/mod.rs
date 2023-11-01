@@ -213,6 +213,7 @@ impl Executor {
     /// if the block has already been executed, it returns the previously-computed
     /// execution block hash.
     /// if there are no relevant transactions in the SequencerBlock, it returns None.
+    #[instrument(skip(self), fields(sequencer_block_hash = ?block.block_hash, sequencer_block_height = block.header.height.value()))]
     async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Block>> {
         if self.disable_empty_block_execution && block.rollup_transactions.is_empty() {
             debug!(
@@ -244,6 +245,7 @@ impl Executor {
         let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
+        let tx_count = block.rollup_transactions.len();
         let executed_block = self
             .execution_rpc_client
             .call_execute_block(prev_block_hash, block.rollup_transactions, timestamp)
@@ -251,10 +253,8 @@ impl Executor {
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
-            sequencer_block_hash = ?block.block_hash,
-            sequencer_block_height = block.header.height.value(),
             execution_block_hash = hex::encode(&executed_block.hash),
-            "executed sequencer block",
+            tx_count, "executed sequencer block",
         );
 
         // store block returned by execution client, as we need it to finalize the block later
