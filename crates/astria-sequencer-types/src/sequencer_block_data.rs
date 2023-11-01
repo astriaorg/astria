@@ -17,17 +17,12 @@ use serde::{
     Serialize,
 };
 use tendermint::{
-    block::{
-        Commit,
-        Header,
-    },
+    block::Header,
     Block,
     Hash,
 };
 use thiserror::Error;
 use tracing::debug;
-
-use crate::tendermint::calculate_last_commit_hash;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -61,18 +56,10 @@ pub enum Error {
     HashOfHeaderBlockHashMismatach,
     #[error("chain ID must be 32 bytes or less")]
     InvalidChainIdLength,
-    #[error(
-        "last commit hash does not match the one calculated from the block's commit signatures"
-    )]
-    LastCommitHashMismatch,
     #[error("the sequencer block contained neither action tree root nor transaction data")]
     NoData,
     #[error("block has no data hash")]
     MissingDataHash,
-    #[error("last_commit field was unset even though last_commit_hash was set")]
-    MissingLastCommit,
-    #[error("block has no last commit hash")]
-    MissingLastCommitHash,
     #[error("failed decoding bytes to protobuf signed transaction")]
     SignedTransactionProtobufDecode(#[source] DecodeError),
     #[error("failed constructing native signed transaction from raw protobuf signed transaction")]
@@ -119,8 +106,6 @@ impl AsRef<[u8]> for ChainId {
 pub struct SequencerBlockData {
     block_hash: Hash,
     header: Header,
-    /// This field should be set for every block with height > 1.
-    last_commit: Option<Commit>,
     /// chain ID -> rollup transactions
     rollup_data: BTreeMap<ChainId, Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
@@ -155,7 +140,6 @@ impl SequencerBlockData {
         let RawSequencerBlockData {
             block_hash,
             header,
-            last_commit,
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
@@ -184,7 +168,6 @@ impl SequencerBlockData {
             return Ok(Self {
                 block_hash,
                 header,
-                last_commit: None,
                 rollup_data,
                 action_tree_root,
                 action_tree_root_inclusion_proof,
@@ -193,20 +176,9 @@ impl SequencerBlockData {
             });
         }
 
-        // calculate and verify last_commit_hash
-        let last_commit_hash = header
-            .last_commit_hash
-            .ok_or(Error::MissingLastCommitHash)?;
-
-        let calculated_last_commit_hash =
-            calculate_last_commit_hash(last_commit.as_ref().ok_or(Error::MissingLastCommit)?);
-        if calculated_last_commit_hash != last_commit_hash {
-            return Err(Error::LastCommitHashMismatch)?;
-        }
         Ok(Self {
             block_hash,
             header,
-            last_commit,
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
@@ -226,11 +198,6 @@ impl SequencerBlockData {
     }
 
     #[must_use]
-    pub fn last_commit(&self) -> &Option<Commit> {
-        &self.last_commit
-    }
-
-    #[must_use]
     pub fn rollup_data(&self) -> &BTreeMap<ChainId, Vec<Vec<u8>>> {
         &self.rollup_data
     }
@@ -241,7 +208,6 @@ impl SequencerBlockData {
         let Self {
             block_hash,
             header,
-            last_commit,
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
@@ -252,7 +218,6 @@ impl SequencerBlockData {
         RawSequencerBlockData {
             block_hash,
             header,
-            last_commit,
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
@@ -375,7 +340,6 @@ impl SequencerBlockData {
         let data = Self {
             block_hash: b.header.hash(),
             header: b.header,
-            last_commit: b.last_commit,
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
@@ -408,8 +372,6 @@ fn sha256_hash(data: &[u8]) -> Vec<u8> {
 pub struct RawSequencerBlockData {
     pub block_hash: Hash,
     pub header: Header,
-    /// This field should be set for every block with height > 1.
-    pub last_commit: Option<Commit>,
     /// namespace -> rollup data (chain ID and transactions)
     pub rollup_data: BTreeMap<ChainId, Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
@@ -449,7 +411,6 @@ mod test {
     use super::SequencerBlockData;
     use crate::{
         sequencer_block_data::calculate_data_hash_and_tx_tree,
-        test_utils::make_test_commit_and_hash,
         RawSequencerBlockData,
     };
 
@@ -482,16 +443,12 @@ mod test {
             )
         };
 
-        let (last_commit_hash, last_commit) = make_test_commit_and_hash();
-        header.last_commit_hash = Some(last_commit_hash);
-
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
         let block_hash = header.hash();
 
         SequencerBlockData::try_from_raw(RawSequencerBlockData {
             block_hash,
             header,
-            last_commit: Some(last_commit),
             rollup_data: BTreeMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
@@ -530,16 +487,12 @@ mod test {
             )
         };
 
-        let (last_commit_hash, last_commit) = make_test_commit_and_hash();
-        header.last_commit_hash = Some(last_commit_hash);
-
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
         let block_hash = header.hash();
 
         let data = SequencerBlockData::try_from_raw(RawSequencerBlockData {
             block_hash,
             header,
-            last_commit: Some(last_commit),
             rollup_data: BTreeMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
