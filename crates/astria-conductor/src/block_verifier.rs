@@ -164,7 +164,7 @@ fn validate_sequencer_namespace_data(
 
     // verify that the validator votes on the block have >2/3 voting power
     let chain_id = header.chain_id.clone();
-    ensure_commit_has_quorum(&commit, current_validator_set, chain_id.as_ref())
+    ensure_commit_has_quorum(commit, current_validator_set, chain_id.as_ref())
         .wrap_err("failed to ensure commit has quorum")?;
 
     // validate the block header matches the block hash
