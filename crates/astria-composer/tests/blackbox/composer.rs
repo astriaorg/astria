@@ -5,7 +5,7 @@ use proto::generated::sequencer::v1alpha1::NonceResponse;
 use sequencer_types::AbciCode;
 use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
-    request::{self,},
+    request,
     response,
     Id,
 };

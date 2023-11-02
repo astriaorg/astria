@@ -4,7 +4,6 @@ use astria_sequencer_types::calculate_last_commit_hash;
 use celestia_client::{
     RollupNamespaceData,
     SequencerNamespaceData,
-    SignedNamespaceData,
 };
 use color_eyre::eyre::{
     self,
@@ -48,36 +47,38 @@ impl BlockVerifier {
         }
     }
 
-    /// validates `SignedNamespaceData` received from Celestia.
-    /// This function verifies the block signature and checks that the data
-    /// was signed by the expected proposer for this block height.
-    pub(crate) async fn validate_signed_namespace_data(
+    /// validates `SequencerNamespaceData` received from Celestia.
+    /// This function verifies the block commit.
+    pub(crate) async fn validate_sequencer_namespace_data(
         &self,
-        data: &SignedNamespaceData<SequencerNamespaceData>,
+        data: &SequencerNamespaceData,
     ) -> eyre::Result<()> {
-        // get validator set for this height
-        let height: u32 = data.data().header.height.value().try_into().expect(
+        let height: u32 = data.header.height.value().try_into().expect(
             "a tendermint height (currently non-negative i32) should always fit into a u32",
         );
-        let current_validator_set = self
-            .pool
-            .get()
-            .await
-            .wrap_err("failed getting a client from the pool to get the current validator set")?
+
+        let client =
+            self.pool.get().await.wrap_err(
+                "failed getting a client from the pool to get the current validator set",
+            )?;
+        let block_resp = client.block(height).await.wrap_err("failed to get block")?;
+        ensure!(
+            block_resp.block_id.hash == data.block_hash,
+            "ignoring SequencerNamespaceData with height {} due to block hash mismatch: expected \
+             {}, got {}",
+            height,
+            hex::encode(block_resp.block_id.hash),
+            hex::encode(data.block_hash),
+        );
+
+        let current_validator_set = client
             .validators(height, sequencer_client::tendermint_rpc::Paging::Default)
             .await
             .wrap_err("failed to get validator set")?;
 
-        validate_signed_namespace_data(&current_validator_set, data)
-            .wrap_err("failed validating signed namespace data")?;
-
         // get validator set for the previous height, as the commit contained
         // in the block is for the previous height
-        let parent_validator_set = self
-            .pool
-            .get()
-            .await
-            .wrap_err("failed getting a client from the pool to get the previous validator set")?
+        let parent_validator_set = client
             .validators(
                 height - 1,
                 sequencer_client::tendermint_rpc::Paging::Default,
@@ -85,12 +86,8 @@ impl BlockVerifier {
             .await
             .wrap_err("failed to get validator set")?;
 
-        validate_sequencer_namespace_data(
-            &current_validator_set,
-            &parent_validator_set,
-            data.data(),
-        )
-        .wrap_err("failed validating sequencer data inside signed namespace data")
+        validate_sequencer_namespace_data(&current_validator_set, &parent_validator_set, data)
+            .wrap_err("failed validating sequencer data inside signed namespace data")
     }
 }
 
@@ -101,29 +98,6 @@ pub(crate) fn validate_rollup_data(
     rollup_data
         .verify_inclusion_proof(action_tree_root)
         .wrap_err("failed to verify rollup data inclusion proof")
-}
-
-fn validate_signed_namespace_data(
-    validator_set: &validators::Response,
-    data: &SignedNamespaceData<SequencerNamespaceData>,
-) -> eyre::Result<()> {
-    // find proposer address for this height
-    let expected_proposer_public_key = get_proposer(validator_set)
-        .wrap_err("failed to get proposer from validator set")?
-        .pub_key
-        .to_bytes();
-
-    // verify the namespace data signing public key matches the proposer public key
-    let key = data.public_key();
-    let proposer_public_key = key.as_bytes();
-    ensure!(
-        proposer_public_key[..] == *expected_proposer_public_key,
-        "public key mismatch: expected {}, got {}",
-        hex::encode(expected_proposer_public_key),
-        hex::encode(proposer_public_key),
-    );
-
-    Ok(())
 }
 
 fn validate_sequencer_namespace_data(

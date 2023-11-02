@@ -41,6 +41,10 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
 celestia-mock = { package = "astria-celestia-mock", path = "../astria-celestia-mock" }
+sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types", features = [
+  "test-utils",
+] }
+
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }

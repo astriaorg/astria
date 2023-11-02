@@ -121,6 +121,17 @@ impl TestSequencerRelayer {
             .mount_as_scoped(&self.sequencer)
             .await
     }
+
+    pub async fn mount_block_response_with_zero_proposer(&self, height: u32) -> MockGuard {
+        let proposer = tendermint::account::Id::try_from(vec![0u8; 20]).unwrap();
+        let block_response = create_block_response(&self.signing_key, proposer, height);
+        let wrapped = Wrapper::new_with_id(Id::Num(1), Some(block_response.clone()), None);
+        Mock::given(body_partial_json(json!({"method": "block"})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(wrapped))
+            .expect(1)
+            .mount_as_scoped(&self.sequencer)
+            .await
+    }
 }
 
 pub enum CelestiaMode {
@@ -128,7 +139,16 @@ pub enum CelestiaMode {
     Delayed(u64),
 }
 
-pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequencerRelayer {
+pub async fn spawn_sequencer_relayer_relay_all(
+    celestia_mode: CelestiaMode,
+) -> TestSequencerRelayer {
+    spawn_sequencer_relayer(celestia_mode, false).await
+}
+
+pub async fn spawn_sequencer_relayer(
+    celestia_mode: CelestiaMode,
+    relay_only_validator_key_blocks: bool,
+) -> TestSequencerRelayer {
     Lazy::force(&TELEMETRY);
     let block_time = 1000;
 
@@ -166,7 +186,8 @@ pub async fn spawn_sequencer_relayer(celestia_mode: CelestiaMode) -> TestSequenc
         celestia_bearer_token: "".into(),
         gas_limit: 100000,
         block_time: 1000,
-        validator_key_file: _keyfile.path().to_string_lossy().to_string(),
+        relay_only_validator_key_blocks,
+        validator_key_file: Some(_keyfile.path().to_string_lossy().to_string()),
         rpc_port: 0,
         log: "".into(),
     };
@@ -315,7 +336,7 @@ impl BlobServer for BlobServerImpl {
 
 fn create_block_response(
     signing_key: &SigningKey,
-    account: tendermint::account::Id,
+    proposer_address: tendermint::account::Id,
     height: u32,
 ) -> endpoint::block::Response {
     use proto::Message as _;
@@ -382,7 +403,7 @@ fn create_block_response(
                 app_hash: AppHash::try_from([0; 32].to_vec()).unwrap(),
                 last_results_hash: None,
                 evidence_hash: None,
-                proposer_address: account,
+                proposer_address,
             },
             data,
             evidence::List::default(),
