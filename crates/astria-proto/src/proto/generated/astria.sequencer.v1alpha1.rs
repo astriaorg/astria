@@ -58,17 +58,6 @@ pub struct SequencerNamespaceData {
     #[prost(message, repeated, tag="4")]
     pub rollup_namespaces: ::prost::alloc::vec::Vec<RollupNamespace>,
 }
-/// `SignedNamespaceData?`
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SignedNamespaceData {
-    #[prost(bytes="vec", tag="1")]
-    pub data: ::prost::alloc::vec::Vec<u8>,
-    #[prost(bytes="vec", tag="2")]
-    pub public_key: ::prost::alloc::vec::Vec<u8>,
-    #[prost(bytes="vec", tag="3")]
-    pub signature: ::prost::alloc::vec::Vec<u8>,
-}
 /// helper type - these should get parsed into a map from namespace to
 /// a vector of `IndexedTransactions`
 #[allow(clippy::derive_partial_eq_without_eq)]

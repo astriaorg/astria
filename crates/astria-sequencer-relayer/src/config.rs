@@ -12,7 +12,8 @@ pub struct Config {
     pub celestia_bearer_token: String,
     pub gas_limit: u64,
     pub block_time: u64,
-    pub validator_key_file: String,
+    pub relay_only_validator_key_blocks: bool,
+    pub validator_key_file: Option<String>,
     pub rpc_port: u16,
     pub log: String,
 }
