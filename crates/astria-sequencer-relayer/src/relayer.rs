@@ -92,19 +92,17 @@ impl Relayer {
         let sequencer = HttpClient::new(&*cfg.sequencer_endpoint)
             .wrap_err("failed to create sequencer client")?;
 
-        let validator = if cfg.disable_relay_all {
-            if let Some(validator_key_file) = &cfg.validator_key_file {
-                Some(
-                    Validator::from_path(validator_key_file)
-                        .wrap_err("failed to get validator info from file")?,
-                )
-            } else {
-                return Err(eyre::eyre!(
-                    "validator key file must be set if `disable_relay_all` is set"
-                ));
+        let validator = match (
+            &cfg.relay_only_validator_key_blocks,
+            &cfg.validator_key_file,
+        ) {
+            (true, Some(file)) => Some(
+                Validator::from_path(file).wrap_err("failed to get validator info from file")?,
+            ),
+            (true, None) => {
+                eyre::bail!("validator key file must be set if `disable_relay_all` is set")
             }
-        } else {
-            None
+            (false, _) => None, // could also say that the file was unnecessarily set, but it's ok
         };
 
         let data_availability = celestia_client::celestia_rpc::client::new_http(
