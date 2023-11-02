@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use helper::{
     spawn_sequencer_relayer,
+    spawn_sequencer_relayer_relay_all,
     CelestiaMode,
     TestSequencerRelayer,
 };
@@ -37,7 +38,7 @@ async fn timeout_guard(test_env: &TestSequencerRelayer, guard: MockGuard) {
 
 #[tokio::test(flavor = "current_thread")]
 async fn one_block_is_relayed_to_celestia() {
-    let mut sequencer_relayer = spawn_sequencer_relayer(CelestiaMode::Immediate).await;
+    let mut sequencer_relayer = spawn_sequencer_relayer_relay_all(CelestiaMode::Immediate).await;
     let guard = sequencer_relayer.mount_block_response(1).await;
     timeout_guard(&sequencer_relayer, guard).await;
 
@@ -58,8 +59,57 @@ async fn one_block_is_relayed_to_celestia() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn one_block_is_relayed_to_celestia_relay_only_validator_key() {
+    let mut sequencer_relayer = spawn_sequencer_relayer(CelestiaMode::Immediate, true).await;
+    let guard = sequencer_relayer.mount_block_response(1).await;
+    timeout_guard(&sequencer_relayer, guard).await;
+    let guard = sequencer_relayer
+        .mount_block_response_with_zero_proposer(1)
+        .await;
+    timeout_guard(&sequencer_relayer, guard).await;
+
+    let Some(blobs_seen_by_celestia) = sequencer_relayer
+        .celestia
+        .state_rpc_confirmed_rx
+        .recv()
+        .await
+    else {
+        panic!("celestia must have seen blobs")
+    };
+    // We can reconstruct the individual blobs here, but let's just assert that it's
+    // two blobs for now: one transaction in the original block + sequencer namespace
+    // data.
+    assert_eq!(blobs_seen_by_celestia.len(), 2);
+
+    // TODO: we should shut down and join all outstanding tasks here.
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn one_block_is_relayed_to_celestia_relay_all() {
+    let mut sequencer_relayer = spawn_sequencer_relayer_relay_all(CelestiaMode::Immediate).await;
+    let guard = sequencer_relayer
+        .mount_block_response_with_zero_proposer(1)
+        .await;
+    timeout_guard(&sequencer_relayer, guard).await;
+
+    let Some(blobs_seen_by_celestia) = sequencer_relayer
+        .celestia
+        .state_rpc_confirmed_rx
+        .recv()
+        .await
+    else {
+        panic!("celestia must have seen blobs")
+    };
+
+    // we should have relayed the block even if it wasn't proposed by our address.
+    assert_eq!(blobs_seen_by_celestia.len(), 2);
+
+    // TODO: we should shut down and join all outstanding tasks here.
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn same_block_is_dropped() {
-    let mut sequencer_relayer = spawn_sequencer_relayer(CelestiaMode::Immediate).await;
+    let mut sequencer_relayer = spawn_sequencer_relayer_relay_all(CelestiaMode::Immediate).await;
     let guard = sequencer_relayer.mount_block_response(1).await;
     timeout_guard(&sequencer_relayer, guard).await;
 
@@ -88,7 +138,7 @@ async fn same_block_is_dropped() {
 async fn slow_celestia_leads_to_bundled_blobs() {
     // Start the environment with celestia delaying responses by 4 times the sequencer block time
     // (it takes 4000 ms to respond if the sequencer block time is 1000 ms).
-    let mut sequencer_relayer = spawn_sequencer_relayer(CelestiaMode::Delayed(4)).await;
+    let mut sequencer_relayer = spawn_sequencer_relayer_relay_all(CelestiaMode::Delayed(4)).await;
 
     let guard = sequencer_relayer.mount_block_response(1).await;
     timeout_guard(&sequencer_relayer, guard).await;
