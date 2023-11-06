@@ -21,10 +21,7 @@ use sequencer_client::{
 };
 use tendermint::{
     account,
-    block::{
-        self,
-        Commit,
-    },
+    block,
     chain,
     validator::Info as Validator,
     vote::{
@@ -111,7 +108,7 @@ pub(crate) fn validate_rollup_data(
 
 fn validate_sequencer_namespace_data(
     current_validator_set: &validators::Response,
-    commit: &Commit,
+    commit: &block::Commit,
     data: &SequencerNamespaceData,
 ) -> eyre::Result<()> {
     use sha2::Digest as _;
