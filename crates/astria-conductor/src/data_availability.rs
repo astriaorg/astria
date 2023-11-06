@@ -73,12 +73,17 @@ pub(crate) struct Reader {
     verify_sequencer_blobs_and_assemble_rollups:
         JoinMap<Height, eyre::Result<Vec<SequencerBlockSubset>>>,
 
+    /// The height at which to start syncing data availability blocks.
+    sync_start_height: u32,
+
     shutdown: oneshot::Receiver<()>,
 }
 
 impl Reader {
     /// Creates a new Reader instance and returns a command sender.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new(
+        initial_da_height: u32,
         celestia_node_url: &str,
         celestia_bearer_token: &str,
         celestia_poll_interval: Duration,
@@ -104,6 +109,9 @@ impl Reader {
             .header
             .height;
 
+        let sync_start_height =
+            find_da_sync_start_height(celestia_client.clone(), initial_da_height);
+
         info!(da_height = %current_block_height, "creating Reader");
 
         Ok(Self {
@@ -116,6 +124,7 @@ impl Reader {
             verify_sequencer_blobs_and_assemble_rollups: JoinMap::new(),
             block_verifier,
             namespace,
+            sync_start_height,
             shutdown,
         })
     }
@@ -459,7 +468,10 @@ fn verify_all_datas(
     verification_tasks
 }
 
-// TODO: add a da_find_start_block_height fn
+// TODO: add a pub da_find_start_block_height fn to use when starting Conductor
+fn find_da_sync_start_height(client: HttpClient, initial_da_height: u32) -> u32 {
+    1
+}
 
 // TODO: add a sync function
 // needs to be here because the normal da::Reader loop still needs to process da blocks

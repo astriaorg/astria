@@ -149,6 +149,7 @@ impl Conductor {
             let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
             // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
             let reader = data_availability::Reader::new(
+                cfg.initial_da_block_height,
                 &cfg.celestia_node_url,
                 &cfg.celestia_bearer_token,
                 std::time::Duration::from_secs(3),
