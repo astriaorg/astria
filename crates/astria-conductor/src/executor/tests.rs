@@ -167,13 +167,7 @@ async fn execute_sequencer_block_without_txs() {
     let expected_exection_hash = hash(&mock.executor.commitment_state.soft.hash);
     let block = get_test_block_subset();
 
-    let execution_block_hash = mock
-        .executor
-        .execute_block(block)
-        .await
-        .unwrap()
-        .expect("expected execution block hash")
-        .hash;
+    let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash;
     assert_eq!(expected_exection_hash, execution_block_hash);
 }
 
@@ -187,13 +181,7 @@ async fn execute_sequencer_block_wit_txs() {
     // using firm hash here as da blocks are executed on top of the firm commitment
     let expected_exection_hash = hash(&mock.executor.commitment_state.soft.hash);
 
-    let execution_block_hash = mock
-        .executor
-        .execute_block(block)
-        .await
-        .unwrap()
-        .expect("expected execution block hash")
-        .hash;
+    let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash;
     assert_eq!(expected_exection_hash, execution_block_hash);
 }
 

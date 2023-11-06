@@ -163,7 +163,7 @@ impl Executor {
 
                             let executed_block_result = self.execute_block(block_subset).await;
                             match executed_block_result {
-                                Ok(Some(executed_block)) => {
+                                Ok(executed_block) => {
                                     if let Err(e) = self.update_soft_commitment(executed_block.clone()).await {
                                         error!(
                                             height = height,
@@ -179,8 +179,6 @@ impl Executor {
                                         "failed to execute block"
                                     );
                                 }
-                                // execution was skipped
-                                Ok(None) => {}
                             }
                         }
 
@@ -208,7 +206,7 @@ impl Executor {
     /// if the block has already been executed, it returns the previously-computed
     /// execution block hash.
     /// if there are no relevant transactions in the SequencerBlock, it returns None.
-    async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Block>> {
+    async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Block> {
         if let Some(execution_block) = self
             .sequencer_hash_to_execution_block
             .get(&block.block_hash)
@@ -218,7 +216,7 @@ impl Executor {
                 execution_hash = hex::encode(&execution_block.hash),
                 "block already executed"
             );
-            return Ok(Some(execution_block.clone()));
+            return Ok(execution_block.clone());
         }
 
         let prev_block_hash = self.commitment_state.soft.hash.clone();
@@ -248,7 +246,7 @@ impl Executor {
         self.sequencer_hash_to_execution_block
             .insert(block.block_hash, executed_block.clone());
 
-        Ok(Some(executed_block))
+        Ok(executed_block)
     }
 
     /// Updates the commitment state on the execution layer.
@@ -321,17 +319,10 @@ impl Executor {
                     // try executing the block as it hasn't been executed before
                     // execute_block will check if our namespace has txs; if so, it'll return the
                     // resulting execution block hash, otherwise None
-                    let Some(executed_block) = self
+                    let executed_block = self
                         .execute_block(block)
                         .await
-                        .wrap_err("failed to execute block")?
-                    else {
-                        // no txs for our namespace, nothing to do
-                        debug!(
-                            "execute_block returned None; skipping call_update_commitment_state"
-                        );
-                        return Ok(());
-                    };
+                        .wrap_err("failed to execute block")?;
 
                     // when we execute a block received from da, nothing else has been executed on
                     // top of it, so we set FIRM and SOFT to this executed block
