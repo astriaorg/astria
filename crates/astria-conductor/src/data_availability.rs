@@ -458,3 +458,8 @@ fn verify_all_datas(
     }
     verification_tasks
 }
+
+// TODO: add a da_find_start_block_height fn
+
+// TODO: add a sync function
+// needs to be here because the normal da::Reader loop still needs to process da blocks

@@ -105,6 +105,7 @@ impl Reader {
             .fuse();
 
         let mut pending_blocks = FuturesOrdered::new();
+
         let latest_height = match new_blocks.next().await {
             None => bail!("subscription to sequencer for new blocks failed immediately; bailing"),
             Some(Err(e)) => {
