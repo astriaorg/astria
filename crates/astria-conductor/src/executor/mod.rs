@@ -199,13 +199,10 @@ impl Executor {
         Ok(())
     }
 
-    /// checks for relevant transactions in the SequencerBlock and attempts
-    /// to execute them via the execution service function DoBlock.
-    /// if there are relevant transactions that successfully execute,
-    /// it returns the resulting execution block hash.
-    /// if the block has already been executed, it returns the previously-computed
+    /// Execute the sequencer block on the execution layer, returning the
+    /// resulting execution block. If the block has already been executed, it
+    /// returns the previously-computed
     /// execution block hash.
-    /// if there are no relevant transactions in the SequencerBlock, it returns None.
     async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Block> {
         if let Some(execution_block) = self
             .sequencer_hash_to_execution_block
@@ -310,11 +307,7 @@ impl Executor {
                         .remove(&sequencer_block_hash);
                 }
                 None => {
-                    // this means either:
-                    // - we didn't receive the block from the sequencer stream, or
-                    // - we received it, but the sequencer block didn't contain
-                    // any transactions for this rollup namespace, thus nothing was executed
-                    // on receiving this block.
+                    // this means either we didn't receive the block from the sequencer stream
 
                     // try executing the block as it hasn't been executed before
                     // execute_block will check if our namespace has txs; if so, it'll return the
