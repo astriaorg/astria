@@ -30,7 +30,6 @@ impl SequencerBlockSubset {
         let RawSequencerBlockData {
             block_hash,
             header,
-            last_commit: _,
             mut rollup_data,
             ..
         } = data.into_raw();

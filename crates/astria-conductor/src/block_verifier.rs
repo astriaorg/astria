@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use astria_sequencer_types::calculate_last_commit_hash;
 use celestia_client::{
     RollupNamespaceData,
     SequencerNamespaceData,
@@ -78,16 +77,23 @@ impl BlockVerifier {
 
         // get validator set for the previous height, as the commit contained
         // in the block is for the previous height
-        let parent_validator_set = client
-            .validators(
-                height - 1,
-                sequencer_client::tendermint_rpc::Paging::Default,
-            )
+        let commit = client
+            .commit(height)
             .await
-            .wrap_err("failed to get validator set")?;
+            .wrap_err("failed to get commit")?;
 
-        validate_sequencer_namespace_data(&current_validator_set, &parent_validator_set, data)
-            .wrap_err("failed validating sequencer data inside signed namespace data")
+        // validate commit is for our block
+        ensure!(
+            commit.signed_header.header.hash() == data.block_hash,
+            "commit is not for the expected block",
+        );
+
+        validate_sequencer_namespace_data(
+            &current_validator_set,
+            &commit.signed_header.commit,
+            data,
+        )
+        .wrap_err("failed validating sequencer data inside signed namespace data")
     }
 }
 
@@ -102,7 +108,7 @@ pub(crate) fn validate_rollup_data(
 
 fn validate_sequencer_namespace_data(
     current_validator_set: &validators::Response,
-    parent_validator_set: &validators::Response,
+    commit: &block::Commit,
     data: &SequencerNamespaceData,
 ) -> eyre::Result<()> {
     use sha2::Digest as _;
@@ -110,7 +116,6 @@ fn validate_sequencer_namespace_data(
     let SequencerNamespaceData {
         block_hash,
         header,
-        last_commit,
         rollup_chain_ids: _,
         action_tree_root,
         action_tree_root_inclusion_proof,
@@ -132,35 +137,10 @@ fn validate_sequencer_namespace_data(
          `{received_proposer_address}`",
     );
 
-    match &last_commit {
-        Some(last_commit) => {
-            // validate that commit signatures hash to header.last_commit_hash
-            let calculated_last_commit_hash = calculate_last_commit_hash(last_commit);
-            let Some(last_commit_hash) = header.last_commit_hash.as_ref() else {
-                bail!("last commit hash should not be empty");
-            };
-
-            if &calculated_last_commit_hash != last_commit_hash {
-                bail!("last commit hash in header does not match calculated last commit hash");
-            }
-
-            // verify that the validator votes on the previous block have >2/3 voting power
-            let last_commit = last_commit.clone();
-            let chain_id = header.chain_id.clone();
-            ensure_commit_has_quorum(&last_commit, parent_validator_set, chain_id.as_ref())
-                .wrap_err("failed to ensure commit has quorum")?
-
-            // TODO: commit is for previous block; how do we handle this? (#50)
-        }
-        None => {
-            // the last commit can only be empty on block 1
-            ensure!(header.height == 1u32.into(), "last commit hash not found");
-            ensure!(
-                header.last_commit_hash.is_none(),
-                "last commit hash should be empty"
-            );
-        }
-    }
+    // verify that the validator votes on the block have >2/3 voting power
+    let chain_id = header.chain_id.clone();
+    ensure_commit_has_quorum(commit, current_validator_set, chain_id.as_ref())
+        .wrap_err("failed to ensure commit has quorum")?;
 
     // validate the block header matches the block hash
     let block_hash_from_header = header.hash();
@@ -391,7 +371,10 @@ mod test {
 
     use super::*;
 
-    fn make_test_validator_set(height: u32) -> (validators::Response, account::Id) {
+    fn make_test_validator_set_and_commit(
+        height: u32,
+        chain_id: chain::Id,
+    ) -> (validators::Response, account::Id, Commit) {
         use rand::rngs::OsRng;
 
         let signing_key = ed25519_consensus::SigningKey::new(OsRng);
@@ -409,9 +392,38 @@ mod test {
             name: None,
         };
 
+        let round = 0u16;
+        let timestamp = tendermint::Time::unix_epoch();
+        let canonical_vote = CanonicalVote {
+            vote_type: vote::Type::Precommit,
+            height: height.into(),
+            round: round.into(),
+            block_id: None,
+            timestamp: Some(timestamp),
+            chain_id,
+        };
+
+        let message = tendermint_proto::types::CanonicalVote::try_from(canonical_vote)
+            .unwrap()
+            .encode_length_delimited_to_vec();
+
+        let signature = signing_key.sign(&message);
+
+        let commit = tendermint::block::Commit {
+            height: height.into(),
+            round: round.into(),
+            signatures: vec![tendermint::block::CommitSig::BlockIdFlagCommit {
+                validator_address: address,
+                timestamp,
+                signature: Some(signature.into()),
+            }],
+            ..Default::default()
+        };
+
         (
             validators::Response::new(height.into(), vec![validator], 1),
             address,
+            commit,
         )
     }
 
@@ -431,14 +443,14 @@ mod test {
         let height = header.height.value() as u32;
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
-        let (validator_set, proposer_address) = make_test_validator_set(height);
+        let (validator_set, proposer_address, commit) =
+            make_test_validator_set_and_commit(height, header.chain_id.clone());
         header.proposer_address = proposer_address;
         let block_hash = header.hash();
 
         let sequencer_namespace_data = SequencerNamespaceData {
             block_hash,
             header,
-            last_commit: None,
             rollup_chain_ids: vec![],
             action_tree_root,
             action_tree_root_inclusion_proof,
@@ -446,12 +458,8 @@ mod test {
             chain_ids_commitment_inclusion_proof,
         };
 
-        validate_sequencer_namespace_data(
-            &validator_set,
-            &make_test_validator_set(height - 1).0,
-            &sequencer_namespace_data,
-        )
-        .unwrap();
+        validate_sequencer_namespace_data(&validator_set, &commit, &sequencer_namespace_data)
+            .unwrap();
     }
 
     #[tokio::test]
@@ -476,14 +484,14 @@ mod test {
         let height = header.height.value() as u32;
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
-        let (validator_set, proposer_address) = make_test_validator_set(height);
+        let (validator_set, proposer_address, commit) =
+            make_test_validator_set_and_commit(height, header.chain_id.clone());
         header.proposer_address = proposer_address;
         let block_hash = header.hash();
 
         let sequencer_namespace_data = SequencerNamespaceData {
             block_hash,
             header,
-            last_commit: None,
             rollup_chain_ids: vec![
                 astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
             ],
@@ -500,12 +508,8 @@ mod test {
             inclusion_proof: action_tree.prove_inclusion(0).unwrap(),
         };
 
-        validate_sequencer_namespace_data(
-            &validator_set,
-            &make_test_validator_set(height - 1).0,
-            &sequencer_namespace_data,
-        )
-        .unwrap();
+        validate_sequencer_namespace_data(&validator_set, &commit, &sequencer_namespace_data)
+            .unwrap();
         rollup_namespace_data
             .verify_inclusion_proof(sequencer_namespace_data.action_tree_root)
             .unwrap();

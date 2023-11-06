@@ -15,10 +15,7 @@ use sha2::{
     Sha256,
 };
 use tendermint::{
-    block::{
-        Commit,
-        Header,
-    },
+    block::Header,
     Hash,
 };
 
@@ -47,7 +44,6 @@ pub fn celestia_namespace_v0_from_hashed_bytes(bytes: &[u8]) -> Namespace {
 pub struct SequencerNamespaceData {
     pub block_hash: Hash,
     pub header: Header,
-    pub last_commit: Option<Commit>,
     pub rollup_chain_ids: Vec<ChainId>,
     pub action_tree_root: [u8; 32],
     pub action_tree_root_inclusion_proof: InclusionProof,
