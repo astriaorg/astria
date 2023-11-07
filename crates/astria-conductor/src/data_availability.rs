@@ -80,7 +80,6 @@ impl Reader {
     /// Creates a new Reader instance and returns a command sender.
     pub(crate) async fn new(
         celestia_node_url: &str,
-        celestia_bearer_token: &str,
         celestia_poll_interval: Duration,
         executor_tx: executor::Sender,
         block_verifier: BlockVerifier,
@@ -91,7 +90,7 @@ impl Reader {
 
         let celestia_client = celestia_client::celestia_rpc::client::new_http(
             celestia_node_url,
-            Some(celestia_bearer_token),
+            None,
         )
         .wrap_err("failed constructing celestia http client")?;
 

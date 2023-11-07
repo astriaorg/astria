@@ -28,9 +28,6 @@ pub struct Config {
     /// URL of the Celestia Node
     pub celestia_node_url: String,
 
-    /// The JWT bearer token supplied with each jsonrpc call
-    pub celestia_bearer_token: String,
-
     /// URL of the sequencer cometbft websocket
     pub sequencer_url: String,
 
