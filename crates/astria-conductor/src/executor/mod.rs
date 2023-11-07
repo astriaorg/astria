@@ -6,6 +6,7 @@ use astria_sequencer_types::{
 };
 use color_eyre::eyre::{
     self,
+    eyre,
     Result,
     WrapErr as _,
 };
@@ -97,6 +98,9 @@ pub(crate) struct Executor {
     /// Tracks SOFT and FIRM on the execution chain
     commitment_state: ExecutorCommitmentState,
 
+    /// Tracks the height of the next sequencer block that can be executed
+    executable_block_height: u32,
+
     /// map of sequencer block hash to execution block
     ///
     /// this is required because when we receive sequencer blocks (from network or DA),
@@ -107,16 +111,13 @@ pub(crate) struct Executor {
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
     sequencer_hash_to_execution_block: HashMap<Hash, Block>,
-
-    /// Chose to execute empty blocks or not
-    disable_empty_block_execution: bool,
 }
 
 impl Executor {
     pub(crate) async fn new(
         server_addr: &str,
         chain_id: ChainId,
-        disable_empty_block_execution: bool,
+        init_sequencer_height: u32,
         cmd_rx: Receiver,
         shutdown: oneshot::Receiver<()>,
     ) -> Result<Self> {
@@ -128,14 +129,30 @@ impl Executor {
             .await
             .wrap_err("executor failed to get commitment state")?;
 
+        // The `executable_block_height` is the height of the next sequencer block
+        // that can be executed on top of the rollup state. The `init_sequencer_height`
+        // is set when the rollup is first created and lets us know that this
+        // rollup's first block is in block K of the sequencer chain.
+        // The `commitment_state.soft.number` is the block height of the most
+        // recently executed block on the rollup and is pulled from the rollup
+        // the Conductor is associated with on startup of the Conductor (N
+        // blocks have already been executed on the rollup).
+        // `executable_block_height` represents where the Condutor sync should
+        // start:
+        // `executable_block_height` = sequencer block K + executed block N
+        // By setting this value we prevent the reexecution of blocks on the
+        // rollup. If block M is the most recent sequencer block, we then know
+        // that we need to sync blocks from `executable_block_height` to M.
+        let executable_block_height = commitment_state.soft.number + init_sequencer_height;
+
         Ok(Self {
             cmd_rx,
             shutdown,
             execution_rpc_client,
             chain_id,
             commitment_state,
+            executable_block_height,
             sequencer_hash_to_execution_block: HashMap::new(),
-            disable_empty_block_execution,
         })
     }
 
@@ -168,7 +185,7 @@ impl Executor {
 
                             let executed_block_result = self.execute_block(block_subset).await;
                             match executed_block_result {
-                                Ok(Some(executed_block)) => {
+                                Ok(executed_block) => {
                                     if let Err(e) = self.update_soft_commitment(executed_block.clone()).await {
                                         error!(
                                             height = height,
@@ -184,8 +201,6 @@ impl Executor {
                                         "failed to execute block"
                                     );
                                 }
-                                // execution was skipped
-                                Ok(None) => {}
                             }
                         }
 
@@ -212,15 +227,15 @@ impl Executor {
     /// it returns the resulting execution block hash.
     /// if the block has already been executed, it returns the previously-computed
     /// execution block hash.
-    /// if there are no relevant transactions in the SequencerBlock, it returns None.
     #[instrument(skip(self), fields(sequencer_block_hash = ?block.block_hash, sequencer_block_height = block.header.height.value()))]
-    async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Block>> {
-        if self.disable_empty_block_execution && block.rollup_transactions.is_empty() {
-            debug!(
+    async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Block> {
+        if self.executable_block_height as u64 != block.header.height.value() {
+            error!(
                 sequencer_block_height = block.header.height.value(),
-                "no transactions in block, skipping execution"
+                executable_block_height = self.executable_block_height,
+                "block received out of order;"
             );
-            return Ok(None);
+            return Err(eyre!("block received out of order"));
         }
 
         if let Some(execution_block) = self
@@ -232,7 +247,7 @@ impl Executor {
                 execution_hash = hex::encode(&execution_block.hash),
                 "block already executed"
             );
-            return Ok(Some(execution_block.clone()));
+            return Ok(execution_block.clone());
         }
 
         let prev_block_hash = self.commitment_state.soft.hash.clone();
@@ -250,6 +265,7 @@ impl Executor {
             .execution_rpc_client
             .call_execute_block(prev_block_hash, block.rollup_transactions, timestamp)
             .await?;
+        self.executable_block_height += 1;
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
@@ -261,7 +277,7 @@ impl Executor {
         self.sequencer_hash_to_execution_block
             .insert(block.block_hash, executed_block.clone());
 
-        Ok(Some(executed_block))
+        Ok(executed_block)
     }
 
     /// Updates the commitment state on the execution layer.
@@ -325,26 +341,15 @@ impl Executor {
                         .remove(&sequencer_block_hash);
                 }
                 None => {
-                    // this means either:
-                    // - we didn't receive the block from the sequencer stream, or
-                    // - we received it, but the sequencer block didn't contain
-                    // any transactions for this rollup namespace, thus nothing was executed
-                    // on receiving this block.
+                    // this means either we didn't receive the block from the sequencer stream
 
                     // try executing the block as it hasn't been executed before
                     // execute_block will check if our namespace has txs; if so, it'll return the
                     // resulting execution block hash, otherwise None
-                    let Some(executed_block) = self
+                    let executed_block = self
                         .execute_block(block)
                         .await
-                        .wrap_err("failed to execute block")?
-                    else {
-                        // no txs for our namespace, nothing to do
-                        debug!(
-                            "execute_block returned None; skipping call_update_commitment_state"
-                        );
-                        return Ok(());
-                    };
+                        .wrap_err("failed to execute block")?;
 
                     // when we execute a block received from da, nothing else has been executed on
                     // top of it, so we set FIRM and SOFT to this executed block
@@ -358,5 +363,9 @@ impl Executor {
             };
         }
         Ok(())
+    }
+
+    pub(crate) fn get_executable_block_height(&self) -> u32 {
+        self.executable_block_height
     }
 }
