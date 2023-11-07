@@ -163,6 +163,7 @@ async fn start_mock(pre_execution_hook: Option<Box<dyn PreExecutionHook>>) -> Mo
     let executor = Executor::new(
         &server_url,
         chain_id,
+        1, // genesis block is always block 0, first executable block will always be block 1
         block_rx,
         shutdown_rx,
         pre_execution_hook,
@@ -329,4 +330,44 @@ async fn deposit_events_are_converted_and_executed() {
 
     let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash;
     assert_eq!(expected_exection_hash, execution_block_hash);
+}
+
+#[tokio::test]
+async fn try_execute_out_of_order_block_from_sequencer() {
+    let mut mock = start_mock(None).await;
+    let mut block = get_test_block_subset();
+
+    // 0 is always the genesis block, so this should fail
+    block.header.height = 0_u32.into();
+    let execution_result = mock.executor.execute_block(block.clone()).await;
+    assert!(execution_result.is_err());
+
+    // the first block to execute should always be 1, this should fail as it is
+    // in the future
+    block.header.height = 2_u32.into();
+    let execution_result = mock.executor.execute_block(block).await;
+    assert!(execution_result.is_err());
+}
+
+#[tokio::test]
+async fn try_execute_out_of_order_block_from_celestia() {
+    let mut mock = start_mock(None).await;
+    let mut block = get_test_block_subset();
+
+    // 0 is always the genesis block, so this should fail
+    block.header.height = 0_u32.into();
+    let execution_result = mock
+        .executor
+        .execute_and_finalize_blocks_from_celestia(vec![block.clone()])
+        .await;
+    assert!(execution_result.is_err());
+
+    // the first block to execute should always be 1, this should fail as it is
+    // in the future
+    block.header.height = 2_u32.into();
+    let execution_result = mock
+        .executor
+        .execute_and_finalize_blocks_from_celestia(vec![block])
+        .await;
+    assert!(execution_result.is_err());
 }

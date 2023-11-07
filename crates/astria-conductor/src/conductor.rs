@@ -84,7 +84,7 @@ impl Conductor {
         let signals = spawn_signal_handler();
 
         // Spawn the executor task.
-        let executor_tx = {
+        let (executor_tx, sync_start_block_height) = {
             let (block_tx, block_rx) = mpsc::unbounded_channel();
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
@@ -114,6 +114,7 @@ impl Conductor {
                     &cfg.execution_rpc_url,
                     ChainId::new(cfg.chain_id.as_bytes().to_vec())
                         .wrap_err("failed to create chain ID")?,
+                    cfg.initial_sequencer_block_height,
                     block_rx,
                     shutdown_rx,
                     Some(Box::new(optimism_handler)),
@@ -125,6 +126,7 @@ impl Conductor {
                     &cfg.execution_rpc_url,
                     ChainId::new(cfg.chain_id.as_bytes().to_vec())
                         .wrap_err("failed to create chain ID")?,
+                    cfg.initial_sequencer_block_height,
                     block_rx,
                     shutdown_rx,
                     None,
@@ -133,9 +135,12 @@ impl Conductor {
                 .wrap_err("failed to construct executor")
             }?;
 
+            let executable_sequencer_block_height = executor.get_executable_block_height();
+
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
             shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
-            block_tx
+
+            (block_tx, executable_sequencer_block_height)
         };
 
         let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
@@ -156,11 +161,14 @@ impl Conductor {
         }
 
         if !cfg.execution_commit_level.is_firm_only() {
-            // todo!("set up stuff");
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             let (sync_done_tx, sync_done_rx) = oneshot::channel();
+
+            // The `sync_start_block_height` represents the height of the next
+            // sequencer block that can be executed on top of the rollup state.
+            // This value is derived by the Executor.
             let sequencer_reader = sequencer::Reader::new(
-                cfg.initial_sequencer_block_height,
+                sync_start_block_height,
                 sequencer_client_pool.clone(),
                 shutdown_rx,
                 executor_tx.clone(),
