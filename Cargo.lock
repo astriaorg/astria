@@ -476,6 +476,7 @@ dependencies = [
  "futures",
  "hex",
  "matchit",
+ "once_cell",
  "penumbra-storage",
  "penumbra-tower-trace",
  "prost 0.11.9",

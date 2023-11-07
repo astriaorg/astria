@@ -40,6 +40,9 @@ impl Sequencer {
                 "creating storage db"
             );
         }
+
+        crate::asset::initialize_known_assets();
+
         let storage = penumbra_storage::Storage::load(config.db_filepath.clone())
             .await
             .context("failed to load storage backing chain state")?;
