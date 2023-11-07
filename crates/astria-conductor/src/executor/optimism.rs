@@ -6,7 +6,6 @@ use astria_optimism::{
         TransactionDepositedFilter,
     },
     deposit::convert_deposit_event_to_deposit_tx,
-    DepositTransaction,
 };
 use ethers::{
     prelude::*,
@@ -88,13 +87,10 @@ pub(crate) fn convert_deposit_events_to_encoded_txs(
     let deposit_txs = deposit_events
         .into_iter()
         .map(|(event, meta)| {
-            convert_deposit_event_to_deposit_tx(event, meta.block_hash, meta.log_index)
+            let tx = convert_deposit_event_to_deposit_tx(event, meta.block_hash, meta.log_index)?;
+            Ok(TypedTransaction::DepositTransaction(tx).rlp().to_vec())
         })
-        .collect::<Result<Vec<DepositTransaction>>>()?;
+        .collect::<Result<Vec<Vec<u8>>>>()?;
 
-    let deposit_txs = deposit_txs
-        .into_iter()
-        .map(|tx| TypedTransaction::DepositTransaction(tx).rlp().to_vec())
-        .collect::<Vec<Vec<u8>>>();
     Ok(deposit_txs)
 }
