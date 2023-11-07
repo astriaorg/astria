@@ -17,24 +17,33 @@ use serde::{
     Serialize,
 };
 use tendermint::{
-    block::{
-        Commit,
-        Header,
-    },
+    block::Header,
     Block,
     Hash,
 };
 use thiserror::Error;
 use tracing::debug;
 
-use crate::tendermint::calculate_last_commit_hash;
-
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("failed converting bytes to action tree root: expected 32 bytes")]
     ActionTreeRootConversion(#[source] TryFromSliceError),
+    #[error("failed to generate inclusion proof for action tree root")]
+    ActionTreeRootInclusionProof(sequencer_validation::IndexOutOfBounds),
+    #[error(
+        "failed to verify data hash in cometbft header against inclusion proof and action tree \
+         root in sequencer block body"
+    )]
+    ActionTreeRootVerification(#[source] sequencer_validation::VerificationFailure),
     #[error("failed converting bytes to chain IDs commitment: expected 32 bytes")]
     ChainIdsCommitmentConversion(#[source] TryFromSliceError),
+    #[error("failed to generate inclusion proof for chain IDs commitment")]
+    ChainIdsCommitmentInclusionProof(sequencer_validation::IndexOutOfBounds),
+    #[error(
+        "failed to verify chain IDs commitment in cometbft header against inclusion proof and \
+         chain IDs commitment in sequencer block body"
+    )]
+    ChainIdsCommitmentVerification(#[source] sequencer_validation::VerificationFailure),
     #[error(
         "data hash stored tendermint header does not match action tree root reconstructed from \
          data"
@@ -45,22 +54,12 @@ pub enum Error {
          sequencer block"
     )]
     HashOfHeaderBlockHashMismatach,
-    #[error("failed to generate inclusion proof for action tree root")]
-    InclusionProof(sequencer_validation::IndexOutOfBounds),
     #[error("chain ID must be 32 bytes or less")]
     InvalidChainIdLength,
-    #[error(
-        "last commit hash does not match the one calculated from the block's commit signatures"
-    )]
-    LastCommitHashMismatch,
     #[error("the sequencer block contained neither action tree root nor transaction data")]
     NoData,
     #[error("block has no data hash")]
     MissingDataHash,
-    #[error("last_commit field was unset even though last_commit_hash was set")]
-    MissingLastCommit,
-    #[error("block has no last commit hash")]
-    MissingLastCommitHash,
     #[error("failed decoding bytes to protobuf signed transaction")]
     SignedTransactionProtobufDecode(#[source] DecodeError),
     #[error("failed constructing native signed transaction from raw protobuf signed transaction")]
@@ -71,11 +70,6 @@ pub enum Error {
     ReadingJson(#[source] serde_json::Error),
     #[error("chain IDs commitment does not match the one calculated from the rollup data")]
     ReconstructedChainIdsCommitmentMismatch,
-    #[error(
-        "failed to verify data hash in cometbft header against inclusion proof and action tree \
-         root in sequencer block body"
-    )]
-    Verification(#[source] sequencer_validation::VerificationFailure),
     #[error("failed writing sequencer block data as json")]
     WritingJson(#[source] serde_json::Error),
 }
@@ -112,8 +106,6 @@ impl AsRef<[u8]> for ChainId {
 pub struct SequencerBlockData {
     block_hash: Hash,
     header: Header,
-    /// This field should be set for every block with height > 1.
-    last_commit: Option<Commit>,
     /// chain ID -> rollup transactions
     rollup_data: BTreeMap<ChainId, Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
@@ -124,6 +116,9 @@ pub struct SequencerBlockData {
     /// The commitment to the chain IDs of the rollup data.
     /// The merkle root of the tree where the leaves are the chain IDs.
     chain_ids_commitment: [u8; 32],
+    /// The inclusion proof that the chain IDs commitment is included
+    /// in `Header::data_hash`.
+    chain_ids_commitment_inclusion_proof: InclusionProof,
 }
 
 impl SequencerBlockData {
@@ -145,11 +140,11 @@ impl SequencerBlockData {
         let RawSequencerBlockData {
             block_hash,
             header,
-            last_commit,
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
             chain_ids_commitment,
+            chain_ids_commitment_inclusion_proof,
         } = raw;
 
         let calculated_block_hash = header.hash();
@@ -161,39 +156,34 @@ impl SequencerBlockData {
         let action_tree_root_hash = sha2::Sha256::digest(action_tree_root);
         action_tree_root_inclusion_proof
             .verify(&action_tree_root_hash, data_hash)
-            .map_err(Error::Verification)?;
+            .map_err(Error::ActionTreeRootVerification)?;
+
+        let chain_ids_commitment_hash = sha2::Sha256::digest(chain_ids_commitment);
+        chain_ids_commitment_inclusion_proof
+            .verify(&chain_ids_commitment_hash, data_hash)
+            .map_err(Error::ChainIdsCommitmentVerification)?;
 
         // genesis and height 1 do not have a last commit
         if header.height.value() <= 1 {
             return Ok(Self {
                 block_hash,
                 header,
-                last_commit: None,
                 rollup_data,
                 action_tree_root,
                 action_tree_root_inclusion_proof,
                 chain_ids_commitment,
+                chain_ids_commitment_inclusion_proof,
             });
         }
 
-        // calculate and verify last_commit_hash
-        let last_commit_hash = header
-            .last_commit_hash
-            .ok_or(Error::MissingLastCommitHash)?;
-
-        let calculated_last_commit_hash =
-            calculate_last_commit_hash(last_commit.as_ref().ok_or(Error::MissingLastCommit)?);
-        if calculated_last_commit_hash != last_commit_hash {
-            return Err(Error::LastCommitHashMismatch)?;
-        }
         Ok(Self {
             block_hash,
             header,
-            last_commit,
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
             chain_ids_commitment,
+            chain_ids_commitment_inclusion_proof,
         })
     }
 
@@ -208,11 +198,6 @@ impl SequencerBlockData {
     }
 
     #[must_use]
-    pub fn last_commit(&self) -> &Option<Commit> {
-        &self.last_commit
-    }
-
-    #[must_use]
     pub fn rollup_data(&self) -> &BTreeMap<ChainId, Vec<Vec<u8>>> {
         &self.rollup_data
     }
@@ -223,21 +208,21 @@ impl SequencerBlockData {
         let Self {
             block_hash,
             header,
-            last_commit,
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
             chain_ids_commitment,
+            chain_ids_commitment_inclusion_proof,
         } = self;
 
         RawSequencerBlockData {
             block_hash,
             header,
-            last_commit,
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
             chain_ids_commitment,
+            chain_ids_commitment_inclusion_proof,
         }
     }
 
@@ -336,7 +321,7 @@ impl SequencerBlockData {
         }
         let action_tree_root_inclusion_proof = tx_tree
             .prove_inclusion(0) // action tree root is always the first tx in a block
-            .map_err(Error::InclusionProof)?;
+            .map_err(Error::ActionTreeRootInclusionProof)?;
 
         // ensure the chain IDs commitment matches the one calculated from the rollup data
         let chain_ids = rollup_data
@@ -348,15 +333,18 @@ impl SequencerBlockData {
         if calculated_chain_ids_commitment != chain_ids_commitment {
             return Err(Error::ReconstructedChainIdsCommitmentMismatch);
         }
+        let chain_ids_commitment_inclusion_proof = tx_tree
+            .prove_inclusion(1)
+            .map_err(Error::ChainIdsCommitmentInclusionProof)?;
 
         let data = Self {
             block_hash: b.header.hash(),
             header: b.header,
-            last_commit: b.last_commit,
             rollup_data,
             action_tree_root,
             action_tree_root_inclusion_proof,
             chain_ids_commitment,
+            chain_ids_commitment_inclusion_proof,
         };
         Ok(data)
     }
@@ -384,8 +372,6 @@ fn sha256_hash(data: &[u8]) -> Vec<u8> {
 pub struct RawSequencerBlockData {
     pub block_hash: Hash,
     pub header: Header,
-    /// This field should be set for every block with height > 1.
-    pub last_commit: Option<Commit>,
     /// namespace -> rollup data (chain ID and transactions)
     pub rollup_data: BTreeMap<ChainId, Vec<Vec<u8>>>,
     /// The root of the action tree for this block.
@@ -396,6 +382,9 @@ pub struct RawSequencerBlockData {
     /// The commitment to the chain IDs of the rollup data.
     /// The merkle root of the tree where the leaves are the chain IDs.
     pub chain_ids_commitment: [u8; 32],
+    /// The inclusion proof that the chain IDs commitment is included
+    /// in `Header::data_hash`.
+    pub chain_ids_commitment_inclusion_proof: InclusionProof,
 }
 
 impl TryFrom<RawSequencerBlockData> for SequencerBlockData {
@@ -422,17 +411,24 @@ mod test {
     use super::SequencerBlockData;
     use crate::{
         sequencer_block_data::calculate_data_hash_and_tx_tree,
-        test_utils::make_test_commit_and_hash,
         RawSequencerBlockData,
     };
 
     #[test]
     fn new_sequencer_block() {
         let mut header = crate::test_utils::default_header();
-        let (action_tree_root, action_tree_root_inclusion_proof, data_hash) = {
+        let (
+            action_tree_root,
+            action_tree_root_inclusion_proof,
+            chain_ids_commitment,
+            chain_ids_commitment_inclusion_proof,
+            data_hash,
+        ) = {
             let action_tree_root = [9u8; 32];
+            let chain_ids_commitment = MerkleTree::from_leaves(vec![]).root();
             let transactions = vec![
                 action_tree_root.to_vec(),
+                chain_ids_commitment.to_vec(),
                 vec![0x11, 0x22, 0x33],
                 vec![0x44, 0x55, 0x66],
                 vec![0x77, 0x88, 0x99],
@@ -441,25 +437,23 @@ mod test {
             (
                 action_tree_root,
                 tree.prove_inclusion(0).unwrap(),
+                chain_ids_commitment,
+                tree.prove_inclusion(1).unwrap(),
                 tree.root(),
             )
         };
 
-        let (last_commit_hash, last_commit) = make_test_commit_and_hash();
-        header.last_commit_hash = Some(last_commit_hash);
-
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
         let block_hash = header.hash();
 
-        let chain_ids_commitment = MerkleTree::from_leaves(vec![]).root();
         SequencerBlockData::try_from_raw(RawSequencerBlockData {
             block_hash,
             header,
-            last_commit: Some(last_commit),
             rollup_data: BTreeMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
             chain_ids_commitment,
+            chain_ids_commitment_inclusion_proof,
         })
         .unwrap();
     }
@@ -467,10 +461,18 @@ mod test {
     #[test]
     fn sequencer_block_to_bytes() {
         let mut header = crate::test_utils::default_header();
-        let (action_tree_root, action_tree_root_inclusion_proof, data_hash) = {
+        let (
+            action_tree_root,
+            action_tree_root_inclusion_proof,
+            chain_ids_commitment,
+            chain_ids_commitment_inclusion_proof,
+            data_hash,
+        ) = {
             let action_tree_root = [9u8; 32];
+            let chain_ids_commitment = MerkleTree::from_leaves(vec![]).root();
             let transactions = vec![
                 action_tree_root.to_vec(),
+                chain_ids_commitment.to_vec(),
                 vec![0x11, 0x22, 0x33],
                 vec![0x44, 0x55, 0x66],
                 vec![0x77, 0x88, 0x99],
@@ -479,25 +481,23 @@ mod test {
             (
                 action_tree_root,
                 tree.prove_inclusion(0).unwrap(),
+                chain_ids_commitment,
+                tree.prove_inclusion(1).unwrap(),
                 tree.root(),
             )
         };
 
-        let (last_commit_hash, last_commit) = make_test_commit_and_hash();
-        header.last_commit_hash = Some(last_commit_hash);
-
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
         let block_hash = header.hash();
 
-        let chain_ids_commitment = MerkleTree::from_leaves(vec![]).root();
         let data = SequencerBlockData::try_from_raw(RawSequencerBlockData {
             block_hash,
             header,
-            last_commit: Some(last_commit),
             rollup_data: BTreeMap::new(),
             action_tree_root,
             action_tree_root_inclusion_proof,
             chain_ids_commitment,
+            chain_ids_commitment_inclusion_proof,
         })
         .unwrap();
 

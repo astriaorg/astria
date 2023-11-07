@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use anyhow::{
     anyhow,
@@ -37,14 +37,14 @@ struct SudoAddress([u8; ADDRESS_LEN]);
 ///
 /// Contains a map of hex-encoded public keys to validator updates.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub(crate) struct ValidatorSet(HashMap<account::Id, validator::Update>);
+pub(crate) struct ValidatorSet(BTreeMap<account::Id, validator::Update>);
 
 impl ValidatorSet {
     pub(crate) fn new_from_updates(updates: Vec<validator::Update>) -> Self {
         let validator_set = updates
             .into_iter()
             .map(|update| (account::Id::from(update.pub_key), update))
-            .collect::<HashMap<_, _>>();
+            .collect::<BTreeMap<_, _>>();
         Self(validator_set)
     }
 
@@ -130,7 +130,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed reading raw validator updates from state")?
         else {
             // return empty set because validator updates are optional
-            return Ok(ValidatorSet(HashMap::new()));
+            return Ok(ValidatorSet(BTreeMap::new()));
         };
 
         let validator_updates: ValidatorSet =

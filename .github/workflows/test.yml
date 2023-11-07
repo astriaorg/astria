@@ -29,6 +29,7 @@ jobs:
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check that each crate compiles individually (circumventing workspace wide dependency resolution)
         run: cargo hack check --all --all-features
 
@@ -63,6 +64,7 @@ jobs:
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build tests
         run: |
           cargo test --no-run --release --workspace \
@@ -88,6 +90,7 @@ jobs:
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: run doctests
         run: cargo test --doc --all-features
 
@@ -110,6 +113,7 @@ jobs:
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: run pedantic clippy
         run: |
           cargo clippy --workspace \

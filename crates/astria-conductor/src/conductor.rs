@@ -89,7 +89,6 @@ impl Conductor {
                 &cfg.execution_rpc_url,
                 ChainId::new(cfg.chain_id.as_bytes().to_vec())
                     .wrap_err("failed to create chain ID")?,
-                cfg.disable_empty_block_execution,
                 // the sequencer block that contains the first rollup block
                 cfg.initial_sequencer_block_height,
                 block_rx,

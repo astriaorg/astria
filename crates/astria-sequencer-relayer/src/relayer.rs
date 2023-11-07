@@ -41,9 +41,8 @@ pub(crate) struct Relayer {
     // The limit that relayer will pay for submitting sequencer blocks to the DA.
     gas_limit: u64,
 
-    // Carries the signing key to sign sequencer blocks before they are submitted to the data
-    // availability layer.
-    validator: Validator,
+    // If this is set, only relay blocks to DA which are proposed by the same validator key.
+    validator: Option<Validator>,
 
     // A watch channel to track the state of the relayer. Used by the API service.
     state_tx: watch::Sender<State>,
@@ -93,8 +92,18 @@ impl Relayer {
         let sequencer = HttpClient::new(&*cfg.sequencer_endpoint)
             .wrap_err("failed to create sequencer client")?;
 
-        let validator = Validator::from_path(&cfg.validator_key_file)
-            .wrap_err("failed to get validator info from file")?;
+        let validator = match (
+            &cfg.relay_only_validator_key_blocks,
+            &cfg.validator_key_file,
+        ) {
+            (true, Some(file)) => Some(
+                Validator::from_path(file).wrap_err("failed to get validator info from file")?,
+            ),
+            (true, None) => {
+                eyre::bail!("validator key file must be set if `disable_relay_all` is set")
+            }
+            (false, _) => None, // could also say that the file was unnecessarily set, but it's ok
+        };
 
         let data_availability = celestia_client::celestia_rpc::client::new_http(
             &cfg.celestia_endpoint,
@@ -409,7 +418,6 @@ impl Relayer {
                     self.fee,
                     self.gas_limit,
                     self.queued_blocks.clone(),
-                    self.validator.clone(),
                 )));
                 self.queued_blocks.clear();
             }
@@ -433,7 +441,7 @@ impl Relayer {
 fn convert_block_response_to_sequencer_block_data(
     res: block::Response,
     current_height: Option<u64>,
-    validator: Validator,
+    validator: Option<Validator>,
 ) -> eyre::Result<Option<SequencerBlockData>> {
     if Some(res.block.header.height.value()) <= current_height {
         debug!(
@@ -442,10 +450,14 @@ fn convert_block_response_to_sequencer_block_data(
         );
         return Ok(None);
     }
-    if res.block.header.proposer_address != validator.address {
-        debug!("proposer recorded in sequencer block response does not match internal validator");
-        return Ok(None);
+
+    if let Some(validator) = validator {
+        if res.block.header.proposer_address != validator.address {
+            debug!("proposer of sequencer block does not match internal validator; ignoring");
+            return Ok(None);
+        }
     }
+
     let sequencer_block_data = SequencerBlockData::from_tendermint_block(res.block)
         .wrap_err("failed converting sequencer block response to sequencer block data")?;
     Ok(Some(sequencer_block_data))
@@ -457,7 +469,6 @@ async fn submit_blocks_to_celestia(
     fee: u64,
     gas_limit: u64,
     sequencer_block_data: Vec<SequencerBlockData>,
-    validator: Validator,
 ) -> eyre::Result<u64> {
     use celestia_client::{
         celestia_types::blob::SubmitOptions,
@@ -472,7 +483,6 @@ async fn submit_blocks_to_celestia(
         .submit_sequencer_blocks(
             SEQUENCER_NAMESPACE,
             sequencer_block_data,
-            &validator.signing_key,
             SubmitOptions {
                 fee: Some(fee),
                 gas_limit: Some(gas_limit),

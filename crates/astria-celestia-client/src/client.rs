@@ -6,7 +6,6 @@ use celestia_types::{
     Blob,
     Commitment,
 };
-use ed25519_consensus::SigningKey;
 use sequencer_types::{
     RawSequencerBlockData,
     SequencerBlockData,
@@ -17,7 +16,6 @@ use crate::{
     blob_space::{
         celestia_namespace_v0_from_hashed_bytes,
         SequencerNamespaceData,
-        SignedNamespaceData,
     },
     RollupNamespaceData,
 };
@@ -48,14 +46,14 @@ pub enum BadBlobReason {
 pub struct GetSequencerDataResponse {
     pub height: u64,
     pub namespace: Namespace,
-    pub datas: Vec<SignedNamespaceData<SequencerNamespaceData>>,
+    pub datas: Vec<SequencerNamespaceData>,
     pub bad_blobs: Vec<BadBlob>,
 }
 
 pub struct GetRollupDataResponse {
     pub height: u64,
     pub namespace: Namespace,
-    pub datas: Vec<SignedNamespaceData<RollupNamespaceData>>,
+    pub datas: Vec<RollupNamespaceData>,
     pub bad_blobs: Vec<BadBlob>,
 }
 
@@ -118,7 +116,7 @@ pub trait CelestiaClientExt: BlobClient {
         &self,
         height: T,
         namespace: Namespace,
-        sequencer_data: &SignedNamespaceData<SequencerNamespaceData>,
+        sequencer_data: &SequencerNamespaceData,
     ) -> Result<Vec<RollupNamespaceData>, jsonrpsee::core::Error>
     where
         T: Into<u64> + Send,
@@ -155,7 +153,6 @@ pub trait CelestiaClientExt: BlobClient {
         &self,
         namespace: Namespace,
         blocks: Vec<SequencerBlockData>,
-        signing_key: &SigningKey,
         submit_options: SubmitOptions,
     ) -> Result<u64, SubmitSequencerBlocksError> {
         // The number of total expected blobs is:
@@ -168,10 +165,12 @@ pub trait CelestiaClientExt: BlobClient {
 
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
         for (i, block) in blocks.into_iter().enumerate() {
-            let mut blobs = assemble_blobs_from_sequencer_block_data(namespace, block, signing_key)
-                .map_err(|source| SubmitSequencerBlocksError::AssembleBlobs {
-                    source,
-                    index: i,
+            let mut blobs =
+                assemble_blobs_from_sequencer_block_data(namespace, block).map_err(|source| {
+                    SubmitSequencerBlocksError::AssembleBlobs {
+                        source,
+                        index: i,
+                    }
                 })?;
             all_blobs.append(&mut blobs);
         }
@@ -209,7 +208,6 @@ pub enum BlobAssemblyError {
 fn assemble_blobs_from_sequencer_block_data(
     namespace: Namespace,
     block_data: SequencerBlockData,
-    signing_key: &SigningKey,
 ) -> Result<Vec<Blob>, BlobAssemblyError> {
     use sequencer_validation::{
         generate_action_tree_leaves,
@@ -222,11 +220,11 @@ fn assemble_blobs_from_sequencer_block_data(
     let RawSequencerBlockData {
         block_hash,
         header,
-        last_commit,
         rollup_data,
         action_tree_root,
         action_tree_root_inclusion_proof,
         chain_ids_commitment,
+        chain_ids_commitment_inclusion_proof,
     } = block_data.into_raw();
 
     let action_tree_leaves = generate_action_tree_leaves(rollup_data.clone());
@@ -247,11 +245,9 @@ fn assemble_blobs_from_sequencer_block_data(
             inclusion_proof,
         };
 
-        let signed_data =
-            SignedNamespaceData::from_data_and_key(rollup_namespace_data, signing_key);
-        let data = serde_json::to_vec(&signed_data).expect(
-            "should not fail because SignedNamespaceData and RollupNamespaceData do not contain \
-             maps and hence non-unicode keys that would trigger to_vec()'s only error case",
+        let data = serde_json::to_vec(&rollup_namespace_data).expect(
+            "should not fail because RollupNamespaceData does not contain maps and hence \
+             non-unicode keys that would trigger to_vec()'s only error case",
         );
 
         let namespace = celestia_namespace_v0_from_hashed_bytes(chain_id.as_ref());
@@ -267,17 +263,16 @@ fn assemble_blobs_from_sequencer_block_data(
     let sequencer_namespace_data = SequencerNamespaceData {
         block_hash,
         header,
-        last_commit,
         rollup_chain_ids: chain_ids,
         action_tree_root,
         action_tree_root_inclusion_proof,
         chain_ids_commitment,
+        chain_ids_commitment_inclusion_proof,
     };
 
-    let signed_data = SignedNamespaceData::from_data_and_key(sequencer_namespace_data, signing_key);
-    let data = serde_json::to_vec(&signed_data).expect(
-        "should not fail because SignedNamespaceData and SequencerNamespaceData do not contain \
-         maps and hence non-unicode keys that would trigger to_vec()'s only error case",
+    let data = serde_json::to_vec(&sequencer_namespace_data).expect(
+        "should not fail because SequencerNamespaceData does not contain maps and hence \
+         non-unicode keys that would trigger to_vec()'s only error case",
     );
 
     blobs.push(
@@ -286,28 +281,22 @@ fn assemble_blobs_from_sequencer_block_data(
     Ok(blobs)
 }
 
-/// Filters out blobs that cannot be deserialized to `SignedNamespaceData<RollupNamespaceData>`,
-/// whose block hash or public key do not match that of `sequencer_data`, respectively, or that
+/// Filters out blobs that cannot be deserialized to `RollupNamespaceData`,
+/// whose block hash does not match that of `sequencer_data` or that
 /// have the wrong namespace.
 fn filter_and_convert_rollup_data_blobs(
     blobs: &[Blob],
     namespace: Namespace,
-    sequencer_data: &SignedNamespaceData<SequencerNamespaceData>,
+    sequencer_data: &SequencerNamespaceData,
 ) -> Vec<RollupNamespaceData> {
     let mut rollups = Vec::with_capacity(blobs.len());
-    let block_hash = sequencer_data.data().block_hash;
-    let verification_key = sequencer_data.public_key();
+    let block_hash = sequencer_data.block_hash;
     for blob in blobs {
-        let Ok(data) =
-            serde_json::from_slice::<SignedNamespaceData<RollupNamespaceData>>(&blob.data)
-        else {
+        let Ok(data) = serde_json::from_slice::<RollupNamespaceData>(&blob.data) else {
             continue;
         };
-        if blob.namespace == namespace
-            && data.data().block_hash == block_hash
-            && data.public_key() == verification_key
-        {
-            rollups.push(data.into_unverified().data);
+        if blob.namespace == namespace && data.block_hash == block_hash {
+            rollups.push(data);
         }
     }
     rollups

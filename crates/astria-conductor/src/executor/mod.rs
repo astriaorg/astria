@@ -111,16 +111,12 @@ pub(crate) struct Executor {
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
     sequencer_hash_to_execution_block: HashMap<Hash, Block>,
-
-    /// Chose to execute empty blocks or not
-    disable_empty_block_execution: bool,
 }
 
 impl Executor {
     pub(crate) async fn new(
         server_addr: &str,
         chain_id: ChainId,
-        disable_empty_block_execution: bool,
         init_sequencer_height: u32,
         cmd_rx: Receiver,
         shutdown: oneshot::Receiver<()>,
@@ -157,7 +153,6 @@ impl Executor {
             commitment_state,
             executable_block_height,
             sequencer_hash_to_execution_block: HashMap::new(),
-            disable_empty_block_execution,
         })
     }
 
@@ -190,7 +185,7 @@ impl Executor {
 
                             let executed_block_result = self.execute_block(block_subset).await;
                             match executed_block_result {
-                                Ok(Some(executed_block)) => {
+                                Ok(executed_block) => {
                                     if let Err(e) = self.update_soft_commitment(executed_block.clone()).await {
                                         error!(
                                             height = height,
@@ -206,8 +201,6 @@ impl Executor {
                                         "failed to execute block"
                                     );
                                 }
-                                // execution was skipped
-                                Ok(None) => {}
                             }
                         }
 
@@ -228,32 +221,14 @@ impl Executor {
         Ok(())
     }
 
-    /// Checks for relevant transactions in the SequencerBlock and attempts
-    /// to execute them via the execution service function ExecuteBlock.
-    /// If there are relevant transactions that successfully execute,
+    /// checks for relevant transactions in the SequencerBlock and attempts
+    /// to execute them via the execution service function DoBlock.
+    /// if there are relevant transactions that successfully execute,
     /// it returns the resulting execution block hash.
-    /// If the block has already been executed, it returns the previously-computed
+    /// if the block has already been executed, it returns the previously-computed
     /// execution block hash.
-    /// if there are no relevant transactions in the SequencerBlock, it returns None.
-    /// If the block is out of order, it returns an error.
-    async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Block>> {
-        if self.disable_empty_block_execution && block.rollup_transactions.is_empty() {
-            debug!(
-                sequencer_block_height = block.header.height.value(),
-                "no transactions in block, skipping execution"
-            );
-            return Ok(None);
-        }
-
-        if self.executable_block_height as u64 != block.header.height.value() {
-            error!(
-                sequencer_block_height = block.header.height.value(),
-                executable_block_height = self.executable_block_height,
-                "block received out of order;"
-            );
-            return Err(eyre!("block received out of order"));
-        }
-
+    #[instrument(skip(self), fields(sequencer_block_hash = ?block.block_hash, sequencer_block_height = block.header.height.value()))]
+    async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Block> {
         if let Some(execution_block) = self
             .sequencer_hash_to_execution_block
             .get(&block.block_hash)
@@ -263,7 +238,7 @@ impl Executor {
                 execution_hash = hex::encode(&execution_block.hash),
                 "block already executed"
             );
-            return Ok(Some(execution_block.clone()));
+            return Ok(execution_block.clone());
         }
 
         let prev_block_hash = self.commitment_state.soft.hash.clone();
@@ -276,6 +251,7 @@ impl Executor {
         let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
             .wrap_err("failed parsing str as protobuf timestamp")?;
 
+        let tx_count = block.rollup_transactions.len();
         let executed_block = self
             .execution_rpc_client
             .call_execute_block(prev_block_hash, block.rollup_transactions, timestamp)
@@ -284,17 +260,15 @@ impl Executor {
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
-            sequencer_block_hash = ?block.block_hash,
-            sequencer_block_height = block.header.height.value(),
             execution_block_hash = hex::encode(&executed_block.hash),
-            "executed sequencer block",
+            tx_count, "executed sequencer block",
         );
 
         // store block returned by execution client, as we need it to finalize the block later
         self.sequencer_hash_to_execution_block
             .insert(block.block_hash, executed_block.clone());
 
-        Ok(Some(executed_block))
+        Ok(executed_block)
     }
 
     /// Updates the commitment state on the execution layer.
@@ -337,56 +311,48 @@ impl Executor {
         &mut self,
         blocks: Vec<SequencerBlockSubset>,
     ) -> Result<()> {
-        // FIXME: actually process all blocks.
-        let Some(block) = blocks.get(0).cloned() else {
+        if blocks.is_empty() {
             info!("received a message from data availability without blocks; skipping execution");
             return Ok(());
-        };
-        let sequencer_block_hash = block.block_hash;
-        let maybe_executed_block = self
-            .sequencer_hash_to_execution_block
-            .get(&sequencer_block_hash)
-            .cloned();
-        match maybe_executed_block {
-            Some(executed_block) => {
-                // this case means block has already been executed.
-                self.update_firm_commitment(executed_block.clone())
-                    .await
-                    .wrap_err("executor failed to update firm commitment")?;
-                // remove the sequencer block hash from the map, as it's been firmly committed
-                self.sequencer_hash_to_execution_block
-                    .remove(&block.block_hash);
-            }
-            None => {
-                // this means either:
-                // - we didn't receive the block from the sequencer stream, or
-                // - we received it, but the sequencer block didn't contain
-                // any transactions for this rollup namespace, thus nothing was executed
-                // on receiving this block.
+        }
+        for block in blocks.into_iter() {
+            let sequencer_block_hash = block.block_hash;
+            let maybe_executed_block = self
+                .sequencer_hash_to_execution_block
+                .get(&sequencer_block_hash)
+                .cloned();
+            match maybe_executed_block {
+                Some(executed_block) => {
+                    // this case means block has already been executed.
+                    self.update_firm_commitment(executed_block)
+                        .await
+                        .wrap_err("executor failed to update firm commitment")?;
+                    // remove the sequencer block hash from the map, as it's been firmly committed
+                    self.sequencer_hash_to_execution_block
+                        .remove(&sequencer_block_hash);
+                }
+                None => {
+                    // this means either we didn't receive the block from the sequencer stream
 
-                // try executing the block as it hasn't been executed before
-                // execute_block will check if our namespace has txs; if so, it'll return the
-                // resulting execution block hash, otherwise None
-                let Some(executed_block) = self
-                    .execute_block(block.clone())
-                    .await
-                    .wrap_err("failed to execute block")?
-                else {
-                    // no txs for our namespace, nothing to do
-                    debug!("execute_block returned None; skipping call_update_commitment_state");
-                    return Ok(());
-                };
+                    // try executing the block as it hasn't been executed before
+                    // execute_block will check if our namespace has txs; if so, it'll return the
+                    // resulting execution block hash, otherwise None
+                    let executed_block = self
+                        .execute_block(block)
+                        .await
+                        .wrap_err("failed to execute block")?;
 
-                // when we execute a block received from da, nothing else has been executed on top
-                // of it, so we set FIRM and SOFT to this executed block
-                self.update_commitments(executed_block)
-                    .await
-                    .wrap_err("executor failed to update both commitments")?;
-                // remove the sequencer block hash from the map, as it's been firmly committed
-                self.sequencer_hash_to_execution_block
-                    .remove(&block.block_hash);
-            }
-        };
+                    // when we execute a block received from da, nothing else has been executed on
+                    // top of it, so we set FIRM and SOFT to this executed block
+                    self.update_commitments(executed_block)
+                        .await
+                        .wrap_err("executor failed to update both commitments")?;
+                    // remove the sequencer block hash from the map, as it's been firmly committed
+                    self.sequencer_hash_to_execution_block
+                        .remove(&sequencer_block_hash);
+                }
+            };
+        }
         Ok(())
     }
 
