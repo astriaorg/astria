@@ -6,7 +6,6 @@ members = [
   "crates/astria-composer",
   "crates/astria-conductor",
   "crates/astria-config",
-  "crates/astria-cli",
   "crates/astria-optimism",
   "crates/astria-proto",
   "crates/astria-sequencer",
