@@ -6,6 +6,7 @@ use astria_sequencer_types::{
 };
 use color_eyre::eyre::{
     self,
+    eyre,
     Result,
     WrapErr as _,
 };
@@ -228,6 +229,29 @@ impl Executor {
     /// execution block hash.
     #[instrument(skip(self), fields(sequencer_block_hash = ?block.block_hash, sequencer_block_height = block.header.height.value()))]
     async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Block> {
+        match self
+            .executable_block_height
+            .cmp(&(block.header.height.value() as u32))
+        {
+            std::cmp::Ordering::Less => {
+                return Err(eyre!(
+                    "incoming sequencer block at height {} is above executable block height of \
+                     {}, skipping execution of future block",
+                    block.header.height.value(),
+                    self.executable_block_height
+                ));
+            }
+            std::cmp::Ordering::Greater => {
+                return Err(eyre!(
+                    "incoming sequencer block at height {} is below executable block height of \
+                     {}, skipping execution of stale block",
+                    block.header.height.value(),
+                    self.executable_block_height
+                ));
+            }
+            _ => {}
+        }
+
         if let Some(execution_block) = self
             .sequencer_hash_to_execution_block
             .get(&block.block_hash)
