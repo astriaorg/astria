@@ -6,6 +6,7 @@ use astria_sequencer_types::{
 };
 use color_eyre::eyre::{
     self,
+    eyre,
     Result,
     WrapErr as _,
 };
@@ -97,6 +98,9 @@ pub(crate) struct Executor {
     /// Tracks SOFT and FIRM on the execution chain
     commitment_state: ExecutorCommitmentState,
 
+    /// Tracks the height of the next sequencer block that can be executed
+    executable_block_height: u32,
+
     /// map of sequencer block hash to execution block
     ///
     /// this is required because when we receive sequencer blocks (from network or DA),
@@ -113,6 +117,7 @@ impl Executor {
     pub(crate) async fn new(
         server_addr: &str,
         chain_id: ChainId,
+        init_sequencer_height: u32,
         cmd_rx: Receiver,
         shutdown: oneshot::Receiver<()>,
     ) -> Result<Self> {
@@ -124,12 +129,29 @@ impl Executor {
             .await
             .wrap_err("executor failed to get commitment state")?;
 
+        // The `executable_block_height` is the height of the next sequencer block
+        // that can be executed on top of the rollup state. The `init_sequencer_height`
+        // is set when the rollup is first created and lets us know that this
+        // rollup's first block is in block K of the sequencer chain.
+        // The `commitment_state.soft.number` is the block height of the most
+        // recently executed block on the rollup and is pulled from the rollup
+        // the Conductor is associated with on startup of the Conductor (N
+        // blocks have already been executed on the rollup).
+        // `executable_block_height` represents where the Condutor sync should
+        // start:
+        // `executable_block_height` = sequencer block K + executed block N
+        // By setting this value we prevent the reexecution of blocks on the
+        // rollup. If block M is the most recent sequencer block, we then know
+        // that we need to sync blocks from `executable_block_height` to M.
+        let executable_block_height = commitment_state.soft.number + init_sequencer_height;
+
         Ok(Self {
             cmd_rx,
             shutdown,
             execution_rpc_client,
             chain_id,
             commitment_state,
+            executable_block_height,
             sequencer_hash_to_execution_block: HashMap::new(),
         })
     }
@@ -199,12 +221,23 @@ impl Executor {
         Ok(())
     }
 
-    /// Execute the sequencer block on the execution layer, returning the
-    /// resulting execution block. If the block has already been executed, it
-    /// returns the previously-computed
+    /// checks for relevant transactions in the SequencerBlock and attempts
+    /// to execute them via the execution service function DoBlock.
+    /// if there are relevant transactions that successfully execute,
+    /// it returns the resulting execution block hash.
+    /// if the block has already been executed, it returns the previously-computed
     /// execution block hash.
     #[instrument(skip(self), fields(sequencer_block_hash = ?block.block_hash, sequencer_block_height = block.header.height.value()))]
     async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Block> {
+        if self.executable_block_height as u64 != block.header.height.value() {
+            error!(
+                sequencer_block_height = block.header.height.value(),
+                executable_block_height = self.executable_block_height,
+                "block received out of order;"
+            );
+            return Err(eyre!("block received out of order"));
+        }
+
         if let Some(execution_block) = self
             .sequencer_hash_to_execution_block
             .get(&block.block_hash)
@@ -232,6 +265,7 @@ impl Executor {
             .execution_rpc_client
             .call_execute_block(prev_block_hash, block.rollup_transactions, timestamp)
             .await?;
+        self.executable_block_height += 1;
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
@@ -329,5 +363,9 @@ impl Executor {
             };
         }
         Ok(())
+    }
+
+    pub(crate) fn get_executable_block_height(&self) -> u32 {
+        self.executable_block_height
     }
 }

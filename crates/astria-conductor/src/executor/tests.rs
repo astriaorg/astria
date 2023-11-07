@@ -147,9 +147,15 @@ async fn start_mock() -> MockEnvironment {
 
     let (_block_tx, block_rx) = mpsc::unbounded_channel();
     let (_shutdown_tx, shutdown_rx) = oneshot::channel();
-    let executor = Executor::new(&server_url, chain_id, block_rx, shutdown_rx)
-        .await
-        .unwrap();
+    let executor = Executor::new(
+        &server_url,
+        chain_id,
+        1, // genesis block is always block 0, first executable block will always be block 1
+        block_rx,
+        shutdown_rx,
+    )
+    .await
+    .unwrap();
 
     MockEnvironment {
         _server,
@@ -246,4 +252,44 @@ async fn empty_message_from_data_availability_is_dropped() {
         mock.executor.commitment_state.firm.hash
     );
     assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
+}
+
+#[tokio::test]
+async fn try_execute_out_of_order_block_from_sequencer() {
+    let mut mock = start_mock().await;
+    let mut block = get_test_block_subset();
+
+    // 0 is always the genesis block, so this should fail
+    block.header.height = 0_u32.into();
+    let execution_result = mock.executor.execute_block(block.clone()).await;
+    assert!(execution_result.is_err());
+
+    // the first block to execute should always be 1, this should fail as it is
+    // in the future
+    block.header.height = 2_u32.into();
+    let execution_result = mock.executor.execute_block(block).await;
+    assert!(execution_result.is_err());
+}
+
+#[tokio::test]
+async fn try_execute_out_of_order_block_from_celestia() {
+    let mut mock = start_mock().await;
+    let mut block = get_test_block_subset();
+
+    // 0 is always the genesis block, so this should fail
+    block.header.height = 0_u32.into();
+    let execution_result = mock
+        .executor
+        .execute_and_finalize_blocks_from_celestia(vec![block.clone()])
+        .await;
+    assert!(execution_result.is_err());
+
+    // the first block to execute should always be 1, this should fail as it is
+    // in the future
+    block.header.height = 2_u32.into();
+    let execution_result = mock
+        .executor
+        .execute_and_finalize_blocks_from_celestia(vec![block])
+        .await;
+    assert!(execution_result.is_err());
 }
