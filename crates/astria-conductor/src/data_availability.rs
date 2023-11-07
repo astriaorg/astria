@@ -29,6 +29,7 @@ use tokio::{
 };
 use tokio_util::task::JoinMap;
 use tracing::{
+    debug,
     error,
     info,
     instrument,
@@ -73,8 +74,11 @@ pub(crate) struct Reader {
     verify_sequencer_blobs_and_assemble_rollups:
         JoinMap<Height, eyre::Result<Vec<SequencerBlockSubset>>>,
 
-    /// The height at which to start syncing data availability blocks.
-    sync_start_height: u32,
+    /// Initial DA block height
+    initial_da_block_height: u32,
+
+    /// Firm commit height from the rollup
+    firm_commit_height: u32,
 
     shutdown: oneshot::Receiver<()>,
 }
@@ -84,6 +88,7 @@ impl Reader {
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new(
         initial_da_height: u32,
+        firm_commit_height: u32,
         celestia_node_url: &str,
         celestia_bearer_token: &str,
         celestia_poll_interval: Duration,
@@ -109,9 +114,6 @@ impl Reader {
             .header
             .height;
 
-        let sync_start_height =
-            find_da_sync_start_height(celestia_client.clone(), initial_da_height);
-
         info!(da_height = %current_block_height, "creating Reader");
 
         Ok(Self {
@@ -124,7 +126,8 @@ impl Reader {
             verify_sequencer_blobs_and_assemble_rollups: JoinMap::new(),
             block_verifier,
             namespace,
-            sync_start_height,
+            initial_da_block_height: initial_da_height,
+            firm_commit_height,
             shutdown,
         })
     }
@@ -133,7 +136,16 @@ impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         info!("Starting reader event loop.");
 
-        // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
+        // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync
+        // functionality to data availability reader
+        let celestia_client = self.celestia_client.clone();
+        let initial_da_height = self.initial_da_block_height;
+        let firm_commit_height = self.firm_commit_height;
+        let sync_start_height =
+            find_da_sync_start_height(celestia_client, initial_da_height, firm_commit_height).await;
+
+        let height = Height::from(sync_start_height);
+        self.fetch_sequencer_blobs_up_to_latest_height(Ok(Ok(height)));
 
         let mut interval = tokio::time::interval(self.celestia_poll_interval);
         loop {
@@ -326,6 +338,109 @@ impl Reader {
     }
 }
 
+// TODO: add a pub da_find_start_block_height fn to use when starting Conductor
+async fn find_da_sync_start_height(
+    client: HttpClient,
+    initial_da_height: u32,
+    firm_commit_height: u32,
+) -> u32 {
+    // Celestia block time is approximately 12 seconds, the sequencer has a 2
+    // second block time. This means that ideally there are 6 sequencer blocks
+    // in every Celestia block, but that may not always be the case. We set the
+    // initial guess height assuming 5 sequencer blocks per Celestia block to
+    // make sure that we are below the DA block that contained the most recently
+    // executed firm commit on the rollup, then search forward to find the exact
+    // Celestia block that contained it.
+    // This search is required because there is no way to poll Celestia for
+    // which block contianed a given sequencer block.
+    let mut guess_block_height = Height::from(initial_da_height + (firm_commit_height / 5));
+    // FIXME: ^ I'm sure there is a better way to estimate this value but
+    // leaving this here for now as a first pass
+
+    // FIXME: add an issue to make the search for the block we want more sophisticated
+    // FIXME: add an issue to make error after certian number of guesses more sophisticated
+    let mut num_blocks_searched = 1;
+    loop {
+        if num_blocks_searched > 1000 {
+            panic!(
+                "searched more than 1000 blocks for the DA block containing the firm commit \
+                 without finding it, halting"
+            );
+        }
+
+        let mut possible_blocks = client
+            .get_sequencer_data(guess_block_height, SEQUENCER_NAMESPACE)
+            .await
+            .wrap_err("failed to fetch sequencer data from celestia")
+            .map(|rsp| rsp.datas)
+            .expect("failed to convert sequencer data response to sequencer data");
+
+        possible_blocks.sort_by(|a, b| a.header.height.cmp(&b.header.height));
+
+        let block = possible_blocks
+            .iter()
+            .find(|seq_block| seq_block.header.height.value() as u32 == firm_commit_height);
+        match block {
+            Some(_block) => {
+                info!(
+                    block.da = %guess_block_height,
+                    block.firm = %firm_commit_height,
+                    "found firm commit in DA block"
+                );
+                return guess_block_height.value() as u32;
+            }
+            None => {
+                // check if we need to decrement or increment the guess block height
+                let last_block_height = possible_blocks
+                    .last()
+                    .expect("vec of sequencer blocks from celestia should not be empty")
+                    .header
+                    .height
+                    .value() as u32;
+                match last_block_height.cmp(&firm_commit_height) {
+                    std::cmp::Ordering::Less => {
+                        // debug!(block.da = %guess_block_height, block.firm = %firm_commit_height,
+                        // block.highest_seen = %last_block_height, "comparing heights");
+                        debug!(
+                            "{}",
+                            format!(
+                                "searching for firm commit seq block at height {} in da block at \
+                                 height {}, highest block seen: {}, incrementing da guess height",
+                                firm_commit_height, guess_block_height, last_block_height
+                            )
+                        );
+                        guess_block_height = guess_block_height.increment();
+                        num_blocks_searched += 1;
+                    }
+                    std::cmp::Ordering::Greater => {
+                        debug!(
+                            "{}",
+                            format!(
+                                "searching for firm commit seq block at height {} in da block at \
+                                 height {}, highest block seen: {}, decrementing da guess height",
+                                firm_commit_height, guess_block_height, last_block_height
+                            )
+                        );
+                        let mut value = guess_block_height.value() as u32;
+                        value -= 1;
+                        guess_block_height = Height::from(value);
+                        num_blocks_searched += 1;
+                    }
+                    std::cmp::Ordering::Equal => {
+                        // Ideally this case should never be hit. If this does
+                        // happen the chain should halt.
+                        error!(
+                            %guess_block_height,
+                            %firm_commit_height,
+                            "DA block is equal to the firm commit height"
+                        );
+                        panic!("sequencer block does not exists in da but was already executed");
+                    }
+                }
+            }
+        }
+    }
+}
 /// Verifies that each sequencer blob is genuinely derived from a sequencer block.
 /// If it is, fetches its constituent rollup blobs from celestia and assembles
 /// into a collection.
@@ -466,11 +581,6 @@ fn verify_all_datas(
         }
     }
     verification_tasks
-}
-
-// TODO: add a pub da_find_start_block_height fn to use when starting Conductor
-fn find_da_sync_start_height(client: HttpClient, initial_da_height: u32) -> u32 {
-    1
 }
 
 // TODO: add a sync function

@@ -82,7 +82,7 @@ impl Conductor {
         let signals = spawn_signal_handler();
 
         // Spawn the executor task.
-        let (executor_tx, sync_start_block_height) = {
+        let (executor_tx, soft_commit_height, firm_commit_height) = {
             let (block_tx, block_rx) = mpsc::unbounded_channel();
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             let executor = Executor::new(
@@ -96,12 +96,19 @@ impl Conductor {
             )
             .await
             .wrap_err("failed to construct executor")?;
-            let executable_sequencer_block_height = executor.get_executable_block_height();
+
+            let executable_sequencer_block_height =
+                executor.get_executable_sequencer_block_height();
+            let executable_da_block_height = executor.get_executable_da_block_height();
 
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
             shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
 
-            (block_tx, executable_sequencer_block_height)
+            (
+                block_tx,
+                executable_sequencer_block_height,
+                executable_da_block_height,
+            )
         };
 
         let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
@@ -129,7 +136,7 @@ impl Conductor {
             // sequencer block that can be executed on top of the rollup state.
             // This value is derived by the Executor.
             let sequencer_reader = sequencer::Reader::new(
-                sync_start_block_height,
+                soft_commit_height,
                 sequencer_client_pool.clone(),
                 shutdown_rx,
                 executor_tx.clone(),
@@ -150,6 +157,7 @@ impl Conductor {
             // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
             let reader = data_availability::Reader::new(
                 cfg.initial_da_block_height,
+                firm_commit_height,
                 &cfg.celestia_node_url,
                 &cfg.celestia_bearer_token,
                 std::time::Duration::from_secs(3),
