@@ -316,7 +316,6 @@ dependencies = [
  "base64-serde",
  "celestia-rpc",
  "celestia-types",
- "ed25519-consensus",
  "jsonrpsee",
  "serde",
  "serde_json",

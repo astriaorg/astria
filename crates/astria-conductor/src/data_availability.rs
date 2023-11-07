@@ -8,7 +8,6 @@ use celestia_client::{
     jsonrpsee::http_client::HttpClient,
     CelestiaClientExt as _,
     SequencerNamespaceData,
-    SignedNamespaceData,
     SEQUENCER_NAMESPACE,
 };
 use color_eyre::eyre::{
@@ -67,8 +66,7 @@ pub(crate) struct Reader {
     get_latest_height: Option<JoinHandle<eyre::Result<Height>>>,
 
     /// A map of in-flight queries to celestia for new sequencer blobs at a given height
-    fetch_sequencer_blobs_at_height:
-        JoinMap<Height, eyre::Result<Vec<SignedNamespaceData<SequencerNamespaceData>>>>,
+    fetch_sequencer_blobs_at_height: JoinMap<Height, eyre::Result<Vec<SequencerNamespaceData>>>,
 
     /// A map of futures verifying that sequencer blobs read off celestia stem from sequencer
     /// before collecting their constituent rollup blobs. One task per celestia height.
@@ -241,10 +239,7 @@ impl Reader {
     fn process_sequencer_datas(
         &mut self,
         height: Height,
-        sequencer_data_res: Result<
-            eyre::Result<Vec<SignedNamespaceData<SequencerNamespaceData>>>,
-            JoinError,
-        >,
+        sequencer_data_res: Result<eyre::Result<Vec<SequencerNamespaceData>>, JoinError>,
     ) {
         let sequencer_data = match sequencer_data_res {
             Err(e) => {
@@ -327,7 +322,7 @@ impl Reader {
 /// into a collection.
 async fn verify_sequencer_blobs_and_assemble_rollups(
     height: Height,
-    sequencer_blobs: Vec<SignedNamespaceData<SequencerNamespaceData>>,
+    sequencer_blobs: Vec<SequencerNamespaceData>,
     client: HttpClient,
     block_verifier: BlockVerifier,
     namespace: Namespace,
@@ -377,11 +372,11 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
 /// If more than one rollup blob is received and pass verification, they are all dropped.
 /// It is assumed that sequencer-relayer submits at most one rollup blob to celestia per
 /// celestia height.
-#[instrument(skip_all, fields(height, block_hash = %data.data().block_hash))]
+#[instrument(skip_all, fields(height, block_hash = %data.block_hash))]
 async fn fetch_verify_rollup_blob_and_forward_to_assembly(
     client: HttpClient,
     height: Height,
-    data: SignedNamespaceData<SequencerNamespaceData>,
+    data: SequencerNamespaceData,
     namespace: Namespace,
     block_tx: mpsc::Sender<SequencerBlockSubset>,
 ) {
@@ -403,14 +398,14 @@ async fn fetch_verify_rollup_blob_and_forward_to_assembly(
         "received rollups; verifying"
     );
     rollups.retain(|rollup| {
-        block_verifier::validate_rollup_data(rollup, data.data().action_tree_root).is_ok()
+        block_verifier::validate_rollup_data(rollup, data.action_tree_root).is_ok()
     });
     match rollups.len() {
         0 | 1 => {
             info!("rollup data found; forwarding to block assembler");
             let subset = SequencerBlockSubset {
-                block_hash: data.data().block_hash,
-                header: data.data().header.clone(),
+                block_hash: data.block_hash,
+                header: data.header.clone(),
                 rollup_transactions: rollups.pop().map_or(vec![], |txs| txs.rollup_txs),
             };
             if block_tx.send(subset).await.is_err() {
@@ -438,12 +433,12 @@ async fn assemble_blocks(
 }
 
 fn verify_all_datas(
-    datas: Vec<SignedNamespaceData<SequencerNamespaceData>>,
+    datas: Vec<SequencerNamespaceData>,
     block_verifier: BlockVerifier,
-) -> JoinMap<tendermint::Hash, eyre::Result<SignedNamespaceData<SequencerNamespaceData>>> {
+) -> JoinMap<tendermint::Hash, eyre::Result<SequencerNamespaceData>> {
     let mut verification_tasks = JoinMap::new();
     for data in datas {
-        let block_hash = data.data().block_hash;
+        let block_hash = data.block_hash;
         if verification_tasks.contains_key(&block_hash) {
             warn!(%block_hash,
                 "more than one sequencer data with the same block hash retrieved from celestia; \
@@ -454,7 +449,7 @@ fn verify_all_datas(
             verification_tasks.spawn(
                 block_hash,
                 async move {
-                    verifier.validate_signed_namespace_data(&data).await?;
+                    verifier.validate_sequencer_namespace_data(&data).await?;
                     Ok(data)
                 }
                 .in_current_span(),
