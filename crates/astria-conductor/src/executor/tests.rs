@@ -256,7 +256,7 @@ async fn empty_message_from_data_availability_is_dropped() {
 
 #[tokio::test]
 async fn try_execute_out_of_order_block_from_sequencer() {
-    let mut mock = start_mock(false).await;
+    let mut mock = start_mock().await;
     let mut block = get_test_block_subset();
 
     // 0 is always the genesis block, so this should fail
@@ -273,7 +273,7 @@ async fn try_execute_out_of_order_block_from_sequencer() {
 
 #[tokio::test]
 async fn try_execute_out_of_order_block_from_celestia() {
-    let mut mock = start_mock(false).await;
+    let mut mock = start_mock().await;
     let mut block = get_test_block_subset();
 
     // 0 is always the genesis block, so this should fail

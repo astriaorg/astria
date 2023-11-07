@@ -6,7 +6,6 @@ use astria_sequencer_types::{
 };
 use color_eyre::eyre::{
     self,
-    eyre,
     Result,
     WrapErr as _,
 };
