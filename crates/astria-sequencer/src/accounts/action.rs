@@ -14,6 +14,7 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
+    asset::NATIVE_ASSET,
     transaction::action_handler::ActionHandler,
 };
 
@@ -27,8 +28,12 @@ impl ActionHandler for TransferAction {
         state: &S,
         from: Address,
     ) -> Result<()> {
+        // TODO: update UnsignedTransaction to have fee payment asset ID, and use that here
         let curr_balance = state
-            .get_account_balance(from)
+            .get_account_balance(
+                from,
+                NATIVE_ASSET.get().expect("native asset must be set").id(),
+            )
             .await
             .context("failed getting `from` account balance")?;
         ensure!(
@@ -48,18 +53,22 @@ impl ActionHandler for TransferAction {
     )]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         let from_balance = state
-            .get_account_balance(from)
+            .get_account_balance(from, &self.asset)
             .await
             .context("failed getting `from` account balance")?;
         let to_balance = state
-            .get_account_balance(self.to)
+            .get_account_balance(self.to, &self.asset)
             .await
             .context("failed getting `to` account balance")?;
         state
-            .put_account_balance(from, from_balance - (self.amount + TRANSFER_FEE))
+            .put_account_balance(
+                from,
+                &self.asset,
+                from_balance - (self.amount + TRANSFER_FEE),
+            )
             .context("failed updating `from` account balance")?;
         state
-            .put_account_balance(self.to, to_balance + self.amount)
+            .put_account_balance(self.to, &self.asset, to_balance + self.amount)
             .context("failed updating `to` account balance")?;
         Ok(())
     }

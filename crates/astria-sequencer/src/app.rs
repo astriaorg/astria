@@ -504,13 +504,16 @@ mod test {
     use ed25519_consensus::SigningKey;
     #[cfg(feature = "mint")]
     use proto::native::sequencer::v1alpha1::MintAction;
-    use proto::native::sequencer::v1alpha1::{
-        Address,
-        SequenceAction,
-        SudoAddressChangeAction,
-        TransferAction,
-        UnsignedTransaction,
-        ADDRESS_LEN,
+    use proto::native::sequencer::{
+        asset,
+        v1alpha1::{
+            Address,
+            SequenceAction,
+            SudoAddressChangeAction,
+            TransferAction,
+            UnsignedTransaction,
+            ADDRESS_LEN,
+        },
     };
     use tendermint::{
         abci::types::CommitInfo,
@@ -532,6 +535,7 @@ mod test {
             action::TRANSFER_FEE,
             state_ext::StateReadExt as _,
         },
+        asset::NATIVE_ASSET,
         authority::state_ext::ValidatorSet,
         genesis::Account,
         sequence::calculate_fee,
@@ -592,6 +596,8 @@ mod test {
         genesis_state: Option<GenesisState>,
         genesis_validators: Vec<tendermint::validator::Update>,
     ) -> App {
+        let _ = NATIVE_ASSET.set(asset::Denom::from_base_denom("uria"));
+
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -633,7 +639,13 @@ mod test {
         {
             assert_eq!(
                 balance,
-                app.state.get_account_balance(address).await.unwrap(),
+                app.state
+                    .get_account_balance(
+                        address,
+                        NATIVE_ASSET.get().expect("native asset must be set").id()
+                    )
+                    .await
+                    .unwrap(),
             );
         }
     }
@@ -734,6 +746,7 @@ mod test {
                 TransferAction {
                     to: bob_address,
                     amount: value,
+                    asset: asset::Id::from_denom("uria"),
                 }
                 .into(),
             ],
@@ -742,11 +755,23 @@ mod test {
         let signed_tx = tx.into_signed(&alice_signing_key);
         app.deliver_tx(signed_tx).await.unwrap();
         assert_eq!(
-            app.state.get_account_balance(bob_address).await.unwrap(),
+            app.state
+                .get_account_balance(
+                    bob_address,
+                    NATIVE_ASSET.get().expect("native asset must be set").id()
+                )
+                .await
+                .unwrap(),
             value + 10u128.pow(19)
         );
         assert_eq!(
-            app.state.get_account_balance(alice_address).await.unwrap(),
+            app.state
+                .get_account_balance(
+                    alice_address,
+                    NATIVE_ASSET.get().expect("native asset must be set").id()
+                )
+                .await
+                .unwrap(),
             10u128.pow(19) - (value + TRANSFER_FEE),
         );
         assert_eq!(app.state.get_account_nonce(bob_address).await.unwrap(), 0);
@@ -770,6 +795,7 @@ mod test {
                 TransferAction {
                     to: bob,
                     amount: 0,
+                    asset: asset::Id::from_denom("uria"),
                 }
                 .into(),
             ],
@@ -808,7 +834,13 @@ mod test {
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         assert_eq!(
-            app.state.get_account_balance(alice_address).await.unwrap(),
+            app.state
+                .get_account_balance(
+                    alice_address,
+                    NATIVE_ASSET.get().expect("native asset must be set").id()
+                )
+                .await
+                .unwrap(),
             10u128.pow(19) - fee,
         );
     }
@@ -936,7 +968,13 @@ mod test {
         app.deliver_tx(signed_tx).await.unwrap();
 
         assert_eq!(
-            app.state.get_account_balance(bob_address).await.unwrap(),
+            app.state
+                .get_account_balance(
+                    bob_address,
+                    NATIVE_ASSET.get().expect("native asset must be set").id()
+                )
+                .await
+                .unwrap(),
             value + 10u128.pow(19)
         );
         assert_eq!(app.state.get_account_nonce(bob_address).await.unwrap(), 0);
@@ -1034,7 +1072,13 @@ mod test {
         // check that tx was not executed by checking nonce and balance are unchanged
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 0);
         assert_eq!(
-            app.state.get_account_balance(alice_address).await.unwrap(),
+            app.state
+                .get_account_balance(
+                    alice_address,
+                    NATIVE_ASSET.get().expect("native asset must be set").id()
+                )
+                .await
+                .unwrap(),
             10u128.pow(19),
         );
 
@@ -1050,6 +1094,8 @@ mod test {
 
     #[tokio::test]
     async fn app_commit() {
+        let _ = NATIVE_ASSET.set(asset::Denom::from_base_denom("uria"));
+
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -1070,7 +1116,13 @@ mod test {
         {
             assert_eq!(
                 balance,
-                app.state.get_account_balance(address).await.unwrap()
+                app.state
+                    .get_account_balance(
+                        address,
+                        NATIVE_ASSET.get().expect("native asset must be set").id()
+                    )
+                    .await
+                    .unwrap()
             );
         }
 
@@ -1084,7 +1136,13 @@ mod test {
         } in default_genesis_accounts()
         {
             assert_eq!(
-                snapshot.get_account_balance(address).await.unwrap(),
+                snapshot
+                    .get_account_balance(
+                        address,
+                        NATIVE_ASSET.get().expect("native asset must be set").id()
+                    )
+                    .await
+                    .unwrap(),
                 balance
             );
         }

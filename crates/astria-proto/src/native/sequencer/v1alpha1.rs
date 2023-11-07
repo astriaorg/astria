@@ -10,7 +10,11 @@ use ed25519_consensus::{
 };
 use tracing::info;
 
-use crate::generated::sequencer::v1alpha1 as raw;
+use super::asset;
+use crate::{
+    generated::sequencer::v1alpha1 as raw,
+    native::sequencer::v1alpha1::asset::IncorrectAssetIdLength,
+};
 
 pub const ADDRESS_LEN: usize = 20;
 
@@ -548,6 +552,7 @@ impl SequenceAction {
 pub struct TransferAction {
     pub to: Address,
     pub amount: u128,
+    pub asset: asset::Id,
 }
 
 impl TransferAction {
@@ -556,10 +561,12 @@ impl TransferAction {
         let Self {
             to,
             amount,
+            asset,
         } = self;
         raw::TransferAction {
             to: to.to_vec(),
             amount: Some(amount.into()),
+            asset: asset.as_bytes().to_vec(),
         }
     }
 
@@ -568,10 +575,12 @@ impl TransferAction {
         let Self {
             to,
             amount,
+            asset,
         } = self;
         raw::TransferAction {
             to: to.to_vec(),
             amount: Some((*amount).into()),
+            asset: asset.as_bytes().to_vec(),
         }
     }
 
@@ -585,12 +594,15 @@ impl TransferAction {
         let raw::TransferAction {
             to,
             amount,
+            asset,
         } = proto;
         let to = Address::try_from_slice(&to).map_err(TransferActionError::address)?;
         let amount = amount.map_or(0, Into::into);
+        let asset = asset::Id::try_from_slice(&asset).map_err(TransferActionError::asset)?;
         Ok(Self {
             to,
             amount,
+            asset,
         })
     }
 }
@@ -606,6 +618,12 @@ impl TransferActionError {
             kind: TransferActionErrorKind::Address(inner),
         }
     }
+
+    fn asset(inner: IncorrectAssetIdLength) -> Self {
+        Self {
+            kind: TransferActionErrorKind::Asset(inner),
+        }
+    }
 }
 
 impl Display for TransferActionError {
@@ -613,6 +631,9 @@ impl Display for TransferActionError {
         match self.kind {
             TransferActionErrorKind::Address(_) => {
                 f.pad("`to` field did not contain a valid address")
+            }
+            TransferActionErrorKind::Asset(_) => {
+                f.pad("`asset` field did not contain a valid asset ID")
             }
         }
     }
@@ -622,6 +643,7 @@ impl Error for TransferActionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
             TransferActionErrorKind::Address(e) => Some(e),
+            TransferActionErrorKind::Asset(e) => Some(e),
         }
     }
 }
@@ -629,6 +651,7 @@ impl Error for TransferActionError {
 #[derive(Debug)]
 enum TransferActionErrorKind {
     Address(IncorrectAddressLength),
+    Asset(IncorrectAssetIdLength),
 }
 
 #[derive(Clone, Debug)]

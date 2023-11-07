@@ -17,6 +17,14 @@ pub struct NonceResponse {
     #[prost(uint32, tag="3")]
     pub nonce: u32,
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Denom {
+    #[prost(bytes="vec", tag="1")]
+    pub id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag="2")]
+    pub base_denom: ::prost::alloc::string::String,
+}
 /// `IndexedTransaction` represents a sequencer transaction along with the index
 /// it was originally in the sequencer block.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -142,6 +150,8 @@ pub struct TransferAction {
     pub to: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, optional, tag="2")]
     pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
+    #[prost(bytes="vec", tag="3")]
+    pub asset: ::prost::alloc::vec::Vec<u8>,
 }
 /// `SequenceAction` represents a transaction destined for another
 /// chain, ordered by the sequencer.

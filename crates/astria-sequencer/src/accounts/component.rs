@@ -12,6 +12,7 @@ use tracing::instrument;
 
 use super::state_ext::StateWriteExt;
 use crate::{
+    asset::NATIVE_ASSET,
     component::Component,
     genesis::GenesisState,
 };
@@ -27,7 +28,11 @@ impl Component for AccountsComponent {
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
         for account in &app_state.accounts {
             state
-                .put_account_balance(account.address, account.balance)
+                .put_account_balance(
+                    account.address,
+                    NATIVE_ASSET.get().expect("native asset must be set").id(),
+                    account.balance,
+                )
                 .context("failed writing account balance to state")?;
         }
         Ok(())

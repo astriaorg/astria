@@ -14,6 +14,7 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
+    asset::NATIVE_ASSET,
     transaction::action_handler::ActionHandler,
 };
 
@@ -27,8 +28,12 @@ impl ActionHandler for SequenceAction {
         state: &S,
         from: Address,
     ) -> Result<()> {
+        // TODO: update UnsignedTransaction to have fee payment asset ID, and use that here
         let curr_balance = state
-            .get_account_balance(from)
+            .get_account_balance(
+                from,
+                NATIVE_ASSET.get().expect("native asset must be set").id(),
+            )
             .await
             .context("failed getting `from` account balance")?;
         let fee = calculate_fee(&self.data).context("calculated fee overflows u128")?;
@@ -55,11 +60,18 @@ impl ActionHandler for SequenceAction {
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         let fee = calculate_fee(&self.data).context("failed to calculate fee")?;
         let from_balance = state
-            .get_account_balance(from)
+            .get_account_balance(
+                from,
+                NATIVE_ASSET.get().expect("native asset must be set").id(),
+            )
             .await
             .context("failed getting `from` account balance")?;
         state
-            .put_account_balance(from, from_balance - fee)
+            .put_account_balance(
+                from,
+                NATIVE_ASSET.get().expect("native asset must be set").id(),
+                from_balance - fee,
+            )
             .context("failed updating `from` account balance")?;
         Ok(())
     }

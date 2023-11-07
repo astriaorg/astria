@@ -85,11 +85,14 @@ fn group_sequence_actions_by_chain_id(
 #[cfg(test)]
 mod test {
     use ed25519_consensus::SigningKey;
-    use proto::native::sequencer::v1alpha1::{
-        Address,
-        SequenceAction,
-        TransferAction,
-        UnsignedTransaction,
+    use proto::native::sequencer::{
+        asset,
+        v1alpha1::{
+            Address,
+            SequenceAction,
+            TransferAction,
+            UnsignedTransaction,
+        },
     };
     use rand::rngs::OsRng;
     use sequencer_validation::generate_action_tree_leaves;
@@ -105,6 +108,7 @@ mod test {
         let transfer_action = TransferAction {
             to: Address([0u8; 20]),
             amount: 1,
+            asset: asset::Id::from_denom("uria"),
         };
 
         let signing_key = SigningKey::new(OsRng);
@@ -204,6 +208,7 @@ mod test {
         let transfer_action = TransferAction {
             to: Address([0u8; 20]),
             amount: 1,
+            asset: asset::Id::from_denom("uria"),
         };
 
         let signing_key = SigningKey::new(OsRng);

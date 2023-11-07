@@ -40,6 +40,7 @@ message Action {
 message TransferAction {
     bytes to = 1;
     astria.primitive.v1.Uint128 amount = 2;
+    bytes asset = 3;
 }
 
 // `SequenceAction` represents a transaction destined for another
