@@ -26,13 +26,10 @@ impl Component for AccountsComponent {
 
     #[instrument(name = "AccountsComponent:init_chain", skip(state))]
     async fn init_chain<S: StateWriteExt>(mut state: S, app_state: &Self::AppState) -> Result<()> {
+        let native_asset = NATIVE_ASSET.get().expect("native asset must be set");
         for account in &app_state.accounts {
             state
-                .put_account_balance(
-                    account.address,
-                    NATIVE_ASSET.get().expect("native asset must be set").id(),
-                    account.balance,
-                )
+                .put_account_balance(account.address, native_asset.id(), account.balance)
                 .context("failed writing account balance to state")?;
         }
         Ok(())

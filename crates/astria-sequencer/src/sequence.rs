@@ -3,9 +3,12 @@ use anyhow::{
     Context,
     Result,
 };
-use proto::native::sequencer::v1alpha1::{
-    Address,
-    SequenceAction,
+use proto::native::sequencer::{
+    asset,
+    v1alpha1::{
+        Address,
+        SequenceAction,
+    },
 };
 use tracing::instrument;
 
@@ -14,7 +17,6 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
-    asset::NATIVE_ASSET,
     transaction::action_handler::ActionHandler,
 };
 
@@ -27,15 +29,12 @@ impl ActionHandler for SequenceAction {
         &self,
         state: &S,
         from: Address,
+        fee_asset: &asset::Id,
     ) -> Result<()> {
-        // TODO: update UnsignedTransaction to have fee payment asset ID, and use that here
         let curr_balance = state
-            .get_account_balance(
-                from,
-                NATIVE_ASSET.get().expect("native asset must be set").id(),
-            )
+            .get_account_balance(from, fee_asset)
             .await
-            .context("failed getting `from` account balance")?;
+            .context("failed getting `from` account balance for fee payment")?;
         let fee = calculate_fee(&self.data).context("calculated fee overflows u128")?;
         ensure!(curr_balance >= fee, "insufficient funds");
         Ok(())
@@ -57,21 +56,19 @@ impl ActionHandler for SequenceAction {
             from = from.to_string(),
         )
     )]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
+    async fn execute<S: StateWriteExt>(
+        &self,
+        state: &mut S,
+        from: Address,
+        fee_asset: &asset::Id,
+    ) -> Result<()> {
         let fee = calculate_fee(&self.data).context("failed to calculate fee")?;
         let from_balance = state
-            .get_account_balance(
-                from,
-                NATIVE_ASSET.get().expect("native asset must be set").id(),
-            )
+            .get_account_balance(from, fee_asset)
             .await
             .context("failed getting `from` account balance")?;
         state
-            .put_account_balance(
-                from,
-                NATIVE_ASSET.get().expect("native asset must be set").id(),
-                from_balance - fee,
-            )
+            .put_account_balance(from, fee_asset, from_balance - fee)
             .context("failed updating `from` account balance")?;
         Ok(())
     }

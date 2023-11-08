@@ -3,9 +3,12 @@ use anyhow::{
     Context as _,
     Result,
 };
-use proto::native::sequencer::v1alpha1::{
-    Address,
-    SudoAddressChangeAction,
+use proto::native::sequencer::{
+    asset,
+    v1alpha1::{
+        Address,
+        SudoAddressChangeAction,
+    },
 };
 use tracing::instrument;
 
@@ -23,6 +26,7 @@ impl ActionHandler for tendermint::validator::Update {
         &self,
         state: &S,
         from: Address,
+        _fee_asset: &asset::Id,
     ) -> Result<()> {
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
@@ -34,7 +38,12 @@ impl ActionHandler for tendermint::validator::Update {
     }
 
     #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
+    async fn execute<S: StateWriteExt>(
+        &self,
+        state: &mut S,
+        _: Address,
+        _: &asset::Id,
+    ) -> Result<()> {
         // add validator update in non-consensus state to be used in end_block
         let mut validator_updates = state
             .get_validator_updates()
@@ -56,6 +65,7 @@ impl ActionHandler for SudoAddressChangeAction {
         &self,
         state: &S,
         from: Address,
+        _fee_asset: &asset::Id,
     ) -> Result<()> {
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
@@ -67,7 +77,12 @@ impl ActionHandler for SudoAddressChangeAction {
     }
 
     #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
+    async fn execute<S: StateWriteExt>(
+        &self,
+        state: &mut S,
+        _: Address,
+        _: &asset::Id,
+    ) -> Result<()> {
         state
             .put_sudo_address(self.new_address)
             .context("failed to put sudo address in state")?;

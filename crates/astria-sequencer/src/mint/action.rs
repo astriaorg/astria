@@ -3,9 +3,12 @@ use anyhow::{
     Context as _,
     Result,
 };
-use proto::native::sequencer::v1alpha1::{
-    Address,
-    MintAction,
+use proto::native::sequencer::{
+    asset,
+    v1alpha1::{
+        Address,
+        MintAction,
+    },
 };
 use tracing::instrument;
 
@@ -24,6 +27,7 @@ impl ActionHandler for MintAction {
         &self,
         state: &S,
         from: Address,
+        _fee_asset: &asset::Id,
     ) -> Result<()> {
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
@@ -39,6 +43,7 @@ impl ActionHandler for MintAction {
         &self,
         state: &mut S,
         _: Address,
+        _: &asset::Id,
     ) -> Result<()> {
         let to_balance = state
             .get_account_balance(self.to)

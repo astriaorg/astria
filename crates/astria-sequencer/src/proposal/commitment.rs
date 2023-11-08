@@ -85,13 +85,11 @@ fn group_sequence_actions_by_chain_id(
 #[cfg(test)]
 mod test {
     use ed25519_consensus::SigningKey;
-    use proto::native::sequencer::{
-        v1alpha1::{
-            Address,
-            SequenceAction,
-            TransferAction,
-            UnsignedTransaction,
-        },
+    use proto::native::sequencer::v1alpha1::{
+        Address,
+        SequenceAction,
+        TransferAction,
+        UnsignedTransaction,
     };
     use rand::rngs::OsRng;
     use sequencer_validation::generate_action_tree_leaves;
