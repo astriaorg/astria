@@ -150,7 +150,7 @@ impl Relayer {
                 .await
                 .wrap_err("timed out getting latest block from sequencer")??;
             Ok(block)
-        }))
+        }));
     }
 
     #[instrument(skip_all)]
@@ -430,7 +430,7 @@ impl Relayer {
         {
             self.conversion_workers.abort_all();
             if let Some(task) = self.submission_task.as_mut() {
-                task.abort()
+                task.abort();
             }
             Ok(())
         }

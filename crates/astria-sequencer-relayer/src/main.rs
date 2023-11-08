@@ -14,7 +14,7 @@ async fn main() {
         "initializing sequencer relayer"
     );
 
-    SequencerRelayer::new(cfg)
+    SequencerRelayer::new(&cfg)
         .expect("could not initialize sequencer relayer")
         .run()
         .await;
