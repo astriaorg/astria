@@ -95,7 +95,7 @@ pub(super) async fn run(
             }
 
             else => {
-                info!("sync finished");
+                info!("sequencer sync finished");
                 break 'sync Ok(())
             }
         )

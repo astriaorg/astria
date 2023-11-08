@@ -1,6 +1,9 @@
 use std::time::Duration;
 
 use celestia_client::{
+    // celestia_rpc::client,
+    // celestia_rpc::client,
+    // celestia_tendermint::block,
     celestia_types::{
         nmt::Namespace,
         Height,
@@ -12,8 +15,10 @@ use celestia_client::{
 };
 use color_eyre::eyre::{
     self,
+    // Error,
     WrapErr as _,
 };
+use futures::stream::FuturesOrdered;
 use tokio::{
     select,
     sync::{
@@ -141,14 +146,33 @@ impl Reader {
         let celestia_client = self.celestia_client.clone();
         let initial_da_height = self.initial_da_block_height;
         let firm_commit_height = self.firm_commit_height;
-        let sync_start_height =
-            find_da_sync_start_height(celestia_client, initial_da_height, firm_commit_height).await;
+        let sync_start_height = find_da_sync_start_height(
+            celestia_client.clone(),
+            initial_da_height,
+            firm_commit_height,
+        )
+        .await;
 
-        let height = Height::from(sync_start_height);
-        self.fetch_sequencer_blobs_up_to_latest_height(Ok(Ok(height)));
+        let latest_height = self.find_latest_height().await?.value() as u32;
+
+        // let mut sync = self.sync_blocks(sync_start_height, latest_height);
+        let mut _sync = sync_blocks(
+            sync_start_height,
+            latest_height,
+            self.namespace,
+            self.executor_tx.clone(),
+            celestia_client,
+            self.block_verifier.clone(),
+        );
+        // self.fetch_sequencer_blobs_up_to_latest_height(Ok(Ok(height)));
+
+        // TODO: add da sync done to asycn run the sync
+        // TODO: add sync done check to the event loop below
 
         let mut interval = tokio::time::interval(self.celestia_poll_interval);
         loop {
+            let executor_tx = self.executor_tx.clone();
+
             select!(
                 shutdown_res = &mut self.shutdown => {
                     match shutdown_res {
@@ -174,7 +198,7 @@ impl Reader {
 
                 Some((height, res)) = self.verify_sequencer_blobs_and_assemble_rollups.join_next(), if !self.verify_sequencer_blobs_and_assemble_rollups.is_empty() => {
                     let span = tracing::info_span!("send_sequencer_subsets", %height);
-                    span.in_scope(|| self.send_sequencer_subsets(res))
+                    span.in_scope(|| send_sequencer_subsets(executor_tx.clone(), res))
                         .wrap_err("failed sending sequencer subsets to executor")?;
                 }
             )
@@ -188,6 +212,12 @@ impl Reader {
         self.get_latest_height = Some(tokio::spawn(async move {
             Ok(client.header_network_head().await?.header.height)
         }))
+    }
+
+    async fn find_latest_height(&mut self) -> eyre::Result<Height> {
+        use celestia_client::celestia_rpc::HeaderClient;
+        let client = self.celestia_client.clone();
+        Ok(client.header_network_head().await?.header.height)
     }
 
     /// Starts fetching sequencer blobs for each height between `self.current_height`
@@ -232,6 +262,7 @@ impl Reader {
             height.end = %self.current_block_height,
             "spawning tasks to fetch sequencer blocks for different celestia heights",
         );
+
         for height in first_new_height.value()..=latest_height.value() {
             let height = height.try_into().expect(
                 "should be able to convert the u64 back to Height because it was obtained from \
@@ -310,32 +341,130 @@ impl Reader {
             .in_current_span(),
         );
     }
+}
 
-    #[instrument(skip_all, fields(height))]
-    fn send_sequencer_subsets(
-        &self,
-        sequencer_subsets_res: Result<eyre::Result<Vec<SequencerBlockSubset>>, JoinError>,
-    ) -> eyre::Result<()> {
-        let subsets = match sequencer_subsets_res {
-            Err(e) => {
-                let error = &e as &(dyn std::error::Error + 'static);
-                warn!(error, "task processing sequencer data failed");
-                return Ok(());
+async fn sync_blocks(
+    start_sync_height: u32,
+    end_sync_height: u32,
+    namespace: Namespace,
+    executor_tx: executor::Sender,
+    client: HttpClient,
+    block_verifier: BlockVerifier,
+) -> eyre::Result<()> {
+    use futures::{
+        FutureExt as _,
+        StreamExt as _,
+    };
+
+    // let client = self.celestia_client.clone();
+    // let namespace = self.namespace;
+    // let block_verifier = self.block_verifier.clone();
+    // let executor_tx = self.executor_tx.clone();
+
+    let mut height_stream = futures::stream::iter(start_sync_height..end_sync_height);
+    let mut block_stream = FuturesOrdered::new();
+
+    'sync: loop {
+        let client = client.clone();
+        let block_verifier = block_verifier.clone();
+        select!(
+            Some(height) = height_stream.next(), if block_stream.len() <= 20 => {
+                block_stream.push_back(async move {
+                    get_sequencer_data_from_da(height, client.clone(), namespace, block_verifier.clone()).await
+                }.map(move |res| (height, res)).boxed());
             }
-            Ok(Err(e)) => {
-                let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                warn!(
-                    error,
-                    "task processing sequencer data returned with an error"
-                );
-                return Ok(());
+
+            Some((height, res)) = block_stream.next() => {
+                match res {
+                    Err(error) => {
+                        let error = error.as_ref() as &(dyn std::error::Error + 'static);
+
+                        warn!(height, error, "failed getting da block; rescheduling");
+
+                        block_stream.push_front(async move {
+                            get_sequencer_data_from_da(height, client.clone(), namespace, block_verifier.clone()).await
+                        }.map(move |res| (height, res)).boxed());
+                    }
+
+                    Ok(blocks) => {
+                        let span = tracing::info_span!("send_sequencer_subsets", %height);
+                        span.in_scope(|| send_sequencer_subsets(executor_tx.clone(), Ok(Ok(blocks))))
+                            .wrap_err("failed sending sequencer subsets to executor")?;
+
+                    }
+                }
             }
-            Ok(Ok(subsets)) => subsets,
-        };
-        self.executor_tx
-            .send(executor::ExecutorCommand::FromCelestia(subsets))
-            .wrap_err("failed sending processed sequencer subsets: executor channel is closed")
+
+            else => {
+                info!("da sync finished");
+                break 'sync Ok(())
+            }
+        )
     }
+}
+
+#[instrument(skip_all, fields(height))]
+fn send_sequencer_subsets(
+    executor_tx: executor::Sender,
+    sequencer_subsets_res: Result<eyre::Result<Vec<SequencerBlockSubset>>, JoinError>,
+) -> eyre::Result<()> {
+    let subsets = match sequencer_subsets_res {
+        Err(e) => {
+            let error = &e as &(dyn std::error::Error + 'static);
+            warn!(error, "task processing sequencer data failed");
+            return Ok(());
+        }
+        Ok(Err(e)) => {
+            let error: &(dyn std::error::Error + 'static) = e.as_ref();
+            warn!(
+                error,
+                "task processing sequencer data returned with an error"
+            );
+            return Ok(());
+        }
+        Ok(Ok(subsets)) => subsets,
+    };
+    executor_tx
+        .send(executor::ExecutorCommand::FromCelestia(subsets))
+        .wrap_err("failed sending processed sequencer subsets: executor channel is closed")
+}
+
+async fn get_sequencer_data_from_da(
+    height: u32,
+    celestia_client: HttpClient,
+    namespace: Namespace,
+    block_verifier: BlockVerifier,
+) -> eyre::Result<Vec<SequencerBlockSubset>> {
+    // let celestia_client = client;
+    // let namespace = self.namespace;
+
+    let res = celestia_client
+        .get_sequencer_data(height, SEQUENCER_NAMESPACE)
+        .await
+        .wrap_err("failed to fetch sequencer data from celestia")
+        .map(|rsp| rsp.datas);
+
+    let seq_block_data = match res {
+        Ok(datas) => {
+            verify_sequencer_blobs_and_assemble_rollups(
+                Height::from(height),
+                datas,
+                celestia_client,
+                block_verifier.clone(),
+                namespace,
+            )
+            .await
+        }
+        Err(e) => {
+            let error: &(dyn std::error::Error + 'static) = e.as_ref();
+            warn!(
+                error,
+                "task querying celestia for sequencer data returned with an error"
+            );
+            Err(e)
+        }
+    };
+    seq_block_data
 }
 
 // TODO: add a pub da_find_start_block_height fn to use when starting Conductor
