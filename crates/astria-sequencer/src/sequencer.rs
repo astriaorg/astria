@@ -41,6 +41,10 @@ impl Sequencer {
             );
         }
 
+        // TODO: this should be configurable only at genesis;
+        // therefore we should update the genesis state to include the native asset's base
+        // denomination, and set that in storage during init_chain.
+        // on subsequent startups, we should load the native asset from storage.
         crate::asset::initialize_native_asset();
 
         let storage = penumbra_storage::Storage::load(config.db_filepath.clone())
