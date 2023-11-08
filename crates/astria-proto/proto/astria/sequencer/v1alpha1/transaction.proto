@@ -21,6 +21,7 @@ message SignedTransaction {
 message UnsignedTransaction {
     uint32 nonce = 1;
     repeated Action actions = 2;
+    optional bytes fee_asset = 3;
 }
 
 message Action {
@@ -40,7 +41,7 @@ message Action {
 message TransferAction {
     bytes to = 1;
     astria.primitive.v1.Uint128 amount = 2;
-    bytes asset = 3;
+    optional bytes asset = 3;
 }
 
 // `SequenceAction` represents a transaction destined for another

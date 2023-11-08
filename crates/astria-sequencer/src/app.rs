@@ -746,10 +746,11 @@ mod test {
                 TransferAction {
                     to: bob_address,
                     amount: value,
-                    asset: asset::Id::from_denom("uria"),
+                    asset: None,
                 }
                 .into(),
             ],
+            fee_asset: None,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -795,10 +796,11 @@ mod test {
                 TransferAction {
                     to: bob,
                     amount: 0,
-                    asset: asset::Id::from_denom("uria"),
+                    asset: None,
                 }
                 .into(),
             ],
+            fee_asset: None,
         };
         let signed_tx = tx.into_signed(&keypair);
         let res = app
@@ -827,6 +829,7 @@ mod test {
                 }
                 .into(),
             ],
+            fee_asset: None,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -866,6 +869,7 @@ mod test {
             actions: vec![proto::native::sequencer::v1alpha1::Action::ValidatorUpdate(
                 update.clone(),
             )],
+            fee_asset: None,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -898,6 +902,7 @@ mod test {
                     },
                 ),
             ],
+            fee_asset: None,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -928,6 +933,7 @@ mod test {
                     },
                 ),
             ],
+            fee_asset: None,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -962,6 +968,7 @@ mod test {
                 }
                 .into(),
             ],
+            fee_asset: None,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1064,6 +1071,7 @@ mod test {
                 }
                 .into(),
             ],
+            fee_asset: None,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);

@@ -41,7 +41,7 @@ impl Sequencer {
             );
         }
 
-        crate::asset::initialize_known_assets();
+        crate::asset::initialize_native_asset();
 
         let storage = penumbra_storage::Storage::load(config.db_filepath.clone())
             .await

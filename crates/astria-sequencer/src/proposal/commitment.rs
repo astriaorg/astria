@@ -86,7 +86,6 @@ fn group_sequence_actions_by_chain_id(
 mod test {
     use ed25519_consensus::SigningKey;
     use proto::native::sequencer::{
-        asset,
         v1alpha1::{
             Address,
             SequenceAction,
@@ -108,13 +107,14 @@ mod test {
         let transfer_action = TransferAction {
             to: Address([0u8; 20]),
             amount: 1,
-            asset: asset::Id::from_denom("uria"),
+            asset: None,
         };
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![sequence_action.clone().into(), transfer_action.into()],
+            fee_asset: None,
         };
 
         let signed_tx = tx.into_signed(&signing_key);
@@ -128,6 +128,7 @@ mod test {
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![sequence_action.into()],
+            fee_asset: None,
         };
 
         let signed_tx = tx.into_signed(&signing_key);
@@ -153,6 +154,7 @@ mod test {
                 }
                 .into(),
             ],
+            fee_asset: None,
         };
         let signed_tx_0 = tx.into_signed(&signing_key);
 
@@ -166,6 +168,7 @@ mod test {
                 }
                 .into(),
             ],
+            fee_asset: None,
         };
         let signed_tx_1 = tx.into_signed(&signing_key);
 
@@ -179,6 +182,7 @@ mod test {
                 }
                 .into(),
             ],
+            fee_asset: None,
         };
         let signed_tx_2 = tx.into_signed(&signing_key);
 
@@ -208,13 +212,14 @@ mod test {
         let transfer_action = TransferAction {
             to: Address([0u8; 20]),
             amount: 1,
-            asset: asset::Id::from_denom("uria"),
+            asset: None,
         };
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![sequence_action.into(), transfer_action.into()],
+            fee_asset: None,
         };
 
         let signed_tx = tx.into_signed(&signing_key);

@@ -213,6 +213,9 @@ impl SignedTransaction {
 pub struct UnsignedTransaction {
     pub nonce: u32,
     pub actions: Vec<Action>,
+    /// optional asset to use for fee payment.
+    /// if None, then the native asset is used.
+    pub fee_asset: Option<asset::Id>,
 }
 
 impl UnsignedTransaction {
@@ -233,11 +236,13 @@ impl UnsignedTransaction {
         let Self {
             nonce,
             actions,
+            fee_asset,
         } = self;
         let actions = actions.into_iter().map(Action::into_raw).collect();
         raw::UnsignedTransaction {
             nonce,
             actions,
+            fee_asset: fee_asset.map(|asset| asset.as_bytes().to_vec()),
         }
     }
 
@@ -245,11 +250,13 @@ impl UnsignedTransaction {
         let Self {
             nonce,
             actions,
+            fee_asset,
         } = self;
         let actions = actions.iter().map(Action::to_raw).collect();
         raw::UnsignedTransaction {
             nonce: *nonce,
             actions,
+            fee_asset: fee_asset.map(|asset| asset.as_bytes().to_vec()),
         }
     }
 
@@ -263,6 +270,7 @@ impl UnsignedTransaction {
         let raw::UnsignedTransaction {
             nonce,
             actions,
+            fee_asset,
         } = proto;
         let n_raw_actions = actions.len();
         let actions: Vec<_> = actions
@@ -277,9 +285,19 @@ impl UnsignedTransaction {
                 "ignored unset raw protobuf actions",
             );
         }
+
+        let fee_asset = if let Some(fee_asset) = fee_asset {
+            Some(
+                asset::Id::try_from_slice(&fee_asset)
+                    .map_err(UnsignedTransactionError::fee_asset)?,
+            )
+        } else {
+            None
+        };
         Ok(Self {
             nonce,
             actions,
+            fee_asset,
         })
     }
 }
@@ -295,6 +313,12 @@ impl UnsignedTransactionError {
             kind: UnsignedTransactionErrorKind::Action(inner),
         }
     }
+
+    fn fee_asset(inner: IncorrectAssetIdLength) -> Self {
+        Self {
+            kind: UnsignedTransactionErrorKind::FeeAsset(inner),
+        }
+    }
 }
 
 impl Display for UnsignedTransactionError {
@@ -307,6 +331,7 @@ impl Error for UnsignedTransactionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
             UnsignedTransactionErrorKind::Action(e) => Some(e),
+            UnsignedTransactionErrorKind::FeeAsset(e) => Some(e),
         }
     }
 }
@@ -314,6 +339,7 @@ impl Error for UnsignedTransactionError {
 #[derive(Debug)]
 enum UnsignedTransactionErrorKind {
     Action(ActionError),
+    FeeAsset(IncorrectAssetIdLength),
 }
 
 #[derive(Clone, Debug)]
@@ -552,7 +578,9 @@ impl SequenceAction {
 pub struct TransferAction {
     pub to: Address,
     pub amount: u128,
-    pub asset: asset::Id,
+    /// optional asset to be transferred.
+    /// if None, then the native asset is used.
+    pub asset: Option<asset::Id>,
 }
 
 impl TransferAction {
@@ -566,7 +594,7 @@ impl TransferAction {
         raw::TransferAction {
             to: to.to_vec(),
             amount: Some(amount.into()),
-            asset: asset.as_bytes().to_vec(),
+            asset: asset.map(|asset| asset.as_bytes().to_vec()),
         }
     }
 
@@ -580,7 +608,7 @@ impl TransferAction {
         raw::TransferAction {
             to: to.to_vec(),
             amount: Some((*amount).into()),
-            asset: asset.as_bytes().to_vec(),
+            asset: asset.map(|asset| asset.as_bytes().to_vec()),
         }
     }
 
@@ -598,7 +626,12 @@ impl TransferAction {
         } = proto;
         let to = Address::try_from_slice(&to).map_err(TransferActionError::address)?;
         let amount = amount.map_or(0, Into::into);
-        let asset = asset::Id::try_from_slice(&asset).map_err(TransferActionError::asset)?;
+        let asset = if let Some(asset) = asset {
+            Some(asset::Id::try_from_slice(&asset).map_err(TransferActionError::asset)?)
+        } else {
+            None
+        };
+
         Ok(Self {
             to,
             amount,

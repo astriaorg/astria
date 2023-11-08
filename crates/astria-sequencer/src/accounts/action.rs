@@ -52,23 +52,29 @@ impl ActionHandler for TransferAction {
         )
     )]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
+        let native_asset = *NATIVE_ASSET.get().expect("native asset must be set").id();
+
         let from_balance = state
-            .get_account_balance(from, &self.asset)
+            .get_account_balance(from, &self.asset.unwrap_or(native_asset))
             .await
             .context("failed getting `from` account balance")?;
         let to_balance = state
-            .get_account_balance(self.to, &self.asset)
+            .get_account_balance(self.to, &self.asset.unwrap_or(native_asset))
             .await
             .context("failed getting `to` account balance")?;
         state
             .put_account_balance(
                 from,
-                &self.asset,
+                &self.asset.unwrap_or(native_asset),
                 from_balance - (self.amount + TRANSFER_FEE),
             )
             .context("failed updating `from` account balance")?;
         state
-            .put_account_balance(self.to, &self.asset, to_balance + self.amount)
+            .put_account_balance(
+                self.to,
+                &self.asset.unwrap_or(native_asset),
+                to_balance + self.amount,
+            )
             .context("failed updating `to` account balance")?;
         Ok(())
     }
