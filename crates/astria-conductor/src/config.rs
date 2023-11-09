@@ -13,11 +13,11 @@ pub enum CommitLevel {
 }
 
 impl CommitLevel {
-    pub fn is_soft_only(&self) -> bool {
+    pub(crate) fn is_soft_only(&self) -> bool {
         matches!(self, Self::SoftOnly)
     }
 
-    pub fn is_firm_only(&self) -> bool {
+    pub(crate) fn is_firm_only(&self) -> bool {
         matches!(self, Self::FirmOnly)
     }
 }

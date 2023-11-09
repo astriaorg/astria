@@ -119,7 +119,6 @@ jobs:
           cargo clippy --workspace \
           --all-targets \
           --all-features \
-          --exclude astria-conductor \
           --exclude astria-sequencer-relayer \
           -- --warn clippy::pedantic \
              --deny warnings
