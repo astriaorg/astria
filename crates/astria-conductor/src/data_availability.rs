@@ -1,5 +1,10 @@
 use std::time::Duration;
 
+use astria_sequencer_types::{
+    ChainId,
+    RawSequencerBlockData,
+    SequencerBlockData,
+};
 use celestia_client::{
     celestia_types::{
         nmt::Namespace,
@@ -13,6 +18,10 @@ use celestia_client::{
 use color_eyre::eyre::{
     self,
     WrapErr as _,
+};
+use tendermint::{
+    block::Header,
+    Hash,
 };
 use tokio::{
     select,
@@ -42,8 +51,39 @@ use crate::{
         BlockVerifier,
     },
     executor,
-    types::SequencerBlockSubset,
 };
+
+/// `SequencerBlockSubset` is a subset of a SequencerBlock that contains
+/// information required for transaction data verification, and the transactions
+/// for one specific rollup.
+#[derive(Clone, Debug)]
+pub(crate) struct SequencerBlockSubset {
+    pub(crate) block_hash: Hash,
+    pub(crate) header: Header,
+    pub(crate) rollup_transactions: Vec<Vec<u8>>,
+}
+
+impl SequencerBlockSubset {
+    pub(crate) fn from_sequencer_block_data(data: SequencerBlockData, chain_id: &ChainId) -> Self {
+        // we don't need to verify the action tree root here,
+        // as [`SequencerBlockData`] would not be constructable
+        // if it was invalid
+        let RawSequencerBlockData {
+            block_hash,
+            header,
+            mut rollup_data,
+            ..
+        } = data.into_raw();
+
+        let rollup_transactions = rollup_data.remove(chain_id).unwrap_or_default();
+
+        Self {
+            block_hash,
+            header,
+            rollup_transactions,
+        }
+    }
+}
 
 pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.

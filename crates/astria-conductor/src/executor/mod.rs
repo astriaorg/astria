@@ -39,7 +39,7 @@ use tracing::{
     warn,
 };
 
-use crate::types::SequencerBlockSubset;
+use crate::data_availability::SequencerBlockSubset;
 
 mod client;
 #[cfg(test)]
