@@ -137,25 +137,24 @@ impl ActionHandler for UnsignedTransaction {
         for action in &self.actions {
             match action {
                 Action::Transfer(act) => act
-                    .check_stateful(state, from, &fee_asset)
+                    .check_stateful(state, from, fee_asset)
                     .await
                     .context("stateful check failed for TransferAction")?,
                 Action::Sequence(act) => act
-                    .check_stateful(state, from, &fee_asset)
+                    .check_stateful(state, from, fee_asset)
                     .await
                     .context("stateful check failed for SequenceAction")?,
-                Action::ValidatorUpdate(act) => {
-                    act.check_stateful(state, from, &fee_asset)
-                        .await
-                        .context("stateful check failed for ValidatorUpdateAction")?
-                }
+                Action::ValidatorUpdate(act) => act
+                    .check_stateful(state, from, fee_asset)
+                    .await
+                    .context("stateful check failed for ValidatorUpdateAction")?,
                 Action::SudoAddressChange(act) => act
-                    .check_stateful(state, from, &fee_asset)
+                    .check_stateful(state, from, fee_asset)
                     .await
                     .context("stateful check failed for SudoAddressChangeAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
-                    .check_stateful(state, from, &fee_asset)
+                    .check_stateful(state, from, fee_asset)
                     .await
                     .context("stateful check failed for MintAction")?,
                 #[cfg(not(feature = "mint"))]

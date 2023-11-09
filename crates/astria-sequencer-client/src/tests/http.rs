@@ -1,13 +1,10 @@
 use ed25519_consensus::SigningKey;
 use hex_literal::hex;
-use proto::native::sequencer::{
-    asset,
-    v1alpha1::{
-        Address,
-        SignedTransaction,
-        TransferAction,
-        UnsignedTransaction,
-    },
+use proto::native::sequencer::v1alpha1::{
+    Address,
+    SignedTransaction,
+    TransferAction,
+    UnsignedTransaction,
 };
 use serde_json::json;
 use tendermint::{

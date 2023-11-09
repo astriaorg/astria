@@ -17,6 +17,7 @@ use crate::{
         StateReadExt as AccountStateReadExt,
         StateWriteExt as AccountStateWriteExt,
     },
+    asset::NATIVE_ASSET,
     authority::state_ext::StateReadExt as AuthorityStateReadExt,
     transaction::action_handler::ActionHandler,
 };
@@ -45,12 +46,14 @@ impl ActionHandler for MintAction {
         _: Address,
         _: &asset::Id,
     ) -> Result<()> {
+        let native_asset = NATIVE_ASSET.get().expect("native asset must be set").id();
+
         let to_balance = state
-            .get_account_balance(self.to)
+            .get_account_balance(self.to, native_asset)
             .await
             .context("failed getting `to` account balance")?;
         state
-            .put_account_balance(self.to, to_balance + self.amount)
+            .put_account_balance(self.to, native_asset, to_balance + self.amount)
             .context("failed updating `to` account balance")?;
         Ok(())
     }

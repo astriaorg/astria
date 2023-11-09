@@ -119,7 +119,7 @@ impl ActionHandler for TransferAction {
                 .await
                 .context("failed getting `from` account balance for fee payment")?;
             state
-                .put_account_balance(from, &fee_asset, from_fee_balance - TRANSFER_FEE)
+                .put_account_balance(from, fee_asset, from_fee_balance - TRANSFER_FEE)
                 .context("failed updating `from` account balance for fee payment")?;
         }
 
