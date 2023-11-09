@@ -220,7 +220,6 @@ fn assemble_blobs_from_sequencer_block_data(
     let RawSequencerBlockData {
         block_hash,
         header,
-        last_commit,
         rollup_data,
         action_tree_root,
         action_tree_root_inclusion_proof,
@@ -264,7 +263,6 @@ fn assemble_blobs_from_sequencer_block_data(
     let sequencer_namespace_data = SequencerNamespaceData {
         block_hash,
         header,
-        last_commit,
         rollup_chain_ids: chain_ids,
         action_tree_root,
         action_tree_root_inclusion_proof,
