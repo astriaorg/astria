@@ -17,7 +17,7 @@ use proto::generated::execution::v1alpha2::{
 };
 use tonic::transport::Channel;
 
-use crate::types::ExecutorCommitmentState;
+use super::ExecutorCommitmentState;
 
 /// Extension trait for the ExecutionServiceClient that makes it easier to interact with the
 /// execution client.

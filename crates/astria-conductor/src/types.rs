@@ -3,10 +3,6 @@ use astria_sequencer_types::{
     RawSequencerBlockData,
     SequencerBlockData,
 };
-use proto::generated::execution::v1alpha2::{
-    Block,
-    CommitmentState,
-};
 use tendermint::{
     block::Header,
     Hash,
@@ -40,35 +36,6 @@ impl SequencerBlockSubset {
             block_hash,
             header,
             rollup_transactions,
-        }
-    }
-}
-
-/// `ExecutorCommitmentState` is a struct that contains the firm and soft [`Block`]s from the
-/// execution client. This is a utility type to avoid dealing with Option<Block>s all over the
-/// place.
-#[derive(Clone, Debug)]
-pub(crate) struct ExecutorCommitmentState {
-    pub(crate) firm: Block,
-    pub(crate) soft: Block,
-}
-
-impl ExecutorCommitmentState {
-    /// Creates a new `ExecutorCommitmentState` from a `CommitmentState`.
-    /// `firm` and `soft` should never be `None`
-    pub(crate) fn from_execution_client_commitment_state(data: CommitmentState) -> Self {
-        let firm = data.firm.expect(
-            "could not convert from CommitmentState to ExecutorCommitmentState. `firm` is None. \
-             This should never happen.",
-        );
-        let soft = data.soft.expect(
-            "could not convert from CommitmentState to ExecutorCommitmentState. `soft` is None. \
-             This should never happen.",
-        );
-
-        Self {
-            firm,
-            soft,
         }
     }
 }

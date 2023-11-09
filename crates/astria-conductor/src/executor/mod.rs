@@ -14,6 +14,7 @@ use prost_types::Timestamp as ProstTimestamp;
 use proto::generated::execution::v1alpha2::{
     execution_service_client::ExecutionServiceClient,
     Block,
+    CommitmentState,
 };
 use tendermint::{
     Hash,
@@ -38,10 +39,7 @@ use tracing::{
     warn,
 };
 
-use crate::types::{
-    ExecutorCommitmentState,
-    SequencerBlockSubset,
-};
+use crate::types::SequencerBlockSubset;
 
 mod client;
 #[cfg(test)]
@@ -53,6 +51,35 @@ use client::ExecutionClientExt as _;
 pub(crate) type Sender = UnboundedSender<ExecutorCommand>;
 /// The channel the executor task uses to listen for commands.
 pub(crate) type Receiver = UnboundedReceiver<ExecutorCommand>;
+
+/// `ExecutorCommitmentState` tracks the firm and soft [`Block`]s from the
+/// execution client. This is a utility type to avoid dealing with
+/// Option<Block>s all over the place.
+#[derive(Clone, Debug)]
+pub(crate) struct ExecutorCommitmentState {
+    firm: Block,
+    soft: Block,
+}
+
+impl ExecutorCommitmentState {
+    /// Creates a new `ExecutorCommitmentState` from a `CommitmentState`.
+    /// `firm` and `soft` should never be `None`
+    pub(crate) fn from_execution_client_commitment_state(data: CommitmentState) -> Self {
+        let firm = data.firm.expect(
+            "could not convert from CommitmentState to ExecutorCommitmentState. `firm` is None. \
+             This should never happen.",
+        );
+        let soft = data.soft.expect(
+            "could not convert from CommitmentState to ExecutorCommitmentState. `soft` is None. \
+             This should never happen.",
+        );
+
+        Self {
+            firm,
+            soft,
+        }
+    }
+}
 
 // Given `Time`, convert to protobuf timestamp
 fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> {
