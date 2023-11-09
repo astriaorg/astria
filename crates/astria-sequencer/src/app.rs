@@ -1173,8 +1173,6 @@ mod test {
 
     #[tokio::test]
     async fn app_commit() {
-        let _ = NATIVE_ASSET.set(asset::Denom::from_base_denom("uria"));
-
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -1189,6 +1187,7 @@ mod test {
         app.init_chain(genesis_state, vec![]).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
+        let native_asset = NATIVE_ASSET.get().expect("native asset must be set").id();
         for Account {
             address,
             balance,
@@ -1197,10 +1196,7 @@ mod test {
             assert_eq!(
                 balance,
                 app.state
-                    .get_account_balance(
-                        address,
-                        NATIVE_ASSET.get().expect("native asset must be set").id()
-                    )
+                    .get_account_balance(address, native_asset,)
                     .await
                     .unwrap()
             );
@@ -1217,10 +1213,7 @@ mod test {
         {
             assert_eq!(
                 snapshot
-                    .get_account_balance(
-                        address,
-                        NATIVE_ASSET.get().expect("native asset must be set").id()
-                    )
+                    .get_account_balance(address, native_asset,)
                     .await
                     .unwrap(),
                 balance

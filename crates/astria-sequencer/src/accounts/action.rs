@@ -33,7 +33,7 @@ impl ActionHandler for TransferAction {
         let native_asset = *NATIVE_ASSET.get().expect("native asset must be set").id();
         let transfer_asset = self.asset.unwrap_or(native_asset);
 
-        let curr_balance = state
+        let from_fee_balance = state
             .get_account_balance(from, fee_asset)
             .await
             .context("failed getting `from` account balance for fee payment")?;
@@ -42,20 +42,20 @@ impl ActionHandler for TransferAction {
         // to cover both the fee and the amount transferred
         if fee_asset == &transfer_asset {
             ensure!(
-                curr_balance >= self.amount + TRANSFER_FEE,
+                from_fee_balance >= self.amount + TRANSFER_FEE,
                 "insufficient funds for transfer and fee payment"
             );
         } else {
             // otherwise, check the fee asset account has enough to cover the fees,
             // and the transfer asset account has enough to cover the transfer
             ensure!(
-                curr_balance >= TRANSFER_FEE,
+                from_fee_balance >= TRANSFER_FEE,
                 "insufficient funds for fee payment"
             );
 
-            let curr_balance = state.get_account_balance(from, &transfer_asset).await?;
+            let from_transfer_balance = state.get_account_balance(from, &transfer_asset).await?;
             ensure!(
-                curr_balance >= self.amount,
+                from_transfer_balance >= self.amount,
                 "insufficient funds for transfer"
             );
         }

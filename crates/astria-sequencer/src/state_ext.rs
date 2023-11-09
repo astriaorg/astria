@@ -71,7 +71,7 @@ pub(crate) trait StateReadExt: StateRead {
         else {
             bail!("native asset denom not found");
         };
-        // no extra allocations in the happy path (meaning the bytes are utf8)
+
         String::from_utf8(bytes).context("failed to parse native asset denom from raw bytes")
     }
 }

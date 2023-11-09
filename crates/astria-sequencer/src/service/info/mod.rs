@@ -175,7 +175,7 @@ mod test {
         let mut state = StateDelta::new(storage.latest_snapshot());
         state.put_storage_version_by_height(height, version);
 
-        let _ = NATIVE_ASSET.set(Denom::from_base_denom("uria"));
+        let _ = NATIVE_ASSET.set(Denom::from_base_denom("nria"));
 
         let address = Address::try_from_slice(
             &hex::decode("a034c743bed8f26cb8ee7b8db2230fd8347ae131").unwrap(),
