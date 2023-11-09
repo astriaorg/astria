@@ -10,7 +10,7 @@ use ed25519_consensus::{
 };
 use tracing::info;
 
-use super::asset;
+pub use super::asset;
 use crate::{
     generated::sequencer::v1alpha1 as raw,
     native::sequencer::v1alpha1::asset::IncorrectAssetIdLength,

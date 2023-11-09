@@ -3,12 +3,10 @@ use anyhow::{
     Context as _,
     Result,
 };
-use proto::native::sequencer::{
+use proto::native::sequencer::v1alpha1::{
     asset,
-    v1alpha1::{
-        Address,
-        SudoAddressChangeAction,
-    },
+    Address,
+    SudoAddressChangeAction,
 };
 use tracing::instrument;
 

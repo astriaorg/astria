@@ -9,14 +9,12 @@ use anyhow::{
     ensure,
     Context as _,
 };
-use proto::native::sequencer::{
+use proto::native::sequencer::v1alpha1::{
     asset,
-    v1alpha1::{
-        Action,
-        Address,
-        SignedTransaction,
-        UnsignedTransaction,
-    },
+    Action,
+    Address,
+    SignedTransaction,
+    UnsignedTransaction,
 };
 use tracing::instrument;
 

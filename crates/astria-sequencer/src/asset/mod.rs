@@ -1,5 +1,5 @@
 use once_cell::sync::OnceCell;
-use proto::native::sequencer::asset::Denom;
+use proto::native::sequencer::v1alpha1::asset::Denom;
 
 pub(crate) static NATIVE_ASSET: OnceCell<Denom> = OnceCell::new();
 

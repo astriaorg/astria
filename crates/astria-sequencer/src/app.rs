@@ -507,16 +507,14 @@ mod test {
     use ed25519_consensus::SigningKey;
     #[cfg(feature = "mint")]
     use proto::native::sequencer::v1alpha1::MintAction;
-    use proto::native::sequencer::{
+    use proto::native::sequencer::v1alpha1::{
         asset,
-        v1alpha1::{
-            Address,
-            SequenceAction,
-            SudoAddressChangeAction,
-            TransferAction,
-            UnsignedTransaction,
-            ADDRESS_LEN,
-        },
+        Address,
+        SequenceAction,
+        SudoAddressChangeAction,
+        TransferAction,
+        UnsignedTransaction,
+        ADDRESS_LEN,
     };
     use tendermint::{
         abci::types::CommitInfo,

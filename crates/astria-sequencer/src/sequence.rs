@@ -3,12 +3,10 @@ use anyhow::{
     Context,
     Result,
 };
-use proto::native::sequencer::{
+use proto::native::sequencer::v1alpha1::{
     asset,
-    v1alpha1::{
-        Address,
-        SequenceAction,
-    },
+    Address,
+    SequenceAction,
 };
 use tracing::instrument;
 

@@ -4,9 +4,9 @@ use penumbra_storage::{
     StateRead,
     StateWrite,
 };
-use proto::native::sequencer::{
+use proto::native::sequencer::v1alpha1::{
     asset,
-    v1alpha1::Address,
+    Address,
 };
 
 #[async_trait]
