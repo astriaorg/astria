@@ -13,7 +13,6 @@ pub(crate) mod client_provider;
 pub mod conductor;
 pub mod config;
 pub(crate) mod data_availability;
-pub(crate) mod execution_client;
 pub(crate) mod executor;
 pub(crate) mod sequencer;
 pub(crate) mod types;

@@ -38,16 +38,16 @@ use tracing::{
     warn,
 };
 
-use crate::{
-    execution_client::ExecutionClientExt,
-    types::{
-        ExecutorCommitmentState,
-        SequencerBlockSubset,
-    },
+use crate::types::{
+    ExecutorCommitmentState,
+    SequencerBlockSubset,
 };
 
+mod client;
 #[cfg(test)]
 mod tests;
+
+use client::ExecutionClientExt as _;
 
 /// The channel for sending commands to the executor task.
 pub(crate) type Sender = UnboundedSender<ExecutorCommand>;
