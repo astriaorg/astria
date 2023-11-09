@@ -157,9 +157,9 @@ impl Reader {
                 res = &mut sync, if !sync.is_terminated() => {
                     if let Err(e) = res {
                         let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                        warn!(error, "sync failed; continuing with normal operation");
+                        warn!(error, "sequencer sync failed; continuing with normal operation");
                     } else {
-                        info!("sync finished successfully");
+                        info!("sequencer sync finished successfully");
                     }
                     // First sync at startup: notify conductor that sync is done.
                     // Every resync after: don't.

@@ -18,6 +18,10 @@ use color_eyre::eyre::{
     // Error,
     WrapErr as _,
 };
+use futures::{
+    future::FusedFuture,
+    FutureExt,
+};
 // use futures::stream::FuturesOrdered;
 use tokio::{
     select,
@@ -87,6 +91,9 @@ pub(crate) struct Reader {
     firm_commit_height: u32,
 
     shutdown: oneshot::Receiver<()>,
+
+    /// The sync-done channel to notify `Conductor` that `Reader` has finished syncing.
+    sync_done: oneshot::Sender<()>,
 }
 
 impl Reader {
@@ -102,6 +109,7 @@ impl Reader {
         block_verifier: BlockVerifier,
         namespace: Namespace,
         shutdown: oneshot::Receiver<()>,
+        sync_done: oneshot::Sender<()>,
     ) -> eyre::Result<Self> {
         use celestia_client::celestia_rpc::HeaderClient;
 
@@ -135,6 +143,7 @@ impl Reader {
             initial_da_block_height: initial_da_height,
             firm_commit_height,
             shutdown,
+            sync_done,
         })
     }
 
@@ -144,38 +153,58 @@ impl Reader {
 
         // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync
         // functionality to data availability reader
-        let celestia_client = self.celestia_client.clone();
-        let initial_da_height = self.initial_da_block_height;
-        let firm_commit_height = self.firm_commit_height;
+        let Self {
+            executor_tx,
+            celestia_client,
+            celestia_poll_interval,
+            current_block_height: _,
+            mut get_latest_height,
+            mut fetch_sequencer_blobs_at_height,
+            mut verify_sequencer_blobs_and_assemble_rollups,
+            block_verifier,
+            namespace: _,
+            initial_da_block_height,
+            firm_commit_height,
+            mut shutdown,
+            sync_done,
+        } = self;
+        // let celestia_client = celestia_client.clone();
+        // let initial_da_block_height = initial_da_block_height;
+        // let firm_commit_height = firm_commit_height;
         let sync_start_height = find_da_sync_start_height(
             celestia_client.clone(),
-            initial_da_height,
+            initial_da_block_height,
             firm_commit_height,
         )
         .await;
+        // let sync_done = sync_done;
+        // self.sync_done = sync_done;
 
-        let latest_height = self.find_latest_height().await?.value() as u32;
+        let latest_height = find_latest_height(celestia_client.clone()).await?.value() as u32;
 
         // let mut sync = self.sync_blocks(sync_start_height, latest_height);
-        let mut _sync = sync::run(
+        let mut sync = sync::run(
             sync_start_height,
             latest_height,
             self.namespace,
-            self.executor_tx.clone(),
+            executor_tx.clone(),
             celestia_client,
-            self.block_verifier.clone(),
-        );
+            block_verifier.clone(),
+        )
+        .boxed()
+        .fuse();
         // self.fetch_sequencer_blobs_up_to_latest_height(Ok(Ok(height)));
 
         // TODO: add da sync done to asycn run the sync
         // TODO: add sync done check to the event loop below
 
-        let mut interval = tokio::time::interval(self.celestia_poll_interval);
+        let mut sync_done = Some(sync_done);
+        let mut interval = tokio::time::interval(celestia_poll_interval);
         loop {
-            let executor_tx = self.executor_tx.clone();
+            let executor_tx = executor_tx.clone();
 
             select!(
-                shutdown_res = &mut self.shutdown => {
+                shutdown_res = &mut shutdown => {
                     match shutdown_res {
                         Ok(()) => info!("received shutdown command; exiting"),
                         Err(e) => {
@@ -188,16 +217,30 @@ impl Reader {
 
                 _ = interval.tick() => self.get_latest_height(),
 
-                res = async { self.get_latest_height.as_mut().unwrap().await }, if self.get_latest_height.is_some() => {
+                res = &mut sync, if !sync.is_terminated() => {
+                    if let Err(e) = res {
+                        let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                        warn!(error, "sync failed; continuing with normal operation");
+                    } else {
+                        info!("sync finished successfully");
+                    }
+                    // First sync at startup: notify conductor that sync is done.
+                    // Every resync after: don't.
+                    if let Some(sync_done) = sync_done.take() {
+                        let _ = sync_done.send(());
+                    }
+                }
+
+                res = async { get_latest_height.as_mut().unwrap().await }, if get_latest_height.is_some() => {
                     self.get_latest_height = None;
                     self.fetch_sequencer_blobs_up_to_latest_height(res);
                 }
 
-                Some((height, res)) = self.fetch_sequencer_blobs_at_height.join_next(), if !self.fetch_sequencer_blobs_at_height.is_empty() => {
+                Some((height, res)) = fetch_sequencer_blobs_at_height.join_next(), if !fetch_sequencer_blobs_at_height.is_empty() => {
                     self.process_sequencer_datas(height, res);
                 }
 
-                Some((height, res)) = self.verify_sequencer_blobs_and_assemble_rollups.join_next(), if !self.verify_sequencer_blobs_and_assemble_rollups.is_empty() => {
+                Some((height, res)) = verify_sequencer_blobs_and_assemble_rollups.join_next(), if !verify_sequencer_blobs_and_assemble_rollups.is_empty() => {
                     let span = tracing::info_span!("send_sequencer_subsets", %height);
                     span.in_scope(|| send_sequencer_subsets(executor_tx.clone(), res))
                         .wrap_err("failed sending sequencer subsets to executor")?;
@@ -215,11 +258,11 @@ impl Reader {
         }))
     }
 
-    async fn find_latest_height(&mut self) -> eyre::Result<Height> {
-        use celestia_client::celestia_rpc::HeaderClient;
-        let client = self.celestia_client.clone();
-        Ok(client.header_network_head().await?.header.height)
-    }
+    // async fn find_latest_height(&mut self) -> eyre::Result<Height> {
+    //     use celestia_client::celestia_rpc::HeaderClient;
+    //     let client = self.celestia_client.clone();
+    //     Ok(client.header_network_head().await?.header.height)
+    // }
 
     /// Starts fetching sequencer blobs for each height between `self.current_height`
     /// and `latest_height` returned by celestia, populating `fetch_sequencer_blobs_at_height`.
@@ -342,6 +385,28 @@ impl Reader {
             .in_current_span(),
         );
     }
+}
+
+// fn get_latest_height(
+//     celestia_client: HttpClient,
+//     get_latest_height: Option<JoinHandle<eyre::Result<Height>>>,
+// ) { use celestia_client::celestia_rpc::HeaderClient; let client = celestia_client.clone();
+//   get_latest_height = Some(tokio::spawn(async move {
+//   Ok(client.header_network_head().await?.header.height) }))
+// }
+fn get_latest_height(
+    celestia_client: HttpClient,
+    get_latest_height: Option<JoinHandle<eyre::Result<Height>>>,
+) {
+    use celestia_client::celestia_rpc::HeaderClient;
+    self.get_latest_height = Some(tokio::spawn(async move {
+        Ok(celestia_client.header_network_head().await?.header.height)
+    }))
+}
+
+async fn find_latest_height(celestia_client: HttpClient) -> eyre::Result<Height> {
+    use celestia_client::celestia_rpc::HeaderClient;
+    Ok(celestia_client.header_network_head().await?.header.height)
 }
 
 #[instrument(skip_all, fields(height))]

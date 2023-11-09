@@ -40,6 +40,7 @@ use crate::{
         self,
         ClientProvider,
     },
+    config::CommitLevel,
     data_availability,
     executor::Executor,
     sequencer,
@@ -61,7 +62,14 @@ pub struct Conductor {
     sequencer_client_pool: deadpool::managed::Pool<ClientProvider>,
 
     /// The channel over which the sequencer reader task notifies conductor that sync is completed.
-    sync_done: Fuse<oneshot::Receiver<()>>,
+    seq_sync_done: Fuse<oneshot::Receiver<()>>,
+
+    /// The channel over which the sequencer reader task notifies conductor that sync is completed.
+    da_sync_done: Fuse<oneshot::Receiver<()>>,
+
+    /// The data availability reader that is spawned after sync is completed.
+    /// Constructed if constructed if `disable_finalization = false`.
+    sequencer_reader: Option<sequencer::Reader>,
 
     /// The data availability reader that is spawned after sync is completed.
     /// Constructed if constructed if `disable_finalization = false`.
@@ -118,15 +126,29 @@ impl Conductor {
         // Spawn the sequencer task
         // Only spawn the sequencer::Reader if CommitLevel is not FirmOnly, also
         // send () to sync_done to start normal block execution behavior
-        let mut sync_done = futures::future::Fuse::terminated();
+        let mut seq_sync_done = futures::future::Fuse::terminated();
+        let mut da_sync_done = futures::future::Fuse::terminated();
 
+        // TODO: update this with other options because of commit level
         // if only using firm blocks
-        if cfg.execution_commit_level.is_firm_only() {
-            // kill the sync to just run normally
-            let (sync_done_tx, sync_done_rx) = oneshot::channel();
-            sync_done = sync_done_rx.fuse();
-            let _ = sync_done_tx.send(());
+        // if cfg.execution_commit_level.is_firm_only() {
+        //     // kill the sync to just run normally
+        //     let (sync_done_tx, sync_done_rx) = oneshot::channel();
+        //     seq_sync_done = sync_done_rx.fuse();
+        //     let _ = sync_done_tx.send(());
+        // }
+        match cfg.execution_commit_level {
+            CommitLevel::SoftOnly => {}
+            CommitLevel::SoftAndFirm => {}
+            CommitLevel::FirmOnly => {
+                // kill the sync to just run normally
+                let (sync_done_tx, sync_done_rx) = oneshot::channel();
+                seq_sync_done = sync_done_rx.fuse();
+                let _ = sync_done_tx.send(());
+            }
         }
+
+        let mut sequencer_reader = None;
 
         if !cfg.execution_commit_level.is_firm_only() {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -135,16 +157,17 @@ impl Conductor {
             // The `sync_start_block_height` represents the height of the next
             // sequencer block that can be executed on top of the rollup state.
             // This value is derived by the Executor.
-            let sequencer_reader = sequencer::Reader::new(
+            let seq_reader = sequencer::Reader::new(
                 soft_commit_height,
                 sequencer_client_pool.clone(),
                 shutdown_rx,
                 executor_tx.clone(),
                 sync_done_tx,
             );
-            tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
+            // tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
+            sequencer_reader = Some(seq_reader);
             shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
-            sync_done = sync_done_rx.fuse();
+            seq_sync_done = sync_done_rx.fuse();
         }
         // Construct the data availability reader without spawning it.
         // It will be executed after sync is done.
@@ -152,10 +175,12 @@ impl Conductor {
         // Only spawn the data_availability::Reader if CommitLevel is not SoftOnly
         if !cfg.execution_commit_level.is_soft_only() {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
-            shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
+            let (sync_done_tx, sync_done_rx) = oneshot::channel();
+
+            // shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
             let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
             // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
-            let reader = data_availability::Reader::new(
+            let da_reader = data_availability::Reader::new(
                 cfg.initial_da_block_height,
                 firm_commit_height,
                 &cfg.celestia_node_url,
@@ -167,10 +192,15 @@ impl Conductor {
                     cfg.chain_id.as_ref(),
                 ),
                 shutdown_rx,
+                sync_done_tx,
             )
             .await
             .wrap_err("failed constructing data availability reader")?;
-            data_availability_reader = Some(reader);
+            data_availability_reader = Some(da_reader);
+            // shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
+            shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
+
+            da_sync_done = sync_done_rx.fuse();
         };
 
         Ok(Self {
@@ -178,7 +208,9 @@ impl Conductor {
             tasks,
             sequencer_client_pool,
             shutdown_channels,
-            sync_done,
+            seq_sync_done,
+            da_sync_done,
+            sequencer_reader,
             data_availability_reader,
         })
     }
@@ -198,11 +230,14 @@ impl Conductor {
             mut tasks,
             shutdown_channels,
             sequencer_client_pool,
-            sync_done,
+            seq_sync_done,
+            da_sync_done,
+            mut sequencer_reader,
             mut data_availability_reader,
         } = self;
 
-        let mut sync_done = sync_done.fuse();
+        let mut seq_sync_done = seq_sync_done.fuse();
+        let mut da_sync_done = da_sync_done.fuse();
 
         loop {
             select! {
@@ -218,19 +253,38 @@ impl Conductor {
                     info!("reloading is currently not implemented");
                 }
 
-                res = &mut sync_done, if !sync_done.is_terminated() => {
+                // Start the data availability reader
+                res = &mut da_sync_done, if !da_sync_done.is_terminated() => {
                     match res {
-                        Ok(()) => info!("received sync-complete signal from sequencer reader"),
+                        Ok(()) => info!("received sync-complete signal from DA reader"),
                         Err(e) => {
                             let error = &e as &(dyn std::error::Error + 'static);
-                            warn!(error, "sync-complete channel failed prematurely");
+                            warn!(error, "DA sync-complete channel failed prematurely");
                         }
                     }
                     if let Some(data_availability_reader) = data_availability_reader.take() {
-                        info!("starting data availability reader");
+                        info!("starting DA reader");
                         tasks.spawn(
                             Self::DATA_AVAILABILITY,
                             data_availability_reader.run_until_stopped(),
+                        );
+                    }
+                }
+
+                // Start the sequencer reader
+                res = &mut seq_sync_done, if da_sync_done.is_terminated() && !seq_sync_done.is_terminated() => {
+                    match res {
+                        Ok(()) => info!("received sync-complete signal from DA reader"),
+                        Err(e) => {
+                            let error = &e as &(dyn std::error::Error + 'static);
+                            warn!(error, "DA sync-complete channel failed prematurely");
+                        }
+                    }
+                    if let Some(sequencer_reader) = sequencer_reader.take() {
+                        info!("starting sequencer reader");
+                        tasks.spawn(
+                            Self::SEQUENCER,
+                            sequencer_reader.run_until_stopped(),
                         );
                     }
                 }

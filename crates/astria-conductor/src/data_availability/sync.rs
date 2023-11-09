@@ -25,7 +25,7 @@ use tracing::{
     // debug,
     // error,
     info,
-    // instrument,
+    instrument,
     warn,
     // Instrument,
 };
@@ -40,6 +40,7 @@ use crate::{
     types::SequencerBlockSubset,
 };
 
+#[instrument(name = "sync DA", skip_all)]
 pub(crate) async fn run(
     start_sync_height: u32,
     end_sync_height: u32,
@@ -93,7 +94,7 @@ pub(crate) async fn run(
             }
 
             else => {
-                info!("da sync finished");
+                info!("DA sync finished");
                 break 'sync Ok(())
             }
         )
