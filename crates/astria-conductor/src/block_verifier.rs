@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use celestia_client::{
-    RollupNamespaceData,
-    SequencerNamespaceData,
-};
+use celestia_client::SequencerNamespaceData;
 use color_eyre::eyre::{
     self,
     bail,
@@ -54,7 +51,7 @@ impl BlockVerifier {
         &self,
         data: &SequencerNamespaceData,
     ) -> eyre::Result<()> {
-        let height: u32 = data.header.height.value().try_into().expect(
+        let height: u32 = data.header().height.value().try_into().expect(
             "a tendermint height (currently non-negative i32) should always fit into a u32",
         );
 
@@ -69,17 +66,17 @@ impl BlockVerifier {
             )?;
         let block_resp = client.block(height).await.wrap_err("failed to get block")?;
         ensure!(
-            block_resp.block_id.hash == data.block_hash,
+            block_resp.block_id.hash == data.block_hash(),
             "ignoring SequencerNamespaceData with height {} due to block hash mismatch: expected \
              {}, got {}",
             height,
             hex::encode(block_resp.block_id.hash),
-            hex::encode(data.block_hash),
+            hex::encode(data.block_hash()),
         );
 
         debug!(
             sequencer_height = height,
-            sequencer_block_hash = ?data.block_hash,
+            sequencer_block_hash = hex::encode(data.block_hash()),
             "validating sequencer namespace data"
         );
 
@@ -101,7 +98,7 @@ impl BlockVerifier {
 
         // validate commit is for our block
         ensure!(
-            commit.signed_header.header.hash() == data.block_hash,
+            commit.signed_header.header.hash() == data.block_hash(),
             "commit is not for the expected block",
         );
 
@@ -110,74 +107,18 @@ impl BlockVerifier {
     }
 }
 
-pub(crate) fn validate_rollup_data(
-    rollup_data: &RollupNamespaceData,
-    action_tree_root: [u8; 32],
-) -> eyre::Result<()> {
-    rollup_data
-        .verify_inclusion_proof(action_tree_root)
-        .wrap_err("failed to verify rollup data inclusion proof")
-}
-
 fn validate_sequencer_namespace_data(
     current_validator_set: &validators::Response,
     commit: &block::Commit,
     data: &SequencerNamespaceData,
 ) -> eyre::Result<()> {
-    use sha2::Digest as _;
-
-    let SequencerNamespaceData {
-        block_hash,
-        header,
-        rollup_chain_ids: _,
-        action_tree_root,
-        action_tree_root_inclusion_proof,
-        chain_ids_commitment,
-        chain_ids_commitment_inclusion_proof,
-    } = data;
-
     // verify that the validator votes on the block have >2/3 voting power
-    let chain_id = header.chain_id.clone();
-    ensure_commit_has_quorum(commit, current_validator_set, chain_id.as_ref())
-        .wrap_err("failed to ensure commit has quorum")?;
-
-    // validate the block header matches the block hash
-    let block_hash_from_header = header.hash();
-    ensure!(
-        block_hash_from_header == *block_hash,
-        "block hash calculated from tendermint header does not match block hash stored in \
-         sequencer block",
-    );
-
-    // validate the action tree root was included inside `data_hash`
-    let Some(data_hash) = header.data_hash else {
-        bail!("data hash should not be empty");
-    };
-    let data_hash: [u8; 32] = data_hash
-        .as_bytes()
-        .try_into()
-        .wrap_err("data hash must be exactly 32 bytes")?;
-    let action_tree_root_hash = sha2::Sha256::digest(action_tree_root);
-    ensure!(
-        action_tree_root_inclusion_proof.verify(&action_tree_root_hash, data_hash),
-        "failed to verify action tree root inclusion proof",
-    );
-
-    // validate the chain IDs commitment was included inside `data_hash`
-    let chain_ids_commitment_hash = sha2::Sha256::digest(chain_ids_commitment);
-    ensure!(
-        chain_ids_commitment_inclusion_proof.verify(&chain_ids_commitment_hash, data_hash,),
-        "failed to verify chain IDs commitment inclusion proof",
-    );
-
-    let expected_chain_ids_commitment = merkle::Tree::from_leaves(&data.rollup_chain_ids).root();
-
-    ensure!(
-        expected_chain_ids_commitment == *chain_ids_commitment,
-        "chain IDs commitment mismatch: expected {}, got {}",
-        hex::encode(expected_chain_ids_commitment),
-        hex::encode(chain_ids_commitment),
-    );
+    ensure_commit_has_quorum(
+        commit,
+        current_validator_set,
+        data.header().chain_id.as_ref(),
+    )
+    .wrap_err("failed to ensure commit has quorum")?;
 
     Ok(())
 }
@@ -345,6 +286,10 @@ mod test {
         str::FromStr,
     };
 
+    use celestia_client::blob_space::{
+        RawSequencerNamespaceData,
+        RollupNamespaceData,
+    };
     use tendermint::{
         account,
         block::Commit,
@@ -434,7 +379,7 @@ mod test {
         header.proposer_address = proposer_address;
         let block_hash = header.hash();
 
-        let sequencer_namespace_data = SequencerNamespaceData {
+        let sequencer_namespace_data = RawSequencerNamespaceData {
             block_hash,
             header,
             rollup_chain_ids: vec![],
@@ -442,7 +387,9 @@ mod test {
             action_tree_root_inclusion_proof,
             chain_ids_commitment,
             chain_ids_commitment_inclusion_proof,
-        };
+        }
+        .try_into_verified()
+        .unwrap();
 
         validate_sequencer_namespace_data(&validator_set, &commit, &sequencer_namespace_data)
             .unwrap();
@@ -477,7 +424,7 @@ mod test {
         header.proposer_address = proposer_address;
         let block_hash = header.hash();
 
-        let sequencer_namespace_data = SequencerNamespaceData {
+        let sequencer_namespace_data = RawSequencerNamespaceData {
             block_hash,
             header,
             rollup_chain_ids: vec![sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap()],
@@ -485,7 +432,9 @@ mod test {
             action_tree_root_inclusion_proof,
             chain_ids_commitment,
             chain_ids_commitment_inclusion_proof,
-        };
+        }
+        .try_into_verified()
+        .unwrap();
 
         let rollup_namespace_data = RollupNamespaceData {
             block_hash,
@@ -497,7 +446,7 @@ mod test {
         validate_sequencer_namespace_data(&validator_set, &commit, &sequencer_namespace_data)
             .unwrap();
         rollup_namespace_data
-            .verify_inclusion_proof(sequencer_namespace_data.action_tree_root)
+            .belongs_to(&sequencer_namespace_data)
             .unwrap();
     }
 
