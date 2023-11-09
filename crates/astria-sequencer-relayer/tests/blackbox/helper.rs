@@ -362,6 +362,7 @@ fn create_block_response(
             }
             .into(),
         ],
+        fee_asset: None,
     }
     .into_signed(signing_key)
     .into_raw()

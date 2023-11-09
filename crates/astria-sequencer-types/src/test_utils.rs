@@ -79,6 +79,7 @@ pub fn create_tendermint_block() -> tendermint::Block {
             }
             .into(),
         ],
+        fee_asset: None,
     }
     .into_signed(&signing_key)
     .into_raw()

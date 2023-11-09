@@ -340,6 +340,7 @@ impl Future for SubmitFut {
                     let tx = UnsignedTransaction {
                         nonce: *this.nonce,
                         actions: this.bundle.clone(),
+                        fee_asset: None,
                     }
                     .into_signed(this.signing_key);
                     SubmitState::WaitingForSend {
@@ -391,6 +392,7 @@ impl Future for SubmitFut {
                         let tx = UnsignedTransaction {
                             nonce: *this.nonce,
                             actions: this.bundle.clone(),
+                            fee_asset: None,
                         }
                         .into_signed(this.signing_key);
                         SubmitState::WaitingForSend {

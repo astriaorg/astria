@@ -1,10 +1,13 @@
 use ed25519_consensus::SigningKey;
 use hex_literal::hex;
-use proto::native::sequencer::v1alpha1::{
-    Address,
-    SignedTransaction,
-    TransferAction,
-    UnsignedTransaction,
+use proto::native::sequencer::{
+    asset,
+    v1alpha1::{
+        Address,
+        SignedTransaction,
+        TransferAction,
+        UnsignedTransaction,
+    },
 };
 use serde_json::json;
 use tendermint::{
@@ -126,12 +129,14 @@ fn create_signed_transaction() -> SignedTransaction {
         TransferAction {
             to: BOB_ADDRESS,
             amount: 333_333,
+            asset: None,
         }
         .into(),
     ];
     UnsignedTransaction {
         nonce: 1,
         actions,
+        fee_asset: None,
     }
     .into_signed(&alice_key)
 }
