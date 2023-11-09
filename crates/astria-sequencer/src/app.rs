@@ -759,26 +759,91 @@ mod test {
 
         let signed_tx = tx.into_signed(&alice_signing_key);
         app.deliver_tx(signed_tx).await.unwrap();
+
+        let native_asset = NATIVE_ASSET.get().expect("native asset must be set").id();
         assert_eq!(
             app.state
-                .get_account_balance(
-                    bob_address,
-                    NATIVE_ASSET.get().expect("native asset must be set").id()
-                )
+                .get_account_balance(bob_address, native_asset,)
                 .await
                 .unwrap(),
             value + 10u128.pow(19)
         );
         assert_eq!(
             app.state
-                .get_account_balance(
-                    alice_address,
-                    NATIVE_ASSET.get().expect("native asset must be set").id()
-                )
+                .get_account_balance(alice_address, native_asset,)
                 .await
                 .unwrap(),
             10u128.pow(19) - (value + TRANSFER_FEE),
         );
+        assert_eq!(app.state.get_account_nonce(bob_address).await.unwrap(), 0);
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_transfer_not_native_token() {
+        use crate::accounts::state_ext::StateWriteExt as _;
+
+        let mut app = initialize_app(None, vec![]).await;
+
+        // create some asset to be transferred and update Alice's balance of it
+        let asset = asset::Id::from_denom("test");
+        let value = 333_333;
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let mut state_tx = StateDelta::new(app.state.clone());
+        state_tx
+            .put_account_balance(alice_address, &asset, value)
+            .unwrap();
+        app.apply(state_tx);
+
+        // transfer funds from Alice to Bob; use native token for fee payment
+        let bob_address = address_from_hex_string(BOB_ADDRESS);
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                TransferAction {
+                    to: bob_address,
+                    amount: value,
+                    asset: Some(asset),
+                }
+                .into(),
+            ],
+            fee_asset: None,
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+
+        let native_asset = NATIVE_ASSET.get().expect("native asset must be set").id();
+        assert_eq!(
+            app.state
+                .get_account_balance(bob_address, native_asset,)
+                .await
+                .unwrap(),
+            10u128.pow(19), // genesis balance
+        );
+        assert_eq!(
+            app.state
+                .get_account_balance(bob_address, &asset,)
+                .await
+                .unwrap(),
+            value, // transferred amount
+        );
+
+        assert_eq!(
+            app.state
+                .get_account_balance(alice_address, native_asset)
+                .await
+                .unwrap(),
+            10u128.pow(19) - TRANSFER_FEE, // genesis balance - fee
+        );
+        assert_eq!(
+            app.state
+                .get_account_balance(alice_address, &asset,)
+                .await
+                .unwrap(),
+            0, // 0 since all funds of `asset` were transferred
+        );
+
         assert_eq!(app.state.get_account_nonce(bob_address).await.unwrap(), 0);
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
     }
