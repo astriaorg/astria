@@ -1026,6 +1026,7 @@ mod test {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: alice_address,
+            native_asset_base_denomination: "nria".to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
