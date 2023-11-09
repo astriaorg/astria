@@ -128,6 +128,9 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
 
+        crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
+        state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
+
         state_tx.put_block_height(0);
 
         // call init_chain on all components
@@ -596,8 +599,6 @@ mod test {
         genesis_state: Option<GenesisState>,
         genesis_validators: Vec<tendermint::validator::Update>,
     ) -> App {
-        let _ = NATIVE_ASSET.set(asset::Denom::from_base_denom("uria"));
-
         let storage = penumbra_storage::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -607,6 +608,7 @@ mod test {
         let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: Address::from([0; 20]),
+            native_asset_base_denomination: "nria".to_string(),
         });
 
         app.init_chain(genesis_state, genesis_validators)
@@ -648,6 +650,8 @@ mod test {
                     .unwrap(),
             );
         }
+
+        assert_eq!(app.state.get_native_asset_denom().await.unwrap(), "nria");
     }
 
     #[tokio::test]
@@ -855,6 +859,7 @@ mod test {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: alice_address,
+            native_asset_base_denomination: "nria".to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -888,6 +893,7 @@ mod test {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: alice_address,
+            native_asset_base_denomination: "nria".to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -921,6 +927,7 @@ mod test {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: sudo_address,
+            native_asset_base_denomination: "nria".to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1112,6 +1119,7 @@ mod test {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: Address::from([0; 20]),
+            native_asset_base_denomination: "nria".to_string(),
         };
 
         app.init_chain(genesis_state, vec![]).await.unwrap();

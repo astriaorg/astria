@@ -18,6 +18,7 @@ use crate::{
     app::App,
     config::Config,
     service,
+    state_ext::StateReadExt as _,
 };
 
 pub struct Sequencer;
@@ -41,18 +42,25 @@ impl Sequencer {
             );
         }
 
-        // TODO: this should be configurable only at genesis;
-        // therefore we should update the genesis state to include the native asset's base
-        // denomination, and set that in storage during init_chain.
-        // on subsequent startups, we should load the native asset from storage.
-        crate::asset::initialize_native_asset();
-
         let storage = penumbra_storage::Storage::load(config.db_filepath.clone())
             .await
             .context("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
-        let app = App::new(snapshot);
 
+        // the native asset should be configurable only at genesis.
+        // the genesis state must include the native asset's base
+        // denomination, and it is set in storage during init_chain.
+        // on subsequent startups, we load the native asset from storage.
+        if storage.latest_version() != u64::MAX {
+            // native asset should be stored, fetch it
+            let native_asset = snapshot
+                .get_native_asset_denom()
+                .await
+                .context("failed to get native asset from storage")?;
+            crate::asset::initialize_native_asset(&native_asset);
+        }
+
+        let app = App::new(snapshot);
         let consensus_service = tower::ServiceBuilder::new()
             .layer(request_span::layer(|req: &ConsensusRequest| {
                 req.create_span()

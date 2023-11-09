@@ -458,6 +458,7 @@ mod test {
             Self {
                 accounts: vec![],
                 authority_sudo_key: Address::from([0; 20]),
+                native_asset_base_denomination: "nria".to_string(),
             }
         }
     }
@@ -473,7 +474,7 @@ mod test {
         };
         let genesis_state = GenesisState {
             accounts,
-            authority_sudo_key: Address::from([0; 20]),
+            ..Default::default()
         };
 
         let storage = penumbra_storage::TempStorage::new().await.unwrap();
