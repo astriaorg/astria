@@ -278,8 +278,7 @@ async fn mount_broadcast_tx_sync_mock_payload_integrity(
             .unwrap()
             .as_sequence()
             .unwrap();
-        let payload_rlp = Rlp::new(&sequence_action.data);
-        let payload = Transaction::decode(&payload_rlp).unwrap();
+        let payload = serde_json::from_slice(&sequence_action.data).unwrap();
 
         debug!(?payload, ?expected_payload, "comparing payloads");
         expected_payload == payload

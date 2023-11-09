@@ -61,7 +61,7 @@ pub(super) struct Searcher {
     collector_tasks: JoinMap<String, eyre::Result<()>>,
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
-    conversion_tasks: JoinSet<Vec<Action>>,
+    conversion_tasks: JoinSet<eyre::Result<Vec<Action>>>,
     // The Executor object that is responsible for signing and submitting sequencer transactions.
     executor: Option<Executor>,
     // A channel on which to send the `Executor` bundles for attaching a nonce to, sign and submit
@@ -154,14 +154,16 @@ impl Searcher {
         // rollup transaction data serialization is a heavy compute task, so it is spawned
         // on tokio's blocking threadpool
         self.conversion_tasks.spawn_blocking(move || {
-            let data = rollup_tx.rlp().to_vec();
+            let data = serde_json::to_vec(&rollup_tx).map_err(|e| {
+                eyre::eyre!("failed to serialize rollup transaction to JSON: {}", e)
+            })?;
             let chain_id = chain_id.into_bytes();
             let seq_action = Action::Sequence(SequenceAction {
                 chain_id,
                 data,
             });
 
-            vec![seq_action]
+            Ok(vec![seq_action])
         });
     }
 
@@ -205,7 +207,16 @@ impl Searcher {
                 // submit signed sequencer txs to sequencer
                 Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
                     match join_result {
-                        Ok(bundle) => self.handle_bundle_execution(bundle).await,
+                        Ok(res) => {
+                            match res {
+                                Ok(bundle) =>self.handle_bundle_execution(bundle).await,
+                                Err(e) => warn!(
+                                    error.message = %e,
+                                    error.cause_chain = ?e,
+                                    "conversion task failed while trying to convert pending rollup transaction to signed sequencer transaction",
+                                ),
+                            }
+                        },
                         Err(e) => warn!(
                             error.message = %e,
                             error.cause_chain = ?e,
