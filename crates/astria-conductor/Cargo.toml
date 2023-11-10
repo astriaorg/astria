@@ -52,9 +52,7 @@ jsonrpsee = { workspace = true, features = ["server"] }
 astria-sequencer-types = { path = "../astria-sequencer-types", features = [
   "test-utils",
 ] }
-astria-optimism = { path = "../astria-optimism", features = [
-  "test-utils",
-] }
+astria-optimism = { path = "../astria-optimism", features = ["test-utils"] }
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
