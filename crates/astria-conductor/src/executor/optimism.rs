@@ -2,7 +2,7 @@
 //! and converting them to deposit transactions to be executed on a rollup based on
 //! the OP-Stack.
 //!
-//! It works by querying for deposit events from the OptimismPortal contract.
+//! It works by querying for deposit events from the `OptimismPortal` contract.
 //! When `populate_rollup_transactions` is called, it queries for all deposit events
 //! since the last call, converts them to deposit transactions, and prepends them to the
 //! other transactions for that rollup block.
