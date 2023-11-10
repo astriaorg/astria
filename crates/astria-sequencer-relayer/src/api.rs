@@ -51,10 +51,12 @@ pub(crate) fn start(port: u16, relayer_state: RelayerState) -> ApiServer {
     axum::Server::bind(&socket_addr).serve(app.into_make_service())
 }
 
+#[allow(clippy::unused_async)] // Permit because axum handlers must be async
 async fn get_healthz(State(relayer_status): State<RelayerState>) -> Healthz {
-    match relayer_status.borrow().is_ready() {
-        true => Healthz::Ok,
-        false => Healthz::Degraded,
+    if relayer_status.borrow().is_ready() {
+        Healthz::Ok
+    } else {
+        Healthz::Degraded
     }
 }
 
@@ -64,6 +66,7 @@ async fn get_healthz(State(relayer_status): State<RelayerState>) -> Healthz {
 ///
 /// + there is a current sequencer height (implying a block from sequencer was received)
 /// + there is a current data availability height (implying a height was received from the DA)
+#[allow(clippy::unused_async)] // Permit because axum handlers must be async
 async fn get_readyz(State(relayer_status): State<RelayerState>) -> Readyz {
     let is_relayer_online = relayer_status.borrow().is_ready();
     if is_relayer_online {
@@ -73,6 +76,7 @@ async fn get_readyz(State(relayer_status): State<RelayerState>) -> Readyz {
     }
 }
 
+#[allow(clippy::unused_async)] // Permit because axum handlers must be async
 async fn get_status(State(relayer_status): State<RelayerState>) -> Json<serde_json::Value> {
     let relayer::State {
         data_availability_connected,

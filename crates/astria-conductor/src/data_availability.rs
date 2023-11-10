@@ -1,5 +1,10 @@
 use std::time::Duration;
 
+use astria_sequencer_types::{
+    ChainId,
+    RawSequencerBlockData,
+    SequencerBlockData,
+};
 use celestia_client::{
     celestia_types::{
         nmt::Namespace,
@@ -13,6 +18,10 @@ use celestia_client::{
 use color_eyre::eyre::{
     self,
     WrapErr as _,
+};
+use tendermint::{
+    block::Header,
+    Hash,
 };
 use tokio::{
     select,
@@ -42,8 +51,39 @@ use crate::{
         BlockVerifier,
     },
     executor,
-    types::SequencerBlockSubset,
 };
+
+/// `SequencerBlockSubset` is a subset of a `SequencerBlock` that contains
+/// information required for transaction data verification, and the transactions
+/// for one specific rollup.
+#[derive(Clone, Debug)]
+pub(crate) struct SequencerBlockSubset {
+    pub(crate) block_hash: Hash,
+    pub(crate) header: Header,
+    pub(crate) rollup_transactions: Vec<Vec<u8>>,
+}
+
+impl SequencerBlockSubset {
+    pub(crate) fn from_sequencer_block_data(data: SequencerBlockData, chain_id: &ChainId) -> Self {
+        // we don't need to verify the action tree root here,
+        // as [`SequencerBlockData`] would not be constructable
+        // if it was invalid
+        let RawSequencerBlockData {
+            block_hash,
+            header,
+            mut rollup_data,
+            ..
+        } = data.into_raw();
+
+        let rollup_transactions = rollup_data.remove(chain_id).unwrap_or_default();
+
+        Self {
+            block_hash,
+            header,
+            rollup_transactions,
+        }
+    }
+}
 
 pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
@@ -156,7 +196,7 @@ impl Reader {
                     span.in_scope(|| self.send_sequencer_subsets(res))
                         .wrap_err("failed sending sequencer subsets to executor")?;
                 }
-            )
+            );
         }
         Ok(())
     }
@@ -166,7 +206,7 @@ impl Reader {
         let client = self.celestia_client.clone();
         self.get_latest_height = Some(tokio::spawn(async move {
             Ok(client.header_network_head().await?.header.height)
-        }))
+        }));
     }
 
     /// Starts fetching sequencer blobs for each height between `self.current_height`
@@ -328,7 +368,7 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
     namespace: Namespace,
 ) -> eyre::Result<Vec<SequencerBlockSubset>> {
     // spawn the verification tasks
-    let mut verification_tasks = verify_all_datas(sequencer_blobs, block_verifier);
+    let mut verification_tasks = verify_all_datas(sequencer_blobs, &block_verifier);
 
     let (assembly_tx, assembly_rx) = mpsc::channel(256);
     let block_assembler = task::spawn(assemble_blocks(assembly_rx));
@@ -338,11 +378,11 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
         match verification_result {
             Err(e) => {
                 let error = &e as &(dyn std::error::Error + 'static);
-                warn!(%block_hash, error, "task verifying sequencer data retrieved from celestia failed; dropping block")
+                warn!(%block_hash, error, "task verifying sequencer data retrieved from celestia failed; dropping block");
             }
             Ok(Err(e)) => {
                 let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                warn!(%block_hash, error, "task verifying sequencer data retrieved from celestia returned with an error; dropping block")
+                warn!(%block_hash, error, "task verifying sequencer data retrieved from celestia returned with an error; dropping block");
             }
             Ok(Ok(data)) => {
                 fetch_and_verify_rollups.spawn(
@@ -426,7 +466,7 @@ async fn assemble_blocks(
 ) -> Vec<SequencerBlockSubset> {
     let mut blocks = Vec::new();
     while let Some(subset) = assembly_rx.recv().await {
-        blocks.push(subset)
+        blocks.push(subset);
     }
     blocks.sort_unstable_by(|a, b| a.header.height.cmp(&b.header.height));
     blocks
@@ -434,7 +474,7 @@ async fn assemble_blocks(
 
 fn verify_all_datas(
     datas: Vec<SequencerNamespaceData>,
-    block_verifier: BlockVerifier,
+    block_verifier: &BlockVerifier,
 ) -> JoinMap<tendermint::Hash, eyre::Result<SequencerNamespaceData>> {
     let mut verification_tasks = JoinMap::new();
     for data in datas {
