@@ -154,32 +154,13 @@ impl Reader {
 
         // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync
         // functionality to data availability reader
-        // let Self {
-        //     executor_tx,
-        //     celestia_client,
-        //     celestia_poll_interval,
-        //     current_block_height: _,
-        //     mut get_latest_height,
-        //     mut fetch_sequencer_blobs_at_height,
-        //     mut verify_sequencer_blobs_and_assemble_rollups,
-        //     block_verifier,
-        //     namespace: _,
-        //     initial_da_block_height,
-        //     firm_commit_height,
-        //     mut shutdown,
-        //     sync_done,
-        // } = self;
-        // let celestia_client = celestia_client.clone();
-        // let initial_da_block_height = initial_da_block_height;
-        // let firm_commit_height = firm_commit_height;
+
         let sync_start_height = find_da_sync_start_height(
             self.celestia_client.clone(),
             self.initial_da_block_height,
             self.firm_commit_height,
         )
         .await;
-        // let sync_done = sync_done;
-        // self.sync_done = sync_done;
 
         let latest_height = find_latest_height(self.celestia_client.clone())
             .await?
