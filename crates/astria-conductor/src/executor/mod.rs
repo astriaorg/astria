@@ -6,6 +6,7 @@ use astria_sequencer_types::{
 };
 use color_eyre::eyre::{
     self,
+    bail,
     eyre,
     Result,
     WrapErr as _,
@@ -238,9 +239,7 @@ impl Executor {
     /// - if execution or finalization of a block from celestia fails
     async fn handle_executor_command(&mut self, cmd: Option<ExecutorCommand>) -> eyre::Result<()> {
         let Some(cmd) = cmd else {
-            return Err(eyre::eyre!(
-                "cmd channel closed unexpectedly; shutting down"
-            ));
+            bail!("cmd channel closed unexpectedly; shutting down")
         };
 
         match cmd {
@@ -312,9 +311,10 @@ impl Executor {
 
         let timestamp = convert_tendermint_to_prost_timestamp(block.header.time);
 
-        let rollup_transactions = if let Some(ref mut hook) = self.pre_execution_hook {
+        let rollup_transactions = if let Some(hook) = self.pre_execution_hook.as_mut() {
             hook.populate_rollup_transactions(block.rollup_transactions)
-                .await?
+                .await
+                .wrap_err("failed to populate rollup transactions before execution")?
         } else {
             block.rollup_transactions
         };
@@ -323,7 +323,8 @@ impl Executor {
         let executed_block = self
             .execution_rpc_client
             .call_execute_block(prev_block_hash, rollup_transactions, timestamp)
-            .await?;
+            .await
+            .wrap_err("failed to call execute_block")?;
         self.executable_block_height += 1;
 
         // store block hash returned by execution client, as we need it to finalize the block later

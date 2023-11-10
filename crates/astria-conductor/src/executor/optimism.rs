@@ -1,3 +1,14 @@
+//! This module contains functionality for watching for OP-Stack L1 deposit events
+//! and converting them to deposit transactions to be executed on a rollup based on
+//! the OP-Stack.
+//!
+//! It works by querying for deposit events from the OptimismPortal contract.
+//! When `populate_rollup_transactions` is called, it queries for all deposit events
+//! since the last call, converts them to deposit transactions, and prepends them to the
+//! other transactions for that rollup block.
+//!
+//! When the deposit transactions are executed on the rollup, it mints the corresponding
+//! funds which were deposited (locked) on the L1 on the L2 to the specified address.
 use std::sync::Arc;
 
 use astria_optimism::{
@@ -7,6 +18,7 @@ use astria_optimism::{
     },
     deposit::convert_deposit_event_to_deposit_tx,
 };
+use color_eyre::eyre::Context;
 use ethers::{
     prelude::*,
     types::transaction::eip2718::TypedTransaction,
@@ -53,7 +65,8 @@ impl Handler {
         let events = event_filter
             .query_with_meta()
             .await
-            .map_err(|e| eyre::eyre!(e))?;
+            .map_err(|e| eyre::eyre!(e))
+            .wrap_err("failed to query event filter")?;
 
         // event filter `from` and `to` blocks are inclusive (ie. we read events from those blocks),
         // so we set the next block height to read from as the highest we read from + 1.
@@ -68,8 +81,12 @@ impl crate::executor::PreExecutionHook for Handler {
         &mut self,
         sequenced_transactions: Vec<Vec<u8>>,
     ) -> Result<Vec<Vec<u8>>> {
-        let deposit_events = self.query_events().await?;
-        let deposit_txs = convert_deposit_events_to_encoded_txs(deposit_events)?;
+        let deposit_events = self
+            .query_events()
+            .await
+            .wrap_err("failed to query for deposit events")?;
+        let deposit_txs = convert_deposit_events_to_encoded_txs(deposit_events)
+            .wrap_err("failed to convert deposit events to transactions")?;
 
         debug!(
             num_deposit_txs = deposit_txs.len(),
@@ -87,7 +104,8 @@ pub(crate) fn convert_deposit_events_to_encoded_txs(
     let deposit_txs = deposit_events
         .into_iter()
         .map(|(event, meta)| {
-            let tx = convert_deposit_event_to_deposit_tx(event, meta.block_hash, meta.log_index)?;
+            let tx = convert_deposit_event_to_deposit_tx(event, meta.block_hash, meta.log_index)
+                .wrap_err("failed to convert deposit event to transaction")?;
             Ok(TypedTransaction::DepositTransaction(tx).rlp().to_vec())
         })
         .collect::<Result<Vec<Vec<u8>>>>()?;

@@ -45,7 +45,10 @@ use crate::{
         ClientProvider,
     },
     data_availability,
-    executor::Executor,
+    executor::{
+        hook::PreExecutionHook,
+        Executor,
+    },
     sequencer,
     Config,
 };
@@ -289,7 +292,7 @@ async fn get_executor(
     block_rx: UnboundedReceiver<crate::executor::ExecutorCommand>,
     shutdown_rx: Receiver<()>,
 ) -> eyre::Result<Executor> {
-    if let Some(optimism_config) = &cfg.enable_optimism {
+    let hook = if let Some(optimism_config) = &cfg.enable_optimism {
         let provider = Arc::new(
             Provider::<Ws>::connect(optimism_config.ethereum_l1_url.clone())
                 .await
@@ -304,34 +307,25 @@ async fn get_executor(
         )
         .wrap_err("failed to parse contract address")?;
 
-        let optimism_handler = crate::executor::optimism::Handler::new(
+        Some(Box::new(crate::executor::optimism::Handler::new(
             provider,
             contract_address,
             optimism_config.initial_ethereum_l1_block_height,
-        );
-
-        Executor::new(
-            &cfg.execution_rpc_url,
-            ChainId::new(cfg.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
-            cfg.initial_sequencer_block_height,
-            block_rx,
-            shutdown_rx,
-            Some(Box::new(optimism_handler)),
-        )
-        .await
-        .wrap_err("failed to construct executor")
+        )) as Box<dyn PreExecutionHook>)
     } else {
-        Executor::new(
-            &cfg.execution_rpc_url,
-            ChainId::new(cfg.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
-            cfg.initial_sequencer_block_height,
-            block_rx,
-            shutdown_rx,
-            None,
-        )
-        .await
-        .wrap_err("failed to construct executor")
-    }
+        None
+    };
+
+    Executor::new(
+        &cfg.execution_rpc_url,
+        ChainId::new(cfg.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
+        cfg.initial_sequencer_block_height,
+        block_rx,
+        shutdown_rx,
+        hook,
+    )
+    .await
+    .wrap_err("failed to construct executor")
 }
 
 struct SignalReceiver {

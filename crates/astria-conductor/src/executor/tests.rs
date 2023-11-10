@@ -295,44 +295,6 @@ async fn empty_message_from_data_availability_is_dropped() {
 }
 
 #[tokio::test]
-async fn deposit_events_are_converted_and_executed() {
-    use astria_optimism::contract::*;
-
-    // make a deposit transaction
-    let (mut mock, contract_address, provider, wallet, _anvil) =
-        start_mock_with_optimism_handler().await;
-    let contract = get_optimism_portal_with_signer(provider.clone(), wallet, contract_address);
-    let to = Address::zero();
-    let value = U256::from(100);
-    let receipt = make_deposit_transaction(&contract, Some(to), value, None)
-        .await
-        .unwrap()
-        .unwrap();
-    assert!(receipt.status.unwrap().as_u64() == 1);
-
-    // get the event and the expected deposit transaction
-    let to_block = provider.get_block_number().await.unwrap();
-    let event_filter = contract
-        .event::<TransactionDepositedFilter>()
-        .from_block(1)
-        .to_block(to_block);
-
-    let events = event_filter.query_with_meta().await.unwrap();
-
-    let deposit_txs =
-        crate::executor::optimism::convert_deposit_events_to_encoded_txs(events).unwrap();
-
-    // calculate the expected mock execution hash, which includes the block txs,
-    // thus confirming the deposit tx was executed
-    let expected_exection_hash =
-        get_expected_execution_hash(&mock.executor.commitment_state.soft.hash, &deposit_txs);
-    let block = get_test_block_subset();
-
-    let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash;
-    assert_eq!(expected_exection_hash, execution_block_hash);
-}
-
-#[tokio::test]
 async fn try_execute_out_of_order_block_from_sequencer() {
     let mut mock = start_mock(None).await;
     let mut block = get_test_block_subset();
@@ -370,4 +332,47 @@ async fn try_execute_out_of_order_block_from_celestia() {
         .execute_and_finalize_blocks_from_celestia(vec![block])
         .await;
     assert!(execution_result.is_err());
+}
+
+#[cfg(test)]
+mod optimism_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn deposit_events_are_converted_and_executed() {
+        use astria_optimism::contract::*;
+
+        // make a deposit transaction
+        let (mut mock, contract_address, provider, wallet, _anvil) =
+            start_mock_with_optimism_handler().await;
+        let contract = get_optimism_portal_with_signer(provider.clone(), wallet, contract_address);
+        let to = Address::zero();
+        let value = U256::from(100);
+        let receipt = make_deposit_transaction(&contract, Some(to), value, None)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(receipt.status.unwrap().as_u64() == 1);
+
+        // get the event and the expected deposit transaction
+        let to_block = provider.get_block_number().await.unwrap();
+        let event_filter = contract
+            .event::<TransactionDepositedFilter>()
+            .from_block(1)
+            .to_block(to_block);
+
+        let events = event_filter.query_with_meta().await.unwrap();
+
+        let deposit_txs =
+            crate::executor::optimism::convert_deposit_events_to_encoded_txs(events).unwrap();
+
+        // calculate the expected mock execution hash, which includes the block txs,
+        // thus confirming the deposit tx was executed
+        let expected_exection_hash =
+            get_expected_execution_hash(&mock.executor.commitment_state.soft.hash, &deposit_txs);
+        let block = get_test_block_subset();
+
+        let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash;
+        assert_eq!(expected_exection_hash, execution_block_hash);
+    }
 }

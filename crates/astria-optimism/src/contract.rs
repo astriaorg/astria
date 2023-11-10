@@ -1,10 +1,10 @@
-/// This module contains functions for interacting with the OptimismPortal.sol contract,
-/// which is part of Optimism Bedrock's L1 contracts.
-/// See [the contract](https://github.com/ethereum-optimism/optimism/blob/9a13504bb1f302ca9d412589aac18d589c055f16/packages/contracts-bedrock/src/L1/OptimismPortal.sol).
-///
-/// This function requires an `OptimismPortal.abi` file in the project root, which
-/// contains the ABI of the above contract. This is used for generating the Rust
-/// contract bindings with abigen.
+//! This module contains functions for interacting with the OptimismPortal.sol contract,
+//! which is part of Optimism Bedrock's L1 contracts.
+//! See [the contract](https://github.com/ethereum-optimism/optimism/blob/9a13504bb1f302ca9d412589aac18d589c055f16/packages/contracts-bedrock/src/L1/OptimismPortal.sol).
+//!
+//! This function requires an `OptimismPortal.abi` file in the project root, which
+//! contains the ABI of the above contract. This is used for generating the Rust
+//! contract bindings with abigen.
 use std::sync::Arc;
 
 use ethers::prelude::*;
