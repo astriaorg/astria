@@ -20,7 +20,9 @@ use tokio::{
     },
     sync::{
         mpsc,
+        mpsc::UnboundedReceiver,
         oneshot,
+        oneshot::Receiver,
         watch,
     },
     task::{
@@ -94,53 +96,7 @@ impl Conductor {
             let (block_tx, block_rx) = mpsc::unbounded_channel();
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-            let executor = if let Some(optimism_config) = cfg.enable_optimism {
-                let provider = Arc::new(
-                    Provider::<Ws>::connect(optimism_config.ethereum_l1_url)
-                        .await
-                        .wrap_err("failed to connect to provider")?,
-                );
-                let contract_address = Address::try_from(
-                    TryInto::<[u8; 20]>::try_into(
-                        hex::decode(optimism_config.optimism_portal_contract_address)
-                            .wrap_err("failed to decode contract address as hex")?,
-                    )
-                    .map_err(|_| eyre::eyre!("contract address must be 20 bytes"))?,
-                )
-                .wrap_err("failed to parse contract address")?;
-
-                let optimism_handler = crate::executor::optimism::Handler::new(
-                    provider,
-                    contract_address,
-                    optimism_config.initial_ethereum_l1_block_height,
-                )
-                .await;
-
-                Executor::new(
-                    &cfg.execution_rpc_url,
-                    ChainId::new(cfg.chain_id.as_bytes().to_vec())
-                        .wrap_err("failed to create chain ID")?,
-                    cfg.initial_sequencer_block_height,
-                    block_rx,
-                    shutdown_rx,
-                    Some(Box::new(optimism_handler)),
-                )
-                .await
-                .wrap_err("failed to construct executor")
-            } else {
-                Executor::new(
-                    &cfg.execution_rpc_url,
-                    ChainId::new(cfg.chain_id.as_bytes().to_vec())
-                        .wrap_err("failed to create chain ID")?,
-                    cfg.initial_sequencer_block_height,
-                    block_rx,
-                    shutdown_rx,
-                    None,
-                )
-                .await
-                .wrap_err("failed to construct executor")
-            }?;
-
+            let executor = get_executor(&cfg, block_rx, shutdown_rx).await?;
             let executable_sequencer_block_height = executor.get_executable_block_height();
 
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
@@ -325,6 +281,56 @@ impl Conductor {
                 .shutdown()
                 .await;
         }
+    }
+}
+
+async fn get_executor(
+    cfg: &Config,
+    block_rx: UnboundedReceiver<crate::executor::ExecutorCommand>,
+    shutdown_rx: Receiver<()>,
+) -> eyre::Result<Executor> {
+    if let Some(optimism_config) = &cfg.enable_optimism {
+        let provider = Arc::new(
+            Provider::<Ws>::connect(optimism_config.ethereum_l1_url.clone())
+                .await
+                .wrap_err("failed to connect to provider")?,
+        );
+        let contract_address = Address::try_from(
+            TryInto::<[u8; 20]>::try_into(
+                hex::decode(optimism_config.optimism_portal_contract_address.clone())
+                    .wrap_err("failed to decode contract address as hex")?,
+            )
+            .map_err(|_| eyre::eyre!("contract address must be 20 bytes"))?,
+        )
+        .wrap_err("failed to parse contract address")?;
+
+        let optimism_handler = crate::executor::optimism::Handler::new(
+            provider,
+            contract_address,
+            optimism_config.initial_ethereum_l1_block_height,
+        );
+
+        Executor::new(
+            &cfg.execution_rpc_url,
+            ChainId::new(cfg.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
+            cfg.initial_sequencer_block_height,
+            block_rx,
+            shutdown_rx,
+            Some(Box::new(optimism_handler)),
+        )
+        .await
+        .wrap_err("failed to construct executor")
+    } else {
+        Executor::new(
+            &cfg.execution_rpc_url,
+            ChainId::new(cfg.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
+            cfg.initial_sequencer_block_height,
+            block_rx,
+            shutdown_rx,
+            None,
+        )
+        .await
+        .wrap_err("failed to construct executor")
     }
 }
 

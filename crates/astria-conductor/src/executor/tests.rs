@@ -189,7 +189,7 @@ async fn start_mock_with_optimism_handler() -> (
     let (contract_address, provider, wallet, anvil) = deploy_mock_optimism_portal().await;
 
     let pre_execution_hook: Option<Box<dyn PreExecutionHook>> = Some(Box::new(
-        crate::executor::optimism::Handler::new(provider.clone(), contract_address, 1).await,
+        crate::executor::optimism::Handler::new(provider.clone(), contract_address, 1),
     ));
     (
         start_mock(pre_execution_hook).await,

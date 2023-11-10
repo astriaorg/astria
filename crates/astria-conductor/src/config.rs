@@ -50,7 +50,7 @@ pub struct Config {
     /// the execution layer.
     pub execution_commit_level: CommitLevel,
 
-    pub enable_optimism: Option<OptimismConfig>,
+    pub enable_optimism: Option<Optimism>,
 }
 
 impl config::Config for Config {
@@ -58,7 +58,7 @@ impl config::Config for Config {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct OptimismConfig {
+pub struct Optimism {
     /// Websocket URL of Ethereum L1 node
     pub ethereum_l1_url: String,
 

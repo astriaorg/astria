@@ -25,7 +25,7 @@ pub(crate) struct Handler {
 }
 
 impl Handler {
-    pub(crate) async fn new(
+    pub(crate) fn new(
         ethereum_provider: Arc<Provider<Ws>>,
         optimism_portal_contract_address: Address,
         initial_ethereum_l1_block_height: u64,
