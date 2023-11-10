@@ -141,12 +141,12 @@ struct MockEnvironment {
 }
 
 async fn start_mock() -> MockEnvironment {
-    let _server = MockExecutionServer::spawn().await;
+    let server = MockExecutionServer::spawn().await;
     let chain_id = ChainId::new(b"test".to_vec()).unwrap();
-    let server_url = format!("http://{}", _server.local_addr());
+    let server_url = format!("http://{}", server.local_addr());
 
-    let (_block_tx, block_rx) = mpsc::unbounded_channel();
-    let (_shutdown_tx, shutdown_rx) = oneshot::channel();
+    let (block_tx, block_rx) = mpsc::unbounded_channel();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
     let executor = Executor::new(
         &server_url,
         chain_id,
@@ -158,9 +158,9 @@ async fn start_mock() -> MockEnvironment {
     .unwrap();
 
     MockEnvironment {
-        _server,
-        _block_tx,
-        _shutdown_tx,
+        _server: server,
+        _block_tx: block_tx,
+        _shutdown_tx: shutdown_tx,
         executor,
     }
 }

@@ -440,7 +440,7 @@ mod test {
         let chain_ids_commitment_inclusion_proof = tx_tree.prove_inclusion(1).unwrap();
 
         let mut header = astria_sequencer_types::test_utils::default_header();
-        let height = header.height.value() as u32;
+        let height = header.height.value().try_into().unwrap();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
         let (validator_set, proposer_address, commit) =
@@ -481,7 +481,7 @@ mod test {
         let chain_ids_commitment_inclusion_proof = tx_tree.prove_inclusion(1).unwrap();
 
         let mut header = astria_sequencer_types::test_utils::default_header();
-        let height = header.height.value() as u32;
+        let height = header.height.value().try_into().unwrap();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
         let (validator_set, proposer_address, commit) =

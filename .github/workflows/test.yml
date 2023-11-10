@@ -119,15 +119,8 @@ jobs:
           cargo clippy --workspace \
           --all-targets \
           --all-features \
-          --exclude astria-conductor \
           -- --warn clippy::pedantic \
              --deny warnings
-      - name: run default clippy
-        run: |
-          cargo clippy --workspace \
-          --all-targets \
-          --all-features \
-          -- --deny warnings
 
   test:
     if: ${{ always() && !cancelled() }}
