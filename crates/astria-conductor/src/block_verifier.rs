@@ -464,11 +464,10 @@ mod test {
     async fn validate_rollup_data_ok() {
         let test_tx = b"test-tx".to_vec();
         let test_chain_id = b"test-chain";
-        let mut btree = BTreeMap::new();
-        btree.insert(test_chain_id.to_vec(), vec![test_tx.clone()]);
+        let grouped_txs = BTreeMap::from([(test_chain_id, vec![test_tx.clone()])]);
         let action_tree =
             astria_sequencer_types::sequencer_block_data::generate_merkle_tree_from_grouped_txs(
-                &btree,
+                &grouped_txs,
             );
         let action_tree_root = action_tree.root();
         let chain_ids_commitment = merkle::Tree::from_leaves(std::iter::once(test_chain_id)).root();
