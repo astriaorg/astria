@@ -448,6 +448,7 @@ dependencies = [
 name = "astria-optimism"
 version = "0.1.0"
 dependencies = [
+ "astria-optimism",
  "ethers",
  "eyre",
  "hex",

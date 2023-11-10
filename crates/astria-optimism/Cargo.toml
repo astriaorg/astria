@@ -7,4 +7,11 @@ edition = "2021"
 ethers = { version = "2.0", features = ["optimism", "ethers-solc", "ws"] }
 eyre = { workspace = true }
 hex = { workspace = true }
+
+[dev-dependencies]
+astria-optimism = { path = ".", features = ["test-utils"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[features]
+default = []
+test-utils = []
