@@ -98,7 +98,7 @@ pub(super) async fn run(
                 info!("sync finished");
                 break 'sync Ok(())
             }
-        )
+        );
     }
 }
 

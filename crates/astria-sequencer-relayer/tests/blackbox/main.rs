@@ -1,3 +1,5 @@
+#![allow(clippy::missing_panics_doc)]
+
 pub mod helper;
 
 use std::time::Duration;

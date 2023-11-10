@@ -17,12 +17,12 @@ use proto::generated::execution::v1alpha2::{
 };
 use tonic::transport::Channel;
 
-use crate::types::ExecutorCommitmentState;
+use super::ExecutorCommitmentState;
 
 /// Extension trait for the ExecutionServiceClient that makes it easier to interact with the
 /// execution client.
 #[async_trait::async_trait]
-pub(crate) trait ExecutionClientExt {
+pub(super) trait ExecutionClientExt {
     async fn call_batch_get_blocks(
         &mut self,
         identifiers: Vec<BlockIdentifier>,
