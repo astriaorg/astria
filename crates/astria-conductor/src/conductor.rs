@@ -40,7 +40,10 @@ use crate::{
         self,
         ClientProvider,
     },
-    data_availability::{self, CelestiaReaderConfig},
+    data_availability::{
+        self,
+        CelestiaReaderConfig,
+    },
     executor::Executor,
     sequencer,
     Config,

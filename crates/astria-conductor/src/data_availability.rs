@@ -117,7 +117,7 @@ pub(crate) struct Reader {
     shutdown: oneshot::Receiver<()>,
 }
 
-pub (crate) struct CelestiaReaderConfig {
+pub(crate) struct CelestiaReaderConfig {
     pub(crate) node_url: String,
     pub(crate) bearer_token: Option<String>,
     pub(crate) poll_interval: Duration,
