@@ -152,6 +152,13 @@ impl Conductor {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
             let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
+            let sequencer_namespace = {
+                use sequencer_client::SequencerClientExt as _;
+    
+                let client = sequencer_client_pool.get().await?;
+                let chain_id = client.latest_sequencer_block().await?.header().chain_id.clone();
+                celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(chain_id.as_bytes())
+            };
             // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
             let reader = data_availability::Reader::new(
                 &cfg.celestia_node_url,
@@ -159,6 +166,7 @@ impl Conductor {
                 std::time::Duration::from_secs(3),
                 executor_tx.clone(),
                 block_verifier,
+                sequencer_namespace,
                 celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(
                     cfg.chain_id.as_ref(),
                 ),

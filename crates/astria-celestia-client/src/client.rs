@@ -151,7 +151,6 @@ pub trait CelestiaClientExt: BlobClient {
     /// This calls the `blob.Submit` celestia-node RPC.
     async fn submit_sequencer_blocks(
         &self,
-        namespace: Namespace,
         blocks: Vec<SequencerBlockData>,
         submit_options: SubmitOptions,
     ) -> Result<u64, SubmitSequencerBlocksError> {
@@ -166,7 +165,7 @@ pub trait CelestiaClientExt: BlobClient {
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
         for (i, block) in blocks.into_iter().enumerate() {
             let mut blobs =
-                assemble_blobs_from_sequencer_block_data(namespace, block).map_err(|source| {
+                assemble_blobs_from_sequencer_block_data(block).map_err(|source| {
                     SubmitSequencerBlocksError::AssembleBlobs {
                         source,
                         index: i,
@@ -206,7 +205,6 @@ pub enum BlobAssemblyError {
 }
 
 fn assemble_blobs_from_sequencer_block_data(
-    namespace: Namespace,
     block_data: SequencerBlockData,
 ) -> Result<Vec<Blob>, BlobAssemblyError> {
     use sequencer_validation::{
@@ -260,6 +258,7 @@ fn assemble_blobs_from_sequencer_block_data(
         chain_ids.push(chain_id);
     }
 
+    let sequencer_namespace = celestia_namespace_v0_from_hashed_bytes(header.chain_id.clone().as_bytes());
     let sequencer_namespace_data = SequencerNamespaceData {
         block_hash,
         header,
@@ -276,7 +275,7 @@ fn assemble_blobs_from_sequencer_block_data(
     );
 
     blobs.push(
-        Blob::new(namespace, data).map_err(BlobAssemblyError::ConstructBlobFromSequencerData)?,
+        Blob::new(sequencer_namespace, data).map_err(BlobAssemblyError::ConstructBlobFromSequencerData)?,
     );
     Ok(blobs)
 }

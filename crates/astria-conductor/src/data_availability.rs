@@ -12,8 +12,7 @@ use celestia_client::{
     },
     jsonrpsee::http_client::HttpClient,
     CelestiaClientExt as _,
-    SequencerNamespaceData,
-    SEQUENCER_NAMESPACE,
+    SequencerNamespaceData
 };
 use color_eyre::eyre::{
     self,
@@ -100,6 +99,8 @@ pub(crate) struct Reader {
 
     block_verifier: BlockVerifier,
 
+    /// Sequencer Namespace ID
+    sequencer_namespace: Namespace,
     /// Namespace ID
     namespace: Namespace,
 
@@ -124,6 +125,7 @@ impl Reader {
         celestia_poll_interval: Duration,
         executor_tx: executor::Sender,
         block_verifier: BlockVerifier,
+        sequencer_namespace: Namespace,
         namespace: Namespace,
         shutdown: oneshot::Receiver<()>,
     ) -> eyre::Result<Self> {
@@ -155,6 +157,7 @@ impl Reader {
             fetch_sequencer_blobs_at_height: JoinMap::new(),
             verify_sequencer_blobs_and_assemble_rollups: JoinMap::new(),
             block_verifier,
+            sequencer_namespace,
             namespace,
             shutdown,
         })
@@ -263,10 +266,11 @@ impl Reader {
                     "getting sequencer data from celestia already in flight, not spawning"
                 );
             } else {
+                let sequencer_namespace = self.sequencer_namespace.clone();
                 self.fetch_sequencer_blobs_at_height
                     .spawn(height, async move {
                         client
-                            .get_sequencer_data(height, SEQUENCER_NAMESPACE)
+                            .get_sequencer_data(height, sequencer_namespace)
                             .await
                             .wrap_err("failed to fetch sequencer data from celestia")
                             .map(|rsp| rsp.datas)
