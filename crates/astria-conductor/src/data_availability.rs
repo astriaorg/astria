@@ -12,7 +12,7 @@ use celestia_client::{
     },
     jsonrpsee::http_client::HttpClient,
     CelestiaClientExt as _,
-    SequencerNamespaceData
+    SequencerNamespaceData,
 };
 use color_eyre::eyre::{
     self,

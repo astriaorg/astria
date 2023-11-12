@@ -154,10 +154,17 @@ impl Conductor {
             let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
             let sequencer_namespace = {
                 use sequencer_client::SequencerClientExt as _;
-    
+
                 let client = sequencer_client_pool.get().await?;
-                let chain_id = client.latest_sequencer_block().await?.header().chain_id.clone();
-                celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(chain_id.as_bytes())
+                let chain_id = client
+                    .latest_sequencer_block()
+                    .await?
+                    .header()
+                    .chain_id
+                    .clone();
+                celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(
+                    chain_id.as_bytes(),
+                )
             };
             // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
             let reader = data_availability::Reader::new(
