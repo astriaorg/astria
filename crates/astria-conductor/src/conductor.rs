@@ -40,7 +40,7 @@ use crate::{
         self,
         ClientProvider,
     },
-    data_availability,
+    data_availability::{self, CelestiaReaderConfig},
     executor::Executor,
     sequencer,
     Config,
@@ -166,11 +166,14 @@ impl Conductor {
                     chain_id.as_bytes(),
                 )
             };
+            let celestia_config = CelestiaReaderConfig {
+                node_url: cfg.celestia_node_url,
+                bearer_token: Some(cfg.celestia_bearer_token),
+                poll_interval: std::time::Duration::from_secs(3),
+            };
             // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
             let reader = data_availability::Reader::new(
-                &cfg.celestia_node_url,
-                &cfg.celestia_bearer_token,
-                std::time::Duration::from_secs(3),
+                celestia_config,
                 executor_tx.clone(),
                 block_verifier,
                 sequencer_namespace,

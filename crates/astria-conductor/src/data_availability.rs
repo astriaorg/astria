@@ -117,12 +117,16 @@ pub(crate) struct Reader {
     shutdown: oneshot::Receiver<()>,
 }
 
+pub (crate) struct CelestiaReaderConfig {
+    pub(crate) node_url: String,
+    pub(crate) bearer_token: Option<String>,
+    pub(crate) poll_interval: Duration,
+}
+
 impl Reader {
     /// Creates a new Reader instance and returns a command sender.
     pub(crate) async fn new(
-        celestia_node_url: &str,
-        celestia_bearer_token: &str,
-        celestia_poll_interval: Duration,
+        celestia_config: CelestiaReaderConfig,
         executor_tx: executor::Sender,
         block_verifier: BlockVerifier,
         sequencer_namespace: Namespace,
@@ -132,8 +136,8 @@ impl Reader {
         use celestia_client::celestia_rpc::HeaderClient;
 
         let celestia_client = celestia_client::celestia_rpc::client::new_http(
-            celestia_node_url,
-            Some(celestia_bearer_token),
+            &celestia_config.node_url,
+            celestia_config.bearer_token.as_deref(),
         )
         .wrap_err("failed constructing celestia http client")?;
 
@@ -151,7 +155,7 @@ impl Reader {
         Ok(Self {
             executor_tx,
             celestia_client,
-            celestia_poll_interval,
+            celestia_poll_interval: celestia_config.poll_interval,
             current_block_height,
             get_latest_height: None,
             fetch_sequencer_blobs_at_height: JoinMap::new(),
@@ -266,7 +270,7 @@ impl Reader {
                     "getting sequencer data from celestia already in flight, not spawning"
                 );
             } else {
-                let sequencer_namespace = self.sequencer_namespace.clone();
+                let sequencer_namespace = self.sequencer_namespace;
                 self.fetch_sequencer_blobs_at_height
                     .spawn(height, async move {
                         client
