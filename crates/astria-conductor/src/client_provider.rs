@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use async_trait::async_trait;
 use color_eyre::eyre::{
     self,
@@ -16,15 +18,21 @@ use tokio::{
     },
     task::JoinHandle,
 };
-use tracing::instrument::Instrumented;
+use tracing::{
+    instrument::Instrumented,
+    warn,
+};
+use tryhard::{
+    backoff_strategies::ExponentialBackoff,
+    OnRetry,
+    RetryFutureConfig,
+};
 
 type ClientRx = mpsc::UnboundedReceiver<oneshot::Sender<Result<WebSocketClient, Error>>>;
 type ClientTx = mpsc::UnboundedSender<oneshot::Sender<Result<WebSocketClient, Error>>>;
 
-pub(super) async fn start_pool(url: &str) -> eyre::Result<Pool<ClientProvider>> {
-    let client_provider = ClientProvider::new(url)
-        .await
-        .wrap_err("failed initializing sequencer client provider")?;
+pub(super) fn start_pool(url: &str) -> eyre::Result<Pool<ClientProvider>> {
+    let client_provider = ClientProvider::new(url);
     Pool::builder(client_provider)
         .max_size(50)
         .build()
@@ -44,12 +52,40 @@ pub(crate) struct ClientProvider {
     _provider_loop: Instrumented<JoinHandle<()>>,
 }
 
+fn make_retry_config(
+    attempts: u32,
+) -> RetryFutureConfig<
+    ExponentialBackoff,
+    impl Copy + OnRetry<sequencer_client::tendermint_rpc::Error>,
+> {
+    RetryFutureConfig::new(attempts)
+        .exponential_backoff(Duration::from_secs(5))
+        .max_delay(Duration::from_secs(60))
+        .on_retry(
+            |attempt,
+             next_delay: Option<Duration>,
+             error: &sequencer_client::tendermint_rpc::Error| {
+                let error = error.clone();
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                async move {
+                    let error = &error as &(dyn std::error::Error + 'static);
+                    warn!(
+                        attempt,
+                        wait_duration,
+                        error,
+                        "attempt to connect to sequencer websocket failed; retrying after backoff",
+                    );
+                }
+            },
+        )
+}
+
 impl ClientProvider {
     const RECONNECTION_ATTEMPTS: u32 = 1024;
 
-    pub(crate) async fn new(url: &str) -> eyre::Result<Self> {
-        use std::time::Duration;
-
+    pub(crate) fn new(url: &str) -> Self {
         use futures::{
             future::FusedFuture as _,
             FutureExt as _,
@@ -57,7 +93,6 @@ impl ClientProvider {
         use tracing::{
             info,
             info_span,
-            warn,
             Instrument as _,
         };
         let (client_tx, mut client_rx): (ClientTx, ClientRx) = mpsc::unbounded_channel();
@@ -67,32 +102,10 @@ impl ClientProvider {
             strategy = "exponential backoff",
             "connecting to sequencer websocket"
         );
-        let retry_config = tryhard::RetryFutureConfig::new(Self::RECONNECTION_ATTEMPTS)
-            .exponential_backoff(Duration::from_secs(5))
-            .max_delay(Duration::from_secs(60))
-            .on_retry(
-                |attempt,
-                 next_delay: Option<Duration>,
-                 error: &sequencer_client::tendermint_rpc::Error| {
-                    let error = error.clone();
-                    let wait_duration = next_delay
-                        .map(humantime::format_duration)
-                        .map(tracing::field::display);
-                    async move {
-                        let error = &error as &(dyn std::error::Error + 'static);
-                        warn!(
-                            attempt,
-                            wait_duration,
-                            error,
-                            "attempt to connect to sequencer websocket failed; retrying after \
-                             backoff",
-                        );
-                    }
-                },
-            );
+        let retry_config = make_retry_config(Self::RECONNECTION_ATTEMPTS);
 
         let url_ = url.to_string();
-        let _provider_loop = tokio::spawn(async move {
+        let provider_loop = tokio::spawn(async move {
             let mut client = None;
             let mut driver_task = futures::future::Fuse::terminated();
             let mut reconnect = tryhard::retry_fn(|| {
@@ -114,7 +127,7 @@ impl ClientProvider {
                             Ok(Err(e)) => ("error", Some(eyre::Report::new(e).wrap_err("driver task exited with error"))),
                             Err(e) => ("panic", Some(eyre::Report::new(e).wrap_err("driver task failed"))),
                         };
-                        let error: Option<&(dyn std::error::Error + 'static)> = err.as_ref().map(|e| e.as_ref());
+                        let error: Option<&(dyn std::error::Error + 'static)> = err.as_ref().map(AsRef::as_ref);
                         warn!(
                             error,
                             reason,
@@ -158,14 +171,14 @@ impl ClientProvider {
                             pending_requests.push(tx);
                         }
                     }
-                )
+                );
             }
         }).instrument(info_span!("client provider loop", url));
 
-        Ok(Self {
+        Self {
             client_tx,
-            _provider_loop,
-        })
+            _provider_loop: provider_loop,
+        }
     }
 
     async fn get(&self) -> Result<WebSocketClient, Error> {
@@ -227,10 +240,10 @@ pub(crate) mod mock {
             let mut module = RpcModule::new(());
             module.register_method("say_hello", |_, _| "lo").unwrap();
             let address = server.local_addr().unwrap();
-            let _handle = server.start(module);
-            let pool = start_pool(&format!("ws://{address}")).await.unwrap();
+            let handle = server.start(module);
+            let pool = start_pool(&format!("ws://{address}")).unwrap();
             Self {
-                _handle,
+                _handle: handle,
                 pool,
             }
         }

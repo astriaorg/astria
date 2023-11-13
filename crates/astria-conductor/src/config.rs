@@ -13,11 +13,11 @@ pub enum CommitLevel {
 }
 
 impl CommitLevel {
-    pub fn is_soft_only(&self) -> bool {
+    pub(crate) fn is_soft_only(&self) -> bool {
         matches!(self, Self::SoftOnly)
     }
 
-    pub fn is_firm_only(&self) -> bool {
+    pub(crate) fn is_firm_only(&self) -> bool {
         matches!(self, Self::FirmOnly)
     }
 }
@@ -42,9 +42,6 @@ pub struct Config {
 
     /// log directive to use for telemetry.
     pub log: String,
-
-    /// Choose to execute empty blocks or not
-    pub disable_empty_block_execution: bool,
 
     /// The Sequencer block height that the rollup genesis block was in
     pub initial_sequencer_block_height: u32,

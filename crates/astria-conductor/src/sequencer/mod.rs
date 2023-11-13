@@ -53,14 +53,14 @@ pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
     executor_tx: executor::Sender,
 
-    /// The start height from which to start syncing sequencer blocks.
-    start_sync_height: u32,
-
     /// The object pool providing clients to the sequencer.
     pool: Pool<ClientProvider>,
 
     /// The shutdown channel to notify `Reader` to shut down.
     shutdown: oneshot::Receiver<()>,
+
+    /// The start height from which to start syncing sequencer blocks.
+    start_sync_height: u32,
 
     /// The sync-done channel to notify `Conductor` that `Reader` has finished syncing.
     sync_done: oneshot::Sender<()>,
@@ -75,10 +75,10 @@ impl Reader {
         sync_done: oneshot::Sender<()>,
     ) -> Self {
         Self {
-            start_sync_height,
             executor_tx,
             pool,
             shutdown,
+            start_sync_height,
             sync_done,
         }
     }
@@ -140,16 +140,13 @@ impl Reader {
         'reader_loop: loop {
             select! {
                 shutdown = &mut shutdown => {
-                    let ret = match shutdown {
-                        Err(e) => {
-                            let error = &e as &(dyn std::error::Error + 'static);
-                            warn!(error, "shutdown channel closed unexpectedly; shutting down");
-                            Err(e).wrap_err("shut down channel closed unexpectedly")
-                        }
-                        Ok(()) => {
-                            info!("received shutdown signal; shutting down");
-                            Ok(())
-                        }
+                    let ret = if let Err(e) = shutdown {
+                        let error = &e as &(dyn std::error::Error + 'static);
+                        warn!(error, "shutdown channel closed unexpectedly; shutting down");
+                        Err(e).wrap_err("shut down channel closed unexpectedly")
+                    } else {
+                        info!("received shutdown signal; shutting down");
+                        Ok(())
                     };
                     break 'reader_loop ret;
                 }
@@ -214,7 +211,7 @@ impl Reader {
                         }
                     }
                 }
-            }
+            };
         }
     }
 }

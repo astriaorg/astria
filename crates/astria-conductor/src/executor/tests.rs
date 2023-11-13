@@ -140,13 +140,13 @@ struct MockEnvironment {
     executor: Executor,
 }
 
-async fn start_mock(disable_empty_block_execution: bool) -> MockEnvironment {
-    let _server = MockExecutionServer::spawn().await;
+async fn start_mock() -> MockEnvironment {
+    let server = MockExecutionServer::spawn().await;
     let chain_id = ChainId::new(b"test".to_vec()).unwrap();
-    let server_url = format!("http://{}", _server.local_addr());
+    let server_url = format!("http://{}", server.local_addr());
 
-    let (_block_tx, block_rx) = mpsc::unbounded_channel();
-    let (_shutdown_tx, shutdown_rx) = oneshot::channel();
+    let (block_tx, block_rx) = mpsc::unbounded_channel();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
     let executor = Executor::new(
         &server_url,
         chain_id,
@@ -159,43 +159,42 @@ async fn start_mock(disable_empty_block_execution: bool) -> MockEnvironment {
     .unwrap();
 
     MockEnvironment {
-        _server,
-        _block_tx,
-        _shutdown_tx,
+        _server: server,
+        _block_tx: block_tx,
+        _shutdown_tx: shutdown_tx,
         executor,
     }
 }
 
 #[tokio::test]
 async fn execute_sequencer_block_without_txs() {
-    let mut mock = start_mock(false).await;
+    let mut mock = start_mock().await;
 
     // using soft hash here as sequencer blocks are executed on top of the soft commitment
     let expected_exection_hash = hash(&mock.executor.commitment_state.soft.hash);
     let block = get_test_block_subset();
 
-    let execution_block_hash = mock
-        .executor
-        .execute_block(block)
-        .await
-        .unwrap()
-        .expect("expected execution block hash")
-        .hash;
+    let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash;
     assert_eq!(expected_exection_hash, execution_block_hash);
 }
 
 #[tokio::test]
-async fn skip_sequencer_block_without_txs() {
-    let mut mock = start_mock(true).await;
+async fn execute_sequencer_block_wit_txs() {
+    let mut mock = start_mock().await;
 
-    let block = get_test_block_subset();
-    let execution_block_hash = mock.executor.execute_block(block).await.unwrap();
-    assert!(execution_block_hash.is_none());
+    let mut block = get_test_block_subset();
+    block.rollup_transactions.push(b"test_transaction".to_vec());
+
+    // using firm hash here as da blocks are executed on top of the firm commitment
+    let expected_exection_hash = hash(&mock.executor.commitment_state.soft.hash);
+
+    let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash;
+    assert_eq!(expected_exection_hash, execution_block_hash);
 }
 
 #[tokio::test]
 async fn execute_unexecuted_da_block_with_transactions() {
-    let mut mock = start_mock(false).await;
+    let mut mock = start_mock().await;
 
     let mut block = get_test_block_subset();
     block.rollup_transactions.push(b"test_transaction".to_vec());
@@ -218,29 +217,8 @@ async fn execute_unexecuted_da_block_with_transactions() {
 }
 
 #[tokio::test]
-async fn skip_unexecuted_da_block_with_no_transactions() {
-    let mut mock = start_mock(true).await;
-
-    let block = get_test_block_subset();
-    // using firm hash here as da blocks are executed on top of the firm commitment
-    let previous_execution_state = mock.executor.commitment_state.firm.hash.clone();
-
-    mock.executor
-        .execute_and_finalize_blocks_from_celestia(vec![block])
-        .await
-        .unwrap();
-
-    assert_eq!(
-        previous_execution_state,
-        mock.executor.commitment_state.firm.hash,
-    );
-    // should be empty because nothing was executed
-    assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
-}
-
-#[tokio::test]
 async fn execute_unexecuted_da_block_with_no_transactions() {
-    let mut mock = start_mock(false).await;
+    let mut mock = start_mock().await;
     let block = get_test_block_subset();
     // using firm hash here as da blocks are executed on top of the firm commitment
     let expected_execution_state = hash(&mock.executor.commitment_state.firm.hash);
@@ -261,7 +239,7 @@ async fn execute_unexecuted_da_block_with_no_transactions() {
 
 #[tokio::test]
 async fn empty_message_from_data_availability_is_dropped() {
-    let mut mock = start_mock(false).await;
+    let mut mock = start_mock().await;
     // using firm hash here as da blocks are executed on top of the firm commitment
     let expected_execution_state = mock.executor.commitment_state.firm.hash.clone();
 
@@ -279,7 +257,7 @@ async fn empty_message_from_data_availability_is_dropped() {
 
 #[tokio::test]
 async fn try_execute_out_of_order_block_from_sequencer() {
-    let mut mock = start_mock(false).await;
+    let mut mock = start_mock().await;
     let mut block = get_test_block_subset();
 
     // 0 is always the genesis block, so this should fail
@@ -296,7 +274,7 @@ async fn try_execute_out_of_order_block_from_sequencer() {
 
 #[tokio::test]
 async fn try_execute_out_of_order_block_from_celestia() {
-    let mut mock = start_mock(false).await;
+    let mut mock = start_mock().await;
     let mut block = get_test_block_subset();
 
     // 0 is always the genesis block, so this should fail

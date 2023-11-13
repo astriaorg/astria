@@ -98,7 +98,7 @@ pub(super) async fn run(
                 info!("sequencer sync finished");
                 break 'sync Ok(())
             }
-        )
+        );
     }
 }
 

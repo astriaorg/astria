@@ -48,18 +48,19 @@ use crate::{
 };
 
 pub struct Conductor {
-    /// Listens for several unix signals and notifies its subscribers.
-    signals: SignalReceiver,
-
-    /// The different long-running tasks that make up the conductor;
-    tasks: JoinMap<&'static str, eyre::Result<()>>,
-
-    /// Channels to the long-running tasks to shut them down gracefully
-    shutdown_channels: HashMap<&'static str, oneshot::Sender<()>>,
+    /// The data availability reader that is spawned after sync is completed.
+    /// Constructed if constructed if `disable_finalization = false`.
+    data_availability_reader: Option<data_availability::Reader>,
 
     /// The object pool of sequencer clients that restarts the websocket connection
     /// on failure.
     sequencer_client_pool: deadpool::managed::Pool<ClientProvider>,
+
+    /// Channels to the long-running tasks to shut them down gracefully
+    shutdown_channels: HashMap<&'static str, oneshot::Sender<()>>,
+
+    /// Listens for several unix signals and notifies its subscribers.
+    signals: SignalReceiver,
 
     /// The channel over which the sequencer reader task notifies conductor that sync is completed.
     seq_sync_done: Fuse<oneshot::Receiver<()>>,
@@ -71,9 +72,8 @@ pub struct Conductor {
     /// Constructed if constructed if `disable_finalization = false`.
     sequencer_reader: Option<sequencer::Reader>,
 
-    /// The data availability reader that is spawned after sync is completed.
-    /// Constructed if constructed if `disable_finalization = false`.
-    data_availability_reader: Option<data_availability::Reader>,
+    /// The different long-running tasks that make up the conductor;
+    tasks: JoinMap<&'static str, eyre::Result<()>>,
 }
 
 impl Conductor {
@@ -81,6 +81,12 @@ impl Conductor {
     const EXECUTOR: &'static str = "executor";
     const SEQUENCER: &'static str = "sequencer";
 
+    /// Create a new [`Conductor`] from a [`Config`].
+    ///
+    /// # Errors
+    /// Returns an error in the following cases if one of its constituent
+    /// actors could not be spawned (executor, sequencer reader, or data availability reader).
+    /// This usually happens if the actors failed to connect to their respective endpoints.
     pub async fn new(cfg: Config) -> eyre::Result<Self> {
         use futures::FutureExt;
 
@@ -120,7 +126,6 @@ impl Conductor {
         };
 
         let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
-            .await
             .wrap_err("failed to create sequencer client pool")?;
 
         // Spawn the sequencer task
@@ -204,8 +209,7 @@ impl Conductor {
         };
 
         Ok(Self {
-            signals,
-            tasks,
+            data_availability_reader,
             sequencer_client_pool,
             shutdown_channels,
             seq_sync_done,
@@ -244,12 +248,12 @@ impl Conductor {
                 // FIXME: The bias should only be on the signal channels. The two handlers should have the same bias.
                 biased;
 
-                _ = stop_rx.changed() => {
+                _ = self.signals.stop_rx.changed() => {
                     info!("shutting down conductor");
                     break;
                 }
 
-                _ = reload_rx.changed() => {
+                _ = self.signals.reload_rx.changed() => {
                     info!("reloading is currently not implemented");
                 }
 
@@ -289,7 +293,25 @@ impl Conductor {
                     }
                 }
 
-                Some((name, res)) = tasks.join_next() => {
+                // Start the sequencer reader
+                res = &mut seq_sync_done, if da_sync_done.is_terminated() && !seq_sync_done.is_terminated() => {
+                    match res {
+                        Ok(()) => info!("received sync-complete signal from DA reader"),
+                        Err(e) => {
+                            let error = &e as &(dyn std::error::Error + 'static);
+                            warn!(error, "DA sync-complete channel failed prematurely");
+                        }
+                    }
+                    if let Some(sequencer_reader) = sequencer_reader.take() {
+                        info!("starting sequencer reader");
+                        tasks.spawn(
+                            Self::SEQUENCER,
+                            sequencer_reader.run_until_stopped(),
+                        );
+                    }
+                }
+
+                Some((name, res)) = self.tasks.join_next() => {
                     match res {
                         Ok(Ok(())) => error!(task.name = name, "task exited unexpectedly, shutting down"),
                         Ok(Err(e)) => {
@@ -305,16 +327,21 @@ impl Conductor {
             }
         }
 
+        info!("shutting down conductor");
+        self.shutdown().await;
+    }
+
+    async fn shutdown(self) {
         info!("sending shutdown command to all tasks");
-        for (_, channel) in shutdown_channels {
+        for (_, channel) in self.shutdown_channels {
             let _ = channel.send(());
         }
 
-        sequencer_client_pool.close();
+        self.sequencer_client_pool.close();
 
         info!("waiting 5 seconds for all tasks to shut down");
         // put the tasks into an Rc to make them 'static so they can run on a local set
-        let mut tasks = Rc::new(tasks);
+        let mut tasks = Rc::new(self.tasks);
         let local_set = LocalSet::new();
         local_set
             .run_until(async {
@@ -357,7 +384,6 @@ impl Conductor {
                 .shutdown()
                 .await;
         }
-        Ok(())
     }
 }
 

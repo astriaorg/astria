@@ -14,6 +14,7 @@ use prost_types::Timestamp as ProstTimestamp;
 use proto::generated::execution::v1alpha2::{
     execution_service_client::ExecutionServiceClient,
     Block,
+    CommitmentState,
 };
 use tendermint::{
     Hash,
@@ -38,33 +39,59 @@ use tracing::{
     warn,
 };
 
-use crate::{
-    execution_client::ExecutionClientExt,
-    types::{
-        ExecutorCommitmentState,
-        SequencerBlockSubset,
-    },
-};
+use crate::data_availability::SequencerBlockSubset;
 
+mod client;
 #[cfg(test)]
 mod tests;
+
+use client::ExecutionClientExt as _;
 
 /// The channel for sending commands to the executor task.
 pub(crate) type Sender = UnboundedSender<ExecutorCommand>;
 /// The channel the executor task uses to listen for commands.
 pub(crate) type Receiver = UnboundedReceiver<ExecutorCommand>;
 
+/// `ExecutorCommitmentState` tracks the firm and soft [`Block`]s from the
+/// execution client. This is a utility type to avoid dealing with
+/// Option<Block>s all over the place.
+#[derive(Clone, Debug)]
+pub(crate) struct ExecutorCommitmentState {
+    firm: Block,
+    soft: Block,
+}
+
+impl ExecutorCommitmentState {
+    /// Creates a new `ExecutorCommitmentState` from a `CommitmentState`.
+    /// `firm` and `soft` should never be `None`
+    pub(crate) fn from_execution_client_commitment_state(data: CommitmentState) -> Self {
+        let firm = data.firm.expect(
+            "could not convert from CommitmentState to ExecutorCommitmentState. `firm` is None. \
+             This should never happen.",
+        );
+        let soft = data.soft.expect(
+            "could not convert from CommitmentState to ExecutorCommitmentState. `soft` is None. \
+             This should never happen.",
+        );
+
+        Self {
+            firm,
+            soft,
+        }
+    }
+}
+
 // Given `Time`, convert to protobuf timestamp
-fn convert_tendermint_to_prost_timestamp(value: Time) -> Result<ProstTimestamp> {
+fn convert_tendermint_to_prost_timestamp(value: Time) -> ProstTimestamp {
     use tendermint_proto::google::protobuf::Timestamp as TendermintTimestamp;
     let TendermintTimestamp {
         seconds,
         nanos,
     } = value.into();
-    Ok(ProstTimestamp {
+    ProstTimestamp {
         seconds,
         nanos,
-    })
+    }
 }
 
 #[derive(Debug)]
@@ -116,16 +143,12 @@ pub(crate) struct Executor {
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
     sequencer_hash_to_execution_block: HashMap<Hash, Block>,
-
-    /// Chose to execute empty blocks or not
-    disable_empty_block_execution: bool,
 }
 
 impl Executor {
     pub(crate) async fn new(
         server_addr: &str,
         chain_id: ChainId,
-        disable_empty_block_execution: bool,
         init_sequencer_height: u32,
         cmd_rx: Receiver,
         shutdown: oneshot::Receiver<()>,
@@ -165,7 +188,6 @@ impl Executor {
             executable_sequencer_block_height,
             executable_da_block_height,
             sequencer_hash_to_execution_block: HashMap::new(),
-            disable_empty_block_execution,
         })
     }
 
@@ -176,9 +198,11 @@ impl Executor {
                 biased;
 
                 shutdown = &mut self.shutdown => {
-                    match shutdown {
-                        Err(e) => warn!(error.message = %e, "shutdown channel return with error; shutting down"),
-                        Ok(()) => info!("received shutdown signal; shutting down"),
+                    if let Err(e) = shutdown {
+                        let error: &(dyn std::error::Error + 'static) = &e;
+                        warn!(error, "shutdown channel return with error; shutting down");
+                    } else {
+                        info!("received shutdown signal; shutting down");
                     }
                     break;
                 }
@@ -198,24 +222,24 @@ impl Executor {
 
                             let executed_block_result = self.execute_block(block_subset).await;
                             match executed_block_result {
-                                Ok(Some(executed_block)) => {
+                                Ok(executed_block) => {
                                     if let Err(e) = self.update_soft_commitment(executed_block.clone()).await {
+                                        let error: &(dyn std::error::Error + 'static) = e.as_ref();
                                         error!(
                                             height = height,
-                                            error = ?e,
+                                            error,
                                             "failed to update soft commitment"
                                         );
                                     }
                                 }
                                 Err(e) => {
+                                    let error: &(dyn std::error::Error + 'static) = e.as_ref();
                                     error!(
                                         height = height,
-                                        error = ?e,
+                                        error,
                                         "failed to execute block"
                                     );
                                 }
-                                // execution was skipped
-                                Ok(None) => {}
                             }
                         }
 
@@ -231,7 +255,7 @@ impl Executor {
                         }
                     }
                 }
-            )
+            );
         }
         Ok(())
     }
@@ -242,18 +266,9 @@ impl Executor {
     /// it returns the resulting execution block hash.
     /// If the block has already been executed, it returns the previously-computed
     /// execution block hash.
-    /// if there are no relevant transactions in the SequencerBlock, it returns None.
     #[instrument(skip(self), fields(sequencer_block_hash = ?block.block_hash, sequencer_block_height = block.header.height.value()))]
-    async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Option<Block>> {
-        if self.disable_empty_block_execution && block.rollup_transactions.is_empty() {
-            debug!(
-                sequencer_block_height = block.header.height.value(),
-                "no transactions in block, skipping execution"
-            );
-            return Ok(None);
-        }
-
-        if self.executable_sequencer_block_height as u64 != block.header.height.value() {
+    async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Block> {
+        if u64::from(self.executable_sequencer_block_height) != block.header.height.value() {
             error!(
                 sequencer_block_height = block.header.height.value(),
                 executable_block_height = self.executable_sequencer_block_height,
@@ -271,7 +286,7 @@ impl Executor {
                 execution_hash = hex::encode(&execution_block.hash),
                 "block already executed"
             );
-            return Ok(Some(execution_block.clone()));
+            return Ok(execution_block.clone());
         }
 
         let prev_block_hash = self.commitment_state.soft.hash.clone();
@@ -281,8 +296,7 @@ impl Executor {
             "executing block with given parent block",
         );
 
-        let timestamp = convert_tendermint_to_prost_timestamp(block.header.time)
-            .wrap_err("failed parsing str as protobuf timestamp")?;
+        let timestamp = convert_tendermint_to_prost_timestamp(block.header.time);
 
         let tx_count = block.rollup_transactions.len();
         let executed_block = self
@@ -301,7 +315,7 @@ impl Executor {
         self.sequencer_hash_to_execution_block
             .insert(block.block_hash, executed_block.clone());
 
-        Ok(Some(executed_block))
+        Ok(executed_block)
     }
 
     /// Updates the commitment state on the execution layer.

@@ -89,7 +89,7 @@ pub struct TestSequencerRelayer {
     pub signing_key: SigningKey,
     pub account: tendermint::account::Id,
 
-    pub _keyfile: NamedTempFile,
+    pub keyfile: NamedTempFile,
 }
 
 impl TestSequencerRelayer {
@@ -132,6 +132,17 @@ impl TestSequencerRelayer {
             .mount_as_scoped(&self.sequencer)
             .await
     }
+
+    pub async fn mount_block_response_with_zero_proposer(&self, height: u32) -> MockGuard {
+        let proposer = tendermint::account::Id::try_from(vec![0u8; 20]).unwrap();
+        let block_response = create_block_response(&self.signing_key, proposer, height);
+        let wrapped = Wrapper::new_with_id(Id::Num(1), Some(block_response.clone()), None);
+        Mock::given(body_partial_json(json!({"method": "block"})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(wrapped))
+            .expect(1)
+            .mount_as_scoped(&self.sequencer)
+            .await
+    }
 }
 
 pub enum CelestiaMode {
@@ -155,7 +166,7 @@ pub async fn spawn_sequencer_relayer(
     let mut celestia = MockCelestia::start(block_time, celestia_mode).await;
     let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
 
-    let _keyfile = tokio::task::spawn_blocking(|| {
+    let keyfile = tokio::task::spawn_blocking(|| {
         use std::io::Write as _;
 
         let keyfile = NamedTempFile::new().unwrap();
@@ -183,21 +194,22 @@ pub async fn spawn_sequencer_relayer(
     let config = Config {
         sequencer_endpoint: sequencer.uri(),
         celestia_endpoint: format!("http://{celestia_addr}"),
-        celestia_bearer_token: "".into(),
-        gas_limit: 100000,
+        celestia_bearer_token: String::new(),
+        gas_limit: 100_000,
         block_time: 1000,
         relay_only_validator_key_blocks,
         validator_key_file: Some(_keyfile.path().to_string_lossy().to_string()),
         rpc_port: 0,
-        log: "".into(),
+        log: String::new(),
     };
 
     info!(config = serde_json::to_string(&config).unwrap());
     let config_clone = config.clone();
-    let sequencer_relayer = tokio::task::spawn_blocking(|| SequencerRelayer::new(config_clone))
-        .await
-        .unwrap()
-        .unwrap();
+    let sequencer_relayer =
+        tokio::task::spawn_blocking(move || SequencerRelayer::new(&config_clone))
+            .await
+            .unwrap()
+            .unwrap();
     let api_address = sequencer_relayer.local_addr();
     let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
 
@@ -211,7 +223,7 @@ pub async fn spawn_sequencer_relayer(
         sequencer_relayer,
         signing_key,
         account: address,
-        _keyfile,
+        keyfile,
     }
 }
 
@@ -246,7 +258,7 @@ use jsonrpsee::{
 pub struct MockCelestia {
     pub addr_rx: oneshot::Receiver<SocketAddr>,
     pub state_rpc_confirmed_rx: mpsc::UnboundedReceiver<Vec<Blob>>,
-    pub _server_handle: ServerHandle,
+    pub server_handle: ServerHandle,
 }
 
 impl MockCelestia {
@@ -265,11 +277,11 @@ impl MockCelestia {
         let header_celestia = HeaderServerImpl;
         let mut merged_celestia = state_celestia.into_rpc();
         merged_celestia.merge(header_celestia.into_rpc()).unwrap();
-        let _server_handle = server.start(merged_celestia);
+        let server_handle = server.start(merged_celestia);
         Self {
             addr_rx,
             state_rpc_confirmed_rx,
-            _server_handle,
+            server_handle,
         }
     }
 }
