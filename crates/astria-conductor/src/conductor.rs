@@ -133,19 +133,19 @@ impl Conductor {
         let mut seq_sync_done = futures::future::Fuse::terminated();
         let mut da_sync_done = futures::future::Fuse::terminated();
 
-        // TODO: update this with other options because of commit level
-        // if only using firm blocks
-        // if cfg.execution_commit_level.is_firm_only() {
-        //     // kill the sync to just run normally
-        //     let (sync_done_tx, sync_done_rx) = oneshot::channel();
-        //     seq_sync_done = sync_done_rx.fuse();
-        //     let _ = sync_done_tx.send(());
-        // }
         match cfg.execution_commit_level {
-            CommitLevel::SoftOnly => {}
-            CommitLevel::SoftAndFirm => {}
+            CommitLevel::SoftOnly => {
+                // kill the DA sync to only execute from sequencer
+                let (sync_done_tx, sync_done_rx) = oneshot::channel();
+                da_sync_done = sync_done_rx.fuse();
+                let _ = sync_done_tx.send(());
+            }
+            CommitLevel::SoftAndFirm => {
+                // when running in soft and firm mode, a sync cycle from both DA
+                // and sequencer are used. No need to kill any of the syncs
+            }
             CommitLevel::FirmOnly => {
-                // kill the sync to just run normally
+                // kill the sequencer sync to only execute from DA
                 let (sync_done_tx, sync_done_rx) = oneshot::channel();
                 seq_sync_done = sync_done_rx.fuse();
                 let _ = sync_done_tx.send(());
@@ -168,7 +168,6 @@ impl Conductor {
                 executor_tx.clone(),
                 sync_done_tx,
             );
-            // tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
             sequencer_reader = Some(seq_reader);
             shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
             seq_sync_done = sync_done_rx.fuse();
@@ -184,7 +183,6 @@ impl Conductor {
             let (sync_done_tx, sync_done_rx) = oneshot::channel();
 
             let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
-            // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
             let da_reader = data_availability::Reader::new(
                 cfg.initial_da_block_height,
                 firm_commit_height,
