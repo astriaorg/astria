@@ -50,7 +50,21 @@ pub struct Config {
     /// the execution layer.
     pub execution_commit_level: CommitLevel,
 
-    pub enable_optimism: Option<Optimism>,
+    /// Set to true to enable OP-Stack deposit derivation.
+    pub enable_optimism: bool,
+
+    /// Websocket URL of Ethereum L1 node.
+    /// Only used if `enable_optimism` is true.
+    pub ethereum_l1_url: String,
+
+    /// Contract address of the OptimismPortal contract on L1.
+    /// Only used if `enable_optimism` is true.
+    pub optimism_portal_contract_address: String,
+
+    /// The block height of the Ethereum L1 chain that the
+    /// OptimismPortal contract was deployed at.
+    /// Only used if `enable_optimism` is true.
+    pub initial_ethereum_l1_block_height: u64,
 }
 
 impl config::Config for Config {
@@ -58,17 +72,7 @@ impl config::Config for Config {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Optimism {
-    /// Websocket URL of Ethereum L1 node
-    pub ethereum_l1_url: String,
-
-    /// Contract address of the OptimismPortal contract on L1
-    pub optimism_portal_contract_address: String,
-
-    /// The block height of the Ethereum L1 chain that the
-    /// OptimismPortal contract was deployed at
-    pub initial_ethereum_l1_block_height: u64,
-}
+pub struct Optimism {}
 
 #[cfg(test)]
 mod tests {

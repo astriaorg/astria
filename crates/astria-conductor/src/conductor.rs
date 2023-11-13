@@ -289,15 +289,15 @@ async fn get_executor(
     block_rx: UnboundedReceiver<crate::executor::ExecutorCommand>,
     shutdown_rx: Receiver<()>,
 ) -> eyre::Result<Executor> {
-    let hook = if let Some(optimism_config) = &cfg.enable_optimism {
+    let hook = if cfg.enable_optimism {
         let provider = Arc::new(
-            Provider::<Ws>::connect(optimism_config.ethereum_l1_url.clone())
+            Provider::<Ws>::connect(cfg.ethereum_l1_url.clone())
                 .await
                 .wrap_err("failed to connect to provider")?,
         );
         let contract_address = Address::try_from(
             TryInto::<[u8; 20]>::try_into(
-                hex::decode(optimism_config.optimism_portal_contract_address.clone())
+                hex::decode(cfg.optimism_portal_contract_address.clone())
                     .wrap_err("failed to decode contract address as hex")?,
             )
             .map_err(|_| eyre::eyre!("contract address must be 20 bytes"))?,
@@ -307,7 +307,7 @@ async fn get_executor(
         Some(crate::executor::optimism::Handler::new(
             provider,
             contract_address,
-            optimism_config.initial_ethereum_l1_block_height,
+            cfg.initial_ethereum_l1_block_height,
         ))
     } else {
         None
