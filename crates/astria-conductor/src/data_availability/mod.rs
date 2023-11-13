@@ -525,8 +525,8 @@ async fn find_da_sync_start_height(
             }
         } else {
             info!(
-                block.da = ?guess_block_height,
-                block.firm = ?firm_commit_height,
+                block.da = %guess_block_height,
+                block.firm = %firm_commit_height,
                 "found firm commit in DA block"
             );
             return u32::try_from(guess_block_height.value())
