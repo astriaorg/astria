@@ -25,6 +25,8 @@ tendermint-proto = { workspace = true }
 tonic = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
+penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "4f479272c6acc3f072108bac88fc0d416d5d0024" }
+
 [features]
 default = ["native"]
 client = ["dep:tonic"]

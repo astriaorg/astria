@@ -383,6 +383,7 @@ impl Action {
             Value::MintAction(act) => {
                 Self::Mint(MintAction::try_from_raw(act).map_err(ActionError::mint)?)
             }
+            Value::IbcAction(_) => todo!(),
         };
         Ok(action)
     }
