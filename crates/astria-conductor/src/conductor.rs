@@ -159,22 +159,21 @@ impl Conductor {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
             let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
+
+            // Sequencer namespace is defined by the chain id of attached sequencer node
+            // which can be fetched from any block header.
             let sequencer_namespace = {
                 use sequencer_client::SequencerClientExt as _;
 
                 let client = sequencer_client_pool
                     .get()
                     .await
-                    .wrap_err(
-                        "failed to get a sequencer client from the pool"
-                    )?;
-                let chain_id = client
-                    .latest_sequencer_block()
+                    .wrap_err("failed to get a sequencer client from the pool")?;
+                let block = tryhard::retry_fn(|| client.latest_sequencer_block())
+                    .retries(10)
                     .await
-                    .wrap_err("failed to get a block from sequencer")?
-                    .into_raw()
-                    .header
-                    .chain_id;
+                    .wrap_err("failed to get block from sequencer")?;
+                let chain_id = block.into_raw().header.chain_id;
                 celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(
                     chain_id.as_bytes(),
                 )
@@ -184,6 +183,7 @@ impl Conductor {
                 sequencer_chain_id = %cfg.chain_id,
                 "celestia namespace derived from sequencer chain id",
             );
+
             let celestia_config = CelestiaReaderConfig {
                 node_url: cfg.celestia_node_url,
                 bearer_token: Some(cfg.celestia_bearer_token),
