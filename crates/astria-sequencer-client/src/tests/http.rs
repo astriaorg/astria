@@ -126,7 +126,7 @@ fn create_signed_transaction() -> SignedTransaction {
         TransferAction {
             to: BOB_ADDRESS,
             amount: 333_333,
-            asset: None,
+            asset_id: None,
         }
         .into(),
     ];

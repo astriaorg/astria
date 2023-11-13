@@ -748,7 +748,7 @@ mod test {
                 TransferAction {
                     to: bob_address,
                     amount: value,
-                    asset: None,
+                    asset_id: None,
                 }
                 .into(),
             ],
@@ -801,7 +801,7 @@ mod test {
                 TransferAction {
                     to: bob_address,
                     amount: value,
-                    asset: Some(asset),
+                    asset_id: Some(asset),
                 }
                 .into(),
             ],
@@ -863,7 +863,7 @@ mod test {
                 TransferAction {
                     to: bob,
                     amount: 0,
-                    asset: None,
+                    asset_id: None,
                 }
                 .into(),
             ],

@@ -105,7 +105,7 @@ mod test {
         let transfer_action = TransferAction {
             to: Address([0u8; 20]),
             amount: 1,
-            asset: None,
+            asset_id: None,
         };
 
         let signing_key = SigningKey::new(OsRng);
@@ -210,7 +210,7 @@ mod test {
         let transfer_action = TransferAction {
             to: Address([0u8; 20]),
             amount: 1,
-            asset: None,
+            asset_id: None,
         };
 
         let signing_key = SigningKey::new(OsRng);
