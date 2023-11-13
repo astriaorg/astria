@@ -752,7 +752,7 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset: None,
+            fee_asset_id: None,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -805,7 +805,7 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset: None,
+            fee_asset_id: None,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -867,7 +867,7 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset: None,
+            fee_asset_id: None,
         };
         let signed_tx = tx.into_signed(&keypair);
         let res = app
@@ -896,7 +896,7 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset: None,
+            fee_asset_id: None,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -937,7 +937,7 @@ mod test {
             actions: vec![proto::native::sequencer::v1alpha1::Action::ValidatorUpdate(
                 update.clone(),
             )],
-            fee_asset: None,
+            fee_asset_id: None,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -971,7 +971,7 @@ mod test {
                     },
                 ),
             ],
-            fee_asset: None,
+            fee_asset_id: None,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1003,7 +1003,7 @@ mod test {
                     },
                 ),
             ],
-            fee_asset: None,
+            fee_asset_id: None,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1039,7 +1039,7 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset: None,
+            fee_asset_id: None,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1142,7 +1142,7 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset: None,
+            fee_asset_id: None,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);

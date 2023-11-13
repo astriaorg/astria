@@ -263,7 +263,7 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset: None,
+            fee_asset_id: None,
         }
     }
 

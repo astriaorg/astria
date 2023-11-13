@@ -116,7 +116,7 @@ pub struct UnsignedTransaction {
     #[prost(message, repeated, tag="2")]
     pub actions: ::prost::alloc::vec::Vec<Action>,
     #[prost(bytes="vec", optional, tag="3")]
-    pub fee_asset: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    pub fee_asset_id: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -153,7 +153,7 @@ pub struct TransferAction {
     #[prost(message, optional, tag="2")]
     pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
     #[prost(bytes="vec", optional, tag="3")]
-    pub asset: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    pub asset_id: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
 }
 /// `SequenceAction` represents a transaction destined for another
 /// chain, ordered by the sequencer.

@@ -18,7 +18,7 @@ pub(crate) trait ActionHandler {
         &self,
         _state: &S,
         _from: Address,
-        _fee_asset: &asset::Id,
+        _fee_asset_id: &asset::Id,
     ) -> Result<()> {
         Ok(())
     }
@@ -26,7 +26,7 @@ pub(crate) trait ActionHandler {
         &self,
         _state: &mut S,
         _from: Address,
-        _fee_asset: &asset::Id,
+        _fee_asset_id: &asset::Id,
     ) -> Result<()> {
         Ok(())
     }

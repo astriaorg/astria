@@ -112,7 +112,7 @@ mod test {
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![sequence_action.clone().into(), transfer_action.into()],
-            fee_asset: None,
+            fee_asset_id: None,
         };
 
         let signed_tx = tx.into_signed(&signing_key);
@@ -126,7 +126,7 @@ mod test {
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![sequence_action.into()],
-            fee_asset: None,
+            fee_asset_id: None,
         };
 
         let signed_tx = tx.into_signed(&signing_key);
@@ -152,7 +152,7 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset: None,
+            fee_asset_id: None,
         };
         let signed_tx_0 = tx.into_signed(&signing_key);
 
@@ -166,7 +166,7 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset: None,
+            fee_asset_id: None,
         };
         let signed_tx_1 = tx.into_signed(&signing_key);
 
@@ -180,7 +180,7 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset: None,
+            fee_asset_id: None,
         };
         let signed_tx_2 = tx.into_signed(&signing_key);
 
@@ -217,7 +217,7 @@ mod test {
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![sequence_action.into(), transfer_action.into()],
-            fee_asset: None,
+            fee_asset_id: None,
         };
 
         let signed_tx = tx.into_signed(&signing_key);

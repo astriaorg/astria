@@ -133,7 +133,7 @@ fn create_signed_transaction() -> SignedTransaction {
     UnsignedTransaction {
         nonce: 1,
         actions,
-        fee_asset: None,
+        fee_asset_id: None,
     }
     .into_signed(&alice_key)
 }

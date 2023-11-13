@@ -215,7 +215,7 @@ pub struct UnsignedTransaction {
     pub actions: Vec<Action>,
     /// optional asset to use for fee payment.
     /// if None, then the native asset is used.
-    pub fee_asset: Option<asset::Id>,
+    pub fee_asset_id: Option<asset::Id>,
 }
 
 impl UnsignedTransaction {
@@ -236,13 +236,13 @@ impl UnsignedTransaction {
         let Self {
             nonce,
             actions,
-            fee_asset,
+            fee_asset_id,
         } = self;
         let actions = actions.into_iter().map(Action::into_raw).collect();
         raw::UnsignedTransaction {
             nonce,
             actions,
-            fee_asset: fee_asset.map(|asset| asset.as_bytes().to_vec()),
+            fee_asset_id: fee_asset_id.map(|asset| asset.as_bytes().to_vec()),
         }
     }
 
@@ -250,13 +250,13 @@ impl UnsignedTransaction {
         let Self {
             nonce,
             actions,
-            fee_asset,
+            fee_asset_id,
         } = self;
         let actions = actions.iter().map(Action::to_raw).collect();
         raw::UnsignedTransaction {
             nonce: *nonce,
             actions,
-            fee_asset: fee_asset.map(|asset| asset.as_bytes().to_vec()),
+            fee_asset_id: fee_asset_id.map(|asset| asset.as_bytes().to_vec()),
         }
     }
 
@@ -270,7 +270,7 @@ impl UnsignedTransaction {
         let raw::UnsignedTransaction {
             nonce,
             actions,
-            fee_asset,
+            fee_asset_id,
         } = proto;
         let n_raw_actions = actions.len();
         let actions: Vec<_> = actions
@@ -286,10 +286,10 @@ impl UnsignedTransaction {
             );
         }
 
-        let fee_asset = if let Some(fee_asset) = fee_asset {
+        let fee_asset_id = if let Some(fee_asset_id) = fee_asset_id {
             Some(
-                asset::Id::try_from_slice(&fee_asset)
-                    .map_err(UnsignedTransactionError::fee_asset)?,
+                asset::Id::try_from_slice(&fee_asset_id)
+                    .map_err(UnsignedTransactionError::fee_asset_id)?,
             )
         } else {
             None
@@ -297,7 +297,7 @@ impl UnsignedTransaction {
         Ok(Self {
             nonce,
             actions,
-            fee_asset,
+            fee_asset_id,
         })
     }
 }
@@ -314,7 +314,7 @@ impl UnsignedTransactionError {
         }
     }
 
-    fn fee_asset(inner: IncorrectAssetIdLength) -> Self {
+    fn fee_asset_id(inner: IncorrectAssetIdLength) -> Self {
         Self {
             kind: UnsignedTransactionErrorKind::FeeAsset(inner),
         }
@@ -580,7 +580,7 @@ pub struct TransferAction {
     pub amount: u128,
     /// optional asset to be transferred.
     /// if None, then the native asset is used.
-    pub asset: Option<asset::Id>,
+    pub asset_id: Option<asset::Id>,
 }
 
 impl TransferAction {
@@ -589,12 +589,12 @@ impl TransferAction {
         let Self {
             to,
             amount,
-            asset,
+            asset_id,
         } = self;
         raw::TransferAction {
             to: to.to_vec(),
             amount: Some(amount.into()),
-            asset: asset.map(|asset| asset.as_bytes().to_vec()),
+            asset_id: asset_id.map(|asset_id| asset_id.as_bytes().to_vec()),
         }
     }
 
@@ -603,12 +603,12 @@ impl TransferAction {
         let Self {
             to,
             amount,
-            asset,
+            asset_id,
         } = self;
         raw::TransferAction {
             to: to.to_vec(),
             amount: Some((*amount).into()),
-            asset: asset.map(|asset| asset.as_bytes().to_vec()),
+            asset_id: asset_id.map(|asset_id| asset_id.as_bytes().to_vec()),
         }
     }
 
@@ -622,12 +622,12 @@ impl TransferAction {
         let raw::TransferAction {
             to,
             amount,
-            asset,
+            asset_id,
         } = proto;
         let to = Address::try_from_slice(&to).map_err(TransferActionError::address)?;
         let amount = amount.map_or(0, Into::into);
-        let asset = if let Some(asset) = asset {
-            Some(asset::Id::try_from_slice(&asset).map_err(TransferActionError::asset)?)
+        let asset_id = if let Some(asset_id) = asset_id {
+            Some(asset::Id::try_from_slice(&asset_id).map_err(TransferActionError::asset_id)?)
         } else {
             None
         };
@@ -635,7 +635,7 @@ impl TransferAction {
         Ok(Self {
             to,
             amount,
-            asset,
+            asset_id,
         })
     }
 }
@@ -652,7 +652,7 @@ impl TransferActionError {
         }
     }
 
-    fn asset(inner: IncorrectAssetIdLength) -> Self {
+    fn asset_id(inner: IncorrectAssetIdLength) -> Self {
         Self {
             kind: TransferActionErrorKind::Asset(inner),
         }
@@ -666,7 +666,7 @@ impl Display for TransferActionError {
                 f.pad("`to` field did not contain a valid address")
             }
             TransferActionErrorKind::Asset(_) => {
-                f.pad("`asset` field did not contain a valid asset ID")
+                f.pad("`asset_id` field did not contain a valid asset ID")
             }
         }
     }

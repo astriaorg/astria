@@ -28,19 +28,19 @@ impl ActionHandler for TransferAction {
         &self,
         state: &S,
         from: Address,
-        fee_asset: &asset::Id,
+        fee_asset_id: &asset::Id,
     ) -> Result<()> {
         let native_asset = *NATIVE_ASSET.get().expect("native asset must be set").id();
-        let transfer_asset = self.asset.unwrap_or(native_asset);
+        let transfer_asset_id = self.asset_id.unwrap_or(native_asset);
 
         let from_fee_balance = state
-            .get_account_balance(from, fee_asset)
+            .get_account_balance(from, fee_asset_id)
             .await
             .context("failed getting `from` account balance for fee payment")?;
 
         // if fee asset is same as transfer asset, ensure accounts has enough funds
         // to cover both the fee and the amount transferred
-        if fee_asset == &transfer_asset {
+        if fee_asset_id == &transfer_asset_id {
             ensure!(
                 from_fee_balance >= self.amount + TRANSFER_FEE,
                 "insufficient funds for transfer and fee payment"
@@ -53,7 +53,7 @@ impl ActionHandler for TransferAction {
                 "insufficient funds for fee payment"
             );
 
-            let from_transfer_balance = state.get_account_balance(from, &transfer_asset).await?;
+            let from_transfer_balance = state.get_account_balance(from, &transfer_asset_id).await?;
             ensure!(
                 from_transfer_balance >= self.amount,
                 "insufficient funds for transfer"
@@ -74,50 +74,50 @@ impl ActionHandler for TransferAction {
         &self,
         state: &mut S,
         from: Address,
-        fee_asset: &asset::Id,
+        fee_asset_id: &asset::Id,
     ) -> Result<()> {
         let native_asset = *NATIVE_ASSET.get().expect("native asset must be set").id();
-        let transfer_asset = self.asset.unwrap_or(native_asset);
+        let transfer_asset_id = self.asset_id.unwrap_or(native_asset);
 
         let from_balance = state
-            .get_account_balance(from, &transfer_asset)
+            .get_account_balance(from, &transfer_asset_id)
             .await
             .context("failed getting `from` account balance")?;
         let to_balance = state
-            .get_account_balance(self.to, &transfer_asset)
+            .get_account_balance(self.to, &transfer_asset_id)
             .await
             .context("failed getting `to` account balance")?;
 
         // if fee payment asset is same asset as transfer asset, deduct fee
         // from same balance as asset transferred
-        if &transfer_asset == fee_asset {
+        if &transfer_asset_id == fee_asset_id {
             state
                 .put_account_balance(
                     from,
-                    &transfer_asset,
+                    &transfer_asset_id,
                     from_balance - (self.amount + TRANSFER_FEE),
                 )
                 .context("failed updating `from` account balance")?;
             state
-                .put_account_balance(self.to, &transfer_asset, to_balance + self.amount)
+                .put_account_balance(self.to, &transfer_asset_id, to_balance + self.amount)
                 .context("failed updating `to` account balance")?;
         } else {
             // otherwise, just transfer the transfer asset and deduct fee from fee asset balance
             // later
             state
-                .put_account_balance(from, &transfer_asset, from_balance - self.amount)
+                .put_account_balance(from, &transfer_asset_id, from_balance - self.amount)
                 .context("failed updating `from` account balance")?;
             state
-                .put_account_balance(self.to, &transfer_asset, to_balance + self.amount)
+                .put_account_balance(self.to, &transfer_asset_id, to_balance + self.amount)
                 .context("failed updating `to` account balance")?;
 
             // deduct fee from fee asset balance
             let from_fee_balance = state
-                .get_account_balance(from, fee_asset)
+                .get_account_balance(from, fee_asset_id)
                 .await
                 .context("failed getting `from` account balance for fee payment")?;
             state
-                .put_account_balance(from, fee_asset, from_fee_balance - TRANSFER_FEE)
+                .put_account_balance(from, fee_asset_id, from_fee_balance - TRANSFER_FEE)
                 .context("failed updating `from` account balance for fee payment")?;
         }
 
