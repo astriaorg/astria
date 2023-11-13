@@ -73,11 +73,8 @@ impl Handler {
         self.from_block_height = to_block.as_u64() + 1;
         Ok(events)
     }
-}
 
-#[async_trait::async_trait]
-impl crate::executor::PreExecutionHook for Handler {
-    async fn populate_rollup_transactions(
+    pub(crate) async fn populate_rollup_transactions(
         &mut self,
         sequenced_transactions: Vec<Vec<u8>>,
     ) -> Result<Vec<Vec<u8>>> {

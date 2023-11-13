@@ -11,7 +11,6 @@ use color_eyre::eyre::{
     Result,
     WrapErr as _,
 };
-use hook::PreExecutionHook;
 use prost_types::Timestamp as ProstTimestamp;
 use proto::generated::execution::v1alpha2::{
     execution_service_client::ExecutionServiceClient,
@@ -43,7 +42,6 @@ use tracing::{
 
 use crate::data_availability::SequencerBlockSubset;
 
-pub(crate) mod hook;
 pub(crate) mod optimism;
 
 mod client;
@@ -146,7 +144,7 @@ pub(crate) struct Executor {
 
     /// optional hook which is called to modify the rollup transaction list
     /// right before it's sent to the execution layer via `ExecuteBlock`.
-    pre_execution_hook: Option<Box<dyn PreExecutionHook>>,
+    pre_execution_hook: Option<optimism::Handler>,
 }
 
 impl Executor {
@@ -157,7 +155,7 @@ impl Executor {
         init_sequencer_height: u32,
         cmd_rx: Receiver,
         shutdown: oneshot::Receiver<()>,
-        hook: Option<Box<dyn PreExecutionHook>>,
+        hook: Option<optimism::Handler>,
     ) -> Result<Self> {
         let mut execution_rpc_client = ExecutionServiceClient::connect(server_addr.to_owned())
             .await

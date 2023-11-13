@@ -45,10 +45,7 @@ use crate::{
         ClientProvider,
     },
     data_availability,
-    executor::{
-        hook::PreExecutionHook,
-        Executor,
-    },
+    executor::Executor,
     sequencer,
     Config,
 };
@@ -307,11 +304,11 @@ async fn get_executor(
         )
         .wrap_err("failed to parse contract address")?;
 
-        Some(Box::new(crate::executor::optimism::Handler::new(
+        Some(crate::executor::optimism::Handler::new(
             provider,
             contract_address,
             optimism_config.initial_ethereum_l1_block_height,
-        )) as Box<dyn PreExecutionHook>)
+        ))
     } else {
         None
     };

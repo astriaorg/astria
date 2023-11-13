@@ -153,7 +153,7 @@ struct MockEnvironment {
     executor: Executor,
 }
 
-async fn start_mock(pre_execution_hook: Option<Box<dyn PreExecutionHook>>) -> MockEnvironment {
+async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnvironment {
     let server = MockExecutionServer::spawn().await;
     let chain_id = ChainId::new(b"test".to_vec()).unwrap();
     let server_url = format!("http://{}", server.local_addr());
@@ -188,8 +188,10 @@ async fn start_mock_with_optimism_handler() -> (
 ) {
     let (contract_address, provider, wallet, anvil) = deploy_mock_optimism_portal().await;
 
-    let pre_execution_hook: Option<Box<dyn PreExecutionHook>> = Some(Box::new(
-        crate::executor::optimism::Handler::new(provider.clone(), contract_address, 1),
+    let pre_execution_hook = Some(crate::executor::optimism::Handler::new(
+        provider.clone(),
+        contract_address,
+        1,
     ));
     (
         start_mock(pre_execution_hook).await,
