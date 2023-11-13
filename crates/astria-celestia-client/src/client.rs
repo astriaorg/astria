@@ -258,8 +258,7 @@ fn assemble_blobs_from_sequencer_block_data(
         chain_ids.push(chain_id);
     }
 
-    let sequencer_namespace =
-        celestia_namespace_v0_from_hashed_bytes(header.chain_id.as_bytes());
+    let sequencer_namespace = celestia_namespace_v0_from_hashed_bytes(header.chain_id.as_bytes());
     let sequencer_namespace_data = SequencerNamespaceData {
         block_hash,
         header,
