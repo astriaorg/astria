@@ -162,13 +162,19 @@ impl Conductor {
             let sequencer_namespace = {
                 use sequencer_client::SequencerClientExt as _;
 
-                let client = sequencer_client_pool.get().await?;
+                let client = sequencer_client_pool
+                    .get()
+                    .await
+                    .wrap_err(
+                        "failed to get a sequencer client from the pool"
+                    )?;
                 let chain_id = client
                     .latest_sequencer_block()
-                    .await?
-                    .header()
-                    .chain_id
-                    .clone();
+                    .await
+                    .wrap_err("failed to get a block from sequencer")?
+                    .into_raw()
+                    .header
+                    .chain_id;
                 celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(
                     chain_id.as_bytes(),
                 )
