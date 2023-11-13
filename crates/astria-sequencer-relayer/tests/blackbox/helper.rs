@@ -132,17 +132,6 @@ impl TestSequencerRelayer {
             .mount_as_scoped(&self.sequencer)
             .await
     }
-
-    pub async fn mount_block_response_with_zero_proposer(&self, height: u32) -> MockGuard {
-        let proposer = tendermint::account::Id::try_from(vec![0u8; 20]).unwrap();
-        let block_response = create_block_response(&self.signing_key, proposer, height);
-        let wrapped = Wrapper::new_with_id(Id::Num(1), Some(block_response.clone()), None);
-        Mock::given(body_partial_json(json!({"method": "block"})))
-            .respond_with(ResponseTemplate::new(200).set_body_json(wrapped))
-            .expect(1)
-            .mount_as_scoped(&self.sequencer)
-            .await
-    }
 }
 
 pub enum CelestiaMode {
@@ -198,7 +187,7 @@ pub async fn spawn_sequencer_relayer(
         gas_limit: 100_000,
         block_time: 1000,
         relay_only_validator_key_blocks,
-        validator_key_file: Some(_keyfile.path().to_string_lossy().to_string()),
+        validator_key_file: Some(keyfile.path().to_string_lossy().to_string()),
         rpc_port: 0,
         log: String::new(),
     };
