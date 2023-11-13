@@ -1,33 +1,22 @@
-// use std::time::Duration;
-
 use celestia_client::{
-    // celestia_rpc::client,
-    // celestia_rpc::client,
-    // celestia_tendermint::block,
     celestia_types::{
         nmt::Namespace,
         Height,
     },
     jsonrpsee::http_client::HttpClient,
     CelestiaClientExt as _,
-    // SequencerNamespaceData,
     SEQUENCER_NAMESPACE,
 };
 use color_eyre::eyre::{
     self,
-    // Error,
     WrapErr as _,
 };
 use futures::stream::FuturesOrdered;
 use tokio::select;
-// use tokio_util::task::JoinMap;
 use tracing::{
-    // debug,
-    // error,
     info,
     instrument,
     warn,
-    // Instrument,
 };
 
 use crate::{
@@ -35,9 +24,9 @@ use crate::{
     data_availability::{
         send_sequencer_subsets,
         verify_sequencer_blobs_and_assemble_rollups,
+        SequencerBlockSubset,
     },
     executor,
-    types::SequencerBlockSubset,
 };
 
 #[instrument(name = "sync DA", skip_all)]
@@ -53,11 +42,6 @@ pub(crate) async fn run(
         FutureExt as _,
         StreamExt as _,
     };
-
-    // let client = self.celestia_client.clone();
-    // let namespace = self.namespace;
-    // let block_verifier = self.block_verifier.clone();
-    // let executor_tx = self.executor_tx.clone();
 
     let mut height_stream = futures::stream::iter(start_sync_height..end_sync_height);
     let mut block_stream = FuturesOrdered::new();
@@ -107,9 +91,6 @@ async fn get_sequencer_data_from_da(
     namespace: Namespace,
     block_verifier: BlockVerifier,
 ) -> eyre::Result<Vec<SequencerBlockSubset>> {
-    // let celestia_client = client;
-    // let namespace = self.namespace;
-
     let res = celestia_client
         .get_sequencer_data(height, SEQUENCER_NAMESPACE)
         .await

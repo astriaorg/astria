@@ -379,26 +379,15 @@ impl Executor {
                         .remove(&sequencer_block_hash);
                 }
                 None => {
-                    // this means either:
-                    // - we didn't receive the block from the sequencer stream, or
-                    // - we received it, but the sequencer block didn't contain
-                    // any transactions for this rollup namespace, thus nothing was executed
-                    // on receiving this block.
+                    // this means either we didn't receive the block from the sequencer stream
 
                     // try executing the block as it hasn't been executed before
                     // execute_block will check if our namespace has txs; if so, it'll return the
                     // resulting execution block hash, otherwise None
-                    let Some(executed_block) = self
+                    let executed_block = self
                         .execute_block(block)
                         .await
-                        .wrap_err("failed to execute block")?
-                    else {
-                        // no txs for our namespace, nothing to do
-                        debug!(
-                            "execute_block returned None; skipping call_update_commitment_state"
-                        );
-                        return Ok(());
-                    };
+                        .wrap_err("failed to execute block")?;
 
                     // when we execute a block received from da, nothing else has been executed on
                     // top of it, so we set FIRM and SOFT to this executed block

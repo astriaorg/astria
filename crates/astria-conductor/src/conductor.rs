@@ -103,7 +103,6 @@ impl Conductor {
                 &cfg.execution_rpc_url,
                 ChainId::new(cfg.chain_id.as_bytes().to_vec())
                     .wrap_err("failed to create chain ID")?,
-                cfg.disable_empty_block_execution,
                 cfg.initial_sequencer_block_height, // the sequencer block the rollup was start on
                 block_rx,
                 shutdown_rx,
@@ -174,15 +173,16 @@ impl Conductor {
             shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
             seq_sync_done = sync_done_rx.fuse();
         }
+
         // Construct the data availability reader without spawning it.
         // It will be executed after sync is done.
         let mut data_availability_reader = None;
+
         // Only spawn the data_availability::Reader if CommitLevel is not SoftOnly
         if !cfg.execution_commit_level.is_soft_only() {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             let (sync_done_tx, sync_done_rx) = oneshot::channel();
 
-            // shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
             let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
             // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
             let da_reader = data_availability::Reader::new(
@@ -202,7 +202,6 @@ impl Conductor {
             .await
             .wrap_err("failed constructing data availability reader")?;
             data_availability_reader = Some(da_reader);
-            // shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
             shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
 
             da_sync_done = sync_done_rx.fuse();
@@ -212,36 +211,16 @@ impl Conductor {
             data_availability_reader,
             sequencer_client_pool,
             shutdown_channels,
+            signals,
             seq_sync_done,
             da_sync_done,
             sequencer_reader,
-            data_availability_reader,
+            tasks,
         })
     }
 
-    pub async fn run_until_stopped(self) -> eyre::Result<()> {
-        use futures::future::{
-            FusedFuture as _,
-            FutureExt as _,
-        };
-
-        let Self {
-            signals:
-                SignalReceiver {
-                    mut reload_rx,
-                    mut stop_rx,
-                },
-            mut tasks,
-            shutdown_channels,
-            sequencer_client_pool,
-            seq_sync_done,
-            da_sync_done,
-            mut sequencer_reader,
-            mut data_availability_reader,
-        } = self;
-
-        let mut seq_sync_done = seq_sync_done.fuse();
-        let mut da_sync_done = da_sync_done.fuse();
+    pub async fn run_until_stopped(mut self) {
+        use futures::future::FusedFuture as _;
 
         loop {
             select! {
@@ -258,7 +237,7 @@ impl Conductor {
                 }
 
                 // Start the data availability reader
-                res = &mut da_sync_done, if !da_sync_done.is_terminated() => {
+                res = &mut self.da_sync_done, if !self.da_sync_done.is_terminated() => {
                     match res {
                         Ok(()) => info!("received sync-complete signal from DA reader"),
                         Err(e) => {
@@ -266,9 +245,9 @@ impl Conductor {
                             warn!(error, "DA sync-complete channel failed prematurely");
                         }
                     }
-                    if let Some(data_availability_reader) = data_availability_reader.take() {
+                    if let Some(data_availability_reader) = self.data_availability_reader.take() {
                         info!("starting DA reader");
-                        tasks.spawn(
+                        self.tasks.spawn(
                             Self::DATA_AVAILABILITY,
                             data_availability_reader.run_until_stopped(),
                         );
@@ -276,7 +255,7 @@ impl Conductor {
                 }
 
                 // Start the sequencer reader
-                res = &mut seq_sync_done, if da_sync_done.is_terminated() && !seq_sync_done.is_terminated() => {
+                res = &mut self.seq_sync_done, if self.da_sync_done.is_terminated() && !self.seq_sync_done.is_terminated() => {
                     match res {
                         Ok(()) => info!("received sync-complete signal from DA reader"),
                         Err(e) => {
@@ -284,27 +263,9 @@ impl Conductor {
                             warn!(error, "DA sync-complete channel failed prematurely");
                         }
                     }
-                    if let Some(sequencer_reader) = sequencer_reader.take() {
+                    if let Some(sequencer_reader) = self.sequencer_reader.take() {
                         info!("starting sequencer reader");
-                        tasks.spawn(
-                            Self::SEQUENCER,
-                            sequencer_reader.run_until_stopped(),
-                        );
-                    }
-                }
-
-                // Start the sequencer reader
-                res = &mut seq_sync_done, if da_sync_done.is_terminated() && !seq_sync_done.is_terminated() => {
-                    match res {
-                        Ok(()) => info!("received sync-complete signal from DA reader"),
-                        Err(e) => {
-                            let error = &e as &(dyn std::error::Error + 'static);
-                            warn!(error, "DA sync-complete channel failed prematurely");
-                        }
-                    }
-                    if let Some(sequencer_reader) = sequencer_reader.take() {
-                        info!("starting sequencer reader");
-                        tasks.spawn(
+                        self.tasks.spawn(
                             Self::SEQUENCER,
                             sequencer_reader.run_until_stopped(),
                         );

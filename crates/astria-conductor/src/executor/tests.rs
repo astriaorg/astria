@@ -150,7 +150,6 @@ async fn start_mock() -> MockEnvironment {
     let executor = Executor::new(
         &server_url,
         chain_id,
-        disable_empty_block_execution,
         1, // genesis block is always block 0, first executable block will always be block 1
         block_rx,
         shutdown_rx,
