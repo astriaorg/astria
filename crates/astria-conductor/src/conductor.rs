@@ -5,6 +5,10 @@ use std::{
 };
 
 use astria_sequencer_types::ChainId;
+use base64::{
+    display::Base64Display,
+    engine::general_purpose::STANDARD,
+};
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -169,6 +173,11 @@ impl Conductor {
                     chain_id.as_bytes(),
                 )
             };
+            info!(
+                celestia_namespace = %Base64Display::new(sequencer_namespace.as_bytes(), &STANDARD),
+                sequencer_chain_id = %cfg.chain_id,
+                "celestia namespace derived from sequencer chain id",
+            );
             let celestia_config = CelestiaReaderConfig {
                 node_url: cfg.celestia_node_url,
                 bearer_token: Some(cfg.celestia_bearer_token),

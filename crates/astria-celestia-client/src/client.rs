@@ -146,7 +146,8 @@ pub trait CelestiaClientExt: BlobClient {
     }
 
     /// Submits sequencer `blocks` to celestia after converting and signing them, returning the
-    /// height at which they were included.
+    /// height at which they were included. Sequencer data for each block will be posted to a
+    /// namespace derived from the block's chain ID.
     ///
     /// This calls the `blob.Submit` celestia-node RPC.
     async fn submit_sequencer_blocks(
