@@ -81,7 +81,7 @@ pub(crate) async fn run(
                 info!("DA sync finished");
                 break 'sync Ok(())
             }
-        )
+        );
     }
 }
 
