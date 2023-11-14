@@ -631,8 +631,10 @@ dependencies = [
 name = "astria-proto"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "ed25519-consensus",
  "hex",
+ "penumbra-ibc",
  "penumbra-proto",
  "prost",
  "prost-types",
@@ -663,6 +665,7 @@ dependencies = [
  "hex",
  "ibc-types",
  "matchit",
+ "penumbra-component",
  "penumbra-ibc",
  "penumbra-storage",
  "penumbra-tower-trace",

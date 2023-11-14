@@ -15,6 +15,7 @@ anyhow = "1"
 borsh = "0.10.3"
 matchit = "0.7.2"
 ibc-types = { version = "0.7.0", default-features = false }
+penumbra-component = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "4f479272c6acc3f072108bac88fc0d416d5d0024" }
 penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "4f479272c6acc3f072108bac88fc0d416d5d0024" }
 penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "4f479272c6acc3f072108bac88fc0d416d5d0024" }
 penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "4f479272c6acc3f072108bac88fc0d416d5d0024" }

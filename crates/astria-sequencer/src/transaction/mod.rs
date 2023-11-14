@@ -9,6 +9,7 @@ use anyhow::{
     ensure,
     Context as _,
 };
+use penumbra_component::ActionHandler as _;
 use proto::native::sequencer::v1alpha1::{
     Action,
     Address,
@@ -38,9 +39,10 @@ pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
     Ok(())
 }
 
-pub(crate) fn check_stateless(tx: &SignedTransaction) -> anyhow::Result<()> {
+pub(crate) async fn check_stateless(tx: &SignedTransaction) -> anyhow::Result<()> {
     tx.unsigned_transaction()
         .check_stateless()
+        .await
         .context("stateless check failed")
 }
 
@@ -81,26 +83,37 @@ impl std::error::Error for InvalidNonce {}
 
 #[async_trait::async_trait]
 impl ActionHandler for UnsignedTransaction {
-    fn check_stateless(&self) -> anyhow::Result<()> {
+    async fn check_stateless(&self) -> anyhow::Result<()> {
         ensure!(!self.actions.is_empty(), "must have at least one action");
 
         for action in &self.actions {
             match action {
                 Action::Transfer(act) => act
                     .check_stateless()
+                    .await
                     .context("stateless check failed for TransferAction")?,
                 Action::Sequence(act) => act
                     .check_stateless()
+                    .await
                     .context("stateless check failed for SequenceAction")?,
                 Action::ValidatorUpdate(act) => act
                     .check_stateless()
+                    .await
                     .context("stateless check failed for ValidatorUpdateAction")?,
                 Action::SudoAddressChange(act) => act
                     .check_stateless()
+                    .await
                     .context("stateless check failed for SudoAddressChangeAction")?,
+                Action::Ibc(act) => {
+                    act.clone()
+                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer>()
+                        .check_stateless(())
+                        .await?;
+                }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateless()
+                    .await
                     .context("stateless check failed for MintAction")?,
                 #[cfg(not(feature = "mint"))]
                 _ => bail!("unsupported action type: {:?}", action),
@@ -137,6 +150,9 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for SudoAddressChangeAction")?,
+                Action::Ibc(_) => {
+                    // no-op; IBC actions merge check_stateful and execute.
+                }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateful(state, from)
@@ -190,6 +206,12 @@ impl ActionHandler for UnsignedTransaction {
                     act.execute(state, from)
                         .await
                         .context("execution failed for SudoAddressChangeAction")?;
+                }
+                Action::Ibc(act) => {
+                    act.clone()
+                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer>()
+                        .execute(&mut *state)
+                        .await?;
                 }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => {

@@ -36,7 +36,7 @@ impl ActionHandler for SequenceAction {
         Ok(())
     }
 
-    fn check_stateless(&self) -> Result<()> {
+    async fn check_stateless(&self) -> Result<()> {
         // TODO: do we want to place a maximum on the size of the data?
         // https://github.com/astriaorg/astria/issues/222
         ensure!(
