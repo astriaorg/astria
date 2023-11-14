@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use celestia_client::SEQUENCER_NAMESPACE;
 use eyre::WrapErr as _;
 use humantime::format_duration;
 use sequencer_types::SequencerBlockData;
@@ -479,9 +478,9 @@ async fn submit_blocks_to_celestia(
         num_blocks = sequencer_block_data.len(),
         "submitting collected sequencer blocks to data availability layer",
     );
+
     let height = client
         .submit_sequencer_blocks(
-            SEQUENCER_NAMESPACE,
             sequencer_block_data,
             SubmitOptions {
                 fee: Some(fee),
