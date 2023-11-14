@@ -42,6 +42,8 @@ pub(crate) async fn run(
         StreamExt as _,
     };
 
+    info!("starting DA sync");
+
     let mut height_stream = futures::stream::iter(start_sync_height..end_sync_height);
     let mut block_stream = FuturesOrdered::new();
 

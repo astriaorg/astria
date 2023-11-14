@@ -448,6 +448,7 @@ async fn find_da_sync_start_height(
     firm_commit_height: u32,
     sequencer_namespace: Namespace,
 ) -> u32 {
+    info!("finding da sync start height");
     // Celestia block time is approximately 12 seconds, the sequencer has a 2
     // second block time. This means that ideally there are 6 sequencer blocks
     // in every Celestia block, but that may not always be the case. We set the

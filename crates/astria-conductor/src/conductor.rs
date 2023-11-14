@@ -82,6 +82,9 @@ pub struct Conductor {
 
     /// The different long-running tasks that make up the conductor;
     tasks: JoinMap<&'static str, eyre::Result<()>>,
+
+    /// The Execution Commit level of the Conductor
+    execution_commit_level: CommitLevel,
 }
 
 impl Conductor {
@@ -143,27 +146,31 @@ impl Conductor {
         let mut seq_sync_done = futures::future::Fuse::terminated();
         let mut da_sync_done = futures::future::Fuse::terminated();
 
+        let mut sequencer_reader = None;
+
         info!("Conductor commit level: {:?}", cfg.execution_commit_level);
+
         match cfg.execution_commit_level {
             CommitLevel::SoftOnly => {
+                info!("only syncing from sequencer");
                 // kill the DA sync to only execute from sequencer
                 let (sync_done_tx, sync_done_rx) = oneshot::channel();
                 da_sync_done = sync_done_rx.fuse();
                 let _ = sync_done_tx.send(());
             }
             CommitLevel::SoftAndFirm => {
+                info!("syncing from DA then sequencer");
                 // when running in soft and firm mode, a sync cycle from both DA
                 // and sequencer are used. No need to kill any of the syncs
             }
             CommitLevel::FirmOnly => {
+                info!("only syncing from DA");
                 // kill the sequencer sync to only execute from DA
                 let (sync_done_tx, sync_done_rx) = oneshot::channel();
                 seq_sync_done = sync_done_rx.fuse();
                 let _ = sync_done_tx.send(());
             }
         }
-
-        let mut sequencer_reader = None;
 
         if !cfg.execution_commit_level.is_firm_only() {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -247,11 +254,14 @@ impl Conductor {
             da_sync_done,
             sequencer_reader,
             tasks,
+            execution_commit_level: cfg.execution_commit_level,
         })
     }
 
     pub async fn run_until_stopped(mut self) {
         info!("starting conductor run loop");
+        info!("seq sync status: {:?}", self.seq_sync_done.is_terminated());
+        info!("da sync status: {:?}", self.da_sync_done.is_terminated());
 
         use futures::future::FusedFuture as _;
 
