@@ -19,7 +19,7 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.72.0
+      - uses: dtolnay/rust-toolchain@1.73.0
       - uses: taiki-e/install-action@v2.15.2
         with:
           tool: cargo-hack@0.5.29
@@ -39,7 +39,7 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.72.0
+      - uses: dtolnay/rust-toolchain@1.73.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "github"
@@ -52,7 +52,7 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.72.0
+      - uses: dtolnay/rust-toolchain@1.73.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
@@ -83,7 +83,7 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.72.0
+      - uses: dtolnay/rust-toolchain@1.73.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
@@ -100,7 +100,7 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.72.0
+      - uses: dtolnay/rust-toolchain@1.73.0
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2.6.1
