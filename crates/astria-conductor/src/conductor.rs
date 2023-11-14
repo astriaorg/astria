@@ -5,6 +5,11 @@ use std::{
 };
 
 use astria_sequencer_types::ChainId;
+use base64::{
+    display::Base64Display,
+    engine::general_purpose::STANDARD,
+};
+use celestia_client::celestia_types::nmt::Namespace;
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -41,7 +46,10 @@ use crate::{
         ClientProvider,
     },
     config::CommitLevel,
-    data_availability,
+    data_availability::{
+        self,
+        CelestiaReaderConfig,
+    },
     executor::Executor,
     sequencer,
     Config,
@@ -183,14 +191,36 @@ impl Conductor {
             let (sync_done_tx, sync_done_rx) = oneshot::channel();
 
             let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
+
+            // Sequencer namespace is defined by the chain id of attached sequencer node
+            // which can be fetched from any block header.
+            let sequencer_namespace = {
+                let client = sequencer_client_pool
+                    .get()
+                    .await
+                    .wrap_err("failed to get a sequencer client from the pool")?;
+                get_sequencer_namespace(client)
+                    .await
+                    .wrap_err("failed to get sequencer namespace")?
+            };
+            info!(
+                celestia_namespace = %Base64Display::new(sequencer_namespace.as_bytes(), &STANDARD),
+                sequencer_chain_id = %cfg.chain_id,
+                "celestia namespace derived from sequencer chain id",
+            );
+
+            let celestia_config = CelestiaReaderConfig {
+                node_url: cfg.celestia_node_url,
+                bearer_token: Some(cfg.celestia_bearer_token),
+                poll_interval: std::time::Duration::from_secs(3),
+            };
             let da_reader = data_availability::Reader::new(
                 cfg.initial_da_block_height,
                 firm_commit_height,
-                &cfg.celestia_node_url,
-                &cfg.celestia_bearer_token,
-                std::time::Duration::from_secs(3),
+                celestia_config,
                 executor_tx.clone(),
                 block_verifier,
+                sequencer_namespace,
                 celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(
                     cfg.chain_id.as_ref(),
                 ),
@@ -386,4 +416,43 @@ fn spawn_signal_handler() -> SignalReceiver {
         reload_rx,
         stop_rx,
     }
+}
+
+/// Get the sequencer namespace from the latest sequencer block.
+async fn get_sequencer_namespace(
+    client: deadpool::managed::Object<ClientProvider>,
+) -> eyre::Result<Namespace> {
+    use sequencer_client::SequencerClientExt as _;
+
+    let retry_config = tryhard::RetryFutureConfig::new(10)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            |attempt: u32,
+             next_delay: Option<Duration>,
+             error: &sequencer_client::extension_trait::Error| {
+                let error = error.clone();
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                async move {
+                    let error = &error as &(dyn std::error::Error + 'static);
+                    warn!(
+                        attempt,
+                        wait_duration,
+                        error,
+                        "attempt to grab sequencer block failed; retrying after backoff",
+                    );
+                }
+            },
+        );
+
+    let block = tryhard::retry_fn(|| client.latest_sequencer_block())
+        .with_config(retry_config)
+        .await
+        .wrap_err("failed to get block from sequencer after 10 attempts")?;
+
+    let chain_id = block.into_raw().header.chain_id;
+
+    Ok(celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(chain_id.as_bytes()))
 }
