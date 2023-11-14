@@ -95,6 +95,8 @@ impl Conductor {
     /// Returns an error in the following cases if one of its constituent
     /// actors could not be spawned (executor, sequencer reader, or data availability reader).
     /// This usually happens if the actors failed to connect to their respective endpoints.
+    // TODO: refactor this function to be more readable and reduce the number of lines
+    #[allow(clippy::too_many_lines)]
     pub async fn new(cfg: Config) -> eyre::Result<Self> {
         use futures::FutureExt;
 
@@ -141,6 +143,7 @@ impl Conductor {
         let mut seq_sync_done = futures::future::Fuse::terminated();
         let mut da_sync_done = futures::future::Fuse::terminated();
 
+        info!("Conductor commit level: {:?}", cfg.execution_commit_level);
         match cfg.execution_commit_level {
             CommitLevel::SoftOnly => {
                 // kill the DA sync to only execute from sequencer
@@ -248,6 +251,8 @@ impl Conductor {
     }
 
     pub async fn run_until_stopped(mut self) {
+        info!("starting conductor run loop");
+
         use futures::future::FusedFuture as _;
 
         loop {

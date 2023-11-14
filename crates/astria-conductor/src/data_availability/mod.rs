@@ -154,6 +154,8 @@ impl Reader {
         shutdown: oneshot::Receiver<()>,
         sync_done: oneshot::Sender<()>,
     ) -> eyre::Result<Self> {
+        info!("creating da reader");
+
         use celestia_client::celestia_rpc::HeaderClient;
 
         let celestia_client = celestia_client::celestia_rpc::client::new_http(

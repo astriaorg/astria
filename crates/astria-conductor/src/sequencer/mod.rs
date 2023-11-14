@@ -74,6 +74,7 @@ impl Reader {
         executor_tx: executor::Sender,
         sync_done: oneshot::Sender<()>,
     ) -> Self {
+        info!("creating sequencer reader");
         Self {
             executor_tx,
             pool,

@@ -153,6 +153,7 @@ impl Executor {
         cmd_rx: Receiver,
         shutdown: oneshot::Receiver<()>,
     ) -> Result<Self> {
+        info!("creating executor");
         let mut execution_rpc_client = ExecutionServiceClient::connect(server_addr.to_owned())
             .await
             .wrap_err("failed to create execution rpc client")?;
@@ -193,6 +194,7 @@ impl Executor {
 
     #[instrument(skip_all)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+        info!("starting executor run loop");
         loop {
             select!(
                 biased;
