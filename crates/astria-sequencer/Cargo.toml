@@ -14,9 +14,10 @@ sequencer_types = { package = "astria-sequencer-types", path = "../astria-sequen
 anyhow = "1"
 borsh = "0.10.3"
 matchit = "0.7.2"
-ibc-types = { version = "0.7.0", default-features = false }
+ibc-types = { version = "0.7.0", features = [ "with_serde" ] }
 penumbra-component = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "4f479272c6acc3f072108bac88fc0d416d5d0024" }
 penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "4f479272c6acc3f072108bac88fc0d416d5d0024" }
+penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "4f479272c6acc3f072108bac88fc0d416d5d0024" }
 penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "4f479272c6acc3f072108bac88fc0d416d5d0024" }
 penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "4f479272c6acc3f072108bac88fc0d416d5d0024" }
 tower = "0.4"

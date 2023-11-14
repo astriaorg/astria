@@ -667,6 +667,7 @@ dependencies = [
  "matchit",
  "penumbra-component",
  "penumbra-ibc",
+ "penumbra-proto",
  "penumbra-storage",
  "penumbra-tower-trace",
  "prost",
@@ -3275,6 +3276,7 @@ dependencies = [
  "prost",
  "safe-regex",
  "serde",
+ "serde_derive",
  "serde_json",
  "sha2 0.10.8",
  "subtle-encoding",
@@ -3302,6 +3304,7 @@ dependencies = [
  "num-traits",
  "prost",
  "serde",
+ "serde_derive",
  "serde_json",
  "sha2 0.10.8",
  "subtle-encoding",
@@ -3333,6 +3336,7 @@ dependencies = [
  "prost",
  "safe-regex",
  "serde",
+ "serde_derive",
  "serde_json",
  "sha2 0.10.8",
  "subtle-encoding",
@@ -3365,6 +3369,7 @@ dependencies = [
  "prost",
  "safe-regex",
  "serde",
+ "serde_derive",
  "serde_json",
  "sha2 0.10.8",
  "subtle-encoding",
@@ -3392,6 +3397,7 @@ checksum = "1115e13a3b160a692b2ff7981bcdf8bd35e077ad05ec7eaeb58f41cbaa31e588"
 dependencies = [
  "displaydoc",
  "serde",
+ "serde_derive",
 ]
 
 [[package]]
@@ -3419,6 +3425,7 @@ dependencies = [
  "prost",
  "safe-regex",
  "serde",
+ "serde_derive",
  "serde_json",
  "sha2 0.10.8",
  "subtle-encoding",
@@ -3445,6 +3452,7 @@ dependencies = [
  "num-traits",
  "prost",
  "serde",
+ "serde_derive",
  "serde_json",
  "subtle-encoding",
  "tendermint 0.34.0",
@@ -3463,6 +3471,7 @@ dependencies = [
  "num-traits",
  "prost",
  "serde",
+ "serde_derive",
  "serde_json",
  "subtle-encoding",
  "tendermint 0.34.0",
@@ -3478,6 +3487,7 @@ checksum = "2e057d4b39101d95ac23d746e9a9c32d6616c833a5eea31e6ac8623a12bc2d0c"
 dependencies = [
  "displaydoc",
  "serde",
+ "serde_derive",
 ]
 
 [[package]]
