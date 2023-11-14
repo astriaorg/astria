@@ -101,8 +101,8 @@ pub(crate) struct Reader {
 
     /// Sequencer Namespace ID
     sequencer_namespace: Namespace,
-    /// Namespace ID
-    namespace: Namespace,
+    /// Rollup Namespace ID
+    rollup_namespace: Namespace,
 
     get_latest_height: Option<JoinHandle<eyre::Result<Height>>>,
 
@@ -130,7 +130,7 @@ impl Reader {
         executor_tx: executor::Sender,
         block_verifier: BlockVerifier,
         sequencer_namespace: Namespace,
-        namespace: Namespace,
+        rollup_namespace: Namespace,
         shutdown: oneshot::Receiver<()>,
     ) -> eyre::Result<Self> {
         use celestia_client::celestia_rpc::HeaderClient;
@@ -162,7 +162,7 @@ impl Reader {
             verify_sequencer_blobs_and_assemble_rollups: JoinMap::new(),
             block_verifier,
             sequencer_namespace,
-            namespace,
+            rollup_namespace,
             shutdown,
         })
     }
@@ -332,7 +332,7 @@ impl Reader {
                 sequencer_data,
                 self.celestia_client.clone(),
                 self.block_verifier.clone(),
-                self.namespace,
+                self.rollup_namespace,
             )
             .in_current_span(),
         );
@@ -373,7 +373,7 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
     sequencer_blobs: Vec<SequencerNamespaceData>,
     client: HttpClient,
     block_verifier: BlockVerifier,
-    namespace: Namespace,
+    rollup_namespace: Namespace,
 ) -> eyre::Result<Vec<SequencerBlockSubset>> {
     // spawn the verification tasks
     let mut verification_tasks = verify_all_datas(sequencer_blobs, &block_verifier);
@@ -398,7 +398,7 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
                         client.clone(),
                         height,
                         data,
-                        namespace,
+                        rollup_namespace,
                         assembly_tx.clone(),
                     )
                     .in_current_span(),
@@ -425,11 +425,11 @@ async fn fetch_verify_rollup_blob_and_forward_to_assembly(
     client: HttpClient,
     height: Height,
     data: SequencerNamespaceData,
-    namespace: Namespace,
+    rollup_namespace: Namespace,
     block_tx: mpsc::Sender<SequencerBlockSubset>,
 ) {
     let mut rollups = match client
-        .get_rollup_data_matching_sequencer_data(height, namespace, &data)
+        .get_rollup_data_matching_sequencer_data(height, rollup_namespace, &data)
         .await
     {
         Err(e) => {
