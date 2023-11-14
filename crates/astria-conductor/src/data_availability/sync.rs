@@ -5,7 +5,6 @@ use celestia_client::{
     },
     jsonrpsee::http_client::HttpClient,
     CelestiaClientExt as _,
-    SEQUENCER_NAMESPACE,
 };
 use color_eyre::eyre::{
     self,
@@ -88,11 +87,11 @@ pub(crate) async fn run(
 async fn get_sequencer_data_from_da(
     height: u32,
     celestia_client: HttpClient,
-    namespace: Namespace,
+    sequencer_namespace: Namespace,
     block_verifier: BlockVerifier,
 ) -> eyre::Result<Vec<SequencerBlockSubset>> {
     let res = celestia_client
-        .get_sequencer_data(height, SEQUENCER_NAMESPACE)
+        .get_sequencer_data(height, sequencer_namespace)
         .await
         .wrap_err("failed to fetch sequencer data from celestia")
         .map(|rsp| rsp.datas);
@@ -104,7 +103,7 @@ async fn get_sequencer_data_from_da(
                 datas,
                 celestia_client,
                 block_verifier.clone(),
-                namespace,
+                sequencer_namespace,
             )
             .await
         }

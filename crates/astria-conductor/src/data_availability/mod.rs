@@ -14,7 +14,6 @@ use celestia_client::{
     jsonrpsee::http_client::HttpClient,
     CelestiaClientExt as _,
     SequencerNamespaceData,
-    SEQUENCER_NAMESPACE,
 };
 use color_eyre::eyre::{
     self,
@@ -108,8 +107,10 @@ pub(crate) struct Reader {
 
     block_verifier: BlockVerifier,
 
-    /// Namespace ID
-    namespace: Namespace,
+    /// Sequencer Namespace ID
+    sequencer_namespace: Namespace,
+    /// Rollup Namespace ID
+    rollup_namespace: Namespace,
 
     get_latest_height: Option<JoinHandle<eyre::Result<Height>>>,
 
@@ -133,26 +134,31 @@ pub(crate) struct Reader {
     sync_done: Option<oneshot::Sender<()>>,
 }
 
+pub(crate) struct CelestiaReaderConfig {
+    pub(crate) node_url: String,
+    pub(crate) bearer_token: Option<String>,
+    pub(crate) poll_interval: Duration,
+}
+
 impl Reader {
     /// Creates a new Reader instance and returns a command sender.
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new(
         initial_da_height: u32,
         firm_commit_height: u32,
-        celestia_node_url: &str,
-        celestia_bearer_token: &str,
-        celestia_poll_interval: Duration,
+        celestia_config: CelestiaReaderConfig,
         executor_tx: executor::Sender,
         block_verifier: BlockVerifier,
-        namespace: Namespace,
+        sequencer_namespace: Namespace,
+        rollup_namespace: Namespace,
         shutdown: oneshot::Receiver<()>,
         sync_done: oneshot::Sender<()>,
     ) -> eyre::Result<Self> {
         use celestia_client::celestia_rpc::HeaderClient;
 
         let celestia_client = celestia_client::celestia_rpc::client::new_http(
-            celestia_node_url,
-            Some(celestia_bearer_token),
+            &celestia_config.node_url,
+            celestia_config.bearer_token.as_deref(),
         )
         .wrap_err("failed constructing celestia http client")?;
 
@@ -170,13 +176,14 @@ impl Reader {
         Ok(Self {
             executor_tx,
             celestia_client,
-            celestia_poll_interval,
+            celestia_poll_interval: celestia_config.poll_interval,
             current_block_height,
             get_latest_height: None,
             fetch_sequencer_blobs_at_height: JoinMap::new(),
             verify_sequencer_blobs_and_assemble_rollups: JoinMap::new(),
             block_verifier,
-            namespace,
+            sequencer_namespace,
+            rollup_namespace,
             initial_da_block_height: initial_da_height,
             firm_commit_height,
             shutdown,
@@ -195,6 +202,7 @@ impl Reader {
             self.celestia_client.clone(),
             self.initial_da_block_height,
             self.firm_commit_height,
+            self.sequencer_namespace,
         )
         .await;
 
@@ -208,7 +216,7 @@ impl Reader {
         let mut sync = sync::run(
             sync_start_height,
             latest_height,
-            self.namespace,
+            self.sequencer_namespace,
             self.executor_tx.clone(),
             self.celestia_client.clone(),
             self.block_verifier.clone(),
@@ -331,10 +339,11 @@ impl Reader {
                     "getting sequencer data from celestia already in flight, not spawning"
                 );
             } else {
+                let sequencer_namespace = self.sequencer_namespace;
                 self.fetch_sequencer_blobs_at_height
                     .spawn(height, async move {
                         client
-                            .get_sequencer_data(height, SEQUENCER_NAMESPACE)
+                            .get_sequencer_data(height, sequencer_namespace)
                             .await
                             .wrap_err("failed to fetch sequencer data from celestia")
                             .map(|rsp| rsp.datas)
@@ -392,7 +401,7 @@ impl Reader {
                 sequencer_data,
                 self.celestia_client.clone(),
                 self.block_verifier.clone(),
-                self.namespace,
+                self.rollup_namespace,
             )
             .in_current_span(),
         );
@@ -435,6 +444,7 @@ async fn find_da_sync_start_height(
     client: HttpClient,
     initial_da_height: u32,
     firm_commit_height: u32,
+    sequencer_namespace: Namespace,
 ) -> u32 {
     // Celestia block time is approximately 12 seconds, the sequencer has a 2
     // second block time. This means that ideally there are 6 sequencer blocks
@@ -460,7 +470,7 @@ async fn find_da_sync_start_height(
         );
 
         let mut possible_blocks = client
-            .get_sequencer_data(guess_block_height, SEQUENCER_NAMESPACE)
+            .get_sequencer_data(guess_block_height, sequencer_namespace)
             .await
             .wrap_err("failed to fetch sequencer data from celestia")
             .map(|rsp| rsp.datas)
@@ -542,7 +552,7 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
     sequencer_blobs: Vec<SequencerNamespaceData>,
     client: HttpClient,
     block_verifier: BlockVerifier,
-    namespace: Namespace,
+    rollup_namespace: Namespace,
 ) -> eyre::Result<Vec<SequencerBlockSubset>> {
     // spawn the verification tasks
     let mut verification_tasks = verify_all_datas(sequencer_blobs, &block_verifier);
@@ -567,7 +577,7 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
                         client.clone(),
                         height,
                         data,
-                        namespace,
+                        rollup_namespace,
                         assembly_tx.clone(),
                     )
                     .in_current_span(),
@@ -594,11 +604,11 @@ async fn fetch_verify_rollup_blob_and_forward_to_assembly(
     client: HttpClient,
     height: Height,
     data: SequencerNamespaceData,
-    namespace: Namespace,
+    rollup_namespace: Namespace,
     block_tx: mpsc::Sender<SequencerBlockSubset>,
 ) {
     let mut rollups = match client
-        .get_rollup_data_matching_sequencer_data(height, namespace, &data)
+        .get_rollup_data_matching_sequencer_data(height, rollup_namespace, &data)
         .await
     {
         Err(e) => {
