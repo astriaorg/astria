@@ -171,8 +171,10 @@ impl Conductor {
                     .wrap_err("failed to get a sequencer client from the pool")?;
                 let block = tryhard::retry_fn(|| client.latest_sequencer_block())
                     .retries(10)
+                    .exponential_backoff(Duration::from_millis(100))
+                    .max_delay(Duration::from_secs(10))
                     .await
-                    .wrap_err("failed to get block from sequencer")?;
+                    .wrap_err("failed to get block from sequencer after 10 attempts")?;
                 let chain_id = block.into_raw().header.chain_id;
                 celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(
                     chain_id.as_bytes(),

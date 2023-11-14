@@ -145,11 +145,20 @@ pub trait CelestiaClientExt: BlobClient {
         Ok(rollup_datas)
     }
 
-    /// Submits sequencer `blocks` to celestia after converting and signing them, returning the
-    /// height at which they were included. Sequencer data for each block will be posted to a
-    /// namespace derived from the block's chain ID.
+    /// Submits sequencer `blocks` to celestia
+    ///
+    /// `Blocks` after converted into celestia blobs and then posted. Rollup
+    /// data is posted to a namespace derived from the rollup chain id.
+    /// Sequencer data for each is posted to a namespace derived from the
+    /// sequencer block's chain ID.
     ///
     /// This calls the `blob.Submit` celestia-node RPC.
+    ///
+    /// Returns Result:
+    /// - Ok: the celestia block height blobs were included in.
+    /// - Errors:
+    ///     - SubmitSequencerBlocksError::AssembleBlobs when failed to assemble blob
+    ///     - SubmitSequencerBlocksError::JsonRpc when Celestia `blob.Submit` fails
     async fn submit_sequencer_blocks(
         &self,
         blocks: Vec<SequencerBlockData>,
