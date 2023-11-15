@@ -341,6 +341,7 @@ fn forward_block_or_resync(
     match expected_height.cmp(&block_height) {
         // received block is at expected height: send to the executor
         std::cmp::Ordering::Equal => {
+            info!("forwarding block to executor");
             executor_tx
                 .send(block.into())
                 .wrap_err("forwarding sequencer block to executor failed")?;
@@ -378,7 +379,10 @@ fn schedule_for_forwarding_or_resubscribe(
                     "block received from sequencer subscription was bad; dropping it"
                 );
             }
-            Ok(block) => pending_blocks.push_back(futures::future::ready(block)),
+            Ok(block) => {
+                info!(at_height = %block.header().height, "received new block from sequencer subscription");
+                pending_blocks.push_back(futures::future::ready(block))
+            }
         }
     } else {
         warn!("sequencer new-block subscription closed unexpectedly; attempting to resubscribe");

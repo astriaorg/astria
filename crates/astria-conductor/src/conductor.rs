@@ -56,8 +56,12 @@ use crate::{
 };
 
 pub struct Conductor {
-    /// The data availability reader that is spawned after sync is completed.
-    /// Constructed if constructed if `disable_finalization = false`.
+    /// The sequencer reader that is spawned after either after DA sync is completed,
+    /// or when running in "SoftOnly".
+    sequencer_reader: Option<sequencer::Reader>,
+
+    /// The data availability reader that is spawned for DA sync, or after
+    /// sequencer sync has been completed.
     data_availability_reader: Option<data_availability::Reader>,
 
     /// The object pool of sequencer clients that restarts the websocket connection
@@ -76,14 +80,10 @@ pub struct Conductor {
     /// The channel over which the sequencer reader task notifies conductor that sync is completed.
     da_sync_done: Fuse<oneshot::Receiver<()>>,
 
-    /// The data availability reader that is spawned after sync is completed.
-    /// Constructed if constructed if `disable_finalization = false`.
-    sequencer_reader: Option<sequencer::Reader>,
-
     /// The different long-running tasks that make up the conductor;
     tasks: JoinMap<&'static str, eyre::Result<()>>,
 
-    /// The Execution Commit level of the Conductor
+    /// The Execution Commit Level setting for the conductor
     execution_commit_level: CommitLevel,
 }
 
@@ -148,7 +148,7 @@ impl Conductor {
 
         let mut sequencer_reader = None;
 
-        info!("Conductor commit level: {:?}", cfg.execution_commit_level);
+        info!(execution_commit_level = ?cfg.execution_commit_level);
 
         match cfg.execution_commit_level {
             CommitLevel::SoftOnly => {
@@ -161,7 +161,10 @@ impl Conductor {
             CommitLevel::SoftAndFirm => {
                 info!("syncing from DA then sequencer");
                 // when running in soft and firm mode, a sync cycle from both DA
-                // and sequencer are used. No need to kill any of the syncs
+                // and sequencer are used. First we sync from DA up to the most
+                // recent DA block, then we sync from most recent firm to the
+                // latest soft commit from the sequencer. Neither sync is killed
+                // in this mode.
             }
             CommitLevel::FirmOnly => {
                 info!("only syncing from DA");
@@ -246,13 +249,13 @@ impl Conductor {
         };
 
         Ok(Self {
+            sequencer_reader,
             data_availability_reader,
             sequencer_client_pool,
             shutdown_channels,
             signals,
             seq_sync_done,
             da_sync_done,
-            sequencer_reader,
             tasks,
             execution_commit_level: cfg.execution_commit_level,
         })
@@ -264,6 +267,22 @@ impl Conductor {
         info!("da sync status: {:?}", self.da_sync_done.is_terminated());
 
         use futures::future::FusedFuture as _;
+
+        if self.execution_commit_level.is_soft_only() {
+            info!("starting sequencer reader");
+            if let Some(sequencer_reader) = self.sequencer_reader.take() {
+                self.tasks
+                    .spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
+            }
+        } else {
+            info!("starting data availability reader");
+            if let Some(data_availability_reader) = self.data_availability_reader.take() {
+                self.tasks.spawn(
+                    Self::DATA_AVAILABILITY,
+                    data_availability_reader.run_until_stopped(),
+                );
+            }
+        }
 
         loop {
             select! {
@@ -279,31 +298,31 @@ impl Conductor {
                     info!("reloading is currently not implemented");
                 }
 
-                // Start the data availability reader
-                res = &mut self.da_sync_done, if !self.da_sync_done.is_terminated() => {
-                    match res {
-                        Ok(()) => info!("received sync-complete signal from DA reader"),
-                        Err(e) => {
-                            let error = &e as &(dyn std::error::Error + 'static);
-                            warn!(error, "DA sync-complete channel failed prematurely");
-                        }
-                    }
-                    if let Some(data_availability_reader) = self.data_availability_reader.take() {
-                        info!("starting DA reader");
-                        self.tasks.spawn(
-                            Self::DATA_AVAILABILITY,
-                            data_availability_reader.run_until_stopped(),
-                        );
-                    }
-                }
+                // // Start the data availability reader
+                // res = &mut self.da_sync_done, if !self.da_sync_done.is_terminated() => {
+                //     match res {
+                //         Ok(()) => info!("received sync-complete signal from DA reader"),
+                //         Err(e) => {
+                //             let error = &e as &(dyn std::error::Error + 'static);
+                //             warn!(error, "DA sync-complete channel failed prematurely");
+                //         }
+                //     }
+                //     if let Some(data_availability_reader) = self.data_availability_reader.take() {
+                //         info!("starting DA reader");
+                //         self.tasks.spawn(
+                //             Self::DATA_AVAILABILITY,
+                //             data_availability_reader.run_until_stopped(),
+                //         );
+                //     }
+                // }
 
                 // Start the sequencer reader
-                res = &mut self.seq_sync_done, if self.da_sync_done.is_terminated() && !self.seq_sync_done.is_terminated() => {
+                res = &mut self.da_sync_done, if !self.da_sync_done.is_terminated() => {
                     match res {
-                        Ok(()) => info!("received sync-complete signal from DA reader"),
+                        Ok(()) => info!("received sync-complete signal from sequencer reader"),
                         Err(e) => {
                             let error = &e as &(dyn std::error::Error + 'static);
-                            warn!(error, "DA sync-complete channel failed prematurely");
+                            warn!(error, "sequencer sync-complete channel failed prematurely");
                         }
                     }
                     if let Some(sequencer_reader) = self.sequencer_reader.take() {

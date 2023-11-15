@@ -25,6 +25,7 @@ use futures::{
 };
 use tendermint::{
     block::Header,
+    node::info,
     Hash,
 };
 use tokio::{
@@ -195,37 +196,53 @@ impl Reader {
 
     #[instrument(skip(self))]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        info!("Starting reader event loop.");
+        info!("starting reader event loop.");
 
-        // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync
-        // functionality to data availability reader
+        // Setup a dummy future that is always ready to be polled to be checked
+        // if we don't need to sync from DA.
+        async fn ready() -> eyre::Result<()> {
+            Ok(())
+        }
+        let mut sync = ready().boxed().fuse();
 
-        let sync_start_height = find_da_sync_start_height(
-            self.celestia_client.clone(),
-            self.initial_da_block_height,
-            self.firm_commit_height,
-            self.sequencer_namespace,
-        )
-        .await;
+        // If the firm commit height is greater than 1, that means we have seen
+        // sequencer blocks from DA before and we need to sync to the latest.
+        // If the firm commit height is 0, that means we are starting the
+        // conductor on a fresh chain and we don't need to sync.
+        if self.firm_commit_height > 1 {
+            info!("starting da sync");
+            let sync_start_height = find_da_sync_start_height(
+                self.celestia_client.clone(),
+                self.initial_da_block_height,
+                self.firm_commit_height,
+                self.sequencer_namespace,
+            )
+            .await;
 
-        let latest_height = u32::try_from(
-            find_latest_height(self.celestia_client.clone())
-                .await?
-                .value(),
-        )
-        .expect("casting from u64 to u32 failed");
+            let latest_height = u32::try_from(
+                find_latest_height(self.celestia_client.clone())
+                    .await
+                    .wrap_err("failed to get latest height from celestia")?
+                    .value(),
+            )
+            .expect("casting from u64 to u32 failed");
 
-        let mut sync = sync::run(
-            sync_start_height,
-            latest_height,
-            self.sequencer_namespace,
-            self.executor_tx.clone(),
-            self.celestia_client.clone(),
-            self.block_verifier.clone(),
-        )
-        .boxed()
-        .fuse();
-        // self.fetch_sequencer_blobs_up_to_latest_height(Ok(Ok(height)));
+            sync = sync::run(
+                sync_start_height,
+                latest_height,
+                self.sequencer_namespace,
+                self.executor_tx.clone(),
+                self.celestia_client.clone(),
+                self.block_verifier.clone(),
+            )
+            .boxed()
+            .fuse();
+        } else {
+            info!(
+                "firm commit height is less than 1 DA block worth of sequencer blocks, skipping \
+                 da sync"
+            );
+        }
 
         // TODO: add da sync done to asycn run the sync
         // TODO: add sync done check to the event loop below
@@ -458,7 +475,11 @@ async fn find_da_sync_start_height(
     // Celestia block that contained it.
     // This search is required because there is no way to poll Celestia for
     // which block contianed a given sequencer block.
+    info!(initial_da_height = %initial_da_height);
+    info!(firm_commit_height = %firm_commit_height);
+
     let mut guess_block_height = Height::from(initial_da_height + (firm_commit_height / 5));
+    info!(guess_block_height = %guess_block_height);
     // FIXME: ^ I'm sure there is a better way to estimate this value but
     // leaving this here for now as a first pass
 

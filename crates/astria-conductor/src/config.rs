@@ -46,7 +46,7 @@ pub struct Config {
     /// The Sequencer block height that the rollup genesis block was in
     pub initial_sequencer_block_height: u32,
 
-    /// The DA block height that the rollup genesis block was in
+    /// The DA block height that the rollup's first block was in
     pub initial_da_block_height: u32,
 
     /// The execution commit level used for controlling how blocks are sent to
