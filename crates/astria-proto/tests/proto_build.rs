@@ -115,16 +115,20 @@ fn clean_non_astria_code(generated: &mut ContentMap) {
 }
 
 fn find_protos<P: AsRef<Path>>(dir: P) -> Vec<PathBuf> {
-    walkdir::WalkDir::new(dir)
+    use walkdir::{
+        DirEntry,
+        WalkDir,
+    };
+    WalkDir::new(dir)
         .into_iter()
-        .filter_map(|e| e.ok())
+        .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file() && e.path().extension() == Some(OsStr::new("proto")))
-        .map(|e| e.into_path())
+        .map(DirEntry::into_path)
         .collect()
 }
 
 fn ensure_files_are_the_same(before: &ContentMap, after: ContentMap, target_dir: &'static str) {
-    if &before.codes == &after.codes {
+    if before.codes == after.codes {
         return;
     }
 
