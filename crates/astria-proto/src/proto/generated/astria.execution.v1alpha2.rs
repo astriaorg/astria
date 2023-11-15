@@ -489,7 +489,9 @@ pub mod execution_service_server {
                             request: tonic::Request<super::GetBlockRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move { (*inner).get_block(request).await };
+                            let fut = async move {
+                                <T as ExecutionService>::get_block(&inner, request).await
+                            };
                             Box::pin(fut)
                         }
                     }
@@ -534,7 +536,8 @@ pub mod execution_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                (*inner).batch_get_blocks(request).await
+                                <T as ExecutionService>::batch_get_blocks(&inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -580,7 +583,8 @@ pub mod execution_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                (*inner).execute_block(request).await
+                                <T as ExecutionService>::execute_block(&inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -626,7 +630,11 @@ pub mod execution_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                (*inner).get_commitment_state(request).await
+                                <T as ExecutionService>::get_commitment_state(
+                                        &inner,
+                                        request,
+                                    )
+                                    .await
                             };
                             Box::pin(fut)
                         }
@@ -672,7 +680,11 @@ pub mod execution_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                (*inner).update_commitment_state(request).await
+                                <T as ExecutionService>::update_commitment_state(
+                                        &inner,
+                                        request,
+                                    )
+                                    .await
                             };
                             Box::pin(fut)
                         }

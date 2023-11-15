@@ -333,7 +333,9 @@ pub mod execution_service_server {
                             request: tonic::Request<super::InitStateRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move { (*inner).init_state(request).await };
+                            let fut = async move {
+                                <T as ExecutionService>::init_state(&inner, request).await
+                            };
                             Box::pin(fut)
                         }
                     }
@@ -377,7 +379,9 @@ pub mod execution_service_server {
                             request: tonic::Request<super::DoBlockRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move { (*inner).do_block(request).await };
+                            let fut = async move {
+                                <T as ExecutionService>::do_block(&inner, request).await
+                            };
                             Box::pin(fut)
                         }
                     }
@@ -422,7 +426,8 @@ pub mod execution_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                (*inner).finalize_block(request).await
+                                <T as ExecutionService>::finalize_block(&inner, request)
+                                    .await
                             };
                             Box::pin(fut)
                         }

@@ -1,6 +1,9 @@
 use std::time::Duration;
 
-use eyre::WrapErr as _;
+use eyre::{
+    bail,
+    WrapErr as _,
+};
 use humantime::format_duration;
 use sequencer_types::SequencerBlockData;
 use tendermint_rpc::{
@@ -81,7 +84,7 @@ impl Relayer {
     /// + failed to read the validator keys from the path in cfg;
     /// + failed to construct a client to the data availability layer (unless `cfg.disable_writing`
     ///   is set).
-    pub(crate) fn new(cfg: &crate::config::Config) -> eyre::Result<Self> {
+    pub(crate) async fn new(cfg: &crate::config::Config) -> eyre::Result<Self> {
         let sequencer = HttpClient::new(&*cfg.sequencer_endpoint)
             .wrap_err("failed to create sequencer client")?;
 
@@ -98,11 +101,16 @@ impl Relayer {
             (false, _) => None, // could also say that the file was unnecessarily set, but it's ok
         };
 
-        let data_availability = celestia_client::celestia_rpc::client::new_http(
-            &cfg.celestia_endpoint,
-            Some(&cfg.celestia_bearer_token),
-        )
-        .wrap_err("failed constructing celestia http client")?;
+        let celestia_client::celestia_rpc::Client::Http(data_availability) =
+            celestia_client::celestia_rpc::Client::new(
+                &cfg.celestia_endpoint,
+                Some(&cfg.celestia_bearer_token),
+            )
+            .await
+            .wrap_err("failed constructing celestia http client")?
+        else {
+            bail!("expected to get a celestia HTTP client, but got a websocket client");
+        };
 
         let (state_tx, _) = watch::channel(State::default());
 
