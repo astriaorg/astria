@@ -25,7 +25,6 @@ use futures::{
 };
 use tendermint::{
     block::Header,
-    node::info,
     Hash,
 };
 use tokio::{
