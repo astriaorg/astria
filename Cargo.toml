@@ -62,7 +62,7 @@ which = "4.4.0"
 wiremock = "0.5"
 
 [patch.crates-io]
-# tendermint = { git = "https://github.com/astriaorg/tendermint-rs", branch = "v0.33.2-reqwest-backport" }
-# tendermint-config = { git = "https://github.com/astriaorg/tendermint-rs", branch = "v0.33.2-reqwest-backport" }
-# tendermint-proto = { git = "https://github.com/astriaorg/tendermint-rs", branch = "v0.33.2-reqwest-backport" }
-# tendermint-rpc = { git = "https://github.com/astriaorg/tendermint-rs", branch = "v0.33.2-reqwest-backport" }
+tendermint = { git = "https://github.com/astriaorg/tendermint-rs", branch = "v0.33.2-reqwest-backport" }
+tendermint-config = { git = "https://github.com/astriaorg/tendermint-rs", branch = "v0.33.2-reqwest-backport" }
+tendermint-proto = { git = "https://github.com/astriaorg/tendermint-rs", branch = "v0.33.2-reqwest-backport" }
+tendermint-rpc = { git = "https://github.com/astriaorg/tendermint-rs", branch = "v0.33.2-reqwest-backport" }
