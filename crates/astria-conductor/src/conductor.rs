@@ -5,6 +5,11 @@ use std::{
 };
 
 use astria_sequencer_types::ChainId;
+use base64::{
+    display::Base64Display,
+    engine::general_purpose::STANDARD,
+};
+use celestia_client::celestia_types::nmt::Namespace;
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -40,32 +45,35 @@ use crate::{
         self,
         ClientProvider,
     },
-    data_availability,
+    data_availability::{
+        self,
+        CelestiaReaderConfig,
+    },
     executor::Executor,
     sequencer,
     Config,
 };
 
 pub struct Conductor {
-    /// Listens for several unix signals and notifies its subscribers.
-    signals: SignalReceiver,
-
-    /// The different long-running tasks that make up the conductor;
-    tasks: JoinMap<&'static str, eyre::Result<()>>,
-
-    /// Channels to the long-running tasks to shut them down gracefully
-    shutdown_channels: HashMap<&'static str, oneshot::Sender<()>>,
+    /// The data availability reader that is spawned after sync is completed.
+    /// Constructed if constructed if `disable_finalization = false`.
+    data_availability_reader: Option<data_availability::Reader>,
 
     /// The object pool of sequencer clients that restarts the websocket connection
     /// on failure.
     sequencer_client_pool: deadpool::managed::Pool<ClientProvider>,
 
+    /// Channels to the long-running tasks to shut them down gracefully
+    shutdown_channels: HashMap<&'static str, oneshot::Sender<()>>,
+
+    /// Listens for several unix signals and notifies its subscribers.
+    signals: SignalReceiver,
+
     /// The channel over which the sequencer reader task notifies conductor that sync is completed.
     sync_done: Fuse<oneshot::Receiver<()>>,
 
-    /// The data availability reader that is spawned after sync is completed.
-    /// Constructed if constructed if `disable_finalization = false`.
-    data_availability_reader: Option<data_availability::Reader>,
+    /// The different long-running tasks that make up the conductor;
+    tasks: JoinMap<&'static str, eyre::Result<()>>,
 }
 
 impl Conductor {
@@ -73,6 +81,12 @@ impl Conductor {
     const EXECUTOR: &'static str = "executor";
     const SEQUENCER: &'static str = "sequencer";
 
+    /// Create a new [`Conductor`] from a [`Config`].
+    ///
+    /// # Errors
+    /// Returns an error in the following cases if one of its constituent
+    /// actors could not be spawned (executor, sequencer reader, or data availability reader).
+    /// This usually happens if the actors failed to connect to their respective endpoints.
     pub async fn new(cfg: Config) -> eyre::Result<Self> {
         use futures::FutureExt;
 
@@ -105,7 +119,6 @@ impl Conductor {
         };
 
         let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
-            .await
             .wrap_err("failed to create sequencer client pool")?;
 
         // Spawn the sequencer task
@@ -147,13 +160,35 @@ impl Conductor {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
             let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
+
+            // Sequencer namespace is defined by the chain id of attached sequencer node
+            // which can be fetched from any block header.
+            let sequencer_namespace = {
+                let client = sequencer_client_pool
+                    .get()
+                    .await
+                    .wrap_err("failed to get a sequencer client from the pool")?;
+                get_sequencer_namespace(client)
+                    .await
+                    .wrap_err("failed to get sequencer namespace")?
+            };
+            info!(
+                celestia_namespace = %Base64Display::new(sequencer_namespace.as_bytes(), &STANDARD),
+                sequencer_chain_id = %cfg.chain_id,
+                "celestia namespace derived from sequencer chain id",
+            );
+
+            let celestia_config = CelestiaReaderConfig {
+                node_url: cfg.celestia_node_url,
+                bearer_token: Some(cfg.celestia_bearer_token),
+                poll_interval: std::time::Duration::from_secs(3),
+            };
             // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
             let reader = data_availability::Reader::new(
-                &cfg.celestia_node_url,
-                &cfg.celestia_bearer_token,
-                std::time::Duration::from_secs(3),
+                celestia_config,
                 executor_tx.clone(),
                 block_verifier,
+                sequencer_namespace,
                 celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(
                     cfg.chain_id.as_ref(),
                 ),
@@ -165,51 +200,33 @@ impl Conductor {
         };
 
         Ok(Self {
-            signals,
-            tasks,
+            data_availability_reader,
             sequencer_client_pool,
             shutdown_channels,
+            signals,
             sync_done,
-            data_availability_reader,
+            tasks,
         })
     }
 
-    pub async fn run_until_stopped(self) -> eyre::Result<()> {
-        use futures::future::{
-            FusedFuture as _,
-            FutureExt as _,
-        };
-
-        let Self {
-            signals:
-                SignalReceiver {
-                    mut reload_rx,
-                    mut stop_rx,
-                },
-            mut tasks,
-            shutdown_channels,
-            sequencer_client_pool,
-            sync_done,
-            mut data_availability_reader,
-        } = self;
-
-        let mut sync_done = sync_done.fuse();
+    pub async fn run_until_stopped(mut self) {
+        use futures::future::FusedFuture as _;
 
         loop {
             select! {
                 // FIXME: The bias should only be on the signal channels. The two handlers should have the same bias.
                 biased;
 
-                _ = stop_rx.changed() => {
+                _ = self.signals.stop_rx.changed() => {
                     info!("shutting down conductor");
                     break;
                 }
 
-                _ = reload_rx.changed() => {
+                _ = self.signals.reload_rx.changed() => {
                     info!("reloading is currently not implemented");
                 }
 
-                res = &mut sync_done, if !sync_done.is_terminated() => {
+                res = &mut self.sync_done, if !self.sync_done.is_terminated() => {
                     match res {
                         Ok(()) => info!("received sync-complete signal from sequencer reader"),
                         Err(e) => {
@@ -217,16 +234,16 @@ impl Conductor {
                             warn!(error, "sync-complete channel failed prematurely");
                         }
                     }
-                    if let Some(data_availability_reader) = data_availability_reader.take() {
+                    if let Some(data_availability_reader) = self.data_availability_reader.take() {
                         info!("starting data availability reader");
-                        tasks.spawn(
+                        self.tasks.spawn(
                             Self::DATA_AVAILABILITY,
                             data_availability_reader.run_until_stopped(),
                         );
                     }
                 }
 
-                Some((name, res)) = tasks.join_next() => {
+                Some((name, res)) = self.tasks.join_next() => {
                     match res {
                         Ok(Ok(())) => error!(task.name = name, "task exited unexpectedly, shutting down"),
                         Ok(Err(e)) => {
@@ -242,16 +259,21 @@ impl Conductor {
             }
         }
 
+        info!("shutting down conductor");
+        self.shutdown().await;
+    }
+
+    async fn shutdown(self) {
         info!("sending shutdown command to all tasks");
-        for (_, channel) in shutdown_channels {
+        for (_, channel) in self.shutdown_channels {
             let _ = channel.send(());
         }
 
-        sequencer_client_pool.close();
+        self.sequencer_client_pool.close();
 
         info!("waiting 5 seconds for all tasks to shut down");
         // put the tasks into an Rc to make them 'static so they can run on a local set
-        let mut tasks = Rc::new(tasks);
+        let mut tasks = Rc::new(self.tasks);
         let local_set = LocalSet::new();
         local_set
             .run_until(async {
@@ -294,7 +316,6 @@ impl Conductor {
                 .shutdown()
                 .await;
         }
-        Ok(())
     }
 }
 
@@ -338,4 +359,43 @@ fn spawn_signal_handler() -> SignalReceiver {
         reload_rx,
         stop_rx,
     }
+}
+
+/// Get the sequencer namespace from the latest sequencer block.
+async fn get_sequencer_namespace(
+    client: deadpool::managed::Object<ClientProvider>,
+) -> eyre::Result<Namespace> {
+    use sequencer_client::SequencerClientExt as _;
+
+    let retry_config = tryhard::RetryFutureConfig::new(10)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(20))
+        .on_retry(
+            |attempt: u32,
+             next_delay: Option<Duration>,
+             error: &sequencer_client::extension_trait::Error| {
+                let error = error.clone();
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                async move {
+                    let error = &error as &(dyn std::error::Error + 'static);
+                    warn!(
+                        attempt,
+                        wait_duration,
+                        error,
+                        "attempt to grab sequencer block failed; retrying after backoff",
+                    );
+                }
+            },
+        );
+
+    let block = tryhard::retry_fn(|| client.latest_sequencer_block())
+        .with_config(retry_config)
+        .await
+        .wrap_err("failed to get block from sequencer after 10 attempts")?;
+
+    let chain_id = block.into_raw().header.chain_id;
+
+    Ok(celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(chain_id.as_bytes()))
 }

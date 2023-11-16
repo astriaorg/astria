@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use celestia_client::SEQUENCER_NAMESPACE;
 use eyre::WrapErr as _;
 use humantime::format_duration;
 use sequencer_types::SequencerBlockData;
@@ -150,7 +149,7 @@ impl Relayer {
                 .await
                 .wrap_err("timed out getting latest block from sequencer")??;
             Ok(block)
-        }))
+        }));
     }
 
     #[instrument(skip_all)]
@@ -430,7 +429,7 @@ impl Relayer {
         {
             self.conversion_workers.abort_all();
             if let Some(task) = self.submission_task.as_mut() {
-                task.abort()
+                task.abort();
             }
             Ok(())
         }
@@ -479,9 +478,9 @@ async fn submit_blocks_to_celestia(
         num_blocks = sequencer_block_data.len(),
         "submitting collected sequencer blocks to data availability layer",
     );
+
     let height = client
         .submit_sequencer_blocks(
-            SEQUENCER_NAMESPACE,
             sequencer_block_data,
             SubmitOptions {
                 fee: Some(fee),

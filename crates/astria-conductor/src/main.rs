@@ -47,12 +47,7 @@ async fn main() -> ExitCode {
         Ok(conductor) => conductor,
     };
 
-    if let Err(e) = conductor.run_until_stopped().await {
-        let error: &(dyn std::error::Error + 'static) = e.as_ref();
-        error!(error, "conductor stopped unexpectedly");
-        return ExitCode::FAILURE;
-    }
-
+    conductor.run_until_stopped().await;
     info!("conductor stopped");
     ExitCode::SUCCESS
 }
