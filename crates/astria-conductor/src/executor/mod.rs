@@ -113,9 +113,204 @@ impl From<SequencerBlockData> for ExecutorCommand {
     }
 }
 
+pub(crate) struct NoRollupAddress;
+pub(crate) struct WithRollupAddress(String);
+pub(crate) struct NoChainId;
+pub(crate) struct WithChainId(ChainId);
+pub(crate) struct NoBlockChannel;
+pub(crate) struct WithBlockChannel(Receiver);
+pub(crate) struct NoShutdown;
+pub(crate) struct WithShutdown(oneshot::Receiver<()>);
+
+pub(crate) struct ExecutorBuilder<
+    TChainId = NoChainId,
+    TBlockChannel = NoBlockChannel,
+    TRollupAddress = NoRollupAddress,
+    TShutdown = NoShutdown,
+> {
+    chain_id: TChainId,
+    block_channel: TBlockChannel,
+    optimism_hook: Option<optimism::Handler>,
+    sequencer_height_with_first_rollup_block: u32,
+    rollup_address: TRollupAddress,
+    shutdown: TShutdown,
+}
+
+impl ExecutorBuilder {
+    fn new() -> Self {
+        Self {
+            chain_id: NoChainId,
+            block_channel: NoBlockChannel,
+            optimism_hook: None,
+            sequencer_height_with_first_rollup_block: 0,
+            rollup_address: NoRollupAddress,
+            shutdown: NoShutdown,
+        }
+    }
+}
+
+impl ExecutorBuilder<WithChainId, WithBlockChannel, WithRollupAddress, WithShutdown> {
+    pub(crate) async fn build(self) -> eyre::Result<Executor> {
+        let Self {
+            chain_id,
+            block_channel,
+            optimism_hook: pre_execution_hook,
+            sequencer_height_with_first_rollup_block,
+            rollup_address,
+            shutdown,
+        } = self;
+        let WithRollupAddress(rollup_address) = rollup_address;
+        let WithChainId(chain_id) = chain_id;
+        let WithBlockChannel(block_channel) = block_channel;
+        let WithShutdown(shutdown) = shutdown;
+
+        let mut execution_rpc_client = ExecutionServiceClient::connect(rollup_address)
+            .await
+            .wrap_err("failed to create execution rpc client")?;
+        let commitment_state = execution_rpc_client
+            .call_get_commitment_state()
+            .await
+            .wrap_err("executor failed to get commitment state")?;
+
+        info!(
+            soft_block_hash = hex::encode(&commitment_state.soft.hash),
+            firm_block_hash = hex::encode(&commitment_state.firm.hash),
+            "initial execution commitment state",
+        );
+
+        let Some(executable_block_height) = calculate_executable_block_height(
+            sequencer_height_with_first_rollup_block,
+            commitment_state.soft.number,
+        ) else {
+            bail!(
+                "encountered overflow when calculating first executable block height; sequencer \
+                 height with first rollup block: {sequencer_height_with_first_rollup_block}, \
+                 height recorded in soft commitment state: {}",
+                commitment_state.soft.number,
+            );
+        };
+
+        Ok(Executor {
+            block_channel,
+            shutdown,
+            execution_rpc_client,
+            chain_id,
+            commitment_state,
+            executable_block_height,
+            sequencer_hash_to_execution_block: HashMap::new(),
+            pre_execution_hook,
+        })
+    }
+}
+
+impl<TChainId, TBlockChannel, TRollupAddress, TShutdown>
+    ExecutorBuilder<TChainId, TBlockChannel, TRollupAddress, TShutdown>
+{
+    pub(crate) fn chain_id(
+        self,
+        chain_id: ChainId,
+    ) -> ExecutorBuilder<WithChainId, TBlockChannel, TRollupAddress, TShutdown> {
+        let Self {
+            block_channel,
+            optimism_hook,
+            sequencer_height_with_first_rollup_block,
+            rollup_address,
+            shutdown,
+            ..
+        } = self;
+        ExecutorBuilder {
+            chain_id: WithChainId(chain_id),
+            block_channel,
+            optimism_hook,
+            sequencer_height_with_first_rollup_block,
+            rollup_address,
+            shutdown,
+        }
+    }
+
+    pub(crate) fn block_channel(
+        self,
+        block_channel: Receiver,
+    ) -> ExecutorBuilder<TChainId, WithBlockChannel, TRollupAddress, TShutdown> {
+        let Self {
+            chain_id,
+            optimism_hook,
+            sequencer_height_with_first_rollup_block,
+            rollup_address,
+            shutdown,
+            ..
+        } = self;
+        ExecutorBuilder {
+            chain_id,
+            block_channel: WithBlockChannel(block_channel),
+            optimism_hook,
+            sequencer_height_with_first_rollup_block,
+            rollup_address,
+            shutdown,
+        }
+    }
+
+    pub(crate) fn sequencer_height_with_first_rollup_block(
+        mut self,
+        sequencer_height_with_first_rollup_block: u32,
+    ) -> Self {
+        self.sequencer_height_with_first_rollup_block = sequencer_height_with_first_rollup_block;
+        self
+    }
+
+    pub(crate) fn set_optimism_hook(mut self, handler: Option<optimism::Handler>) -> Self {
+        self.optimism_hook = handler;
+        self
+    }
+
+    pub(crate) fn rollup_address(
+        self,
+        rollup_address: &str,
+    ) -> ExecutorBuilder<TChainId, TBlockChannel, WithRollupAddress, TShutdown> {
+        let Self {
+            chain_id,
+            block_channel,
+            optimism_hook,
+            sequencer_height_with_first_rollup_block,
+            shutdown,
+            ..
+        } = self;
+        ExecutorBuilder {
+            chain_id,
+            block_channel,
+            sequencer_height_with_first_rollup_block,
+            optimism_hook,
+            rollup_address: WithRollupAddress(rollup_address.to_string()),
+            shutdown,
+        }
+    }
+
+    pub(crate) fn shutdown(
+        self,
+        shutdown: oneshot::Receiver<()>,
+    ) -> ExecutorBuilder<TChainId, TBlockChannel, TRollupAddress, WithShutdown> {
+        let Self {
+            chain_id,
+            block_channel,
+            optimism_hook,
+            sequencer_height_with_first_rollup_block,
+            rollup_address,
+            ..
+        } = self;
+        ExecutorBuilder {
+            chain_id,
+            block_channel,
+            optimism_hook,
+            sequencer_height_with_first_rollup_block,
+            rollup_address,
+            shutdown: WithShutdown(shutdown),
+        }
+    }
+}
+
 pub(crate) struct Executor {
     /// Channel on which executor commands are received.
-    cmd_rx: Receiver,
+    block_channel: Receiver,
 
     shutdown: oneshot::Receiver<()>,
 
@@ -148,55 +343,8 @@ pub(crate) struct Executor {
 }
 
 impl Executor {
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) async fn new(
-        server_addr: &str,
-        chain_id: ChainId,
-        init_sequencer_height: u32,
-        cmd_rx: Receiver,
-        shutdown: oneshot::Receiver<()>,
-        hook: Option<optimism::Handler>,
-    ) -> Result<Self> {
-        let mut execution_rpc_client = ExecutionServiceClient::connect(server_addr.to_owned())
-            .await
-            .wrap_err("failed to create execution rpc client")?;
-        let commitment_state = execution_rpc_client
-            .call_get_commitment_state()
-            .await
-            .wrap_err("executor failed to get commitment state")?;
-
-        info!(
-            soft_block_hash = hex::encode(&commitment_state.soft.hash),
-            firm_block_hash = hex::encode(&commitment_state.firm.hash),
-            "initial execution commitment state",
-        );
-
-        // The `executable_block_height` is the height of the next sequencer block
-        // that can be executed on top of the rollup state. The `init_sequencer_height`
-        // is set when the rollup is first created and lets us know that this
-        // rollup's first block is in block K of the sequencer chain.
-        // The `commitment_state.soft.number` is the block height of the most
-        // recently executed block on the rollup and is pulled from the rollup
-        // the Conductor is associated with on startup of the Conductor (N
-        // blocks have already been executed on the rollup).
-        // `executable_block_height` represents where the Condutor sync should
-        // start:
-        // `executable_block_height` = sequencer block K + executed block N
-        // By setting this value we prevent the reexecution of blocks on the
-        // rollup. If block M is the most recent sequencer block, we then know
-        // that we need to sync blocks from `executable_block_height` to M.
-        let executable_block_height = commitment_state.soft.number + init_sequencer_height;
-
-        Ok(Self {
-            cmd_rx,
-            shutdown,
-            execution_rpc_client,
-            chain_id,
-            commitment_state,
-            executable_block_height,
-            sequencer_hash_to_execution_block: HashMap::new(),
-            pre_execution_hook: hook,
-        })
+    pub(super) fn builder() -> ExecutorBuilder {
+        ExecutorBuilder::new()
     }
 
     #[instrument(skip_all)]
@@ -215,7 +363,7 @@ impl Executor {
                     break;
                 }
 
-                cmd = self.cmd_rx.recv() => {
+                cmd = self.block_channel.recv() => {
                     if let Err(e) = self.handle_executor_command(cmd).await {
                         let error: &(dyn std::error::Error + 'static) = e.as_ref();
                         error!(error, "failed to handle executor command, breaking from executor loop");
@@ -423,4 +571,16 @@ impl Executor {
     pub(crate) fn get_executable_block_height(&self) -> u32 {
         self.executable_block_height
     }
+}
+
+/// Calculates the first executable block from the current sequencer height
+/// and the current rollup height.
+///
+/// This function assumes that sequencer heights and rollup heights increment
+/// in lockstep. `sequencer_height` contains the first rollup height, while
+/// `current_rollup_height` is the height of the rollup chain (with soft but
+/// not yet hard confirmation). That makes `sequencer_height + rollup_height`
+/// the first height that can be executed on top of the current rollup.
+fn calculate_executable_block_height(sequencer_height: u32, rollup_height: u32) -> Option<u32> {
+    sequencer_height.checked_add(rollup_height)
 }
