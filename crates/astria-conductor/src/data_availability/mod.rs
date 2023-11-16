@@ -173,7 +173,7 @@ impl Reader {
             .header
             .height;
 
-        info!(da_height = %current_block_height, "creating Reader");
+        info!(da_block_height = %current_block_height, "creating Reader");
 
         Ok(Self {
             executor_tx,
@@ -209,13 +209,19 @@ impl Reader {
         // sequencer blocks from DA before and we need to sync to the latest.
         // If the firm commit height is 0, that means we are starting the
         // conductor on a fresh chain and we don't need to sync.
-        if self.firm_commit_height > 1 {
+        // TODO: make this check more sophisticated
+        // if current block height / 5 >  1 -> run the sync
+        // if self.firm_commit_height > 1 {
+        let current_block_height = u32::try_from(self.current_block_height.value())
+            .expect("casting from u64 to u32 failed");
+        if current_block_height / 5 > 1 {
             info!("starting da sync");
             let sync_start_height = find_da_sync_start_height(
                 self.celestia_client.clone(),
                 self.initial_da_block_height,
                 self.firm_commit_height,
                 self.sequencer_namespace,
+                self.block_verifier.clone(),
             )
             .await;
 
@@ -226,6 +232,8 @@ impl Reader {
                     .value(),
             )
             .expect("casting from u64 to u32 failed");
+
+            info!(start_sync_height = %sync_start_height, end_sync_height = %latest_height, "sync range");
 
             sync = sync::run(
                 sync_start_height,
@@ -312,6 +320,7 @@ impl Reader {
         &mut self,
         latest_height_res: Result<eyre::Result<Height>, JoinError>,
     ) {
+        info!("fetching DA blobs up to latest height");
         let latest_height = match latest_height_res {
             Err(e) => {
                 let error = &e as &(dyn std::error::Error + 'static);
@@ -342,8 +351,12 @@ impl Reader {
         let first_new_height = self.current_block_height.increment();
         info!(
             height.start = %first_new_height,
-            height.end = %self.current_block_height,
+            height.end = %latest_height,
             "spawning tasks to fetch sequencer blocks for different celestia heights",
+        );
+        assert!(
+            first_new_height.value() <= latest_height.value(),
+            "start of range is greater than end of range"
         );
 
         for height in first_new_height.value()..=latest_height.value() {
@@ -464,6 +477,7 @@ async fn find_da_sync_start_height(
     initial_da_height: u32,
     firm_commit_height: u32,
     sequencer_namespace: Namespace,
+    block_verifier: BlockVerifier,
 ) -> u32 {
     info!("finding da sync start height");
     // Celestia block time is approximately 12 seconds, the sequencer has a 2
@@ -478,27 +492,47 @@ async fn find_da_sync_start_height(
     info!(initial_da_height = %initial_da_height);
     info!(firm_commit_height = %firm_commit_height);
 
-    let mut guess_block_height = Height::from(initial_da_height + (firm_commit_height / 5));
-    info!(guess_block_height = %guess_block_height);
-    // FIXME: ^ I'm sure there is a better way to estimate this value but
-    // leaving this here for now as a first pass
+    if firm_commit_height == 0 {
+        return initial_da_height;
+    }
 
+    let mut guess_block_height = Height::try_from(initial_da_height + (firm_commit_height / 5))
+        .expect("could not convert u32 to Height");
+    info!(guess_block_height = %guess_block_height);
+    // FIXME: ^ eventually converte to smart search (binary search for example)
+    // leaving this here for now as a first pass
     // FIXME: add an issue to make the search for the block we want more sophisticated
-    // FIXME: add an issue to make error after certian number of guesses more sophisticated
+
     let mut num_blocks_searched = 1;
     loop {
+        // FIXME: add an issue to make error after certian number of guesses more
+        // sophisticated
         assert!(
             (num_blocks_searched <= 1000),
             "searched more than 1000 blocks for the DA block containing the firm commit without \
              finding it, halting"
         );
 
-        let mut possible_blocks = client
-            .get_sequencer_data(guess_block_height, sequencer_namespace)
-            .await
-            .wrap_err("failed to fetch sequencer data from celestia")
-            .map(|rsp| rsp.datas)
-            .expect("failed to convert sequencer data response to sequencer data");
+        // let guess_height =
+        //     u32::try_from(guess_block_height.value()).expect("casting from u64 to u32 failed");
+        let possible_blocks = sync::get_sequencer_data_from_da(
+            guess_block_height,
+            client.clone(),
+            sequencer_namespace,
+            block_verifier.clone(),
+        )
+        .await;
+
+        let mut possible_blocks = match possible_blocks {
+            Ok(blocks) => blocks,
+            Err(e) => {
+                guess_block_height = guess_block_height.increment();
+                num_blocks_searched += 1;
+                let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                warn!(da_guess_block_height = %guess_block_height, error, "no sequencer data found in celestia block; skipping");
+                continue;
+            }
+        };
 
         possible_blocks.sort_by(|a, b| a.header.height.cmp(&b.header.height));
 
@@ -509,15 +543,28 @@ async fn find_da_sync_start_height(
 
         if block.is_none() {
             // check if we need to decrement or increment the guess block height
-            let last_block_height = u32::try_from(
-                possible_blocks
-                    .last()
-                    .expect("vec of sequencer blocks from celestia should not be empty")
-                    .header
-                    .height
-                    .value(),
-            )
-            .expect("casting from u64 to u32 failed");
+            let last_block = possible_blocks.last();
+            let last_block_height = match last_block {
+                Some(block) => u32::try_from(block.header.height.value())
+                    .expect("casting from u64 to u32 failed"),
+                None => {
+                    guess_block_height = guess_block_height.increment();
+                    num_blocks_searched += 1;
+                    warn!(da_guess_block_height = %guess_block_height, "no sequencer data found in celestia block; skipping");
+                    continue;
+                }
+            };
+
+            // let last_block_height = u32::try_from(
+            //     possible_blocks
+            //         .last()
+            //         .expect("vec of sequencer blocks from celestia should not be empty")
+            //         .header
+            //         .height
+            //         .value(),
+            // )
+            // .expect("casting from u64 to u32 failed");
+
             match last_block_height.cmp(&firm_commit_height) {
                 std::cmp::Ordering::Less => {
                     debug!(

@@ -31,7 +31,7 @@ use crate::{
 #[instrument(name = "sync DA", skip_all)]
 pub(crate) async fn run(
     start_sync_height: u32,
-    end_sync_height: u32,
+    _end_sync_height: u32,
     namespace: Namespace,
     executor_tx: executor::Sender,
     client: HttpClient,
@@ -44,7 +44,7 @@ pub(crate) async fn run(
 
     info!("starting DA sync");
 
-    let mut height_stream = futures::stream::iter(start_sync_height..end_sync_height);
+    let mut height_stream = futures::stream::iter(start_sync_height..);
     let mut block_stream = FuturesOrdered::new();
 
     'sync: loop {
@@ -52,6 +52,7 @@ pub(crate) async fn run(
         let block_verifier = block_verifier.clone();
         select!(
             Some(height) = height_stream.next(), if block_stream.len() <= 20 => {
+                let height = Height::from(height);
                 block_stream.push_back(async move {
                     get_sequencer_data_from_da(height, client.clone(), namespace, block_verifier.clone()).await
                 }.map(move |res| (height, res)).boxed());
@@ -62,7 +63,8 @@ pub(crate) async fn run(
                     Err(error) => {
                         let error = error.as_ref() as &(dyn std::error::Error + 'static);
 
-                        warn!(height, error, "failed getting da block; rescheduling");
+                        warn!(da_block_height = %height.value(), error, "failed getting da block; rescheduling");
+                        // warn!(da_block_height = %height.value(), error, "failed getting da block; skipping");
 
                         block_stream.push_front(async move {
                             get_sequencer_data_from_da(height, client.clone(), namespace, block_verifier.clone()).await
@@ -86,8 +88,8 @@ pub(crate) async fn run(
     }
 }
 
-async fn get_sequencer_data_from_da(
-    height: u32,
+pub(crate) async fn get_sequencer_data_from_da(
+    height: Height,
     celestia_client: HttpClient,
     sequencer_namespace: Namespace,
     block_verifier: BlockVerifier,
@@ -101,7 +103,7 @@ async fn get_sequencer_data_from_da(
     let seq_block_data = match res {
         Ok(datas) => {
             verify_sequencer_blobs_and_assemble_rollups(
-                Height::from(height),
+                height,
                 datas,
                 celestia_client,
                 block_verifier.clone(),
@@ -112,6 +114,7 @@ async fn get_sequencer_data_from_da(
         Err(e) => {
             let error: &(dyn std::error::Error + 'static) = e.as_ref();
             warn!(
+                da_block_height = %height.value(),
                 error,
                 "task querying celestia for sequencer data returned with an error"
             );
