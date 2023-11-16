@@ -313,16 +313,18 @@ async fn get_executor(
         None
     };
 
-    Executor::new(
-        &cfg.execution_rpc_url,
-        ChainId::new(cfg.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
-        cfg.initial_sequencer_block_height,
-        block_rx,
-        shutdown_rx,
-        hook,
-    )
-    .await
-    .wrap_err("failed to construct executor")
+    Executor::builder()
+        .rollup_address(&cfg.execution_rpc_url)
+        .chain_id(
+            ChainId::new(cfg.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
+        )
+        .sequencer_height_with_first_rollup_block(cfg.initial_sequencer_block_height)
+        .block_channel(block_rx)
+        .shutdown(shutdown_rx)
+        .set_optimism_hook(hook)
+        .build()
+        .await
+        .wrap_err("failed to construct executor")
 }
 
 struct SignalReceiver {
