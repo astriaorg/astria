@@ -544,26 +544,14 @@ async fn find_da_sync_start_height(
         if block.is_none() {
             // check if we need to decrement or increment the guess block height
             let last_block = possible_blocks.last();
-            let last_block_height = match last_block {
-                Some(block) => u32::try_from(block.header.height.value())
-                    .expect("casting from u64 to u32 failed"),
-                None => {
-                    guess_block_height = guess_block_height.increment();
-                    num_blocks_searched += 1;
-                    warn!(da_guess_block_height = %guess_block_height, "no sequencer data found in celestia block; skipping");
-                    continue;
-                }
+            let last_block_height = if let Some(block) = last_block {
+                u32::try_from(block.header.height.value()).expect("casting from u64 to u32 failed")
+            } else {
+                guess_block_height = guess_block_height.increment();
+                num_blocks_searched += 1;
+                warn!(da_guess_block_height = %guess_block_height, "no sequencer data found in celestia block; skipping");
+                continue;
             };
-
-            // let last_block_height = u32::try_from(
-            //     possible_blocks
-            //         .last()
-            //         .expect("vec of sequencer blocks from celestia should not be empty")
-            //         .header
-            //         .height
-            //         .value(),
-            // )
-            // .expect("casting from u64 to u32 failed");
 
             match last_block_height.cmp(&firm_commit_height) {
                 std::cmp::Ordering::Less => {
