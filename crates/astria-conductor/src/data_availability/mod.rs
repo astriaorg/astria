@@ -154,9 +154,9 @@ impl Reader {
         shutdown: oneshot::Receiver<()>,
         sync_done: oneshot::Sender<()>,
     ) -> eyre::Result<Self> {
-        info!("creating da reader");
-
         use celestia_client::celestia_rpc::HeaderClient;
+
+        info!("creating da reader");
 
         let celestia_client = celestia_client::celestia_rpc::client::new_http(
             &celestia_config.node_url,
@@ -195,14 +195,15 @@ impl Reader {
 
     #[instrument(skip(self))]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        info!("starting reader event loop.");
-
         // Setup a dummy future that is always ready to be polled to be checked
         // if we don't need to sync from DA.
+        #[allow(clippy::unused_async)]
         async fn ready() -> eyre::Result<()> {
             Ok(())
         }
         let mut sync = ready().boxed().fuse();
+
+        info!("starting reader event loop.");
 
         // If the firm commit height is greater than 1, that means we have seen
         // sequencer blocks from DA before and we need to sync to the latest.

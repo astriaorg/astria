@@ -262,11 +262,11 @@ impl Conductor {
     }
 
     pub async fn run_until_stopped(mut self) {
+        use futures::future::FusedFuture as _;
+
         info!("starting conductor run loop");
         info!("seq sync status: {:?}", self.seq_sync_done.is_terminated());
         info!("da sync status: {:?}", self.da_sync_done.is_terminated());
-
-        use futures::future::FusedFuture as _;
 
         if self.execution_commit_level.is_soft_only() {
             info!("starting sequencer reader");
