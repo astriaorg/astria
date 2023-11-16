@@ -160,16 +160,17 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
 
     let (block_tx, block_rx) = mpsc::unbounded_channel();
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
-    let executor = Executor::new(
-        &server_url,
-        chain_id,
-        1, // genesis block is always block 0, first executable block will always be block 1
-        block_rx,
-        shutdown_rx,
-        pre_execution_hook,
-    )
-    .await
-    .unwrap();
+
+    let executor = Executor::builder()
+        .rollup_address(&server_url)
+        .chain_id(chain_id)
+        .sequencer_height_with_first_rollup_block(1)
+        .block_channel(block_rx)
+        .shutdown(shutdown_rx)
+        .set_optimism_hook(pre_execution_hook)
+        .build()
+        .await
+        .unwrap();
 
     MockEnvironment {
         _server: server,
