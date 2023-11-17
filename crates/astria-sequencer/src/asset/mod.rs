@@ -14,3 +14,8 @@ pub(crate) fn initialize_native_asset(native_asset: &str) {
         .set(denom)
         .expect("native asset should only be set once");
 }
+
+#[cfg(test)]
+pub(crate) fn get_native_asset() -> &'static Denom {
+    NATIVE_ASSET.get().expect("native asset should be set")
+}

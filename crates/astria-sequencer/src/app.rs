@@ -536,7 +536,7 @@ mod test {
             action::TRANSFER_FEE,
             state_ext::StateReadExt as _,
         },
-        asset::NATIVE_ASSET,
+        asset::get_native_asset,
         authority::state_ext::ValidatorSet,
         genesis::Account,
         sequence::calculate_fee,
@@ -640,10 +640,7 @@ mod test {
             assert_eq!(
                 balance,
                 app.state
-                    .get_account_balance(
-                        address,
-                        NATIVE_ASSET.get().expect("native asset must be set").id()
-                    )
+                    .get_account_balance(address, get_native_asset().id(),)
                     .await
                     .unwrap(),
             );
@@ -748,27 +745,27 @@ mod test {
                 TransferAction {
                     to: bob_address,
                     amount: value,
-                    asset_id: None,
+                    asset_id: *get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: None,
+            fee_asset_id: *get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
         app.deliver_tx(signed_tx).await.unwrap();
 
-        let native_asset = NATIVE_ASSET.get().expect("native asset must be set").id();
+        let native_asset = get_native_asset().id();
         assert_eq!(
             app.state
-                .get_account_balance(bob_address, native_asset,)
+                .get_account_balance(bob_address, native_asset)
                 .await
                 .unwrap(),
             value + 10u128.pow(19)
         );
         assert_eq!(
             app.state
-                .get_account_balance(alice_address, native_asset,)
+                .get_account_balance(alice_address, native_asset)
                 .await
                 .unwrap(),
             10u128.pow(19) - (value + TRANSFER_FEE),
@@ -801,27 +798,27 @@ mod test {
                 TransferAction {
                     to: bob_address,
                     amount: value,
-                    asset_id: Some(asset),
+                    asset_id: asset,
                 }
                 .into(),
             ],
-            fee_asset_id: None,
+            fee_asset_id: *get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
         app.deliver_tx(signed_tx).await.unwrap();
 
-        let native_asset = NATIVE_ASSET.get().expect("native asset must be set").id();
+        let native_asset = get_native_asset().id();
         assert_eq!(
             app.state
-                .get_account_balance(bob_address, native_asset,)
+                .get_account_balance(bob_address, native_asset)
                 .await
                 .unwrap(),
             10u128.pow(19), // genesis balance
         );
         assert_eq!(
             app.state
-                .get_account_balance(bob_address, &asset,)
+                .get_account_balance(bob_address, &asset)
                 .await
                 .unwrap(),
             value, // transferred amount
@@ -836,7 +833,7 @@ mod test {
         );
         assert_eq!(
             app.state
-                .get_account_balance(alice_address, &asset,)
+                .get_account_balance(alice_address, &asset)
                 .await
                 .unwrap(),
             0, // 0 since all funds of `asset` were transferred
@@ -863,11 +860,11 @@ mod test {
                 TransferAction {
                     to: bob,
                     amount: 0,
-                    asset_id: None,
+                    asset_id: *get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: None,
+            fee_asset_id: *get_native_asset().id(),
         };
         let signed_tx = tx.into_signed(&keypair);
         let res = app
@@ -896,7 +893,7 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset_id: None,
+            fee_asset_id: *get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -905,10 +902,7 @@ mod test {
 
         assert_eq!(
             app.state
-                .get_account_balance(
-                    alice_address,
-                    NATIVE_ASSET.get().expect("native asset must be set").id()
-                )
+                .get_account_balance(alice_address, get_native_asset().id(),)
                 .await
                 .unwrap(),
             10u128.pow(19) - fee,
@@ -937,7 +931,7 @@ mod test {
             actions: vec![proto::native::sequencer::v1alpha1::Action::ValidatorUpdate(
                 update.clone(),
             )],
-            fee_asset_id: None,
+            fee_asset_id: *get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -971,7 +965,7 @@ mod test {
                     },
                 ),
             ],
-            fee_asset_id: None,
+            fee_asset_id: *get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1003,7 +997,7 @@ mod test {
                     },
                 ),
             ],
-            fee_asset_id: None,
+            fee_asset_id: *get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1039,7 +1033,7 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset_id: None,
+            fee_asset_id: *get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1047,10 +1041,7 @@ mod test {
 
         assert_eq!(
             app.state
-                .get_account_balance(
-                    bob_address,
-                    NATIVE_ASSET.get().expect("native asset must be set").id()
-                )
+                .get_account_balance(bob_address, get_native_asset().id(),)
                 .await
                 .unwrap(),
             value + 10u128.pow(19)
@@ -1142,7 +1133,7 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset_id: None,
+            fee_asset_id: *get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1152,10 +1143,7 @@ mod test {
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 0);
         assert_eq!(
             app.state
-                .get_account_balance(
-                    alice_address,
-                    NATIVE_ASSET.get().expect("native asset must be set").id()
-                )
+                .get_account_balance(alice_address, get_native_asset().id(),)
                 .await
                 .unwrap(),
             10u128.pow(19),
@@ -1187,7 +1175,7 @@ mod test {
         app.init_chain(genesis_state, vec![]).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
-        let native_asset = NATIVE_ASSET.get().expect("native asset must be set").id();
+        let native_asset = get_native_asset().id();
         for Account {
             address,
             balance,
@@ -1196,7 +1184,7 @@ mod test {
             assert_eq!(
                 balance,
                 app.state
-                    .get_account_balance(address, native_asset,)
+                    .get_account_balance(address, native_asset)
                     .await
                     .unwrap()
             );
@@ -1213,7 +1201,7 @@ mod test {
         {
             assert_eq!(
                 snapshot
-                    .get_account_balance(address, native_asset,)
+                    .get_account_balance(address, native_asset)
                     .await
                     .unwrap(),
                 balance

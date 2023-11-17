@@ -213,9 +213,8 @@ impl SignedTransaction {
 pub struct UnsignedTransaction {
     pub nonce: u32,
     pub actions: Vec<Action>,
-    /// optional asset to use for fee payment.
-    /// if None, then the native asset is used.
-    pub fee_asset_id: Option<asset::Id>,
+    /// asset to use for fee payment.
+    pub fee_asset_id: asset::Id,
 }
 
 impl UnsignedTransaction {
@@ -242,7 +241,7 @@ impl UnsignedTransaction {
         raw::UnsignedTransaction {
             nonce,
             actions,
-            fee_asset_id: fee_asset_id.map(|asset| asset.as_bytes().to_vec()),
+            fee_asset_id: fee_asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -256,7 +255,7 @@ impl UnsignedTransaction {
         raw::UnsignedTransaction {
             nonce: *nonce,
             actions,
-            fee_asset_id: fee_asset_id.map(|asset| asset.as_bytes().to_vec()),
+            fee_asset_id: fee_asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -286,14 +285,9 @@ impl UnsignedTransaction {
             );
         }
 
-        let fee_asset_id = if let Some(fee_asset_id) = fee_asset_id {
-            Some(
-                asset::Id::try_from_slice(&fee_asset_id)
-                    .map_err(UnsignedTransactionError::fee_asset_id)?,
-            )
-        } else {
-            None
-        };
+        let fee_asset_id = asset::Id::try_from_slice(&fee_asset_id)
+            .map_err(UnsignedTransactionError::fee_asset_id)?;
+
         Ok(Self {
             nonce,
             actions,
@@ -578,9 +572,8 @@ impl SequenceAction {
 pub struct TransferAction {
     pub to: Address,
     pub amount: u128,
-    /// optional asset to be transferred.
-    /// if None, then the native asset is used.
-    pub asset_id: Option<asset::Id>,
+    // asset to be transferred.
+    pub asset_id: asset::Id,
 }
 
 impl TransferAction {
@@ -594,7 +587,7 @@ impl TransferAction {
         raw::TransferAction {
             to: to.to_vec(),
             amount: Some(amount.into()),
-            asset_id: asset_id.map(|asset_id| asset_id.as_bytes().to_vec()),
+            asset_id: asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -608,7 +601,7 @@ impl TransferAction {
         raw::TransferAction {
             to: to.to_vec(),
             amount: Some((*amount).into()),
-            asset_id: asset_id.map(|asset_id| asset_id.as_bytes().to_vec()),
+            asset_id: asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -626,11 +619,8 @@ impl TransferAction {
         } = proto;
         let to = Address::try_from_slice(&to).map_err(TransferActionError::address)?;
         let amount = amount.map_or(0, Into::into);
-        let asset_id = if let Some(asset_id) = asset_id {
-            Some(asset::Id::try_from_slice(&asset_id).map_err(TransferActionError::asset_id)?)
-        } else {
-            None
-        };
+        let asset_id =
+            asset::Id::try_from_slice(&asset_id).map_err(TransferActionError::asset_id)?;
 
         Ok(Self {
             to,

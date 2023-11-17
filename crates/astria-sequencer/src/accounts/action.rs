@@ -15,7 +15,6 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
-    asset::NATIVE_ASSET,
     transaction::action_handler::ActionHandler,
 };
 
@@ -30,8 +29,7 @@ impl ActionHandler for TransferAction {
         from: Address,
         fee_asset_id: &asset::Id,
     ) -> Result<()> {
-        let native_asset = *NATIVE_ASSET.get().expect("native asset must be set").id();
-        let transfer_asset_id = self.asset_id.unwrap_or(native_asset);
+        let transfer_asset_id = self.asset_id;
 
         let from_fee_balance = state
             .get_account_balance(from, fee_asset_id)
@@ -76,8 +74,7 @@ impl ActionHandler for TransferAction {
         from: Address,
         fee_asset_id: &asset::Id,
     ) -> Result<()> {
-        let native_asset = *NATIVE_ASSET.get().expect("native asset must be set").id();
-        let transfer_asset_id = self.asset_id.unwrap_or(native_asset);
+        let transfer_asset_id = self.asset_id;
 
         let from_balance = state
             .get_account_balance(from, &transfer_asset_id)

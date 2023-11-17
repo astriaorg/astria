@@ -18,12 +18,9 @@ use proto::native::sequencer::v1alpha1::{
 };
 use tracing::instrument;
 
-use crate::{
-    accounts::state_ext::{
-        StateReadExt,
-        StateWriteExt,
-    },
-    asset::NATIVE_ASSET,
+use crate::accounts::state_ext::{
+    StateReadExt,
+    StateWriteExt,
 };
 
 pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
@@ -53,10 +50,7 @@ pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
     state: &S,
 ) -> anyhow::Result<()> {
     let signer_address = Address::from_verification_key(tx.verification_key());
-    let fee_asset_id = tx
-        .unsigned_transaction()
-        .fee_asset_id
-        .unwrap_or(*NATIVE_ASSET.get().expect("native asset must be set").id());
+    let fee_asset_id = tx.unsigned_transaction().fee_asset_id;
     tx.unsigned_transaction()
         .check_stateful(state, signer_address, &fee_asset_id)
         .await
@@ -67,10 +61,7 @@ pub(crate) async fn execute<S: StateWriteExt>(
     state: &mut S,
 ) -> anyhow::Result<()> {
     let signer_address = Address::from_verification_key(tx.verification_key());
-    let fee_asset_id = tx
-        .unsigned_transaction()
-        .fee_asset_id
-        .unwrap_or(*NATIVE_ASSET.get().expect("native asset must be set").id());
+    let fee_asset_id = tx.unsigned_transaction().fee_asset_id;
     tx.unsigned_transaction()
         .execute(state, signer_address, &fee_asset_id)
         .await

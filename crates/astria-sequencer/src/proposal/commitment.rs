@@ -92,9 +92,15 @@ mod test {
     use rand::rngs::OsRng;
 
     use super::*;
+    use crate::asset::{
+        get_native_asset,
+        initialize_native_asset,
+    };
 
     #[test]
     fn generate_sequence_actions_commitment_should_ignore_transfers() {
+        initialize_native_asset("nria");
+
         let sequence_action = SequenceAction {
             chain_id: b"testchainid".to_vec(),
             data: b"helloworld".to_vec(),
@@ -102,14 +108,14 @@ mod test {
         let transfer_action = TransferAction {
             to: Address([0u8; 20]),
             amount: 1,
-            asset_id: None,
+            asset_id: *get_native_asset().id(),
         };
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![sequence_action.clone().into(), transfer_action.into()],
-            fee_asset_id: None,
+            fee_asset_id: *get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&signing_key);
@@ -123,7 +129,7 @@ mod test {
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![sequence_action.into()],
-            fee_asset_id: None,
+            fee_asset_id: *get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&signing_key);
@@ -142,6 +148,7 @@ mod test {
         // this tests that the commitment generated is what is expected via a test vector.
         // this test will only break in the case of a breaking change to the commitment scheme,
         // thus if this test needs to be updated, we should cut a new release.
+        initialize_native_asset("nria");
 
         let sequence_action = SequenceAction {
             chain_id: b"testchainid".to_vec(),
@@ -150,14 +157,14 @@ mod test {
         let transfer_action = TransferAction {
             to: Address([0u8; 20]),
             amount: 1,
-            asset_id: None,
+            asset_id: *get_native_asset().id(),
         };
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![sequence_action.into(), transfer_action.into()],
-            fee_asset_id: None,
+            fee_asset_id: *get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&signing_key);

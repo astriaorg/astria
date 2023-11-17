@@ -251,7 +251,10 @@ mod test {
     };
 
     use super::*;
-    use crate::proposal::commitment::generate_sequence_actions_commitment;
+    use crate::{
+        asset::get_native_asset,
+        proposal::commitment::generate_sequence_actions_commitment,
+    };
 
     fn make_unsigned_tx() -> UnsignedTransaction {
         UnsignedTransaction {
@@ -263,7 +266,7 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset_id: None,
+            fee_asset_id: *get_native_asset().id(),
         }
     }
 
