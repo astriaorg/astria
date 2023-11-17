@@ -7,6 +7,7 @@ use std::{
 pub const DEFAULT_NATIVE_ASSET_DENOM: &str = "nria";
 
 /// Returns the default sequencer asset ID.
+#[must_use]
 pub fn default_native_asset_id() -> Id {
     Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM).id()
 }
