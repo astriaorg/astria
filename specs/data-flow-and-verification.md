@@ -56,13 +56,13 @@ pub struct SequencerBlockData {
     action_tree_root: [u8; 32],
     /// The inclusion proof that the action tree root is included
     /// in `Header::data_hash`.
-    action_tree_root_inclusion_proof: InclusionProof,
+    action_tree_root_inclusion_proof: merkle::Proof,
     /// The commitment to the chain IDs of the rollup data.
     /// The merkle root of the tree where the leaves are the chain IDs.
     chain_ids_commitment: [u8; 32],
     /// The inclusion proof that the chain IDs commitment is included
     /// in `Header::data_hash`.
-    chain_ids_commitment_inclusion_proof: InclusionProof,
+    chain_ids_commitment_inclusion_proof: merkle::Proof,
 }
 ```
 

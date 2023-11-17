@@ -6,13 +6,13 @@ members = [
   "crates/astria-conductor",
   "crates/astria-config",
   "crates/astria-cli",
+  "crates/astria-merkle",
   "crates/astria-proto",
   "crates/astria-sequencer",
   "crates/astria-sequencer-client",
   "crates/astria-sequencer-relayer",
   "crates/astria-sequencer-types",
   "crates/astria-sequencer-utils",
-  "crates/astria-sequencer-validation",
   "crates/astria-telemetry",
   "crates/astria-test-utils",
 ]
@@ -30,6 +30,7 @@ ed25519-consensus = "2.1.0"
 eyre = "0.6"
 futures = "0.3"
 hex = "0.4"
+hex-literal = "0.4.1"
 humantime = "2.1.0"
 hyper = "0.14"
 jsonrpsee = { version = "0.20" }
