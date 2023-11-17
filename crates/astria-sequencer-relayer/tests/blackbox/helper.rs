@@ -8,7 +8,6 @@ use astria_sequencer_relayer::{
     telemetry,
     SequencerRelayer,
 };
-use astria_sequencer_validation::MerkleTree;
 use celestia_client::celestia_types::{
     blob::SubmitOptions,
     Blob,
@@ -368,11 +367,10 @@ fn create_block_response(
     .into_signed(signing_key)
     .into_raw()
     .encode_to_vec();
-    let action_tree =
-        astria_sequencer_validation::MerkleTree::from_leaves(vec![signed_tx_bytes.clone()]);
-    let chain_ids_commitment = MerkleTree::from_leaves(vec![chain_id]).root();
+    let action_tree_root = merkle::Tree::from_leaves(std::iter::once(&signed_tx_bytes)).root();
+    let chain_ids_commitment = merkle::Tree::from_leaves(std::iter::once(chain_id)).root();
     let data = vec![
-        action_tree.root().to_vec(),
+        action_tree_root.to_vec(),
         chain_ids_commitment.to_vec(),
         signed_tx_bytes,
     ];

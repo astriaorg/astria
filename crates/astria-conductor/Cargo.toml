@@ -34,6 +34,7 @@ tryhard = { workspace = true }
 
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 config = { package = "astria-config", path = "../astria-config" }
+merkle = { package = "astria-merkle", path = "../astria-merkle" }
 proto = { package = "astria-proto", path = "../astria-proto", features = [
   "client",
 ] }
@@ -41,7 +42,6 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
   "websocket",
 ] }
 astria-sequencer-types = { path = "../astria-sequencer-types" }
-sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
