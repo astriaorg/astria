@@ -74,8 +74,6 @@ impl BlockVerifier {
             .await
             .wrap_err("failed to get validator set")?;
 
-        // get validator set for the previous height, as the commit contained
-        // in the block is for the previous height
         let commit = client
             .commit(height)
             .await
