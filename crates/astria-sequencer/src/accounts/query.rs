@@ -15,7 +15,7 @@ use tendermint::{
 
 use crate::{
     accounts::state_ext::StateReadExt as _,
-    asset::NATIVE_ASSET,
+    asset::get_native_asset,
     state_ext::StateReadExt as _,
 };
 
@@ -35,10 +35,7 @@ pub(crate) async fn balance_request(
 
     // TODO: update query to take optional `asset` parameter
     let balance = match snapshot
-        .get_account_balance(
-            address,
-            NATIVE_ASSET.get().expect("native asset must be set").id(),
-        )
+        .get_account_balance(address, &get_native_asset().id())
         .await
     {
         Ok(balance) => balance,

@@ -161,7 +161,10 @@ mod test {
     use super::Info;
     use crate::{
         accounts::state_ext::StateWriteExt as _,
-        asset::NATIVE_ASSET,
+        asset::{
+            get_native_asset,
+            NATIVE_ASSET,
+        },
         state_ext::StateWriteExt as _,
     };
 
@@ -182,11 +185,7 @@ mod test {
         )
         .unwrap();
         state
-            .put_account_balance(
-                address,
-                NATIVE_ASSET.get().expect("native asset must be set").id(),
-                1000,
-            )
+            .put_account_balance(address, &get_native_asset().id(), 1000)
             .unwrap();
         state.put_block_height(height);
 

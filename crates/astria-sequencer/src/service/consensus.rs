@@ -266,7 +266,7 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset_id: *get_native_asset().id(),
+            fee_asset_id: get_native_asset().id(),
         }
     }
 

@@ -1,7 +1,8 @@
-use once_cell::sync::OnceCell;
+use std::sync::OnceLock;
+
 use proto::native::sequencer::v1alpha1::asset::Denom;
 
-pub(crate) static NATIVE_ASSET: OnceCell<Denom> = OnceCell::new();
+pub(crate) static NATIVE_ASSET: OnceLock<Denom> = OnceLock::new();
 
 pub(crate) fn initialize_native_asset(native_asset: &str) {
     if NATIVE_ASSET.get().is_some() {
@@ -15,7 +16,6 @@ pub(crate) fn initialize_native_asset(native_asset: &str) {
         .expect("native asset should only be set once");
 }
 
-#[cfg(test)]
 pub(crate) fn get_native_asset() -> &'static Denom {
     NATIVE_ASSET.get().expect("native asset should be set")
 }

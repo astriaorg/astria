@@ -20,13 +20,13 @@ impl Denom {
 
         Self {
             id,
-            base_denom: base_denom.to_owned(),
+            base_denom: base_denom.to_string(),
         }
     }
 
     #[must_use]
-    pub fn id(&self) -> &Id {
-        &self.id
+    pub fn id(&self) -> Id {
+        self.id
     }
 
     #[must_use]
