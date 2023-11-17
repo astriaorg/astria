@@ -71,15 +71,6 @@ impl RollupDeploymentConfig {
     pub fn get_rollup_name(&self) -> String {
         self.rollup.name.clone()
     }
-
-    #[must_use]
-    pub fn get_initial_sequencer_height(&self) -> String {
-        self.sequencer.initial_block_height.to_string()
-    }
-
-    pub fn set_initial_sequencer_height(&mut self, new_height: String) {
-        self.sequencer.initial_block_height = new_height;
-    }
 }
 
 impl From<&ConfigCreateArgs> for IngressConfig {
