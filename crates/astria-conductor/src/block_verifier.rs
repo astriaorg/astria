@@ -335,6 +335,7 @@ mod test {
         account,
         block::Commit,
         validator,
+        validator::Info as Validator,
         Hash,
     };
 
