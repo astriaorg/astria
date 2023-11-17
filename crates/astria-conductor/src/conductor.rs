@@ -298,24 +298,6 @@ impl Conductor {
                     info!("reloading is currently not implemented");
                 }
 
-                // // Start the data availability reader
-                // res = &mut self.da_sync_done, if !self.da_sync_done.is_terminated() => {
-                //     match res {
-                //         Ok(()) => info!("received sync-complete signal from DA reader"),
-                //         Err(e) => {
-                //             let error = &e as &(dyn std::error::Error + 'static);
-                //             warn!(error, "DA sync-complete channel failed prematurely");
-                //         }
-                //     }
-                //     if let Some(data_availability_reader) = self.data_availability_reader.take() {
-                //         info!("starting DA reader");
-                //         self.tasks.spawn(
-                //             Self::DATA_AVAILABILITY,
-                //             data_availability_reader.run_until_stopped(),
-                //         );
-                //     }
-                // }
-
                 // Start the sequencer reader
                 res = &mut self.da_sync_done, if !self.da_sync_done.is_terminated() => {
                     match res {
