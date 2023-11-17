@@ -23,7 +23,6 @@ use tendermint::{
     account,
     block,
     chain,
-    validator::Info as Validator,
     vote::{
         self,
         CanonicalVote,
@@ -122,20 +121,6 @@ fn validate_sequencer_namespace_data(
         chain_ids_commitment,
         chain_ids_commitment_inclusion_proof,
     } = data;
-
-    // find proposer address for this height
-    let expected_proposer_address = account::Id::from(
-        get_proposer(current_validator_set)
-            .wrap_err("failed to get proposer from validator set")?
-            .pub_key,
-    );
-    // check if the proposer address matches the sequencer block's proposer
-    let received_proposer_address = header.proposer_address;
-    ensure!(
-        received_proposer_address == expected_proposer_address,
-        "proposer address mismatch: expected `{expected_proposer_address}`, got \
-         `{received_proposer_address}`",
-    );
 
     // verify that the validator votes on the block have >2/3 voting power
     let chain_id = header.chain_id.clone();
@@ -337,18 +322,6 @@ fn verify_vote_signature(
         )
         .wrap_err("failed to verify vote signature")?;
     Ok(())
-}
-
-/// returns the proposer given the current set by ordering the validators by proposer priority.
-/// the validator with the highest proposer priority is the proposer.
-/// TODO: could there ever be two validators with the same priority?
-fn get_proposer(validator_set: &validators::Response) -> eyre::Result<Validator> {
-    validator_set
-        .validators
-        .iter()
-        .max_by(|v1, v2| v1.proposer_priority.cmp(&v2.proposer_priority))
-        .cloned()
-        .ok_or_else(|| eyre::eyre!("no proposer found"))
 }
 
 #[cfg(test)]
