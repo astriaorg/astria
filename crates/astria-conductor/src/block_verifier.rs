@@ -429,7 +429,7 @@ mod test {
         let action_tree_root = action_tree.root();
         let chain_ids_commitment = merkle::Tree::new().root();
 
-        let tree = astria_sequencer_types::cometbft::merkle_tree_from_transactions([
+        let tree = sequencer_types::cometbft::merkle_tree_from_transactions([
             action_tree_root,
             chain_ids_commitment,
         ]);
@@ -437,7 +437,7 @@ mod test {
         let action_tree_root_inclusion_proof = tree.construct_proof(0).unwrap();
         let chain_ids_commitment_inclusion_proof = tree.construct_proof(1).unwrap();
 
-        let mut header = astria_sequencer_types::test_utils::default_header();
+        let mut header = sequencer_types::test_utils::default_header();
         let height = header.height.value().try_into().unwrap();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
@@ -466,13 +466,13 @@ mod test {
         let test_chain_id = b"test-chain";
         let grouped_txs = BTreeMap::from([(test_chain_id, vec![test_tx.clone()])]);
         let action_tree =
-            astria_sequencer_types::sequencer_block_data::generate_merkle_tree_from_grouped_txs(
+            sequencer_types::sequencer_block_data::generate_merkle_tree_from_grouped_txs(
                 &grouped_txs,
             );
         let action_tree_root = action_tree.root();
         let chain_ids_commitment = merkle::Tree::from_leaves(std::iter::once(test_chain_id)).root();
 
-        let tree = astria_sequencer_types::cometbft::merkle_tree_from_transactions([
+        let tree = sequencer_types::cometbft::merkle_tree_from_transactions([
             action_tree_root,
             chain_ids_commitment,
         ]);
@@ -480,7 +480,7 @@ mod test {
         let action_tree_root_inclusion_proof = tree.construct_proof(0).unwrap();
         let chain_ids_commitment_inclusion_proof = tree.construct_proof(1).unwrap();
 
-        let mut header = astria_sequencer_types::test_utils::default_header();
+        let mut header = sequencer_types::test_utils::default_header();
         let height = header.height.value().try_into().unwrap();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
@@ -492,9 +492,7 @@ mod test {
         let sequencer_namespace_data = SequencerNamespaceData {
             block_hash,
             header,
-            rollup_chain_ids: vec![
-                astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
-            ],
+            rollup_chain_ids: vec![sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap()],
             action_tree_root,
             action_tree_root_inclusion_proof,
             chain_ids_commitment,
@@ -503,7 +501,7 @@ mod test {
 
         let rollup_namespace_data = RollupNamespaceData {
             block_hash,
-            chain_id: astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
+            chain_id: sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
             rollup_txs: vec![test_tx],
             inclusion_proof: action_tree.construct_proof(0).unwrap(),
         };
