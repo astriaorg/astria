@@ -37,13 +37,13 @@ celestia-client = { package = "astria-celestia-client", path = "../astria-celest
 astria-sequencer-types = { path = "../astria-sequencer-types" }
 astria-optimism = { path = "../astria-optimism" }
 config = { package = "astria-config", path = "../astria-config" }
+merkle = { package = "astria-merkle", path = "../astria-merkle" }
 proto = { package = "astria-proto", path = "../astria-proto", features = [
   "client",
 ] }
 sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
   "websocket",
 ] }
-sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
