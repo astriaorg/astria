@@ -319,10 +319,10 @@ impl Conductor {
                 // Start the sequencer reader
                 res = &mut self.da_sync_done, if !self.da_sync_done.is_terminated() => {
                     match res {
-                        Ok(()) => info!("received sync-complete signal from sequencer reader"),
+                        Ok(()) => info!("received sync-complete signal from da reader"),
                         Err(e) => {
                             let error = &e as &(dyn std::error::Error + 'static);
-                            warn!(error, "sequencer sync-complete channel failed prematurely");
+                            warn!(error, "da sync-complete channel failed prematurely");
                         }
                     }
                     if let Some(sequencer_reader) = self.sequencer_reader.take() {

@@ -31,7 +31,7 @@ use crate::{
 #[instrument(name = "sync DA", skip_all)]
 pub(crate) async fn run(
     start_sync_height: u32,
-    _end_sync_height: u32,
+    end_sync_height: u32,
     namespace: Namespace,
     executor_tx: executor::Sender,
     client: HttpClient,
@@ -42,9 +42,9 @@ pub(crate) async fn run(
         StreamExt as _,
     };
 
-    info!("starting DA sync");
+    info!("running DA sync");
 
-    let mut height_stream = futures::stream::iter(start_sync_height..);
+    let mut height_stream = futures::stream::iter(start_sync_height..end_sync_height);
     let mut block_stream = FuturesOrdered::new();
 
     'sync: loop {

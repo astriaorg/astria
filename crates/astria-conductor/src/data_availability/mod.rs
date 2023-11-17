@@ -214,7 +214,8 @@ impl Reader {
         // if self.firm_commit_height > 1 {
         let current_block_height = u32::try_from(self.current_block_height.value())
             .expect("casting from u64 to u32 failed");
-        if current_block_height / 5 > 1 {
+        info!(current_block_height = %current_block_height, initial_da_block_height = %self.initial_da_block_height);
+        if (current_block_height - self.initial_da_block_height) >= 1 {
             info!("starting da sync");
             let sync_start_height = find_da_sync_start_height(
                 self.celestia_client.clone(),
@@ -247,8 +248,8 @@ impl Reader {
             .fuse();
         } else {
             info!(
-                "firm commit height is less than 1 DA block worth of sequencer blocks, skipping \
-                 da sync"
+                "current da block height is the same as the initial da block height; skipping da \
+                 sync"
             );
         }
 
