@@ -71,9 +71,6 @@ impl config::Config for Config {
     const PREFIX: &'static str = "ASTRIA_CONDUCTOR_";
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Optimism {}
-
 #[cfg(test)]
 mod tests {
     use super::Config;

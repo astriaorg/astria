@@ -20,7 +20,7 @@ abigen!(
 );
 
 /// Returns a new read-only [`OptimismPortal`] contract instance.
-pub fn get_optimism_portal_read_only<P: JsonRpcClient>(
+pub fn make_optimism_portal_read_only<P: JsonRpcClient>(
     provider: Arc<Provider<P>>,
     contract_address: Address,
 ) -> OptimismPortal<Provider<P>> {
@@ -28,7 +28,7 @@ pub fn get_optimism_portal_read_only<P: JsonRpcClient>(
 }
 
 /// Returns a new [`OptimismPortal`] contract instance with a signer.
-pub fn get_optimism_portal_with_signer<P: JsonRpcClient>(
+pub fn make_optimism_portal_with_signer<P: JsonRpcClient>(
     provider: Arc<Provider<P>>,
     wallet: Wallet<SigningKey>,
     contract_address: Address,
@@ -88,7 +88,7 @@ mod test {
 
         // get contract object
         let to = wallet.address();
-        let contract = get_optimism_portal_with_signer(provider, wallet, contract_address);
+        let contract = make_optimism_portal_with_signer(provider, wallet, contract_address);
 
         // submit deposit transaction
         let value = 10_000_000_000_000_000u128;

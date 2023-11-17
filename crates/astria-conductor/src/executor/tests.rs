@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use astria_optimism::test_utils::deploy_mock_optimism_portal;
+use ::optimism::test_utils::deploy_mock_optimism_portal;
 use ethers::{
     prelude::*,
     utils::AnvilInstance,
@@ -141,7 +141,7 @@ fn hash(s: &[u8]) -> Vec<u8> {
 fn get_test_block_subset() -> SequencerBlockSubset {
     SequencerBlockSubset {
         block_hash: hash(b"block1").try_into().unwrap(),
-        header: astria_sequencer_types::test_utils::default_header(),
+        header: sequencer_types::test_utils::default_header(),
         rollup_transactions: vec![],
     }
 }
@@ -180,13 +180,15 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
     }
 }
 
-async fn start_mock_with_optimism_handler() -> (
-    MockEnvironment,
-    Address,
-    Arc<Provider<Ws>>,
-    Wallet<SigningKey>,
-    AnvilInstance,
-) {
+struct MockEnvironmentWithEthereum {
+    environment: MockEnvironment,
+    optimism_portal_address: Address,
+    provider: Arc<Provider<Ws>>,
+    wallet: Wallet<SigningKey>,
+    anvil: AnvilInstance,
+}
+
+async fn start_mock_with_optimism_handler() -> MockEnvironmentWithEthereum {
     let (contract_address, provider, wallet, anvil) = deploy_mock_optimism_portal().await;
 
     let pre_execution_hook = Some(crate::executor::optimism::Handler::new(
@@ -194,13 +196,13 @@ async fn start_mock_with_optimism_handler() -> (
         contract_address,
         1,
     ));
-    (
-        start_mock(pre_execution_hook).await,
-        contract_address,
+    MockEnvironmentWithEthereum {
+        environment: start_mock(pre_execution_hook).await,
+        optimism_portal_address: contract_address,
         provider,
         wallet,
         anvil,
-    )
+    }
 }
 
 #[tokio::test]
@@ -343,12 +345,17 @@ mod optimism_tests {
 
     #[tokio::test]
     async fn deposit_events_are_converted_and_executed() {
-        use astria_optimism::contract::*;
+        use ::optimism::contract::*;
 
         // make a deposit transaction
-        let (mut mock, contract_address, provider, wallet, _anvil) =
-            start_mock_with_optimism_handler().await;
-        let contract = get_optimism_portal_with_signer(provider.clone(), wallet, contract_address);
+        let MockEnvironmentWithEthereum {
+            environment: mut mock,
+            optimism_portal_address: contract_address,
+            provider,
+            wallet,
+            anvil: _anvil,
+        } = start_mock_with_optimism_handler().await;
+        let contract = make_optimism_portal_with_signer(provider.clone(), wallet, contract_address);
         let to = Address::zero();
         let value = U256::from(100);
         let receipt = make_deposit_transaction(&contract, Some(to), value, None)

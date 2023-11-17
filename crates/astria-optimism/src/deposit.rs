@@ -143,8 +143,8 @@ mod test {
 
         // get contract objects
         let to = wallet.address();
-        let contract = get_optimism_portal_with_signer(provider.clone(), wallet, contract_address);
-        let contract_read_only = get_optimism_portal_read_only(provider, contract_address);
+        let contract = make_optimism_portal_with_signer(provider.clone(), wallet, contract_address);
+        let contract_read_only = make_optimism_portal_read_only(provider, contract_address);
 
         let (tx, rx) = oneshot::channel();
         tokio::spawn(async move {

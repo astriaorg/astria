@@ -2,7 +2,7 @@
 //! and converting them to deposit transactions to be executed on a rollup based on
 //! the OP-Stack.
 //!
-//! It works by querying for deposit events from the `OptimismPortal` contract.
+//! It works by querying for deposit events from the [`OptimismPortal`] contract.
 //! When `populate_rollup_transactions` is called, it queries for all deposit events
 //! since the last call, converts them to deposit transactions, and prepends them to the
 //! other transactions for that rollup block.
@@ -11,24 +11,22 @@
 //! funds which were deposited (locked) on the L1 on the L2 to the specified address.
 use std::sync::Arc;
 
-use astria_optimism::{
-    contract::{
-        OptimismPortal,
-        TransactionDepositedFilter,
-    },
-    deposit::convert_deposit_event_to_deposit_tx,
-};
 use color_eyre::eyre::Context;
 use ethers::{
     prelude::*,
     types::transaction::eip2718::TypedTransaction,
 };
+use optimism::{
+    contract::{
+        make_optimism_portal_read_only,
+        OptimismPortal,
+        TransactionDepositedFilter,
+    },
+    deposit::convert_deposit_event_to_deposit_tx,
+};
 use tracing::debug;
 
-use super::{
-    eyre,
-    eyre::Result,
-};
+use super::eyre::Result;
 
 pub(crate) struct Handler {
     provider: Arc<Provider<Ws>>,
@@ -42,7 +40,7 @@ impl Handler {
         optimism_portal_contract_address: Address,
         initial_ethereum_l1_block_height: u64,
     ) -> Self {
-        let optimism_portal_contract = astria_optimism::contract::get_optimism_portal_read_only(
+        let optimism_portal_contract = make_optimism_portal_read_only(
             ethereum_provider.clone(),
             optimism_portal_contract_address,
         );
@@ -65,7 +63,6 @@ impl Handler {
         let events = event_filter
             .query_with_meta()
             .await
-            .map_err(|e| eyre::eyre!(e))
             .wrap_err("failed to query event filter")?;
 
         // event filter `from` and `to` blocks are inclusive (ie. we read events from those blocks),

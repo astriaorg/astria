@@ -5,7 +5,6 @@ use std::{
     time::Duration,
 };
 
-use astria_sequencer_types::ChainId;
 use base64::{
     display::Base64Display,
     engine::general_purpose::STANDARD,
@@ -15,8 +14,13 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use ethers::prelude::*;
+use ethers::prelude::{
+    Address,
+    Provider,
+    Ws,
+};
 use futures::future::Fuse;
+use sequencer_types::ChainId;
 use tokio::{
     select,
     signal::unix::{
@@ -25,9 +29,7 @@ use tokio::{
     },
     sync::{
         mpsc,
-        mpsc::UnboundedReceiver,
         oneshot,
-        oneshot::Receiver,
         watch,
     },
     task::{
@@ -104,7 +106,9 @@ impl Conductor {
             let (block_tx, block_rx) = mpsc::unbounded_channel();
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-            let executor = get_executor(&cfg, block_rx, shutdown_rx).await?;
+            let executor = make_executor(&cfg, block_rx, shutdown_rx)
+                .await
+                .wrap_err("failed to construct executor")?;
             let executable_sequencer_block_height = executor.get_executable_block_height();
 
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
@@ -314,31 +318,13 @@ impl Conductor {
     }
 }
 
-async fn get_executor(
+async fn make_executor(
     cfg: &Config,
-    block_rx: UnboundedReceiver<crate::executor::ExecutorCommand>,
-    shutdown_rx: Receiver<()>,
+    block_rx: mpsc::UnboundedReceiver<crate::executor::ExecutorCommand>,
+    shutdown_rx: oneshot::Receiver<()>,
 ) -> eyre::Result<Executor> {
     let hook = if cfg.enable_optimism {
-        let provider = Arc::new(
-            Provider::<Ws>::connect(cfg.ethereum_l1_url.clone())
-                .await
-                .wrap_err("failed to connect to provider")?,
-        );
-        let contract_address = Address::try_from(
-            TryInto::<[u8; 20]>::try_into(
-                hex::decode(cfg.optimism_portal_contract_address.clone())
-                    .wrap_err("failed to decode contract address as hex")?,
-            )
-            .map_err(|_| eyre::eyre!("contract address must be 20 bytes"))?,
-        )
-        .wrap_err("failed to parse contract address")?;
-
-        Some(crate::executor::optimism::Handler::new(
-            provider,
-            contract_address,
-            cfg.initial_ethereum_l1_block_height,
-        ))
+        Some(make_optimism_hook(cfg).await?)
     } else {
         None
     };
@@ -355,6 +341,28 @@ async fn get_executor(
         .build()
         .await
         .wrap_err("failed to construct executor")
+}
+
+async fn make_optimism_hook(cfg: &Config) -> eyre::Result<crate::executor::optimism::Handler> {
+    let provider = Arc::new(
+        Provider::<Ws>::connect(cfg.ethereum_l1_url.clone())
+            .await
+            .wrap_err("failed to connect to provider")?,
+    );
+    let contract_address: Address = hex::decode(cfg.optimism_portal_contract_address.clone())
+        .wrap_err("failed to decode contract address as hex")
+        .and_then(|bytes| {
+            TryInto::<[u8; 20]>::try_into(bytes)
+                .map_err(|_| eyre::eyre!("contract address must be 20 bytes"))
+        })
+        .wrap_err("failed to parse contract address")?
+        .into();
+
+    Ok(crate::executor::optimism::Handler::new(
+        provider,
+        contract_address,
+        cfg.initial_ethereum_l1_block_height,
+    ))
 }
 
 struct SignalReceiver {

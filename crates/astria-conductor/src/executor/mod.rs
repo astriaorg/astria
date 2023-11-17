@@ -1,9 +1,5 @@
 use std::collections::HashMap;
 
-use astria_sequencer_types::{
-    ChainId,
-    SequencerBlockData,
-};
 use color_eyre::eyre::{
     self,
     bail,
@@ -16,6 +12,10 @@ use proto::generated::execution::v1alpha2::{
     execution_service_client::ExecutionServiceClient,
     Block,
     CommitmentState,
+};
+use sequencer_types::{
+    ChainId,
+    SequencerBlockData,
 };
 use tendermint::{
     Hash,
@@ -355,7 +355,7 @@ impl Executor {
 
                 shutdown = &mut self.shutdown => {
                     if let Err(e) = shutdown {
-                        let error: &(dyn std::error::Error + 'static) = &e;
+                        let error: &(dyn std::error::Error) = &e;
                         warn!(error, "shutdown channel return with error; shutting down");
                     } else {
                         info!("received shutdown signal; shutting down");
@@ -365,7 +365,7 @@ impl Executor {
 
                 cmd = self.block_channel.recv() => {
                     if let Err(e) = self.handle_executor_command(cmd).await {
-                        let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                        let error: &(dyn std::error::Error) = e.as_ref();
                         error!(error, "failed to handle executor command, breaking from executor loop");
                         break;
                     }
@@ -399,12 +399,12 @@ impl Executor {
                 match self.execute_block(block_subset).await {
                     Ok(executed_block) => {
                         if let Err(e) = self.update_soft_commitment(executed_block.clone()).await {
-                            let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                            let error: &(dyn std::error::Error) = e.as_ref();
                             error!(height = height, error, "failed to update soft commitment");
                         }
                     }
                     Err(e) => {
-                        let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                        let error: &(dyn std::error::Error) = e.as_ref();
                         error!(height = height, error, "failed to execute block");
                     }
                 }
@@ -412,7 +412,7 @@ impl Executor {
 
             ExecutorCommand::FromCelestia(blocks) => {
                 if let Err(e) = self.execute_and_finalize_blocks_from_celestia(blocks).await {
-                    let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                    let error: &(dyn std::error::Error) = e.as_ref();
                     error!(error, "failed to finalize block; stopping executor");
                     return Err(e);
                 }
