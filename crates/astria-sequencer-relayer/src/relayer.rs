@@ -337,7 +337,7 @@ impl Relayer {
         };
         use tendermint_rpc::Client as _;
 
-        debug!("attempting to connect to data availability layer",);
+        debug!("attempting to connect to sequencer",);
         let backoff = ExponentialBuilder::default()
             .with_min_delay(delay)
             .with_factor(factor)
