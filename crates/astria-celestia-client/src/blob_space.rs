@@ -5,7 +5,6 @@ use celestia_types::nmt::{
     NS_ID_V0_SIZE,
 };
 use sequencer_types::ChainId;
-use sequencer_validation::InclusionProof;
 use serde::{
     Deserialize,
     Serialize,
@@ -46,9 +45,9 @@ pub struct SequencerNamespaceData {
     pub header: Header,
     pub rollup_chain_ids: Vec<ChainId>,
     pub action_tree_root: [u8; 32],
-    pub action_tree_root_inclusion_proof: InclusionProof,
+    pub action_tree_root_inclusion_proof: merkle::Proof,
     pub chain_ids_commitment: [u8; 32],
-    pub chain_ids_commitment_inclusion_proof: InclusionProof,
+    pub chain_ids_commitment_inclusion_proof: merkle::Proof,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -57,8 +56,7 @@ pub struct SequencerNamespaceData {
      against the provided root hash"
 )]
 pub struct RollupVerificationFailure {
-    #[from]
-    source: sequencer_validation::VerificationFailure,
+    _private: (),
 }
 
 /// Data that is serialized and submitted to celestia as a blob under rollup-specific namespaces.
@@ -67,7 +65,7 @@ pub struct RollupNamespaceData {
     pub block_hash: Hash,
     pub chain_id: ChainId,
     pub rollup_txs: Vec<Vec<u8>>,
-    pub inclusion_proof: InclusionProof,
+    pub inclusion_proof: merkle::Proof,
 }
 
 impl RollupNamespaceData {
@@ -80,12 +78,21 @@ impl RollupNamespaceData {
         &self,
         root_hash: [u8; 32],
     ) -> Result<(), RollupVerificationFailure> {
-        use sequencer_validation::MerkleTree;
-        let rollup_data_tree = MerkleTree::from_leaves(self.rollup_txs.clone());
-        let rollup_data_root = rollup_data_tree.root();
-        let mut leaf = self.chain_id.as_ref().to_vec();
-        leaf.append(&mut rollup_data_root.to_vec());
-        self.inclusion_proof.verify(&leaf, root_hash)?;
+        let rollup_data_root = merkle::Tree::from_leaves(&self.rollup_txs).root();
+        if !self
+            .inclusion_proof
+            .audit()
+            .with_root(root_hash)
+            .with_leaf_builder()
+            .write(self.chain_id.as_ref())
+            .write(&rollup_data_root)
+            .finish_leaf()
+            .perform()
+        {
+            return Err(RollupVerificationFailure {
+                _private: (),
+            });
+        }
         Ok(())
     }
 }
