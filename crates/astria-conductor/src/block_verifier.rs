@@ -69,8 +69,14 @@ impl BlockVerifier {
             hex::encode(data.block_hash),
         );
 
-        let current_validator_set = client
-            .validators(height, sequencer_client::tendermint_rpc::Paging::Default)
+        // the validator set which votes on a block at height `n` is the
+        // set at `n-1`. the validator set at height `n` is the set after
+        // the results of block `n`'s execution have occurred.
+        let validator_set = client
+            .validators(
+                height - 1,
+                sequencer_client::tendermint_rpc::Paging::Default,
+            )
             .await
             .wrap_err("failed to get validator set")?;
 
@@ -85,12 +91,8 @@ impl BlockVerifier {
             "commit is not for the expected block",
         );
 
-        validate_sequencer_namespace_data(
-            &current_validator_set,
-            &commit.signed_header.commit,
-            data,
-        )
-        .wrap_err("failed validating sequencer data inside signed namespace data")
+        validate_sequencer_namespace_data(&validator_set, &commit.signed_header.commit, data)
+            .wrap_err("failed validating sequencer data inside signed namespace data")
     }
 }
 
