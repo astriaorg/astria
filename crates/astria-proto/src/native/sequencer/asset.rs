@@ -3,6 +3,14 @@ use std::{
     fmt::Display,
 };
 
+/// The default sequencer asset base denomination.
+pub const DEFAULT_NATIVE_ASSET_DENOM: &str = "nria";
+
+/// Returns the default sequencer asset ID.
+pub fn default_native_asset_id() -> Id {
+    Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM).id()
+}
+
 /// Represents a denomination of a sequencer asset.
 #[derive(Debug, Clone)]
 pub struct Denom {

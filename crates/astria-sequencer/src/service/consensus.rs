@@ -237,6 +237,7 @@ mod test {
     };
     use proto::{
         native::sequencer::v1alpha1::{
+            asset::DEFAULT_NATIVE_ASSET_DENOM,
             Address,
             SequenceAction,
             UnsignedTransaction,
@@ -461,7 +462,7 @@ mod test {
             Self {
                 accounts: vec![],
                 authority_sudo_key: Address::from([0; 20]),
-                native_asset_base_denomination: "nria".to_string(),
+                native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             }
         }
     }

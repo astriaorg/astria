@@ -11,6 +11,8 @@ use penumbra_storage::{
 use tendermint::Time;
 use tracing::instrument;
 
+const NATIVE_ASSET_KEY: &[u8] = b"nativeasset";
+
 fn storage_version_by_height_key(height: u64) -> Vec<u8> {
     format!("storage_version/{height}").into()
 }
@@ -65,7 +67,7 @@ pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
     async fn get_native_asset_denom(&self) -> Result<String> {
         let Some(bytes) = self
-            .nonverifiable_get_raw(b"nativeasset")
+            .nonverifiable_get_raw(NATIVE_ASSET_KEY)
             .await
             .context("failed to read raw native_asset_denom from state")?
         else {
@@ -100,7 +102,7 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip(self))]
     fn put_native_asset_denom(&mut self, denom: &str) {
-        self.nonverifiable_put_raw(b"nativeasset".to_vec(), denom.as_bytes().to_vec());
+        self.nonverifiable_put_raw(NATIVE_ASSET_KEY.to_vec(), denom.as_bytes().to_vec());
     }
 }
 

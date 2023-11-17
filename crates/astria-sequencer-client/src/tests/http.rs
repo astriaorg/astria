@@ -1,6 +1,7 @@
 use ed25519_consensus::SigningKey;
 use hex_literal::hex;
 use proto::native::sequencer::v1alpha1::{
+    asset::default_native_asset_id,
     Address,
     SignedTransaction,
     TransferAction,
@@ -126,14 +127,14 @@ fn create_signed_transaction() -> SignedTransaction {
         TransferAction {
             to: BOB_ADDRESS,
             amount: 333_333,
-            asset_id: None,
+            asset_id: default_native_asset_id(),
         }
         .into(),
     ];
     UnsignedTransaction {
         nonce: 1,
         actions,
-        fee_asset_id: None,
+        fee_asset_id: default_native_asset_id(),
     }
     .into_signed(&alice_key)
 }

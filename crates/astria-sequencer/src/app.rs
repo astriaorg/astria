@@ -509,6 +509,7 @@ mod test {
     use proto::native::sequencer::v1alpha1::MintAction;
     use proto::native::sequencer::v1alpha1::{
         asset,
+        asset::DEFAULT_NATIVE_ASSET_DENOM,
         Address,
         SequenceAction,
         SudoAddressChangeAction,
@@ -606,7 +607,7 @@ mod test {
         let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: Address::from([0; 20]),
-            native_asset_base_denomination: "nria".to_string(),
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         });
 
         app.init_chain(genesis_state, genesis_validators)
@@ -646,7 +647,10 @@ mod test {
             );
         }
 
-        assert_eq!(app.state.get_native_asset_denom().await.unwrap(), "nria");
+        assert_eq!(
+            app.state.get_native_asset_denom().await.unwrap(),
+            DEFAULT_NATIVE_ASSET_DENOM
+        );
     }
 
     #[tokio::test]
@@ -916,7 +920,7 @@ mod test {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: alice_address,
-            native_asset_base_denomination: "nria".to_string(),
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -950,7 +954,7 @@ mod test {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: alice_address,
-            native_asset_base_denomination: "nria".to_string(),
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -984,7 +988,7 @@ mod test {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: sudo_address,
-            native_asset_base_denomination: "nria".to_string(),
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1018,7 +1022,7 @@ mod test {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: alice_address,
-            native_asset_base_denomination: "nria".to_string(),
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1169,7 +1173,7 @@ mod test {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: Address::from([0; 20]),
-            native_asset_base_denomination: "nria".to_string(),
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
 
         app.init_chain(genesis_state, vec![]).await.unwrap();

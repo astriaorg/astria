@@ -84,7 +84,10 @@ fn group_sequence_actions_by_chain_id(
 mod test {
     use ed25519_consensus::SigningKey;
     use proto::native::sequencer::v1alpha1::{
-        asset::Denom,
+        asset::{
+            Denom,
+            DEFAULT_NATIVE_ASSET_DENOM,
+        },
         Address,
         SequenceAction,
         TransferAction,
@@ -100,7 +103,7 @@ mod test {
 
     #[test]
     fn generate_sequence_actions_commitment_should_ignore_transfers() {
-        let _ = NATIVE_ASSET.set(Denom::from_base_denom("nria"));
+        let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
 
         let sequence_action = SequenceAction {
             chain_id: b"testchainid".to_vec(),
@@ -149,7 +152,7 @@ mod test {
         // this tests that the commitment generated is what is expected via a test vector.
         // this test will only break in the case of a breaking change to the commitment scheme,
         // thus if this test needs to be updated, we should cut a new release.
-        let _ = NATIVE_ASSET.set(Denom::from_base_denom("nria"));
+        let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
 
         let sequence_action = SequenceAction {
             chain_id: b"testchainid".to_vec(),
