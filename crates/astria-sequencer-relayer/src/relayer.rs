@@ -35,10 +35,10 @@ pub(crate) struct Relayer {
     data_availability: celestia_client::jsonrpsee::http_client::HttpClient,
 
     // The fee that relayer will pay for submitting sequencer blocks to the DA.
-    fee: u64,
+    fee: Option<u64>,
 
     // The limit that relayer will pay for submitting sequencer blocks to the DA.
-    gas_limit: u64,
+    gas_limit: Option<u64>,
 
     // If this is set, only relay blocks to DA which are proposed by the same validator key.
     validator: Option<Validator>,
@@ -117,8 +117,8 @@ impl Relayer {
             sequencer_poll_period: Duration::from_millis(cfg.block_time),
             data_availability,
             // FIXME (https://github.com/astriaorg/astria/issues/509): allow configuring this
-            fee: 100_000,
-            gas_limit: cfg.gas_limit,
+            fee: None,
+            gas_limit: None,
             validator,
             state_tx,
             queued_blocks: Vec::new(),
@@ -465,8 +465,8 @@ fn convert_block_response_to_sequencer_block_data(
 #[instrument(skip_all)]
 async fn submit_blocks_to_celestia(
     client: celestia_client::jsonrpsee::http_client::HttpClient,
-    fee: u64,
-    gas_limit: u64,
+    fee: Option<u64>,
+    gas_limit: Option<u64>,
     sequencer_block_data: Vec<SequencerBlockData>,
 ) -> eyre::Result<u64> {
     use celestia_client::{
@@ -483,8 +483,8 @@ async fn submit_blocks_to_celestia(
         .submit_sequencer_blocks(
             sequencer_block_data,
             SubmitOptions {
-                fee: Some(fee),
-                gas_limit: Some(gas_limit),
+                fee,
+                gas_limit,
             },
         )
         .await
