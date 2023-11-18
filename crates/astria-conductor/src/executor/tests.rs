@@ -1,5 +1,14 @@
-use std::net::SocketAddr;
+use std::{
+    net::SocketAddr,
+    sync::Arc,
+};
 
+use ::optimism::test_utils::deploy_mock_optimism_portal;
+use ethers::{
+    prelude::*,
+    utils::AnvilInstance,
+};
+use k256::ecdsa::SigningKey;
 use proto::generated::execution::v1alpha2::{
     execution_service_server::{
         ExecutionService,
@@ -89,7 +98,7 @@ impl ExecutionService for ExecutionServiceImpl {
     ) -> std::result::Result<tonic::Response<Block>, tonic::Status> {
         let loc_request = request.into_inner();
         let parent_block_hash = loc_request.prev_block_hash.clone();
-        let hash = hash(&parent_block_hash);
+        let hash = get_expected_execution_hash(&parent_block_hash, &loc_request.transactions);
         let timestamp = loc_request.timestamp.unwrap_or_default();
         Ok(tonic::Response::new(Block {
             number: 0, // we don't do anything with the number in the mock, can always be 0
@@ -119,6 +128,10 @@ impl ExecutionService for ExecutionServiceImpl {
     }
 }
 
+fn get_expected_execution_hash(parent_block_hash: &[u8], transactions: &[Vec<u8>]) -> Vec<u8> {
+    hash(&[parent_block_hash, &transactions.concat()].concat())
+}
+
 fn hash(s: &[u8]) -> Vec<u8> {
     let mut hasher = sha2::Sha256::new();
     hasher.update(s);
@@ -128,7 +141,7 @@ fn hash(s: &[u8]) -> Vec<u8> {
 fn get_test_block_subset() -> SequencerBlockSubset {
     SequencerBlockSubset {
         block_hash: hash(b"block1").try_into().unwrap(),
-        header: astria_sequencer_types::test_utils::default_header(),
+        header: sequencer_types::test_utils::default_header(),
         rollup_transactions: vec![],
     }
 }
@@ -140,22 +153,24 @@ struct MockEnvironment {
     executor: Executor,
 }
 
-async fn start_mock() -> MockEnvironment {
+async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnvironment {
     let server = MockExecutionServer::spawn().await;
     let chain_id = ChainId::new(b"test".to_vec()).unwrap();
     let server_url = format!("http://{}", server.local_addr());
 
     let (block_tx, block_rx) = mpsc::unbounded_channel();
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
-    let executor = Executor::new(
-        &server_url,
-        chain_id,
-        1, // genesis block is always block 0, first executable block will always be block 1
-        block_rx,
-        shutdown_rx,
-    )
-    .await
-    .unwrap();
+
+    let executor = Executor::builder()
+        .rollup_address(&server_url)
+        .chain_id(chain_id)
+        .sequencer_height_with_first_rollup_block(1)
+        .block_channel(block_rx)
+        .shutdown(shutdown_rx)
+        .set_optimism_hook(pre_execution_hook)
+        .build()
+        .await
+        .unwrap();
 
     MockEnvironment {
         _server: server,
@@ -165,12 +180,38 @@ async fn start_mock() -> MockEnvironment {
     }
 }
 
+struct MockEnvironmentWithEthereum {
+    environment: MockEnvironment,
+    optimism_portal_address: Address,
+    provider: Arc<Provider<Ws>>,
+    wallet: Wallet<SigningKey>,
+    anvil: AnvilInstance,
+}
+
+async fn start_mock_with_optimism_handler() -> MockEnvironmentWithEthereum {
+    let (contract_address, provider, wallet, anvil) = deploy_mock_optimism_portal().await;
+
+    let pre_execution_hook = Some(crate::executor::optimism::Handler::new(
+        provider.clone(),
+        contract_address,
+        1,
+    ));
+    MockEnvironmentWithEthereum {
+        environment: start_mock(pre_execution_hook).await,
+        optimism_portal_address: contract_address,
+        provider,
+        wallet,
+        anvil,
+    }
+}
+
 #[tokio::test]
 async fn execute_sequencer_block_without_txs() {
-    let mut mock = start_mock().await;
+    let mut mock = start_mock(None).await;
 
     // using soft hash here as sequencer blocks are executed on top of the soft commitment
-    let expected_exection_hash = hash(&mock.executor.commitment_state.soft.hash);
+    let expected_exection_hash =
+        get_expected_execution_hash(&mock.executor.commitment_state.soft.hash, &[]);
     let block = get_test_block_subset();
 
     let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash;
@@ -178,28 +219,32 @@ async fn execute_sequencer_block_without_txs() {
 }
 
 #[tokio::test]
-async fn execute_sequencer_block_wit_txs() {
-    let mut mock = start_mock().await;
+async fn execute_sequencer_block_with_txs() {
+    let mut mock = start_mock(None).await;
 
     let mut block = get_test_block_subset();
     block.rollup_transactions.push(b"test_transaction".to_vec());
 
-    // using firm hash here as da blocks are executed on top of the firm commitment
-    let expected_exection_hash = hash(&mock.executor.commitment_state.soft.hash);
-
+    let expected_exection_hash = get_expected_execution_hash(
+        &mock.executor.commitment_state.soft.hash,
+        &block.rollup_transactions,
+    );
     let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash;
     assert_eq!(expected_exection_hash, execution_block_hash);
 }
 
 #[tokio::test]
 async fn execute_unexecuted_da_block_with_transactions() {
-    let mut mock = start_mock().await;
+    let mut mock = start_mock(None).await;
 
     let mut block = get_test_block_subset();
     block.rollup_transactions.push(b"test_transaction".to_vec());
 
     // using firm hash here as da blocks are executed on top of the firm commitment
-    let expected_exection_hash = hash(&mock.executor.commitment_state.firm.hash);
+    let expected_exection_hash = get_expected_execution_hash(
+        &mock.executor.commitment_state.firm.hash,
+        &block.rollup_transactions,
+    );
 
     mock.executor
         .execute_and_finalize_blocks_from_celestia(vec![block])
@@ -217,7 +262,7 @@ async fn execute_unexecuted_da_block_with_transactions() {
 
 #[tokio::test]
 async fn execute_unexecuted_da_block_with_no_transactions() {
-    let mut mock = start_mock().await;
+    let mut mock: MockEnvironment = start_mock(None).await;
     let block = get_test_block_subset();
     // using firm hash here as da blocks are executed on top of the firm commitment
     let expected_execution_state = hash(&mock.executor.commitment_state.firm.hash);
@@ -238,7 +283,7 @@ async fn execute_unexecuted_da_block_with_no_transactions() {
 
 #[tokio::test]
 async fn empty_message_from_data_availability_is_dropped() {
-    let mut mock = start_mock().await;
+    let mut mock = start_mock(None).await;
     // using firm hash here as da blocks are executed on top of the firm commitment
     let expected_execution_state = mock.executor.commitment_state.firm.hash.clone();
 
@@ -256,7 +301,7 @@ async fn empty_message_from_data_availability_is_dropped() {
 
 #[tokio::test]
 async fn try_execute_out_of_order_block_from_sequencer() {
-    let mut mock = start_mock().await;
+    let mut mock = start_mock(None).await;
     let mut block = get_test_block_subset();
 
     // 0 is always the genesis block, so this should fail
@@ -273,7 +318,7 @@ async fn try_execute_out_of_order_block_from_sequencer() {
 
 #[tokio::test]
 async fn try_execute_out_of_order_block_from_celestia() {
-    let mut mock = start_mock().await;
+    let mut mock = start_mock(None).await;
     let mut block = get_test_block_subset();
 
     // 0 is always the genesis block, so this should fail
@@ -292,4 +337,52 @@ async fn try_execute_out_of_order_block_from_celestia() {
         .execute_and_finalize_blocks_from_celestia(vec![block])
         .await;
     assert!(execution_result.is_err());
+}
+
+#[cfg(test)]
+mod optimism_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn deposit_events_are_converted_and_executed() {
+        use ::optimism::contract::*;
+
+        // make a deposit transaction
+        let MockEnvironmentWithEthereum {
+            environment: mut mock,
+            optimism_portal_address: contract_address,
+            provider,
+            wallet,
+            anvil: _anvil,
+        } = start_mock_with_optimism_handler().await;
+        let contract = make_optimism_portal_with_signer(provider.clone(), wallet, contract_address);
+        let to = Address::zero();
+        let value = U256::from(100);
+        let receipt = make_deposit_transaction(&contract, Some(to), value, None)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(receipt.status.unwrap().as_u64() == 1);
+
+        // get the event and the expected deposit transaction
+        let to_block = provider.get_block_number().await.unwrap();
+        let event_filter = contract
+            .event::<TransactionDepositedFilter>()
+            .from_block(1)
+            .to_block(to_block);
+
+        let events = event_filter.query_with_meta().await.unwrap();
+
+        let deposit_txs =
+            crate::executor::optimism::convert_deposit_events_to_encoded_txs(events).unwrap();
+
+        // calculate the expected mock execution hash, which includes the block txs,
+        // thus confirming the deposit tx was executed
+        let expected_exection_hash =
+            get_expected_execution_hash(&mock.executor.commitment_state.soft.hash, &deposit_txs);
+        let block = get_test_block_subset();
+
+        let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash;
+        assert_eq!(expected_exection_hash, execution_block_hash);
+    }
 }

@@ -71,15 +71,6 @@ impl RollupDeploymentConfig {
     pub fn get_rollup_name(&self) -> String {
         self.rollup.name.clone()
     }
-
-    #[must_use]
-    pub fn get_initial_sequencer_height(&self) -> u64 {
-        self.sequencer.initial_block_height
-    }
-
-    pub fn set_initial_sequencer_height(&mut self, new_height: u64) {
-        self.sequencer.initial_block_height = new_height;
-    }
 }
 
 impl From<&ConfigCreateArgs> for IngressConfig {
@@ -120,7 +111,7 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
                 genesis_accounts,
             },
             sequencer: SequencerConfig {
-                initial_block_height: sequencer_initial_block_height,
+                initial_block_height: sequencer_initial_block_height.to_string(),
                 websocket: args.sequencer_websocket.clone(),
                 rpc: args.sequencer_rpc.clone(),
             },
@@ -159,7 +150,8 @@ impl From<GenesisAccountArg> for GenesisAccount {
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SequencerConfig {
-    initial_block_height: u64,
+    // NOTE - string because yaml will serialize large ints w/ scientific notation
+    initial_block_height: String,
     websocket: String,
     rpc: String,
 }
@@ -198,7 +190,7 @@ mod tests {
                     balance: 420,
                 },
             ],
-            sequencer_initial_block_height: Some(10),
+            sequencer_initial_block_height: Some(127_689_000_000),
             sequencer_websocket: "ws://localhost:8080".to_string(),
             sequencer_rpc: "http://localhost:8081".to_string(),
             hostname: "test.com".to_string(),
@@ -227,7 +219,7 @@ mod tests {
                     ],
                 },
                 sequencer: SequencerConfig {
-                    initial_block_height: 10,
+                    initial_block_height: "127689000000".to_string(),
                     websocket: "ws://localhost:8080".to_string(),
                     rpc: "http://localhost:8081".to_string(),
                 },
@@ -283,7 +275,7 @@ mod tests {
                     }],
                 },
                 sequencer: SequencerConfig {
-                    initial_block_height: 1, // Default value
+                    initial_block_height: "1".to_string(), // Default value
                     websocket: "ws://localhost:8082".to_string(),
                     rpc: "http://localhost:8083".to_string(),
                 },
