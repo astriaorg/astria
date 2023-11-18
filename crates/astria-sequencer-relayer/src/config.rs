@@ -10,7 +10,6 @@ pub struct Config {
     pub sequencer_endpoint: String,
     pub celestia_endpoint: String,
     pub celestia_bearer_token: String,
-    pub gas_limit: u64,
     pub block_time: u64,
     pub relay_only_validator_key_blocks: bool,
     pub validator_key_file: Option<String>,
