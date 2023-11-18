@@ -183,7 +183,6 @@ pub async fn spawn_sequencer_relayer(
         sequencer_endpoint: sequencer.uri(),
         celestia_endpoint: format!("http://{celestia_addr}"),
         celestia_bearer_token: String::new(),
-        gas_limit: 100_000,
         block_time: 1000,
         relay_only_validator_key_blocks,
         validator_key_file: Some(keyfile.path().to_string_lossy().to_string()),
