@@ -251,6 +251,10 @@ impl Relayer {
         // Then report update the internal state or report if submission failed
         match submission_result {
             Ok(height) => self.state_tx.send_modify(|state| {
+                debug!(
+                    da_height=%height,
+                    "successfully submitted blocks to data availability layer"
+                );
                 state.current_data_availability_height.replace(height);
             }),
             // TODO: add more context to this error, maybe inject a span?
