@@ -315,7 +315,7 @@ impl Relayer {
     /// # Errors
     /// An error is returned if calling the data availabilty failed for a total
     /// of `n_retries + 1` times.
-    #[instrument(name = "Relayer::wait_for_data_availability", skip_all, fields(
+    #[instrument(name = "Relayer::wait_for_sequencer", skip_all, fields(
         retries.max_number = n_retries,
         retries.initial_delay = %format_duration(delay),
         retries.exponential_factor = factor,
@@ -332,7 +332,7 @@ impl Relayer {
         };
         use tendermint_rpc::Client as _;
 
-        debug!("attempting to connect to data availability layer",);
+        debug!("attempting to connect to sequencer",);
         let backoff = ExponentialBuilder::default()
             .with_min_delay(delay)
             .with_factor(factor)
