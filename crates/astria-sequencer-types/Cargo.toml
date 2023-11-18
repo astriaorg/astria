@@ -17,8 +17,10 @@ tendermint-proto = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
+merkle = { package = "astria-merkle", path = "../astria-merkle", features = [
+  "serde",
+] }
 proto = { package = "astria-proto", path = "../astria-proto" }
-sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
 
 ed25519-consensus = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }

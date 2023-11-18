@@ -1,10 +1,5 @@
 use std::time::Duration;
 
-use astria_sequencer_types::{
-    ChainId,
-    RawSequencerBlockData,
-    SequencerBlockData,
-};
 use celestia_client::{
     celestia_types::{
         nmt::Namespace,
@@ -17,6 +12,11 @@ use celestia_client::{
 use color_eyre::eyre::{
     self,
     WrapErr as _,
+};
+use sequencer_types::{
+    ChainId,
+    RawSequencerBlockData,
+    SequencerBlockData,
 };
 use tendermint::{
     block::Header,
