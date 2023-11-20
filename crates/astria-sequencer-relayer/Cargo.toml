@@ -1,6 +1,6 @@
 [package]
 name = "astria-sequencer-relayer"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.70"
@@ -32,7 +32,6 @@ tendermint-rpc = { workspace = true, features = ["http-client"] }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
-astria-sequencer-validation = { path = "../astria-sequencer-validation" }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 config = { package = "astria-config", path = "../astria-config" }
 proto = { package = "astria-proto", path = "../astria-proto" }
@@ -41,13 +40,14 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
 celestia-mock = { package = "astria-celestia-mock", path = "../astria-celestia-mock" }
+config = { package = "astria-config", path = "../astria-config", features = [
+  "tests",
+] }
+merkle = { package = "astria-merkle", path = "../astria-merkle" }
 sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types", features = [
   "test-utils",
 ] }
 
-config = { package = "astria-config", path = "../astria-config", features = [
-  "tests",
-] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 
 jsonrpsee = { workspace = true, features = ["server"] }

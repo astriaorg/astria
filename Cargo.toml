@@ -2,17 +2,18 @@
 members = [
   "crates/astria-celestia-client",
   "crates/astria-celestia-mock",
+  "crates/astria-cli",
   "crates/astria-composer",
   "crates/astria-conductor",
   "crates/astria-config",
-  "crates/astria-cli",
+  "crates/astria-merkle",
+  "crates/astria-optimism",
   "crates/astria-proto",
   "crates/astria-sequencer",
   "crates/astria-sequencer-client",
   "crates/astria-sequencer-relayer",
   "crates/astria-sequencer-types",
   "crates/astria-sequencer-utils",
-  "crates/astria-sequencer-validation",
   "crates/astria-telemetry",
   "crates/astria-test-utils",
 ]
@@ -27,9 +28,11 @@ bytes = "1.4"
 clap = "4"
 color-eyre = "0.6"
 ed25519-consensus = "2.1.0"
+ethers = "2.0.11"
 eyre = "0.6"
 futures = "0.3"
 hex = "0.4"
+hex-literal = "0.4.1"
 humantime = "2.1.0"
 hyper = "0.14"
 jsonrpsee = { version = "0.20" }
