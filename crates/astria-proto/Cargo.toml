@@ -33,4 +33,6 @@ server = ["dep:tonic"]
 
 [dev-dependencies]
 tempfile = { workspace = true }
+tonic-build = "0.9"
+walkdir = "2.4.0"
 which = { workspace = true }
