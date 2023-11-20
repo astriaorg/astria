@@ -192,11 +192,7 @@ pub async fn spawn_sequencer_relayer(
 
     info!(config = serde_json::to_string(&config).unwrap());
     let config_clone = config.clone();
-    let sequencer_relayer =
-        tokio::task::spawn_blocking(move || SequencerRelayer::new(&config_clone))
-            .await
-            .unwrap()
-            .unwrap();
+    let sequencer_relayer = SequencerRelayer::new(&config_clone).await.unwrap();
     let api_address = sequencer_relayer.local_addr();
     let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
 

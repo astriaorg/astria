@@ -11,6 +11,7 @@ use celestia_client::{
 };
 use color_eyre::eyre::{
     self,
+    bail,
     WrapErr as _,
 };
 use sequencer_types::{
@@ -135,11 +136,16 @@ impl Reader {
     ) -> eyre::Result<Self> {
         use celestia_client::celestia_rpc::HeaderClient;
 
-        let celestia_client = celestia_client::celestia_rpc::client::new_http(
-            &celestia_config.node_url,
-            celestia_config.bearer_token.as_deref(),
-        )
-        .wrap_err("failed constructing celestia http client")?;
+        let celestia_client::celestia_rpc::Client::Http(celestia_client) =
+            celestia_client::celestia_rpc::Client::new(
+                &celestia_config.node_url,
+                celestia_config.bearer_token.as_deref(),
+            )
+            .await
+            .wrap_err("failed constructing celestia http client")?
+        else {
+            bail!("expected a celestia HTTP client but got a websocket client");
+        };
 
         // TODO: we should probably pass in the height we want to start at from some genesis/config
         // file
