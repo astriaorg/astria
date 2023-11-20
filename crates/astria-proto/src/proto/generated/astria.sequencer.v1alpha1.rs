@@ -123,7 +123,7 @@ pub struct UnsignedTransaction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Action {
-    #[prost(oneof="action::Value", tags="1, 2, 3, 4, 5, 6")]
+    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6")]
     pub value: ::core::option::Option<action::Value>,
 }
 /// Nested message and enum types in `Action`.
@@ -141,7 +141,7 @@ pub mod action {
         SudoAddressChangeAction(super::SudoAddressChangeAction),
         #[prost(message, tag = "5")]
         MintAction(super::MintAction),
-        #[prost(message, tag="6")]
+        #[prost(message, tag = "6")]
         IbcAction(::penumbra_proto::core::component::ibc::v1alpha1::IbcAction),
     }
 }

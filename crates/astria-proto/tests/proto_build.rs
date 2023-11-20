@@ -85,6 +85,7 @@ fn build() {
         .extern_path(".tendermint.crypto", "::tendermint-proto::crypto")
         .extern_path(".tendermint.version", "::tendermint-proto::version")
         .extern_path(".tendermint.types", "::tendermint-proto::types")
+        .extern_path(".penumbra", "::penumbra-proto")
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
         .out_dir(out_dir.path())
         .file_descriptor_set_path(buf_img.path())
