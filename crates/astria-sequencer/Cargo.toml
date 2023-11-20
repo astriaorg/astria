@@ -2,7 +2,7 @@
 name = "astria-sequencer"
 version = "0.6.0"
 edition = "2021"
-rust-version = "1.70.0"
+rust-version = "1.73.0"
 
 [dependencies]
 config = { package = "astria-config", path = "../astria-config" }
@@ -14,10 +14,10 @@ sequencer_types = { package = "astria-sequencer-types", path = "../astria-sequen
 anyhow = "1"
 borsh = "0.10.3"
 matchit = "0.7.2"
-penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.61.0" }
-penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.61.0" }
+penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.63.1" }
+penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.63.1" }
 tower = "0.4"
-tower-abci = "0.10.0"
+tower-abci = "0.11.0"
 tower-actor = "0.1.0"
 
 async-trait = { workspace = true }

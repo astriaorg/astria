@@ -121,7 +121,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     };
 
     match transaction::check_stateless(&signed_tx) {
-        Ok(_) => response::CheckTx::default(),
+        Ok(()) => response::CheckTx::default(),
         Err(e) => response::CheckTx {
             code: AbciCode::INVALID_PARAMETER.into(),
             info: "transaction failed stateless check".into(),
