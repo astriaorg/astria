@@ -641,7 +641,7 @@ mod test {
             assert_eq!(
                 balance,
                 app.state
-                    .get_account_balance(address, &get_native_asset().id())
+                    .get_account_balance(address, get_native_asset().id())
                     .await
                     .unwrap(),
             );
@@ -762,14 +762,14 @@ mod test {
         let native_asset = get_native_asset().id();
         assert_eq!(
             app.state
-                .get_account_balance(bob_address, &native_asset)
+                .get_account_balance(bob_address, native_asset)
                 .await
                 .unwrap(),
             value + 10u128.pow(19)
         );
         assert_eq!(
             app.state
-                .get_account_balance(alice_address, &native_asset)
+                .get_account_balance(alice_address, native_asset)
                 .await
                 .unwrap(),
             10u128.pow(19) - (value + TRANSFER_FEE),
@@ -790,7 +790,7 @@ mod test {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let mut state_tx = StateDelta::new(app.state.clone());
         state_tx
-            .put_account_balance(alice_address, &asset, value)
+            .put_account_balance(alice_address, asset, value)
             .unwrap();
         app.apply(state_tx);
 
@@ -815,14 +815,14 @@ mod test {
         let native_asset = get_native_asset().id();
         assert_eq!(
             app.state
-                .get_account_balance(bob_address, &native_asset)
+                .get_account_balance(bob_address, native_asset)
                 .await
                 .unwrap(),
             10u128.pow(19), // genesis balance
         );
         assert_eq!(
             app.state
-                .get_account_balance(bob_address, &asset)
+                .get_account_balance(bob_address, asset)
                 .await
                 .unwrap(),
             value, // transferred amount
@@ -830,14 +830,14 @@ mod test {
 
         assert_eq!(
             app.state
-                .get_account_balance(alice_address, &native_asset)
+                .get_account_balance(alice_address, native_asset)
                 .await
                 .unwrap(),
             10u128.pow(19) - TRANSFER_FEE, // genesis balance - fee
         );
         assert_eq!(
             app.state
-                .get_account_balance(alice_address, &asset)
+                .get_account_balance(alice_address, asset)
                 .await
                 .unwrap(),
             0, // 0 since all funds of `asset` were transferred
@@ -906,7 +906,7 @@ mod test {
 
         assert_eq!(
             app.state
-                .get_account_balance(alice_address, &get_native_asset().id())
+                .get_account_balance(alice_address, get_native_asset().id())
                 .await
                 .unwrap(),
             10u128.pow(19) - fee,
@@ -1045,7 +1045,7 @@ mod test {
 
         assert_eq!(
             app.state
-                .get_account_balance(bob_address, &get_native_asset().id())
+                .get_account_balance(bob_address, get_native_asset().id())
                 .await
                 .unwrap(),
             value + 10u128.pow(19)
@@ -1147,7 +1147,7 @@ mod test {
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 0);
         assert_eq!(
             app.state
-                .get_account_balance(alice_address, &get_native_asset().id())
+                .get_account_balance(alice_address, get_native_asset().id())
                 .await
                 .unwrap(),
             10u128.pow(19),
@@ -1188,7 +1188,7 @@ mod test {
             assert_eq!(
                 balance,
                 app.state
-                    .get_account_balance(address, &native_asset)
+                    .get_account_balance(address, native_asset)
                     .await
                     .unwrap()
             );
@@ -1205,7 +1205,7 @@ mod test {
         {
             assert_eq!(
                 snapshot
-                    .get_account_balance(address, &native_asset)
+                    .get_account_balance(address, native_asset)
                     .await
                     .unwrap(),
                 balance

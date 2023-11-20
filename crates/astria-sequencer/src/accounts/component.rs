@@ -29,7 +29,7 @@ impl Component for AccountsComponent {
         let native_asset = get_native_asset();
         for account in &app_state.accounts {
             state
-                .put_account_balance(account.address, &native_asset.id(), account.balance)
+                .put_account_balance(account.address, native_asset.id(), account.balance)
                 .context("failed writing account balance to state")?;
         }
         Ok(())

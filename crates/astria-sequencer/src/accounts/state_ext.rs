@@ -35,11 +35,11 @@ fn storage_key(address: &str) -> String {
     format!("{ACCOUNTS_PREFIX}/{address}")
 }
 
-pub(crate) fn balance_storage_key(address: Address, asset: &asset::Id) -> String {
+pub(crate) fn balance_storage_key(address: Address, asset: asset::Id) -> String {
     format!(
         "{}/balance/{}",
         storage_key(&address.encode_hex::<String>()),
-        asset.as_bytes().encode_hex::<String>()
+        asset.encode_hex::<String>()
     )
 }
 
@@ -50,7 +50,7 @@ pub(crate) fn nonce_storage_key(address: Address) -> String {
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
-    async fn get_account_balance(&self, address: Address, asset: &asset::Id) -> Result<u128> {
+    async fn get_account_balance(&self, address: Address, asset: asset::Id) -> Result<u128> {
         let Some(bytes) = self
             .get_raw(&balance_storage_key(address, asset))
             .await
@@ -87,7 +87,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_account_balance(
         &mut self,
         address: Address,
-        asset: &asset::Id,
+        asset: asset::Id,
         balance: u128,
     ) -> Result<()> {
         let bytes = Balance(balance)

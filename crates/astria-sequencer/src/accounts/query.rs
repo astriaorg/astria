@@ -35,7 +35,7 @@ pub(crate) async fn balance_request(
 
     // TODO: update query to take optional `asset` parameter
     let balance = match snapshot
-        .get_account_balance(address, &get_native_asset().id())
+        .get_account_balance(address, get_native_asset().id())
         .await
     {
         Ok(balance) => balance,

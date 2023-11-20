@@ -52,7 +52,7 @@ pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
     let signer_address = Address::from_verification_key(tx.verification_key());
     let fee_asset_id = tx.unsigned_transaction().fee_asset_id;
     tx.unsigned_transaction()
-        .check_stateful(state, signer_address, &fee_asset_id)
+        .check_stateful(state, signer_address, fee_asset_id)
         .await
 }
 
@@ -63,7 +63,7 @@ pub(crate) async fn execute<S: StateWriteExt>(
     let signer_address = Address::from_verification_key(tx.verification_key());
     let fee_asset_id = tx.unsigned_transaction().fee_asset_id;
     tx.unsigned_transaction()
-        .execute(state, signer_address, &fee_asset_id)
+        .execute(state, signer_address, fee_asset_id)
         .await
 }
 
@@ -116,7 +116,7 @@ impl ActionHandler for UnsignedTransaction {
         &self,
         state: &S,
         from: Address,
-        fee_asset_id: &asset::Id,
+        fee_asset_id: asset::Id,
     ) -> anyhow::Result<()> {
         // Nonce should be equal to the number of executed transactions before this tx.
         // First tx has nonce 0.
@@ -165,7 +165,7 @@ impl ActionHandler for UnsignedTransaction {
         &self,
         state: &mut S,
         from: Address,
-        fee_asset_id: &asset::Id,
+        fee_asset_id: asset::Id,
     ) -> anyhow::Result<()> {
         let from_nonce = state
             .get_account_nonce(from)

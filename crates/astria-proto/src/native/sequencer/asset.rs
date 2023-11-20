@@ -33,6 +33,7 @@ impl Denom {
         }
     }
 
+    /// Returns the asset ID, which is the hash of the denomination trace.
     #[must_use]
     pub fn id(&self) -> Id {
         self.id
@@ -76,6 +77,12 @@ impl Id {
         let mut id = [0u8; 32];
         id.copy_from_slice(slice);
         Ok(Self(id))
+    }
+}
+
+impl AsRef<[u8]> for Id {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
     }
 }
 

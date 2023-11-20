@@ -27,7 +27,7 @@ impl ActionHandler for SequenceAction {
         &self,
         state: &S,
         from: Address,
-        fee_asset_id: &asset::Id,
+        fee_asset_id: asset::Id,
     ) -> Result<()> {
         let curr_balance = state
             .get_account_balance(from, fee_asset_id)
@@ -58,7 +58,7 @@ impl ActionHandler for SequenceAction {
         &self,
         state: &mut S,
         from: Address,
-        fee_asset_id: &asset::Id,
+        fee_asset_id: asset::Id,
     ) -> Result<()> {
         let fee = calculate_fee(&self.data).context("failed to calculate fee")?;
         let from_balance = state

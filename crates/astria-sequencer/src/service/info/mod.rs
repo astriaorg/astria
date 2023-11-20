@@ -188,7 +188,7 @@ mod test {
         )
         .unwrap();
         state
-            .put_account_balance(address, &get_native_asset().id(), 1000)
+            .put_account_balance(address, get_native_asset().id(), 1000)
             .unwrap();
         state.put_block_height(height);
 

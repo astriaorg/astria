@@ -26,7 +26,7 @@ impl ActionHandler for MintAction {
         &self,
         state: &S,
         from: Address,
-        _fee_asset_id: &asset::Id,
+        _fee_asset_id: asset::Id,
     ) -> Result<()> {
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
@@ -42,16 +42,16 @@ impl ActionHandler for MintAction {
         &self,
         state: &mut S,
         _: Address,
-        _: &asset::Id,
+        _: asset::Id,
     ) -> Result<()> {
         let native_asset = get_native_asset().id();
 
         let to_balance = state
-            .get_account_balance(self.to, &native_asset)
+            .get_account_balance(self.to, native_asset)
             .await
             .context("failed getting `to` account balance")?;
         state
-            .put_account_balance(self.to, &native_asset, to_balance + self.amount)
+            .put_account_balance(self.to, native_asset, to_balance + self.amount)
             .context("failed updating `to` account balance")?;
         Ok(())
     }
