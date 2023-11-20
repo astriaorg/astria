@@ -11,7 +11,6 @@ config = { package = "astria-config", path = "../astria-config" }
 proto = { package = "astria-proto", path = "../astria-proto" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
-ethers = { version = "2.0.7", features = ["ws"] }
 pin-project-lite = "0.2.13"
 secrecy = { version = "0.8", features = ["serde"] }
 
@@ -20,6 +19,7 @@ axum = { workspace = true }
 backon = { workspace = true }
 color-eyre = { workspace = true }
 ed25519-consensus = { workspace = true }
+ethers = { workspace = true, features = ["ws"] }
 futures = { workspace = true }
 humantime = { workspace = true }
 hyper = { workspace = true }

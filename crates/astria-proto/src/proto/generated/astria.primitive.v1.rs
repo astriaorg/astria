@@ -1,4 +1,3 @@
-// @generated
 /// A 128 bit unsigned integer encoded in protobuf.,
 ///
 /// Protobuf does not support integers larger than 64 bits,
@@ -14,9 +13,8 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Uint128 {
-    #[prost(uint64, tag="1")]
+    #[prost(uint64, tag = "1")]
     pub lo: u64,
-    #[prost(uint64, tag="2")]
+    #[prost(uint64, tag = "2")]
     pub hi: u64,
 }
-// @@protoc_insertion_point(module)
