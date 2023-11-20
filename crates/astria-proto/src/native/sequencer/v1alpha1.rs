@@ -10,7 +10,11 @@ use ed25519_consensus::{
 };
 use tracing::info;
 
-use crate::generated::sequencer::v1alpha1 as raw;
+pub use super::asset;
+use crate::{
+    generated::sequencer::v1alpha1 as raw,
+    native::sequencer::v1alpha1::asset::IncorrectAssetIdLength,
+};
 
 pub const ADDRESS_LEN: usize = 20;
 
@@ -209,6 +213,8 @@ impl SignedTransaction {
 pub struct UnsignedTransaction {
     pub nonce: u32,
     pub actions: Vec<Action>,
+    /// asset to use for fee payment.
+    pub fee_asset_id: asset::Id,
 }
 
 impl UnsignedTransaction {
@@ -229,11 +235,13 @@ impl UnsignedTransaction {
         let Self {
             nonce,
             actions,
+            fee_asset_id,
         } = self;
         let actions = actions.into_iter().map(Action::into_raw).collect();
         raw::UnsignedTransaction {
             nonce,
             actions,
+            fee_asset_id: fee_asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -241,11 +249,13 @@ impl UnsignedTransaction {
         let Self {
             nonce,
             actions,
+            fee_asset_id,
         } = self;
         let actions = actions.iter().map(Action::to_raw).collect();
         raw::UnsignedTransaction {
             nonce: *nonce,
             actions,
+            fee_asset_id: fee_asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -259,6 +269,7 @@ impl UnsignedTransaction {
         let raw::UnsignedTransaction {
             nonce,
             actions,
+            fee_asset_id,
         } = proto;
         let n_raw_actions = actions.len();
         let actions: Vec<_> = actions
@@ -273,9 +284,14 @@ impl UnsignedTransaction {
                 "ignored unset raw protobuf actions",
             );
         }
+
+        let fee_asset_id = asset::Id::try_from_slice(&fee_asset_id)
+            .map_err(UnsignedTransactionError::fee_asset_id)?;
+
         Ok(Self {
             nonce,
             actions,
+            fee_asset_id,
         })
     }
 }
@@ -291,6 +307,12 @@ impl UnsignedTransactionError {
             kind: UnsignedTransactionErrorKind::Action(inner),
         }
     }
+
+    fn fee_asset_id(inner: IncorrectAssetIdLength) -> Self {
+        Self {
+            kind: UnsignedTransactionErrorKind::FeeAsset(inner),
+        }
+    }
 }
 
 impl Display for UnsignedTransactionError {
@@ -303,6 +325,7 @@ impl Error for UnsignedTransactionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
             UnsignedTransactionErrorKind::Action(e) => Some(e),
+            UnsignedTransactionErrorKind::FeeAsset(e) => Some(e),
         }
     }
 }
@@ -310,6 +333,7 @@ impl Error for UnsignedTransactionError {
 #[derive(Debug)]
 enum UnsignedTransactionErrorKind {
     Action(ActionError),
+    FeeAsset(IncorrectAssetIdLength),
 }
 
 #[derive(Clone, Debug)]
@@ -548,6 +572,8 @@ impl SequenceAction {
 pub struct TransferAction {
     pub to: Address,
     pub amount: u128,
+    // asset to be transferred.
+    pub asset_id: asset::Id,
 }
 
 impl TransferAction {
@@ -556,10 +582,12 @@ impl TransferAction {
         let Self {
             to,
             amount,
+            asset_id,
         } = self;
         raw::TransferAction {
             to: to.to_vec(),
             amount: Some(amount.into()),
+            asset_id: asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -568,10 +596,12 @@ impl TransferAction {
         let Self {
             to,
             amount,
+            asset_id,
         } = self;
         raw::TransferAction {
             to: to.to_vec(),
             amount: Some((*amount).into()),
+            asset_id: asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -585,12 +615,17 @@ impl TransferAction {
         let raw::TransferAction {
             to,
             amount,
+            asset_id,
         } = proto;
         let to = Address::try_from_slice(&to).map_err(TransferActionError::address)?;
         let amount = amount.map_or(0, Into::into);
+        let asset_id =
+            asset::Id::try_from_slice(&asset_id).map_err(TransferActionError::asset_id)?;
+
         Ok(Self {
             to,
             amount,
+            asset_id,
         })
     }
 }
@@ -606,6 +641,12 @@ impl TransferActionError {
             kind: TransferActionErrorKind::Address(inner),
         }
     }
+
+    fn asset_id(inner: IncorrectAssetIdLength) -> Self {
+        Self {
+            kind: TransferActionErrorKind::Asset(inner),
+        }
+    }
 }
 
 impl Display for TransferActionError {
@@ -613,6 +654,9 @@ impl Display for TransferActionError {
         match self.kind {
             TransferActionErrorKind::Address(_) => {
                 f.pad("`to` field did not contain a valid address")
+            }
+            TransferActionErrorKind::Asset(_) => {
+                f.pad("`asset_id` field did not contain a valid asset ID")
             }
         }
     }
@@ -622,6 +666,7 @@ impl Error for TransferActionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
             TransferActionErrorKind::Address(e) => Some(e),
+            TransferActionErrorKind::Asset(e) => Some(e),
         }
     }
 }
@@ -629,6 +674,7 @@ impl Error for TransferActionError {
 #[derive(Debug)]
 enum TransferActionErrorKind {
     Address(IncorrectAddressLength),
+    Asset(IncorrectAssetIdLength),
 }
 
 #[derive(Clone, Debug)]

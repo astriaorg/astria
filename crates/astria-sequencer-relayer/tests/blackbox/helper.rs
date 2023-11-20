@@ -15,6 +15,7 @@ use celestia_client::celestia_types::{
 use ed25519_consensus::SigningKey;
 use once_cell::sync::Lazy;
 use proto::native::sequencer::v1alpha1::{
+    asset::default_native_asset_id,
     SequenceAction,
     UnsignedTransaction,
 };
@@ -357,6 +358,7 @@ fn create_block_response(
             }
             .into(),
         ],
+        fee_asset_id: default_native_asset_id(),
     }
     .into_signed(signing_key)
     .into_raw()

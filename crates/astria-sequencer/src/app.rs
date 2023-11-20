@@ -128,6 +128,9 @@ impl App {
             .try_begin_transaction()
             .expect("state Arc should not be referenced elsewhere");
 
+        crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
+        state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
+
         state_tx.put_block_height(0);
 
         // call init_chain on all components
@@ -505,6 +508,8 @@ mod test {
     #[cfg(feature = "mint")]
     use proto::native::sequencer::v1alpha1::MintAction;
     use proto::native::sequencer::v1alpha1::{
+        asset,
+        asset::DEFAULT_NATIVE_ASSET_DENOM,
         Address,
         SequenceAction,
         SudoAddressChangeAction,
@@ -532,6 +537,7 @@ mod test {
             action::TRANSFER_FEE,
             state_ext::StateReadExt as _,
         },
+        asset::get_native_asset,
         authority::state_ext::ValidatorSet,
         genesis::Account,
         sequence::calculate_fee,
@@ -601,6 +607,7 @@ mod test {
         let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: Address::from([0; 20]),
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         });
 
         app.init_chain(genesis_state, genesis_validators)
@@ -633,9 +640,17 @@ mod test {
         {
             assert_eq!(
                 balance,
-                app.state.get_account_balance(address).await.unwrap(),
+                app.state
+                    .get_account_balance(address, get_native_asset().id())
+                    .await
+                    .unwrap(),
             );
         }
+
+        assert_eq!(
+            app.state.get_native_asset_denom().await.unwrap(),
+            DEFAULT_NATIVE_ASSET_DENOM
+        );
     }
 
     #[tokio::test]
@@ -734,21 +749,100 @@ mod test {
                 TransferAction {
                     to: bob_address,
                     amount: value,
+                    asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
+            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
         app.deliver_tx(signed_tx).await.unwrap();
+
+        let native_asset = get_native_asset().id();
         assert_eq!(
-            app.state.get_account_balance(bob_address).await.unwrap(),
+            app.state
+                .get_account_balance(bob_address, native_asset)
+                .await
+                .unwrap(),
             value + 10u128.pow(19)
         );
         assert_eq!(
-            app.state.get_account_balance(alice_address).await.unwrap(),
+            app.state
+                .get_account_balance(alice_address, native_asset)
+                .await
+                .unwrap(),
             10u128.pow(19) - (value + TRANSFER_FEE),
         );
+        assert_eq!(app.state.get_account_nonce(bob_address).await.unwrap(), 0);
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_transfer_not_native_token() {
+        use crate::accounts::state_ext::StateWriteExt as _;
+
+        let mut app = initialize_app(None, vec![]).await;
+
+        // create some asset to be transferred and update Alice's balance of it
+        let asset = asset::Id::from_denom("test");
+        let value = 333_333;
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let mut state_tx = StateDelta::new(app.state.clone());
+        state_tx
+            .put_account_balance(alice_address, asset, value)
+            .unwrap();
+        app.apply(state_tx);
+
+        // transfer funds from Alice to Bob; use native token for fee payment
+        let bob_address = address_from_hex_string(BOB_ADDRESS);
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                TransferAction {
+                    to: bob_address,
+                    amount: value,
+                    asset_id: asset,
+                }
+                .into(),
+            ],
+            fee_asset_id: get_native_asset().id(),
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+
+        let native_asset = get_native_asset().id();
+        assert_eq!(
+            app.state
+                .get_account_balance(bob_address, native_asset)
+                .await
+                .unwrap(),
+            10u128.pow(19), // genesis balance
+        );
+        assert_eq!(
+            app.state
+                .get_account_balance(bob_address, asset)
+                .await
+                .unwrap(),
+            value, // transferred amount
+        );
+
+        assert_eq!(
+            app.state
+                .get_account_balance(alice_address, native_asset)
+                .await
+                .unwrap(),
+            10u128.pow(19) - TRANSFER_FEE, // genesis balance - fee
+        );
+        assert_eq!(
+            app.state
+                .get_account_balance(alice_address, asset)
+                .await
+                .unwrap(),
+            0, // 0 since all funds of `asset` were transferred
+        );
+
         assert_eq!(app.state.get_account_nonce(bob_address).await.unwrap(), 0);
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
     }
@@ -770,9 +864,11 @@ mod test {
                 TransferAction {
                     to: bob,
                     amount: 0,
+                    asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
+            fee_asset_id: get_native_asset().id(),
         };
         let signed_tx = tx.into_signed(&keypair);
         let res = app
@@ -801,6 +897,7 @@ mod test {
                 }
                 .into(),
             ],
+            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -808,7 +905,10 @@ mod test {
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
 
         assert_eq!(
-            app.state.get_account_balance(alice_address).await.unwrap(),
+            app.state
+                .get_account_balance(alice_address, get_native_asset().id())
+                .await
+                .unwrap(),
             10u128.pow(19) - fee,
         );
     }
@@ -820,6 +920,7 @@ mod test {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: alice_address,
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -834,6 +935,7 @@ mod test {
             actions: vec![proto::native::sequencer::v1alpha1::Action::ValidatorUpdate(
                 update.clone(),
             )],
+            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -852,6 +954,7 @@ mod test {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: alice_address,
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -866,6 +969,7 @@ mod test {
                     },
                 ),
             ],
+            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -884,6 +988,7 @@ mod test {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: sudo_address,
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -896,6 +1001,7 @@ mod test {
                     },
                 ),
             ],
+            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -916,6 +1022,7 @@ mod test {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: alice_address,
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -930,13 +1037,17 @@ mod test {
                 }
                 .into(),
             ],
+            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
         app.deliver_tx(signed_tx).await.unwrap();
 
         assert_eq!(
-            app.state.get_account_balance(bob_address).await.unwrap(),
+            app.state
+                .get_account_balance(bob_address, get_native_asset().id())
+                .await
+                .unwrap(),
             value + 10u128.pow(19)
         );
         assert_eq!(app.state.get_account_nonce(bob_address).await.unwrap(), 0);
@@ -1026,6 +1137,7 @@ mod test {
                 }
                 .into(),
             ],
+            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1034,7 +1146,10 @@ mod test {
         // check that tx was not executed by checking nonce and balance are unchanged
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 0);
         assert_eq!(
-            app.state.get_account_balance(alice_address).await.unwrap(),
+            app.state
+                .get_account_balance(alice_address, get_native_asset().id())
+                .await
+                .unwrap(),
             10u128.pow(19),
         );
 
@@ -1058,11 +1173,13 @@ mod test {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: Address::from([0; 20]),
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
 
         app.init_chain(genesis_state, vec![]).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
+        let native_asset = get_native_asset().id();
         for Account {
             address,
             balance,
@@ -1070,7 +1187,10 @@ mod test {
         {
             assert_eq!(
                 balance,
-                app.state.get_account_balance(address).await.unwrap()
+                app.state
+                    .get_account_balance(address, native_asset)
+                    .await
+                    .unwrap()
             );
         }
 
@@ -1084,7 +1204,10 @@ mod test {
         } in default_genesis_accounts()
         {
             assert_eq!(
-                snapshot.get_account_balance(address).await.unwrap(),
+                snapshot
+                    .get_account_balance(address, native_asset)
+                    .await
+                    .unwrap(),
                 balance
             );
         }

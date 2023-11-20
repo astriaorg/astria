@@ -16,6 +16,16 @@ pub struct NonceResponse {
     #[prost(uint32, tag = "3")]
     pub nonce: u32,
 }
+/// / Represents a denomination of some asset used within the sequencer.
+/// / The `id` is used to identify the asset and for balance accounting.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Denom {
+    #[prost(bytes = "vec", tag = "1")]
+    pub id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(string, tag = "2")]
+    pub base_denom: ::prost::alloc::string::String,
+}
 /// `IndexedTransaction` represents a sequencer transaction along with the index
 /// it was originally in the sequencer block.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -106,6 +116,9 @@ pub struct UnsignedTransaction {
     pub nonce: u32,
     #[prost(message, repeated, tag = "2")]
     pub actions: ::prost::alloc::vec::Vec<Action>,
+    /// the asset used to pay the transaction fee
+    #[prost(bytes = "vec", tag = "3")]
+    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -141,6 +154,9 @@ pub struct TransferAction {
     pub to: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, optional, tag = "2")]
     pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
+    /// the asset to be transferred
+    #[prost(bytes = "vec", tag = "3")]
+    pub asset_id: ::prost::alloc::vec::Vec<u8>,
 }
 /// `SequenceAction` represents a transaction destined for another
 /// chain, ordered by the sequencer.
