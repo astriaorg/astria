@@ -28,7 +28,10 @@ use tendermint::{
         CanonicalVote,
     },
 };
-use tracing::instrument;
+use tracing::{
+    debug,
+    instrument,
+};
 
 /// `BlockVerifier` is verifying blocks received from celestia.
 #[derive(Clone)]
@@ -55,6 +58,11 @@ impl BlockVerifier {
             "a tendermint height (currently non-negative i32) should always fit into a u32",
         );
 
+        if height == 0 {
+            // we should never be validating the genesis block
+            bail!("cannot validate sequencer data for block height 0")
+        }
+
         let client =
             self.pool.get().await.wrap_err(
                 "failed getting a client from the pool to get the current validator set",
@@ -67,6 +75,12 @@ impl BlockVerifier {
             height,
             hex::encode(block_resp.block_id.hash),
             hex::encode(data.block_hash),
+        );
+
+        debug!(
+            sequencer_height = height,
+            sequencer_block_hash = ?data.block_hash,
+            "validating sequencer namespace data"
         );
 
         // the validator set which votes on a block at height `n` is the
