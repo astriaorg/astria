@@ -1,0 +1,47 @@
+syntax = 'proto3';
+
+package astria.block_relay.v1alpha1;
+
+import "astria/primitive/v1/types.proto";
+import "astria/sequencer/v1alpha1/transaction.proto";
+
+// Request sent by the proposer to the relay to get the top of block bid.
+message GetTopOfBlockBidRequest {
+    uint64 block_height = 1;
+}
+
+// Response sent by the relay to the proposer in response to a GetTopOfBlockBidRequest. Contains
+// the bid and hash of the top of block `SignedTransactions` for the proposer to commit to.
+message GetTopOfBlockBidResponse {
+    bytes builder_address = 1;
+    astria.primitive.v1.Uint128 amount = 2;
+    bytes payload_hash = 3;
+}
+
+// Request sent by the proposer to the relay to get the top of block payload. The commitment must be
+// a signature over the `payload_hash` the proposer received in `GetTopOfBlockResponse`.
+message GetTopOfBlockPayloadRequest {
+    bytes builder_address = 1;
+    uint64 block_height = 2;
+    bytes commitment = 3;
+}
+
+// Response sent by the relay to the proposer in response to a GetTopOfBlockPayloadRequest. Contains
+// the `SignedTransactions` payload for the top of block that the proposer committed to in `GetTopOfBlockPayloadRequest` .
+message GetTopOfBlockPayloadResponse {
+    bytes builder_address = 1;
+    astria.primitive.v1.Uint128 amount = 2;
+    astria.sequencer.v1alpha1.SignedTransaction payload = 3;
+}
+
+// Service for the relay to provide the proposer with the top of block bid and payload.
+service TopOfBlockRelay {
+  // Get the top of block bid for the given block number. The proposer will use this bid to commit
+  // to the hash provided in order to receive the payload `SignedTransaction` to include as top-of-block.
+  rpc GetTopOfBlockBid(GetTopOfBlockBidRequest) returns (GetTopOfBlockBidResponse);
+
+  // Get the top of block payload for the given builder address and commitment. The proposer will
+  // will commit to the hash received in `GetTopOfBlockBidResponse` in order to receive the payload
+  // `SignedTransaction` in `GetTopOfBlockPayloadResponse` to include as top-of-block.
+  rpc GetTopOfBlockPayload(GetTopOfBlockPayloadRequest) returns (GetTopOfBlockPayloadResponse);
+}

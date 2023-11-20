@@ -36,6 +36,7 @@
 //! ```
 
 pub(crate) mod api;
+pub(crate) mod block_relay;
 mod composer;
 pub mod config;
 pub(crate) mod searcher;

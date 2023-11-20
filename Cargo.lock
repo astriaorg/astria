@@ -576,6 +576,7 @@ dependencies = [
  "tokio",
  "tokio-test",
  "tokio-util 0.7.10",
+ "tonic",
  "tracing",
  "tryhard",
  "wiremock",
