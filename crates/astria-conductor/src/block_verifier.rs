@@ -23,13 +23,15 @@ use tendermint::{
     account,
     block,
     chain,
-    validator::Info as Validator,
     vote::{
         self,
         CanonicalVote,
     },
 };
-use tracing::instrument;
+use tracing::{
+    debug,
+    instrument,
+};
 
 /// `BlockVerifier` is verifying blocks received from celestia.
 #[derive(Clone)]
@@ -56,6 +58,11 @@ impl BlockVerifier {
             "a tendermint height (currently non-negative i32) should always fit into a u32",
         );
 
+        if height == 0 {
+            // we should never be validating the genesis block
+            bail!("cannot validate sequencer data for block height 0")
+        }
+
         let client =
             self.pool.get().await.wrap_err(
                 "failed getting a client from the pool to get the current validator set",
@@ -70,13 +77,23 @@ impl BlockVerifier {
             hex::encode(data.block_hash),
         );
 
-        let current_validator_set = client
-            .validators(height, sequencer_client::tendermint_rpc::Paging::Default)
+        debug!(
+            sequencer_height = height,
+            sequencer_block_hash = ?data.block_hash,
+            "validating sequencer namespace data"
+        );
+
+        // the validator set which votes on a block at height `n` is the
+        // set at `n-1`. the validator set at height `n` is the set after
+        // the results of block `n`'s execution have occurred.
+        let validator_set = client
+            .validators(
+                height - 1,
+                sequencer_client::tendermint_rpc::Paging::Default,
+            )
             .await
             .wrap_err("failed to get validator set")?;
 
-        // get validator set for the previous height, as the commit contained
-        // in the block is for the previous height
         let commit = client
             .commit(height)
             .await
@@ -88,12 +105,8 @@ impl BlockVerifier {
             "commit is not for the expected block",
         );
 
-        validate_sequencer_namespace_data(
-            &current_validator_set,
-            &commit.signed_header.commit,
-            data,
-        )
-        .wrap_err("failed validating sequencer data inside signed namespace data")
+        validate_sequencer_namespace_data(&validator_set, &commit.signed_header.commit, data)
+            .wrap_err("failed validating sequencer data inside signed namespace data")
     }
 }
 
@@ -122,20 +135,6 @@ fn validate_sequencer_namespace_data(
         chain_ids_commitment,
         chain_ids_commitment_inclusion_proof,
     } = data;
-
-    // find proposer address for this height
-    let expected_proposer_address = account::Id::from(
-        get_proposer(current_validator_set)
-            .wrap_err("failed to get proposer from validator set")?
-            .pub_key,
-    );
-    // check if the proposer address matches the sequencer block's proposer
-    let received_proposer_address = header.proposer_address;
-    ensure!(
-        received_proposer_address == expected_proposer_address,
-        "proposer address mismatch: expected `{expected_proposer_address}`, got \
-         `{received_proposer_address}`",
-    );
 
     // verify that the validator votes on the block have >2/3 voting power
     let chain_id = header.chain_id.clone();
@@ -339,18 +338,6 @@ fn verify_vote_signature(
     Ok(())
 }
 
-/// returns the proposer given the current set by ordering the validators by proposer priority.
-/// the validator with the highest proposer priority is the proposer.
-/// TODO: could there ever be two validators with the same priority?
-fn get_proposer(validator_set: &validators::Response) -> eyre::Result<Validator> {
-    validator_set
-        .validators
-        .iter()
-        .max_by(|v1, v2| v1.proposer_priority.cmp(&v2.proposer_priority))
-        .cloned()
-        .ok_or_else(|| eyre::eyre!("no proposer found"))
-}
-
 #[cfg(test)]
 mod test {
     use std::{
@@ -362,6 +349,7 @@ mod test {
         account,
         block::Commit,
         validator,
+        validator::Info as Validator,
         Hash,
     };
 
