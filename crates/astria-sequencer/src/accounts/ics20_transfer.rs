@@ -32,6 +32,7 @@ use penumbra_storage::{
     StateWrite,
 };
 use proto::native::sequencer::v1alpha1::{
+    asset::Id,
     Address,
     ADDRESS_LEN,
 };
@@ -109,6 +110,7 @@ impl AppHandlerCheck for Ics20Transfer {
             &msg.packet.port_on_a,
             &msg.packet.chan_on_a,
         )
+        .await
     }
 
     async fn acknowledge_packet_check<S: StateRead>(
@@ -130,10 +132,11 @@ impl AppHandlerCheck for Ics20Transfer {
             &msg.packet.port_on_a,
             &msg.packet.chan_on_a,
         )
+        .await
     }
 }
 
-fn refund_tokens_check<S: StateRead>(
+async fn refund_tokens_check<S: StateRead>(
     state: S,
     data: &[u8],
     source_port: &PortId,
@@ -148,8 +151,9 @@ fn refund_tokens_check<S: StateRead>(
         // sender of packet (us) was the source chain
         //
         // check if escrow account has enough balance to refund user
-        // TODO
-        let balance = 0; //state.get_account_balance(source_channel, &denom).await?;
+        let channel_addr = address_from_channel_id(source_channel);
+        let asset_id = Id::from_denom(&denom);
+        let balance = state.get_account_balance(channel_addr, asset_id).await?;
 
         let packet_amount: u128 = packet_data.amount.parse()?;
         if balance < packet_amount {
@@ -296,14 +300,20 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         // sender of packet (us) was the source chain
         // subtract balance from escrow account and transfer to user
 
-        // TODO: get asset from dest_channel and denom
-        let escrow_balance = state.get_account_balance(recipient).await?;
-        let user_balance = state.get_account_balance(recipient).await?;
+        let asset_id = Id::from_denom(&denom);
+        let escrow_balance = state
+            .get_account_balance(source_channel_address, asset_id)
+            .await?;
+        let user_balance = state.get_account_balance(recipient, asset_id).await?;
         state
-            .put_account_balance(source_channel_address, escrow_balance - packet_amount)
+            .put_account_balance(
+                source_channel_address,
+                asset_id,
+                escrow_balance - packet_amount,
+            )
             .context("failed to update escrow account balance")?;
         state
-            .put_account_balance(recipient, user_balance + packet_amount)
+            .put_account_balance(recipient, asset_id, user_balance + packet_amount)
             .context("failed to update user account balance")?;
     } else {
         let prefixed_denomination = if is_refund {
@@ -318,10 +328,10 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         // TODO: register denomination in global ID -> denom map
         // if it's not already there
 
-        // TODO: use prefixed_denomination
-        let user_balance = state.get_account_balance(recipient).await?;
+        let asset_id = Id::from_denom(&prefixed_denomination);
+        let user_balance = state.get_account_balance(recipient, asset_id).await?;
         state
-            .put_account_balance(recipient, user_balance + packet_amount)
+            .put_account_balance(recipient, asset_id, user_balance + packet_amount)
             .context("failed to update user account balance")?;
     }
 

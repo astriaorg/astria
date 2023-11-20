@@ -4,7 +4,10 @@ use penumbra_storage::{
     StateRead,
     StateWrite,
 };
-use proto::native::sequencer::v1alpha1::Address;
+use proto::native::sequencer::v1alpha1::{
+    asset,
+    Address,
+};
 
 #[async_trait]
 pub(crate) trait ActionHandler {
@@ -15,10 +18,16 @@ pub(crate) trait ActionHandler {
         &self,
         _state: &S,
         _from: Address,
+        _fee_asset_id: asset::Id,
     ) -> Result<()> {
         Ok(())
     }
-    async fn execute<S: StateWrite>(&self, _state: &mut S, _from: Address) -> Result<()> {
+    async fn execute<S: StateWrite>(
+        &self,
+        _state: &mut S,
+        _from: Address,
+        _fee_asset_id: asset::Id,
+    ) -> Result<()> {
         Ok(())
     }
 }

@@ -171,7 +171,7 @@ impl GethServer for GethImpl {
                             break Err("mock received abort command".into());
                         }
                         SubscriptionCommand::Send(tx) => {
-                            let _ = sink.send(SubscriptionMessage::from_json(&tx)?).await?;
+                            let () = sink.send(SubscriptionMessage::from_json(&tx)?).await?;
                         }
                     }
                 }

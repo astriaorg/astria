@@ -11,6 +11,7 @@ use anyhow::{
 };
 use penumbra_component::ActionHandler as _;
 use proto::native::sequencer::v1alpha1::{
+    asset,
     Action,
     Address,
     SignedTransaction,
@@ -51,8 +52,9 @@ pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
     state: &S,
 ) -> anyhow::Result<()> {
     let signer_address = Address::from_verification_key(tx.verification_key());
+    let fee_asset_id = tx.unsigned_transaction().fee_asset_id;
     tx.unsigned_transaction()
-        .check_stateful(state, signer_address)
+        .check_stateful(state, signer_address, fee_asset_id)
         .await
 }
 
@@ -61,8 +63,9 @@ pub(crate) async fn execute<S: StateWriteExt>(
     state: &mut S,
 ) -> anyhow::Result<()> {
     let signer_address = Address::from_verification_key(tx.verification_key());
+    let fee_asset_id = tx.unsigned_transaction().fee_asset_id;
     tx.unsigned_transaction()
-        .execute(state, signer_address)
+        .execute(state, signer_address, fee_asset_id)
         .await
 }
 
@@ -126,6 +129,7 @@ impl ActionHandler for UnsignedTransaction {
         &self,
         state: &S,
         from: Address,
+        fee_asset_id: asset::Id,
     ) -> anyhow::Result<()> {
         // Nonce should be equal to the number of executed transactions before this tx.
         // First tx has nonce 0.
@@ -135,19 +139,19 @@ impl ActionHandler for UnsignedTransaction {
         for action in &self.actions {
             match action {
                 Action::Transfer(act) => act
-                    .check_stateful(state, from)
+                    .check_stateful(state, from, fee_asset_id)
                     .await
                     .context("stateful check failed for TransferAction")?,
                 Action::Sequence(act) => act
-                    .check_stateful(state, from)
+                    .check_stateful(state, from, fee_asset_id)
                     .await
                     .context("stateful check failed for SequenceAction")?,
                 Action::ValidatorUpdate(act) => act
-                    .check_stateful(state, from)
+                    .check_stateful(state, from, fee_asset_id)
                     .await
                     .context("stateful check failed for ValidatorUpdateAction")?,
                 Action::SudoAddressChange(act) => act
-                    .check_stateful(state, from)
+                    .check_stateful(state, from, fee_asset_id)
                     .await
                     .context("stateful check failed for SudoAddressChangeAction")?,
                 Action::Ibc(_) => {
@@ -155,7 +159,7 @@ impl ActionHandler for UnsignedTransaction {
                 }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
-                    .check_stateful(state, from)
+                    .check_stateful(state, from, fee_asset_id)
                     .await
                     .context("stateful check failed for MintAction")?,
                 #[cfg(not(feature = "mint"))]
@@ -173,7 +177,12 @@ impl ActionHandler for UnsignedTransaction {
             from = from.to_string(),
         )
     )]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> anyhow::Result<()> {
+    async fn execute<S: StateWriteExt>(
+        &self,
+        state: &mut S,
+        from: Address,
+        fee_asset_id: asset::Id,
+    ) -> anyhow::Result<()> {
         let from_nonce = state
             .get_account_nonce(from)
             .await
@@ -188,22 +197,22 @@ impl ActionHandler for UnsignedTransaction {
         for action in &self.actions {
             match action {
                 Action::Transfer(act) => {
-                    act.execute(state, from)
+                    act.execute(state, from, fee_asset_id)
                         .await
                         .context("execution failed for TransferAction")?;
                 }
                 Action::Sequence(act) => {
-                    act.execute(state, from)
+                    act.execute(state, from, fee_asset_id)
                         .await
                         .context("execution failed for SequenceAction")?;
                 }
                 Action::ValidatorUpdate(act) => {
-                    act.execute(state, from)
+                    act.execute(state, from, fee_asset_id)
                         .await
                         .context("execution failed for ValidatorUpdateAction")?;
                 }
                 Action::SudoAddressChange(act) => {
-                    act.execute(state, from)
+                    act.execute(state, from, fee_asset_id)
                         .await
                         .context("execution failed for SudoAddressChangeAction")?;
                 }
@@ -215,7 +224,7 @@ impl ActionHandler for UnsignedTransaction {
                 }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => {
-                    act.execute(state, from)
+                    act.execute(state, from, fee_asset_id)
                         .await
                         .context("execution failed for MintAction")?;
                 }

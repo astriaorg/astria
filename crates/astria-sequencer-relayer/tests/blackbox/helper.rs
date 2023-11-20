@@ -15,6 +15,7 @@ use celestia_client::celestia_types::{
 use ed25519_consensus::SigningKey;
 use once_cell::sync::Lazy;
 use proto::native::sequencer::v1alpha1::{
+    asset::default_native_asset_id,
     SequenceAction,
     UnsignedTransaction,
 };
@@ -183,7 +184,6 @@ pub async fn spawn_sequencer_relayer(
         sequencer_endpoint: sequencer.uri(),
         celestia_endpoint: format!("http://{celestia_addr}"),
         celestia_bearer_token: String::new(),
-        gas_limit: 100_000,
         block_time: 1000,
         relay_only_validator_key_blocks,
         validator_key_file: Some(keyfile.path().to_string_lossy().to_string()),
@@ -193,11 +193,7 @@ pub async fn spawn_sequencer_relayer(
 
     info!(config = serde_json::to_string(&config).unwrap());
     let config_clone = config.clone();
-    let sequencer_relayer =
-        tokio::task::spawn_blocking(move || SequencerRelayer::new(&config_clone))
-            .await
-            .unwrap()
-            .unwrap();
+    let sequencer_relayer = SequencerRelayer::new(&config_clone).await.unwrap();
     let api_address = sequencer_relayer.local_addr();
     let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
 
@@ -362,6 +358,7 @@ fn create_block_response(
             }
             .into(),
         ],
+        fee_asset_id: default_native_asset_id(),
     }
     .into_signed(signing_key)
     .into_raw()

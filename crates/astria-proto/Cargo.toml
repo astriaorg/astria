@@ -36,5 +36,8 @@ native = ["dep:ed25519-consensus", "dep:hex", "dep:sha2", "dep:tracing"]
 server = ["dep:tonic"]
 
 [dev-dependencies]
+tonic-build = "0.10"
+walkdir = "2.4.0"
+
 tempfile = { workspace = true }
 which = { workspace = true }

@@ -4,6 +4,7 @@ use anyhow::{
     Result,
 };
 use proto::native::sequencer::v1alpha1::{
+    asset,
     Address,
     SequenceAction,
 };
@@ -26,11 +27,12 @@ impl ActionHandler for SequenceAction {
         &self,
         state: &S,
         from: Address,
+        fee_asset_id: asset::Id,
     ) -> Result<()> {
         let curr_balance = state
-            .get_account_balance(from)
+            .get_account_balance(from, fee_asset_id)
             .await
-            .context("failed getting `from` account balance")?;
+            .context("failed getting `from` account balance for fee payment")?;
         let fee = calculate_fee(&self.data).context("calculated fee overflows u128")?;
         ensure!(curr_balance >= fee, "insufficient funds");
         Ok(())
@@ -52,14 +54,19 @@ impl ActionHandler for SequenceAction {
             from = from.to_string(),
         )
     )]
-    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
+    async fn execute<S: StateWriteExt>(
+        &self,
+        state: &mut S,
+        from: Address,
+        fee_asset_id: asset::Id,
+    ) -> Result<()> {
         let fee = calculate_fee(&self.data).context("failed to calculate fee")?;
         let from_balance = state
-            .get_account_balance(from)
+            .get_account_balance(from, fee_asset_id)
             .await
             .context("failed getting `from` account balance")?;
         state
-            .put_account_balance(from, from_balance - fee)
+            .put_account_balance(from, fee_asset_id, from_balance - fee)
             .context("failed updating `from` account balance")?;
         Ok(())
     }

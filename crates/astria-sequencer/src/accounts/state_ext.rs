@@ -12,7 +12,10 @@ use penumbra_storage::{
     StateRead,
     StateWrite,
 };
-use proto::native::sequencer::v1alpha1::Address;
+use proto::native::sequencer::v1alpha1::{
+    asset,
+    Address,
+};
 use tracing::{
     debug,
     instrument,
@@ -32,8 +35,12 @@ fn storage_key(address: &str) -> String {
     format!("{ACCOUNTS_PREFIX}/{address}")
 }
 
-pub(crate) fn balance_storage_key(address: Address) -> String {
-    format!("{}/balance", storage_key(&address.encode_hex::<String>()))
+pub(crate) fn balance_storage_key(address: Address, asset: asset::Id) -> String {
+    format!(
+        "{}/balance/{}",
+        storage_key(&address.encode_hex::<String>()),
+        asset.encode_hex::<String>()
+    )
 }
 
 pub(crate) fn nonce_storage_key(address: Address) -> String {
@@ -43,9 +50,9 @@ pub(crate) fn nonce_storage_key(address: Address) -> String {
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
-    async fn get_account_balance(&self, address: Address) -> Result<u128> {
+    async fn get_account_balance(&self, address: Address, asset: asset::Id) -> Result<u128> {
         let Some(bytes) = self
-            .get_raw(&balance_storage_key(address))
+            .get_raw(&balance_storage_key(address, asset))
             .await
             .context("failed reading raw account balance from state")?
         else {
@@ -77,11 +84,16 @@ impl<T: StateRead> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
-    fn put_account_balance(&mut self, address: Address, balance: u128) -> Result<()> {
+    fn put_account_balance(
+        &mut self,
+        address: Address,
+        asset: asset::Id,
+        balance: u128,
+    ) -> Result<()> {
         let bytes = Balance(balance)
             .try_to_vec()
             .context("failed to serialize balance")?;
-        self.put_raw(balance_storage_key(address), bytes);
+        self.put_raw(balance_storage_key(address, asset), bytes);
         Ok(())
     }
 

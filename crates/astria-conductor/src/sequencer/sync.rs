@@ -1,4 +1,3 @@
-use astria_sequencer_types::SequencerBlockData;
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -9,6 +8,7 @@ use deadpool::managed::{
 };
 use futures::stream::FuturesOrdered;
 use sequencer_client::tendermint::block::Height;
+use sequencer_types::SequencerBlockData;
 use tokio::select;
 use tracing::{
     error,

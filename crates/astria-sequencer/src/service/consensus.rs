@@ -237,6 +237,7 @@ mod test {
     };
     use proto::{
         native::sequencer::v1alpha1::{
+            asset::DEFAULT_NATIVE_ASSET_DENOM,
             Address,
             SequenceAction,
             UnsignedTransaction,
@@ -251,7 +252,10 @@ mod test {
     };
 
     use super::*;
-    use crate::proposal::commitment::generate_sequence_actions_commitment;
+    use crate::{
+        asset::get_native_asset,
+        proposal::commitment::generate_sequence_actions_commitment,
+    };
 
     fn make_unsigned_tx() -> UnsignedTransaction {
         UnsignedTransaction {
@@ -263,6 +267,7 @@ mod test {
                 }
                 .into(),
             ],
+            fee_asset_id: get_native_asset().id(),
         }
     }
 
@@ -457,6 +462,7 @@ mod test {
             Self {
                 accounts: vec![],
                 authority_sudo_key: Address::from([0; 20]),
+                native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             }
         }
     }
@@ -472,7 +478,7 @@ mod test {
         };
         let genesis_state = GenesisState {
             accounts,
-            authority_sudo_key: Address::from([0; 20]),
+            ..Default::default()
         };
 
         let storage = penumbra_storage::TempStorage::new().await.unwrap();
