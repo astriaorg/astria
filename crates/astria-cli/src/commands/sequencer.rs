@@ -176,7 +176,9 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
         actions: vec![Action::Transfer(TransferAction {
             to: to_address,
             amount: args.amount,
+            asset_id: proto::native::sequencer::asset::default_native_asset_id(),
         })],
+        fee_asset_id: proto::native::sequencer::asset::default_native_asset_id(),
     }
     .into_signed(&sequencer_key);
     let res = sequencer_client
