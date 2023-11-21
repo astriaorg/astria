@@ -57,6 +57,8 @@ pub(crate) fn create_account() {
 
     println!("Create Sequencer Account");
     println!();
+    // TODO: don't print private keys to CLI, prefer writing to file:
+    // https://github.com/astriaorg/astria/issues/594
     println!("Private Key: {private_key_pretty:?}");
     println!("Public Key:  {public_key_pretty:?}");
     println!("Address:     {address_pretty:?}");

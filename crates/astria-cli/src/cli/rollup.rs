@@ -205,10 +205,18 @@ pub struct DeploymentCreateArgs {
     /// Set if you want to do a dry run of the deployment
     #[clap(long, env = "ROLLUP_DRY_RUN", default_value = "false")]
     pub(crate) dry_run: bool,
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
     /// Faucet private key
     #[clap(long, env = "ROLLUP_FAUCET_PRIVATE_KEY")]
     pub(crate) faucet_private_key: String,
     /// Sequencer private key
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
     #[clap(long, env = "ROLLUP_SEQUENCER_PRIVATE_KEY")]
     pub(crate) sequencer_private_key: String,
 }
