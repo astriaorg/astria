@@ -212,6 +212,7 @@ impl SequencerNamespaceData {
         self.chain_ids_commitment
     }
 
+    #[allow(clippy::doc_markdown)] // Clippy doesn't like CometBFT and thinks its an item.
     /// Returns the proof that the chain IDs commitment was included in the CometBFT sequencer
     /// block.
     ///
