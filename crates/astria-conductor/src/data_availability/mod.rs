@@ -46,10 +46,10 @@ use tracing::{
     Instrument,
 };
 
-use crate::{
-    block_verifier::BlockVerifier,
-    executor,
-};
+use crate::executor;
+
+mod block_verifier;
+use block_verifier::BlockVerifier;
 
 /// `SequencerBlockSubset` is a subset of a `SequencerBlock` that contains
 /// information required for transaction data verification, and the transactions
@@ -127,12 +127,14 @@ impl Reader {
     pub(crate) async fn new(
         celestia_config: CelestiaReaderConfig,
         executor_tx: executor::Sender,
-        block_verifier: BlockVerifier,
+        sequencer_client_pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
         sequencer_namespace: Namespace,
         rollup_namespace: Namespace,
         shutdown: oneshot::Receiver<()>,
     ) -> eyre::Result<Self> {
         use celestia_client::celestia_rpc::HeaderClient;
+
+        let block_verifier = BlockVerifier::new(sequencer_client_pool);
 
         let celestia_client::celestia_rpc::Client::Http(celestia_client) =
             celestia_client::celestia_rpc::Client::new(

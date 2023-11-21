@@ -32,12 +32,12 @@ use tracing::{
 
 /// `BlockVerifier` is verifying blocks received from celestia.
 #[derive(Clone)]
-pub(crate) struct BlockVerifier {
+pub(super) struct BlockVerifier {
     pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
 }
 
 impl BlockVerifier {
-    pub(crate) fn new(
+    pub(super) fn new(
         pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
     ) -> Self {
         Self {
@@ -47,7 +47,7 @@ impl BlockVerifier {
 
     /// validates `SequencerNamespaceData` received from Celestia.
     /// This function verifies the block commit.
-    pub(crate) async fn validate_sequencer_namespace_data(
+    pub(super) async fn validate_sequencer_namespace_data(
         &self,
         data: &SequencerNamespaceData,
     ) -> eyre::Result<()> {
