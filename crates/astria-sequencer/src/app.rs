@@ -158,7 +158,7 @@ impl App {
     /// It puts this special "commitment" as the first transaction in a block.
     /// When other validators receive the block, they know the first transaction is
     /// supposed to be the commitment, and verifies that is it correct.
-    #[instrument(name = "App::prepare_proposal", skip(self))]
+    #[instrument(name = "App::prepare_proposal", skip(self, prepare_proposal))]
     pub(crate) async fn prepare_proposal(
         &mut self,
         prepare_proposal: abci::request::PrepareProposal,
@@ -182,7 +182,7 @@ impl App {
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
     /// and ensures it matches the commitment created by the proposer, which
     /// should be the first transaction in the block.
-    #[instrument(name = "App::process_proposal", skip(self))]
+    #[instrument(name = "App::process_proposal", skip(self, process_proposal))]
     pub(crate) async fn process_proposal(
         &mut self,
         process_proposal: abci::request::ProcessProposal,
@@ -256,6 +256,7 @@ impl App {
     ///
     /// Returns the transactions which were successfully decoded and executed
     /// in both their [`SignedTransaction`] and raw bytes form.
+    #[instrument(name = "App::execute_block_data", skip(self, txs))]
     async fn execute_block_data(
         &mut self,
         txs: Vec<bytes::Bytes>,
@@ -444,7 +445,7 @@ impl App {
         })
     }
 
-    #[instrument(name = "App::commit", skip(self))]
+    #[instrument(name = "App::commit", skip(self, storage))]
     pub(crate) async fn commit(&mut self, storage: Storage) -> AppHash {
         // We need to extract the State we've built up to commit it.  Fill in a dummy state.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
