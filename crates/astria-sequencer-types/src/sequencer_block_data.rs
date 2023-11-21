@@ -12,6 +12,7 @@ use serde::{
     Deserialize,
     Serialize,
 };
+use sha2::Digest as _;
 use tendermint::{
     block::Header,
     Block,
@@ -30,6 +31,44 @@ pub fn generate_merkle_tree_from_grouped_txs<T: AsRef<[u8]>>(
         tree.build_leaf().write(chain_id.as_ref()).write(&root);
     }
     tree
+}
+
+#[derive(Clone, Copy, Debug, thiserror::Error)]
+pub enum ChainIdsVerificationFailure {
+    #[error(
+        "the provided chain IDs root could not be verified against the provided proof and data \
+         hash/root"
+    )]
+    ChainIdsRootNotInData,
+    #[error(
+        "the provided chain IDs root does not match the root reconstructed from the provided \
+         chain IDs"
+    )]
+    ChainIdsRootDoesNotMatch,
+}
+
+/// Utility to check the validity of sequencer block fields related to chain IDs.
+///
+/// # Errors
+/// Returns one of the variants described in [`ChainIdsVerificationFailure`] as an error.
+pub fn assert_chain_ids_are_included<'a, TChainIds: 'a>(
+    chain_ids_root: [u8; 32],
+    chain_ids_root_proof: &merkle::Proof,
+    chain_ids: TChainIds,
+    data_hash: [u8; 32],
+) -> Result<(), ChainIdsVerificationFailure>
+where
+    TChainIds: IntoIterator<Item = &'a ChainId>,
+{
+    let chain_ids_root_hash = sha2::Sha256::digest(chain_ids_root);
+    if !chain_ids_root_proof.verify(&chain_ids_root_hash, data_hash) {
+        return Err(ChainIdsVerificationFailure::ChainIdsRootNotInData);
+    }
+    let reconstructed_chain_ids_root = merkle::Tree::from_leaves(chain_ids).root();
+    if chain_ids_root != reconstructed_chain_ids_root {
+        return Err(ChainIdsVerificationFailure::ChainIdsRootDoesNotMatch);
+    }
+    Ok(())
 }
 
 #[derive(Error, Debug)]
@@ -57,13 +96,13 @@ pub enum Error {
          chain IDs commitment in sequencer block body"
     )]
     ChainIdsCommitmentVerification,
+    #[error("stored chain IDs root does not match the root reconstructed from stored chain IDs")]
+    ChainIdsRootReconstruction,
     #[error(
         "data hash stored tendermint header does not match action tree root reconstructed from \
          data"
     )]
     CometBftDataHashReconstructedHashMismatch,
-    #[error("the CometBFT header contained a data hash, but it was not 32 bytes long")]
-    DataHashWrongLength(#[source] TryFromSliceError),
     #[error(
         "block hash calculated from tendermint header does not match block hash stored in \
          sequencer block"
@@ -87,6 +126,19 @@ pub enum Error {
     ReconstructedChainIdsCommitmentMismatch,
     #[error("failed writing sequencer block data as json")]
     WritingJson(#[source] serde_json::Error),
+}
+
+impl From<ChainIdsVerificationFailure> for Error {
+    fn from(value: ChainIdsVerificationFailure) -> Self {
+        match value {
+            ChainIdsVerificationFailure::ChainIdsRootNotInData => {
+                Error::ChainIdsCommitmentVerification
+            }
+            ChainIdsVerificationFailure::ChainIdsRootDoesNotMatch => {
+                Error::ChainIdsRootReconstruction
+            }
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -150,8 +202,6 @@ impl SequencerBlockData {
     /// - if the block's height is >1 and it does not contain a last commit or last commit hash
     /// - if the block's last commit hash does not match the one calculated from the block's commit
     pub fn try_from_raw(raw: RawSequencerBlockData) -> Result<Self, Error> {
-        use sha2::Digest as _;
-
         let RawSequencerBlockData {
             block_hash,
             header,
@@ -167,35 +217,24 @@ impl SequencerBlockData {
             return Err(Error::HashOfHeaderBlockHashMismatach);
         }
 
-        let data_hash: [u8; 32] = header
-            .data_hash
-            .ok_or(Error::MissingDataHash)?
-            .as_bytes()
-            .try_into()
-            .map_err(Error::DataHashWrongLength)?;
+        let Some(Hash::Sha256(data_hash)) = header.data_hash else {
+            // header.data_hash is Option<Hash> and Hash itself has
+            // variants Sha256([u8; 32]) or None.
+            return Err(Error::MissingDataHash);
+        };
 
         let action_tree_root_hash = sha2::Sha256::digest(action_tree_root);
         if !action_tree_root_inclusion_proof.verify(&action_tree_root_hash, data_hash) {
             return Err(Error::ActionTreeRootVerification);
         }
 
-        let chain_ids_commitment_hash = sha2::Sha256::digest(chain_ids_commitment);
-        if !chain_ids_commitment_inclusion_proof.verify(&chain_ids_commitment_hash, data_hash) {
-            return Err(Error::ChainIdsCommitmentVerification);
-        }
-
-        // genesis and height 1 do not have a last commit
-        if header.height.value() <= 1 {
-            return Ok(Self {
-                block_hash,
-                header,
-                rollup_data,
-                action_tree_root,
-                action_tree_root_inclusion_proof,
-                chain_ids_commitment,
-                chain_ids_commitment_inclusion_proof,
-            });
-        }
+        assert_chain_ids_are_included(
+            chain_ids_commitment,
+            &chain_ids_commitment_inclusion_proof,
+            rollup_data.keys(),
+            data_hash,
+        )
+        .map_err(Into::<Error>::into)?;
 
         Ok(Self {
             block_hash,
@@ -206,6 +245,21 @@ impl SequencerBlockData {
             chain_ids_commitment,
             chain_ids_commitment_inclusion_proof,
         })
+    }
+
+    /// Retun the data hash of the cometbft header stored in the sequender block.
+    ///
+    /// # Panics
+    /// This method panics if a variant of the [`SequencerBlockData`] was violated.
+    #[must_use]
+    pub fn data_hash(&self) -> [u8; 32] {
+        let Some(Hash::Sha256(data_hash)) = self.header.data_hash else {
+            panic!(
+                "data_hash must be set; this panicking means an invariant of \
+                 SequencerNamespaceData was violated. This is a bug"
+            );
+        };
+        data_hash
     }
 
     #[must_use]
@@ -286,7 +340,11 @@ impl SequencerBlockData {
             native::sequencer::v1alpha1::SignedTransaction,
             Message as _,
         };
-        let data_hash = b.header.data_hash.ok_or(Error::MissingDataHash)?;
+        let Some(Hash::Sha256(data_hash)) = b.header.data_hash else {
+            // header.data_hash is Option<Hash> and Hash itself has
+            // variants Sha256([u8; 32]) or None.
+            return Err(Error::MissingDataHash);
+        };
 
         let mut datas = b.data.iter();
 
@@ -338,7 +396,7 @@ impl SequencerBlockData {
         // generate the action tree root proof of inclusion in `Header::data_hash`
         let tree = crate::cometbft::merkle_tree_from_transactions(&b.data);
         let calculated_data_hash = tree.root();
-        if calculated_data_hash != data_hash.as_bytes() {
+        if calculated_data_hash != data_hash {
             return Err(Error::CometBftDataHashReconstructedHashMismatch);
         }
         // action tree root is always the first tx in a block

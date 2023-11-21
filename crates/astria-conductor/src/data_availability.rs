@@ -38,6 +38,7 @@ use tokio::{
 };
 use tokio_util::task::JoinMap;
 use tracing::{
+    debug,
     error,
     info,
     instrument,
@@ -46,10 +47,7 @@ use tracing::{
 };
 
 use crate::{
-    block_verifier::{
-        self,
-        BlockVerifier,
-    },
+    block_verifier::BlockVerifier,
     executor,
 };
 
@@ -426,7 +424,7 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
 /// If more than one rollup blob is received and pass verification, they are all dropped.
 /// It is assumed that sequencer-relayer submits at most one rollup blob to celestia per
 /// celestia height.
-#[instrument(skip_all, fields(height, block_hash = %data.block_hash))]
+#[instrument(skip_all, fields(height, block_hash = %data.block_hash()))]
 async fn fetch_verify_rollup_blob_and_forward_to_assembly(
     client: HttpClient,
     height: Height,
@@ -452,14 +450,23 @@ async fn fetch_verify_rollup_blob_and_forward_to_assembly(
         "received rollups; verifying"
     );
     rollups.retain(|rollup| {
-        block_verifier::validate_rollup_data(rollup, data.action_tree_root).is_ok()
+        if let Err(e) = rollup.belongs_to(&data) {
+            debug!(
+                chain_id = hex::encode(&rollup.chain_id),
+                reason = &e as &dyn std::error::Error,
+                "dropping rollup",
+            );
+            false
+        } else {
+            true
+        }
     });
     match rollups.len() {
         0 | 1 => {
             info!("rollup data found; forwarding to block assembler");
             let subset = SequencerBlockSubset {
-                block_hash: data.block_hash,
-                header: data.header.clone(),
+                block_hash: data.block_hash(),
+                header: data.header().clone(),
                 rollup_transactions: rollups.pop().map_or(vec![], |txs| txs.rollup_txs),
             };
             if block_tx.send(subset).await.is_err() {
@@ -492,7 +499,7 @@ fn verify_all_datas(
 ) -> JoinMap<tendermint::Hash, eyre::Result<SequencerNamespaceData>> {
     let mut verification_tasks = JoinMap::new();
     for data in datas {
-        let block_hash = data.block_hash;
+        let block_hash = data.block_hash();
         if verification_tasks.contains_key(&block_hash) {
             warn!(%block_hash,
                 "more than one sequencer data with the same block hash retrieved from celestia; \

@@ -14,6 +14,7 @@ use sequencer_types::{
 use crate::{
     blob_space::{
         celestia_namespace_v0_from_hashed_bytes,
+        RawSequencerNamespaceData,
         SequencerNamespaceData,
     },
     RollupNamespaceData,
@@ -262,7 +263,8 @@ fn assemble_blobs_from_sequencer_block_data(
     }
 
     let sequencer_namespace = celestia_namespace_v0_from_hashed_bytes(header.chain_id.as_bytes());
-    let sequencer_namespace_data = SequencerNamespaceData {
+
+    let raw_data = RawSequencerNamespaceData {
         block_hash,
         header,
         rollup_chain_ids: chain_ids,
@@ -272,7 +274,7 @@ fn assemble_blobs_from_sequencer_block_data(
         chain_ids_commitment_inclusion_proof,
     };
 
-    let data = serde_json::to_vec(&sequencer_namespace_data).expect(
+    let data = serde_json::to_vec(&raw_data).expect(
         "should not fail because SequencerNamespaceData does not contain maps and hence \
          non-unicode keys that would trigger to_vec()'s only error case",
     );
@@ -293,12 +295,11 @@ fn filter_and_convert_rollup_data_blobs(
     sequencer_data: &SequencerNamespaceData,
 ) -> Vec<RollupNamespaceData> {
     let mut rollups = Vec::with_capacity(blobs.len());
-    let block_hash = sequencer_data.block_hash;
     for blob in blobs {
         let Ok(data) = serde_json::from_slice::<RollupNamespaceData>(&blob.data) else {
             continue;
         };
-        if blob.namespace == namespace && data.block_hash == block_hash {
+        if blob.namespace == namespace && data.block_hash == sequencer_data.block_hash() {
             rollups.push(data);
         }
     }
