@@ -1,7 +1,6 @@
 version: v1
 name: buf.build/astria/astria
 deps:
-  # - buf.build/tendermint/tendermint
   - buf.build/penumbra-zone/penumbra
 breaking:
   use:
