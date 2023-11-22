@@ -34,5 +34,5 @@ deps:
   - remote: buf.build
     owner: penumbra-zone
     repository: penumbra
-    commit: 723c6aa746dd4e989cf13aa9c9ab3769
-    digest: shake256:068a0da78b4625754af7decd439960acbe05a0b4b1cac82eb3e78e0089ed3d1d48a45443b00d84a5f7b23218617fd5f2f9bdb4aeb57128ab83d24f621af3f3e2
+    commit: bc443669626d4a7b823f588d95c9a528
+    digest: shake256:3b1f87ed0ceb30433daf3376b6626399ffd77af020a7ab9553f308157619d2adda9f2ed37188eadd075909ee7eb5fff8b78d373de6474ffa770a221481cdd1b3
