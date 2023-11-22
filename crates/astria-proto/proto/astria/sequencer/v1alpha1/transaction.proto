@@ -33,7 +33,7 @@ message Action {
         tendermint.abci.ValidatorUpdate validator_update_action = 3;
         SudoAddressChangeAction sudo_address_change_action = 4;
         MintAction mint_action = 5;
-        penumbra.core.component.ibc.v1alpha1.IbcAction ibc_action = 6;
+        penumbra.core.component.ibc.v1alpha1.IbcRelay ibc_action = 6;
     }   
 }
 

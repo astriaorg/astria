@@ -142,7 +142,7 @@ pub mod action {
         #[prost(message, tag = "5")]
         MintAction(super::MintAction),
         #[prost(message, tag = "6")]
-        IbcAction(::penumbra_proto::core::component::ibc::v1alpha1::IbcAction),
+        IbcAction(::penumbra_proto::core::component::ibc::v1alpha1::IbcRelay),
     }
 }
 /// `TransferAction` represents a value transfer transaction.

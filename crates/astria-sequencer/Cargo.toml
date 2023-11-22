@@ -15,11 +15,11 @@ anyhow = "1"
 borsh = "0.10.3"
 matchit = "0.7.2"
 ibc-types = { version = "0.7.0", features = ["with_serde"] }
-penumbra-component = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "4f479272c6acc3f072108bac88fc0d416d5d0024" }
-penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "4f479272c6acc3f072108bac88fc0d416d5d0024" }
-penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "4f479272c6acc3f072108bac88fc0d416d5d0024" }
-penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "4f479272c6acc3f072108bac88fc0d416d5d0024" }
-penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "4f479272c6acc3f072108bac88fc0d416d5d0024" }
+penumbra-component = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "11d3b524da750c16c376759b03e4bbb3474562d9" }
+penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "11d3b524da750c16c376759b03e4bbb3474562d9" }
+penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "11d3b524da750c16c376759b03e4bbb3474562d9" }
+penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "11d3b524da750c16c376759b03e4bbb3474562d9" }
+penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "11d3b524da750c16c376759b03e4bbb3474562d9" }
 tower = "0.4"
 tower-abci = "0.11.0"
 tower-actor = "0.1.0"

@@ -8,7 +8,7 @@ use ed25519_consensus::{
     SigningKey,
     VerificationKey,
 };
-use penumbra_ibc::IbcAction;
+use penumbra_ibc::IbcRelay as IbcAction;
 use tracing::info;
 
 pub use super::asset;
