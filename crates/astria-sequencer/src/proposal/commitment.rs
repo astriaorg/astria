@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use bytes::Bytes;
 use proto::native::sequencer::v1alpha1::SignedTransaction;
+use sequencer_types::ChainId;
 
 /// Wrapper for values returned by [`generate_sequence_actions_commitment`].
 pub(crate) struct GeneratedCommitments {
@@ -65,14 +66,13 @@ pub(crate) fn generate_sequence_actions_commitment(
 /// Within an entry, actions are ordered by their transaction index within a block.
 fn group_sequence_actions_by_chain_id(
     txs: &[SignedTransaction],
-) -> BTreeMap<Vec<u8>, Vec<Vec<u8>>> {
+) -> BTreeMap<ChainId, Vec<Vec<u8>>> {
     let mut rollup_txs_map = BTreeMap::new();
 
     for action in txs.iter().flat_map(SignedTransaction::actions) {
         if let Some(action) = action.as_sequence() {
-            let txs_for_rollup: &mut Vec<Vec<u8>> = rollup_txs_map
-                .entry(action.chain_id.clone())
-                .or_insert(vec![]);
+            let txs_for_rollup: &mut Vec<Vec<u8>> =
+                rollup_txs_map.entry(action.chain_id).or_insert(vec![]);
             txs_for_rollup.push(action.data.clone());
         }
     }
@@ -89,6 +89,7 @@ mod test {
             DEFAULT_NATIVE_ASSET_DENOM,
         },
         Address,
+        ChainId,
         SequenceAction,
         TransferAction,
         UnsignedTransaction,
@@ -106,7 +107,7 @@ mod test {
         let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
 
         let sequence_action = SequenceAction {
-            chain_id: b"testchainid".to_vec(),
+            chain_id: ChainId::with_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
         };
         let transfer_action = TransferAction {
@@ -155,7 +156,7 @@ mod test {
         let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
 
         let sequence_action = SequenceAction {
-            chain_id: b"testchainid".to_vec(),
+            chain_id: ChainId::with_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
         };
         let transfer_action = TransferAction {
