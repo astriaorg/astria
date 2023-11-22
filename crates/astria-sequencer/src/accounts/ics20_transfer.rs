@@ -120,9 +120,9 @@ impl AppHandlerCheck for Ics20Transfer {
         state: S,
         msg: &MsgAcknowledgement,
     ) -> Result<()> {
-        // TODO: double check that this is correct format
         // see https://github.com/cosmos/ibc-go/blob/3f5b2b6632e0fa37056e5805b289a9307870ac9a/modules/core/04-channel/types/acknowledgement.go
         // and https://github.com/cosmos/ibc-go/blob/3f5b2b6632e0fa37056e5805b289a9307870ac9a/proto/ibc/core/channel/v1/channel.proto#L155
+        // for formatting
         let ack: TokenTransferAcknowledgement =
             serde_json::from_slice(msg.acknowledgement.as_slice())?;
         if ack.is_successful() {
@@ -215,7 +215,6 @@ impl AppHandlerExecute for Ics20Transfer {
 
         let ack_bytes: Vec<u8> = ack.into();
 
-        // TODO: does this need to go in the ibc substore? will penumbra update?
         _ = state
             .write_acknowledgement(&msg.packet, &ack_bytes)
             .await
@@ -246,9 +245,6 @@ impl AppHandlerExecute for Ics20Transfer {
     }
 
     async fn acknowledge_packet_execute<S: StateWrite>(mut state: S, msg: &MsgAcknowledgement) {
-        // TODO: double check that this is correct format
-        // see https://github.com/cosmos/ibc-go/blob/3f5b2b6632e0fa37056e5805b289a9307870ac9a/modules/core/04-channel/types/acknowledgement.go
-        // and https://github.com/cosmos/ibc-go/blob/3f5b2b6632e0fa37056e5805b289a9307870ac9a/proto/ibc/core/channel/v1/channel.proto#L155
         let ack: TokenTransferAcknowledgement = serde_json::from_slice(
             msg.acknowledgement.as_slice(),
         )
@@ -329,8 +325,8 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             format!("{dest_port}/{dest_channel}/{}", packet_data.denom)
         };
 
-        // TODO: register denomination in global ID -> denom map
-        // if it's not already there
+        // TODO(https://github.com/astriaorg/astria/issues/603): register denomination
+        // in global ID -> denom map if it's not already there
 
         let asset_id = Id::from_denom(&prefixed_denomination);
         let user_balance = state.get_account_balance(recipient, asset_id).await?;
