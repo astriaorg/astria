@@ -123,7 +123,7 @@ pub struct UnsignedTransaction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Action {
-    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6")]
+    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6, 7")]
     pub value: ::core::option::Option<action::Value>,
 }
 /// Nested message and enum types in `Action`.
@@ -143,6 +143,10 @@ pub mod action {
         MintAction(super::MintAction),
         #[prost(message, tag = "6")]
         IbcAction(::penumbra_proto::core::component::ibc::v1alpha1::IbcRelay),
+        #[prost(message, tag = "7")]
+        Ics20Withdrawal(
+            ::penumbra_proto::core::component::ibc::v1alpha1::Ics20Withdrawal,
+        ),
     }
 }
 /// `TransferAction` represents a value transfer transaction.

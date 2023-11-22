@@ -34,6 +34,7 @@ message Action {
         SudoAddressChangeAction sudo_address_change_action = 4;
         MintAction mint_action = 5;
         penumbra.core.component.ibc.v1alpha1.IbcRelay ibc_action = 6;
+        penumbra.core.component.ibc.v1alpha1.Ics20Withdrawal ics20_withdrawal = 7;
     }   
 }
 
