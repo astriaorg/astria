@@ -15,6 +15,7 @@ use tendermint::{
 
 use crate::{
     accounts::state_ext::StateReadExt as _,
+    asset::get_native_asset,
     state_ext::StateReadExt as _,
 };
 
@@ -31,7 +32,12 @@ pub(crate) async fn balance_request(
         Ok(tup) => tup,
         Err(err_rsp) => return err_rsp,
     };
-    let balance = match snapshot.get_account_balance(address).await {
+
+    // TODO: update query to take optional `asset` parameter
+    let balance = match snapshot
+        .get_account_balance(address, get_native_asset().id())
+        .await
+    {
         Ok(balance) => balance,
         Err(err) => {
             return response::Query {

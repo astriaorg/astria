@@ -2,7 +2,6 @@
 
 #![allow(clippy::missing_panics_doc)]
 
-use sequencer_validation::MerkleTree;
 use tendermint::block::Header;
 
 #[must_use]
@@ -44,6 +43,10 @@ pub fn default_header() -> Header {
 pub fn create_tendermint_block() -> tendermint::Block {
     use proto::{
         native::sequencer::v1alpha1::{
+            asset::{
+                Denom,
+                DEFAULT_NATIVE_ASSET_DENOM,
+            },
             SequenceAction,
             UnsignedTransaction,
         },
@@ -70,6 +73,7 @@ pub fn create_tendermint_block() -> tendermint::Block {
 
     let suffix = height.to_string().into_bytes();
     let chain_id = [b"test_chain_id_", &*suffix].concat();
+    let asset = Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM);
     let signed_tx_bytes = UnsignedTransaction {
         nonce: 1,
         actions: vec![
@@ -79,12 +83,13 @@ pub fn create_tendermint_block() -> tendermint::Block {
             }
             .into(),
         ],
+        fee_asset_id: asset.id(),
     }
     .into_signed(&signing_key)
     .into_raw()
     .encode_to_vec();
-    let action_tree = sequencer_validation::MerkleTree::from_leaves(vec![signed_tx_bytes.clone()]);
-    let chain_ids_commitment = MerkleTree::from_leaves(vec![chain_id]).root();
+    let action_tree = merkle::Tree::from_leaves(std::iter::once(&signed_tx_bytes));
+    let chain_ids_commitment = merkle::Tree::from_leaves(std::iter::once(chain_id)).root();
     let data = vec![
         action_tree.root().to_vec(),
         chain_ids_commitment.to_vec(),

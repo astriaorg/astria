@@ -1,6 +1,9 @@
 use std::time::Duration;
 
-use eyre::WrapErr as _;
+use eyre::{
+    bail,
+    WrapErr as _,
+};
 use humantime::format_duration;
 use sequencer_types::SequencerBlockData;
 use tendermint_rpc::{
@@ -33,12 +36,6 @@ pub(crate) struct Relayer {
 
     // The http client for submitting sequencer blocks to celestia.
     data_availability: celestia_client::jsonrpsee::http_client::HttpClient,
-
-    // The fee that relayer will pay for submitting sequencer blocks to the DA.
-    fee: u64,
-
-    // The limit that relayer will pay for submitting sequencer blocks to the DA.
-    gas_limit: u64,
 
     // If this is set, only relay blocks to DA which are proposed by the same validator key.
     validator: Option<Validator>,
@@ -87,7 +84,7 @@ impl Relayer {
     /// + failed to read the validator keys from the path in cfg;
     /// + failed to construct a client to the data availability layer (unless `cfg.disable_writing`
     ///   is set).
-    pub(crate) fn new(cfg: &crate::config::Config) -> eyre::Result<Self> {
+    pub(crate) async fn new(cfg: &crate::config::Config) -> eyre::Result<Self> {
         let sequencer = HttpClient::new(&*cfg.sequencer_endpoint)
             .wrap_err("failed to create sequencer client")?;
 
@@ -104,11 +101,16 @@ impl Relayer {
             (false, _) => None, // could also say that the file was unnecessarily set, but it's ok
         };
 
-        let data_availability = celestia_client::celestia_rpc::client::new_http(
-            &cfg.celestia_endpoint,
-            Some(&cfg.celestia_bearer_token),
-        )
-        .wrap_err("failed constructing celestia http client")?;
+        let celestia_client::celestia_rpc::Client::Http(data_availability) =
+            celestia_client::celestia_rpc::Client::new(
+                &cfg.celestia_endpoint,
+                Some(&cfg.celestia_bearer_token),
+            )
+            .await
+            .wrap_err("failed constructing celestia http client")?
+        else {
+            bail!("expected to get a celestia HTTP client, but got a websocket client");
+        };
 
         let (state_tx, _) = watch::channel(State::default());
 
@@ -116,9 +118,6 @@ impl Relayer {
             sequencer,
             sequencer_poll_period: Duration::from_millis(cfg.block_time),
             data_availability,
-            // FIXME (https://github.com/astriaorg/astria/issues/509): allow configuring this
-            fee: 100_000,
-            gas_limit: cfg.gas_limit,
             validator,
             state_tx,
             queued_blocks: Vec::new(),
@@ -251,6 +250,10 @@ impl Relayer {
         // Then report update the internal state or report if submission failed
         match submission_result {
             Ok(height) => self.state_tx.send_modify(|state| {
+                debug!(
+                    celestia_height=%height,
+                    "successfully submitted blocks to data availability layer"
+                );
                 state.current_data_availability_height.replace(height);
             }),
             // TODO: add more context to this error, maybe inject a span?
@@ -320,7 +323,7 @@ impl Relayer {
     /// # Errors
     /// An error is returned if calling the data availabilty failed for a total
     /// of `n_retries + 1` times.
-    #[instrument(name = "Relayer::wait_for_data_availability", skip_all, fields(
+    #[instrument(name = "Relayer::wait_for_sequencer", skip_all, fields(
         retries.max_number = n_retries,
         retries.initial_delay = %format_duration(delay),
         retries.exponential_factor = factor,
@@ -337,7 +340,7 @@ impl Relayer {
         };
         use tendermint_rpc::Client as _;
 
-        debug!("attempting to connect to data availability layer",);
+        debug!("attempting to connect to sequencer",);
         let backoff = ExponentialBuilder::default()
             .with_min_delay(delay)
             .with_factor(factor)
@@ -414,8 +417,6 @@ impl Relayer {
                 let client = self.data_availability.clone();
                 self.submission_task = Some(task::spawn(submit_blocks_to_celestia(
                     client,
-                    self.fee,
-                    self.gas_limit,
                     self.queued_blocks.clone(),
                 )));
                 self.queued_blocks.clear();
@@ -465,8 +466,6 @@ fn convert_block_response_to_sequencer_block_data(
 #[instrument(skip_all)]
 async fn submit_blocks_to_celestia(
     client: celestia_client::jsonrpsee::http_client::HttpClient,
-    fee: u64,
-    gas_limit: u64,
     sequencer_block_data: Vec<SequencerBlockData>,
 ) -> eyre::Result<u64> {
     use celestia_client::{
@@ -483,8 +482,8 @@ async fn submit_blocks_to_celestia(
         .submit_sequencer_blocks(
             sequencer_block_data,
             SubmitOptions {
-                fee: Some(fee),
-                gas_limit: Some(gas_limit),
+                fee: None,
+                gas_limit: None,
             },
         )
         .await

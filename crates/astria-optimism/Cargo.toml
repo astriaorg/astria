@@ -1,0 +1,17 @@
+[package]
+name = "astria-optimism"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ethers = { workspace = true, features = ["optimism", "ethers-solc", "ws"] }
+eyre = { workspace = true }
+hex = { workspace = true }
+
+[dev-dependencies]
+astria-optimism = { path = ".", features = ["test-utils"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[features]
+default = []
+test-utils = []

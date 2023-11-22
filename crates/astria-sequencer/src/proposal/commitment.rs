@@ -42,22 +42,20 @@ impl GeneratedCommitments {
 pub(crate) fn generate_sequence_actions_commitment(
     signed_txs: &[SignedTransaction],
 ) -> GeneratedCommitments {
-    use sequencer_validation::generate_action_tree_leaves;
-    use tendermint::{
-        crypto::default::Sha256,
-        merkle::simple_hash_from_byte_vectors,
-    };
-
     let chain_id_to_txs = group_sequence_actions_by_chain_id(signed_txs);
-    let chain_ids = chain_id_to_txs.keys().cloned().collect::<Vec<_>>();
+    let chain_ids_commitment = merkle::Tree::from_leaves(chain_id_to_txs.keys()).root();
 
     // each leaf of the action tree is the root of a merkle tree of the `sequence::Action`s
     // with the same `chain_id`, prepended with `chain_id`.
     // the leaves are sorted in ascending order by `chain_id`.
-    let leaves = generate_action_tree_leaves(chain_id_to_txs);
+    let sequence_actions_commitment =
+        sequencer_types::sequencer_block_data::generate_merkle_tree_from_grouped_txs(
+            &chain_id_to_txs,
+        )
+        .root();
     GeneratedCommitments {
-        sequence_actions_commitment: simple_hash_from_byte_vectors::<Sha256>(&leaves),
-        chain_ids_commitment: simple_hash_from_byte_vectors::<Sha256>(&chain_ids),
+        sequence_actions_commitment,
+        chain_ids_commitment,
     }
 }
 
@@ -86,18 +84,27 @@ fn group_sequence_actions_by_chain_id(
 mod test {
     use ed25519_consensus::SigningKey;
     use proto::native::sequencer::v1alpha1::{
+        asset::{
+            Denom,
+            DEFAULT_NATIVE_ASSET_DENOM,
+        },
         Address,
         SequenceAction,
         TransferAction,
         UnsignedTransaction,
     };
     use rand::rngs::OsRng;
-    use sequencer_validation::generate_action_tree_leaves;
 
     use super::*;
+    use crate::asset::{
+        get_native_asset,
+        NATIVE_ASSET,
+    };
 
     #[test]
     fn generate_sequence_actions_commitment_should_ignore_transfers() {
+        let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
+
         let sequence_action = SequenceAction {
             chain_id: b"testchainid".to_vec(),
             data: b"helloworld".to_vec(),
@@ -105,12 +112,14 @@ mod test {
         let transfer_action = TransferAction {
             to: Address([0u8; 20]),
             amount: 1,
+            asset_id: get_native_asset().id(),
         };
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![sequence_action.clone().into(), transfer_action.into()],
+            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&signing_key);
@@ -124,6 +133,7 @@ mod test {
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![sequence_action.into()],
+            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&signing_key);
@@ -136,66 +146,13 @@ mod test {
     }
 
     #[test]
-    fn generate_action_tree_leaves_assert_leaves_ordered_by_chain_id() {
-        let signing_key = SigningKey::new(OsRng);
-
-        let chain_id_0 = b"testchainid0";
-        let tx = UnsignedTransaction {
-            nonce: 0,
-            actions: vec![
-                SequenceAction {
-                    chain_id: chain_id_0.to_vec(),
-                    data: b"helloworld".to_vec(),
-                }
-                .into(),
-            ],
-        };
-        let signed_tx_0 = tx.into_signed(&signing_key);
-
-        let chain_id_1 = b"testchainid1";
-        let tx = UnsignedTransaction {
-            nonce: 0,
-            actions: vec![
-                SequenceAction {
-                    chain_id: chain_id_1.to_vec(),
-                    data: b"helloworld".to_vec(),
-                }
-                .into(),
-            ],
-        };
-        let signed_tx_1 = tx.into_signed(&signing_key);
-
-        let chain_id_2 = b"testchainid2";
-        let tx = UnsignedTransaction {
-            nonce: 0,
-            actions: vec![
-                SequenceAction {
-                    chain_id: chain_id_2.to_vec(),
-                    data: b"helloworld".to_vec(),
-                }
-                .into(),
-            ],
-        };
-        let signed_tx_2 = tx.into_signed(&signing_key);
-
-        let txs = vec![signed_tx_0, signed_tx_1, signed_tx_2];
-        let chain_id_to_txs = group_sequence_actions_by_chain_id(&txs);
-        let leaves = generate_action_tree_leaves(chain_id_to_txs);
-        leaves.iter().enumerate().for_each(|(i, leaf)| {
-            if i == 0 {
-                return;
-            }
-            assert!(leaf > &leaves[i - 1]);
-        });
-    }
-
-    #[test]
     // TODO(https://github.com/astriaorg/astria/issues/312): ensure this test is stable
     // against changes in the serialization format (protobuf is not deterministic)
     fn generate_sequence_actions_commitment_snapshot() {
         // this tests that the commitment generated is what is expected via a test vector.
         // this test will only break in the case of a breaking change to the commitment scheme,
         // thus if this test needs to be updated, we should cut a new release.
+        let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
 
         let sequence_action = SequenceAction {
             chain_id: b"testchainid".to_vec(),
@@ -204,12 +161,14 @@ mod test {
         let transfer_action = TransferAction {
             to: Address([0u8; 20]),
             amount: 1,
+            asset_id: get_native_asset().id(),
         };
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![sequence_action.into(), transfer_action.into()],
+            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&signing_key);

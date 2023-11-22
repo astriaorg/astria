@@ -197,11 +197,15 @@ pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()>
         .arg("--debug")
         .arg("--values")
         .arg(rollup.deployment_config.get_filename())
+        // TODO: https://github.com/astriaorg/astria/issues/594
+        // Use a secret manager or inject the private key into the environment
         .arg("--set")
         .arg(format!(
             "config.faucet.privateKey={}",
             args.faucet_private_key.clone()
         ))
+        // TODO: https://github.com/astriaorg/astria/issues/594
+        // Use a secret manager or inject the private key into the environment
         .arg("--set")
         .arg(format!(
             "config.sequencer.privateKey={}",

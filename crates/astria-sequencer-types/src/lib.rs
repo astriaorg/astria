@@ -1,4 +1,5 @@
 pub mod abci_code;
+pub mod cometbft;
 pub mod sequencer_block_data;
 pub mod serde;
 pub mod tendermint;
