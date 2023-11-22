@@ -148,12 +148,12 @@ impl Service<InfoRequest> for Info {
 #[cfg(test)]
 mod test {
     use penumbra_storage::StateDelta;
-    use proto::native::sequencer::{
+    use proto::native::sequencer::v1alpha1::{
         asset::{
             Denom,
             DEFAULT_NATIVE_ASSET_DENOM,
         },
-        v1alpha1::Address,
+        Address,
     };
     use tendermint::v0_37::abci::{
         request,
