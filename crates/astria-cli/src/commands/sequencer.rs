@@ -5,14 +5,24 @@ use astria_sequencer_client::{
 };
 use color_eyre::{
     eyre,
-    eyre::Context,
+    eyre::{
+        ensure,
+        eyre,
+        Context,
+    },
 };
 use ed25519_consensus::SigningKey;
+use proto::native::sequencer::v1alpha1::{
+    Action,
+    TransferAction,
+    UnsignedTransaction,
+};
 use rand::rngs::OsRng;
 
 use crate::cli::sequencer::{
-    BalanceGetArgs,
+    BasicAccountArgs,
     BlockHeightGetArgs,
+    TransferArgs,
 };
 
 /// Generate a new signing key (this is also called a secret key by other implementations)
@@ -47,6 +57,8 @@ pub(crate) fn create_account() {
 
     println!("Create Sequencer Account");
     println!();
+    // TODO: don't print private keys to CLI, prefer writing to file:
+    // https://github.com/astriaorg/astria/issues/594
     println!("Private Key: {private_key_pretty:?}");
     println!("Public Key:  {public_key_pretty:?}");
     println!("Address:     {address_pretty:?}");
@@ -62,7 +74,7 @@ pub(crate) fn create_account() {
 ///
 /// * If the http client cannot be created
 /// * If the balance cannot be retrieved
-pub(crate) async fn get_balance(args: &BalanceGetArgs) -> eyre::Result<()> {
+pub(crate) async fn get_balance(args: &BasicAccountArgs) -> eyre::Result<()> {
     let address = &args.address;
     let sequencer_client = HttpClient::new(args.sequencer_url.as_str())
         .wrap_err("failed constructing http sequencer client")?;
@@ -74,6 +86,31 @@ pub(crate) async fn get_balance(args: &BalanceGetArgs) -> eyre::Result<()> {
 
     println!("Balance for address {}:", address.0);
     println!("    {}", res.balance);
+
+    Ok(())
+}
+
+// Gets the balance of a Sequencer account
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the balance cannot be retrieved
+pub(crate) async fn get_nonce(args: &BasicAccountArgs) -> eyre::Result<()> {
+    let address = &args.address;
+    let sequencer_client = HttpClient::new(args.sequencer_url.as_str())
+        .wrap_err("failed constructing http sequencer client")?;
+
+    let res = sequencer_client
+        .get_latest_nonce(address.0)
+        .await
+        .wrap_err("failed to get nonce")?;
+
+    println!("Nonce for address {}:", address.0);
+    println!("    {} at height {}", res.nonce, res.height);
 
     Ok(())
 }
@@ -99,6 +136,60 @@ pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<
 
     println!("Block Height:");
     println!("    {}", res.header().height);
+
+    Ok(())
+}
+
+/// Gets the latest block height of a Sequencer node
+///
+/// # Arguments
+///
+/// * `args` - The arguments passed to the command
+///
+/// # Errors
+///
+/// * If the http client cannot be created
+/// * If the latest block height cannot be retrieved
+pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
+    // Build the signing_key
+    let private_key_bytes: [u8; 32] = hex::decode(args.private_key.as_str())
+        .wrap_err("failed to decode private key bytes from hex string")?
+        .try_into()
+        .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
+    let sequencer_key =
+        SigningKey::try_from(private_key_bytes).wrap_err("failed to parse sequencer key")?;
+
+    // To and from addresses
+    let from_address = Address::from_verification_key(sequencer_key.verification_key());
+    let to_address = args.to_address.0;
+
+    let sequencer_client = HttpClient::new(args.sequencer_url.as_str())
+        .wrap_err("failed constructing http sequencer client")?;
+
+    // Fetch the nonce for the action
+    let nonce_res = sequencer_client
+        .get_latest_nonce(from_address)
+        .await
+        .wrap_err("failed to get nonce")?;
+
+    // Build and submit tx
+    let tx = UnsignedTransaction {
+        nonce: nonce_res.nonce,
+        actions: vec![Action::Transfer(TransferAction {
+            to: to_address,
+            amount: args.amount,
+            asset_id: proto::native::sequencer::asset::default_native_asset_id(),
+        })],
+        fee_asset_id: proto::native::sequencer::asset::default_native_asset_id(),
+    }
+    .into_signed(&sequencer_key);
+    let res = sequencer_client
+        .submit_transaction_commit(tx)
+        .await
+        .wrap_err("failed to submit transfer transaction")?;
+
+    ensure!(res.tx_result.code.is_ok(), "error with transfer");
+    println!("Transfer completed!");
 
     Ok(())
 }

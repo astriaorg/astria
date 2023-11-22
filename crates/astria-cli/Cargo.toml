@@ -10,6 +10,8 @@ bench = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+proto = { package = "astria-proto", path = "../astria-proto" }
+
 clap = { workspace = true, features = ["derive", "env"] }
 color-eyre = { workspace = true }
 ed25519-consensus = { workspace = true }
