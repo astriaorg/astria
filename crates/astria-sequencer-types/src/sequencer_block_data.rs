@@ -111,8 +111,6 @@ pub enum Error {
          sequencer block"
     )]
     HashOfHeaderBlockHashMismatach,
-    #[error("chain ID must be 32 bytes or less")]
-    InvalidChainIdLength,
     #[error("the sequencer block contained neither action tree root nor transaction data")]
     NoData,
     #[error("block has no data hash")]
@@ -143,30 +141,6 @@ impl From<ChainIdsVerificationFailure> for Error {
         }
     }
 }
-
-// #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-// pub struct ChainId(#[serde(with = "hex::serde")] Vec<u8>);
-
-// impl ChainId {
-//     /// Creates a new `ChainId` from the given bytes.
-//     ///
-//     /// # Errors
-//     ///
-//     /// - if the given bytes are longer than 32 bytes
-//     pub fn new(inner: Vec<u8>) -> Result<Self, Error> {
-//         if inner.len() > 32 {
-//             return Err(Error::InvalidChainIdLength);
-//         }
-
-//         Ok(Self(inner))
-//     }
-// }
-
-// impl AsRef<[u8]> for ChainId {
-//     fn as_ref(&self) -> &[u8] {
-//         &self.0
-//     }
-// }
 
 /// `SequencerBlockData` represents a sequencer block's data
 /// to be submitted to the DA layer.
