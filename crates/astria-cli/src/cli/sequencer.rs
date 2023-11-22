@@ -10,6 +10,8 @@ use color_eyre::{
     eyre::Context,
 };
 
+const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-1.devnet.astria.org";
+
 /// Interact with a Sequencer node
 #[derive(Debug, Subcommand)]
 pub enum Command {
@@ -29,27 +31,58 @@ pub enum Command {
         #[clap(subcommand)]
         command: BlockHeightCommand,
     },
+    /// Command for sending balance between accounts
+    Transfer(TransferArgs),
 }
 
 #[derive(Debug, Subcommand)]
 pub enum AccountCommand {
     /// Create a new Sequencer account
     Create,
+    Balance(BasicAccountArgs),
+    Nonce(BasicAccountArgs),
 }
 
 #[derive(Debug, Subcommand)]
 pub enum BalanceCommand {
     /// Get the balance of a Sequencer account
-    Get(BalanceGetArgs),
+    Get(BasicAccountArgs),
 }
 
 #[derive(Args, Debug)]
-pub struct BalanceGetArgs {
+pub struct BasicAccountArgs {
     /// The url of the Sequencer node
-    #[clap(long)]
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = DEFAULT_SEQUENCER_RPC
+    )]
     pub(crate) sequencer_url: String,
     /// The address of the Sequencer account
     pub(crate) address: SequencerAddressArg,
+}
+
+#[derive(Args, Debug)]
+pub struct TransferArgs {
+    // The address of the Sequencer account to send amount to
+    pub(crate) to_address: SequencerAddressArg,
+    // The amount being sent
+    #[clap(long)]
+    pub(crate) amount: u128,
+    /// The private key of account being sent from
+    #[clap(long, env = "SEQUENCER_PRIVATE_KEY")]
+    // TODO: https://github.com/astriaorg/astria/issues/594
+    // Don't use a plain text private, prefer wrapper like from
+    // the secrecy crate with specialized `Debug` and `Drop` implementations
+    // that overwrite the key on drop and don't reveal it when printing.
+    pub(crate) private_key: String,
+    /// The url of the Sequencer node
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = DEFAULT_SEQUENCER_RPC
+    )]
+    pub(crate) sequencer_url: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
