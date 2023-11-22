@@ -8,6 +8,7 @@ use borsh::{
     BorshSerialize,
 };
 use hex::ToHex as _;
+use ibc_types::core::channel::ChannelId;
 use penumbra_storage::{
     StateRead,
     StateWrite,
@@ -35,7 +36,7 @@ fn storage_key(address: &str) -> String {
     format!("{ACCOUNTS_PREFIX}/{address}")
 }
 
-pub(crate) fn balance_storage_key(address: Address, asset: asset::Id) -> String {
+fn balance_storage_key(address: Address, asset: asset::Id) -> String {
     format!(
         "{}/balance/{}",
         storage_key(&address.encode_hex::<String>()),
@@ -43,8 +44,15 @@ pub(crate) fn balance_storage_key(address: Address, asset: asset::Id) -> String 
     )
 }
 
-pub(crate) fn nonce_storage_key(address: Address) -> String {
+fn nonce_storage_key(address: Address) -> String {
     format!("{}/nonce", storage_key(&address.encode_hex::<String>()))
+}
+
+fn channel_balance_storage_key(channel: &ChannelId, asset: asset::Id) -> String {
+    format!(
+        "ibc-data/{channel}/balance/{}",
+        asset.encode_hex::<String>()
+    )
 }
 
 #[async_trait]
@@ -77,6 +85,20 @@ pub(crate) trait StateReadExt: StateRead {
         let Nonce(nonce) = Nonce::try_from_slice(&bytes).context("invalid nonce bytes")?;
         Ok(nonce)
     }
+
+    #[instrument(skip(self))]
+    async fn get_ibc_channel_balance(&self, channel: &ChannelId, asset: asset::Id) -> Result<u128> {
+        let Some(bytes) = self
+            .get_raw(&channel_balance_storage_key(channel, asset))
+            .await
+            .context("failed reading ibc channel balance from state")?
+        else {
+            debug!("ibc channel balance not found, returning 0");
+            return Ok(0);
+        };
+        let Balance(balance) = Balance::try_from_slice(&bytes).context("invalid balance bytes")?;
+        Ok(balance)
+    }
 }
 
 impl<T: StateRead> StateReadExt for T {}
@@ -103,6 +125,20 @@ pub(crate) trait StateWriteExt: StateWrite {
             .try_to_vec()
             .context("failed to serialize nonce")?;
         self.put_raw(nonce_storage_key(address), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    fn put_ibc_channel_balance(
+        &mut self,
+        channel: &ChannelId,
+        asset: asset::Id,
+        balance: u128,
+    ) -> Result<()> {
+        let bytes = Balance(balance)
+            .try_to_vec()
+            .context("failed to serialize balance")?;
+        self.put_raw(channel_balance_storage_key(channel, asset), bytes);
         Ok(())
     }
 }

@@ -37,7 +37,6 @@ use proto::native::sequencer::v1alpha1::{
         Id,
     },
     Address,
-    ADDRESS_LEN,
 };
 
 use super::state_ext::StateWriteExt;
@@ -155,8 +154,9 @@ async fn refund_tokens_check<S: StateRead>(
         // sender of packet (us) was the source chain
         //
         // check if escrow account has enough balance to refund user
-        let channel_addr = address_from_channel_id(source_channel);
-        let balance = state.get_account_balance(channel_addr, asset.id()).await?;
+        let balance = state
+            .get_ibc_channel_balance(source_channel, asset.id())
+            .await?;
 
         let packet_amount: u128 = packet_data.amount.parse()?;
         if balance < packet_amount {
@@ -290,7 +290,6 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
 
     let packet_data = FungibleTokenPacketData::decode(data)?;
     let asset = IbcAsset::from_denomination(&packet_data.denom)?;
-    let source_channel_address = address_from_channel_id(source_channel);
     let packet_amount: u128 = packet_data.amount.parse()?;
     let recipient = Address::try_from_slice(
         &hex::decode(packet_data.receiver).context("failed to decode receiver as hex string")?,
@@ -302,15 +301,11 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         // subtract balance from escrow account and transfer to user
 
         let escrow_balance = state
-            .get_account_balance(source_channel_address, asset.id())
+            .get_ibc_channel_balance(source_channel, asset.id())
             .await?;
         let user_balance = state.get_account_balance(recipient, asset.id()).await?;
         state
-            .put_account_balance(
-                source_channel_address,
-                asset.id(),
-                escrow_balance - packet_amount,
-            )
+            .put_ibc_channel_balance(source_channel, asset.id(), escrow_balance - packet_amount)
             .context("failed to update escrow account balance")?;
         state
             .put_account_balance(recipient, asset.id(), user_balance + packet_amount)
@@ -336,13 +331,4 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     }
 
     Ok(())
-}
-
-fn address_from_channel_id(channel_id: &ChannelId) -> Address {
-    use sha2::Digest as _;
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(channel_id.as_bytes());
-    let bytes: [u8; 32] = hasher.finalize().into();
-    Address::try_from_slice(&bytes[..ADDRESS_LEN])
-        .expect("can convert 32 byte hash to 20 byte array")
 }
