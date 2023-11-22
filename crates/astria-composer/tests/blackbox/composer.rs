@@ -250,7 +250,7 @@ fn chain_id_nonce_from_request(request: &Request) -> (ChainId, u32) {
     };
 
     (
-        sequence_action.chain_id.clone(),
+        sequence_action.chain_id,
         signed_tx.unsigned_transaction().nonce,
     )
 }
