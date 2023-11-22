@@ -977,7 +977,10 @@ impl Display for Address {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct ChainId {
+    #[cfg_attr(feature = "serde", serde(with = "hex::serde"))]
     inner: [u8; 32],
 }
 
