@@ -581,7 +581,7 @@ dependencies = [
 
 [[package]]
 name = "astria-conductor"
-version = "0.10.1"
+version = "0.10.0"
 dependencies = [
  "astria-celestia-client",
  "astria-config",
@@ -674,7 +674,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer"
-version = "0.6.1"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "astria-config",

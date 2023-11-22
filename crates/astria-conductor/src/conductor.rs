@@ -46,7 +46,6 @@ use tracing::{
 };
 
 use crate::{
-    block_verifier::BlockVerifier,
     client_provider::{
         self,
         ClientProvider,
@@ -158,7 +157,6 @@ impl Conductor {
         if !cfg.execution_commit_level.is_soft_only() {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
-            let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
 
             // Sequencer namespace is defined by the chain id of attached sequencer node
             // which can be fetched from any block header.
@@ -186,7 +184,7 @@ impl Conductor {
             let reader = data_availability::Reader::new(
                 celestia_config,
                 executor_tx.clone(),
-                block_verifier,
+                sequencer_client_pool.clone(),
                 sequencer_namespace,
                 celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(
                     cfg.chain_id.as_ref(),
