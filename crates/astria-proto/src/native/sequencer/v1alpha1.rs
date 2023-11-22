@@ -615,7 +615,9 @@ impl SequenceAction {
     }
 
     /// Convert from a raw, unchecked protobuf [`raw::SequenceAction`].
-    #[must_use]
+    ///
+    /// # Errors
+    /// Returns an error if the `proto.chain_id` field was not 32 bytes.
     pub fn try_from_raw(proto: raw::SequenceAction) -> Result<Self, SequenceActionError> {
         let raw::SequenceAction {
             chain_id,
@@ -1014,7 +1016,8 @@ impl ChainId {
     /// let chain_id = ChainId::new(bytes);
     /// assert_eq!(bytes, chain_id.get());
     /// ```
-    pub fn get(&self) -> [u8; 32] {
+    #[must_use]
+    pub fn get(self) -> [u8; 32] {
         self.inner
     }
 
@@ -1060,7 +1063,7 @@ impl ChainId {
     ///
     /// # Errors
     ///
-    /// Returns an error if the chain_id buffer was not 20 bytes long.
+    /// Returns an error if the byte slice was not 32 bytes long.
     pub fn try_from_slice(bytes: &[u8]) -> Result<Self, IncorrectChainIdLength> {
         let inner = <[u8; CHAIN_ID_LEN]>::try_from(bytes).map_err(|_| IncorrectChainIdLength {
             received: bytes.len(),
