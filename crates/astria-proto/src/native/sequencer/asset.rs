@@ -152,4 +152,9 @@ impl IbcAsset {
     pub fn prefix(&self) -> &str {
         &self.prefix
     }
+
+    #[must_use]
+    pub fn prefix_is(&self, prefix: &str) -> bool {
+        self.prefix == prefix
+    }
 }

@@ -32,7 +32,10 @@ use penumbra_storage::{
     StateWrite,
 };
 use proto::native::sequencer::v1alpha1::{
-    asset::Id,
+    asset::{
+        IbcAsset,
+        Id,
+    },
     Address,
     ADDRESS_LEN,
 };
@@ -144,16 +147,16 @@ async fn refund_tokens_check<S: StateRead>(
 ) -> Result<()> {
     use prost::Message as _;
 
-    let packet_data = FungibleTokenPacketData::decode(data)?;
-    let denom = packet_data.denom;
+    let packet_data = FungibleTokenPacketData::decode(data)
+        .context("failed to decode packet data into FungibleTokenPacketData")?;
+    let asset = IbcAsset::from_denomination(&packet_data.denom).context("invalid denomination")?;
 
-    if is_source(source_port, source_channel, &denom, true) {
+    if is_source(source_port, source_channel, &asset, true) {
         // sender of packet (us) was the source chain
         //
         // check if escrow account has enough balance to refund user
         let channel_addr = address_from_channel_id(source_channel);
-        let asset_id = Id::from_denom(&denom);
-        let balance = state.get_account_balance(channel_addr, asset_id).await?;
+        let balance = state.get_account_balance(channel_addr, asset.id()).await?;
 
         let packet_amount: u128 = packet_data.amount.parse()?;
         if balance < packet_amount {
@@ -167,14 +170,14 @@ async fn refund_tokens_check<S: StateRead>(
 fn is_source(
     source_port: &PortId,
     source_channel: &ChannelId,
-    denom: &str,
+    asset: &IbcAsset,
     is_refund: bool,
 ) -> bool {
     let prefix = format!("{source_port}/{source_channel}/");
     if is_refund {
-        !denom.starts_with(&prefix)
+        !asset.prefix_is(&prefix)
     } else {
-        denom.starts_with(&prefix)
+        asset.prefix_is(&prefix)
     }
 }
 
@@ -211,6 +214,8 @@ impl AppHandlerExecute for Ics20Transfer {
         };
 
         let ack_bytes: Vec<u8> = ack.into();
+
+        // TODO: does this need to go in the ibc substore? will penumbra update?
         _ = state
             .write_acknowledgement(&msg.packet, &ack_bytes)
             .await
@@ -288,7 +293,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     use prost::Message as _;
 
     let packet_data = FungibleTokenPacketData::decode(data)?;
-    let denom = packet_data.denom;
+    let asset = IbcAsset::from_denomination(&packet_data.denom)?;
     let source_channel_address = address_from_channel_id(source_channel);
     let packet_amount: u128 = packet_data.amount.parse()?;
     let recipient = Address::try_from_slice(
@@ -296,33 +301,32 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     )
     .context("invalid receiver address")?;
 
-    if is_source(source_port, source_channel, &denom, is_refund) {
+    if is_source(source_port, source_channel, &asset, is_refund) {
         // sender of packet (us) was the source chain
         // subtract balance from escrow account and transfer to user
 
-        let asset_id = Id::from_denom(&denom);
         let escrow_balance = state
-            .get_account_balance(source_channel_address, asset_id)
+            .get_account_balance(source_channel_address, asset.id())
             .await?;
-        let user_balance = state.get_account_balance(recipient, asset_id).await?;
+        let user_balance = state.get_account_balance(recipient, asset.id()).await?;
         state
             .put_account_balance(
                 source_channel_address,
-                asset_id,
+                asset.id(),
                 escrow_balance - packet_amount,
             )
             .context("failed to update escrow account balance")?;
         state
-            .put_account_balance(recipient, asset_id, user_balance + packet_amount)
+            .put_account_balance(recipient, asset.id(), user_balance + packet_amount)
             .context("failed to update user account balance")?;
     } else {
         let prefixed_denomination = if is_refund {
             // we're refunding a token we issued and tried to bridge, but failed
-            denom
+            packet_data.denom
         } else {
             // we're receiving a token from another chain
             // create a token with additional prefix and mint it to the recipient
-            format!("{dest_port}/{dest_channel}/{denom}")
+            format!("{dest_port}/{dest_channel}/{}", packet_data.denom)
         };
 
         // TODO: register denomination in global ID -> denom map
