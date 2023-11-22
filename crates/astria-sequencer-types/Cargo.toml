@@ -19,7 +19,7 @@ tracing = { workspace = true }
 merkle = { package = "astria-merkle", path = "../astria-merkle", features = [
   "serde",
 ] }
-proto = { package = "astria-proto", path = "../astria-proto" }
+proto = { package = "astria-proto", path = "../astria-proto", features = ["serde"] }
 
 ed25519-consensus = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }

@@ -2,6 +2,7 @@
 
 #![allow(clippy::missing_panics_doc)]
 
+use proto::native::sequencer::v1alpha1::ChainId;
 use tendermint::block::Header;
 
 #[must_use]
@@ -78,7 +79,7 @@ pub fn create_tendermint_block() -> tendermint::Block {
         nonce: 1,
         actions: vec![
             SequenceAction {
-                chain_id: chain_id.clone(),
+                chain_id: ChainId::with_unhashed_bytes(&chain_id),
                 data: [b"hello_world_id_", &*suffix].concat(),
             }
             .into(),
