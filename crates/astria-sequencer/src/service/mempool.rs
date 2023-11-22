@@ -87,7 +87,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     if tx.len() > MAX_TX_SIZE {
         return response::CheckTx {
             code: AbciCode::INVALID_PARAMETER.into(),
-            log: format!("transaction size exceeds maximum allowed size of {MAX_TX_SIZE} bytes",),
+            log: format!("transaction size exceeds maximum allowed size of {MAX_TX_SIZE} bytes"),
             ..response::CheckTx::default()
         };
     }
