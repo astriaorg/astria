@@ -454,7 +454,7 @@ async fn fetch_verify_rollup_blob_and_forward_to_assembly(
     rollups.retain(|rollup| {
         if let Err(e) = rollup.belongs_to(&data) {
             debug!(
-                chain_id = hex::encode(&rollup.chain_id),
+                chain_id = hex::encode(rollup.chain_id),
                 reason = &e as &dyn std::error::Error,
                 "dropping rollup",
             );

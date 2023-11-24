@@ -7,6 +7,7 @@ use ethers::providers::{
     ProviderError,
     Ws,
 };
+use sequencer_types::ChainId;
 use tokio::sync::{
     mpsc::{
         error::SendTimeoutError,
@@ -24,7 +25,7 @@ use tracing::{
 ///
 /// Used to send new transactions to the searcher.
 pub(super) struct Transaction {
-    pub(super) chain_id: String,
+    pub(super) chain_id: ChainId,
     pub(super) inner: ethers::types::Transaction,
 }
 
@@ -39,8 +40,10 @@ pub(super) struct Transaction {
 #[derive(Debug)]
 pub(super) struct Collector {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
-    // action belongs to.
-    chain_id: String,
+    // action belongs to. Created from `chain_name`.
+    chain_id: ChainId,
+    // Name of the chain the transactions are read from.
+    chain_name: String,
     // The channel on which the collector sends new txs to the searcher.
     new_bundles: Sender<Transaction>,
     // The status of this collector instance.
@@ -68,10 +71,11 @@ impl Status {
 
 impl Collector {
     /// Initializes a new collector instance
-    pub(super) fn new(chain_id: String, url: String, new_bundles: Sender<Transaction>) -> Self {
+    pub(super) fn new(chain_name: String, url: String, new_bundles: Sender<Transaction>) -> Self {
         let (status, _) = watch::channel(Status::new());
         Self {
-            chain_id,
+            chain_id: ChainId::with_unhashed_bytes(&chain_name),
+            chain_name,
             new_bundles,
             status,
             url,
@@ -85,7 +89,7 @@ impl Collector {
 
     /// Starts the collector instance and runs until failure or until
     /// explicitly closed
-    #[instrument(skip_all, fields(chain_id = self.chain_id))]
+    #[instrument(skip_all, fields(chain_name = self.chain_name))]
     pub(super) async fn run_until_stopped(self) -> eyre::Result<()> {
         use std::time::Duration;
 
@@ -97,6 +101,7 @@ impl Collector {
             new_bundles,
             status,
             url,
+            ..
         } = self;
 
         let retry_config = tryhard::RetryFutureConfig::new(1024)
@@ -141,7 +146,7 @@ impl Collector {
             match new_bundles
                 .send_timeout(
                     Transaction {
-                        chain_id: chain_id.clone(),
+                        chain_id,
                         inner: tx,
                     },
                     Duration::from_millis(500),

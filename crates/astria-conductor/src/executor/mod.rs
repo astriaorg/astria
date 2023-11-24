@@ -208,7 +208,7 @@ impl<TChainId, TBlockChannel, TRollupAddress, TShutdown>
 {
     pub(crate) fn chain_id(
         self,
-        chain_id: ChainId,
+        chain_id: &str,
     ) -> ExecutorBuilder<WithChainId, TBlockChannel, TRollupAddress, TShutdown> {
         let Self {
             block_channel,
@@ -219,7 +219,7 @@ impl<TChainId, TBlockChannel, TRollupAddress, TShutdown>
             ..
         } = self;
         ExecutorBuilder {
-            chain_id: WithChainId(chain_id),
+            chain_id: WithChainId(ChainId::with_unhashed_bytes(chain_id)),
             block_channel,
             optimism_hook,
             sequencer_height_with_first_rollup_block,

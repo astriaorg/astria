@@ -290,6 +290,7 @@ mod test {
         RawSequencerNamespaceData,
         RollupNamespaceData,
     };
+    use sequencer_types::ChainId;
     use tendermint::{
         account,
         block::Commit,
@@ -398,14 +399,14 @@ mod test {
     #[tokio::test]
     async fn validate_rollup_data_ok() {
         let test_tx = b"test-tx".to_vec();
-        let test_chain_id = b"test-chain";
-        let grouped_txs = BTreeMap::from([(test_chain_id, vec![test_tx.clone()])]);
+        let chain_id = ChainId::with_unhashed_bytes(b"test-chain");
+        let grouped_txs = BTreeMap::from([(chain_id, vec![test_tx.clone()])]);
         let action_tree =
             sequencer_types::sequencer_block_data::generate_merkle_tree_from_grouped_txs(
                 &grouped_txs,
             );
         let action_tree_root = action_tree.root();
-        let chain_ids_commitment = merkle::Tree::from_leaves(std::iter::once(test_chain_id)).root();
+        let chain_ids_commitment = merkle::Tree::from_leaves(std::iter::once(chain_id)).root();
 
         let tree = sequencer_types::cometbft::merkle_tree_from_transactions([
             action_tree_root,
@@ -427,7 +428,7 @@ mod test {
         let sequencer_namespace_data = RawSequencerNamespaceData {
             block_hash,
             header,
-            rollup_chain_ids: vec![sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap()],
+            rollup_chain_ids: vec![chain_id],
             action_tree_root,
             action_tree_root_inclusion_proof,
             chain_ids_commitment,
@@ -438,7 +439,7 @@ mod test {
 
         let rollup_namespace_data = RollupNamespaceData {
             block_hash,
-            chain_id: sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
+            chain_id,
             rollup_txs: vec![test_tx],
             inclusion_proof: action_tree.construct_proof(0).unwrap(),
         };
