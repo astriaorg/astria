@@ -19,6 +19,7 @@ use proto::native::sequencer::v1alpha1::{
     SequenceAction,
     UnsignedTransaction,
 };
+use sequencer_types::ChainId;
 use serde_json::json;
 use tempfile::NamedTempFile;
 use tendermint_config::PrivValidatorKey;
@@ -348,12 +349,12 @@ fn create_block_response(
         Time,
     };
     let suffix = height.to_string().into_bytes();
-    let chain_id = [b"test_chain_id_", &*suffix].concat();
+    let chain_id = ChainId::with_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
     let signed_tx_bytes = UnsignedTransaction {
         nonce: 1,
         actions: vec![
             SequenceAction {
-                chain_id: chain_id.clone(),
+                chain_id,
                 data: [b"hello_world_id_", &*suffix].concat(),
             }
             .into(),
