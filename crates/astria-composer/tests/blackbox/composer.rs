@@ -120,16 +120,15 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
     .await;
 
     // Mount a response of 0 to a nonce query
-    let nonce_refetch_guard =
-        mount_abci_query_mock(
-            &test_composer.sequencer,
-            "accounts/nonce",
-            NonceResponse {
-                height: 0,
-                nonce: 1,
-            },
-        )
-        .await;
+    let nonce_refetch_guard = mount_abci_query_mock(
+        &test_composer.sequencer,
+        "accounts/nonce",
+        NonceResponse {
+            height: 0,
+            nonce: 1,
+        },
+    )
+    .await;
 
     let expected_chain_ids = vec![ChainId::with_unhashed_bytes("test1")];
     // Expect nonce 1 again so that the resubmitted tx is accepted
@@ -228,17 +227,16 @@ async fn mount_broadcast_tx_sync_invalid_nonce_mock(
         let (chain_id, _) = chain_id_nonce_from_request(request);
         chain_id == expected_chain_id
     };
-    let jsonrpc_rsp =
-        response::Wrapper::new_with_id(
-            Id::Num(1),
-            Some(tx_sync::Response {
-                code: AbciCode::INVALID_NONCE.into(),
-                data: vec![].into(),
-                log: String::new(),
-                hash: tendermint::Hash::Sha256([0; 32]),
-            }),
-            None,
-        );
+    let jsonrpc_rsp = response::Wrapper::new_with_id(
+        Id::Num(1),
+        Some(tx_sync::Response {
+            code: AbciCode::INVALID_NONCE.into(),
+            data: vec![].into(),
+            log: String::new(),
+            hash: tendermint::Hash::Sha256([0; 32]),
+        }),
+        None,
+    );
     Mock::given(matcher)
         .respond_with(ResponseTemplate::new(200).set_body_json(&jsonrpc_rsp))
         .up_to_n_times(1)
@@ -255,13 +253,12 @@ async fn mount_matcher_verifying_tx_integrity(
 ) -> MockGuard {
     let matcher = move |request: &Request| {
         let sequencer_tx = signed_tx_from_request(request);
-        let sequence_action =
-            sequencer_tx
-                .actions()
-                .get(0)
-                .unwrap()
-                .as_sequence()
-                .unwrap();
+        let sequence_action = sequencer_tx
+            .actions()
+            .get(0)
+            .unwrap()
+            .as_sequence()
+            .unwrap();
 
         let expected_rlp = expected_rlp.rlp().to_vec();
 
