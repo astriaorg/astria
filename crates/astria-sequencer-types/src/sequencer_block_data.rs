@@ -7,7 +7,10 @@ use base64::{
     engine::general_purpose,
     Engine as _,
 };
-use proto::DecodeError;
+use proto::{
+    native::sequencer::v1alpha1::ChainId,
+    DecodeError,
+};
 use serde::{
     Deserialize,
     Serialize,
@@ -108,8 +111,6 @@ pub enum Error {
          sequencer block"
     )]
     HashOfHeaderBlockHashMismatach,
-    #[error("chain ID must be 32 bytes or less")]
-    InvalidChainIdLength,
     #[error("the sequencer block contained neither action tree root nor transaction data")]
     NoData,
     #[error("block has no data hash")]
@@ -138,30 +139,6 @@ impl From<ChainIdsVerificationFailure> for Error {
                 Error::ChainIdsRootReconstruction
             }
         }
-    }
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct ChainId(#[serde(with = "hex::serde")] Vec<u8>);
-
-impl ChainId {
-    /// Creates a new `ChainId` from the given bytes.
-    ///
-    /// # Errors
-    ///
-    /// - if the given bytes are longer than 32 bytes
-    pub fn new(inner: Vec<u8>) -> Result<Self, Error> {
-        if inner.len() > 32 {
-            return Err(Error::InvalidChainIdLength);
-        }
-
-        Ok(Self(inner))
-    }
-}
-
-impl AsRef<[u8]> for ChainId {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
     }
 }
 
@@ -384,7 +361,7 @@ impl SequencerBlockData {
                     // TODO(https://github.com/astriaorg/astria/issues/318): intern
                     // these namespaces so they don't get rebuild on every iteration.
                     rollup_data
-                        .entry(ChainId(action.chain_id.clone()))
+                        .entry(action.chain_id)
                         .and_modify(|data: &mut Vec<Vec<u8>>| {
                             data.push(action.data.clone());
                         })

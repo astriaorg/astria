@@ -20,7 +20,6 @@ use ethers::prelude::{
     Ws,
 };
 use futures::future::Fuse;
-use sequencer_types::ChainId;
 use tokio::{
     select,
     signal::unix::{
@@ -329,9 +328,7 @@ async fn make_executor(
 
     Executor::builder()
         .rollup_address(&cfg.execution_rpc_url)
-        .chain_id(
-            ChainId::new(cfg.chain_id.as_bytes().to_vec()).wrap_err("failed to create chain ID")?,
-        )
+        .chain_id(&cfg.chain_id)
         .sequencer_height_with_first_rollup_block(cfg.initial_sequencer_block_height)
         .block_channel(block_rx)
         .shutdown(shutdown_rx)

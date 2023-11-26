@@ -8,6 +8,7 @@ impl AbciCode {
     pub const INVALID_PARAMETER: Self = Self(2);
     pub const INTERNAL_ERROR: Self = Self(3);
     pub const INVALID_NONCE: Self = Self(4);
+    pub const INVALID_SIZE: Self = Self(5);
 }
 
 impl AbciCode {
@@ -19,6 +20,7 @@ impl AbciCode {
             2 => Some("one or more path parameters were invalid"),
             3 => Some("an internal server error occured"),
             4 => Some("the provided nonce was invalid"),
+            5 => Some("the provided transaction was too large"),
             _ => None,
         }
     }
@@ -31,6 +33,7 @@ impl AbciCode {
             2 => Some(Self::INVALID_PARAMETER),
             3 => Some(Self::INTERNAL_ERROR),
             4 => Some(Self::INVALID_NONCE),
+            5 => Some(Self::INVALID_SIZE),
             _ => None,
         }
     }
