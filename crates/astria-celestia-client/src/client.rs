@@ -242,7 +242,7 @@ fn assemble_blobs_from_sequencer_block_data(
 
         let rollup_namespace_data = RollupNamespaceData {
             block_hash,
-            chain_id: chain_id.clone(),
+            chain_id,
             rollup_txs: transactions,
             inclusion_proof,
         };

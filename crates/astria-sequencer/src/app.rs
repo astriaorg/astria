@@ -512,6 +512,7 @@ mod test {
         asset,
         asset::DEFAULT_NATIVE_ASSET_DENOM,
         Address,
+        ChainId,
         SequenceAction,
         SudoAddressChangeAction,
         TransferAction,
@@ -893,7 +894,7 @@ mod test {
             nonce: 0,
             actions: vec![
                 SequenceAction {
-                    chain_id: b"testchainid".to_vec(),
+                    chain_id: ChainId::with_unhashed_bytes(b"testchainid"),
                     data,
                 }
                 .into(),
@@ -1133,7 +1134,7 @@ mod test {
             nonce: 1,
             actions: vec![
                 SequenceAction {
-                    chain_id: b"testchainid".to_vec(),
+                    chain_id: ChainId::with_unhashed_bytes(b"testchainid"),
                     data,
                 }
                 .into(),

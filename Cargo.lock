@@ -479,6 +479,7 @@ dependencies = [
  "hex",
  "prost",
  "prost-types",
+ "serde",
  "sha2 0.10.8",
  "tempfile",
  "tendermint 0.34.0",
