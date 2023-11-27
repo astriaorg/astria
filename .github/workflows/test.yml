@@ -76,7 +76,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: "nightly-89f74f26926b552e0fbfca0858f0a129dec79881"
+          version: "nightly-94518c20bf42c23e7b5d557190998abcfc05b7a7"
       - name: Build tests
         run: |
           cargo test --no-run --release --workspace \
