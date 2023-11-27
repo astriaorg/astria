@@ -113,6 +113,10 @@ impl ActionHandler for UnsignedTransaction {
                         .check_stateless(())
                         .await?;
                 }
+                Action::Ics20Withdrawal(act) => act
+                    .check_stateless()
+                    .await
+                    .context("stateless check failed for Ics20WithdrawalAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateless()
@@ -157,6 +161,10 @@ impl ActionHandler for UnsignedTransaction {
                 Action::Ibc(_) => {
                     // no-op; IBC actions merge check_stateful and execute.
                 }
+                Action::Ics20Withdrawal(act) => act
+                    .check_stateful(state, from, fee_asset_id)
+                    .await
+                    .context("stateful check failed for Ics20WithdrawalAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateful(state, from, fee_asset_id)
@@ -221,6 +229,11 @@ impl ActionHandler for UnsignedTransaction {
                         .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer>()
                         .execute(&mut *state)
                         .await?;
+                }
+                Action::Ics20Withdrawal(act) => {
+                    act.execute(state, from, fee_asset_id)
+                        .await
+                        .context("execution failed for Ics20WithdrawalAction")?;
                 }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => {

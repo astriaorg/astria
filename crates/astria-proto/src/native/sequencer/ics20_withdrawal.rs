@@ -6,11 +6,19 @@ use std::{
 
 use ibc_types::{
     core::{
-        channel::ChannelId,
+        channel::{
+            ChannelId,
+            PortId,
+        },
         client::Height as IbcHeight,
     },
     IdentifierError,
 };
+use penumbra_ibc::component::packet::{
+    IBCPacket,
+    Unchecked,
+};
+use penumbra_proto::penumbra::core::component::ibc::v1alpha1::FungibleTokenPacketData;
 
 use super::{
     asset::{
@@ -32,9 +40,10 @@ pub struct Ics20Withdrawal {
     // a transparent value consisting of an amount and a denom.
     pub amount: u128,
     pub denom: IbcAsset,
-    // the address on the destination chain to send the transfer to
+    // the address on the destination chain to send the transfer to.
     pub destination_chain_address: String,
-    // a "sender" Astria address to use to return funds from this withdrawal.
+    // an Astria address to use to return funds from this withdrawal
+    // in the case it fails.
     pub return_address: Address,
     // the height (on Astria) at which this transfer expires (and funds are sent
     // back to the return address?). NOTE: if funds are sent back to the sender,
@@ -48,28 +57,43 @@ pub struct Ics20Withdrawal {
     pub source_channel: ChannelId,
 }
 
-// impl Ics20Withdrawal {
-//     pub fn packet_data(&self) -> Vec<u8> {
-//         let ftpd: FungibleTokenPacketData = self.clone().into();
+impl From<Ics20Withdrawal> for FungibleTokenPacketData {
+    fn from(withdrawal: Ics20Withdrawal) -> Self {
+        Self {
+            amount: withdrawal.amount.to_string(),
+            denom: withdrawal.denom.to_string(),
+            sender: withdrawal.return_address.to_string(),
+            receiver: withdrawal.destination_chain_address,
+        }
+    }
+}
 
-//         // In violation of the ICS20 spec, ibc-go encodes transfer packets as JSON.
-//         serde_json::to_vec(&ftpd).expect("can serialize FungibleTokenPacketData as JSON")
-//     }
-
-//     // stateless validation of an Ics20 withdrawal action.
-//     pub fn validate(&self) -> anyhow::Result<()> {
-//         if self.timeout_time == 0 {
-//             anyhow::bail!("timeout time must be non-zero");
-//         }
-
-//         // NOTE: we could validate the destination chain address as bech32 to prevent mistyped
-//         // addresses, but this would preclude sending to chains that don't use bech32 addresses.
-
-//         Ok(())
-//     }
-// }
+impl From<Ics20Withdrawal> for IBCPacket<Unchecked> {
+    fn from(withdrawal: Ics20Withdrawal) -> Self {
+        Self::new(
+            PortId::transfer(),
+            withdrawal.source_channel.clone(),
+            withdrawal.timeout_height,
+            withdrawal.timeout_time,
+            withdrawal.packet_data(),
+        )
+    }
+}
 
 impl Ics20Withdrawal {
+    /// Returns the JSON-encoded packet data for this withdrawal.
+    ///
+    /// # Panics
+    ///
+    /// If the packet data cannot be serialized as JSON.
+    #[must_use]
+    pub fn packet_data(&self) -> Vec<u8> {
+        let ftpd: FungibleTokenPacketData = self.clone().into();
+
+        // In violation of the ICS20 spec, ibc-go encodes transfer packets as JSON.
+        serde_json::to_vec(&ftpd).expect("can serialize FungibleTokenPacketData as JSON")
+    }
+
     #[must_use]
     pub fn to_raw(&self) -> raw::Ics20Withdrawal {
         raw::Ics20Withdrawal {
@@ -145,6 +169,7 @@ impl From<IbcHeight> for raw::IbcHeight {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug)]
 pub enum Ics20WithdrawalError {
     MissingAmount,

@@ -69,3 +69,11 @@ tracing = "0.1"
 tryhard = "0.5.1"
 which = "4.4.0"
 wiremock = "0.5"
+
+[patch."https://github.com/penumbra-zone/penumbra.git"]
+# see https://github.com/penumbra-zone/penumbra/pull/3438
+penumbra-component = { git = "https://github.com/noot/penumbra.git", rev = "c4b8623e9ea7a090114cc330f6d2d0f20ba0d57f" }
+penumbra-ibc = { git = "https://github.com/noot/penumbra.git", rev = "c4b8623e9ea7a090114cc330f6d2d0f20ba0d57f" }
+penumbra-proto = { git = "https://github.com/noot/penumbra.git", rev = "c4b8623e9ea7a090114cc330f6d2d0f20ba0d57f" }
+penumbra-storage = { git = "https://github.com/noot/penumbra.git", rev = "c4b8623e9ea7a090114cc330f6d2d0f20ba0d57f" }
+penumbra-tower-trace = { git = "https://github.com/noot/penumbra.git", rev = "c4b8623e9ea7a090114cc330f6d2d0f20ba0d57f" }

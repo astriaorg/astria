@@ -11,8 +11,10 @@ use ed25519_consensus::{
 use penumbra_ibc::IbcRelay;
 use tracing::info;
 
-pub use super::asset;
-use super::ics20withdrawal::Ics20Withdrawal;
+pub use super::{
+    asset,
+    ics20_withdrawal::Ics20Withdrawal,
+};
 use crate::{
     generated::sequencer::v1alpha1 as raw,
     native::sequencer::v1alpha1::asset::IncorrectAssetIdLength,
