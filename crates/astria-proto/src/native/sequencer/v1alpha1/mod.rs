@@ -1,9 +1,45 @@
+pub mod action;
+pub mod asset;
+pub mod mint_action;
+pub mod sequence_action;
+pub mod sudo_address_change_action;
+pub mod transaction;
+pub mod transfer_action;
+
 use std::{
     error::Error,
     fmt::Display,
 };
 
-pub use super::asset;
+pub use action::{
+    Action,
+    ActionError,
+};
+pub use asset::{
+    Denom,
+    Id,
+    IncorrectAssetIdLength,
+};
+pub use mint_action::{
+    MintAction,
+    MintActionError,
+};
+pub use sequence_action::SequenceAction;
+pub use sudo_address_change_action::{
+    SudoAddressChangeAction,
+    SudoAddressChangeActionError,
+};
+pub use transaction::{
+    SignedTransaction,
+    SignedTransactionError,
+    UnsignedTransaction,
+    UnsignedTransactionError,
+};
+pub use transfer_action::{
+    TransferAction,
+    TransferActionError,
+};
+
 use crate::generated::sequencer::v1alpha1 as raw;
 
 pub const ADDRESS_LEN: usize = 20;
