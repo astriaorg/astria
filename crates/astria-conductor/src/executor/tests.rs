@@ -155,7 +155,6 @@ struct MockEnvironment {
 
 async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnvironment {
     let server = MockExecutionServer::spawn().await;
-    let chain_id = ChainId::new(b"test".to_vec()).unwrap();
     let server_url = format!("http://{}", server.local_addr());
 
     let (block_tx, block_rx) = mpsc::unbounded_channel();
@@ -163,7 +162,7 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
 
     let executor = Executor::builder()
         .rollup_address(&server_url)
-        .chain_id(chain_id)
+        .chain_id("test")
         .sequencer_height_with_first_rollup_block(1)
         .block_channel(block_rx)
         .shutdown(shutdown_rx)
