@@ -82,7 +82,6 @@ message Ics20Withdrawal {
     string denom = 2;
     string destination_chain_address = 3;
     bytes return_address = 4;
-    // todo: use ibc-proto
     IbcHeight timeout_height = 5;
     uint64 timeout_time = 6;
     string source_channel = 7;

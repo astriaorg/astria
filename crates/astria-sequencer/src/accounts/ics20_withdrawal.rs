@@ -37,8 +37,9 @@ impl ActionHandler for Ics20Withdrawal {
             anyhow::bail!("timeout time must be non-zero");
         }
 
-        // NOTE: we could validate the destination chain address as bech32 to prevent mistyped
-        // addresses, but this would preclude sending to chains that don't use bech32 addresses.
+        // NOTE (from penumbra): we could validate the destination chain address as bech32 to
+        // prevent mistyped addresses, but this would preclude sending to chains that don't
+        // use bech32 addresses.
         Ok(())
     }
 

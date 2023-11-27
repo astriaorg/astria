@@ -45,15 +45,11 @@ pub struct Ics20Withdrawal {
     // an Astria address to use to return funds from this withdrawal
     // in the case it fails.
     pub return_address: Address,
-    // the height (on Astria) at which this transfer expires (and funds are sent
-    // back to the return address?). NOTE: if funds are sent back to the sender,
-    // we MUST verify a nonexistence proof before accepting the timeout, to
-    // prevent relayer censorship attacks. The core IBC implementation does this
-    // in its handling of validation of timeouts.
+    // the height (on Astria) at which this transfer expires.
     pub timeout_height: IbcHeight,
     // the timestamp at which this transfer expires.
     pub timeout_time: u64,
-    // the source channel used for the withdrawal
+    // the source channel used for the withdrawal.
     pub source_channel: ChannelId,
 }
 
