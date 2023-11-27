@@ -222,14 +222,15 @@ impl AppHandlerExecute for Ics20Transfer {
         let ack_bytes: Vec<u8> = ack.into();
 
         if let Err(e) = state.write_acknowledgement(&msg.packet, &ack_bytes).await {
-            tracing::error!("failed to write acknowledgement: {}", e);
+            let error: &dyn std::error::Error = e.as_ref();
+            tracing::error!(error, "failed to write acknowledgement");
         }
     }
 
     async fn timeout_packet_execute<S: StateWrite>(mut state: S, msg: &MsgTimeout) {
         // we put source and dest as chain_a (the source) as we're refunding tokens,
         // and the destination chain of the refund is the source.
-        _ = execute_ics20_transfer(
+        if let Err(e) = execute_ics20_transfer(
             &mut state,
             &msg.packet.data,
             &msg.packet.port_on_a,
@@ -239,13 +240,13 @@ impl AppHandlerExecute for Ics20Transfer {
             true,
         )
         .await
-        .map_err(|e| {
+        {
             let error: &dyn std::error::Error = e.as_ref();
             tracing::error!(
                 error,
                 "failed to refund tokens during timeout_packet_execute",
             );
-        });
+        };
     }
 
     async fn acknowledge_packet_execute<S: StateWrite>(mut state: S, msg: &MsgAcknowledgement) {
