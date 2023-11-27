@@ -1,3 +1,4 @@
+pub mod composer;
 pub mod primitive;
 pub mod sequencer;
 

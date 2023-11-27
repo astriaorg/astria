@@ -1,0 +1,36 @@
+syntax = 'proto3';
+
+package astria.block_relay.v1alpha1;
+
+import "astria/primitive/v1/types.proto";
+import "astria/sequencer/v1alpha1/transaction.proto";
+
+// `SignedBid` is a bid that has been signed by the given public key.
+// It wraps a `BidPayload` with a signature and public key.
+message SignedBundle {
+    bytes signature = 1;
+    bytes public_key = 2;
+    Bundle bundle = 3;
+}
+
+// `BidPayload` is a bid without the signature and associated public key. It is a wrapper
+// around an `UnsignedTransaction` that adds a 
+message Bundle {
+    // The block height for which this bid is valid
+    uint64 block_height = 1;
+    // The transfer action for paying the bid amount
+    astria.sequencer.v1alpha1.TransferAction bid = 2;
+    // The transaction that is being bid on.
+    astria.sequencer.v1alpha1.UnsignedTransaction payload = 3;
+}
+
+// `OpaqueBid` is a bid and the hash of the payload. It is revealed by the Relay to the Proposer
+// for commitment before the payload is shared with the Proposer.
+message OpaqueBid {
+    // The block height for which this bid is valid
+    uint64 block_height = 1;
+    // The transfer action for paying the bid amount
+    astria.sequencer.v1alpha1.TransferAction bid = 2;
+    // The hash of the transaction that is being bid on.
+    bytes payload_hash = 3;
+}

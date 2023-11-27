@@ -5,7 +5,8 @@ pub mod top_of_block_relay_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
     use tonic::codegen::*;
     use tonic::codegen::http::Uri;
-    /** Service for the relay to provide the proposer with the top of block bid and payload.
+    /** Service for the Relay to provide the Proposer with the top of block bid and payload. The Relay listens
+ for requests sent by the Proposer.
 */
     #[derive(Debug, Clone)]
     pub struct TopOfBlockRelayClient<T> {
@@ -87,16 +88,13 @@ pub mod top_of_block_relay_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-        /** Get the top of block bid for the given block number. The proposer will use this bid to commit
- to the hash provided in order to receive the payload `SignedTransaction` to include as top-of-block.
+        /** Get the top of block bid for the given block number. The Proposer will use this bid to commit
+ to the hash provided in order to receive the payload `SignedBundle` to include as top-of-block.
 */
-        pub async fn get_top_of_block_bid(
+        pub async fn get_bid(
             &mut self,
-            request: impl tonic::IntoRequest<super::GetTopOfBlockBidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetTopOfBlockBidResponse>,
-            tonic::Status,
-        > {
+            request: impl tonic::IntoRequest<super::GetBidRequest>,
+        ) -> std::result::Result<tonic::Response<super::GetBidResponse>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -108,27 +106,27 @@ pub mod top_of_block_relay_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.block_relay.v1alpha1.TopOfBlockRelay/GetTopOfBlockBid",
+                "/astria.block_relay.v1alpha1.TopOfBlockRelay/GetBid",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "astria.block_relay.v1alpha1.TopOfBlockRelay",
-                        "GetTopOfBlockBid",
+                        "GetBid",
                     ),
                 );
             self.inner.unary(req, path, codec).await
         }
-        /** Get the top of block payload for the given builder address and commitment. The proposer will
- will commit to the hash received in `GetTopOfBlockBidResponse` in order to receive the payload
- `SignedTransaction` in `GetTopOfBlockPayloadResponse` to include as top-of-block.
+        /** Get the top of block bundle for the given commitment. The Proposer will will commit to the hash
+ received in `GetBidResponse` in order to receive the `Bundle` in `GetBundleResponse` which it
+ will include as top-of-block.
 */
-        pub async fn get_top_of_block_payload(
+        pub async fn get_bundle(
             &mut self,
-            request: impl tonic::IntoRequest<super::GetTopOfBlockPayloadRequest>,
+            request: impl tonic::IntoRequest<super::GetBundleRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::GetTopOfBlockPayloadResponse>,
+            tonic::Response<super::GetBundleResponse>,
             tonic::Status,
         > {
             self.inner
@@ -142,14 +140,14 @@ pub mod top_of_block_relay_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.block_relay.v1alpha1.TopOfBlockRelay/GetTopOfBlockPayload",
+                "/astria.block_relay.v1alpha1.TopOfBlockRelay/GetBundle",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "astria.block_relay.v1alpha1.TopOfBlockRelay",
-                        "GetTopOfBlockPayload",
+                        "GetBundle",
                     ),
                 );
             self.inner.unary(req, path, codec).await
@@ -164,29 +162,27 @@ pub mod top_of_block_relay_server {
     /// Generated trait containing gRPC methods that should be implemented for use with TopOfBlockRelayServer.
     #[async_trait]
     pub trait TopOfBlockRelay: Send + Sync + 'static {
-        /** Get the top of block bid for the given block number. The proposer will use this bid to commit
- to the hash provided in order to receive the payload `SignedTransaction` to include as top-of-block.
+        /** Get the top of block bid for the given block number. The Proposer will use this bid to commit
+ to the hash provided in order to receive the payload `SignedBundle` to include as top-of-block.
 */
-        async fn get_top_of_block_bid(
+        async fn get_bid(
             &self,
-            request: tonic::Request<super::GetTopOfBlockBidRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::GetTopOfBlockBidResponse>,
-            tonic::Status,
-        >;
-        /** Get the top of block payload for the given builder address and commitment. The proposer will
- will commit to the hash received in `GetTopOfBlockBidResponse` in order to receive the payload
- `SignedTransaction` in `GetTopOfBlockPayloadResponse` to include as top-of-block.
+            request: tonic::Request<super::GetBidRequest>,
+        ) -> std::result::Result<tonic::Response<super::GetBidResponse>, tonic::Status>;
+        /** Get the top of block bundle for the given commitment. The Proposer will will commit to the hash
+ received in `GetBidResponse` in order to receive the `Bundle` in `GetBundleResponse` which it
+ will include as top-of-block.
 */
-        async fn get_top_of_block_payload(
+        async fn get_bundle(
             &self,
-            request: tonic::Request<super::GetTopOfBlockPayloadRequest>,
+            request: tonic::Request<super::GetBundleRequest>,
         ) -> std::result::Result<
-            tonic::Response<super::GetTopOfBlockPayloadResponse>,
+            tonic::Response<super::GetBundleResponse>,
             tonic::Status,
         >;
     }
-    /** Service for the relay to provide the proposer with the top of block bid and payload.
+    /** Service for the Relay to provide the Proposer with the top of block bid and payload. The Relay listens
+ for requests sent by the Proposer.
 */
     #[derive(Debug)]
     pub struct TopOfBlockRelayServer<T: TopOfBlockRelay> {
@@ -267,26 +263,24 @@ pub mod top_of_block_relay_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
-                "/astria.block_relay.v1alpha1.TopOfBlockRelay/GetTopOfBlockBid" => {
+                "/astria.block_relay.v1alpha1.TopOfBlockRelay/GetBid" => {
                     #[allow(non_camel_case_types)]
-                    struct GetTopOfBlockBidSvc<T: TopOfBlockRelay>(pub Arc<T>);
+                    struct GetBidSvc<T: TopOfBlockRelay>(pub Arc<T>);
                     impl<
                         T: TopOfBlockRelay,
-                    > tonic::server::UnaryService<super::GetTopOfBlockBidRequest>
-                    for GetTopOfBlockBidSvc<T> {
-                        type Response = super::GetTopOfBlockBidResponse;
+                    > tonic::server::UnaryService<super::GetBidRequest>
+                    for GetBidSvc<T> {
+                        type Response = super::GetBidResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::GetTopOfBlockBidRequest>,
+                            request: tonic::Request<super::GetBidRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                (*inner).get_top_of_block_bid(request).await
-                            };
+                            let fut = async move { (*inner).get_bid(request).await };
                             Box::pin(fut)
                         }
                     }
@@ -297,7 +291,7 @@ pub mod top_of_block_relay_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = GetTopOfBlockBidSvc(inner);
+                        let method = GetBidSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -313,26 +307,24 @@ pub mod top_of_block_relay_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.block_relay.v1alpha1.TopOfBlockRelay/GetTopOfBlockPayload" => {
+                "/astria.block_relay.v1alpha1.TopOfBlockRelay/GetBundle" => {
                     #[allow(non_camel_case_types)]
-                    struct GetTopOfBlockPayloadSvc<T: TopOfBlockRelay>(pub Arc<T>);
+                    struct GetBundleSvc<T: TopOfBlockRelay>(pub Arc<T>);
                     impl<
                         T: TopOfBlockRelay,
-                    > tonic::server::UnaryService<super::GetTopOfBlockPayloadRequest>
-                    for GetTopOfBlockPayloadSvc<T> {
-                        type Response = super::GetTopOfBlockPayloadResponse;
+                    > tonic::server::UnaryService<super::GetBundleRequest>
+                    for GetBundleSvc<T> {
+                        type Response = super::GetBundleResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::GetTopOfBlockPayloadRequest>,
+                            request: tonic::Request<super::GetBundleRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                (*inner).get_top_of_block_payload(request).await
-                            };
+                            let fut = async move { (*inner).get_bundle(request).await };
                             Box::pin(fut)
                         }
                     }
@@ -343,7 +335,7 @@ pub mod top_of_block_relay_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = GetTopOfBlockPayloadSvc(inner);
+                        let method = GetBundleSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

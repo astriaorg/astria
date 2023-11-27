@@ -658,6 +658,7 @@ name = "astria-proto"
 version = "0.1.0"
 dependencies = [
  "astria-merkle",
+ "async-trait",
  "ed25519-consensus",
  "hex",
  "indexmap 2.1.0",
@@ -671,6 +672,7 @@ dependencies = [
  "tendermint 0.34.0",
  "tendermint-proto 0.34.0",
  "thiserror",
+ "tokio",
  "tonic",
  "tonic-build",
  "tracing",

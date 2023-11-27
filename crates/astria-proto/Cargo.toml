@@ -17,6 +17,7 @@ keywords = ["astria", "grpc", "rpc", "blockchain", "execution", "protobuf"]
 [dependencies]
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
 
+async-trait = { workspace = true }
 ed25519-consensus = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
 penumbra-ibc = { workspace = true }
@@ -30,6 +31,7 @@ tendermint-proto = { workspace = true }
 thiserror = { workspace = true }
 tonic = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["sync"] }
 
 indexmap = "2.1.0"
 

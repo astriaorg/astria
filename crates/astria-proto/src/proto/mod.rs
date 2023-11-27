@@ -28,4 +28,10 @@ pub mod generated {
         #[path = "astria.sequencer.v1alpha1.rs"]
         pub mod v1alpha1;
     }
+
+    #[path = ""]
+    pub mod block_relay {
+        #[path = "astria.block_relay.v1alpha1.rs"]
+        pub mod v1alpha1;
+    }
 }
