@@ -28,8 +28,6 @@ tendermint-proto = { workspace = true }
 tonic = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
-anyhow = "1"
-
 [features]
 default = ["native"]
 client = ["dep:tonic"]

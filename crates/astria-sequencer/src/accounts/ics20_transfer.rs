@@ -1,10 +1,12 @@
+use std::str::FromStr;
+
 use anyhow::{
-    Context,
+    Context as _,
     Result,
 };
 use ibc_types::{
     core::channel::{
-        channel::Order as ChannelOrder,
+        channel,
         msgs::{
             MsgAcknowledgement,
             MsgChannelCloseConfirm,
@@ -39,23 +41,26 @@ use proto::native::sequencer::v1alpha1::{
     Address,
 };
 
-use super::state_ext::StateWriteExt;
-use crate::accounts::state_ext::StateReadExt;
+use super::state_ext::{
+    StateReadExt as _,
+    StateWriteExt,
+};
 
 /// The ICS20 transfer handler.
+///
 /// See [here](https://github.com/cosmos/ibc/blob/main/spec/app/ics-020-fungible-token-transfer/README.md)
 /// for the specification which this is based on.
 #[derive(Clone)]
-pub(crate) struct Ics20Transfer {}
+pub(crate) struct Ics20Transfer;
 
 #[async_trait::async_trait]
 impl AppHandlerCheck for Ics20Transfer {
     async fn chan_open_init_check<S: StateRead>(_: S, msg: &MsgChannelOpenInit) -> Result<()> {
-        if msg.ordering != ChannelOrder::Unordered {
+        if msg.ordering != channel::Order::Unordered {
             anyhow::bail!("channel order must be unordered for Ics20 transfer");
         }
 
-        if msg.version_proposal != "ics20-1".to_string().into() {
+        if msg.version_proposal.as_str() != "ics20-1" {
             anyhow::bail!("channel version must be ics20-1 for Ics20 transfer");
         }
 
@@ -63,11 +68,11 @@ impl AppHandlerCheck for Ics20Transfer {
     }
 
     async fn chan_open_try_check<S: StateRead>(_: S, msg: &MsgChannelOpenTry) -> Result<()> {
-        if msg.ordering != ChannelOrder::Unordered {
+        if msg.ordering != channel::Order::Unordered {
             anyhow::bail!("channel order must be unordered for Ics20 transfer");
         }
 
-        if msg.version_supported_on_a != "ics20-1".to_string().into() {
+        if msg.version_supported_on_a.as_str() != "ics20-1" {
             anyhow::bail!("counterparty version must be ics20-1 for Ics20 transfer");
         }
 
@@ -75,7 +80,7 @@ impl AppHandlerCheck for Ics20Transfer {
     }
 
     async fn chan_open_ack_check<S: StateRead>(_: S, msg: &MsgChannelOpenAck) -> Result<()> {
-        if msg.version_on_b != "ics20-1".to_string().into() {
+        if msg.version_on_b.as_str() != "ics20-1" {
             anyhow::bail!("counterparty version must be ics20-1 for Ics20 transfer");
         }
 
@@ -148,7 +153,7 @@ async fn refund_tokens_check<S: StateRead>(
 
     let packet_data = FungibleTokenPacketData::decode(data)
         .context("failed to decode packet data into FungibleTokenPacketData")?;
-    let asset = IbcAsset::from_denomination(&packet_data.denom).context("invalid denomination")?;
+    let asset = IbcAsset::from_str(&packet_data.denom).context("invalid denomination")?;
 
     if is_source(source_port, source_channel, &asset, true) {
         // sender of packet (us) was the source chain
@@ -156,7 +161,8 @@ async fn refund_tokens_check<S: StateRead>(
         // check if escrow account has enough balance to refund user
         let balance = state
             .get_ibc_channel_balance(source_channel, asset.id())
-            .await?;
+            .await
+            .context("failed to get channel balance in refund_tokens_check")?;
 
         let packet_amount: u128 = packet_data.amount.parse()?;
         if balance < packet_amount {
@@ -215,12 +221,9 @@ impl AppHandlerExecute for Ics20Transfer {
 
         let ack_bytes: Vec<u8> = ack.into();
 
-        _ = state
-            .write_acknowledgement(&msg.packet, &ack_bytes)
-            .await
-            .map_err(|e| {
-                tracing::error!("failed to write acknowledgement: {}", e);
-            });
+        if let Err(e) = state.write_acknowledgement(&msg.packet, &ack_bytes).await {
+            tracing::error!("failed to write acknowledgement: {}", e);
+        }
     }
 
     async fn timeout_packet_execute<S: StateWrite>(mut state: S, msg: &MsgTimeout) {
@@ -237,9 +240,10 @@ impl AppHandlerExecute for Ics20Transfer {
         )
         .await
         .map_err(|e| {
+            let error: &dyn std::error::Error = e.as_ref();
             tracing::error!(
-                "failed to refund tokens during timeout_packet_execute: {}",
-                e
+                error,
+                "failed to refund tokens during timeout_packet_execute",
             );
         });
     }
@@ -255,7 +259,7 @@ impl AppHandlerExecute for Ics20Transfer {
 
         // we put source and dest as chain_a (the source) as we're refunding tokens,
         // and the destination chain of the refund is the source.
-        _ = execute_ics20_transfer(
+        if let Err(e) = execute_ics20_transfer(
             &mut state,
             &msg.packet.data,
             &msg.packet.port_on_a,
@@ -265,12 +269,13 @@ impl AppHandlerExecute for Ics20Transfer {
             true,
         )
         .await
-        .map_err(|e| {
+        {
+            let error: &dyn std::error::Error = e.as_ref();
             tracing::error!(
-                "failed to refund tokens during acknowledge_packet_execute: {}",
-                e
+                error,
+                "failed to refund tokens during acknowledge_packet_execute",
             );
-        });
+        }
     }
 }
 
@@ -288,9 +293,14 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
 ) -> Result<()> {
     use prost::Message as _;
 
-    let packet_data = FungibleTokenPacketData::decode(data)?;
-    let asset = IbcAsset::from_denomination(&packet_data.denom)?;
-    let packet_amount: u128 = packet_data.amount.parse()?;
+    let packet_data = FungibleTokenPacketData::decode(data)
+        .context("failed to decode FungibleTokenPacketData")?;
+    let asset = IbcAsset::from_str(&packet_data.denom)
+        .context("failed to decode IbcAsset from denom string")?;
+    let packet_amount: u128 = packet_data
+        .amount
+        .parse()
+        .context("failed to parse packet data amount to u128")?;
     let recipient = Address::try_from_slice(
         &hex::decode(packet_data.receiver).context("failed to decode receiver as hex string")?,
     )
@@ -302,14 +312,15 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
 
         let escrow_balance = state
             .get_ibc_channel_balance(source_channel, asset.id())
-            .await?;
+            .await
+            .context("failed to get IBC channel balance in execute_ics20_transfer")?;
         let user_balance = state.get_account_balance(recipient, asset.id()).await?;
         state
             .put_ibc_channel_balance(source_channel, asset.id(), escrow_balance - packet_amount)
-            .context("failed to update escrow account balance")?;
+            .context("failed to update escrow account balance in execute_ics20_transfer")?;
         state
             .put_account_balance(recipient, asset.id(), user_balance + packet_amount)
-            .context("failed to update user account balance")?;
+            .context("failed to update user account balance in execute_ics20_transfer")?;
     } else {
         let prefixed_denomination = if is_refund {
             // we're refunding a token we issued and tried to bridge, but failed
@@ -324,10 +335,13 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         // in global ID -> denom map if it's not already there
 
         let asset_id = Id::from_denom(&prefixed_denomination);
-        let user_balance = state.get_account_balance(recipient, asset_id).await?;
+        let user_balance = state
+            .get_account_balance(recipient, asset_id)
+            .await
+            .context("failed to get user account balance in execute_ics20_transfer")?;
         state
             .put_account_balance(recipient, asset_id, user_balance + packet_amount)
-            .context("failed to update user account balance")?;
+            .context("failed to update user account balance in execute_ics20_transfer")?;
     }
 
     Ok(())

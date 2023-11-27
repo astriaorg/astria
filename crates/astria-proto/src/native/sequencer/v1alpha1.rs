@@ -8,7 +8,7 @@ use ed25519_consensus::{
     SigningKey,
     VerificationKey,
 };
-use penumbra_ibc::IbcRelay as IbcAction;
+use penumbra_ibc::IbcRelay;
 use penumbra_proto::core::component::ibc::v1alpha1::Ics20Withdrawal;
 use tracing::info;
 
@@ -346,7 +346,7 @@ pub enum Action {
     ValidatorUpdate(tendermint::validator::Update),
     SudoAddressChange(SudoAddressChangeAction),
     Mint(MintAction),
-    Ibc(IbcAction),
+    Ibc(IbcRelay),
     Ics20Withdrawal(Ics20Withdrawal),
 }
 
@@ -418,9 +418,12 @@ impl Action {
             Value::MintAction(act) => {
                 Self::Mint(MintAction::try_from_raw(act).map_err(ActionError::mint)?)
             }
-            Value::IbcAction(act) => Self::Ibc(IbcAction::try_from(act).map_err(ActionError::ibc)?),
+            Value::IbcAction(act) => {
+                Self::Ibc(IbcRelay::try_from(act).map_err(|e| ActionError::ibc(e.into()))?)
+            }
             Value::Ics20Withdrawal(act) => Self::Ics20Withdrawal(
-                Ics20Withdrawal::try_from(act).map_err(ActionError::ics20withdrawal),
+                Ics20Withdrawal::try_from(act)
+                    .map_err(|e| ActionError::ics20withdrawal(e.into()))?,
             ),
         };
         Ok(action)
@@ -467,8 +470,8 @@ impl From<MintAction> for Action {
     }
 }
 
-impl From<IbcAction> for Action {
-    fn from(value: IbcAction) -> Self {
+impl From<IbcRelay> for Action {
+    fn from(value: IbcRelay) -> Self {
         Self::Ibc(value)
     }
 }
@@ -515,9 +518,15 @@ impl ActionError {
         }
     }
 
-    fn ibc(inner: anyhow::Error) -> Self {
+    fn ibc(inner: Box<dyn Error + Send + Sync>) -> Self {
         Self {
             kind: ActionErrorKind::Ibc(inner),
+        }
+    }
+
+    fn ics20withdrawal(inner: Box<dyn Error + Send + Sync>) -> Self {
+        Self {
+            kind: ActionErrorKind::Ics20Withdrawal(inner),
         }
     }
 }
@@ -532,6 +541,7 @@ impl Display for ActionError {
             ActionErrorKind::SudoAddressChange(_) => "raw sudo address change action was not valid",
             ActionErrorKind::Mint(_) => "raw mint action was not valid",
             ActionErrorKind::Ibc(_) => "raw ibc action was not valid",
+            ActionErrorKind::Ics20Withdrawal(_) => "raw ics20 withdrawal action was not valid",
         };
         f.pad(msg)
     }
@@ -547,6 +557,7 @@ impl Error for ActionError {
             ActionErrorKind::SudoAddressChange(e) => Some(e),
             ActionErrorKind::Mint(e) => Some(e),
             ActionErrorKind::Ibc(e) => Some(e.as_ref()),
+            ActionErrorKind::Ics20Withdrawal(e) => Some(e.as_ref()),
         }
     }
 }
@@ -559,7 +570,8 @@ enum ActionErrorKind {
     ValidatorUpdate(tendermint::error::Error),
     SudoAddressChange(SudoAddressChangeActionError),
     Mint(MintActionError),
-    Ibc(anyhow::Error),
+    Ibc(Box<dyn Error + Send + Sync>),
+    Ics20Withdrawal(Box<dyn Error + Send + Sync>),
 }
 
 #[derive(Debug)]
@@ -574,6 +586,7 @@ impl SequenceActionError {
         }
     }
 }
+
 impl Display for SequenceActionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
