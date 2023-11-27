@@ -656,6 +656,7 @@ version = "0.1.0"
 dependencies = [
  "ed25519-consensus",
  "hex",
+ "ibc-types",
  "penumbra-ibc",
  "penumbra-proto",
  "prost",

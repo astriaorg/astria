@@ -144,9 +144,7 @@ pub mod action {
         #[prost(message, tag = "6")]
         IbcAction(::penumbra_proto::core::component::ibc::v1alpha1::IbcRelay),
         #[prost(message, tag = "7")]
-        Ics20Withdrawal(
-            ::penumbra_proto::core::component::ibc::v1alpha1::Ics20Withdrawal,
-        ),
+        Ics20Withdrawal(super::Ics20Withdrawal),
     }
 }
 /// `TransferAction` represents a value transfer transaction.
@@ -199,4 +197,31 @@ pub struct MintAction {
     pub to: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, optional, tag = "2")]
     pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Ics20Withdrawal {
+    #[prost(message, optional, tag = "1")]
+    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
+    #[prost(string, tag = "2")]
+    pub denom: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub destination_chain_address: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "4")]
+    pub return_address: ::prost::alloc::vec::Vec<u8>,
+    /// todo: use ibc-proto
+    #[prost(message, optional, tag = "5")]
+    pub timeout_height: ::core::option::Option<IbcHeight>,
+    #[prost(uint64, tag = "6")]
+    pub timeout_time: u64,
+    #[prost(string, tag = "7")]
+    pub source_channel: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IbcHeight {
+    #[prost(uint64, tag = "1")]
+    pub revision_number: u64,
+    #[prost(uint64, tag = "2")]
+    pub revision_height: u64,
 }

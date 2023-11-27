@@ -9,10 +9,10 @@ use ed25519_consensus::{
     VerificationKey,
 };
 use penumbra_ibc::IbcRelay;
-use penumbra_proto::core::component::ibc::v1alpha1::Ics20Withdrawal;
 use tracing::info;
 
 pub use super::asset;
+use super::ics20withdrawal::Ics20Withdrawal;
 use crate::{
     generated::sequencer::v1alpha1 as raw,
     native::sequencer::v1alpha1::asset::IncorrectAssetIdLength,
@@ -361,7 +361,7 @@ impl Action {
             Action::SudoAddressChange(act) => Value::SudoAddressChangeAction(act.into_raw()),
             Action::Mint(act) => Value::MintAction(act.into_raw()),
             Action::Ibc(act) => Value::IbcAction(act.into()),
-            Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.into()),
+            Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.into_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -380,7 +380,7 @@ impl Action {
             }
             Action::Mint(act) => Value::MintAction(act.to_raw()),
             Action::Ibc(act) => Value::IbcAction(act.clone().into()),
-            Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.clone().into()),
+            Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.clone().to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -422,7 +422,7 @@ impl Action {
                 Self::Ibc(IbcRelay::try_from(act).map_err(|e| ActionError::ibc(e.into()))?)
             }
             Value::Ics20Withdrawal(act) => Self::Ics20Withdrawal(
-                Ics20Withdrawal::try_from(act)
+                Ics20Withdrawal::try_from_raw(act)
                     .map_err(|e| ActionError::ics20withdrawal(e.into()))?,
             ),
         };
@@ -556,8 +556,7 @@ impl Error for ActionError {
             ActionErrorKind::ValidatorUpdate(e) => Some(e),
             ActionErrorKind::SudoAddressChange(e) => Some(e),
             ActionErrorKind::Mint(e) => Some(e),
-            ActionErrorKind::Ibc(e) => Some(e.as_ref()),
-            ActionErrorKind::Ics20Withdrawal(e) => Some(e.as_ref()),
+            ActionErrorKind::Ibc(e) | ActionErrorKind::Ics20Withdrawal(e) => Some(e.as_ref()),
         }
     }
 }

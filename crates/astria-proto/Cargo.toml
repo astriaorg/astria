@@ -28,6 +28,8 @@ tendermint-proto = { workspace = true }
 tonic = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
+ibc-types = { version = "0.7.0", features = ["with_serde"] }
+
 [features]
 default = ["native"]
 client = ["dep:tonic"]
