@@ -2,12 +2,11 @@
 use std::collections::BTreeMap;
 
 use base64_serde::base64_serde_type;
+use proto::native::sequencer::v1alpha1::ChainId;
 use serde::{
     ser::SerializeMap,
     Serialize,
 };
-
-use crate::ChainId;
 
 base64_serde_type!(pub Base64Standard, base64::engine::general_purpose::STANDARD);
 

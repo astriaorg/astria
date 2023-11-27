@@ -75,6 +75,8 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: "nightly-89f74f26926b552e0fbfca0858f0a129dec79881"
       - name: Build tests
         run: |
           cargo test --no-run --release --workspace \

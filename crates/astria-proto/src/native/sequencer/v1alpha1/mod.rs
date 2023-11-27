@@ -1,5 +1,6 @@
 pub mod action;
 pub mod asset;
+pub mod chain_id;
 pub mod mint_action;
 pub mod sequence_action;
 pub mod sudo_address_change_action;
@@ -20,11 +21,19 @@ pub use asset::{
     Id,
     IncorrectAssetIdLength,
 };
+pub use chain_id::{
+    ChainId,
+    IncorrectChainIdLength,
+    CHAIN_ID_LEN,
+};
 pub use mint_action::{
     MintAction,
     MintActionError,
 };
-pub use sequence_action::SequenceAction;
+pub use sequence_action::{
+    SequenceAction,
+    SequenceActionError,
+};
 pub use sudo_address_change_action::{
     SudoAddressChangeAction,
     SudoAddressChangeActionError,

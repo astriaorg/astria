@@ -7,6 +7,7 @@ use super::{
     MintAction,
     MintActionError,
     SequenceAction,
+    SequenceActionError,
     SudoAddressChangeAction,
     SudoAddressChangeActionError,
     TransferAction,
@@ -71,7 +72,9 @@ impl Action {
             return Err(ActionError::unset());
         };
         let action = match action {
-            Value::SequenceAction(act) => Self::Sequence(SequenceAction::from_raw(act)),
+            Value::SequenceAction(act) => {
+                Self::Sequence(SequenceAction::try_from_raw(act).map_err(ActionError::sequence)?)
+            }
             Value::TransferAction(act) => {
                 Self::Transfer(TransferAction::try_from_raw(act).map_err(ActionError::transfer)?)
             }
@@ -143,6 +146,12 @@ impl ActionError {
         }
     }
 
+    fn sequence(inner: SequenceActionError) -> Self {
+        Self {
+            kind: ActionErrorKind::Sequence(inner),
+        }
+    }
+
     fn transfer(inner: TransferActionError) -> Self {
         Self {
             kind: ActionErrorKind::Transfer(inner),
@@ -172,6 +181,7 @@ impl Display for ActionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg = match &self.kind {
             ActionErrorKind::Unset => "oneof value was not set",
+            ActionErrorKind::Sequence(_) => "raw sequence action was not valid",
             ActionErrorKind::Transfer(_) => "raw transfer action was not valid",
             ActionErrorKind::ValidatorUpdate(_) => "raw validator update action was not valid",
             ActionErrorKind::SudoAddressChange(_) => "raw sudo address change action was not valid",
@@ -185,6 +195,7 @@ impl Error for ActionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
             ActionErrorKind::Unset => None,
+            ActionErrorKind::Sequence(e) => Some(e),
             ActionErrorKind::Transfer(e) => Some(e),
             ActionErrorKind::ValidatorUpdate(e) => Some(e),
             ActionErrorKind::SudoAddressChange(e) => Some(e),
@@ -196,6 +207,7 @@ impl Error for ActionError {
 #[derive(Debug)]
 enum ActionErrorKind {
     Unset,
+    Sequence(SequenceActionError),
     Transfer(TransferActionError),
     ValidatorUpdate(tendermint::error::Error),
     SudoAddressChange(SudoAddressChangeActionError),
