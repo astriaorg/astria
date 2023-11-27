@@ -8,7 +8,7 @@ use ed25519_consensus::{
     SigningKey,
     VerificationKey,
 };
-use penumbra_ibc::IbcRelay as IbcAction;
+use penumbra_ibc::IbcRelay;
 use tracing::info;
 
 pub use super::asset;
@@ -345,7 +345,7 @@ pub enum Action {
     ValidatorUpdate(tendermint::validator::Update),
     SudoAddressChange(SudoAddressChangeAction),
     Mint(MintAction),
-    Ibc(IbcAction),
+    Ibc(IbcRelay),
 }
 
 impl Action {
@@ -414,7 +414,9 @@ impl Action {
             Value::MintAction(act) => {
                 Self::Mint(MintAction::try_from_raw(act).map_err(ActionError::mint)?)
             }
-            Value::IbcAction(act) => Self::Ibc(IbcAction::try_from(act).map_err(ActionError::ibc)?),
+            Value::IbcAction(act) => {
+                Self::Ibc(IbcRelay::try_from(act).map_err(|e| ActionError::ibc(e.into()))?)
+            }
         };
         Ok(action)
     }
@@ -460,8 +462,8 @@ impl From<MintAction> for Action {
     }
 }
 
-impl From<IbcAction> for Action {
-    fn from(value: IbcAction) -> Self {
+impl From<IbcRelay> for Action {
+    fn from(value: IbcRelay) -> Self {
         Self::Ibc(value)
     }
 }
@@ -508,7 +510,7 @@ impl ActionError {
         }
     }
 
-    fn ibc(inner: anyhow::Error) -> Self {
+    fn ibc(inner: Box<dyn Error + Send + Sync>) -> Self {
         Self {
             kind: ActionErrorKind::Ibc(inner),
         }
@@ -552,7 +554,7 @@ enum ActionErrorKind {
     ValidatorUpdate(tendermint::error::Error),
     SudoAddressChange(SudoAddressChangeActionError),
     Mint(MintActionError),
-    Ibc(anyhow::Error),
+    Ibc(Box<dyn Error + Send + Sync>),
 }
 
 #[derive(Debug)]
@@ -567,6 +569,7 @@ impl SequenceActionError {
         }
     }
 }
+
 impl Display for SequenceActionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {

@@ -654,7 +654,6 @@ dependencies = [
 name = "astria-proto"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "ed25519-consensus",
  "hex",
  "penumbra-ibc",

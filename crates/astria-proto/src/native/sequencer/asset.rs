@@ -1,9 +1,8 @@
 use std::{
     error::Error,
     fmt::Display,
+    str::FromStr,
 };
-
-use anyhow::bail;
 
 /// The default sequencer asset base denomination.
 pub const DEFAULT_NATIVE_ASSET_DENOM: &str = "nria";
@@ -47,6 +46,12 @@ impl Denom {
     }
 }
 
+impl From<String> for Denom {
+    fn from(base_denom: String) -> Self {
+        Self::from_base_denom(&base_denom)
+    }
+}
+
 /// Asset ID, which is the hash of the denomination trace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id([u8; 32]);
@@ -79,6 +84,12 @@ impl Id {
         let mut id = [0u8; 32];
         id.copy_from_slice(slice);
         Ok(Self(id))
+    }
+}
+
+impl From<String> for Id {
+    fn from(denom: String) -> Self {
+        Self::from_denom(&denom)
     }
 }
 
@@ -119,24 +130,6 @@ pub struct IbcAsset {
 }
 
 impl IbcAsset {
-    /// Creates an `IbcAsset` given a denomination trace.
-    ///
-    /// # Errors
-    ///
-    /// - if the denomination string is invalid, ie. does not contain any slashes.
-    pub fn from_denomination(denom: &str) -> anyhow::Result<Self> {
-        let Some((prefix, base_denom)) = denom.rsplit_once('/') else {
-            bail!("invalid IBC asset denomination: {}", denom);
-        };
-        let id = Id::from_denom(denom);
-
-        Ok(Self {
-            id,
-            base_denom: base_denom.to_string(),
-            prefix: prefix.to_string(),
-        })
-    }
-
     /// Returns the asset ID, which is the hash of the denomination trace.
     #[must_use]
     pub fn id(&self) -> Id {
@@ -158,3 +151,42 @@ impl IbcAsset {
         self.prefix == prefix
     }
 }
+
+/// Creates an `IbcAsset` given a denomination trace.
+///
+/// # Errors
+///
+/// - if the denomination string is invalid, ie. does not contain any slashes.
+impl FromStr for IbcAsset {
+    type Err = IbcAssetError;
+
+    fn from_str(denom: &str) -> Result<Self, Self::Err> {
+        let Some((prefix, base_denom)) = denom.rsplit_once('/') else {
+            return Err(IbcAssetError::InvalidDenomination);
+        };
+        let id = Id::from_denom(denom);
+
+        Ok(Self {
+            id,
+            base_denom: base_denom.to_string(),
+            prefix: prefix.to_string(),
+        })
+    }
+}
+
+#[derive(Debug)]
+pub enum IbcAssetError {
+    InvalidDenomination,
+}
+
+impl Display for IbcAssetError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidDenomination => {
+                write!(f, "denomination must contain at least one slash")
+            }
+        }
+    }
+}
+
+impl Error for IbcAssetError {}
