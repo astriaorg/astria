@@ -9,6 +9,7 @@ use ed25519_consensus::{
     VerificationKey,
 };
 use penumbra_ibc::IbcRelay as IbcAction;
+use penumbra_proto::core::component::ibc::v1alpha1::Ics20Withdrawal;
 use tracing::info;
 
 pub use super::asset;
@@ -346,6 +347,7 @@ pub enum Action {
     SudoAddressChange(SudoAddressChangeAction),
     Mint(MintAction),
     Ibc(IbcAction),
+    Ics20Withdrawal(Ics20Withdrawal),
 }
 
 impl Action {
@@ -359,6 +361,7 @@ impl Action {
             Action::SudoAddressChange(act) => Value::SudoAddressChangeAction(act.into_raw()),
             Action::Mint(act) => Value::MintAction(act.into_raw()),
             Action::Ibc(act) => Value::IbcAction(act.into()),
+            Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.into()),
         };
         raw::Action {
             value: Some(kind),
@@ -377,6 +380,7 @@ impl Action {
             }
             Action::Mint(act) => Value::MintAction(act.to_raw()),
             Action::Ibc(act) => Value::IbcAction(act.clone().into()),
+            Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.clone().into()),
         };
         raw::Action {
             value: Some(kind),
@@ -415,6 +419,9 @@ impl Action {
                 Self::Mint(MintAction::try_from_raw(act).map_err(ActionError::mint)?)
             }
             Value::IbcAction(act) => Self::Ibc(IbcAction::try_from(act).map_err(ActionError::ibc)?),
+            Value::Ics20Withdrawal(act) => Self::Ics20Withdrawal(
+                Ics20Withdrawal::try_from(act).map_err(ActionError::ics20withdrawal),
+            ),
         };
         Ok(action)
     }
