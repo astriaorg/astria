@@ -367,7 +367,8 @@ impl App {
         signed_tx: proto::native::sequencer::v1alpha1::SignedTransaction,
     ) -> anyhow::Result<Vec<abci::Event>> {
         let signed_tx_2 = signed_tx.clone();
-        let stateless = tokio::spawn(async move { transaction::check_stateless(&signed_tx_2) });
+        let stateless =
+            tokio::spawn(async move { transaction::check_stateless(&signed_tx_2).await });
         let signed_tx_2 = signed_tx.clone();
         let state2 = self.state.clone();
         let stateful =

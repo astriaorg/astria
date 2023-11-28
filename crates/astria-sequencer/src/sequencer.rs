@@ -21,6 +21,9 @@ use crate::{
     state_ext::StateReadExt as _,
 };
 
+// TODO: use penumbra's `IBC_SUBSTORE_PREFIX` after they merge #3419
+const SUBSTORE_PREFIXES: [&str; 1] = ["ibc-data"];
+
 pub struct Sequencer;
 
 impl Sequencer {
@@ -42,9 +45,15 @@ impl Sequencer {
             );
         }
 
-        let storage = penumbra_storage::Storage::load(config.db_filepath.clone())
-            .await
-            .context("failed to load storage backing chain state")?;
+        let storage = penumbra_storage::Storage::load(
+            config.db_filepath.clone(),
+            SUBSTORE_PREFIXES
+                .into_iter()
+                .map(std::string::ToString::to_string)
+                .collect(),
+        )
+        .await
+        .context("failed to load storage backing chain state")?;
         let snapshot = storage.latest_snapshot();
 
         // the native asset should be configurable only at genesis.
