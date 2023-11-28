@@ -1,4 +1,14 @@
-use std::str::FromStr;
+//! This module implements the ICS20 transfer handler, which handles
+//! incoming packets.
+//!
+//! It contains an [`Ics20Transfer`] struct which implements the Penumbra
+//! [`AppHandler`] trait, which is passed through the Penumbra IBC implementation
+//! during transaction checks and execution. The IBC implementation calls into
+//! the ICS20 transfer handler during the IBC transaction lifecycle.
+//!
+//! [`AppHandler`] consists of two traits: [`AppHandlerCheck`] and [`AppHandlerExecute`].
+//! [`AppHandlerCheck`] is used for stateless and stateful checks, while
+//! [`AppHandlerExecute`] is used for execution.
 
 use anyhow::{
     Context as _,
@@ -153,7 +163,10 @@ async fn refund_tokens_check<S: StateRead>(
 
     let packet_data = FungibleTokenPacketData::decode(data)
         .context("failed to decode packet data into FungibleTokenPacketData")?;
-    let asset = IbcAsset::from_str(&packet_data.denom).context("invalid denomination")?;
+    let asset = packet_data
+        .denom
+        .parse::<IbcAsset>()
+        .context("failed parsing `denom` field packet data as IbcAsset")?;
 
     if is_source(source_port, source_channel, &asset, true) {
         // sender of packet (us) was the source chain
@@ -164,7 +177,10 @@ async fn refund_tokens_check<S: StateRead>(
             .await
             .context("failed to get channel balance in refund_tokens_check")?;
 
-        let packet_amount: u128 = packet_data.amount.parse()?;
+        let packet_amount: u128 = packet_data
+            .amount
+            .parse()
+            .context("failed to parse packet amount as u128")?;
         if balance < packet_amount {
             anyhow::bail!("insufficient balance to refund tokens to sender");
         }
@@ -296,8 +312,10 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
 
     let packet_data = FungibleTokenPacketData::decode(data)
         .context("failed to decode FungibleTokenPacketData")?;
-    let asset = IbcAsset::from_str(&packet_data.denom)
-        .context("failed to decode IbcAsset from denom string")?;
+    let asset = packet_data
+        .denom
+        .parse::<IbcAsset>()
+        .context("failed parsing `denom` field packet data as IbcAsset")?;
     let packet_amount: u128 = packet_data
         .amount
         .parse()

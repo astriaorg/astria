@@ -190,7 +190,7 @@ impl Display for IbcAssetError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidDenomination => {
-                write!(f, "denomination must contain at least one slash")
+                f.write_str("denomination must contain at least one slash")
             }
         }
     }
