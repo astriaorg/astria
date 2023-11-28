@@ -47,17 +47,6 @@ impl TryInto<String> for Rollup {
     }
 }
 
-/// Describes the globals used for Helm chart config. Serializes to a yaml file 
-/// for usage with Helm, thus the `rename_all = "camelCase"` naming convention.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GlobalsConfig {
-    #[serde(rename = "useTTY")]
-    use_tty: bool,
-    namespace: String,
-    log_level: String,
-}
-
 /// Describes a rollup deployment config. Serializes to a yaml file for usage with Helm,
 /// thus the `rename_all = "camelCase"` naming convention.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -84,6 +73,16 @@ impl RollupDeploymentConfig {
     }
 }
 
+/// Describes the ingress config for the rollup chart.
+/// 
+/// Serializes to a yaml file for usage with Helm, thus the 
+/// `rename_all = "camelCase"` naming convention.
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IngressConfig {
+    hostname: String,
+}
+
 impl From<&ConfigCreateArgs> for IngressConfig {
     fn from(args: &ConfigCreateArgs) -> Self {
         Self {
@@ -92,11 +91,24 @@ impl From<&ConfigCreateArgs> for IngressConfig {
     }
 }
 
+/// Describes the globals used for rollup chart. 
+/// 
+/// Serializes to a yaml file for usage with Helm, thus the 
+/// `rename_all = "camelCase"` naming convention.
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalsConfig {
+    pub(crate) namespace: String,
+    #[serde(rename = "useTTY")]
+    use_tty: bool,
+    log_level: String,
+}
+
 impl From<&ConfigCreateArgs> for GlobalsConfig {
     fn from(args: &ConfigCreateArgs) -> Self {
         Self {
-            use_tty: args.use_tty,
             namespace: args.namespace.clone(),
+            use_tty: args.use_tty,
             log_level: args.log_level.clone(),
         }
     }
@@ -173,12 +185,6 @@ struct SequencerConfig {
     initial_block_height: String,
     websocket: String,
     rpc: String,
-}
-
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IngressConfig {
-    hostname: String,
 }
 
 #[cfg(test)]

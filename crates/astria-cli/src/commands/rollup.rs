@@ -213,9 +213,7 @@ pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()>
         ))
         .arg(rollup.deployment_config.get_chart_release_name())
         .arg(&args.chart_path)
-        .arg("--set")
-        .arg(format!("namespace={}", rollup.namespace))
-        .arg(format!("--namespace={}", rollup.namespace))
+        .arg(format!("--namespace={}", rollup.globals_config.namespace))
         .arg("--create-namespace");
 
     if args.dry_run {
@@ -263,7 +261,7 @@ pub(crate) fn delete_deployment(args: &DeploymentDeleteArgs) -> eyre::Result<()>
     let mut cmd = Command::new(helm.clone());
     cmd.arg("uninstall")
         .arg(rollup.deployment_config.get_chart_release_name())
-        .arg(format!("--namespace={}", rollup.namespace));
+        .arg(format!("--namespace={}", rollup.globals_config.namespace));
 
     match cmd.output() {
         Err(e) => {
@@ -334,7 +332,7 @@ mod test {
             sequencer_rpc: String::new(),
             log_level: String::new(),
             hostname: String::new(),
-            namespace: String::new(),
+            namespace: "namespace_test".to_string(),
         }
     }
 
@@ -346,6 +344,11 @@ mod test {
 
             let file_path = PathBuf::from("test-rollup-conf.yaml");
             assert!(file_path.exists());
+
+            let file = File::open(&file_path).unwrap();
+            let rollup: Rollup = serde_yaml::from_reader(file).unwrap();
+            assert_eq!(rollup.globals_config.namespace, args.namespace);
+            assert_eq!(rollup.deployment_config.get_rollup_name(), args.name);
         })
         .await;
     }
