@@ -9,7 +9,6 @@ use anyhow::{
     ensure,
     Context as _,
 };
-use penumbra_component::ActionHandler as _;
 use proto::native::sequencer::v1alpha1::{
     asset,
     Action,
@@ -108,10 +107,12 @@ impl ActionHandler for UnsignedTransaction {
                     .await
                     .context("stateless check failed for SudoAddressChangeAction")?,
                 Action::Ibc(act) => {
-                    act.clone()
-                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer>()
-                        .check_stateless(())
-                        .await?;
+                    let action = act
+                        .clone()
+                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer>();
+                    penumbra_component::ActionHandler::check_stateless(&action, ())
+                        .await
+                        .context("stateless check failed for IbcAction")?;
                 }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
@@ -217,10 +218,12 @@ impl ActionHandler for UnsignedTransaction {
                         .context("execution failed for SudoAddressChangeAction")?;
                 }
                 Action::Ibc(act) => {
-                    act.clone()
-                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer>()
-                        .execute(&mut *state)
-                        .await?;
+                    let action = act
+                        .clone()
+                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer>();
+                    penumbra_component::ActionHandler::execute(&action, &mut *state)
+                        .await
+                        .context("execution failed for IbcAction")?;
                 }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => {
