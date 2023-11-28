@@ -13,23 +13,26 @@ use crate::cli::rollup::{
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Rollup {
-    pub(crate) namespace: String,
+    #[serde(rename = "global")]
+    pub(crate) globals_config: GlobalsConfig,
     #[serde(rename = "config")]
     pub(crate) deployment_config: RollupDeploymentConfig,
-    pub(crate) ingress: IngressConfig,
+    #[serde(rename = "ingress")]
+    pub(crate) ingress_config: IngressConfig,
 }
 
 impl TryFrom<&ConfigCreateArgs> for Rollup {
     type Error = eyre::Report;
 
     fn try_from(args: &ConfigCreateArgs) -> eyre::Result<Self> {
+        let globals_config = GlobalsConfig::from(args);
         let deployment_config = RollupDeploymentConfig::try_from(args)?;
-        let ingress = IngressConfig::from(args);
+        let ingress_config = IngressConfig::from(args);
 
         Ok(Self {
-            namespace: args.namespace.clone(),
+            globals_config,
             deployment_config,
-            ingress,
+            ingress_config,
         })
     }
 }
@@ -44,14 +47,22 @@ impl TryInto<String> for Rollup {
     }
 }
 
+/// Describes the globals used for Helm chart config. Serializes to a yaml file 
+/// for usage with Helm, thus the `rename_all = "camelCase"` naming convention.
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalsConfig {
+    #[serde(rename = "useTTY")]
+    use_tty: bool,
+    namespace: String,
+    log_level: String,
+}
+
 /// Describes a rollup deployment config. Serializes to a yaml file for usage with Helm,
 /// thus the `rename_all = "camelCase"` naming convention.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RollupDeploymentConfig {
-    #[serde(rename = "useTTY")]
-    use_tty: bool,
-    log_level: String,
     rollup: RollupConfig,
     sequencer: SequencerConfig,
 }
@@ -81,6 +92,16 @@ impl From<&ConfigCreateArgs> for IngressConfig {
     }
 }
 
+impl From<&ConfigCreateArgs> for GlobalsConfig {
+    fn from(args: &ConfigCreateArgs) -> Self {
+        Self {
+            use_tty: args.use_tty,
+            namespace: args.namespace.clone(),
+            log_level: args.log_level.clone(),
+        }
+    }
+}
+
 impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
     type Error = eyre::Report;
 
@@ -101,8 +122,6 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
             .collect();
 
         Ok(Self {
-            use_tty: args.use_tty,
-            log_level: args.log_level.clone(),
             rollup: RollupConfig {
                 name: args.name.clone(),
                 chain_id,
@@ -198,10 +217,12 @@ mod tests {
         };
 
         let expected_config = Rollup {
-            namespace: "test-cluster".to_string(),
-            deployment_config: RollupDeploymentConfig {
+            globals_config: GlobalsConfig {
                 use_tty: true,
+                namespace: "test-cluster".to_string(),
                 log_level: "debug".to_string(),
+            },
+            deployment_config: RollupDeploymentConfig {
                 rollup: RollupConfig {
                     name: "rollup1".to_string(),
                     chain_id: "chain1".to_string(),
@@ -224,7 +245,7 @@ mod tests {
                     rpc: "http://localhost:8081".to_string(),
                 },
             },
-            ingress: IngressConfig {
+            ingress_config: IngressConfig {
                 hostname: "test.com".to_string(),
             },
         };
@@ -260,10 +281,12 @@ mod tests {
         };
 
         let expected_config = Rollup {
-            namespace: "astria-dev-cluster".to_string(),
-            deployment_config: RollupDeploymentConfig {
+            globals_config: GlobalsConfig {
                 use_tty: false,
+                namespace: "astria-dev-cluster".to_string(),
                 log_level: "info".to_string(),
+            },
+            deployment_config: RollupDeploymentConfig {
                 rollup: RollupConfig {
                     name: "rollup2".to_string(),
                     chain_id: "rollup2-chain".to_string(), // Derived from name
@@ -280,7 +303,7 @@ mod tests {
                     rpc: "http://localhost:8083".to_string(),
                 },
             },
-            ingress: IngressConfig {
+            ingress_config: IngressConfig {
                 hostname: "localdev.me".to_string(),
             },
         };

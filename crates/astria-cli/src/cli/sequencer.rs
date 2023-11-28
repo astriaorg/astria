@@ -10,7 +10,7 @@ use color_eyre::{
     eyre::Context,
 };
 
-const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-1.devnet.astria.org";
+const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-2.devnet.astria.org";
 
 /// Interact with a Sequencer node
 #[derive(Debug, Subcommand)]
