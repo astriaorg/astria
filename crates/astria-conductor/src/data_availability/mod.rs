@@ -517,7 +517,7 @@ async fn find_da_sync_start_height(
 
         // let guess_height =
         //     u32::try_from(guess_block_height.value()).expect("casting from u64 to u32 failed");
-        let possible_blocks = sync::get_sequencer_data_from_da(
+        let possible_blocks = get_sequencer_data_from_da(
             guess_block_height,
             client.clone(),
             sequencer_namespace,
@@ -745,4 +745,43 @@ fn verify_all_datas(
         }
     }
     verification_tasks
+}
+
+pub(crate) async fn get_sequencer_data_from_da(
+    height: Height,
+    celestia_client: HttpClient,
+    sequencer_namespace: Namespace,
+    block_verifier: BlockVerifier,
+) -> eyre::Result<Vec<SequencerBlockSubset>> {
+    // this first call should be the only tryhard call
+    let res = celestia_client
+        .get_sequencer_data(height, sequencer_namespace)
+        .await
+        .wrap_err("failed to fetch sequencer data from celestia")
+        .map(|rsp| rsp.datas);
+
+    // need to make a verification block stream in addition to the block stream
+    // for running the verify_sequencer_blobs_and_assemble_rollups function
+    let seq_block_data = match res {
+        Ok(datas) => {
+            verify_sequencer_blobs_and_assemble_rollups(
+                height,
+                datas,
+                celestia_client,
+                block_verifier.clone(),
+                sequencer_namespace,
+            )
+            .await
+        }
+        Err(e) => {
+            let error: &(dyn std::error::Error + 'static) = e.as_ref();
+            warn!(
+                da_block_height = %height.value(),
+                error,
+                "task querying celestia for sequencer data returned with an error"
+            );
+            Err(e)
+        }
+    };
+    seq_block_data
 }
