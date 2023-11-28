@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use celestia_client::{
     celestia_types::{
         nmt::Namespace,
@@ -17,6 +19,11 @@ use tracing::{
     instrument,
     warn,
 };
+use tryhard::{
+    backoff_strategies::ExponentialBackoff,
+    OnRetry,
+    RetryFutureConfig,
+};
 
 use crate::{
     block_verifier::BlockVerifier,
@@ -28,6 +35,35 @@ use crate::{
     executor,
 };
 
+fn make_retry_config(
+    attempts: u32,
+) -> RetryFutureConfig<ExponentialBackoff, impl Copy + OnRetry<eyre::Report>> {
+    RetryFutureConfig::new(attempts)
+        .exponential_backoff(Duration::from_secs(5))
+        .max_delay(Duration::from_secs(60))
+        .on_retry(
+            |attempt, next_delay: Option<Duration>, error: &eyre::Report| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                async move {
+                    // let error = &error as &(dyn std::error::Error + 'static);
+                    // let error = error.as_ref() as &(dyn std::error::Error + 'static);
+
+                    // let error: &(dyn std::error::Error + 'static) = error;
+                    // let error = error.as_dyn_error();
+                    let error: &(dyn std::error::Error + 'static) = error.as_ref();
+                    warn!(
+                        attempt,
+                        wait_duration,
+                        error,
+                        "attempt to get data from DA failed; retrying after backoff",
+                    );
+                }
+            },
+        )
+}
+
 #[instrument(name = "sync DA", skip_all)]
 pub(crate) async fn run(
     start_sync_height: u32,
@@ -38,6 +74,7 @@ pub(crate) async fn run(
     block_verifier: BlockVerifier,
 ) -> eyre::Result<()> {
     use futures::{
+        // future::FusedFuture as _,
         FutureExt as _,
         StreamExt as _,
     };
@@ -47,6 +84,24 @@ pub(crate) async fn run(
     let mut height_stream = futures::stream::iter(start_sync_height..end_sync_height);
     let mut block_stream = FuturesOrdered::new();
 
+    let retry_config = make_retry_config(1024);
+
+    // let Some(height) = height_stream.next().await;
+    // let mut retrieve_data_from_da = tryhard::retry_fn(|| async move {
+    //     get_sequencer_data_from_da(
+    //         Height::from(height),
+    //         client.clone(),
+    //         namespace,
+    //         block_verifier.clone(),
+    //     )
+    //     .await
+    // })
+    // .with_config(retry_config)
+    // .boxed()
+    // .fuse();
+    // info!("we should wait here until the celestia client is ready");
+    // panic!("stopping for testing");
+
     'sync: loop {
         let client = client.clone();
         let block_verifier = block_verifier.clone();
@@ -54,7 +109,9 @@ pub(crate) async fn run(
             Some(height) = height_stream.next(), if block_stream.len() <= 20 => {
                 let height = Height::from(height);
                 block_stream.push_back(async move {
-                    get_sequencer_data_from_da(height, client.clone(), namespace, block_verifier.clone()).await
+                    tryhard::retry_fn(|| async {get_sequencer_data_from_da(height, client.clone(), namespace, block_verifier.clone()).await} )
+                    .with_config(retry_config).await
+                    // get_sequencer_data_from_da(height, client.clone(), namespace, block_verifier.clone()).await
                 }.map(move |res| (height, res)).boxed());
             }
 
@@ -66,9 +123,9 @@ pub(crate) async fn run(
                         warn!(da_block_height = %height.value(), error, "failed getting da block; rescheduling");
                         // warn!(da_block_height = %height.value(), error, "failed getting da block; skipping");
 
-                        block_stream.push_front(async move {
-                            get_sequencer_data_from_da(height, client.clone(), namespace, block_verifier.clone()).await
-                        }.map(move |res| (height, res)).boxed());
+                        // block_stream.push_front(async move {
+                        //     get_sequencer_data_from_da(height, client.clone(), namespace, block_verifier.clone()).await
+                        // }.map(move |res| (height, res)).boxed());
                     }
 
                     Ok(blocks) => {

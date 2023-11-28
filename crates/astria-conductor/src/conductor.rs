@@ -265,8 +265,14 @@ impl Conductor {
         use futures::future::FusedFuture as _;
 
         info!("starting conductor run loop");
-        info!("seq sync status: {:?}", self.seq_sync_done.is_terminated());
-        info!("da sync status: {:?}", self.da_sync_done.is_terminated());
+        info!(
+            "da sync complete status: {:?}",
+            self.da_sync_done.is_terminated()
+        );
+        info!(
+            "seq sync complete status: {:?}",
+            self.seq_sync_done.is_terminated()
+        );
 
         if self.execution_commit_level.is_soft_only() {
             info!("starting sequencer reader");
@@ -301,7 +307,9 @@ impl Conductor {
                 // Start the sequencer reader
                 res = &mut self.da_sync_done, if !self.da_sync_done.is_terminated() => {
                     match res {
-                        Ok(()) => info!("received sync-complete signal from da reader"),
+                        Ok(()) => {
+                            info!("received sync-complete signal from da reader");
+                            panic!("stopping for testing in conductor")},
                         Err(e) => {
                             let error = &e as &(dyn std::error::Error + 'static);
                             warn!(error, "da sync-complete channel failed prematurely");

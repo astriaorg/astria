@@ -253,6 +253,7 @@ impl Reader {
             );
         }
 
+        // panic!("stopping here for testing");
         // TODO: add da sync done to asycn run the sync
         // TODO: add sync done check to the event loop below
 
