@@ -1,10 +1,5 @@
 use std::time::Duration;
 
-use astria_sequencer_types::{
-    ChainId,
-    RawSequencerBlockData,
-    SequencerBlockData,
-};
 use celestia_client::{
     celestia_rpc::HeaderClient as _,
     celestia_types::{
@@ -17,11 +12,17 @@ use celestia_client::{
 };
 use color_eyre::eyre::{
     self,
+    bail,
     WrapErr as _,
 };
 use futures::{
     future::FusedFuture,
     FutureExt,
+};
+use sequencer_types::{
+    ChainId,
+    RawSequencerBlockData,
+    SequencerBlockData,
 };
 use tendermint::{
     block::Header,
@@ -148,7 +149,7 @@ impl Reader {
         firm_commit_height: u32,
         celestia_config: CelestiaReaderConfig,
         executor_tx: executor::Sender,
-        block_verifier: BlockVerifier,
+        sequencer_client_pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
         sequencer_namespace: Namespace,
         rollup_namespace: Namespace,
         shutdown: oneshot::Receiver<()>,
@@ -158,11 +159,18 @@ impl Reader {
 
         info!("creating da reader");
 
-        let celestia_client = celestia_client::celestia_rpc::client::new_http(
-            &celestia_config.node_url,
-            celestia_config.bearer_token.as_deref(),
-        )
-        .wrap_err("failed constructing celestia http client")?;
+        let block_verifier = BlockVerifier::new(sequencer_client_pool);
+
+        let celestia_client::celestia_rpc::Client::Http(celestia_client) =
+            celestia_client::celestia_rpc::Client::new(
+                &celestia_config.node_url,
+                celestia_config.bearer_token.as_deref(),
+            )
+            .await
+            .wrap_err("failed constructing celestia http client")?
+        else {
+            bail!("expected a celestia HTTP client but got a websocket client");
+        };
 
         // TODO: we should probably pass in the height we want to start at from some genesis/config
         // file
@@ -660,7 +668,7 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
 /// If more than one rollup blob is received and pass verification, they are all dropped.
 /// It is assumed that sequencer-relayer submits at most one rollup blob to celestia per
 /// celestia height.
-#[instrument(skip_all, fields(height, block_hash = %data.block_hash))]
+#[instrument(skip_all, fields(height, block_hash = %data.block_hash()))]
 async fn fetch_verify_rollup_blob_and_forward_to_assembly(
     client: HttpClient,
     height: Height,
@@ -686,14 +694,23 @@ async fn fetch_verify_rollup_blob_and_forward_to_assembly(
         "received rollups; verifying"
     );
     rollups.retain(|rollup| {
-        block_verifier::validate_rollup_data(rollup, data.action_tree_root).is_ok()
+        if let Err(e) = rollup.belongs_to(&data) {
+            debug!(
+                chain_id = hex::encode(rollup.chain_id),
+                reason = &e as &dyn std::error::Error,
+                "dropping rollup",
+            );
+            false
+        } else {
+            true
+        }
     });
     match rollups.len() {
         0 | 1 => {
             info!("rollup data found; forwarding to block assembler");
             let subset = SequencerBlockSubset {
-                block_hash: data.block_hash,
-                header: data.header.clone(),
+                block_hash: data.block_hash(),
+                header: data.header().clone(),
                 rollup_transactions: rollups.pop().map_or(vec![], |txs| txs.rollup_txs),
             };
             if block_tx.send(subset).await.is_err() {
@@ -726,7 +743,7 @@ fn verify_all_datas(
 ) -> JoinMap<tendermint::Hash, eyre::Result<SequencerNamespaceData>> {
     let mut verification_tasks = JoinMap::new();
     for data in datas {
-        let block_hash = data.block_hash;
+        let block_hash = data.block_hash();
         if verification_tasks.contains_key(&block_hash) {
             warn!(%block_hash,
                 "more than one sequencer data with the same block hash retrieved from celestia; \

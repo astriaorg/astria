@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use celestia_client::{
-    RollupNamespaceData,
-    SequencerNamespaceData,
-};
+use celestia_client::SequencerNamespaceData;
 use color_eyre::eyre::{
     self,
     bail,
@@ -23,22 +20,24 @@ use tendermint::{
     account,
     block,
     chain,
-    validator::Info as Validator,
     vote::{
         self,
         CanonicalVote,
     },
 };
-use tracing::instrument;
+use tracing::{
+    debug,
+    instrument,
+};
 
 /// `BlockVerifier` is verifying blocks received from celestia.
 #[derive(Clone)]
-pub(crate) struct BlockVerifier {
+pub(super) struct BlockVerifier {
     pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
 }
 
 impl BlockVerifier {
-    pub(crate) fn new(
+    pub(super) fn new(
         pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
     ) -> Self {
         Self {
@@ -48,13 +47,18 @@ impl BlockVerifier {
 
     /// validates `SequencerNamespaceData` received from Celestia.
     /// This function verifies the block commit.
-    pub(crate) async fn validate_sequencer_namespace_data(
+    pub(super) async fn validate_sequencer_namespace_data(
         &self,
         data: &SequencerNamespaceData,
     ) -> eyre::Result<()> {
-        let height: u32 = data.header.height.value().try_into().expect(
+        let height: u32 = data.header().height.value().try_into().expect(
             "a tendermint height (currently non-negative i32) should always fit into a u32",
         );
+
+        if height == 0 {
+            // we should never be validating the genesis block
+            bail!("cannot validate sequencer data for block height 0")
+        }
 
         let client =
             self.pool.get().await.wrap_err(
@@ -62,21 +66,31 @@ impl BlockVerifier {
             )?;
         let block_resp = client.block(height).await.wrap_err("failed to get block")?;
         ensure!(
-            block_resp.block_id.hash == data.block_hash,
+            block_resp.block_id.hash == data.block_hash(),
             "ignoring SequencerNamespaceData with height {} due to block hash mismatch: expected \
              {}, got {}",
             height,
             hex::encode(block_resp.block_id.hash),
-            hex::encode(data.block_hash),
+            hex::encode(data.block_hash()),
         );
 
-        let current_validator_set = client
-            .validators(height, sequencer_client::tendermint_rpc::Paging::Default)
+        debug!(
+            sequencer_height = height,
+            sequencer_block_hash = hex::encode(data.block_hash()),
+            "validating sequencer namespace data"
+        );
+
+        // the validator set which votes on a block at height `n` is the
+        // set at `n-1`. the validator set at height `n` is the set after
+        // the results of block `n`'s execution have occurred.
+        let validator_set = client
+            .validators(
+                height - 1,
+                sequencer_client::tendermint_rpc::Paging::Default,
+            )
             .await
             .wrap_err("failed to get validator set")?;
 
-        // get validator set for the previous height, as the commit contained
-        // in the block is for the previous height
         let commit = client
             .commit(height)
             .await
@@ -84,26 +98,13 @@ impl BlockVerifier {
 
         // validate commit is for our block
         ensure!(
-            commit.signed_header.header.hash() == data.block_hash,
+            commit.signed_header.header.hash() == data.block_hash(),
             "commit is not for the expected block",
         );
 
-        validate_sequencer_namespace_data(
-            &current_validator_set,
-            &commit.signed_header.commit,
-            data,
-        )
-        .wrap_err("failed validating sequencer data inside signed namespace data")
+        validate_sequencer_namespace_data(&validator_set, &commit.signed_header.commit, data)
+            .wrap_err("failed validating sequencer data inside signed namespace data")
     }
-}
-
-pub(crate) fn validate_rollup_data(
-    rollup_data: &RollupNamespaceData,
-    action_tree_root: [u8; 32],
-) -> eyre::Result<()> {
-    rollup_data
-        .verify_inclusion_proof(action_tree_root)
-        .wrap_err("failed to verify rollup data inclusion proof")
 }
 
 fn validate_sequencer_namespace_data(
@@ -111,74 +112,13 @@ fn validate_sequencer_namespace_data(
     commit: &block::Commit,
     data: &SequencerNamespaceData,
 ) -> eyre::Result<()> {
-    use sha2::Digest as _;
-
-    let SequencerNamespaceData {
-        block_hash,
-        header,
-        rollup_chain_ids: _,
-        action_tree_root,
-        action_tree_root_inclusion_proof,
-        chain_ids_commitment,
-        chain_ids_commitment_inclusion_proof,
-    } = data;
-
-    // find proposer address for this height
-    let expected_proposer_address = account::Id::from(
-        get_proposer(current_validator_set)
-            .wrap_err("failed to get proposer from validator set")?
-            .pub_key,
-    );
-    // check if the proposer address matches the sequencer block's proposer
-    let received_proposer_address = header.proposer_address;
-    ensure!(
-        received_proposer_address == expected_proposer_address,
-        "proposer address mismatch: expected `{expected_proposer_address}`, got \
-         `{received_proposer_address}`",
-    );
-
     // verify that the validator votes on the block have >2/3 voting power
-    let chain_id = header.chain_id.clone();
-    ensure_commit_has_quorum(commit, current_validator_set, chain_id.as_ref())
-        .wrap_err("failed to ensure commit has quorum")?;
-
-    // validate the block header matches the block hash
-    let block_hash_from_header = header.hash();
-    ensure!(
-        block_hash_from_header == *block_hash,
-        "block hash calculated from tendermint header does not match block hash stored in \
-         sequencer block",
-    );
-
-    // validate the action tree root was included inside `data_hash`
-    let Some(data_hash) = header.data_hash else {
-        bail!("data hash should not be empty");
-    };
-    let action_tree_root_hash = sha2::Sha256::digest(action_tree_root);
-    action_tree_root_inclusion_proof
-        .verify(&action_tree_root_hash, data_hash)
-        .wrap_err("failed to verify action tree root inclusion proof")?;
-
-    // validate the chain IDs commitment was included inside `data_hash`
-    let chain_ids_commitment_hash = sha2::Sha256::digest(chain_ids_commitment);
-    chain_ids_commitment_inclusion_proof
-        .verify(&chain_ids_commitment_hash, data_hash)
-        .wrap_err("failed to verify chain IDs commitment inclusion proof")?;
-
-    // validate the chain IDs commitment
-    let leaves = data
-        .rollup_chain_ids
-        .iter()
-        .map(|chain_id| chain_id.as_ref().to_vec())
-        .collect::<Vec<_>>();
-    let expected_chain_ids_commitment =
-        sequencer_validation::MerkleTree::from_leaves(leaves).root();
-    ensure!(
-        expected_chain_ids_commitment == *chain_ids_commitment,
-        "chain IDs commitment mismatch: expected {}, got {}",
-        hex::encode(expected_chain_ids_commitment),
-        hex::encode(chain_ids_commitment),
-    );
+    ensure_commit_has_quorum(
+        commit,
+        current_validator_set,
+        data.header().chain_id.as_ref(),
+    )
+    .wrap_err("failed to ensure commit has quorum")?;
 
     Ok(())
 }
@@ -339,18 +279,6 @@ fn verify_vote_signature(
     Ok(())
 }
 
-/// returns the proposer given the current set by ordering the validators by proposer priority.
-/// the validator with the highest proposer priority is the proposer.
-/// TODO: could there ever be two validators with the same priority?
-fn get_proposer(validator_set: &validators::Response) -> eyre::Result<Validator> {
-    validator_set
-        .validators
-        .iter()
-        .max_by(|v1, v2| v1.proposer_priority.cmp(&v2.proposer_priority))
-        .cloned()
-        .ok_or_else(|| eyre::eyre!("no proposer found"))
-}
-
 #[cfg(test)]
 mod test {
     use std::{
@@ -358,14 +286,16 @@ mod test {
         str::FromStr,
     };
 
-    use sequencer_validation::{
-        generate_action_tree_leaves,
-        MerkleTree,
+    use celestia_client::blob_space::{
+        RawSequencerNamespaceData,
+        RollupNamespaceData,
     };
+    use sequencer_types::ChainId;
     use tendermint::{
         account,
         block::Commit,
         validator,
+        validator::Info as Validator,
         Hash,
     };
 
@@ -429,17 +359,19 @@ mod test {
 
     #[test]
     fn validate_sequencer_namespace_data_last_commit_none_ok() {
-        let action_tree = MerkleTree::from_leaves(vec![vec![1, 2, 3], vec![4, 5, 6]]);
+        let action_tree = merkle::Tree::from_leaves([[1, 2, 3], [4, 5, 6]]);
         let action_tree_root = action_tree.root();
-        let chain_ids_commitment = MerkleTree::from_leaves(vec![]).root();
+        let chain_ids_commitment = merkle::Tree::new().root();
 
-        let txs = vec![action_tree_root.to_vec(), chain_ids_commitment.to_vec()];
-        let (data_hash, tx_tree) =
-            astria_sequencer_types::sequencer_block_data::calculate_data_hash_and_tx_tree(&txs);
-        let action_tree_root_inclusion_proof = tx_tree.prove_inclusion(0).unwrap();
-        let chain_ids_commitment_inclusion_proof = tx_tree.prove_inclusion(1).unwrap();
+        let tree = sequencer_types::cometbft::merkle_tree_from_transactions([
+            action_tree_root,
+            chain_ids_commitment,
+        ]);
+        let data_hash = tree.root();
+        let action_tree_root_inclusion_proof = tree.construct_proof(0).unwrap();
+        let chain_ids_commitment_inclusion_proof = tree.construct_proof(1).unwrap();
 
-        let mut header = astria_sequencer_types::test_utils::default_header();
+        let mut header = sequencer_types::test_utils::default_header();
         let height = header.height.value().try_into().unwrap();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
@@ -448,7 +380,7 @@ mod test {
         header.proposer_address = proposer_address;
         let block_hash = header.hash();
 
-        let sequencer_namespace_data = SequencerNamespaceData {
+        let sequencer_namespace_data = RawSequencerNamespaceData {
             block_hash,
             header,
             rollup_chain_ids: vec![],
@@ -456,7 +388,9 @@ mod test {
             action_tree_root_inclusion_proof,
             chain_ids_commitment,
             chain_ids_commitment_inclusion_proof,
-        };
+        }
+        .try_into_verified()
+        .unwrap();
 
         validate_sequencer_namespace_data(&validator_set, &commit, &sequencer_namespace_data)
             .unwrap();
@@ -465,22 +399,24 @@ mod test {
     #[tokio::test]
     async fn validate_rollup_data_ok() {
         let test_tx = b"test-tx".to_vec();
-        let test_chain_id = b"test-chain";
-        let mut btree = BTreeMap::new();
-        btree.insert(test_chain_id.to_vec(), vec![test_tx.clone()]);
-        let leaves = generate_action_tree_leaves(btree);
-
-        let action_tree = MerkleTree::from_leaves(leaves);
+        let chain_id = ChainId::with_unhashed_bytes(b"test-chain");
+        let grouped_txs = BTreeMap::from([(chain_id, vec![test_tx.clone()])]);
+        let action_tree =
+            sequencer_types::sequencer_block_data::generate_merkle_tree_from_grouped_txs(
+                &grouped_txs,
+            );
         let action_tree_root = action_tree.root();
-        let chain_ids_commitment = MerkleTree::from_leaves(vec![test_chain_id.to_vec()]).root();
+        let chain_ids_commitment = merkle::Tree::from_leaves(std::iter::once(chain_id)).root();
 
-        let txs = vec![action_tree_root.to_vec(), chain_ids_commitment.to_vec()];
-        let (data_hash, tx_tree) =
-            astria_sequencer_types::sequencer_block_data::calculate_data_hash_and_tx_tree(&txs);
-        let action_tree_root_inclusion_proof = tx_tree.prove_inclusion(0).unwrap();
-        let chain_ids_commitment_inclusion_proof = tx_tree.prove_inclusion(1).unwrap();
+        let tree = sequencer_types::cometbft::merkle_tree_from_transactions([
+            action_tree_root,
+            chain_ids_commitment,
+        ]);
+        let data_hash = tree.root();
+        let action_tree_root_inclusion_proof = tree.construct_proof(0).unwrap();
+        let chain_ids_commitment_inclusion_proof = tree.construct_proof(1).unwrap();
 
-        let mut header = astria_sequencer_types::test_utils::default_header();
+        let mut header = sequencer_types::test_utils::default_header();
         let height = header.height.value().try_into().unwrap();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
@@ -489,29 +425,29 @@ mod test {
         header.proposer_address = proposer_address;
         let block_hash = header.hash();
 
-        let sequencer_namespace_data = SequencerNamespaceData {
+        let sequencer_namespace_data = RawSequencerNamespaceData {
             block_hash,
             header,
-            rollup_chain_ids: vec![
-                astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
-            ],
+            rollup_chain_ids: vec![chain_id],
             action_tree_root,
             action_tree_root_inclusion_proof,
             chain_ids_commitment,
             chain_ids_commitment_inclusion_proof,
-        };
+        }
+        .try_into_verified()
+        .unwrap();
 
         let rollup_namespace_data = RollupNamespaceData {
             block_hash,
-            chain_id: astria_sequencer_types::ChainId::new(test_chain_id.to_vec()).unwrap(),
+            chain_id,
             rollup_txs: vec![test_tx],
-            inclusion_proof: action_tree.prove_inclusion(0).unwrap(),
+            inclusion_proof: action_tree.construct_proof(0).unwrap(),
         };
 
         validate_sequencer_namespace_data(&validator_set, &commit, &sequencer_namespace_data)
             .unwrap();
         rollup_namespace_data
-            .verify_inclusion_proof(sequencer_namespace_data.action_tree_root)
+            .belongs_to(&sequencer_namespace_data)
             .unwrap();
     }
 

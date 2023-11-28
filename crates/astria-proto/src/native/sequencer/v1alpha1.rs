@@ -8,11 +8,17 @@ use ed25519_consensus::{
     SigningKey,
     VerificationKey,
 };
+use penumbra_ibc::IbcRelay;
 use tracing::info;
 
-use crate::generated::sequencer::v1alpha1 as raw;
+pub use super::asset;
+use crate::{
+    generated::sequencer::v1alpha1 as raw,
+    native::sequencer::v1alpha1::asset::IncorrectAssetIdLength,
+};
 
 pub const ADDRESS_LEN: usize = 20;
+pub const CHAIN_ID_LEN: usize = 32;
 
 #[derive(Debug)]
 pub struct SignedTransactionError {
@@ -209,6 +215,8 @@ impl SignedTransaction {
 pub struct UnsignedTransaction {
     pub nonce: u32,
     pub actions: Vec<Action>,
+    /// asset to use for fee payment.
+    pub fee_asset_id: asset::Id,
 }
 
 impl UnsignedTransaction {
@@ -229,11 +237,13 @@ impl UnsignedTransaction {
         let Self {
             nonce,
             actions,
+            fee_asset_id,
         } = self;
         let actions = actions.into_iter().map(Action::into_raw).collect();
         raw::UnsignedTransaction {
             nonce,
             actions,
+            fee_asset_id: fee_asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -241,11 +251,13 @@ impl UnsignedTransaction {
         let Self {
             nonce,
             actions,
+            fee_asset_id,
         } = self;
         let actions = actions.iter().map(Action::to_raw).collect();
         raw::UnsignedTransaction {
             nonce: *nonce,
             actions,
+            fee_asset_id: fee_asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -259,6 +271,7 @@ impl UnsignedTransaction {
         let raw::UnsignedTransaction {
             nonce,
             actions,
+            fee_asset_id,
         } = proto;
         let n_raw_actions = actions.len();
         let actions: Vec<_> = actions
@@ -273,9 +286,14 @@ impl UnsignedTransaction {
                 "ignored unset raw protobuf actions",
             );
         }
+
+        let fee_asset_id = asset::Id::try_from_slice(&fee_asset_id)
+            .map_err(UnsignedTransactionError::fee_asset_id)?;
+
         Ok(Self {
             nonce,
             actions,
+            fee_asset_id,
         })
     }
 }
@@ -291,6 +309,12 @@ impl UnsignedTransactionError {
             kind: UnsignedTransactionErrorKind::Action(inner),
         }
     }
+
+    fn fee_asset_id(inner: IncorrectAssetIdLength) -> Self {
+        Self {
+            kind: UnsignedTransactionErrorKind::FeeAsset(inner),
+        }
+    }
 }
 
 impl Display for UnsignedTransactionError {
@@ -303,6 +327,7 @@ impl Error for UnsignedTransactionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
             UnsignedTransactionErrorKind::Action(e) => Some(e),
+            UnsignedTransactionErrorKind::FeeAsset(e) => Some(e),
         }
     }
 }
@@ -310,6 +335,7 @@ impl Error for UnsignedTransactionError {
 #[derive(Debug)]
 enum UnsignedTransactionErrorKind {
     Action(ActionError),
+    FeeAsset(IncorrectAssetIdLength),
 }
 
 #[derive(Clone, Debug)]
@@ -319,6 +345,7 @@ pub enum Action {
     ValidatorUpdate(tendermint::validator::Update),
     SudoAddressChange(SudoAddressChangeAction),
     Mint(MintAction),
+    Ibc(IbcRelay),
 }
 
 impl Action {
@@ -331,6 +358,7 @@ impl Action {
             Action::ValidatorUpdate(act) => Value::ValidatorUpdateAction(act.into()),
             Action::SudoAddressChange(act) => Value::SudoAddressChangeAction(act.into_raw()),
             Action::Mint(act) => Value::MintAction(act.into_raw()),
+            Action::Ibc(act) => Value::IbcAction(act.into()),
         };
         raw::Action {
             value: Some(kind),
@@ -348,6 +376,7 @@ impl Action {
                 Value::SudoAddressChangeAction(act.clone().into_raw())
             }
             Action::Mint(act) => Value::MintAction(act.to_raw()),
+            Action::Ibc(act) => Value::IbcAction(act.clone().into()),
         };
         raw::Action {
             value: Some(kind),
@@ -369,7 +398,9 @@ impl Action {
             return Err(ActionError::unset());
         };
         let action = match action {
-            Value::SequenceAction(act) => Self::Sequence(SequenceAction::from_raw(act)),
+            Value::SequenceAction(act) => {
+                Self::Sequence(SequenceAction::try_from_raw(act).map_err(ActionError::sequence)?)
+            }
             Value::TransferAction(act) => {
                 Self::Transfer(TransferAction::try_from_raw(act).map_err(ActionError::transfer)?)
             }
@@ -382,6 +413,9 @@ impl Action {
             ),
             Value::MintAction(act) => {
                 Self::Mint(MintAction::try_from_raw(act).map_err(ActionError::mint)?)
+            }
+            Value::IbcAction(act) => {
+                Self::Ibc(IbcRelay::try_from(act).map_err(|e| ActionError::ibc(e.into()))?)
             }
         };
         Ok(action)
@@ -428,6 +462,12 @@ impl From<MintAction> for Action {
     }
 }
 
+impl From<IbcRelay> for Action {
+    fn from(value: IbcRelay) -> Self {
+        Self::Ibc(value)
+    }
+}
+
 #[derive(Debug)]
 pub struct ActionError {
     kind: ActionErrorKind,
@@ -437,6 +477,12 @@ impl ActionError {
     fn unset() -> Self {
         Self {
             kind: ActionErrorKind::Unset,
+        }
+    }
+
+    fn sequence(inner: SequenceActionError) -> Self {
+        Self {
+            kind: ActionErrorKind::Sequence(inner),
         }
     }
 
@@ -463,16 +509,24 @@ impl ActionError {
             kind: ActionErrorKind::Mint(inner),
         }
     }
+
+    fn ibc(inner: Box<dyn Error + Send + Sync>) -> Self {
+        Self {
+            kind: ActionErrorKind::Ibc(inner),
+        }
+    }
 }
 
 impl Display for ActionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg = match &self.kind {
             ActionErrorKind::Unset => "oneof value was not set",
+            ActionErrorKind::Sequence(_) => "raw sequence action was not valid",
             ActionErrorKind::Transfer(_) => "raw transfer action was not valid",
             ActionErrorKind::ValidatorUpdate(_) => "raw validator update action was not valid",
             ActionErrorKind::SudoAddressChange(_) => "raw sudo address change action was not valid",
             ActionErrorKind::Mint(_) => "raw mint action was not valid",
+            ActionErrorKind::Ibc(_) => "raw ibc action was not valid",
         };
         f.pad(msg)
     }
@@ -482,10 +536,12 @@ impl Error for ActionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
             ActionErrorKind::Unset => None,
+            ActionErrorKind::Sequence(e) => Some(e),
             ActionErrorKind::Transfer(e) => Some(e),
             ActionErrorKind::ValidatorUpdate(e) => Some(e),
             ActionErrorKind::SudoAddressChange(e) => Some(e),
             ActionErrorKind::Mint(e) => Some(e),
+            ActionErrorKind::Ibc(e) => Some(e.as_ref()),
         }
     }
 }
@@ -493,15 +549,66 @@ impl Error for ActionError {
 #[derive(Debug)]
 enum ActionErrorKind {
     Unset,
+    Sequence(SequenceActionError),
     Transfer(TransferActionError),
     ValidatorUpdate(tendermint::error::Error),
     SudoAddressChange(SudoAddressChangeActionError),
     Mint(MintActionError),
+    Ibc(Box<dyn Error + Send + Sync>),
 }
+
+#[derive(Debug)]
+pub struct SequenceActionError {
+    kind: SequenceActionErrorKind,
+}
+
+impl SequenceActionError {
+    fn chain_id(inner: IncorrectChainIdLength) -> Self {
+        Self {
+            kind: SequenceActionErrorKind::ChainId(inner),
+        }
+    }
+}
+
+impl Display for SequenceActionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.kind {
+            SequenceActionErrorKind::ChainId(_) => {
+                f.pad("`chain_id` field did not contain a valid chain ID")
+            }
+        }
+    }
+}
+
+impl Error for SequenceActionError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match &self.kind {
+            SequenceActionErrorKind::ChainId(e) => Some(e),
+        }
+    }
+}
+
+#[derive(Debug)]
+enum SequenceActionErrorKind {
+    ChainId(IncorrectChainIdLength),
+}
+
+#[derive(Debug)]
+pub struct IncorrectChainIdLength {
+    received: usize,
+}
+
+impl Display for IncorrectChainIdLength {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "expected 32 bytes, got {}", self.received)
+    }
+}
+
+impl Error for IncorrectChainIdLength {}
 
 #[derive(Clone, Debug)]
 pub struct SequenceAction {
-    pub chain_id: Vec<u8>,
+    pub chain_id: ChainId,
     pub data: Vec<u8>,
 }
 
@@ -513,7 +620,7 @@ impl SequenceAction {
             data,
         } = self;
         raw::SequenceAction {
-            chain_id,
+            chain_id: chain_id.to_vec(),
             data,
         }
     }
@@ -525,22 +632,25 @@ impl SequenceAction {
             data,
         } = self;
         raw::SequenceAction {
-            chain_id: chain_id.clone(),
+            chain_id: chain_id.to_vec(),
             data: data.clone(),
         }
     }
 
     /// Convert from a raw, unchecked protobuf [`raw::SequenceAction`].
-    #[must_use]
-    pub fn from_raw(proto: raw::SequenceAction) -> Self {
+    ///
+    /// # Errors
+    /// Returns an error if the `proto.chain_id` field was not 32 bytes.
+    pub fn try_from_raw(proto: raw::SequenceAction) -> Result<Self, SequenceActionError> {
         let raw::SequenceAction {
             chain_id,
             data,
         } = proto;
-        Self {
+        let chain_id = ChainId::try_from_slice(&chain_id).map_err(SequenceActionError::chain_id)?;
+        Ok(Self {
             chain_id,
             data,
-        }
+        })
     }
 }
 
@@ -548,6 +658,8 @@ impl SequenceAction {
 pub struct TransferAction {
     pub to: Address,
     pub amount: u128,
+    // asset to be transferred.
+    pub asset_id: asset::Id,
 }
 
 impl TransferAction {
@@ -556,10 +668,12 @@ impl TransferAction {
         let Self {
             to,
             amount,
+            asset_id,
         } = self;
         raw::TransferAction {
             to: to.to_vec(),
             amount: Some(amount.into()),
+            asset_id: asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -568,10 +682,12 @@ impl TransferAction {
         let Self {
             to,
             amount,
+            asset_id,
         } = self;
         raw::TransferAction {
             to: to.to_vec(),
             amount: Some((*amount).into()),
+            asset_id: asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -585,12 +701,17 @@ impl TransferAction {
         let raw::TransferAction {
             to,
             amount,
+            asset_id,
         } = proto;
         let to = Address::try_from_slice(&to).map_err(TransferActionError::address)?;
         let amount = amount.map_or(0, Into::into);
+        let asset_id =
+            asset::Id::try_from_slice(&asset_id).map_err(TransferActionError::asset_id)?;
+
         Ok(Self {
             to,
             amount,
+            asset_id,
         })
     }
 }
@@ -606,6 +727,12 @@ impl TransferActionError {
             kind: TransferActionErrorKind::Address(inner),
         }
     }
+
+    fn asset_id(inner: IncorrectAssetIdLength) -> Self {
+        Self {
+            kind: TransferActionErrorKind::Asset(inner),
+        }
+    }
 }
 
 impl Display for TransferActionError {
@@ -613,6 +740,9 @@ impl Display for TransferActionError {
         match self.kind {
             TransferActionErrorKind::Address(_) => {
                 f.pad("`to` field did not contain a valid address")
+            }
+            TransferActionErrorKind::Asset(_) => {
+                f.pad("`asset_id` field did not contain a valid asset ID")
             }
         }
     }
@@ -622,6 +752,7 @@ impl Error for TransferActionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
             TransferActionErrorKind::Address(e) => Some(e),
+            TransferActionErrorKind::Asset(e) => Some(e),
         }
     }
 }
@@ -629,6 +760,7 @@ impl Error for TransferActionError {
 #[derive(Debug)]
 enum TransferActionErrorKind {
     Address(IncorrectAddressLength),
+    Asset(IncorrectAssetIdLength),
 }
 
 #[derive(Clone, Debug)]
@@ -817,14 +949,15 @@ impl Address {
     // cannot happen.
     #[allow(clippy::missing_panics_doc)]
     pub fn from_verification_key(public_key: ed25519_consensus::VerificationKey) -> Self {
-        use sha2::Digest as _;
+        use sha2::{
+            Digest as _,
+            Sha256,
+        };
         /// this ensures that `ADDRESS_LEN` is never accidentally changed to a value
         /// that would violate this assumption.
         #[allow(clippy::assertions_on_constants)]
         const _: () = assert!(ADDRESS_LEN <= 32);
-        let mut hasher = sha2::Sha256::new();
-        hasher.update(public_key);
-        let bytes: [u8; 32] = hasher.finalize().into();
+        let bytes: [u8; 32] = Sha256::digest(public_key).into();
         Self::try_from_slice(&bytes[..ADDRESS_LEN])
             .expect("can convert 32 byte hash to 20 byte array")
     }
@@ -862,6 +995,123 @@ impl From<[u8; ADDRESS_LEN]> for Address {
 impl Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for byte in self.0 {
+            write!(f, "{byte:02x}")?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
+pub struct ChainId {
+    #[cfg_attr(feature = "serde", serde(with = "hex::serde"))]
+    inner: [u8; 32],
+}
+
+impl ChainId {
+    /// Creates a new `ChainId` from a 32 byte array.
+    ///
+    /// Use this if you already have a 32 byte array. Prefer
+    /// [`ChainId::with_unhashed_bytes`] if you have a clear text
+    /// name what you want to use to identify your rollup.
+    ///
+    /// # Examples
+    /// ```
+    /// use astria_proto::native::sequencer::v1alpha1::ChainId;
+    /// let bytes = [42u8; 32];
+    /// let chain_id = ChainId::new(bytes);
+    /// assert_eq!(bytes, chain_id.get());
+    /// ```
+    #[must_use]
+    pub fn new(inner: [u8; CHAIN_ID_LEN]) -> Self {
+        Self {
+            inner,
+        }
+    }
+
+    /// Returns the 32 bytes array representing the chain ID.
+    ///
+    /// # Examples
+    /// ```
+    /// use astria_proto::native::sequencer::v1alpha1::ChainId;
+    /// let bytes = [42u8; 32];
+    /// let chain_id = ChainId::new(bytes);
+    /// assert_eq!(bytes, chain_id.get());
+    /// ```
+    #[must_use]
+    pub fn get(self) -> [u8; 32] {
+        self.inner
+    }
+
+    /// Creates a new `ChainId` by applying Sha256 to `bytes`.
+    ///
+    /// Examples
+    /// ```
+    /// use astria_proto::native::sequencer::v1alpha1::ChainId;
+    /// use sha2::{
+    ///     Digest,
+    ///     Sha256,
+    /// };
+    /// let name = "MyRollup-1";
+    /// let hashed = Sha256::digest(name);
+    /// let chain_id = ChainId::with_unhashed_bytes(name);
+    /// assert_eq!(chain_id, ChainId::new(hashed.into()));
+    /// ```
+    #[must_use]
+    pub fn with_unhashed_bytes<T: AsRef<[u8]>>(bytes: T) -> Self {
+        use sha2::{
+            Digest as _,
+            Sha256,
+        };
+        Self {
+            inner: Sha256::digest(bytes).into(),
+        }
+    }
+
+    /// Allocates a vector from the fixed size array holding the chain ID.
+    ///
+    /// # Examples
+    /// ```
+    /// use astria_proto::native::sequencer::v1alpha1::ChainId;
+    /// let chain_id = ChainId::new([42u8; 32]);
+    /// assert_eq!(vec![42u8; 32], chain_id.to_vec());
+    /// ```
+    #[must_use]
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.inner.to_vec()
+    }
+
+    /// Convert a byte slice to a chain ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the byte slice was not 32 bytes long.
+    pub fn try_from_slice(bytes: &[u8]) -> Result<Self, IncorrectChainIdLength> {
+        let inner = <[u8; CHAIN_ID_LEN]>::try_from(bytes).map_err(|_| IncorrectChainIdLength {
+            received: bytes.len(),
+        })?;
+        Ok(Self::new(inner))
+    }
+}
+
+impl AsRef<[u8]> for ChainId {
+    fn as_ref(&self) -> &[u8] {
+        &self.inner
+    }
+}
+
+impl From<[u8; CHAIN_ID_LEN]> for ChainId {
+    fn from(inner: [u8; CHAIN_ID_LEN]) -> Self {
+        Self {
+            inner,
+        }
+    }
+}
+
+impl Display for ChainId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for byte in self.inner {
             write!(f, "{byte:02x}")?;
         }
         Ok(())

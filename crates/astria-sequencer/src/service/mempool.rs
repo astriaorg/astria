@@ -23,6 +23,8 @@ use tracing::Instrument;
 
 use crate::accounts::state_ext::StateReadExt;
 
+const MAX_TX_SIZE: usize = 256_000; // 256 KB
+
 /// Mempool handles [`request::CheckTx`] abci requests.
 //
 /// It performs a stateless check of the given transaction,
@@ -82,6 +84,18 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     let request::CheckTx {
         tx, ..
     } = req;
+    if tx.len() > MAX_TX_SIZE {
+        return response::CheckTx {
+            code: AbciCode::INVALID_SIZE.into(),
+            log: format!(
+                "transaction size too large; received: {}, allowed: {MAX_TX_SIZE}",
+                tx.len()
+            ),
+            info: AbciCode::INVALID_SIZE.to_string(),
+            ..response::CheckTx::default()
+        };
+    }
+
     let raw_signed_tx = match raw::SignedTransaction::decode(tx) {
         Ok(tx) => tx,
         Err(e) => {
@@ -120,8 +134,8 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         };
     };
 
-    match transaction::check_stateless(&signed_tx) {
-        Ok(_) => response::CheckTx::default(),
+    match transaction::check_stateless(&signed_tx).await {
+        Ok(()) => response::CheckTx::default(),
         Err(e) => response::CheckTx {
             code: AbciCode::INVALID_PARAMETER.into(),
             info: "transaction failed stateless check".into(),

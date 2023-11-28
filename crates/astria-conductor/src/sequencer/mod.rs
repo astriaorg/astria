@@ -5,7 +5,6 @@ use std::{
     pin::Pin,
 };
 
-use astria_sequencer_types::SequencerBlockData;
 use color_eyre::eyre::{
     self,
     bail,
@@ -27,6 +26,7 @@ use sequencer_client::{
     tendermint::block::Height,
     NewBlockStreamError,
 };
+use sequencer_types::SequencerBlockData;
 use tokio::{
     select,
     sync::oneshot,
@@ -397,10 +397,6 @@ mod tests {
         pin::Pin,
     };
 
-    use astria_sequencer_types::{
-        sequencer_block_data::SequencerBlockData,
-        test_utils::create_tendermint_block,
-    };
     use color_eyre::eyre;
     use futures::{
         future::{
@@ -410,6 +406,10 @@ mod tests {
             Ready,
         },
         stream::FuturesOrdered,
+    };
+    use sequencer_types::{
+        sequencer_block_data::SequencerBlockData,
+        test_utils::create_tendermint_block,
     };
 
     use super::forward_block_or_resync;

@@ -10,11 +10,11 @@ use sequencer_types::{
     RawSequencerBlockData,
     SequencerBlockData,
 };
-use sequencer_validation::IndexOutOfBounds;
 
 use crate::{
     blob_space::{
         celestia_namespace_v0_from_hashed_bytes,
+        RawSequencerNamespaceData,
         SequencerNamespaceData,
     },
     RollupNamespaceData,
@@ -206,21 +206,16 @@ pub enum BlobAssemblyError {
         source: serde_json::Error,
         index: usize,
     },
-    #[error("failed to generate inclusion proof for the transaction at index `{index}`")]
-    GenerateInclusionProof {
-        source: IndexOutOfBounds,
-        index: usize,
-    },
+    #[error(
+        "failed to construct inclusion proof for the transaction at index `{index}` because its \
+         index was outside the tree"
+    )]
+    ConstructProof { index: usize },
 }
 
 fn assemble_blobs_from_sequencer_block_data(
     block_data: SequencerBlockData,
 ) -> Result<Vec<Blob>, BlobAssemblyError> {
-    use sequencer_validation::{
-        generate_action_tree_leaves,
-        MerkleTree,
-    };
-
     let mut blobs = Vec::with_capacity(block_data.rollup_data().len() + 1);
     let mut chain_ids = Vec::with_capacity(block_data.rollup_data().len());
 
@@ -234,20 +229,20 @@ fn assemble_blobs_from_sequencer_block_data(
         chain_ids_commitment_inclusion_proof,
     } = block_data.into_raw();
 
-    let action_tree_leaves = generate_action_tree_leaves(rollup_data.clone());
-    let action_tree = MerkleTree::from_leaves(action_tree_leaves);
+    let action_tree =
+        sequencer_types::sequencer_block_data::generate_merkle_tree_from_grouped_txs(&rollup_data);
 
     for (i, (chain_id, transactions)) in rollup_data.into_iter().enumerate() {
-        let inclusion_proof = action_tree.prove_inclusion(i).map_err(|source| {
-            BlobAssemblyError::GenerateInclusionProof {
-                source,
-                index: i,
-            }
-        })?;
+        let inclusion_proof =
+            action_tree
+                .construct_proof(i)
+                .ok_or(BlobAssemblyError::ConstructProof {
+                    index: i,
+                })?;
 
         let rollup_namespace_data = RollupNamespaceData {
             block_hash,
-            chain_id: chain_id.clone(),
+            chain_id,
             rollup_txs: transactions,
             inclusion_proof,
         };
@@ -268,7 +263,8 @@ fn assemble_blobs_from_sequencer_block_data(
     }
 
     let sequencer_namespace = celestia_namespace_v0_from_hashed_bytes(header.chain_id.as_bytes());
-    let sequencer_namespace_data = SequencerNamespaceData {
+
+    let raw_data = RawSequencerNamespaceData {
         block_hash,
         header,
         rollup_chain_ids: chain_ids,
@@ -278,7 +274,7 @@ fn assemble_blobs_from_sequencer_block_data(
         chain_ids_commitment_inclusion_proof,
     };
 
-    let data = serde_json::to_vec(&sequencer_namespace_data).expect(
+    let data = serde_json::to_vec(&raw_data).expect(
         "should not fail because SequencerNamespaceData does not contain maps and hence \
          non-unicode keys that would trigger to_vec()'s only error case",
     );
@@ -299,12 +295,11 @@ fn filter_and_convert_rollup_data_blobs(
     sequencer_data: &SequencerNamespaceData,
 ) -> Vec<RollupNamespaceData> {
     let mut rollups = Vec::with_capacity(blobs.len());
-    let block_hash = sequencer_data.block_hash;
     for blob in blobs {
         let Ok(data) = serde_json::from_slice::<RollupNamespaceData>(&blob.data) else {
             continue;
         };
-        if blob.namespace == namespace && data.block_hash == block_hash {
+        if blob.namespace == namespace && data.block_hash == sequencer_data.block_hash() {
             rollups.push(data);
         }
     }

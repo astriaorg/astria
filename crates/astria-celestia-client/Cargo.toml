@@ -3,19 +3,20 @@ name = "astria-celestia-client"
 description = "an extension of eigerco's celestia client with astria specific pieces"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.73"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 async-trait = { workspace = true }
 base64 = { workspace = true }
-base64-serde = "0.7.0"
+base64-serde = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-sha2 = "0.10"
+sha2 = { workspace = true }
 tendermint = { workspace = true }
 thiserror = { workspace = true }
 
-sequencer-validation = { package = "astria-sequencer-validation", path = "../astria-sequencer-validation" }
+merkle = { package = "astria-merkle", path = "../astria-merkle" }
 sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }
 
 ### Celestia specific imports
@@ -28,13 +29,13 @@ jsonrpsee = { version = "0.20", features = ["client-core", "macros"] }
 
 [dependencies.celestia-rpc]
 git = "https://github.com/eigerco/celestia-node-rs"
-rev = "1fa61eb"
+rev = "4862eec"
 
 [dependencies.celestia-types]
 git = "https://github.com/eigerco/celestia-node-rs"
-rev = "1fa61eb"
+rev = "4862eec"
 
 [dependencies.celestia-tendermint]
 package = "tendermint"
 git = "https://github.com/eigerco/celestia-tendermint-rs"
-rev = "1f8b574"
+rev = "bbe7de8"
