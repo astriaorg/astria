@@ -309,7 +309,8 @@ impl Conductor {
                     match res {
                         Ok(()) => {
                             info!("received sync-complete signal from da reader");
-                            panic!("stopping for testing in conductor")},
+                            // panic!("stopping for testing in conductor")
+                        },
                         Err(e) => {
                             let error = &e as &(dyn std::error::Error + 'static);
                             warn!(error, "da sync-complete channel failed prematurely");
