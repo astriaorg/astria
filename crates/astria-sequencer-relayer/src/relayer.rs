@@ -317,15 +317,19 @@ impl Relayer {
                             debug!("proposer of sequencer block does not match internal validator; ignoring");
                         }
                         Ok(Ok(block)) => {
+                            // TODO(https://github.com/astriaorg/astria/issues/616): test that only new sequencer
+                            // heights are relayed.
                             let height = block.header().height.value();
-                            self.state_tx.send_if_modified(|state| {
-                                if Some(height) > state.current_sequencer_height {
+                            let is_new_block = self.state_tx.send_if_modified(|state| {
+                                let is_new_height = Some(height) > state.current_sequencer_height;
+                                if is_new_height {
                                     state.current_sequencer_height = Some(height);
-                                    return true;
                                 }
-                                false
+                                is_new_height
                             });
-                            self.queued_blocks.push(block);
+                            if is_new_block {
+                                self.queued_blocks.push(block);
+                            }
                         }
 
                         Ok(Err(e)) => {
