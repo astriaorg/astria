@@ -200,7 +200,7 @@ impl Conductor {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
             let (sync_done_tx, sync_done_rx) = oneshot::channel();
 
-            let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
+            // let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
 
             // Sequencer namespace is defined by the chain id of attached sequencer node
             // which can be fetched from any block header.

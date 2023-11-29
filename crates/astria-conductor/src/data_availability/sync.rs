@@ -23,8 +23,10 @@ use tracing::{
 };
 use tryhard::RetryFutureConfig;
 
+// mod block_verifier;
+use super::block_verifier::BlockVerifier;
 use crate::{
-    block_verifier::BlockVerifier,
+    // block_verifier::BlockVerifier,
     data_availability::{
         send_sequencer_subsets,
         verify_sequencer_blobs_and_assemble_rollups,

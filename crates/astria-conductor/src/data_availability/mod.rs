@@ -52,14 +52,12 @@ use tracing::{
 };
 
 use crate::{
-    block_verifier::{
-        self,
-        BlockVerifier,
-    },
+    // block_verifier::BlockVerifier,
     executor,
 };
-
+mod block_verifier;
 mod sync;
+use block_verifier::BlockVerifier;
 
 /// `SequencerBlockSubset` is a subset of a `SequencerBlock` that contains
 /// information required for transaction data verification, and the transactions
@@ -506,8 +504,7 @@ async fn find_da_sync_start_height(
         return initial_da_height;
     }
 
-    let mut guess_block_height = Height::try_from(initial_da_height + (firm_commit_height / 5))
-        .expect("could not convert u32 to Height");
+    let mut guess_block_height = Height::from(initial_da_height + (firm_commit_height / 5));
     info!(guess_block_height = %guess_block_height);
     // FIXME: ^ eventually converte to smart search (binary search for example)
     // leaving this here for now as a first pass
@@ -764,7 +761,7 @@ fn verify_all_datas(
     verification_tasks
 }
 
-pub(crate) async fn get_sequencer_data_from_da(
+async fn get_sequencer_data_from_da(
     height: Height,
     celestia_client: HttpClient,
     sequencer_namespace: Namespace,

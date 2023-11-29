@@ -178,7 +178,7 @@ impl ExecutorBuilder<WithChainId, WithBlockChannel, WithRollupAddress, WithShutd
             "initial execution commitment state",
         );
 
-        let Some(executable_block_height) = calculate_executable_block_height(
+        let Some(executable_sequencer_block_height) = calculate_executable_block_height(
             sequencer_height_with_first_rollup_block,
             commitment_state.soft.number,
         ) else {
@@ -190,13 +190,16 @@ impl ExecutorBuilder<WithChainId, WithBlockChannel, WithRollupAddress, WithShutd
             );
         };
 
+        let executable_da_block_height = commitment_state.firm.number;
+
         Ok(Executor {
             block_channel,
             shutdown,
             execution_rpc_client,
             chain_id,
             commitment_state,
-            executable_block_height,
+            executable_sequencer_block_height,
+            executable_da_block_height,
             sequencer_hash_to_execution_block: HashMap::new(),
             pre_execution_hook,
         })
@@ -477,7 +480,7 @@ impl Executor {
             .call_execute_block(prev_block_hash, rollup_transactions, timestamp)
             .await
             .wrap_err("failed to call execute_block")?;
-        self.executable_block_height += 1;
+        self.executable_sequencer_block_height += 1;
 
         // store block hash returned by execution client, as we need it to finalize the block later
         info!(
@@ -582,18 +585,6 @@ impl Executor {
     pub(crate) fn get_executable_da_block_height(&self) -> u32 {
         self.executable_da_block_height
     }
-}
-
-/// Calculates the first executable block from the current sequencer height
-/// and the current rollup height.
-///
-/// This function assumes that sequencer heights and rollup heights increment
-/// in lockstep. `sequencer_height` contains the first rollup height, while
-/// `current_rollup_height` is the height of the rollup chain (with soft but
-/// not yet hard confirmation). That makes `sequencer_height + rollup_height`
-/// the first height that can be executed on top of the current rollup.
-fn calculate_executable_block_height(sequencer_height: u32, rollup_height: u32) -> Option<u32> {
-    sequencer_height.checked_add(rollup_height)
 }
 
 /// Calculates the first executable block from the current sequencer height
