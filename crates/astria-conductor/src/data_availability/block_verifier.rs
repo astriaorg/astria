@@ -280,13 +280,8 @@ mod test {
         str::FromStr,
     };
 
-    use celestia_client::{
-        CelestiaRollupBlob,
-        CelestiaSequencerBlob,
-    };
     use proto::native::sequencer::v1alpha1::{
         ChainId,
-        UncheckedCelestiaRollupBlob,
         UncheckedCelestiaSequencerBlob,
     };
     // use sequencer_types::ChainId;
