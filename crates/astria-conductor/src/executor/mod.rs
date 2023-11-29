@@ -568,6 +568,7 @@ impl Executor {
         Ok(())
     }
 
+    // Returns the next sequencer block height which can be executed on the rollup
     pub(crate) fn get_executable_block_height(&self) -> Result<u32> {
         let Some(executable_block_height) = calculate_sequencer_block_height(
             self.sequencer_height_with_first_rollup_block,
@@ -584,6 +585,7 @@ impl Executor {
         Ok(executable_block_height)
     }
 
+    // Returns the lowest sequencer block height which can finalized on the rollup.
     pub(crate) fn get_finalizable_block_height(&self) -> Result<u32> {
         let Some(finalizable_block_height) = calculate_sequencer_block_height(
             self.sequencer_height_with_first_rollup_block,
