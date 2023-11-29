@@ -73,13 +73,13 @@ pub fn create_tendermint_block() -> tendermint::Block {
     let proposer_address = tendermint::account::Id::from(public_key);
 
     let suffix = height.to_string().into_bytes();
-    let chain_id = RollupId::from_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
+    let rollup_id = RollupId::from_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
     let asset = Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM);
     let signed_transaction = UnsignedTransaction {
         nonce: 1,
         actions: vec![
             SequenceAction {
-                chain_id,
+                rollup_id,
                 data: [b"hello_world_id_", &*suffix].concat(),
             }
             .into(),
@@ -87,13 +87,13 @@ pub fn create_tendermint_block() -> tendermint::Block {
         fee_asset_id: asset.id(),
     }
     .into_signed(&signing_key);
-    let rollup_transactions = proto::native::sequencer::v1alpha1::group_sequence_actions_in_signed_transaction_transactions_by_chain_id(&[signed_transaction.clone()]);
+    let rollup_transactions = proto::native::sequencer::v1alpha1::group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(&[signed_transaction.clone()]);
     let rollup_transactions_tree =
         proto::native::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(
             &rollup_transactions,
         );
 
-    let rollup_ids_root = merkle::Tree::from_leaves(std::iter::once(chain_id)).root();
+    let rollup_ids_root = merkle::Tree::from_leaves(std::iter::once(rollup_id)).root();
     let data = vec![
         rollup_transactions_tree.root().to_vec(),
         rollup_ids_root.to_vec(),

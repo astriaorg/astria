@@ -315,7 +315,7 @@ fn chain_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
     };
 
     (
-        sequence_action.chain_id,
+        sequence_action.rollup_id,
         signed_tx.unsigned_transaction().nonce,
     )
 }

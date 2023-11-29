@@ -628,7 +628,7 @@ impl SequenceAction {
             data,
         } = self;
         raw::SequenceAction {
-            chain_id: rollup_id.to_vec(),
+            rollup_id: rollup_id.to_vec(),
             data,
         }
     }
@@ -640,7 +640,7 @@ impl SequenceAction {
             data,
         } = self;
         raw::SequenceAction {
-            chain_id: rollup_id.to_vec(),
+            rollup_id: rollup_id.to_vec(),
             data: data.clone(),
         }
     }
@@ -651,11 +651,11 @@ impl SequenceAction {
     /// Returns an error if the `proto.rollup_id` field was not 32 bytes.
     pub fn try_from_raw(proto: raw::SequenceAction) -> Result<Self, SequenceActionError> {
         let raw::SequenceAction {
-            chain_id,
+            rollup_id,
             data,
         } = proto;
         let rollup_id =
-            RollupId::try_from_slice(&chain_id).map_err(SequenceActionError::rollup_id)?;
+            RollupId::try_from_slice(&rollup_id).map_err(SequenceActionError::rollup_id)?;
         Ok(Self {
             rollup_id,
             data,
@@ -2137,7 +2137,7 @@ impl UncheckedCelestiaSequencerBlob {
     ) -> Result<Self, CelestiaSequencerBlobError> {
         let raw::CelestiaSequencerBlob {
             header,
-            rollup_chain_ids,
+            rollup_ids,
             rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_proof,
@@ -2149,7 +2149,7 @@ impl UncheckedCelestiaSequencerBlob {
             tendermint::block::Header::try_from(header)
                 .map_err(CelestiaSequencerBlobError::cometbft_header)
         }?;
-        let rollup_ids: Vec<_> = rollup_chain_ids
+        let rollup_ids: Vec<_> = rollup_ids
             .into_iter()
             .map(RollupId::try_from_vec)
             .collect::<Result<_, _>>()
@@ -2328,7 +2328,7 @@ impl CelestiaSequencerBlob {
         } = self;
         raw::CelestiaSequencerBlob {
             header: Some(header.into()),
-            rollup_chain_ids: rollup_ids.into_iter().map(RollupId::to_vec).collect(),
+            rollup_ids: rollup_ids.into_iter().map(RollupId::to_vec).collect(),
             rollup_transactions_root: rollup_transactions_root.to_vec(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),

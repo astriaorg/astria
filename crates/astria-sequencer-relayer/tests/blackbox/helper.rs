@@ -349,12 +349,12 @@ fn create_block_response(
         Time,
     };
     let suffix = height.to_string().into_bytes();
-    let chain_id = RollupId::from_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
+    let rollup_id = RollupId::from_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
     let signed_tx = UnsignedTransaction {
         nonce: 1,
         actions: vec![
             SequenceAction {
-                chain_id,
+                rollup_id,
                 data: [b"hello_world_id_", &*suffix].concat(),
             }
             .into(),
@@ -362,13 +362,13 @@ fn create_block_response(
         fee_asset_id: default_native_asset_id(),
     }
     .into_signed(signing_key);
-    let rollup_txs = proto::native::sequencer::v1alpha1::group_sequence_actions_in_signed_transaction_transactions_by_chain_id(
+    let rollup_txs = proto::native::sequencer::v1alpha1::group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
         &[signed_tx.clone()]
     );
     let action_tree_root =
         proto::native::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(&rollup_txs).root();
 
-    let chain_ids_commitment = merkle::Tree::from_leaves(std::iter::once(chain_id)).root();
+    let chain_ids_commitment = merkle::Tree::from_leaves(std::iter::once(rollup_id)).root();
     let data = vec![
         action_tree_root.to_vec(),
         chain_ids_commitment.to_vec(),

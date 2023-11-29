@@ -73,14 +73,14 @@ pub struct SequencerBlock {
     /// rollup transactions.
     #[prost(message, optional, tag = "3")]
     pub rollup_transactions_proof: ::core::option::Option<Proof>,
-    /// The proof that the chain IDs listed in `rollup_transactions` are included
+    /// The proof that the rollup IDs listed in `rollup_transactions` are included
     /// in the CometBFT block this sequencer block is derived form.
     ///
     /// This proof is used to verify that the relayer that posts to celestia
     /// includes all rollup IDs and does not censor any.
     ///
-    /// This proof together with `Sha256(MTH(chain_ids))` must match `header.data_hash`.
-    /// `MTH(chain_ids)` is the Merkle Tree Hash derived from the chain IDs listed in
+    /// This proof together with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
+    /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
     /// the rollup transactions.
     #[prost(message, optional, tag = "4")]
     pub rollup_ids_proof: ::core::option::Option<Proof>,
@@ -88,7 +88,7 @@ pub struct SequencerBlock {
 /// A collection of transactions belonging to a specific rollup that are submitted to celestia.
 ///
 /// The transactions contained in the item belong to a rollup identified
-/// by `chain_id`, and were included in the sequencer block identified
+/// by `rollup_id`, and were included in the sequencer block identified
 /// by `sequencer_block_hash`.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -97,7 +97,7 @@ pub struct CelestiaRollupBlob {
     #[prost(bytes = "vec", tag = "1")]
     pub sequencer_block_hash: ::prost::alloc::vec::Vec<u8>,
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
-    /// `astria.sequencer.v1alpha1.RollupTransactions.chain_id`
+    /// `astria.sequencer.v1alpha1.RollupTransactions.rollup_id`
     #[prost(bytes = "vec", tag = "2")]
     pub rollup_id: ::prost::alloc::vec::Vec<u8>,
     /// A list of opaque bytes that are serialized rollup transactions.
@@ -123,11 +123,11 @@ pub struct CelestiaSequencerBlob {
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
     #[prost(message, optional, tag = "1")]
     pub header: ::core::option::Option<::tendermint_proto::types::Header>,
-    /// The rollup chain IDs for which `CelestiaRollupBlob`s were submitted to celestia.
-    /// Corresponds to the `astria.sequencer.v1alpha1.RollupTransactions.chain_id` field
+    /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
+    /// Corresponds to the `astria.sequencer.v1alpha1.RollupTransactions.rollup_id` field
     /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
     #[prost(bytes = "vec", repeated, tag = "2")]
-    pub rollup_chain_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
     /// The Merkle Tree Hash of the rollup transactions. Corresponds to
     /// `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`, the Merkle
     /// Tree Hash deriveed from the rollup transactions.
@@ -138,7 +138,7 @@ pub struct CelestiaSequencerBlob {
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
     #[prost(message, optional, tag = "4")]
     pub rollup_transactions_proof: ::core::option::Option<Proof>,
-    /// The proof that the rollup chain IDs are included in sequencer block.
+    /// The proof that the rollup IDs are included in sequencer block.
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
     #[prost(message, optional, tag = "5")]
     pub rollup_ids_proof: ::core::option::Option<Proof>,
@@ -255,13 +255,13 @@ pub struct TransferAction {
 /// `SequenceAction` represents a transaction destined for another
 /// chain, ordered by the sequencer.
 ///
-/// It contains the chain ID of the destination chain, and the
+/// It contains the rollup ID of the destination chain, and the
 /// opaque transaction data.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SequenceAction {
     #[prost(bytes = "vec", tag = "1")]
-    pub chain_id: ::prost::alloc::vec::Vec<u8>,
+    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes = "vec", tag = "2")]
     pub data: ::prost::alloc::vec::Vec<u8>,
 }

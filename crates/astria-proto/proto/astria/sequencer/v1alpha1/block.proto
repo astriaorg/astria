@@ -30,14 +30,14 @@ message SequencerBlock {
     // `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
     // rollup transactions.
     astria.sequencer.v1alpha1.Proof rollup_transactions_proof = 3;
-    // The proof that the chain IDs listed in `rollup_transactions` are included
+    // The proof that the rollup IDs listed in `rollup_transactions` are included
     // in the CometBFT block this sequencer block is derived form.
     //
     // This proof is used to verify that the relayer that posts to celestia
     // includes all rollup IDs and does not censor any.
     //
-    // This proof together with `Sha256(MTH(chain_ids))` must match `header.data_hash`.
-    // `MTH(chain_ids)` is the Merkle Tree Hash derived from the chain IDs listed in
+    // This proof together with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
+    // `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
     // the rollup transactions.
     astria.sequencer.v1alpha1.Proof rollup_ids_proof = 4;
 }
