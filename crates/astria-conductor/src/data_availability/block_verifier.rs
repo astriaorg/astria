@@ -100,12 +100,12 @@ impl BlockVerifier {
             "commit is not for the expected block",
         );
 
-        validate_sequencer_namespace_data(&validator_set, &commit.signed_header.commit, blob)
+        validate_sequencer_blob(&validator_set, &commit.signed_header.commit, blob)
             .wrap_err("failed validating sequencer data inside signed namespace data")
     }
 }
 
-fn validate_sequencer_namespace_data(
+fn validate_sequencer_blob(
     current_validator_set: &validators::Response,
     commit: &block::Commit,
     blob: &CelestiaSequencerBlob,
@@ -273,282 +273,295 @@ fn verify_vote_signature(
     Ok(())
 }
 
-// #[cfg(test)]
-// mod test {
-//     use std::{
-//         collections::BTreeMap,
-//         str::FromStr,
-//     };
+#[cfg(test)]
+mod test {
+    use std::{
+        collections::BTreeMap,
+        str::FromStr,
+    };
 
-//     use celestia_client::{
-//         CelestiaRollupBlob,
-//         CelestiaSequencerBlob,
-//     };
-//     use sequencer_types::ChainId;
-//     use tendermint::{
-//         account,
-//         block::Commit,
-//         validator,
-//         validator::Info as Validator,
-//         Hash,
-//     };
+    use celestia_client::{
+        CelestiaRollupBlob,
+        CelestiaSequencerBlob,
+    };
+    use proto::native::sequencer::v1alpha1::{
+        ChainId,
+        UncheckedCelestiaRollupBlob,
+        UncheckedCelestiaSequencerBlob,
+    };
+    // use sequencer_types::ChainId;
+    use tendermint::{
+        account,
+        block::Commit,
+        validator,
+        validator::Info as Validator,
+        Hash,
+    };
 
-//     use super::*;
+    use super::*;
 
-//     fn make_test_validator_set_and_commit(
-//         height: u32,
-//         chain_id: chain::Id,
-//     ) -> (validators::Response, account::Id, Commit) {
-//         use rand::rngs::OsRng;
+    fn make_test_validator_set_and_commit(
+        height: u32,
+        chain_id: tendermint::chain::Id,
+    ) -> (validators::Response, account::Id, Commit) {
+        use rand::rngs::OsRng;
 
-//         let signing_key = ed25519_consensus::SigningKey::new(OsRng);
-//         let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(
-//             signing_key.verification_key().as_ref(),
-//         )
-//         .unwrap();
-//         let address = tendermint::account::Id::from(pub_key);
+        let signing_key = ed25519_consensus::SigningKey::new(OsRng);
+        let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(
+            signing_key.verification_key().as_ref(),
+        )
+        .unwrap();
+        let address = tendermint::account::Id::from(pub_key);
 
-//         let validator = validator::Info {
-//             address,
-//             pub_key,
-//             power: 10u32.into(),
-//             proposer_priority: 0.into(),
-//             name: None,
-//         };
+        let validator = validator::Info {
+            address,
+            pub_key,
+            power: 10u32.into(),
+            proposer_priority: 0.into(),
+            name: None,
+        };
 
-//         let round = 0u16;
-//         let timestamp = tendermint::Time::unix_epoch();
-//         let canonical_vote = CanonicalVote {
-//             vote_type: vote::Type::Precommit,
-//             height: height.into(),
-//             round: round.into(),
-//             block_id: None,
-//             timestamp: Some(timestamp),
-//             chain_id,
-//         };
+        let round = 0u16;
+        let timestamp = tendermint::Time::unix_epoch();
+        let canonical_vote = CanonicalVote {
+            vote_type: vote::Type::Precommit,
+            height: height.into(),
+            round: round.into(),
+            block_id: None,
+            timestamp: Some(timestamp),
+            chain_id,
+        };
 
-//         let message = tendermint_proto::types::CanonicalVote::try_from(canonical_vote)
-//             .unwrap()
-//             .encode_length_delimited_to_vec();
+        let message = tendermint_proto::types::CanonicalVote::try_from(canonical_vote)
+            .unwrap()
+            .encode_length_delimited_to_vec();
 
-//         let signature = signing_key.sign(&message);
+        let signature = signing_key.sign(&message);
 
-//         let commit = tendermint::block::Commit {
-//             height: height.into(),
-//             round: round.into(),
-//             signatures: vec![tendermint::block::CommitSig::BlockIdFlagCommit {
-//                 validator_address: address,
-//                 timestamp,
-//                 signature: Some(signature.into()),
-//             }],
-//             ..Default::default()
-//         };
+        let commit = tendermint::block::Commit {
+            height: height.into(),
+            round: round.into(),
+            signatures: vec![tendermint::block::CommitSig::BlockIdFlagCommit {
+                validator_address: address,
+                timestamp,
+                signature: Some(signature.into()),
+            }],
+            ..Default::default()
+        };
 
-//         (
-//             validators::Response::new(height.into(), vec![validator], 1),
-//             address,
-//             commit,
-//         )
-//     }
+        (
+            validators::Response::new(height.into(), vec![validator], 1),
+            address,
+            commit,
+        )
+    }
 
-//     #[test]
-//     fn validate_sequencer_namespace_data_last_commit_none_ok() {
-//         let action_tree = merkle::Tree::from_leaves([[1, 2, 3], [4, 5, 6]]);
-//         let action_tree_root = action_tree.root();
-//         let chain_ids_commitment = merkle::Tree::new().root();
+    #[test]
+    fn validate_sequencer_blob_last_commit_none_ok() {
+        let rollup_transactions_root = merkle::Tree::from_leaves([[1, 2, 3], [4, 5, 6]]).root();
+        let chain_ids_commitment = merkle::Tree::new().root();
 
-//         let tree = sequencer_types::cometbft::merkle_tree_from_transactions([
-//             action_tree_root,
-//             chain_ids_commitment,
-//         ]);
-//         let data_hash = tree.root();
-//         let action_tree_root_inclusion_proof = tree.construct_proof(0).unwrap();
-//         let chain_ids_commitment_inclusion_proof = tree.construct_proof(1).unwrap();
+        let tree = sequencer_types::cometbft::merkle_tree_from_transactions([
+            rollup_transactions_root,
+            chain_ids_commitment,
+        ]);
+        let data_hash = tree.root();
+        let rollup_transactions_proof = tree.construct_proof(0).unwrap();
+        let rollup_ids_proof = tree.construct_proof(1).unwrap();
 
-//         let mut header = sequencer_types::test_utils::default_header();
-//         let height = header.height.value().try_into().unwrap();
-//         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+        let mut header = sequencer_types::test_utils::default_header();
+        let height = header.height.value().try_into().unwrap();
+        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
-//         let (validator_set, proposer_address, commit) =
-//             make_test_validator_set_and_commit(height, header.chain_id.clone());
-//         header.proposer_address = proposer_address;
-//         let block_hash = header.hash();
+        let (validator_set, proposer_address, commit) =
+            make_test_validator_set_and_commit(height, header.chain_id.clone());
+        header.proposer_address = proposer_address;
+        let sequencer_blob = UncheckedCelestiaSequencerBlob {
+            header,
+            rollup_ids: vec![],
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        }
+        .try_into_celestia_sequencer_blob()
+        .unwrap();
 
-//         let sequencer_namespace_data = RawSequencerNamespaceData {
-//             block_hash,
-//             header,
-//             rollup_chain_ids: vec![],
-//             action_tree_root,
-//             action_tree_root_inclusion_proof,
-//             chain_ids_commitment,
-//             chain_ids_commitment_inclusion_proof,
-//         }
-//         .try_into_verified()
-//         .unwrap();
+        validate_sequencer_blob(&validator_set, &commit, &sequencer_blob).unwrap();
+    }
 
-//         validate_sequencer_namespace_data(&validator_set, &commit, &sequencer_namespace_data)
-//             .unwrap();
-//     }
+    #[tokio::test]
+    async fn validate_sequencer_blob_with_chain_ids() {
+        let test_tx = b"test-tx".to_vec();
+        let rollup_id = ChainId::from_unhashed_bytes(b"test-chain");
+        let grouped_txs = BTreeMap::from([(rollup_id, vec![test_tx.clone()])]);
+        let rollup_transactions_tree =
+            proto::native::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(&grouped_txs);
+        let rollup_transactions_root = rollup_transactions_tree.root();
+        let rollup_ids_root = merkle::Tree::from_leaves(std::iter::once(rollup_id)).root();
 
-//     #[tokio::test]
-//     async fn validate_rollup_data_ok() {
-//         let test_tx = b"test-tx".to_vec();
-//         let chain_id = ChainId::from_unhashed_bytes(b"test-chain");
-//         let grouped_txs = BTreeMap::from([(chain_id, vec![test_tx.clone()])]);
-//         let action_tree =
-//             sequencer_types::sequencer_block_data::generate_merkle_tree_from_grouped_txs(
-//                 &grouped_txs,
-//             );
-//         let action_tree_root = action_tree.root();
-//         let chain_ids_commitment = merkle::Tree::from_leaves(std::iter::once(chain_id)).root();
+        let tree = sequencer_types::cometbft::merkle_tree_from_transactions([
+            rollup_transactions_root,
+            rollup_ids_root,
+        ]);
+        let data_hash = tree.root();
+        let rollup_transactions_proof = tree.construct_proof(0).unwrap();
+        let rollup_ids_proof = tree.construct_proof(1).unwrap();
 
-//         let tree = sequencer_types::cometbft::merkle_tree_from_transactions([
-//             action_tree_root,
-//             chain_ids_commitment,
-//         ]);
-//         let data_hash = tree.root();
-//         let action_tree_root_inclusion_proof = tree.construct_proof(0).unwrap();
-//         let chain_ids_commitment_inclusion_proof = tree.construct_proof(1).unwrap();
+        let mut header = sequencer_types::test_utils::default_header();
+        let height = header.height.value().try_into().unwrap();
+        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
-//         let mut header = sequencer_types::test_utils::default_header();
-//         let height = header.height.value().try_into().unwrap();
-//         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+        let (validator_set, proposer_address, commit) =
+            make_test_validator_set_and_commit(height, header.chain_id.clone());
+        header.proposer_address = proposer_address;
 
-//         let (validator_set, proposer_address, commit) =
-//             make_test_validator_set_and_commit(height, header.chain_id.clone());
-//         header.proposer_address = proposer_address;
-//         let block_hash = header.hash();
+        let sequencer_blob = UncheckedCelestiaSequencerBlob {
+            header,
+            rollup_ids: vec![rollup_id],
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        }
+        .try_into_celestia_sequencer_blob()
+        .unwrap();
 
-//         let sequencer_namespace_data = RawSequencerNamespaceData {
-//             block_hash,
-//             header,
-//             rollup_chain_ids: vec![chain_id],
-//             action_tree_root,
-//             action_tree_root_inclusion_proof,
-//             chain_ids_commitment,
-//             chain_ids_commitment_inclusion_proof,
-//         }
-//         .try_into_verified()
-//         .unwrap();
+        validate_sequencer_blob(&validator_set, &commit, &sequencer_blob).unwrap();
+    }
 
-//         let rollup_namespace_data = RollupNamespaceData {
-//             block_hash,
-//             chain_id,
-//             rollup_txs: vec![test_tx],
-//             inclusion_proof: action_tree.construct_proof(0).unwrap(),
-//         };
+    #[test]
+    fn test_does_commit_voting_power_have_quorum() {
+        assert!(does_commit_voting_power_have_quorum(3, 4));
+        assert!(does_commit_voting_power_have_quorum(101, 150));
+        assert!(does_commit_voting_power_have_quorum(
+            u64::MAX / 3,
+            u64::MAX / 3
+        ));
+        assert!(does_commit_voting_power_have_quorum(
+            u64::MAX / 3,
+            u64::MAX / 2 - 1
+        ));
+        assert!(does_commit_voting_power_have_quorum(u64::MAX, u64::MAX));
 
-//         validate_sequencer_namespace_data(&validator_set, &commit, &sequencer_namespace_data)
-//             .unwrap();
-//         rollup_namespace_data
-//             .belongs_to(&sequencer_namespace_data)
-//             .unwrap();
-//     }
+        assert!(!does_commit_voting_power_have_quorum(0, 1));
+        assert!(!does_commit_voting_power_have_quorum(1, 2));
+        assert!(!does_commit_voting_power_have_quorum(2, 3));
+        assert!(!does_commit_voting_power_have_quorum(100, 150));
+        assert!(!does_commit_voting_power_have_quorum(
+            u64::MAX / 3 - 1,
+            u64::MAX / 2
+        ));
+        assert!(does_commit_voting_power_have_quorum(
+            u64::MAX / 3,
+            u64::MAX / 2
+        ));
+        assert!(!does_commit_voting_power_have_quorum(0, 0));
+    }
 
-//     #[test]
-//     fn test_does_commit_voting_power_have_quorum() {
-//         assert!(does_commit_voting_power_have_quorum(3, 4));
-//         assert!(does_commit_voting_power_have_quorum(101, 150));
-//         assert!(does_commit_voting_power_have_quorum(
-//             u64::MAX / 3,
-//             u64::MAX / 3
-//         ));
-//         assert!(does_commit_voting_power_have_quorum(
-//             u64::MAX / 3,
-//             u64::MAX / 2 - 1
-//         ));
-//         assert!(does_commit_voting_power_have_quorum(u64::MAX, u64::MAX));
+    #[test]
+    fn ensure_commit_has_quorum_ok() {
+        // these values were retrieved by running the sequencer node and requesting the following:
+        // curl http://localhost:26657/validators
+        // curl http://localhost:26657/commit?height=79
+        let validator_set_str = r#"{
+            "block_height":"79",
+            "validators":[
+                {
+                    "address":"D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9",
+                    "pub_key":{"type":"tendermint/PubKeyEd25519", "value": "tyPnz5GGblrx3PBjQRxZOHbzsPEI1E8lOh62QoPSWLw="},
+                    "voting_power":"10",
+                    "proposer_priority":"0"
+                }
+            ],
+            "count":"1",
+            "total":"1"
+        }"#;
+        let commit_str = r#"{
+            "height":"79",
+            "round":0,
+            "block_id":{
+                "hash": "74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA",
+                "parts":{
+                    "total":1,
+                    "hash":"7632FFB5D84C3A64279BC9EA86992418ED23832C66E0C3504B7025A9AF42C8C4"
+                }
+            },
+            "signatures":[
+                {
+                    "block_id_flag":2,
+                    "validator_address":"D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9",
+                    "timestamp": "2023-07-05T19:02:55.206600022Z",
+                    "signature": "qy9vEjqSrF+8sD0K0IAXA398xN1s3QI2rBBDbBMWf0rw0L+B9Z92DZEptf6bPYWuKUFdEc0QFKhUMQA8HjBaAw=="
+                }
+            ]
+        }"#;
+        let validator_set =
+            serde_json::from_str::<validators::Response>(validator_set_str).unwrap();
+        let commit = serde_json::from_str::<Commit>(commit_str).unwrap();
+        ensure_commit_has_quorum(
+            &commit,
+            &validator_set,
+            &tendermint::chain::Id::try_from("test-chain-g3ejvw").unwrap(),
+        )
+        .unwrap()
+    }
 
-//         assert!(!does_commit_voting_power_have_quorum(0, 1));
-//         assert!(!does_commit_voting_power_have_quorum(1, 2));
-//         assert!(!does_commit_voting_power_have_quorum(2, 3));
-//         assert!(!does_commit_voting_power_have_quorum(100, 150));
-//         assert!(!does_commit_voting_power_have_quorum(
-//             u64::MAX / 3 - 1,
-//             u64::MAX / 2
-//         ));
-//         assert!(does_commit_voting_power_have_quorum(
-//             u64::MAX / 3,
-//             u64::MAX / 2
-//         ));
-//         assert!(!does_commit_voting_power_have_quorum(0, 0));
-//     }
+    #[test]
+    fn ensure_commit_has_quorum_not_ok() {
+        use base64::engine::{
+            general_purpose::STANDARD,
+            Engine as _,
+        };
+        let validator_set = validators::Response::new(
+            79u32.into(),
+            vec![Validator {
+                name: None,
+                address: tendermint::account::Id::from_str(
+                    "D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9",
+                )
+                .unwrap(),
+                pub_key: tendermint::PublicKey::from_raw_ed25519(
+                    &STANDARD
+                        .decode("tyPnz5GGblrx3PBjQRxZOHbzsPEI1E8lOh62QoPSWLw=")
+                        .unwrap(),
+                )
+                .unwrap(),
+                power: 10u32.into(),
+                proposer_priority: 0.into(),
+            }],
+            1,
+        );
 
-//     #[test]
-//     fn test_ensure_commit_has_quorum_ok() {
-//         // these values were retrieved by running the sequencer node and requesting the
-// following:         // curl http://localhost:26657/validators
-//         // curl http://localhost:26657/commit?height=79
-//         let validator_set_str =
-// r#"{"block_height":"79","validators":[{"address":"D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9","
-// pub_key":{"type":"tendermint/PubKeyEd25519","value":"
-// tyPnz5GGblrx3PBjQRxZOHbzsPEI1E8lOh62QoPSWLw="},"voting_power":"10","proposer_priority":"0"}],"
-// count":"1","total":"1"}"#;         let commit_str =
-// r#"{"height":"79","round":0,"block_id":{"hash":"
-// 74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA","parts":{"total":1,"hash":"
-// 7632FFB5D84C3A64279BC9EA86992418ED23832C66E0C3504B7025A9AF42C8C4"}},"signatures":[{"
-// block_id_flag":2,"validator_address":"D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9","timestamp":"
-// 2023-07-05T19:02:55.206600022Z","signature":"
-// qy9vEjqSrF+8sD0K0IAXA398xN1s3QI2rBBDbBMWf0rw0L+B9Z92DZEptf6bPYWuKUFdEc0QFKhUMQA8HjBaAw=="}]}"#;
-//         let validator_set =
-//             serde_json::from_str::<validators::Response>(validator_set_str).unwrap();
-//         let commit = serde_json::from_str::<Commit>(commit_str).unwrap();
-//         ensure_commit_has_quorum(&commit, &validator_set, "test-chain-g3ejvw").unwrap();
-//     }
+        let commit = Commit {
+            height: 79u32.into(),
+            round: 0u16.into(),
+            block_id: block::Id {
+                hash: Hash::from_str(
+                    "74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA",
+                )
+                .unwrap(),
+                part_set_header: tendermint::block::parts::Header::new(
+                    1,
+                    Hash::from_str(
+                        "7632FFB5D84C3A64279BC9EA86992418ED23832C66E0C3504B7025A9AF42C8C4",
+                    )
+                    .unwrap(),
+                )
+                .unwrap(),
+            },
+            signatures: vec![],
+        };
 
-//     #[test]
-//     fn test_ensure_commit_has_quorum_not_ok() {
-//         use base64::engine::{
-//             general_purpose::STANDARD,
-//             Engine as _,
-//         };
-//         let validator_set = validators::Response::new(
-//             79u32.into(),
-//             vec![Validator {
-//                 name: None,
-//                 address: tendermint::account::Id::from_str(
-//                     "D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9",
-//                 )
-//                 .unwrap(),
-//                 pub_key: tendermint::PublicKey::from_raw_ed25519(
-//                     &STANDARD
-//                         .decode("tyPnz5GGblrx3PBjQRxZOHbzsPEI1E8lOh62QoPSWLw=")
-//                         .unwrap(),
-//                 )
-//                 .unwrap(),
-//                 power: 10u32.into(),
-//                 proposer_priority: 0.into(),
-//             }],
-//             1,
-//         );
-
-//         let commit = Commit {
-//             height: 79u32.into(),
-//             round: 0u16.into(),
-//             block_id: block::Id {
-//                 hash: Hash::from_str(
-//                     "74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA",
-//                 )
-//                 .unwrap(),
-//                 part_set_header: tendermint::block::parts::Header::new(
-//                     1,
-//                     Hash::from_str(
-//                         "7632FFB5D84C3A64279BC9EA86992418ED23832C66E0C3504B7025A9AF42C8C4",
-//                     )
-//                     .unwrap(),
-//                 )
-//                 .unwrap(),
-//             },
-//             signatures: vec![],
-//         };
-
-//         let result = ensure_commit_has_quorum(&commit, &validator_set, "test-chain-g3ejvw");
-//         assert!(result.is_err());
-//         assert!(
-//             result
-//                 .unwrap_err()
-//                 .to_string()
-//                 .contains("commit voting power is less than 2/3 of total voting power")
-//         );
-//     }
-// }
+        let result = ensure_commit_has_quorum(
+            &commit,
+            &validator_set,
+            &tendermint::chain::Id::try_from("test-chain-g3ejvw").unwrap(),
+        );
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("commit voting power is less than 2/3 of total voting power")
+        );
+    }
+}

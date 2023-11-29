@@ -343,6 +343,7 @@ mod optimism_tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "install solc-select and foundry-rs and run with --ignored"]
     async fn deposit_events_are_converted_and_executed() {
         use ::optimism::contract::*;
 

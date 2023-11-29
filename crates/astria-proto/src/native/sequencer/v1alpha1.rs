@@ -1803,8 +1803,9 @@ enum CelestiaRollupBlobErrorKind {
 
 /// A shadow of [`CelestiaRollupBlob`] with public access to all its fields.
 ///
-/// Useful when unwrapping all its fields but is not guaranteed to uphold any invariants.
-pub struct UncheckedRollupBlob {
+/// At the moment there are no invariants upheld by [`CelestiaRollupBlob`] so
+/// they can be converted directly into one another. This can change in the future.
+pub struct UncheckedCelestiaRollupBlob {
     /// The hash of the sequencer block. Must be 32 bytes.
     pub sequencer_block_hash: [u8; 32],
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
@@ -1814,6 +1815,12 @@ pub struct UncheckedRollupBlob {
     pub transactions: Vec<Vec<u8>>,
     /// The proof that these rollup transactions are included in sequencer block.
     pub proof: merkle::Proof,
+}
+
+impl UncheckedCelestiaRollupBlob {
+    pub fn into_celestia_rollup_blob(self) -> CelestiaRollupBlob {
+        CelestiaRollupBlob::from_unchecked(self)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -1846,14 +1853,29 @@ impl CelestiaRollupBlob {
         self.sequencer_block_hash
     }
 
-    pub fn into_unchecked(self) -> UncheckedRollupBlob {
+    pub fn from_unchecked(unchecked: UncheckedCelestiaRollupBlob) -> Self {
+        let UncheckedCelestiaRollupBlob {
+            sequencer_block_hash,
+            rollup_id,
+            transactions,
+            proof,
+        } = unchecked;
+        Self {
+            sequencer_block_hash,
+            rollup_id,
+            transactions,
+            proof,
+        }
+    }
+
+    pub fn into_unchecked(self) -> UncheckedCelestiaRollupBlob {
         let Self {
             sequencer_block_hash,
             rollup_id,
             transactions,
             proof,
         } = self;
-        UncheckedRollupBlob {
+        UncheckedCelestiaRollupBlob {
             sequencer_block_hash,
             rollup_id,
             transactions,
@@ -2012,6 +2034,103 @@ enum CelestiaSequencerBlobErrorKind {
     RollupIdsNotInCometBftBlock,
 }
 
+/// A shadow of [`CelestiaSequencerBlob`] with public access to its fields.
+///
+/// This type does not guarantee any invariants and is mainly useful to get
+/// access the sequencer block's internal types.
+#[derive(Clone, Debug)]
+pub struct UncheckedCelestiaSequencerBlob {
+    /// The original CometBFT header that is the input to this blob's original sequencer block.
+    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
+    pub header: tendermint::block::header::Header,
+    /// The rollup chain IDs for which `CelestiaRollupBlob`s were submitted to celestia.
+    /// Corresponds to the `astria.sequencer.v1alpha1.RollupTransactions.id` field
+    /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
+    pub rollup_ids: Vec<ChainId>,
+    /// The Merkle Tree Hash of the rollup transactions. Corresponds to
+    /// `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`, the Merkle
+    /// Tree Hash deriveed from the rollup transactions.
+    /// Always 32 bytes.
+    pub rollup_transactions_root: [u8; 32],
+    /// The proof that the rollup transactions are included in sequencer block.
+    /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    pub rollup_transactions_proof: merkle::Proof,
+    /// The proof that this sequencer blob includes all rollup IDs of the original sequencer
+    /// block it was derived from. This proof together with `Sha256(MHT(rollup_ids))` (Sha256
+    /// applied to the Merkle Tree Hash of the rollup ID sequence) must be equal to
+    /// `header.data_hash` which itself must match
+    /// `astria.sequencer.v1alpha.SequencerBlock.header.data_hash`. This field corresponds to
+    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_ids_proof`.
+    pub rollup_ids_proof: merkle::Proof,
+}
+
+impl UncheckedCelestiaSequencerBlob {
+    pub fn try_into_celestia_sequencer_blob(
+        self,
+    ) -> Result<CelestiaSequencerBlob, CelestiaSequencerBlobError> {
+        CelestiaSequencerBlob::try_from_unchecked(self)
+    }
+
+    pub fn try_from_raw(
+        raw: raw::CelestiaSequencerBlob,
+    ) -> Result<Self, CelestiaSequencerBlobError> {
+        let raw::CelestiaSequencerBlob {
+            header,
+            rollup_chain_ids,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        } = raw;
+        let header = 'cometbft_header: {
+            let Some(header) = header else {
+                break 'cometbft_header Err(CelestiaSequencerBlobError::field_not_set("header"));
+            };
+            tendermint::block::Header::try_from(header)
+                .map_err(CelestiaSequencerBlobError::cometbft_header)
+        }?;
+        let rollup_ids: Vec<_> = rollup_chain_ids
+            .into_iter()
+            .map(ChainId::try_from_vec)
+            .collect::<Result<_, _>>()
+            .map_err(CelestiaSequencerBlobError::rollup_ids)?;
+
+        let rollup_transactions_root =
+            rollup_transactions_root
+                .try_into()
+                .map_err(|bytes: Vec<_>| {
+                    CelestiaSequencerBlobError::rollup_transactions_root(bytes.len())
+                })?;
+
+        let rollup_transactions_proof = 'transactions_proof: {
+            let Some(rollup_transactions_proof) = rollup_transactions_proof else {
+                break 'transactions_proof Err(CelestiaSequencerBlobError::field_not_set(
+                    "rollup_transactions_root",
+                ));
+            };
+            merkle::Proof::try_from_raw(rollup_transactions_proof)
+                .map_err(CelestiaSequencerBlobError::rollup_transactions_proof)
+        }?;
+
+        let rollup_ids_proof = 'ids_proof: {
+            let Some(rollup_ids_proof) = rollup_ids_proof else {
+                break 'ids_proof Err(CelestiaSequencerBlobError::field_not_set(
+                    "rollup_ids_proof",
+                ));
+            };
+            merkle::Proof::try_from_raw(rollup_ids_proof)
+                .map_err(CelestiaSequencerBlobError::rollup_ids_proof)
+        }?;
+
+        Ok(Self {
+            header,
+            rollup_ids,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        })
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct CelestiaSequencerBlob {
     /// The block hash obtained from hashing `.header`.
@@ -2061,6 +2180,63 @@ impl CelestiaSequencerBlob {
         self.rollup_transactions_root
     }
 
+    pub fn into_unchecked(self) -> UncheckedCelestiaSequencerBlob {
+        let Self {
+            header,
+            rollup_ids,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+            ..
+        } = self;
+        UncheckedCelestiaSequencerBlob {
+            header,
+            rollup_ids,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        }
+    }
+
+    pub fn try_from_unchecked(
+        unchecked: UncheckedCelestiaSequencerBlob,
+    ) -> Result<Self, CelestiaSequencerBlobError> {
+        let UncheckedCelestiaSequencerBlob {
+            header,
+            rollup_ids,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        } = unchecked;
+        let tendermint::Hash::Sha256(block_hash) = header.hash() else {
+            return Err(CelestiaSequencerBlobError::empty_cometbft_block_hash());
+        };
+        // header.data_hash is Option<Hash> and Hash itself has
+        // variants Sha256([u8; 32]) or None.
+        let Some(tendermint::Hash::Sha256(data_hash)) = header.data_hash else {
+            return Err(CelestiaSequencerBlobError::field_not_set(
+                "header.data_hash",
+            ));
+        };
+
+        if !rollup_transactions_proof.verify(&Sha256::digest(rollup_transactions_root), data_hash) {
+            return Err(CelestiaSequencerBlobError::rollup_transactions_not_in_cometbft_block());
+        }
+
+        if !are_rollup_ids_included(rollup_ids.iter().copied(), &rollup_ids_proof, data_hash) {
+            return Err(CelestiaSequencerBlobError::rollup_ids_not_in_cometbft_block());
+        }
+
+        Ok(Self {
+            block_hash,
+            header,
+            rollup_ids,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        })
+    }
+
     pub fn into_raw(self) -> raw::CelestiaSequencerBlob {
         let Self {
             header,
@@ -2082,80 +2258,8 @@ impl CelestiaSequencerBlob {
     pub fn try_from_raw(
         raw: raw::CelestiaSequencerBlob,
     ) -> Result<Self, CelestiaSequencerBlobError> {
-        let raw::CelestiaSequencerBlob {
-            header,
-            rollup_chain_ids,
-            rollup_transactions_root,
-            rollup_transactions_proof,
-            rollup_ids_proof,
-        } = raw;
-        let header = 'cometbft_header: {
-            let Some(header) = header else {
-                break 'cometbft_header Err(CelestiaSequencerBlobError::field_not_set("header"));
-            };
-            tendermint::block::Header::try_from(header)
-                .map_err(CelestiaSequencerBlobError::cometbft_header)
-        }?;
-        let tendermint::Hash::Sha256(block_hash) = header.hash() else {
-            return Err(CelestiaSequencerBlobError::empty_cometbft_block_hash());
-        };
-        // header.data_hash is Option<Hash> and Hash itself has
-        // variants Sha256([u8; 32]) or None.
-        let Some(tendermint::Hash::Sha256(data_hash)) = header.data_hash else {
-            return Err(CelestiaSequencerBlobError::field_not_set(
-                "header.data_hash",
-            ));
-        };
-
-        let rollup_ids: Vec<_> = rollup_chain_ids
-            .into_iter()
-            .map(ChainId::try_from_vec)
-            .collect::<Result<_, _>>()
-            .map_err(CelestiaSequencerBlobError::rollup_ids)?;
-
-        let rollup_transactions_root =
-            rollup_transactions_root
-                .try_into()
-                .map_err(|bytes: Vec<_>| {
-                    CelestiaSequencerBlobError::rollup_transactions_root(bytes.len())
-                })?;
-
-        let rollup_transactions_proof = 'transactions_proof: {
-            let Some(rollup_transactions_proof) = rollup_transactions_proof else {
-                break 'transactions_proof Err(CelestiaSequencerBlobError::field_not_set(
-                    "rollup_transactions_root",
-                ));
-            };
-            merkle::Proof::try_from_raw(rollup_transactions_proof)
-                .map_err(CelestiaSequencerBlobError::rollup_transactions_proof)
-        }?;
-
-        let rollup_ids_proof = 'ids_proof: {
-            let Some(rollup_ids_proof) = rollup_ids_proof else {
-                break 'ids_proof Err(CelestiaSequencerBlobError::field_not_set(
-                    "rollup_ids_proof",
-                ));
-            };
-            merkle::Proof::try_from_raw(rollup_ids_proof)
-                .map_err(CelestiaSequencerBlobError::rollup_ids_proof)
-        }?;
-
-        if !rollup_transactions_proof.verify(&Sha256::digest(rollup_transactions_root), data_hash) {
-            return Err(CelestiaSequencerBlobError::rollup_transactions_not_in_cometbft_block());
-        }
-
-        if !are_rollup_ids_included(rollup_ids.iter().copied(), &rollup_ids_proof, data_hash) {
-            return Err(CelestiaSequencerBlobError::rollup_ids_not_in_cometbft_block());
-        }
-
-        Ok(Self {
-            block_hash,
-            header,
-            rollup_ids,
-            rollup_transactions_root,
-            rollup_transactions_proof,
-            rollup_ids_proof,
-        })
+        UncheckedCelestiaSequencerBlob::try_from_raw(raw)
+            .and_then(UncheckedCelestiaSequencerBlob::try_into_celestia_sequencer_blob)
     }
 }
 
