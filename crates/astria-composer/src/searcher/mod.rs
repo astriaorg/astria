@@ -47,7 +47,7 @@ use executor::Executor;
 pub(super) struct Searcher {
     // Channel to report the internal status of the searcher to other parts of the system.
     status: watch::Sender<Status>,
-    // The collection of collectors and their chain IDs.
+    // The collection of collectors and their rollup names.
     collectors: HashMap<String, Collector>,
     // The collection of the collector statuses.
     collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
@@ -106,8 +106,11 @@ impl Searcher {
         let collectors = rollups
             .iter()
             .map(|(rollup_name, url)| {
-                let collector =
-                    Collector::new(rollup_name.clone(), url.clone(), new_transactions_tx.clone());
+                let collector = Collector::new(
+                    rollup_name.clone(),
+                    url.clone(),
+                    new_transactions_tx.clone(),
+                );
                 (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
