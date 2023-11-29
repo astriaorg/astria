@@ -174,7 +174,7 @@ async fn refund_tokens_check<S: StateRead>(
     // see https://github.com/cosmos/ibc-go/blob/main/docs/architecture/adr-001-coin-source-tracing.md#decision
     if asset.prefix_is("ibc") {
         asset = state
-            .get_asset(asset.id())
+            .get_ibc_asset(asset.id())
             .await
             .context("failed to get denom trace from asset id")?;
     }
@@ -341,7 +341,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     // see https://github.com/cosmos/ibc-go/blob/main/docs/architecture/adr-001-coin-source-tracing.md#decision
     if asset.prefix_is("ibc") {
         asset = state
-            .get_asset(asset.id())
+            .get_ibc_asset(asset.id())
             .await
             .context("failed to get denom trace from asset id")?;
     }
@@ -376,9 +376,9 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             .context("failed to parse prefixed denomination as IbcAsset")?;
 
         // register denomination in global ID -> denom map if it's not already there
-        if state.get_asset(asset.id()).await.is_err() {
+        if state.get_ibc_asset(asset.id()).await.is_err() {
             state
-                .put_asset(asset.clone())
+                .put_ibc_asset(asset.clone())
                 .context("failed to put IBC asset in storage")?;
         }
 

@@ -32,7 +32,7 @@ fn asset_storage_key(asset: asset::Id) -> String {
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
-    async fn get_asset(&self, id: asset::Id) -> Result<IbcAsset> {
+    async fn get_ibc_asset(&self, id: asset::Id) -> Result<IbcAsset> {
         let Some(bytes) = self
             .get_raw(&asset_storage_key(id))
             .await
@@ -52,7 +52,7 @@ impl<T: StateRead> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
-    fn put_asset(&mut self, asset: IbcAsset) -> Result<()> {
+    fn put_ibc_asset(&mut self, asset: IbcAsset) -> Result<()> {
         let bytes = DenominationTrace(asset.denomination_trace())
             .try_to_vec()
             .context("failed to serialize asset")?;
