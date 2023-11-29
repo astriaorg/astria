@@ -75,7 +75,7 @@ pub fn create_tendermint_block() -> tendermint::Block {
     let suffix = height.to_string().into_bytes();
     let chain_id = ChainId::from_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
     let asset = Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM);
-    let signed_tx_bytes = UnsignedTransaction {
+    let signed_transaction = UnsignedTransaction {
         nonce: 1,
         actions: vec![
             SequenceAction {
@@ -86,15 +86,18 @@ pub fn create_tendermint_block() -> tendermint::Block {
         ],
         fee_asset_id: asset.id(),
     }
-    .into_signed(&signing_key)
-    .into_raw()
-    .encode_to_vec();
-    let action_tree = merkle::Tree::from_leaves(std::iter::once(&signed_tx_bytes));
-    let chain_ids_commitment = merkle::Tree::from_leaves(std::iter::once(chain_id)).root();
+    .into_signed(&signing_key);
+    let rollup_transactions = proto::native::sequencer::v1alpha1::group_sequence_actions_in_signed_transaction_transactions_by_chain_id(&[signed_transaction.clone()]);
+    let rollup_transactions_tree =
+        proto::native::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(
+            &rollup_transactions,
+        );
+
+    let rollup_ids_root = merkle::Tree::from_leaves(std::iter::once(chain_id)).root();
     let data = vec![
-        action_tree.root().to_vec(),
-        chain_ids_commitment.to_vec(),
-        signed_tx_bytes,
+        rollup_transactions_tree.root().to_vec(),
+        rollup_ids_root.to_vec(),
+        signed_transaction.into_raw().encode_to_vec(),
     ];
     let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
         &data.iter().map(sha2::Sha256::digest).collect::<Vec<_>>(),
