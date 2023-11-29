@@ -46,7 +46,7 @@ pub(crate) fn generate_sequence_actions_commitment(
     // each leaf of the action tree is the root of a merkle tree of the `sequence::Action`s
     // with the same `rollup_id`, prepended with `rollup_id`.
     // the leaves are sorted in ascending order by `rollup_id`.
-    let sequence_actions_root=
+    let sequence_actions_root =
         proto::native::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(&rollup_ids_to_txs)
             .root();
     GeneratedCommitments {

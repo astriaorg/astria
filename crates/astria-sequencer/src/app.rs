@@ -237,12 +237,12 @@ impl App {
             rollup_ids_root: expected_rollup_ids_root,
         } = generate_sequence_actions_commitment(&signed_txs);
         ensure!(
-            received_sequence_actions_root== expected_sequence_actions_root,
+            received_sequence_actions_root == expected_sequence_actions_root,
             "transaction commitment does not match expected",
         );
 
         ensure!(
-            received_rollup_ids_root== expected_rollup_ids_root,
+            received_rollup_ids_root == expected_rollup_ids_root,
             "chain IDs commitment does not match expected",
         );
 
