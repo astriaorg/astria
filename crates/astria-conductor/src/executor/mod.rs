@@ -522,7 +522,7 @@ impl Executor {
         }
         for block in blocks {
             let finalizable_block_height = self.get_finalizable_block_height()?;
-            if (block.header.height.value() as u32) < finalizable_block_height  {
+            if block.header.height.value() < u64::from(finalizable_block_height) {
                 info!(
                     sequencer_block_height = block.header.height.value(),
                     finalized_block_height = finalizable_block_height,
@@ -574,9 +574,8 @@ impl Executor {
             self.commitment_state.soft.number,
         ) else {
             bail!(
-                "encountered overflow when calculating executable block height; sequencer \
-                 height with first rollup block: {}, \
-                 height recorded in soft commitment state: {}",
+                "encountered overflow when calculating executable block height; sequencer height \
+                 with first rollup block: {}, height recorded in soft commitment state: {}",
                 self.sequencer_height_with_first_rollup_block,
                 self.commitment_state.soft.number,
             );
@@ -591,9 +590,8 @@ impl Executor {
             self.commitment_state.firm.number,
         ) else {
             bail!(
-                "encountered overflow when calculating finalizable block height; sequencer \
-                 height with first rollup block: {}, \
-                 height recorded in firm commitment state: {}",
+                "encountered overflow when calculating finalizable block height; sequencer height \
+                 with first rollup block: {}, height recorded in firm commitment state: {}",
                 self.sequencer_height_with_first_rollup_block,
                 self.commitment_state.firm.number,
             );
@@ -610,6 +608,9 @@ impl Executor {
 /// `rollup_height` is the height of a rollup block. That makes
 /// `initial_sequencer_height + rollup_height` the corresponding sequencer
 /// height.
-fn calculate_sequencer_block_height(initial_sequencer_height: u32, rollup_height: u32) -> Option<u32> {
+fn calculate_sequencer_block_height(
+    initial_sequencer_height: u32,
+    rollup_height: u32,
+) -> Option<u32> {
     initial_sequencer_height.checked_add(rollup_height)
 }
