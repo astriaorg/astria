@@ -459,7 +459,7 @@ mod test {
         // curl http://localhost:26657/validators
         // curl http://localhost:26657/commit?height=79
         let validator_set_str = r#"{
-            "block_height":"79",
+            "block_height":"78",
             "validators":[
                 {
                     "address":"D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9",
@@ -472,7 +472,7 @@ mod test {
             "total":"1"
         }"#;
         let commit_str = r#"{
-            "height":"80",
+            "height":"79",
             "round":0,
             "block_id":{
                 "hash": "74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA",
@@ -508,7 +508,7 @@ mod test {
             Engine as _,
         };
         let validator_set = validators::Response::new(
-            79u32.into(),
+            78u32.into(),
             vec![Validator {
                 name: None,
                 address: tendermint::account::Id::from_str(
@@ -528,7 +528,7 @@ mod test {
         );
 
         let commit = Commit {
-            height: 80u32.into(),
+            height: 79u32.into(),
             round: 0u16.into(),
             block_id: block::Id {
                 hash: Hash::from_str(
