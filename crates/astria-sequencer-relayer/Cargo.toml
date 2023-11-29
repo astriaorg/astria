@@ -35,7 +35,9 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 config = { package = "astria-config", path = "../astria-config" }
 proto = { package = "astria-proto", path = "../astria-proto" }
-sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = ["http"] }
+sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
+  "http",
+] }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]

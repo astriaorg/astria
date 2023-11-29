@@ -10,12 +10,13 @@ rust-version = "1.73"
 async-trait = { workspace = true }
 base64 = { workspace = true }
 base64-serde = { workspace = true }
+hex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 tendermint = { workspace = true }
 thiserror = { workspace = true }
-tracing={workspace = true}
+tracing = { workspace = true }
 
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
 proto = { package = "astria-proto", path = "../astria-proto" }
@@ -27,7 +28,6 @@ proto = { package = "astria-proto", path = "../astria-proto" }
 # As none of them are reexported it is important to keep these in sync
 # when updating.
 jsonrpsee = { version = "0.20", features = ["client-core", "macros"] }
-hex.workspace = true
 
 [dependencies.celestia-rpc]
 git = "https://github.com/eigerco/celestia-node-rs"
