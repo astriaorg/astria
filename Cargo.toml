@@ -42,7 +42,7 @@ sha2 = "0.10"
 serde = "1"
 serde_json = "1"
 penumbra-component = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "11d3b524da750c16c376759b03e4bbb3474562d9" }
-penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "11d3b524da750c16c376759b03e4bbb3474562d9" }
+penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "11d3b524da750c16c376759b03e4bbb3474562d9", default-features = false }
 penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "11d3b524da750c16c376759b03e4bbb3474562d9" }
 penumbra-storage = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "11d3b524da750c16c376759b03e4bbb3474562d9" }
 penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "11d3b524da750c16c376759b03e4bbb3474562d9" }
