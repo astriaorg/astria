@@ -32,7 +32,7 @@ use tracing::{
 
 /// `BlockVerifier` is verifying blocks received from celestia.
 #[derive(Clone)]
-pub(super) struct BlockVerifier {
+pub(crate) struct BlockVerifier {
     pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
 }
 
@@ -271,8 +271,8 @@ fn verify_vote_signature(
     public_key
         .verify(
             &signature,
-            &tendermint_proto::types::CanonicalVote::try_from(canonical_vote)
-                .wrap_err("failed to turn commit canonical vote into proto type")?
+            &tendermint_proto::types::CanonicalVote::from(canonical_vote)
+                // .wrap_err("failed to turn commit canonical vote into proto type")?
                 .encode_length_delimited_to_vec(),
         )
         .wrap_err("failed to verify vote signature")?;
