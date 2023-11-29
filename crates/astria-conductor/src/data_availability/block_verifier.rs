@@ -136,10 +136,10 @@ fn ensure_commit_has_quorum(
     chain_id: &tendermint::chain::Id,
 ) -> eyre::Result<()> {
     // Validator set at Block N-1 is used for block N
-    if commit.height != validator_set.block_height + 1 {
+    if commit.height.value() != validator_set.block_height.value() + 1 {
         bail!(
             "commit height mismatch: expected {}, got {}",
-            validator_set.block_height + 1,
+            validator_set.block_height.value() + 1,
             commit.height
         );
     }
