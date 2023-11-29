@@ -7,7 +7,7 @@ use ethers::providers::{
     ProviderError,
     Ws,
 };
-use proto::native::sequencer::v1alpha1::ChainId;
+use proto::native::sequencer::v1alpha1::RollupId;
 use tokio::sync::{
     mpsc::{
         error::SendTimeoutError,
@@ -25,7 +25,7 @@ use tracing::{
 ///
 /// Used to send new transactions to the searcher.
 pub(super) struct Transaction {
-    pub(super) chain_id: ChainId,
+    pub(super) chain_id: RollupId,
     pub(super) inner: ethers::types::Transaction,
 }
 
@@ -41,7 +41,7 @@ pub(super) struct Transaction {
 pub(super) struct Collector {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to. Created from `chain_name`.
-    chain_id: ChainId,
+    chain_id: RollupId,
     // Name of the chain the transactions are read from.
     chain_name: String,
     // The channel on which the collector sends new txs to the searcher.
@@ -74,7 +74,7 @@ impl Collector {
     pub(super) fn new(chain_name: String, url: String, new_bundles: Sender<Transaction>) -> Self {
         let (status, _) = watch::channel(Status::new());
         Self {
-            chain_id: ChainId::from_unhashed_bytes(&chain_name),
+            chain_id: RollupId::from_unhashed_bytes(&chain_name),
             chain_name,
             new_bundles,
             status,

@@ -2,7 +2,7 @@
 use std::collections::BTreeMap;
 
 use base64_serde::base64_serde_type;
-use proto::native::sequencer::v1alpha1::ChainId;
+use proto::native::sequencer::v1alpha1::RollupId;
 use serde::{
     ser::SerializeMap,
     Serialize,
@@ -10,11 +10,11 @@ use serde::{
 
 base64_serde_type!(pub Base64Standard, base64::engine::general_purpose::STANDARD);
 
-pub struct ChainIdToTxCount<'a>(pub(crate) &'a BTreeMap<ChainId, Vec<Vec<u8>>>);
+pub struct ChainIdToTxCount<'a>(pub(crate) &'a BTreeMap<RollupId, Vec<Vec<u8>>>);
 
 impl<'a> ChainIdToTxCount<'a> {
     #[must_use]
-    pub fn new(rollup_data: &BTreeMap<ChainId, Vec<Vec<u8>>>) -> ChainIdToTxCount {
+    pub fn new(rollup_data: &BTreeMap<RollupId, Vec<Vec<u8>>>) -> ChainIdToTxCount {
         ChainIdToTxCount(rollup_data)
     }
 }

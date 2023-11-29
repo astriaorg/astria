@@ -2,7 +2,7 @@
 
 #![allow(clippy::missing_panics_doc)]
 
-use proto::native::sequencer::v1alpha1::ChainId;
+use proto::native::sequencer::v1alpha1::RollupId;
 use tendermint::block::Header;
 
 #[must_use]
@@ -73,7 +73,7 @@ pub fn create_tendermint_block() -> tendermint::Block {
     let proposer_address = tendermint::account::Id::from(public_key);
 
     let suffix = height.to_string().into_bytes();
-    let chain_id = ChainId::from_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
+    let chain_id = RollupId::from_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
     let asset = Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM);
     let signed_transaction = UnsignedTransaction {
         nonce: 1,

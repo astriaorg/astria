@@ -162,7 +162,7 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
 
     let executor = Executor::builder()
         .rollup_address(&server_url)
-        .rollup_id(ChainId::from_unhashed_bytes(b"test"))
+        .rollup_id(RollupId::from_unhashed_bytes(b"test"))
         .sequencer_height_with_first_rollup_block(1)
         .block_channel(block_rx)
         .shutdown(shutdown_rx)

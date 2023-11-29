@@ -14,7 +14,7 @@ use color_eyre::eyre::{
     bail,
     WrapErr as _,
 };
-use proto::native::sequencer::v1alpha1::ChainId;
+use proto::native::sequencer::v1alpha1::RollupId;
 use sequencer_client::SequencerBlock;
 use tendermint::{
     block::Header,
@@ -58,7 +58,7 @@ pub(crate) struct SequencerBlockSubset {
 }
 
 impl SequencerBlockSubset {
-    pub(crate) fn from_sequencer_block(block: SequencerBlock, chain_id: ChainId) -> Self {
+    pub(crate) fn from_sequencer_block(block: SequencerBlock, chain_id: RollupId) -> Self {
         let mut block = block.into_unchecked();
         let header = block.header;
         let block_hash = header.hash();

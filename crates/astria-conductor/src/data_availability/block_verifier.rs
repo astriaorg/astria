@@ -281,7 +281,7 @@ mod test {
     };
 
     use proto::native::sequencer::v1alpha1::{
-        ChainId,
+        RollupId,
         UncheckedCelestiaSequencerBlob,
     };
     // use sequencer_types::ChainId;
@@ -387,7 +387,7 @@ mod test {
     #[tokio::test]
     async fn validate_sequencer_blob_with_chain_ids() {
         let test_tx = b"test-tx".to_vec();
-        let rollup_id = ChainId::from_unhashed_bytes(b"test-chain");
+        let rollup_id = RollupId::from_unhashed_bytes(b"test-chain");
         let grouped_txs = BTreeMap::from([(rollup_id, vec![test_tx.clone()])]);
         let rollup_transactions_tree =
             proto::native::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(&grouped_txs);

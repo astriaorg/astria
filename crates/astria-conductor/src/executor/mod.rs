@@ -14,7 +14,7 @@ use proto::{
         Block,
         CommitmentState,
     },
-    native::sequencer::v1alpha1::ChainId,
+    native::sequencer::v1alpha1::RollupId,
 };
 use sequencer_client::SequencerBlock;
 use tendermint::{
@@ -116,7 +116,7 @@ impl From<SequencerBlock> for ExecutorCommand {
 pub(crate) struct NoRollupAddress;
 pub(crate) struct WithRollupAddress(String);
 pub(crate) struct NoRollupId;
-pub(crate) struct WithRollupId(ChainId);
+pub(crate) struct WithRollupId(RollupId);
 pub(crate) struct NoBlockChannel;
 pub(crate) struct WithBlockChannel(Receiver);
 pub(crate) struct NoShutdown;
@@ -208,7 +208,7 @@ impl<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
 {
     pub(crate) fn rollup_id(
         self,
-        rollup_id: ChainId,
+        rollup_id: RollupId,
     ) -> ExecutorBuilder<TBlockChannel, TRollupAddress, WithRollupId, TShutdown> {
         let Self {
             block_channel,
@@ -318,7 +318,7 @@ pub(crate) struct Executor {
     execution_rpc_client: ExecutionServiceClient<Channel>,
 
     /// Chain ID
-    rollup_id: ChainId,
+    rollup_id: RollupId,
 
     /// Tracks SOFT and FIRM on the execution chain
     commitment_state: ExecutorCommitmentState,

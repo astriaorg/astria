@@ -64,7 +64,7 @@ mod test {
             DEFAULT_NATIVE_ASSET_DENOM,
         },
         Address,
-        ChainId,
+        RollupId,
         SequenceAction,
         TransferAction,
         UnsignedTransaction,
@@ -82,7 +82,7 @@ mod test {
         let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
 
         let sequence_action = SequenceAction {
-            chain_id: ChainId::from_unhashed_bytes(b"testchainid"),
+            chain_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
         };
         let transfer_action = TransferAction {
@@ -131,7 +131,7 @@ mod test {
         let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
 
         let sequence_action = SequenceAction {
-            chain_id: ChainId::from_unhashed_bytes(b"testchainid"),
+            chain_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
         };
         let transfer_action = TransferAction {

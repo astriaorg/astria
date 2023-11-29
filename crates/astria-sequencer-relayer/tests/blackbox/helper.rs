@@ -16,7 +16,7 @@ use ed25519_consensus::SigningKey;
 use once_cell::sync::Lazy;
 use proto::native::sequencer::v1alpha1::{
     asset::default_native_asset_id,
-    ChainId,
+    RollupId,
     SequenceAction,
     UnsignedTransaction,
 };
@@ -349,7 +349,7 @@ fn create_block_response(
         Time,
     };
     let suffix = height.to_string().into_bytes();
-    let chain_id = ChainId::from_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
+    let chain_id = RollupId::from_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
     let signed_tx = UnsignedTransaction {
         nonce: 1,
         actions: vec![
