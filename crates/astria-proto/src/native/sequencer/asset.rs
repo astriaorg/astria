@@ -118,6 +118,7 @@ impl Error for IncorrectAssetIdLength {}
 /// Note that the full denomination trace of the token is `prefix/base_denom`.
 /// This is hashed to create the ID.
 #[allow(clippy::module_name_repetitions)]
+#[derive(Debug, Clone)]
 pub struct IbcAsset {
     id: Id,
 
@@ -149,6 +150,11 @@ impl IbcAsset {
     #[must_use]
     pub fn prefix_is(&self, prefix: &str) -> bool {
         self.prefix == prefix
+    }
+
+    #[must_use]
+    pub fn denomination_trace(&self) -> String {
+        format!("{}/{}", self.prefix, self.base_denom)
     }
 }
 
