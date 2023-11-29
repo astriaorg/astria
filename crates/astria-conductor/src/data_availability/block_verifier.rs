@@ -497,7 +497,7 @@ mod test {
             &validator_set,
             &tendermint::chain::Id::try_from("test-chain-g3ejvw").unwrap(),
         )
-        .unwrap()
+        .unwrap();
     }
 
     #[test]
