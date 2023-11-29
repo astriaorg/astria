@@ -471,7 +471,7 @@ mod test {
             "total":"1"
         }"#;
         let commit_str = r#"{
-            "height":"79",
+            "height":"80",
             "round":0,
             "block_id":{
                 "hash": "74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA",
@@ -527,7 +527,7 @@ mod test {
         );
 
         let commit = Commit {
-            height: 79u32.into(),
+            height: 80u32.into(),
             round: 0u16.into(),
             block_id: block::Id {
                 hash: Hash::from_str(
