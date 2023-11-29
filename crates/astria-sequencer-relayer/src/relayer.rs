@@ -312,8 +312,7 @@ impl Relayer {
                         Ok(Ok(block)) if
                             self.validator
                                 .as_ref()
-                                .map(|v| v.address != block.header().proposer_address)
-                                .unwrap_or(false) =>
+                                .is_some_and(|v| v.address != block.header().proposer_address) =>
                         {
                             debug!("proposer of sequencer block does not match internal validator; ignoring");
                         }
