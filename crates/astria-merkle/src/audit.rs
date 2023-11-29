@@ -345,6 +345,7 @@ impl UncheckedProof {
     ///
     /// This will simply result in an incorrect Merkle Tree Hash being reconstructed
     /// from the proof.
+    #[must_use = "an unchecked proof must be turned into a checked proof to be useful"]
     pub fn audit_path(self, audit_path: Vec<u8>) -> Self {
         Self {
             audit_path,
@@ -357,6 +358,7 @@ impl UncheckedProof {
     /// The leaf index must fall inside the tree size set by
     /// [`ProofBuilder::tree_size`]. The leaf index `i` maps
     /// to a tree index `j = 2 * i`.
+    #[must_use = "an unchecked proof must be turned into a checked proof to be useful"]
     pub fn leaf_index(self, leaf_index: usize) -> Self {
         Self {
             leaf_index,
@@ -368,6 +370,7 @@ impl UncheckedProof {
     ///
     /// The tree size must be `tree_size > 0` because proves are
     /// not defined for empty trees.
+    #[must_use = "an unchecked proof must be turned into a checked proof to be useful"]
     pub fn tree_size(self, tree_size: usize) -> Self {
         Self {
             tree_size,
@@ -425,10 +428,12 @@ pub struct Proof {
 }
 
 impl Proof {
+    #[must_use = "an unchecked proof must be turned into a checked proof to be useful"]
     pub fn unchecked() -> UncheckedProof {
         UncheckedProof::new()
     }
 
+    #[must_use]
     pub fn into_unchecked(self) -> UncheckedProof {
         let Self {
             audit_path,
