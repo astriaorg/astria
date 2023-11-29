@@ -74,8 +74,8 @@ impl RollupDeploymentConfig {
 }
 
 /// Describes the ingress config for the rollup chart.
-/// 
-/// Serializes to a yaml file for usage with Helm, thus the 
+///
+/// Serializes to a yaml file for usage with Helm, thus the
 /// `rename_all = "camelCase"` naming convention.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -91,9 +91,9 @@ impl From<&ConfigCreateArgs> for IngressConfig {
     }
 }
 
-/// Describes the globals used for rollup chart. 
-/// 
-/// Serializes to a yaml file for usage with Helm, thus the 
+/// Describes the globals used for rollup chart.
+///
+/// Serializes to a yaml file for usage with Helm, thus the
 /// `rename_all = "camelCase"` naming convention.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
