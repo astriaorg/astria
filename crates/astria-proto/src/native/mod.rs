@@ -11,12 +11,18 @@ pub trait Protobuf: Sized {
     type Raw;
 
     /// Convert from a reference to the raw protobuf type.
+    ///
+    /// # Errors
+    /// Returns [`Self::Error`] as defined by the implementator of this trait.
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error>;
 
     /// Convert from the raw protobuf type, dropping it.
     ///
     /// This method provides a default implementation in terms of
     /// [`Self::try_from_raw_ref`].
+    ///
+    /// # Errors
+    /// Returns [`Self::Error`] as defined by the implementator of this trait.
     fn try_from_raw(raw: Self::Raw) -> Result<Self, Self::Error> {
         Self::try_from_raw_ref(&raw)
     }

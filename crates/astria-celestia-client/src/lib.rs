@@ -15,6 +15,7 @@ pub use proto::native::sequencer::v1alpha1::{
     CelestiaSequencerBlob,
 };
 
+#[must_use = "a celestia namespace must be used in order to be useful"]
 pub const fn celestia_namespace_v0_from_array<const N: usize>(bytes: [u8; N]) -> Namespace {
     #[allow(clippy::assertions_on_constants)]
     const _: () = assert!(
@@ -28,10 +29,12 @@ pub const fn celestia_namespace_v0_from_array<const N: usize>(bytes: [u8; N]) ->
     Namespace::const_v0(first_10_bytes)
 }
 
+#[must_use = "a celestia namespace must be used in order to be useful"]
 pub const fn celestia_namespace_v0_from_rollup_id(rollup_id: ChainId) -> Namespace {
     celestia_namespace_v0_from_array(rollup_id.get())
 }
 
+#[must_use = "a celestia namespace must be used in order to be useful"]
 pub fn celestia_namespace_v0_from_cometbft_header(header: &tendermint::block::Header) -> Namespace {
     use sha2::{
         Digest as _,

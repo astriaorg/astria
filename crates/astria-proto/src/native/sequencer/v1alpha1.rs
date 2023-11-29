@@ -1326,6 +1326,7 @@ pub enum RollupTransactionsError {
     ChainId(IncorrectRollupIdLength),
 }
 
+/// The opaque transactions belonging to a rollup identified by its chain ID.
 #[derive(Clone)]
 pub struct RollupTransactions {
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
@@ -1335,14 +1336,21 @@ pub struct RollupTransactions {
 }
 
 impl RollupTransactions {
+    /// Returns the [`ChainID`] identifying the rollup these transactions belong to.
+    #[must_use]
     pub fn id(&self) -> ChainId {
         self.id
     }
 
+    /// Returns the opaque transactions bytes.
+    #[must_use]
     pub fn transactions(&self) -> &[Vec<u8>] {
         &self.transactions
     }
 
+    /// Transforms these rollup transactions into their raw representation, which can in turn be
+    /// encoded as protobuf.
+    #[must_use]
     pub fn into_raw(self) -> raw::RollupTransactions {
         let Self {
             id,
@@ -1354,6 +1362,10 @@ impl RollupTransactions {
         }
     }
 
+    /// Attempts to transform the rollup transactions from their raw representation.
+    ///
+    /// # Errors
+    /// Returns an error if the rollup ID bytes could not be turned into a [`ChainId`].
     pub fn try_from_raw(raw: raw::RollupTransactions) -> Result<Self, RollupTransactionsError> {
         let raw::RollupTransactions {
             id,
@@ -1444,18 +1456,18 @@ pub enum SequencerBlockError {
 /// access the sequencer block's internal types.
 #[derive(Clone, Debug)]
 pub struct UncheckedSequencerBlock {
-    /// The original CometBFT header that was the input to this sequencer block.
+    /// The original `CometBFT` header that was the input to this sequencer block.
     pub header: tendermint::block::header::Header,
     /// The collection of rollup transactions that were included in this block.
     pub rollup_transactions: IndexMap<ChainId, Vec<Vec<u8>>>,
-    // The proof that the rollup transactions are included in the CometBFT block this
+    // The proof that the rollup transactions are included in the `CometBFT` block this
     // sequencer block is derived form. This proof together with
     // `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
     // `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
     // rollup transactions.
     pub rollup_transactions_proof: merkle::Proof,
     // The proof that the chain IDs listed in `rollup_transactions` are included
-    // in the CometBFT block this sequencer block is derived form. This proof together
+    // in the `CometBFT` block this sequencer block is derived form. This proof together
     // with `Sha256(MTH(chain_ids))` must match `header.data_hash`.
     // `MTH(chain_ids)` is the Merkle Tree Hash derived from the chain IDs listed in
     // the rollup transactions.
@@ -1469,18 +1481,18 @@ pub struct SequencerBlock {
     /// The result of hashing `header`. Guaranteed to not be `None` as compared to
     /// the cometbft/tendermint-rs return type.
     block_hash: [u8; 32],
-    /// The original CometBFT header that was the input to this sequencer block.
+    /// The original `CometBFT` header that was the input to this sequencer block.
     header: tendermint::block::header::Header,
     /// The collection of rollup transactions that were included in this block.
     rollup_transactions: IndexMap<ChainId, Vec<Vec<u8>>>,
-    // The proof that the rollup transactions are included in the CometBFT block this
+    // The proof that the rollup transactions are included in the `CometBFT` block this
     // sequencer block is derived form. This proof together with
     // `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
     // `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
     // rollup transactions.
     rollup_transactions_proof: merkle::Proof,
     // The proof that the chain IDs listed in `rollup_transactions` are included
-    // in the CometBFT block this sequencer block is derived form. This proof together
+    // in the `CometBFT` block this sequencer block is derived form. This proof together
     // with `Sha256(MTH(chain_ids))` must match `header.data_hash`.
     // `MTH(chain_ids)` is the Merkle Tree Hash derived from the chain IDs listed in
     // the rollup transactions.
@@ -1488,21 +1500,25 @@ pub struct SequencerBlock {
 }
 
 impl SequencerBlock {
-    /// Returns the hash of the CometBFT block this sequencer block is derived from.
+    /// Returns the hash of the `CometBFT` block this sequencer block is derived from.
     ///
-    /// This is done by hashing the CometBFT header stored in this block.
+    /// This is done by hashing the `CometBFT` header stored in this block.
+    #[must_use]
     pub fn block_hash(&self) -> [u8; 32] {
         self.block_hash
     }
 
+    #[must_use]
     pub fn header(&self) -> &tendermint::block::header::Header {
         &self.header
     }
 
+    #[must_use]
     pub fn rollup_transactions(&self) -> &IndexMap<ChainId, Vec<Vec<u8>>> {
         &self.rollup_transactions
     }
 
+    #[must_use]
     pub fn into_raw(self) -> raw::SequencerBlock {
         fn tuple_to_rollup_txs(
             (chain_id, transactions): (ChainId, Vec<Vec<u8>>),
@@ -1531,6 +1547,7 @@ impl SequencerBlock {
         }
     }
 
+    #[must_use]
     pub fn into_unchecked(self) -> UncheckedSequencerBlock {
         let Self {
             header,
@@ -1547,6 +1564,10 @@ impl SequencerBlock {
         }
     }
 
+    /// Turn the sequencer block into a [`CelestiaSequencerBlob`] and its associated list of
+    /// [`CelestiaRollupBlob`]s.
+    #[must_use]
+    #[allow(clippy::missing_panics_doc)] // the proofs are guaranteed to exist; revisit if refactoring
     pub fn to_celestia_blobs(&self) -> (CelestiaSequencerBlob, Vec<CelestiaRollupBlob>) {
         let SequencerBlock {
             block_hash,
@@ -1577,11 +1598,16 @@ impl SequencerBlock {
                 rollup_id: *rollup_id,
                 transactions: transactions.clone(),
                 proof,
-            })
+            });
         }
         (head, tail)
     }
 
+    /// Converts from a [`tendermint::Block`].
+    ///
+    /// # Errors
+    /// TODO(https://github.com/astriaorg/astria/issues/612)
+    #[allow(clippy::missing_panics_doc)] // the panic sources are checked before hand; revisit if refactoring
     pub fn try_from_cometbft(block: tendermint::Block) -> Result<Self, SequencerBlockError> {
         use prost::Message as _;
 
@@ -1671,6 +1697,10 @@ impl SequencerBlock {
         })
     }
 
+    /// Converts from the raw decoded protobuf representatin of this type.
+    ///
+    /// # Errors
+    /// TODO(https://github.com/astriaorg/astria/issues/612)
     pub fn try_from_raw(raw: raw::SequencerBlock) -> Result<Self, SequencerBlockError> {
         fn rollup_txs_to_tuple(
             raw: raw::RollupTransactions,
@@ -1818,6 +1848,7 @@ pub struct UncheckedCelestiaRollupBlob {
 }
 
 impl UncheckedCelestiaRollupBlob {
+    #[must_use]
     pub fn into_celestia_rollup_blob(self) -> CelestiaRollupBlob {
         CelestiaRollupBlob::from_unchecked(self)
     }
@@ -1837,22 +1868,30 @@ pub struct CelestiaRollupBlob {
 }
 
 impl CelestiaRollupBlob {
+    #[must_use]
     pub fn proof(&self) -> &merkle::Proof {
         &self.proof
     }
 
+    #[must_use]
     pub fn transactions(&self) -> &[Vec<u8>] {
         &self.transactions
     }
 
+    #[must_use]
     pub fn rollup_id(&self) -> ChainId {
         self.rollup_id
     }
 
+    #[must_use]
     pub fn sequencer_block_hash(&self) -> [u8; 32] {
         self.sequencer_block_hash
     }
 
+    /// Converts from the unchecked representation of this type (its shadow).
+    ///
+    /// This type does not uphold any extra invariants so there are no extra checks necessary.
+    #[must_use]
     pub fn from_unchecked(unchecked: UncheckedCelestiaRollupBlob) -> Self {
         let UncheckedCelestiaRollupBlob {
             sequencer_block_hash,
@@ -1868,6 +1907,10 @@ impl CelestiaRollupBlob {
         }
     }
 
+    /// Converts to the unchecked representation of this type (its shadow).
+    ///
+    /// Useful to get public access to the type's fields.
+    #[must_use]
     pub fn into_unchecked(self) -> UncheckedCelestiaRollupBlob {
         let Self {
             sequencer_block_hash,
@@ -1883,6 +1926,10 @@ impl CelestiaRollupBlob {
         }
     }
 
+    /// Converts to the raw decoded protobuf representation of this type.
+    ///
+    /// Useful for then encoding it as protobuf.
+    #[must_use]
     pub fn into_raw(self) -> raw::CelestiaRollupBlob {
         let Self {
             sequencer_block_hash,
@@ -1898,6 +1945,10 @@ impl CelestiaRollupBlob {
         }
     }
 
+    /// Converts from the raw decoded protobuf representation of this type.
+    ///
+    /// # Errors
+    /// TODO(https://github.com/astriaorg/astria/issues/612)
     pub fn try_from_raw(raw: raw::CelestiaRollupBlob) -> Result<Self, CelestiaRollupBlobError> {
         let raw::CelestiaRollupBlob {
             sequencer_block_hash,
@@ -2040,7 +2091,7 @@ enum CelestiaSequencerBlobErrorKind {
 /// access the sequencer block's internal types.
 #[derive(Clone, Debug)]
 pub struct UncheckedCelestiaSequencerBlob {
-    /// The original CometBFT header that is the input to this blob's original sequencer block.
+    /// The original `CometBFT` header that is the input to this blob's original sequencer block.
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
     pub header: tendermint::block::header::Header,
     /// The rollup chain IDs for which `CelestiaRollupBlob`s were submitted to celestia.
@@ -2065,12 +2116,20 @@ pub struct UncheckedCelestiaSequencerBlob {
 }
 
 impl UncheckedCelestiaSequencerBlob {
+    /// Converts this unchecked blob into its checked [`CelestiaSequencerBlob`] representation.
+    ///
+    /// # Errors
+    /// TODO(https://github.com/astriaorg/astria/issues/612)
     pub fn try_into_celestia_sequencer_blob(
         self,
     ) -> Result<CelestiaSequencerBlob, CelestiaSequencerBlobError> {
         CelestiaSequencerBlob::try_from_unchecked(self)
     }
 
+    /// Converts from the raw decoded protobuf representation of this type.
+    ///
+    /// # Errors
+    /// TODO(https://github.com/astriaorg/astria/issues/612)
     pub fn try_from_raw(
         raw: raw::CelestiaSequencerBlob,
     ) -> Result<Self, CelestiaSequencerBlobError> {
@@ -2135,7 +2194,7 @@ impl UncheckedCelestiaSequencerBlob {
 pub struct CelestiaSequencerBlob {
     /// The block hash obtained from hashing `.header`.
     block_hash: [u8; 32],
-    /// The original CometBFT header that is the input to this blob's original sequencer block.
+    /// The original `CometBFT` header that is the input to this blob's original sequencer block.
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
     header: tendermint::block::header::Header,
     /// The rollup chain IDs for which `CelestiaRollupBlob`s were submitted to celestia.
@@ -2160,26 +2219,40 @@ pub struct CelestiaSequencerBlob {
 }
 
 impl CelestiaSequencerBlob {
+    /// Returns the block hash of the tendermint header stored in this blob.
+    #[must_use]
     pub fn block_hash(&self) -> [u8; 32] {
         self.block_hash
     }
 
+    /// Returns the sequencer's `CometBFT` chain ID.
+    #[must_use]
     pub fn cometbft_chain_id(&self) -> &tendermint::chain::Id {
         &self.header.chain_id
     }
 
+    /// Returns the `CometBFT` height stored in the header of the [`SequencerBlock`] this blob was
+    /// derived from.
+    #[must_use]
     pub fn height(&self) -> tendermint::block::Height {
         self.header.height
     }
 
+    /// Returns the `CometBFT` header of the [`SequencerBlock`] this blob was derived from.
+    #[must_use]
     pub fn header(&self) -> &tendermint::block::Header {
         &self.header
     }
 
+    /// Returns the Merkle Tree Hash constructed from the rollup transactions of the original
+    /// [`SequencerBlock`] this blob was derived from.
+    #[must_use]
     pub fn rollup_transactions_root(&self) -> [u8; 32] {
         self.rollup_transactions_root
     }
 
+    /// Converts into the unchecked representation fo this type.
+    #[must_use]
     pub fn into_unchecked(self) -> UncheckedCelestiaSequencerBlob {
         let Self {
             header,
@@ -2198,6 +2271,10 @@ impl CelestiaSequencerBlob {
         }
     }
 
+    /// Converts from the unchecked representation of this type.
+    ///
+    /// # Errors
+    /// TODO(https://github.com/astriaorg/astria/issues/612)
     pub fn try_from_unchecked(
         unchecked: UncheckedCelestiaSequencerBlob,
     ) -> Result<Self, CelestiaSequencerBlobError> {
@@ -2237,6 +2314,7 @@ impl CelestiaSequencerBlob {
         })
     }
 
+    /// Converts into the raw decoded protobuf representation of this type.
     pub fn into_raw(self) -> raw::CelestiaSequencerBlob {
         let Self {
             header,
@@ -2255,6 +2333,10 @@ impl CelestiaSequencerBlob {
         }
     }
 
+    /// Converts from the raw decoded protobuf representation of this type.
+    ///
+    /// # Errors
+    /// TODO(https://github.com/astriaorg/astria/issues/612)
     pub fn try_from_raw(
         raw: raw::CelestiaSequencerBlob,
     ) -> Result<Self, CelestiaSequencerBlobError> {
@@ -2309,7 +2391,7 @@ pub fn group_sequence_actions_in_signed_transaction_transactions_by_chain_id(
 ) -> IndexMap<ChainId, Vec<Vec<u8>>> {
     let mut map = IndexMap::new();
     for action in signed_transactions
-        .into_iter()
+        .iter()
         .flat_map(SignedTransaction::actions)
     {
         if let Some(action) = action.as_sequence() {

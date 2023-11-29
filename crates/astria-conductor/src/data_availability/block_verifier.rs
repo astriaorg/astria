@@ -64,7 +64,7 @@ impl BlockVerifier {
         let block_resp = client.block(height).await.wrap_err("failed to get block")?;
         let blob_hash = blob.block_hash();
         ensure!(
-            block_resp.block_id.hash.as_bytes() == &blob_hash,
+            block_resp.block_id.hash.as_bytes() == blob_hash,
             "ignoring SequencerNamespaceData with height {} due to block hash mismatch: expected \
              {}, got {}",
             height,
@@ -96,7 +96,7 @@ impl BlockVerifier {
 
         // validate commit is for our block
         ensure!(
-            commit.signed_header.header.hash().as_bytes() == &blob_hash,
+            commit.signed_header.header.hash().as_bytes() == blob_hash,
             "commit is not for the expected block",
         );
 

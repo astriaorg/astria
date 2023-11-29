@@ -194,7 +194,7 @@ pub trait CelestiaClientExt: BlobClient {
 
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
         for (i, block) in blocks.into_iter().enumerate() {
-            let mut blobs = assemble_blobs_from_sequencer_block(block).map_err(|source| {
+            let mut blobs = assemble_blobs_from_sequencer_block(&block).map_err(|source| {
                 SubmitSequencerBlocksError::AssembleBlobs {
                     source,
                     index: i,
@@ -234,7 +234,7 @@ pub enum BlobAssemblyError {
 }
 
 fn assemble_blobs_from_sequencer_block(
-    block: SequencerBlock,
+    block: &SequencerBlock,
 ) -> Result<Vec<Blob>, BlobAssemblyError> {
     let (sequencer_blob, rollup_blobs) = block.to_celestia_blobs();
 
