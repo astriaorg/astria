@@ -25,7 +25,7 @@ ed25519-consensus = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 penumbra-component = { workspace = true }
-penumbra-ibc = { workspace = true, features = [ "component" ] }
+penumbra-ibc = { workspace = true, features = ["component"] }
 penumbra-proto = { workspace = true }
 penumbra-storage = { workspace = true }
 penumbra-tower-trace = { workspace = true }
