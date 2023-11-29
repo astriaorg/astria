@@ -571,9 +571,9 @@ pub struct SequenceActionError {
 }
 
 impl SequenceActionError {
-    fn chain_id(inner: IncorrectRollupIdLength) -> Self {
+    fn rollup_id(inner: IncorrectRollupIdLength) -> Self {
         Self {
-            kind: SequenceActionErrorKind::ChainId(inner),
+            kind: SequenceActionErrorKind::RollupId(inner),
         }
     }
 }
@@ -581,8 +581,8 @@ impl SequenceActionError {
 impl Display for SequenceActionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
-            SequenceActionErrorKind::ChainId(_) => {
-                f.pad("`chain_id` field did not contain a valid chain ID")
+            SequenceActionErrorKind::RollupId(_) => {
+                f.pad("`rollup_id` field did not contain a valid rollup ID")
             }
         }
     }
@@ -591,14 +591,14 @@ impl Display for SequenceActionError {
 impl Error for SequenceActionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
-            SequenceActionErrorKind::ChainId(e) => Some(e),
+            SequenceActionErrorKind::RollupId(e) => Some(e),
         }
     }
 }
 
 #[derive(Debug)]
 enum SequenceActionErrorKind {
-    ChainId(IncorrectRollupIdLength),
+    RollupId(IncorrectRollupIdLength),
 }
 
 #[derive(Debug)]
@@ -616,7 +616,7 @@ impl Error for IncorrectRollupIdLength {}
 
 #[derive(Clone, Debug)]
 pub struct SequenceAction {
-    pub chain_id: RollupId,
+    pub rollup_id: RollupId,
     pub data: Vec<u8>,
 }
 
@@ -624,11 +624,11 @@ impl SequenceAction {
     #[must_use]
     pub fn into_raw(self) -> raw::SequenceAction {
         let Self {
-            chain_id,
+            rollup_id,
             data,
         } = self;
         raw::SequenceAction {
-            chain_id: chain_id.to_vec(),
+            chain_id: rollup_id.to_vec(),
             data,
         }
     }
@@ -636,11 +636,11 @@ impl SequenceAction {
     #[must_use]
     pub fn to_raw(&self) -> raw::SequenceAction {
         let Self {
-            chain_id,
+            rollup_id,
             data,
         } = self;
         raw::SequenceAction {
-            chain_id: chain_id.to_vec(),
+            chain_id: rollup_id.to_vec(),
             data: data.clone(),
         }
     }
@@ -648,16 +648,16 @@ impl SequenceAction {
     /// Convert from a raw, unchecked protobuf [`raw::SequenceAction`].
     ///
     /// # Errors
-    /// Returns an error if the `proto.chain_id` field was not 32 bytes.
+    /// Returns an error if the `proto.rollup_id` field was not 32 bytes.
     pub fn try_from_raw(proto: raw::SequenceAction) -> Result<Self, SequenceActionError> {
         let raw::SequenceAction {
             chain_id,
             data,
         } = proto;
-        let chain_id =
-            RollupId::try_from_slice(&chain_id).map_err(SequenceActionError::chain_id)?;
+        let rollup_id =
+            RollupId::try_from_slice(&chain_id).map_err(SequenceActionError::rollup_id)?;
         Ok(Self {
-            chain_id,
+            rollup_id,
             data,
         })
     }
@@ -1015,18 +1015,18 @@ pub struct RollupId {
 }
 
 impl RollupId {
-    /// Creates a new `ChainId` from a 32 byte array.
+    /// Creates a new rollup ID from a 32 byte array.
     ///
     /// Use this if you already have a 32 byte array. Prefer
-    /// [`ChainId::from_unhashed_bytes`] if you have a clear text
+    /// [`RollupId::from_unhashed_bytes`] if you have a clear text
     /// name what you want to use to identify your rollup.
     ///
     /// # Examples
     /// ```
-    /// use astria_proto::native::sequencer::v1alpha1::ChainId;
+    /// use astria_proto::native::sequencer::v1alpha1::RollupId;
     /// let bytes = [42u8; 32];
-    /// let chain_id = ChainId::new(bytes);
-    /// assert_eq!(bytes, chain_id.get());
+    /// let rollup_id = RollupId::new(bytes);
+    /// assert_eq!(bytes, rollup_id.get());
     /// ```
     #[must_use]
     pub fn new(inner: [u8; ROLLUP_ID_LEN]) -> Self {
@@ -1035,33 +1035,33 @@ impl RollupId {
         }
     }
 
-    /// Returns the 32 bytes array representing the chain ID.
+    /// Returns the 32 bytes array representing the rollup ID.
     ///
     /// # Examples
     /// ```
-    /// use astria_proto::native::sequencer::v1alpha1::ChainId;
+    /// use astria_proto::native::sequencer::v1alpha1::RollupId;
     /// let bytes = [42u8; 32];
-    /// let chain_id = ChainId::new(bytes);
-    /// assert_eq!(bytes, chain_id.get());
+    /// let rollup_id = RollupId::new(bytes);
+    /// assert_eq!(bytes, rollup_id.get());
     /// ```
     #[must_use]
     pub const fn get(self) -> [u8; 32] {
         self.inner
     }
 
-    /// Creates a new `ChainId` by applying Sha256 to `bytes`.
+    /// Creates a new rollup ID by applying Sha256 to `bytes`.
     ///
     /// Examples
     /// ```
-    /// use astria_proto::native::sequencer::v1alpha1::ChainId;
+    /// use astria_proto::native::sequencer::v1alpha1::RollupId;
     /// use sha2::{
     ///     Digest,
     ///     Sha256,
     /// };
     /// let name = "MyRollup-1";
     /// let hashed = Sha256::digest(name);
-    /// let chain_id = ChainId::from_unhashed_bytes(name);
-    /// assert_eq!(chain_id, ChainId::new(hashed.into()));
+    /// let rollup_id = RollupId::from_unhashed_bytes(name);
+    /// assert_eq!(rollup_id, RollupId::new(hashed.into()));
     /// ```
     #[must_use]
     pub fn from_unhashed_bytes<T: AsRef<[u8]>>(bytes: T) -> Self {
@@ -1070,20 +1070,20 @@ impl RollupId {
         }
     }
 
-    /// Allocates a vector from the fixed size array holding the chain ID.
+    /// Allocates a vector from the fixed size array holding the rollup ID.
     ///
     /// # Examples
     /// ```
-    /// use astria_proto::native::sequencer::v1alpha1::ChainId;
-    /// let chain_id = ChainId::new([42u8; 32]);
-    /// assert_eq!(vec![42u8; 32], chain_id.to_vec());
+    /// use astria_proto::native::sequencer::v1alpha1::RollupId;
+    /// let rollup_id = RollupId::new([42u8; 32]);
+    /// assert_eq!(vec![42u8; 32], rollup_id.to_vec());
     /// ```
     #[must_use]
     pub fn to_vec(self) -> Vec<u8> {
         self.inner.to_vec()
     }
 
-    /// Convert a byte slice to a chain ID.
+    /// Convert a byte slice to a rollup ID.
     ///
     /// # Errors
     ///
@@ -1096,7 +1096,7 @@ impl RollupId {
         Ok(Self::new(inner))
     }
 
-    /// Convert a byte vector to a chain ID.
+    /// Converts a byte vector to a rollup ID.
     ///
     /// # Errors
     ///
@@ -1325,10 +1325,10 @@ impl Protobuf for merkle::Proof {
 
 #[derive(Debug)]
 pub enum RollupTransactionsError {
-    ChainId(IncorrectRollupIdLength),
+    RollupId(IncorrectRollupIdLength),
 }
 
-/// The opaque transactions belonging to a rollup identified by its chain ID.
+/// The opaque transactions belonging to a rollup identified by its rollup ID.
 #[derive(Clone)]
 pub struct RollupTransactions {
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
@@ -1338,7 +1338,7 @@ pub struct RollupTransactions {
 }
 
 impl RollupTransactions {
-    /// Returns the [`ChainID`] identifying the rollup these transactions belong to.
+    /// Returns the [`RollupId`] identifying the rollup these transactions belong to.
     #[must_use]
     pub fn id(&self) -> RollupId {
         self.id
@@ -1367,13 +1367,13 @@ impl RollupTransactions {
     /// Attempts to transform the rollup transactions from their raw representation.
     ///
     /// # Errors
-    /// Returns an error if the rollup ID bytes could not be turned into a [`ChainId`].
+    /// Returns an error if the rollup ID bytes could not be turned into a [`RollupId`].
     pub fn try_from_raw(raw: raw::RollupTransactions) -> Result<Self, RollupTransactionsError> {
         let raw::RollupTransactions {
             id,
             transactions,
         } = raw;
-        let id = RollupId::try_from_slice(&id).map_err(RollupTransactionsError::ChainId)?;
+        let id = RollupId::try_from_slice(&id).map_err(RollupTransactionsError::RollupId)?;
         Ok(Self {
             id,
             transactions,
@@ -1468,10 +1468,10 @@ pub struct UncheckedSequencerBlock {
     // `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
     // rollup transactions.
     pub rollup_transactions_proof: merkle::Proof,
-    // The proof that the chain IDs listed in `rollup_transactions` are included
+    // The proof that the rollup IDs listed in `rollup_transactions` are included
     // in the `CometBFT` block this sequencer block is derived form. This proof together
-    // with `Sha256(MTH(chain_ids))` must match `header.data_hash`.
-    // `MTH(chain_ids)` is the Merkle Tree Hash derived from the chain IDs listed in
+    // with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
+    // `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
     // the rollup transactions.
     pub rollup_ids_proof: merkle::Proof,
 }
@@ -1493,10 +1493,10 @@ pub struct SequencerBlock {
     // `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
     // rollup transactions.
     rollup_transactions_proof: merkle::Proof,
-    // The proof that the chain IDs listed in `rollup_transactions` are included
+    // The proof that the rollup IDs listed in `rollup_transactions` are included
     // in the `CometBFT` block this sequencer block is derived form. This proof together
-    // with `Sha256(MTH(chain_ids))` must match `header.data_hash`.
-    // `MTH(chain_ids)` is the Merkle Tree Hash derived from the chain IDs listed in
+    // with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
+    // `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
     // the rollup transactions.
     rollup_ids_proof: merkle::Proof,
 }
@@ -1523,10 +1523,10 @@ impl SequencerBlock {
     #[must_use]
     pub fn into_raw(self) -> raw::SequencerBlock {
         fn tuple_to_rollup_txs(
-            (chain_id, transactions): (RollupId, Vec<Vec<u8>>),
+            (rollup_id, transactions): (RollupId, Vec<Vec<u8>>),
         ) -> raw::RollupTransactions {
             raw::RollupTransactions {
-                id: chain_id.to_vec(),
+                id: rollup_id.to_vec(),
                 transactions,
             }
         }
@@ -1657,11 +1657,11 @@ impl SequencerBlock {
                 .map_err(SequencerBlockError::RawSignedTransactionConversion)?;
             for action in signed_tx.transaction.actions {
                 if let Action::Sequence(SequenceAction {
-                    chain_id,
+                    rollup_id,
                     data,
                 }) = action
                 {
-                    let elem = rollup_transactions.entry(chain_id).or_insert(vec![]);
+                    let elem = rollup_transactions.entry(rollup_id).or_insert(vec![]);
                     elem.push(data);
                 }
             }
@@ -1674,7 +1674,7 @@ impl SequencerBlock {
             return Err(SequencerBlockError::RollupTransactionsRootDoesNotMatchReconstructed);
         }
 
-        // ensure the chain IDs commitment matches the one calculated from the rollup data
+        // ensure the rollup IDs commitment matches the one calculated from the rollup data
         if rollup_ids_root != merkle::Tree::from_leaves(rollup_transactions.keys()).root() {
             return Err(SequencerBlockError::RollupIdsRootDoesNotMatchReconstructed);
         }
@@ -1841,7 +1841,7 @@ pub struct UncheckedCelestiaRollupBlob {
     /// The hash of the sequencer block. Must be 32 bytes.
     pub sequencer_block_hash: [u8; 32],
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
-    /// `astria.sequencer.v1alpha1.RollupTransactions.chain_id`
+    /// `astria.sequencer.v1alpha1.RollupTransactions.rollup_id`
     pub rollup_id: RollupId,
     /// A list of opaque bytes that are serialized rollup transactions.
     pub transactions: Vec<Vec<u8>>,
@@ -1861,7 +1861,7 @@ pub struct CelestiaRollupBlob {
     /// The hash of the sequencer block. Must be 32 bytes.
     sequencer_block_hash: [u8; 32],
     /// The 32 bytes identifying the rollup this blob belongs to. Matches
-    /// `astria.sequencer.v1alpha1.RollupTransactions.chain_id`
+    /// `astria.sequencer.v1alpha1.RollupTransactions.rollup_id`
     rollup_id: RollupId,
     /// A list of opaque bytes that are serialized rollup transactions.
     transactions: Vec<Vec<u8>>,
@@ -2096,7 +2096,7 @@ pub struct UncheckedCelestiaSequencerBlob {
     /// The original `CometBFT` header that is the input to this blob's original sequencer block.
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
     pub header: tendermint::block::header::Header,
-    /// The rollup chain IDs for which `CelestiaRollupBlob`s were submitted to celestia.
+    /// The rollup rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1alpha1.RollupTransactions.id` field
     /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
     pub rollup_ids: Vec<RollupId>,
@@ -2199,7 +2199,7 @@ pub struct CelestiaSequencerBlob {
     /// The original `CometBFT` header that is the input to this blob's original sequencer block.
     /// Corresponds to `astria.sequencer.v1alpha.SequencerBlock.header`.
     header: tendermint::block::header::Header,
-    /// The rollup chain IDs for which `CelestiaRollupBlob`s were submitted to celestia.
+    /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1alpha1.RollupTransactions.id` field
     /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
     rollup_ids: Vec<RollupId>,
@@ -2347,13 +2347,13 @@ impl CelestiaSequencerBlob {
     }
 }
 
-fn are_rollup_ids_included<'a, TChainIds: 'a>(
-    ids: TChainIds,
+fn are_rollup_ids_included<'a, TRollupIds: 'a>(
+    ids: TRollupIds,
     proof: &merkle::Proof,
     data_hash: [u8; 32],
 ) -> bool
 where
-    TChainIds: IntoIterator<Item = RollupId>,
+    TRollupIds: IntoIterator<Item = RollupId>,
 {
     let tree = merkle::Tree::from_leaves(ids);
     let hash_of_root = Sha256::digest(tree.root());
@@ -2380,15 +2380,15 @@ where
     T: IntoIterator<Item = (&'a RollupId, &'a Vec<Vec<u8>>)>,
 {
     let mut tree = merkle::Tree::new();
-    for (chain_id, txs) in rollup_ids_to_txs {
+    for (rollup_id, txs) in rollup_ids_to_txs {
         let root = merkle::Tree::from_leaves(txs).root();
-        tree.build_leaf().write(chain_id.as_ref()).write(&root);
+        tree.build_leaf().write(rollup_id.as_ref()).write(&root);
     }
     tree
 }
 
 // TODO: This can all be done in-place once https://github.com/rust-lang/rust/issues/80552 is stabilized.
-pub fn group_sequence_actions_in_signed_transaction_transactions_by_chain_id(
+pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
     signed_transactions: &[SignedTransaction],
 ) -> IndexMap<RollupId, Vec<Vec<u8>>> {
     let mut map = IndexMap::new();
@@ -2397,7 +2397,7 @@ pub fn group_sequence_actions_in_signed_transaction_transactions_by_chain_id(
         .flat_map(SignedTransaction::actions)
     {
         if let Some(action) = action.as_sequence() {
-            let txs_for_rollup: &mut Vec<Vec<u8>> = map.entry(action.chain_id).or_insert(vec![]);
+            let txs_for_rollup: &mut Vec<Vec<u8>> = map.entry(action.rollup_id).or_insert(vec![]);
             txs_for_rollup.push(action.data.clone());
         }
     }
