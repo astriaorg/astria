@@ -543,7 +543,7 @@ dependencies = [
 
 [[package]]
 name = "astria-composer"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "astria-config",
  "astria-proto",
@@ -583,7 +583,7 @@ dependencies = [
 
 [[package]]
 name = "astria-conductor"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "astria-celestia-client",
  "astria-config",
@@ -738,7 +738,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer-relayer"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "astria-celestia-client",
  "astria-celestia-mock",
