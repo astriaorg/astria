@@ -380,26 +380,21 @@ impl Executor {
             bail!("cmd channel closed unexpectedly");
         };
 
+        // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
         match cmd {
             ExecutorCommand::FromSequencer {
                 block,
             } => {
-                let height = block.header().height;
                 let block_subset =
                     SequencerBlockSubset::from_sequencer_block(*block, self.rollup_id);
 
-                match self.execute_block(block_subset).await {
-                    Ok(executed_block) => {
-                        if let Err(e) = self.update_soft_commitment(executed_block.clone()).await {
-                            let error: &dyn std::error::Error = e.as_ref();
-                            warn!(%height, error, "failed to update soft commitment");
-                        }
-                    }
-                    Err(e) => {
-                        let error: &dyn std::error::Error = e.as_ref();
-                        warn!(%height, error, "failed to execute block");
-                    }
-                }
+                let executed_block = self
+                    .execute_block(block_subset)
+                    .await
+                    .wrap_err("failed to execute block")?;
+                self.update_soft_commitment(executed_block)
+                    .await
+                    .wrap_err("failed to update soft commitment")?;
             }
 
             ExecutorCommand::FromCelestia(blocks) => self
