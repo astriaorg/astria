@@ -60,7 +60,7 @@ pub(crate) struct Reader {
     shutdown: oneshot::Receiver<()>,
 
     /// The start height from which to start syncing sequencer blocks.
-    start_sync_height: u32,
+    start_sync_height: Height,
 
     /// The sync-done channel to notify `Conductor` that `Reader` has finished syncing.
     sync_done: oneshot::Sender<()>,
@@ -68,7 +68,7 @@ pub(crate) struct Reader {
 
 impl Reader {
     pub(crate) fn new(
-        start_sync_height: u32,
+        start_sync_height: Height,
         pool: Pool<ClientProvider>,
         shutdown: oneshot::Receiver<()>,
         executor_tx: executor::Sender,
@@ -126,7 +126,7 @@ impl Reader {
         );
 
         let mut sync = sync::run(
-            start_sync_height.into(),
+            start_sync_height,
             next_height,
             pool.clone(),
             executor_tx.clone(),
