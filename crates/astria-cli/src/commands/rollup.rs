@@ -194,7 +194,6 @@ pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()>
     let helm = helm_from_env();
     let mut cmd = Command::new(helm.clone());
     cmd.arg("install")
-        .arg("--debug")
         .arg("--values")
         .arg(rollup.deployment_config.get_filename())
         // TODO: https://github.com/astriaorg/astria/issues/594
@@ -218,6 +217,10 @@ pub(crate) fn create_deployment(args: &DeploymentCreateArgs) -> eyre::Result<()>
 
     if args.dry_run {
         cmd.arg("--dry-run");
+    }
+
+    if args.debug {
+        cmd.arg("--debug");
     }
 
     match cmd.output() {

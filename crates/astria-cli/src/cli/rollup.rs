@@ -8,7 +8,7 @@ use color_eyre::eyre;
 use serde::Serialize;
 
 const DEFAULT_ROLLUP_CHART_PATH: &str =
-    "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.4.4.tgz";
+    "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.7.0.tgz";
 const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-2.devnet.astria.org";
 const DEFAULT_SEQUENCER_WS: &str = "wss://rpc.sequencer.dusk-2.devnet.astria.org/websocket";
 const DEFAULT_LOG_LEVEL: &str = "debug";
@@ -219,6 +219,10 @@ pub struct DeploymentCreateArgs {
     // that overwrite the key on drop and don't reveal it when printing.
     #[clap(long, env = "ROLLUP_SEQUENCER_PRIVATE_KEY")]
     pub(crate) sequencer_private_key: String,
+    /// Set if you want to see all k8s resources created by the deployment
+    /// Set if you want to do a dry run of the deployment
+    #[clap(long, env = "ROLLUP_DEBUG_DEPLOY", default_value = "false")]
+    pub(crate) debug: bool,
 }
 
 #[derive(Args, Debug)]

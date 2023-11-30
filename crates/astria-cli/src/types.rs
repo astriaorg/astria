@@ -19,6 +19,8 @@ pub struct Rollup {
     pub(crate) deployment_config: RollupDeploymentConfig,
     #[serde(rename = "ingress")]
     pub(crate) ingress_config: IngressConfig,
+    #[serde(rename = "celestia-node")]
+    pub(crate) celestia_node: CelestiaNode,
 }
 
 impl TryFrom<&ConfigCreateArgs> for Rollup {
@@ -28,11 +30,13 @@ impl TryFrom<&ConfigCreateArgs> for Rollup {
         let globals_config = GlobalsConfig::from(args);
         let deployment_config = RollupDeploymentConfig::try_from(args)?;
         let ingress_config = IngressConfig::from(args);
+        let celestia_node = CelestiaNode::from(args);
 
         Ok(Self {
             globals_config,
             deployment_config,
             ingress_config,
+            celestia_node,
         })
     }
 }
@@ -110,6 +114,46 @@ impl From<&ConfigCreateArgs> for GlobalsConfig {
             namespace: args.namespace.clone(),
             use_tty: args.use_tty,
             log_level: args.log_level.clone(),
+        }
+    }
+}
+
+/// Describes the values for Celestia Node helm chart, which is a dependency
+/// of the rollup chart.
+///
+/// Serializes to a yaml file for usage with Helm, thus the
+/// `rename_all = "camelCase"` naming convention.
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CelestiaNode {
+    #[serde(rename = "config")]
+    celestia_node_config: CelestiaNodeConfig,
+}
+
+impl From<&ConfigCreateArgs> for CelestiaNode {
+    fn from(args: &ConfigCreateArgs) -> Self {
+        let celestia_node_config = CelestiaNodeConfig::from(args);
+
+        Self {
+            celestia_node_config,
+        }
+    }
+}
+
+/// Describes the configuration for a Celestia Node values.
+///
+/// Serializes to a yaml file for usage with Helm, thus the
+/// `rename_all = "camelCase"` naming convention.
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CelestiaNodeConfig {
+    label_prefix: String,
+}
+
+impl From<&ConfigCreateArgs> for CelestiaNodeConfig {
+    fn from(args: &ConfigCreateArgs) -> Self {
+        Self {
+            label_prefix: args.name.to_string(),
         }
     }
 }
@@ -254,6 +298,11 @@ mod tests {
             ingress_config: IngressConfig {
                 hostname: "test.com".to_string(),
             },
+            celestia_node: CelestiaNode {
+                celestia_node_config: CelestiaNodeConfig {
+                    label_prefix: "rollup1".to_string(),
+                },
+            },
         };
 
         let result = Rollup::try_from(&args)?;
@@ -311,6 +360,11 @@ mod tests {
             },
             ingress_config: IngressConfig {
                 hostname: "localdev.me".to_string(),
+            },
+            celestia_node: CelestiaNode {
+                celestia_node_config: CelestiaNodeConfig {
+                    label_prefix: "rollup2".to_string(),
+                },
             },
         };
 
