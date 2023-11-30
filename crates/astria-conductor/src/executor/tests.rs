@@ -320,13 +320,13 @@ async fn try_execute_out_of_order_block_from_celestia() {
     let mut mock = start_mock(None).await;
     let mut block = get_test_block_subset();
 
-    // 0 is always the genesis block, so this should fail
+    // We skip blocks which have already been finalized, so even genesis should succeed
     block.header.height = 0_u32.into();
     let execution_result = mock
         .executor
         .execute_and_finalize_blocks_from_celestia(vec![block.clone()])
         .await;
-    assert!(execution_result.is_err());
+    assert!(execution_result.is_ok());
 
     // the first block to execute should always be 1, this should fail as it is
     // in the future
