@@ -24,7 +24,7 @@ use tracing::{
 /// A wrapper around an [`ethers::types::Transaction`] that includes the chain ID.
 ///
 /// Used to send new transactions to the searcher.
-pub(super) struct Transaction {
+pub(super) struct RollupTransaction {
     pub(super) chain_id: ChainId,
     pub(super) inner: ethers::types::Transaction,
 }
@@ -45,7 +45,7 @@ pub(super) struct Collector {
     // Name of the chain the transactions are read from.
     chain_name: String,
     // The channel on which the collector sends new txs to the searcher.
-    new_bundles: Sender<Transaction>,
+    new_bundles: Sender<RollupTransaction>,
     // The status of this collector instance.
     status: watch::Sender<Status>,
     /// Rollup URL
@@ -71,7 +71,11 @@ impl Status {
 
 impl Collector {
     /// Initializes a new collector instance
-    pub(super) fn new(chain_name: String, url: String, new_bundles: Sender<Transaction>) -> Self {
+    pub(super) fn new(
+        chain_name: String,
+        url: String,
+        new_bundles: Sender<RollupTransaction>,
+    ) -> Self {
         let (status, _) = watch::channel(Status::new());
         Self {
             chain_id: ChainId::with_unhashed_bytes(&chain_name),
@@ -145,7 +149,7 @@ impl Collector {
             debug!(transaction.hash = %tx.hash, "collected transaction from rollup");
             match new_bundles
                 .send_timeout(
-                    Transaction {
+                    RollupTransaction {
                         chain_id,
                         inner: tx,
                     },

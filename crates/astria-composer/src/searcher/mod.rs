@@ -4,10 +4,7 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use proto::native::sequencer::v1alpha1::{
-    Action,
-    SequenceAction,
-};
+use proto::native::sequencer::v1alpha1::Action;
 use tokio::{
     select,
     sync::{
@@ -18,10 +15,7 @@ use tokio::{
         },
         watch,
     },
-    task::{
-        JoinError,
-        JoinSet,
-    },
+    task::JoinError,
 };
 use tokio_util::task::JoinMap;
 use tracing::{
@@ -32,12 +26,15 @@ use tracing::{
 
 use crate::Config;
 
+mod bundler;
 mod collector;
 mod executor;
 mod rollup;
 
 use collector::Collector;
 use executor::Executor;
+
+use self::bundler::Bundler;
 
 /// A Searcher collates transactions from multiple rollups and bundles them into
 /// Astria sequencer transactions that are then passed on to the
@@ -51,17 +48,20 @@ pub(super) struct Searcher {
     collectors: HashMap<String, Collector>,
     // The collection of the collector statuses.
     collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
+    // TODO: remove
     // The rx part of the channel on which the searcher receives transactions from its collectors.
-    new_transactions_rx: Receiver<collector::Transaction>,
+    rollup_transactions_rx: Receiver<collector::RollupTransaction>,
+    // TODO: rename to bundles_tx
     // The tx part that collectors use to send transactions to their parent searcher.
-    new_transactions_tx: Sender<collector::Transaction>,
+    rollup_transactions_tx: Sender<collector::RollupTransaction>,
     // The map of chain ID to the URLs to which collectors should connect.
     rollups: HashMap<String, String>,
     // The set of tasks tracking if the collectors are still running.
     collector_tasks: JoinMap<String, eyre::Result<()>>,
-    // Set of currently running jobs converting pending eth transactions to signed sequencer
-    // transactions.
-    conversion_tasks: JoinSet<Vec<Action>>,
+    // The Bundler object that is responsible for bundling rollup transactions into `Vec<Action>`s
+    bundler: Option<Bundler>,
+    // Channel from which to read the internal status of the bundler.
+    bundler_status: watch::Receiver<bundler::Status>,
     // The Executor object that is responsible for signing and submitting sequencer transactions.
     executor: Option<Executor>,
     // A channel on which to send the `Executor` bundles for attaching a nonce to, sign and submit
@@ -101,13 +101,16 @@ impl Searcher {
             .collect::<Result<HashMap<_, _>, _>>()
             .wrap_err("failed parsing provided <chain_id>::<url> pairs as rollups")?;
 
-        let (new_transactions_tx, new_transactions_rx) = mpsc::channel(256);
+        let (rollup_transactions_tx, rollup_transactions_rx) = mpsc::channel(256);
 
         let collectors = rollups
             .iter()
             .map(|(chain_id, url)| {
-                let collector =
-                    Collector::new(chain_id.clone(), url.clone(), new_transactions_tx.clone());
+                let collector = Collector::new(
+                    chain_id.clone(),
+                    url.clone(),
+                    rollup_transactions_tx.clone(),
+                );
                 (chain_id.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
@@ -124,15 +127,26 @@ impl Searcher {
 
         let executor_status = executor.subscribe();
 
+        let bundler = bundler::Bundler::new(
+            rollup_transactions_rx,
+            bundle_tx,
+            bundler::MAX_BYTES_SIZE,
+            // TODO: add timer values
+            0,
+            0,
+        );
+        let bundler_status = bundler.subscribe();
+
         Ok(Searcher {
             status,
             collectors,
             collector_statuses,
-            new_transactions_rx,
-            new_transactions_tx,
+            rollup_transactions_rx,
+            rollup_transactions_tx,
             collector_tasks: JoinMap::new(),
-            conversion_tasks: JoinSet::new(),
             bundle_tx,
+            bundler: Some(bundler),
+            bundler_status,
             executor_status,
             executor: Some(executor),
             rollups,
@@ -142,26 +156,6 @@ impl Searcher {
     /// Other modules can use this to get notified of changes to the Searcher state
     pub(crate) fn subscribe_to_state(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
-    }
-
-    /// Serializes and signs a sequencer tx from a rollup tx.
-    fn bundle_pending_tx(&mut self, tx: collector::Transaction) {
-        let collector::Transaction {
-            chain_id,
-            inner: rollup_tx,
-        } = tx;
-
-        // rollup transaction data serialization is a heavy compute task, so it is spawned
-        // on tokio's blocking threadpool
-        self.conversion_tasks.spawn_blocking(move || {
-            let data = rollup_tx.rlp().to_vec();
-            let seq_action = Action::Sequence(SequenceAction {
-                chain_id,
-                data,
-            });
-
-            vec![seq_action]
-        });
     }
 
     async fn handle_bundle_execution(&self, bundle: Vec<Action>) {
@@ -182,6 +176,12 @@ impl Searcher {
     /// in-depth explanation and suggested solution
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         self.spawn_collectors();
+        let mut bundler_handle = tokio::spawn(
+            self.bundler
+                .take()
+                .expect("bundler should only be run once")
+                .run_until_stopped(),
+        );
         let mut executor_handle = tokio::spawn(
             self.executor
                 .take()
@@ -198,25 +198,34 @@ impl Searcher {
 
         loop {
             select!(
-                // serialize and sign sequencer tx for incoming pending rollup txs
-                Some(rollup_tx) = self.new_transactions_rx.recv() => self.bundle_pending_tx(rollup_tx),
-
-                // submit signed sequencer txs to sequencer
-                Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
-                    match join_result {
-                        Ok(bundle) => self.handle_bundle_execution(bundle).await,
-                        Err(e) => warn!(
-                            error.message = %e,
-                            error.cause_chain = ?e,
-                            "conversion task failed while trying to convert pending rollup transaction to signed sequencer transaction",
-                        ),
-                    }
-                }
-
                 Some((rollup, collector_exit)) = self.collector_tasks.join_next() => {
                     self.reconnect_exited_collector(rollup, collector_exit);
                 }
 
+                ret = &mut bundler_handle = {
+                    match ret {
+                        Ok(Ok(())) => {
+                            error!("bundler task exited unexpectedly");
+                        }
+                        Ok(Err(e)) => {
+                            error!(
+                                error.message = %e,
+                                error.cause_chain = ?e,
+                                "bundler returned with error",
+                            );
+                        }
+                        Err(e) => {
+                            error!(
+                                error.message = %e,
+                                error.cause_chain = ?e,
+                                "bundler task panicked",
+                            );
+                        }
+                    }
+                    break;
+                }
+
+                // TODO: ?
                 ret = &mut executor_handle => {
                     match ret {
                         Ok(Ok(())) => {
@@ -241,8 +250,6 @@ impl Searcher {
                 }
             );
         }
-
-        Ok(())
     }
 
     #[instrument(skip_all, fields(rollup))]
@@ -254,7 +261,7 @@ impl Searcher {
         reconnect_exited_collector(
             &mut self.collector_statuses,
             &mut self.collector_tasks,
-            self.new_transactions_tx.clone(),
+            self.rollup_transactions_tx.clone(),
             &self.rollups,
             rollup,
             exit_result,
@@ -332,7 +339,7 @@ impl Searcher {
 fn reconnect_exited_collector(
     collector_statuses: &mut HashMap<String, watch::Receiver<collector::Status>>,
     collector_tasks: &mut JoinMap<String, eyre::Result<()>>,
-    new_transactions_tx: Sender<collector::Transaction>,
+    new_transactions_tx: Sender<collector::RollupTransaction>,
     rollups: &HashMap<String, String>,
     rollup: String,
     exit_result: Result<eyre::Result<()>, JoinError>,
