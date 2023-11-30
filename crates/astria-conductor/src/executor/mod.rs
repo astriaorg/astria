@@ -37,7 +37,6 @@ use tracing::{
     error,
     info,
     instrument,
-    warn,
 };
 
 use crate::data_availability::SequencerBlockSubset;
@@ -344,25 +343,27 @@ impl Executor {
                 biased;
 
                 shutdown = &mut self.shutdown => {
-                    if let Err(e) = shutdown {
-                        let error: &(dyn std::error::Error) = &e;
-                        warn!(error, "shutdown channel return with error; shutting down");
+                    let ret = if let Err(e) = shutdown {
+                        let message = "shutdown channel closed unexpectedly";
+                        error!(error = &e as &dyn std::error::Error, "{message}, shutting down");
+                        Err(e).wrap_err(message)
                     } else {
-                        info!("received shutdown signal; shutting down");
-                    }
-                    break;
+                        info!("received_shutdown_signal, shutting down");
+                        Ok(())
+                    };
+                    break ret;
                 }
 
                 cmd = self.block_channel.recv() => {
                     if let Err(e) = self.handle_executor_command(cmd).await {
-                        let error: &(dyn std::error::Error) = e.as_ref();
-                        error!(error, "failed to handle executor command, breaking from executor loop");
-                        break;
+                        let message = "failed handling executor command";
+                        let error: &dyn std::error::Error = e.as_ref();
+                        error!(error, "{message}, shutting down");
+                        break Err(e).wrap_err(message);
                     }
                 }
             );
         }
-        Ok(())
     }
 
     /// Handle a command received on the command channel.
@@ -375,40 +376,31 @@ impl Executor {
     /// - if execution or finalization of a block from celestia fails
     async fn handle_executor_command(&mut self, cmd: Option<ExecutorCommand>) -> eyre::Result<()> {
         let Some(cmd) = cmd else {
-            bail!("cmd channel closed unexpectedly; shutting down")
+            bail!("cmd channel closed unexpectedly");
         };
 
+        // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
         match cmd {
             ExecutorCommand::FromSequencer {
                 block,
             } => {
-                let height = block.header().height.value();
                 let block_subset =
                     SequencerBlockSubset::from_sequencer_block(*block, self.rollup_id);
 
-                match self.execute_block(block_subset).await {
-                    Ok(executed_block) => {
-                        if let Err(e) = self.update_soft_commitment(executed_block.clone()).await {
-                            let error: &(dyn std::error::Error) = e.as_ref();
-                            error!(height = height, error, "failed to update soft commitment");
-                        }
-                    }
-                    Err(e) => {
-                        let error: &(dyn std::error::Error) = e.as_ref();
-                        error!(height = height, error, "failed to execute block");
-                    }
-                }
+                let executed_block = self
+                    .execute_block(block_subset)
+                    .await
+                    .wrap_err("failed to execute block")?;
+                self.update_soft_commitment(executed_block)
+                    .await
+                    .wrap_err("failed to update soft commitment")?;
             }
 
-            ExecutorCommand::FromCelestia(blocks) => {
-                if let Err(e) = self.execute_and_finalize_blocks_from_celestia(blocks).await {
-                    let error: &(dyn std::error::Error) = e.as_ref();
-                    error!(error, "failed to finalize block; stopping executor");
-                    return Err(e);
-                }
-            }
+            ExecutorCommand::FromCelestia(blocks) => self
+                .execute_and_finalize_blocks_from_celestia(blocks)
+                .await
+                .wrap_err("failed to finalize block")?,
         }
-
         Ok(())
     }
 
