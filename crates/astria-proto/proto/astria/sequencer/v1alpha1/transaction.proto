@@ -51,10 +51,10 @@ message TransferAction {
 // `SequenceAction` represents a transaction destined for another
 // chain, ordered by the sequencer.
 //
-// It contains the chain ID of the destination chain, and the
+// It contains the rollup ID of the destination chain, and the
 // opaque transaction data.
 message SequenceAction {
-    bytes chain_id = 1;
+    bytes rollup_id = 1;
     bytes data = 2;
 }
 

@@ -2,7 +2,7 @@
 
 #![allow(clippy::missing_panics_doc)]
 
-use proto::native::sequencer::v1alpha1::ChainId;
+use proto::native::sequencer::v1alpha1::RollupId;
 use tendermint::block::Header;
 
 #[must_use]
@@ -73,34 +73,37 @@ pub fn create_tendermint_block() -> tendermint::Block {
     let proposer_address = tendermint::account::Id::from(public_key);
 
     let suffix = height.to_string().into_bytes();
-    let chain_id = ChainId::with_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
+    let rollup_id = RollupId::from_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
     let asset = Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM);
-    let signed_tx_bytes = UnsignedTransaction {
+    let signed_transaction = UnsignedTransaction {
         nonce: 1,
         actions: vec![
             SequenceAction {
-                chain_id,
+                rollup_id,
                 data: [b"hello_world_id_", &*suffix].concat(),
             }
             .into(),
         ],
         fee_asset_id: asset.id(),
     }
-    .into_signed(&signing_key)
-    .into_raw()
-    .encode_to_vec();
-    let action_tree = merkle::Tree::from_leaves(std::iter::once(&signed_tx_bytes));
-    let chain_ids_commitment = merkle::Tree::from_leaves(std::iter::once(chain_id)).root();
+    .into_signed(&signing_key);
+    let rollup_transactions = proto::native::sequencer::v1alpha1::group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(&[signed_transaction.clone()]);
+    let rollup_transactions_tree =
+        proto::native::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(
+            &rollup_transactions,
+        );
+
+    let rollup_ids_root = merkle::Tree::from_leaves(std::iter::once(rollup_id)).root();
     let data = vec![
-        action_tree.root().to_vec(),
-        chain_ids_commitment.to_vec(),
-        signed_tx_bytes,
+        rollup_transactions_tree.root().to_vec(),
+        rollup_ids_root.to_vec(),
+        signed_transaction.into_raw().encode_to_vec(),
     ];
     let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
         &data.iter().map(sha2::Sha256::digest).collect::<Vec<_>>(),
     )));
 
-    let (last_commit_hash, last_commit) = crate::test_utils::make_test_commit_and_hash();
+    let (last_commit_hash, last_commit) = make_test_commit_and_hash();
 
     tendermint::Block::new(
         block::Header {
@@ -137,5 +140,30 @@ pub fn make_test_commit_and_hash() -> (tendermint::Hash, tendermint::block::Comm
         height: 1u32.into(),
         ..Default::default()
     };
-    (crate::calculate_last_commit_hash(&commit), commit)
+    (calculate_last_commit_hash(&commit), commit)
+}
+
+// Calculates the `last_commit_hash` given a Tendermint [`Commit`].
+//
+// It merkleizes the commit and returns the root. The leaves of the merkle tree
+// are the protobuf-encoded [`CommitSig`]s; ie. the signatures that the commit consist of.
+//
+// See https://github.com/cometbft/cometbft/blob/539985efc7d461668ffb46dff88b3f7bb9275e5a/types/block.go#L922
+#[must_use]
+fn calculate_last_commit_hash(commit: &tendermint::block::Commit) -> tendermint::Hash {
+    use prost::Message as _;
+    use tendermint::{
+        crypto,
+        merkle,
+    };
+    use tendermint_proto::types::CommitSig;
+
+    let signatures = commit
+        .signatures
+        .iter()
+        .map(|commit_sig| CommitSig::from(commit_sig.clone()).encode_to_vec())
+        .collect::<Vec<_>>();
+    tendermint::Hash::Sha256(merkle::simple_hash_from_byte_vectors::<
+        crypto::default::Sha256,
+    >(&signatures))
 }

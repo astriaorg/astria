@@ -88,6 +88,7 @@ jobs:
           cargo test --release --workspace \
           --all-features \
           --all-targets \
+          -- --include-ignored
 
   doctest:
     runs-on: buildjet-8vcpu-ubuntu-2204
