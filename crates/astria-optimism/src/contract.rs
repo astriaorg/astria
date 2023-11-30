@@ -82,6 +82,7 @@ mod test {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "install solc-select and foundry-rs and rerun with --ignored"]
     async fn test_make_deposit_transaction() {
         let (contract_address, provider, wallet, _anvil_instance) =
             crate::test_utils::deploy_mock_optimism_portal().await;

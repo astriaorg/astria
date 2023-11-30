@@ -7,8 +7,10 @@ use deadpool::managed::{
     PoolError,
 };
 use futures::stream::FuturesOrdered;
-use sequencer_client::tendermint::block::Height;
-use sequencer_types::SequencerBlockData;
+use sequencer_client::{
+    tendermint::block::Height,
+    SequencerBlock,
+};
 use tokio::select;
 use tracing::{
     error,
@@ -105,7 +107,7 @@ pub(super) async fn run(
 async fn get_client_then_block(
     pool: Pool<ClientProvider>,
     height: u32,
-) -> Result<SequencerBlockData, Error> {
+) -> Result<SequencerBlock, Error> {
     use sequencer_client::SequencerClientExt as _;
 
     let client = pool.get().await?;

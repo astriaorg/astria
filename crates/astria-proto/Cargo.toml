@@ -15,6 +15,8 @@ keywords = ["astria", "grpc", "rpc", "blockchain", "execution", "protobuf"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+merkle = { package = "astria-merkle", path = "../astria-merkle" }
+
 ed25519-consensus = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
 penumbra-ibc = { workspace = true }
@@ -25,8 +27,11 @@ serde = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 tendermint = { workspace = true }
 tendermint-proto = { workspace = true }
+thiserror = { workspace = true }
 tonic = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
+
+indexmap = "2.1.0"
 
 [features]
 default = ["native"]

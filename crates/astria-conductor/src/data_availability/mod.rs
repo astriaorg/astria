@@ -8,7 +8,7 @@ use celestia_client::{
     },
     jsonrpsee::http_client::HttpClient,
     CelestiaClientExt as _,
-    SequencerNamespaceData,
+    CelestiaSequencerBlob,
 };
 use color_eyre::eyre::{
     self,
@@ -19,11 +19,8 @@ use futures::{
     future::FusedFuture,
     FutureExt,
 };
-use sequencer_types::{
-    ChainId,
-    RawSequencerBlockData,
-    SequencerBlockData,
-};
+use proto::native::sequencer::v1alpha1::RollupId;
+use sequencer_client::SequencerBlock;
 use tendermint::{
     block::Header,
     Hash,
@@ -43,7 +40,6 @@ use tokio::{
 };
 use tokio_util::task::JoinMap;
 use tracing::{
-    debug,
     error,
     info,
     instrument,
@@ -66,27 +62,22 @@ use block_verifier::BlockVerifier;
 pub(crate) struct SequencerBlockSubset {
     pub(crate) block_hash: Hash,
     pub(crate) header: Header,
-    pub(crate) rollup_transactions: Vec<Vec<u8>>,
+    pub(crate) transactions: Vec<Vec<u8>>,
 }
 
 impl SequencerBlockSubset {
-    pub(crate) fn from_sequencer_block_data(data: SequencerBlockData, chain_id: &ChainId) -> Self {
-        // we don't need to verify the action tree root here,
-        // as [`SequencerBlockData`] would not be constructable
-        // if it was invalid
-        let RawSequencerBlockData {
-            block_hash,
-            header,
-            mut rollup_data,
-            ..
-        } = data.into_raw();
-
-        let rollup_transactions = rollup_data.remove(chain_id).unwrap_or_default();
-
+    pub(crate) fn from_sequencer_block(block: SequencerBlock, chain_id: RollupId) -> Self {
+        let mut block = block.into_unchecked();
+        let header = block.header;
+        let block_hash = header.hash();
+        let transactions = block
+            .rollup_transactions
+            .remove(&chain_id)
+            .unwrap_or_default();
         Self {
             block_hash,
             header,
-            rollup_transactions,
+            transactions,
         }
     }
 }
@@ -114,7 +105,7 @@ pub(crate) struct Reader {
     get_latest_height: Option<JoinHandle<eyre::Result<Height>>>,
 
     /// A map of in-flight queries to celestia for new sequencer blobs at a given height
-    fetch_sequencer_blobs_at_height: JoinMap<Height, eyre::Result<Vec<SequencerNamespaceData>>>,
+    fetch_sequencer_blobs_at_height: JoinMap<Height, eyre::Result<Vec<CelestiaSequencerBlob>>>,
 
     /// A map of futures verifying that sequencer blobs read off celestia stem from sequencer
     /// before collecting their constituent rollup blobs. One task per celestia height.
@@ -306,7 +297,7 @@ impl Reader {
                 }
 
                 Some((height, res)) = self.fetch_sequencer_blobs_at_height.join_next(), if !self.fetch_sequencer_blobs_at_height.is_empty() => {
-                    self.process_sequencer_datas(height, res);
+                    self.process_sequencer_blobs(height, res);
                 }
 
                 Some((height, res)) = self.verify_sequencer_blobs_and_assemble_rollups.join_next(), if !self.verify_sequencer_blobs_and_assemble_rollups.is_empty() => {
@@ -383,22 +374,22 @@ impl Reader {
                 self.fetch_sequencer_blobs_at_height
                     .spawn(height, async move {
                         client
-                            .get_sequencer_data(height, sequencer_namespace)
+                            .get_sequencer_blobs(height, sequencer_namespace)
                             .await
                             .wrap_err("failed to fetch sequencer data from celestia")
-                            .map(|rsp| rsp.datas)
+                            .map(|rsp| rsp.sequencer_blobs)
                     });
             }
         }
     }
 
-    #[instrument(skip(self, sequencer_data_res))]
-    fn process_sequencer_datas(
+    #[instrument(skip_all, fields(height))]
+    fn process_sequencer_blobs(
         &mut self,
         height: Height,
-        sequencer_data_res: Result<eyre::Result<Vec<SequencerNamespaceData>>, JoinError>,
+        sequencer_blob_res: Result<eyre::Result<Vec<CelestiaSequencerBlob>>, JoinError>,
     ) {
-        let sequencer_data = match sequencer_data_res {
+        let sequencer_data = match sequencer_blob_res {
             Err(e) => {
                 let error = &e as &(dyn std::error::Error + 'static);
                 warn!(error, "task querying celestia for sequencer data failed");
@@ -615,13 +606,13 @@ async fn find_da_sync_start_height(
 /// into a collection.
 async fn verify_sequencer_blobs_and_assemble_rollups(
     height: Height,
-    sequencer_blobs: Vec<SequencerNamespaceData>,
+    sequencer_blobs: Vec<CelestiaSequencerBlob>,
     client: HttpClient,
     block_verifier: BlockVerifier,
     rollup_namespace: Namespace,
 ) -> eyre::Result<Vec<SequencerBlockSubset>> {
     // spawn the verification tasks
-    let mut verification_tasks = verify_all_datas(sequencer_blobs, &block_verifier);
+    let mut verification_tasks = verify_all_blobs(sequencer_blobs, &block_verifier);
 
     let (assembly_tx, assembly_rx) = mpsc::channel(256);
     let block_assembler = task::spawn(assemble_blocks(assembly_rx));
@@ -631,15 +622,20 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
         match verification_result {
             Err(e) => {
                 let error = &e as &(dyn std::error::Error + 'static);
-                warn!(%block_hash, error, "task verifying sequencer data retrieved from celestia failed; dropping block");
+                warn!(block_hash = %DisplayBlockHash(block_hash), error, "task verifying sequencer data retrieved from celestia failed; dropping block");
             }
             Ok(Err(e)) => {
                 let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                warn!(%block_hash, error, "task verifying sequencer data retrieved from celestia returned with an error; dropping block");
+                warn!(
+                    block_hash = %DisplayBlockHash(block_hash),
+                    error,
+                    "task verifying sequencer data retrieved from celestia returned with an \
+                     error; dropping block"
+                );
             }
             Ok(Ok(data)) => {
                 fetch_and_verify_rollups.spawn(
-                    fetch_verify_rollup_blob_and_forward_to_assembly(
+                    fetch_rollup_blob_and_forward_to_assembly(
                         client.clone(),
                         height,
                         data,
@@ -665,16 +661,22 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
 /// If more than one rollup blob is received and pass verification, they are all dropped.
 /// It is assumed that sequencer-relayer submits at most one rollup blob to celestia per
 /// celestia height.
-#[instrument(skip_all, fields(height, block_hash = %data.block_hash()))]
-async fn fetch_verify_rollup_blob_and_forward_to_assembly(
+#[instrument(
+    skip_all,
+    fields(
+        height,
+        block_hash = %DisplayBlockHash(blob.block_hash()),
+    )
+)]
+async fn fetch_rollup_blob_and_forward_to_assembly(
     client: HttpClient,
     height: Height,
-    data: SequencerNamespaceData,
+    blob: CelestiaSequencerBlob,
     rollup_namespace: Namespace,
     block_tx: mpsc::Sender<SequencerBlockSubset>,
 ) {
     let mut rollups = match client
-        .get_rollup_data_matching_sequencer_data(height, rollup_namespace, &data)
+        .get_rollup_blobs_matching_sequencer_blob(height, rollup_namespace, &blob)
         .await
     {
         Err(e) => {
@@ -685,40 +687,27 @@ async fn fetch_verify_rollup_blob_and_forward_to_assembly(
         Ok(rollups) => rollups,
     };
 
-    let num_rollups_received = rollups.len();
-    info!(
-        rollups.received = num_rollups_received,
-        "received rollups; verifying"
-    );
-    rollups.retain(|rollup| {
-        if let Err(e) = rollup.belongs_to(&data) {
-            debug!(
-                chain_id = hex::encode(rollup.chain_id),
-                reason = &e as &dyn std::error::Error,
-                "dropping rollup",
-            );
-            false
-        } else {
-            true
-        }
-    });
     match rollups.len() {
         0 | 1 => {
-            info!("rollup data found; forwarding to block assembler");
+            info!(
+                n_rollups = rollups.len(),
+                "forwarding rollup blobs to assembler"
+            );
             let subset = SequencerBlockSubset {
-                block_hash: data.block_hash(),
-                header: data.header().clone(),
-                rollup_transactions: rollups.pop().map_or(vec![], |txs| txs.rollup_txs),
+                block_hash: blob.header().hash(),
+                header: blob.header().clone(),
+                transactions: rollups.pop().map_or(vec![], |rollup_blob| {
+                    rollup_blob.into_unchecked().transactions
+                }),
             };
             if block_tx.send(subset).await.is_err() {
                 warn!("failed sending validated rollup data to block assembler; receiver dropped");
             }
         }
-        num_rollups_verified => warn!(
-            rollups.received = num_rollups_received,
-            rollups.verified = num_rollups_verified,
-            "more than one rollup remained after verification, which should not happen; dropping \
-             all",
+        n_rollups => warn!(
+            n_rollups,
+            "received more than one rollup blob for the given namespace, height, and sequencer \
+             blob, which should not happen; dropping all blobs",
         ),
     }
 }
@@ -734,25 +723,29 @@ async fn assemble_blocks(
     blocks
 }
 
-fn verify_all_datas(
-    datas: Vec<SequencerNamespaceData>,
+fn verify_all_blobs(
+    blobs: Vec<CelestiaSequencerBlob>,
     block_verifier: &BlockVerifier,
-) -> JoinMap<tendermint::Hash, eyre::Result<SequencerNamespaceData>> {
+) -> JoinMap<[u8; 32], eyre::Result<CelestiaSequencerBlob>> {
     let mut verification_tasks = JoinMap::new();
-    for data in datas {
-        let block_hash = data.block_hash();
-        if verification_tasks.contains_key(&block_hash) {
-            warn!(%block_hash,
+    for blob in blobs {
+        let blob_hash = blob.block_hash();
+        if verification_tasks.contains_key(&blob_hash) {
+            warn!(
+                block_hash = %DisplayBlockHash(blob_hash),
                 "more than one sequencer data with the same block hash retrieved from celestia; \
                  only keeping the first"
             );
         } else {
             let verifier = block_verifier.clone();
             verification_tasks.spawn(
-                block_hash,
+                blob_hash,
                 async move {
-                    verifier.validate_sequencer_namespace_data(&data).await?;
-                    Ok(data)
+                    verifier
+                        .validate_sequencer_blob(&blob)
+                        .await
+                        .wrap_err("failed validating blob")?;
+                    Ok(blob)
                 }
                 .in_current_span(),
             );
@@ -798,4 +791,15 @@ async fn get_sequencer_data_from_da(
         }
     };
     seq_block_data
+}
+
+struct DisplayBlockHash([u8; 32]);
+
+impl std::fmt::Display for DisplayBlockHash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for byte in self.0 {
+            f.write_fmt(format_args!("{byte:02x}"))?;
+        }
+        Ok(())
+    }
 }

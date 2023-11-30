@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 proto = { package = "astria-proto", path = "../astria-proto" }
-sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }
 
 async-trait = { workspace = true }
 futures = { workspace = true }
