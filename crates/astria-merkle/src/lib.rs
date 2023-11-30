@@ -130,6 +130,8 @@
 //! + Traversing rachet trees: <https://www.ietf.org/archive/id/draft-ietf-mls-protocol-14.html>
 //! + Flat in-order trees (the blog post this crate is based on): <https://mmapped.blog/posts/22-flat-in-order-trees>
 
+use std::num::NonZeroUsize;
+
 use sha2::{
     Digest as _,
     Sha256,
@@ -288,7 +290,13 @@ impl Tree {
     /// Returns `true` if the index `i` falls inside the Merkle tree.
     #[inline]
     fn is_in_tree(&self, i: usize) -> bool {
-        i < self.len()
+        is_tree_index_in_tree(i, self.len())
+    }
+
+    /// Returns `true` if the leaf index `i` falls inside the Merkle tree.
+    #[inline]
+    fn is_leaf_in_tree(&self, leaf_index: usize) -> bool {
+        is_leaf_index_in_tree(leaf_index, self.len())
     }
 
     /// Assigns `val` to the node at index `i`.
@@ -303,7 +311,8 @@ impl Tree {
 
     /// Constructs the inclusion proof for the i-th leaf of the tree.
     ///
-    /// Returns `None` if `i` is outside the tree.
+    /// Returns `None` if `i` is outside the tree. This is always the case for
+    /// empty trees.
     ///
     /// # Examples
     /// Constructing a proof for a tree without leaves returns no proof (as leaf `0` is not
@@ -337,16 +346,18 @@ impl Tree {
     /// ```
     #[must_use]
     pub fn construct_proof(&self, leaf_index: usize) -> Option<Proof> {
-        let mut tree_index = leaf_index_to_tree_index(leaf_index);
-        if !self.is_in_tree(leaf_index) {
+        let Some(tree_size) = NonZeroUsize::new(self.len()) else {
+            return None;
+        };
+        if !self.is_leaf_in_tree(leaf_index) {
             return None;
         }
         let mut audit_path = Vec::new();
-        let tree_size = self.len();
-        let root = complete_root(tree_size);
+        let mut tree_index = leaf_index_to_tree_index(leaf_index);
+        let root = complete_root(tree_size.get());
         while tree_index != root {
             let sibling;
-            (tree_index, sibling) = complete_parent_and_sibling(tree_index, tree_size);
+            (tree_index, sibling) = complete_parent_and_sibling(tree_index, tree_size.get());
             audit_path.extend_from_slice(&self.get_node(sibling));
         }
         Some(Proof {
@@ -662,6 +673,24 @@ fn complete_parent_and_sibling(i: usize, n: usize) -> (usize, usize) {
 #[inline]
 fn is_branch(i: usize) -> bool {
     i & 0b1 == 1
+}
+
+/// Returns if a leaf index `i` falls inside a tree of size `n`.
+///
+/// The leaf index `i` maps to a tree index `j = 2 * i`.
+/// `j` is said to fall inside the tree if `j < n`.
+#[inline]
+fn is_leaf_index_in_tree(i: usize, n: usize) -> bool {
+    let j = leaf_index_to_tree_index(i);
+    is_tree_index_in_tree(j, n)
+}
+
+/// Returns if a tree index `i` is part of  tree.
+///
+/// `i` is said to fall inside the tree if `i < n`.
+#[inline]
+fn is_tree_index_in_tree(i: usize, n: usize) -> bool {
+    i < n
 }
 
 /// Returns if a tree of size `n` is perfect.

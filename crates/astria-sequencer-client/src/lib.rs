@@ -10,6 +10,7 @@ pub use proto::native::sequencer::v1alpha1::{
     Address,
     BalanceResponse,
     NonceResponse,
+    SequencerBlock,
     SignedTransaction,
 };
 pub use tendermint;

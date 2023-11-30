@@ -11,7 +11,7 @@ use proto::native::sequencer::v1alpha1::{
 
 #[async_trait]
 pub(crate) trait ActionHandler {
-    fn check_stateless(&self) -> Result<()> {
+    async fn check_stateless(&self) -> Result<()> {
         Ok(())
     }
     async fn check_stateful<S: StateRead + 'static>(
