@@ -9,7 +9,6 @@ use serde::Serialize;
 
 const DEFAULT_ROLLUP_CHART_PATH: &str =
     "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.7.0.tgz";
-const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-2.devnet.astria.org";
 const DEFAULT_SEQUENCER_WS: &str = "wss://rpc.sequencer.dusk-2.devnet.astria.org/websocket";
 const DEFAULT_LOG_LEVEL: &str = "debug";
 const DEFAULT_NETWORK_ID: u64 = 1337;
@@ -99,7 +98,7 @@ pub struct ConfigCreateArgs {
     #[clap(
         long = "sequencer.rpc", 
         env = "ROLLUP_SEQUENCER_RPC", 
-        default_value = DEFAULT_SEQUENCER_RPC
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub sequencer_rpc: String,
     /// Optional. Will default to 'localdev.me' for local deployments. Will need to separately
