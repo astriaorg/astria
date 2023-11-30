@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use color_eyre::eyre::{
     self,
     bail,
-    eyre,
+    ensure,
     Result,
     WrapErr as _,
 };
@@ -37,7 +37,6 @@ use tracing::{
     error,
     info,
     instrument,
-    warn,
 };
 
 use crate::data_availability::SequencerBlockSubset;
@@ -344,25 +343,27 @@ impl Executor {
                 biased;
 
                 shutdown = &mut self.shutdown => {
-                    if let Err(e) = shutdown {
-                        let error: &(dyn std::error::Error) = &e;
-                        warn!(error, "shutdown channel return with error; shutting down");
+                    let ret = if let Err(e) = shutdown {
+                        let message = "shutdown channel closed unexpectedly";
+                        error!(error = &e as &dyn std::error::Error, "{message}, shutting down");
+                        Err(e).wrap_err(message)
                     } else {
-                        info!("received shutdown signal; shutting down");
-                    }
-                    break;
+                        info!("received_shutdown_signal, shutting down");
+                        Ok(())
+                    };
+                    break ret;
                 }
 
                 cmd = self.block_channel.recv() => {
                     if let Err(e) = self.handle_executor_command(cmd).await {
-                        let error: &(dyn std::error::Error) = e.as_ref();
-                        error!(error, "failed to handle executor command, breaking from executor loop");
-                        break;
+                        let message = "failed handling executor command";
+                        let error: &dyn std::error::Error = e.as_ref();
+                        error!(error, "{message}, shutting down");
+                        break Err(e).wrap_err(message);
                     }
                 }
             );
         }
-        Ok(())
     }
 
     /// Handle a command received on the command channel.
@@ -375,40 +376,31 @@ impl Executor {
     /// - if execution or finalization of a block from celestia fails
     async fn handle_executor_command(&mut self, cmd: Option<ExecutorCommand>) -> eyre::Result<()> {
         let Some(cmd) = cmd else {
-            bail!("cmd channel closed unexpectedly; shutting down")
+            bail!("cmd channel closed unexpectedly");
         };
 
+        // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
         match cmd {
             ExecutorCommand::FromSequencer {
                 block,
             } => {
-                let height = block.header().height.value();
                 let block_subset =
                     SequencerBlockSubset::from_sequencer_block(*block, self.rollup_id);
 
-                match self.execute_block(block_subset).await {
-                    Ok(executed_block) => {
-                        if let Err(e) = self.update_soft_commitment(executed_block.clone()).await {
-                            let error: &(dyn std::error::Error) = e.as_ref();
-                            error!(height = height, error, "failed to update soft commitment");
-                        }
-                    }
-                    Err(e) => {
-                        let error: &(dyn std::error::Error) = e.as_ref();
-                        error!(height = height, error, "failed to execute block");
-                    }
-                }
+                let executed_block = self
+                    .execute_block(block_subset)
+                    .await
+                    .wrap_err("failed to execute block")?;
+                self.update_soft_commitment(executed_block)
+                    .await
+                    .wrap_err("failed to update soft commitment")?;
             }
 
-            ExecutorCommand::FromCelestia(blocks) => {
-                if let Err(e) = self.execute_and_finalize_blocks_from_celestia(blocks).await {
-                    let error: &(dyn std::error::Error) = e.as_ref();
-                    error!(error, "failed to finalize block; stopping executor");
-                    return Err(e);
-                }
-            }
+            ExecutorCommand::FromCelestia(blocks) => self
+                .execute_and_finalize_blocks_from_celestia(blocks)
+                .await
+                .wrap_err("failed to finalize block")?,
         }
-
         Ok(())
     }
 
@@ -417,15 +409,15 @@ impl Executor {
     /// returns the previously-computed execution block hash.
     #[instrument(skip(self), fields(sequencer_block_hash = ?block.block_hash, sequencer_block_height = block.header.height.value()))]
     async fn execute_block(&mut self, block: SequencerBlockSubset) -> Result<Block> {
-        let executable_block_height = self.get_executable_block_height()?;
-        if u64::from(executable_block_height) != block.header.height.value() {
-            error!(
-                sequencer_block_height = block.header.height.value(),
-                executable_block_height = executable_block_height,
-                "block received out of order;"
-            );
-            return Err(eyre!("block received out of order"));
-        }
+        let executable_block_height = self
+            .calculate_executable_block_height()
+            .wrap_err("failed calculating the next executable block height")?;
+        let actual_block_height = block.header.height;
+        ensure!(
+            executable_block_height == actual_block_height,
+            "received out-of-order block; expected `{executable_block_height}`, got \
+             `{actual_block_height}`",
+        );
 
         if let Some(execution_block) = self
             .sequencer_hash_to_execution_block
@@ -521,11 +513,13 @@ impl Executor {
             return Ok(());
         }
         for block in blocks {
-            let finalizable_block_height = self.get_finalizable_block_height()?;
-            if block.header.height.value() < u64::from(finalizable_block_height) {
+            let finalizable_block_height = self
+                .calculate_finalizable_block_height()
+                .wrap_err("failed calculating next finalizable block height")?;
+            if block.header.height < finalizable_block_height {
                 info!(
-                    sequencer_block_height = block.header.height.value(),
-                    finalized_block_height = finalizable_block_height,
+                    sequencer_block_height = %block.header.height,
+                    finalized_block_height = %finalizable_block_height,
                     "received block which is already finalized; skipping finalization"
                 );
                 continue;
@@ -569,7 +563,7 @@ impl Executor {
     }
 
     // Returns the next sequencer block height which can be executed on the rollup
-    pub(crate) fn get_executable_block_height(&self) -> Result<u32> {
+    pub(crate) fn calculate_executable_block_height(&self) -> Result<tendermint::block::Height> {
         let Some(executable_block_height) = calculate_sequencer_block_height(
             self.sequencer_height_with_first_rollup_block,
             self.commitment_state.soft.number,
@@ -582,11 +576,11 @@ impl Executor {
             );
         };
 
-        Ok(executable_block_height)
+        Ok(executable_block_height.into())
     }
 
     // Returns the lowest sequencer block height which can finalized on the rollup.
-    pub(crate) fn get_finalizable_block_height(&self) -> Result<u32> {
+    pub(crate) fn calculate_finalizable_block_height(&self) -> Result<tendermint::block::Height> {
         let Some(finalizable_block_height) = calculate_sequencer_block_height(
             self.sequencer_height_with_first_rollup_block,
             self.commitment_state.firm.number,
@@ -599,7 +593,7 @@ impl Executor {
             );
         };
 
-        Ok(finalizable_block_height)
+        Ok(finalizable_block_height.into())
     }
 }
 
