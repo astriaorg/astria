@@ -37,7 +37,6 @@ use tracing::{
     error,
     info,
     instrument,
-    warn,
 };
 
 use crate::data_availability::SequencerBlockSubset;
