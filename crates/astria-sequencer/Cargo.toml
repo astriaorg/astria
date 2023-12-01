@@ -42,7 +42,7 @@ tracing = { workspace = true }
 
 ibc-proto = { version = "0.37.0", default-features = false }
 tonic = "0.10"
-tower-http = { version = "0.4", features = [ "cors" ] }
+tower-http = { version = "0.4", features = ["cors"] }
 
 [dev-dependencies]
 config = { package = "astria-config", path = "../astria-config", features = [
