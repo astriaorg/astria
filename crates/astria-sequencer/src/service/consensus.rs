@@ -239,7 +239,7 @@ mod test {
         native::sequencer::v1alpha1::{
             asset::DEFAULT_NATIVE_ASSET_DENOM,
             Address,
-            ChainId,
+            RollupId,
             SequenceAction,
             UnsignedTransaction,
         },
@@ -263,7 +263,7 @@ mod test {
             nonce: 0,
             actions: vec![
                 SequenceAction {
-                    chain_id: ChainId::with_unhashed_bytes(b"testchainid"),
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: b"helloworld".to_vec(),
                 }
                 .into(),

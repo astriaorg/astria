@@ -59,7 +59,6 @@ use tracing::{
     info_span,
     instrument,
     warn,
-    warn_span,
     Instrument,
     Span,
 };
@@ -213,18 +212,14 @@ async fn get_latest_nonce(
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
-                let err = err.clone();
-                let span = warn_span!(parent: span.clone(), "report attempt failure");
-                async move {
-                    let error = &err as &(dyn std::error::Error + 'static);
-                    warn!(
-                        attempt,
-                        wait_duration,
-                        error,
-                        "failed getting latest nonce from sequencer; retrying after backoff",
-                    );
-                }
-                .instrument(span)
+                warn!(
+                    parent: span.clone(),
+                    error = err as &dyn std::error::Error,
+                    attempt,
+                    wait_duration,
+                    "failed getting latest nonce from sequencer; retrying after backoff",
+                );
+                async move {}
             },
         );
     tryhard::retry_fn(|| {
@@ -262,18 +257,14 @@ async fn submit_tx(
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
-                let err = err.clone();
-                let span = warn_span!(parent: span.clone(), "report attempt failure");
-                async move {
-                    let error = &err as &(dyn std::error::Error + 'static);
-                    warn!(
-                        attempt,
-                        wait_duration,
-                        error,
-                        "failed sending transaction to sequencer; retrying after backoff",
-                    );
-                }
-                .instrument(span)
+                warn!(
+                    parent: span.clone(),
+                    attempt,
+                    wait_duration,
+                    error = err as &dyn std::error::Error,
+                    "failed sending transaction to sequencer; retrying after backoff",
+                );
+                async move {}
             },
         );
     tryhard::retry_fn(|| {
