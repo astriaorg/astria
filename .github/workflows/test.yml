@@ -12,7 +12,38 @@ on:
 jobs:
   run_checker:
     uses: ./.github/workflows/reusable-run-checker.yml
-              
+
+  protos-compiled:
+    runs-on: ubuntu-2204
+    needs: run_checker
+    if: needs.run_checker.outputs.run_tests == 'true'
+    steps:
+      - name: Install `buf` protobuf manager
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.17.0"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install `protoc` protobuf compiler
+        uses: arduino/setup-protoc@v2
+        with:
+          version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.73.0
+      - name: Install `just` command runner
+        uses:  taiki-e/install-action@just
+      - name: Check if protobuf specs compile to commited Rust sources
+        run: |
+          just compile-protos
+          modified=$(git status --porcelain)
+          if [[ -n "$modified" ]]; then
+            echo "ERROR: protobuf specs are out of sync with the commited Rust sources"
+            echo "Recompile with `just compile-protos` and commit to the repository."            exit 1
+            echo "Files that reported differences:"
+            echo "$modified"
+            exit 1
+          fi
+
   compiles:
     runs-on: buildjet-4vcpu-ubuntu-2204
     needs: run_checker
@@ -64,11 +95,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
-      - name: Install buf cli
-        uses: bufbuild/buf-setup-action@v1
-        with:
-          version: "1.17.0"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
@@ -119,10 +145,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
-      - uses: bufbuild/buf-setup-action@v1
-        with:
-          version: "1.17.0"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
