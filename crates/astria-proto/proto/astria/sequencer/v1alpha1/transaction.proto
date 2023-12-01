@@ -54,8 +54,14 @@ message TransferAction {
 // It contains the rollup ID of the destination chain, and the
 // opaque transaction data.
 message SequenceAction {
+    // The rollup ID identifying the rollup these transactions belong to.
+    // Always 32 byyes.
     bytes rollup_id = 1;
-    bytes data = 2;
+    bytes data = 2 [deprecated = true];
+    // A list of one or more transactions. The transactions are opaque bytes in the
+    // standard serialization format understood by the rollup. For example, RLP
+    // for ethereum based rollups.
+    repeated bytes transactions = 3;
 }
 
 /// `SudoAddressChangeAction` represents a transaction that changes
