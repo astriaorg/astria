@@ -91,8 +91,11 @@ impl Sequencer {
             .finish()
             .ok_or_else(|| anyhow!("server builder didn't return server; are all fields set?"))?;
 
-        // TODO: config option for grpc bind address
-        start_grpc_server(&storage, None)?;
+        let grpc_addr = config
+            .grpc_addr
+            .parse()
+            .context("failed to parse grpc_addr address")?;
+        start_grpc_server(&storage, grpc_addr)?;
 
         info!(config.listen_addr, "starting sequencer");
         server
@@ -105,7 +108,7 @@ impl Sequencer {
 
 fn start_grpc_server(
     storage: &penumbra_storage::Storage,
-    grpc_bind: Option<std::net::SocketAddr>,
+    grpc_addr: std::net::SocketAddr,
 ) -> Result<()> {
     use ibc_proto::ibc::core::{
         channel::v1::query_server::QueryServer as ChannelQueryServer,
@@ -116,13 +119,10 @@ fn start_grpc_server(
     use tonic::transport::Server;
     use tower_http::cors::CorsLayer;
 
-    // gRPC server
     let ibc = penumbra_ibc::component::rpc::IbcQuery::new(storage.clone());
-    // Set rather permissive CORS headers for pd's gRPC: the service
-    // should be accessible from arbitrary web contexts, such as localhost,
-    // or any FQDN that wants to reference its data.
     let cors_layer = CorsLayer::permissive();
 
+    // TODO: setup HTTPS?
     let grpc_server = Server::builder()
         .trace_fn(|req| {
             if let Some(remote_addr) = remote_addr(req) {
@@ -131,25 +131,21 @@ fn start_grpc_server(
                 tracing::error_span!("grpc")
             }
         })
-        // Allow HTTP/1, which will be used by grpc-web connections.
+        // (from Penumbra) Allow HTTP/1, which will be used by grpc-web connections.
         // This is particularly important when running locally, as gRPC
         // typically uses HTTP/2, which requires HTTPS. Accepting HTTP/2
         // allows local applications such as web browsers to talk to pd.
         .accept_http1(true)
-        // Add permissive CORS headers, so pd's gRPC services are accessible
+        // (from Penumbra) Add permissive CORS headers, so pd's gRPC services are accessible
         // from arbitrary web contexts, including from localhost.
         .layer(cors_layer)
         .add_service(ClientQueryServer::new(ibc.clone()))
         .add_service(ChannelQueryServer::new(ibc.clone()))
         .add_service(ConnectionQueryServer::new(ibc.clone()));
-    let grpc_bind = grpc_bind.unwrap_or(
-        "127.0.0.1:8080"
-            .parse()
-            .context("failed to parse grpc_bind address")?,
-    );
+
     tokio::task::Builder::new()
         .name("grpc_server")
-        .spawn(grpc_server.serve(grpc_bind))
-        .expect("failed to spawn grpc server");
+        .spawn(grpc_server.serve(grpc_addr))
+        .context("failed to spawn grpc server")?;
     Ok(())
 }
