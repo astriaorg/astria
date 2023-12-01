@@ -22,7 +22,7 @@ use crate::{
 };
 
 // TODO: use penumbra's `IBC_SUBSTORE_PREFIX` after they merge #3419
-const SUBSTORE_PREFIXES: [&str; 1] = ["ibc-data"];
+// const SUBSTORE_PREFIXES: [&str; 1] = ["ibc-data"];
 
 pub struct Sequencer;
 
@@ -45,9 +45,11 @@ impl Sequencer {
             );
         }
 
+        let substore_prefixes = vec![penumbra_ibc::IBC_SUBSTORE_PREFIX];
+
         let storage = penumbra_storage::Storage::load(
             config.db_filepath.clone(),
-            SUBSTORE_PREFIXES
+            substore_prefixes
                 .into_iter()
                 .map(std::string::ToString::to_string)
                 .collect(),
