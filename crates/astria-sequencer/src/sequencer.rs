@@ -21,9 +21,6 @@ use crate::{
     state_ext::StateReadExt as _,
 };
 
-// TODO: use penumbra's `IBC_SUBSTORE_PREFIX` after they merge #3419
-// const SUBSTORE_PREFIXES: [&str; 1] = ["ibc-data"];
-
 pub struct Sequencer;
 
 impl Sequencer {
