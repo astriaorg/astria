@@ -4,6 +4,7 @@ package astria.sequencer.v1alpha1;
 
 import "astria/primitive/v1/types.proto";
 import "tendermint/abci/types.proto";
+import "penumbra/core/component/ibc/v1alpha1/ibc.proto";
 
 // `SignedTransaction` is a transaction that has
 // been signed by the given public key.
@@ -32,6 +33,7 @@ message Action {
         tendermint.abci.ValidatorUpdate validator_update_action = 3;
         SudoAddressChangeAction sudo_address_change_action = 4;
         MintAction mint_action = 5;
+        penumbra.core.component.ibc.v1alpha1.IbcRelay ibc_action = 6;
     }   
 }
 
@@ -49,10 +51,10 @@ message TransferAction {
 // `SequenceAction` represents a transaction destined for another
 // chain, ordered by the sequencer.
 //
-// It contains the chain ID of the destination chain, and the
+// It contains the rollup ID of the destination chain, and the
 // opaque transaction data.
 message SequenceAction {
-    bytes chain_id = 1;
+    bytes rollup_id = 1;
     bytes data = 2;
 }
 

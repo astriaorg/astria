@@ -3,6 +3,8 @@ use std::{
     fmt::Display,
 };
 
+use penumbra_ibc::IbcRelay;
+
 use super::{
     MintAction,
     MintActionError,
@@ -22,6 +24,7 @@ pub enum Action {
     ValidatorUpdate(tendermint::validator::Update),
     SudoAddressChange(SudoAddressChangeAction),
     Mint(MintAction),
+    Ibc(IbcRelay),
 }
 
 impl Action {
@@ -34,6 +37,7 @@ impl Action {
             Action::ValidatorUpdate(act) => Value::ValidatorUpdateAction(act.into()),
             Action::SudoAddressChange(act) => Value::SudoAddressChangeAction(act.into_raw()),
             Action::Mint(act) => Value::MintAction(act.into_raw()),
+            Action::Ibc(act) => Value::IbcAction(act.into()),
         };
         raw::Action {
             value: Some(kind),
@@ -51,6 +55,7 @@ impl Action {
                 Value::SudoAddressChangeAction(act.clone().into_raw())
             }
             Action::Mint(act) => Value::MintAction(act.to_raw()),
+            Action::Ibc(act) => Value::IbcAction(act.clone().into()),
         };
         raw::Action {
             value: Some(kind),
@@ -87,6 +92,9 @@ impl Action {
             ),
             Value::MintAction(act) => {
                 Self::Mint(MintAction::try_from_raw(act).map_err(ActionError::mint)?)
+            }
+            Value::IbcAction(act) => {
+                Self::Ibc(IbcRelay::try_from(act).map_err(|e| ActionError::ibc(e.into()))?)
             }
         };
         Ok(action)
@@ -133,6 +141,12 @@ impl From<MintAction> for Action {
     }
 }
 
+impl From<IbcRelay> for Action {
+    fn from(value: IbcRelay) -> Self {
+        Self::Ibc(value)
+    }
+}
+
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug)]
 pub struct ActionError {
@@ -175,6 +189,12 @@ impl ActionError {
             kind: ActionErrorKind::Mint(inner),
         }
     }
+
+    fn ibc(inner: Box<dyn Error + Send + Sync>) -> Self {
+        Self {
+            kind: ActionErrorKind::Ibc(inner),
+        }
+    }
 }
 
 impl Display for ActionError {
@@ -186,6 +206,7 @@ impl Display for ActionError {
             ActionErrorKind::ValidatorUpdate(_) => "raw validator update action was not valid",
             ActionErrorKind::SudoAddressChange(_) => "raw sudo address change action was not valid",
             ActionErrorKind::Mint(_) => "raw mint action was not valid",
+            ActionErrorKind::Ibc(_) => "raw ibc action was not valid",
         };
         f.pad(msg)
     }
@@ -200,6 +221,7 @@ impl Error for ActionError {
             ActionErrorKind::ValidatorUpdate(e) => Some(e),
             ActionErrorKind::SudoAddressChange(e) => Some(e),
             ActionErrorKind::Mint(e) => Some(e),
+            ActionErrorKind::Ibc(e) => Some(e.as_ref()),
         }
     }
 }
@@ -212,4 +234,5 @@ enum ActionErrorKind {
     ValidatorUpdate(tendermint::error::Error),
     SudoAddressChange(SudoAddressChangeActionError),
     Mint(MintActionError),
+    Ibc(Box<dyn Error + Send + Sync>),
 }

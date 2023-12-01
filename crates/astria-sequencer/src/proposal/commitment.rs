@@ -1,13 +1,10 @@
-use std::collections::BTreeMap;
-
 use bytes::Bytes;
 use proto::native::sequencer::v1alpha1::SignedTransaction;
-use sequencer_types::ChainId;
 
 /// Wrapper for values returned by [`generate_sequence_actions_commitment`].
 pub(crate) struct GeneratedCommitments {
-    pub(crate) sequence_actions_commitment: [u8; 32],
-    pub(crate) chain_ids_commitment: [u8; 32],
+    pub(crate) sequence_actions_root: [u8; 32],
+    pub(crate) rollup_ids_root: [u8; 32],
 }
 
 impl GeneratedCommitments {
@@ -16,8 +13,8 @@ impl GeneratedCommitments {
     #[must_use]
     pub(crate) fn into_transactions(self, mut tx_data: Vec<Bytes>) -> Vec<Bytes> {
         let mut txs = Vec::with_capacity(tx_data.len() + 2);
-        txs.push(self.sequence_actions_commitment.to_vec().into());
-        txs.push(self.chain_ids_commitment.to_vec().into());
+        txs.push(self.sequence_actions_root.to_vec().into());
+        txs.push(self.rollup_ids_root.to_vec().into());
         txs.append(&mut tx_data);
         txs
     }
@@ -32,52 +29,30 @@ impl GeneratedCommitments {
 /// `commitment_tx` expected at the start of the block.
 ///
 /// This function sorts the block's `sequence::Action`s contained within the transactions
-/// using their `chain_id`. It then returns the merkle root of the tree where each leaf is
-/// a commitment of `sequence::Action`s with the same `chain_id`. The leaves are ordered
-/// by `chain_id` in ascending order.
+/// using their `rollup_id`. It then returns the merkle root of the tree where each leaf is
+/// a commitment of `sequence::Action`s with the same `rollup_id`. The leaves are ordered
+/// by `rollup_id` in ascending order.
 /// This structure can be referred to as the "action tree".
 ///
-/// The leaf, which contains a commitment to every action with the same `chain_id`, is currently
-/// implemented as ( `chain_id` || root of merkle tree of the `sequence::Action`s ).
+/// The leaf, which contains a commitment to every action with the same `rollup_id`, is currently
+/// implemented as ( `rollup_id` || root of merkle tree of the `sequence::Action`s ).
 /// This is somewhat arbitrary, but could be useful for proof of an action within the action tree.
 pub(crate) fn generate_sequence_actions_commitment(
     signed_txs: &[SignedTransaction],
 ) -> GeneratedCommitments {
-    let chain_id_to_txs = group_sequence_actions_by_chain_id(signed_txs);
-    let chain_ids_commitment = merkle::Tree::from_leaves(chain_id_to_txs.keys()).root();
+    let rollup_ids_to_txs = proto::native::sequencer::v1alpha1::group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(signed_txs);
+    let rollup_ids_root = merkle::Tree::from_leaves(rollup_ids_to_txs.keys()).root();
 
     // each leaf of the action tree is the root of a merkle tree of the `sequence::Action`s
-    // with the same `chain_id`, prepended with `chain_id`.
-    // the leaves are sorted in ascending order by `chain_id`.
-    let sequence_actions_commitment =
-        sequencer_types::sequencer_block_data::generate_merkle_tree_from_grouped_txs(
-            &chain_id_to_txs,
-        )
-        .root();
+    // with the same `rollup_id`, prepended with `rollup_id`.
+    // the leaves are sorted in ascending order by `rollup_id`.
+    let sequence_actions_root =
+        proto::native::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(&rollup_ids_to_txs)
+            .root();
     GeneratedCommitments {
-        sequence_actions_commitment,
-        chain_ids_commitment,
+        sequence_actions_root,
+        rollup_ids_root,
     }
-}
-
-/// Groups the `sequence::Action`s within the transactions by their `chain_id`.
-/// Other types of actions are ignored.
-///
-/// Within an entry, actions are ordered by their transaction index within a block.
-fn group_sequence_actions_by_chain_id(
-    txs: &[SignedTransaction],
-) -> BTreeMap<ChainId, Vec<Vec<u8>>> {
-    let mut rollup_txs_map = BTreeMap::new();
-
-    for action in txs.iter().flat_map(SignedTransaction::actions) {
-        if let Some(action) = action.as_sequence() {
-            let txs_for_rollup: &mut Vec<Vec<u8>> =
-                rollup_txs_map.entry(action.chain_id).or_insert(vec![]);
-            txs_for_rollup.push(action.data.clone());
-        }
-    }
-
-    rollup_txs_map
 }
 
 #[cfg(test)]
@@ -89,7 +64,7 @@ mod test {
             DEFAULT_NATIVE_ASSET_DENOM,
         },
         Address,
-        ChainId,
+        RollupId,
         SequenceAction,
         TransferAction,
         UnsignedTransaction,
@@ -107,7 +82,7 @@ mod test {
         let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
 
         let sequence_action = SequenceAction {
-            chain_id: ChainId::with_unhashed_bytes(b"testchainid"),
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
         };
         let transfer_action = TransferAction {
@@ -126,7 +101,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let txs = vec![signed_tx];
         let GeneratedCommitments {
-            sequence_actions_commitment: commitment_0,
+            sequence_actions_root: commitment_0,
             ..
         } = generate_sequence_actions_commitment(&txs);
 
@@ -140,7 +115,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let txs = vec![signed_tx];
         let GeneratedCommitments {
-            sequence_actions_commitment: commitment_1,
+            sequence_actions_root: commitment_1,
             ..
         } = generate_sequence_actions_commitment(&txs);
         assert_eq!(commitment_0, commitment_1);
@@ -156,7 +131,7 @@ mod test {
         let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
 
         let sequence_action = SequenceAction {
-            chain_id: ChainId::with_unhashed_bytes(b"testchainid"),
+            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
         };
         let transfer_action = TransferAction {
@@ -175,7 +150,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let txs = vec![signed_tx];
         let GeneratedCommitments {
-            sequence_actions_commitment: actual,
+            sequence_actions_root: actual,
             ..
         } = generate_sequence_actions_commitment(&txs);
 

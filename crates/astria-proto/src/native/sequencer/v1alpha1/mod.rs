@@ -1,8 +1,11 @@
 pub mod action;
 pub mod asset;
-pub mod chain_id;
+pub mod celestia;
+pub mod merkle_proof;
 pub mod mint_action;
+pub mod rollup_id;
 pub mod sequence_action;
+pub mod sequencer_block;
 pub mod sudo_address_change_action;
 pub mod transaction;
 pub mod transfer_action;
@@ -21,18 +24,35 @@ pub use asset::{
     Id,
     IncorrectAssetIdLength,
 };
-pub use chain_id::{
-    ChainId,
-    IncorrectChainIdLength,
-    CHAIN_ID_LEN,
+pub use celestia::{
+    CelestiaRollupBlob,
+    CelestiaRollupBlobError,
+    CelestiaSequencerBlob,
+    CelestiaSequencerBlobError,
+    UncheckedCelestiaRollupBlob,
+    UncheckedCelestiaSequencerBlob,
 };
+use indexmap::IndexMap;
 pub use mint_action::{
     MintAction,
     MintActionError,
 };
+pub use rollup_id::{
+    IncorrectRollupIdLength,
+    RollupId,
+    ROLLUP_ID_LEN,
+};
 pub use sequence_action::{
     SequenceAction,
     SequenceActionError,
+};
+pub use sequencer_block::{
+    SequencerBlock,
+    SequencerBlockError,
+};
+use sha2::{
+    Digest as _,
+    Sha256,
 };
 pub use sudo_address_change_action::{
     SudoAddressChangeAction,
@@ -253,6 +273,54 @@ impl Display for IncorrectAddressLength {
 }
 
 impl Error for IncorrectAddressLength {}
+
+// TODO: This can all be done in-place once https://github.com/rust-lang/rust/issues/80552 is stabilized.
+pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
+    signed_transactions: &[SignedTransaction],
+) -> IndexMap<RollupId, Vec<Vec<u8>>> {
+    let mut map = IndexMap::new();
+    for action in signed_transactions
+        .iter()
+        .flat_map(SignedTransaction::actions)
+    {
+        if let Some(action) = action.as_sequence() {
+            let txs_for_rollup: &mut Vec<Vec<u8>> = map.entry(action.rollup_id).or_insert(vec![]);
+            txs_for_rollup.push(action.data.clone());
+        }
+    }
+    map.sort_unstable_keys();
+    map
+}
+
+/// Derive a [`merkle::Tree`] from an iterable.
+///
+/// It is the responsbility if the caller to ensure that the iterable is
+/// deterministic. Prefer types like `Vec`, `BTreeMap` or `IndexMap` over
+/// `HashMap`.
+pub fn derive_merkle_tree_from_rollup_txs<'a, T: 'a>(rollup_ids_to_txs: T) -> merkle::Tree
+where
+    T: IntoIterator<Item = (&'a RollupId, &'a Vec<Vec<u8>>)>,
+{
+    let mut tree = merkle::Tree::new();
+    for (rollup_id, txs) in rollup_ids_to_txs {
+        let root = merkle::Tree::from_leaves(txs).root();
+        tree.build_leaf().write(rollup_id.as_ref()).write(&root);
+    }
+    tree
+}
+
+pub(crate) fn are_rollup_ids_included<'a, TRollupIds: 'a>(
+    ids: TRollupIds,
+    proof: &merkle::Proof,
+    data_hash: [u8; 32],
+) -> bool
+where
+    TRollupIds: IntoIterator<Item = RollupId>,
+{
+    let tree = merkle::Tree::from_leaves(ids);
+    let hash_of_root = Sha256::digest(tree.root());
+    proof.verify(&hash_of_root, data_hash)
+}
 
 #[cfg(test)]
 mod tests {

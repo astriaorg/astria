@@ -76,7 +76,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: "nightly-89f74f26926b552e0fbfca0858f0a129dec79881"
+          version: "nightly-60ec00296f00754bc21ed68fd05ab6b54b50e024"
       - name: Build tests
         run: |
           cargo test --no-run --release --workspace \
@@ -88,6 +88,7 @@ jobs:
           cargo test --release --workspace \
           --all-features \
           --all-targets \
+          -- --include-ignored
 
   doctest:
     runs-on: buildjet-8vcpu-ubuntu-2204

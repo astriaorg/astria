@@ -25,8 +25,8 @@ use sequencer_client::{
     extension_trait::NewBlocksStream,
     tendermint::block::Height,
     NewBlockStreamError,
+    SequencerBlock,
 };
-use sequencer_types::SequencerBlockData;
 use tokio::{
     select,
     sync::oneshot,
@@ -60,7 +60,7 @@ pub(crate) struct Reader {
     shutdown: oneshot::Receiver<()>,
 
     /// The start height from which to start syncing sequencer blocks.
-    start_sync_height: u32,
+    start_sync_height: Height,
 
     /// The sync-done channel to notify `Conductor` that `Reader` has finished syncing.
     sync_done: oneshot::Sender<()>,
@@ -68,7 +68,7 @@ pub(crate) struct Reader {
 
 impl Reader {
     pub(crate) fn new(
-        start_sync_height: u32,
+        start_sync_height: Height,
         pool: Pool<ClientProvider>,
         shutdown: oneshot::Receiver<()>,
         executor_tx: executor::Sender,
@@ -126,7 +126,7 @@ impl Reader {
         );
 
         let mut sync = sync::run(
-            start_sync_height.into(),
+            start_sync_height,
             next_height,
             pool.clone(),
             executor_tx.clone(),
@@ -316,18 +316,19 @@ async fn subscribe_new_blocks(
 /// # Errors
 /// Returns an error if a block could not be sent to the executor. This is fatal
 /// and can only happen if the executor is shut down.
-#[instrument(
-    skip_all,
-    fields(
-        height.expected = %expected_height,
-        height.block = %block.header().height,
-        block.hash = %block.block_hash()
-    )
-)]
+// TODO: bring back instrument
+// #[instrument(
+//     skip_all,
+//     fields(
+//         height.expected = %expected_height,
+//         height.block = %block.header().height,
+//         block.hash = %block.block_hash()
+//     )
+// )]
 fn forward_block_or_resync(
-    block: SequencerBlockData,
+    block: SequencerBlock,
     expected_height: Height,
-    pending_blocks: &mut FuturesOrdered<Ready<SequencerBlockData>>,
+    pending_blocks: &mut FuturesOrdered<Ready<SequencerBlock>>,
     sync: &mut future::Fuse<Pin<Box<dyn Future<Output = eyre::Result<()>> + Send>>>,
     pool: Pool<ClientProvider>,
     executor_tx: executor::Sender,
@@ -362,9 +363,9 @@ fn forward_block_or_resync(
 
 fn schedule_for_forwarding_or_resubscribe(
     resubscribe: &mut ResubFut,
-    pending_blocks: &mut FuturesOrdered<Ready<SequencerBlockData>>,
+    pending_blocks: &mut FuturesOrdered<Ready<SequencerBlock>>,
     pool: Pool<ClientProvider>,
-    res: Option<Result<SequencerBlockData, NewBlockStreamError>>,
+    res: Option<Result<SequencerBlock, NewBlockStreamError>>,
 ) {
     use futures::future::FutureExt as _;
     if let Some(res) = res {
@@ -401,19 +402,19 @@ mod tests {
         },
         stream::FuturesOrdered,
     };
-    use sequencer_types::{
-        sequencer_block_data::SequencerBlockData,
-        test_utils::create_tendermint_block,
-    };
+    use sequencer_types::test_utils::create_tendermint_block;
 
-    use super::forward_block_or_resync;
+    use super::{
+        forward_block_or_resync,
+        SequencerBlock,
+    };
     use crate::{
         client_provider::mock::TestPool,
         executor::ExecutorCommand,
     };
 
     struct ForwardBlockOrResyncEnvironment {
-        pending_blocks: FuturesOrdered<Ready<SequencerBlockData>>,
+        pending_blocks: FuturesOrdered<Ready<SequencerBlock>>,
         sync: future::Fuse<Pin<Box<dyn Future<Output = eyre::Result<()>> + Send>>>,
         test_pool: TestPool,
         executor_rx: crate::executor::Receiver,
@@ -441,7 +442,7 @@ mod tests {
         let expected_height = 5u32.into();
         let mut tendermint_block = create_tendermint_block();
         tendermint_block.header.height = expected_height;
-        let expected_block = SequencerBlockData::from_tendermint_block(tendermint_block)
+        let expected_block = SequencerBlock::try_from_cometbft(tendermint_block)
             .expect("the tendermint block should be well formed");
 
         let mut env = ForwardBlockOrResyncEnvironment::setup().await;
@@ -482,7 +483,7 @@ mod tests {
         let future_height = 8u32.into();
         let mut tendermint_block = create_tendermint_block();
         tendermint_block.header.height = future_height;
-        let expected_block = SequencerBlockData::from_tendermint_block(tendermint_block)
+        let expected_block = SequencerBlock::try_from_cometbft(tendermint_block)
             .expect("the tendermint block should be well formed");
 
         let mut env = ForwardBlockOrResyncEnvironment::setup().await;
@@ -511,7 +512,7 @@ mod tests {
         let expected_height = 5u32.into();
         let mut tendermint_block = create_tendermint_block();
         tendermint_block.header.height = 3u32.into();
-        let expected_block = SequencerBlockData::from_tendermint_block(tendermint_block)
+        let expected_block = SequencerBlock::try_from_cometbft(tendermint_block)
             .expect("the tendermint block should be well formed");
 
         let mut env = ForwardBlockOrResyncEnvironment::setup().await;
