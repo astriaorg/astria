@@ -301,7 +301,6 @@ pub struct Ics20Withdrawal {
     pub destination_chain_address: ::prost::alloc::string::String,
     #[prost(bytes = "vec", tag = "4")]
     pub return_address: ::prost::alloc::vec::Vec<u8>,
-    /// todo: use ibc-proto
     #[prost(message, optional, tag = "5")]
     pub timeout_height: ::core::option::Option<IbcHeight>,
     #[prost(uint64, tag = "6")]
