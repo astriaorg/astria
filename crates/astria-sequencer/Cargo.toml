@@ -25,7 +25,8 @@ ed25519-consensus = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 penumbra-component = { workspace = true }
-penumbra-ibc = { workspace = true, features = ["component"] }
+# TODO: do we want to feature gate "rpc" as well?
+penumbra-ibc = { workspace = true, features = ["component", "rpc"] }
 penumbra-proto = { workspace = true }
 penumbra-storage = { workspace = true }
 penumbra-tower-trace = { workspace = true }
@@ -38,6 +39,10 @@ tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
 tracing = { workspace = true }
+
+ibc-proto = { version = "0.37.0", default-features = false }
+tonic = "0.10"
+tower-http = { version = "0.4", features = [ "cors" ] }
 
 [dev-dependencies]
 config = { package = "astria-config", path = "../astria-config", features = [
