@@ -6,17 +6,10 @@ use std::{
 
 use ibc_types::{
     core::{
-        channel::{
-            ChannelId,
-            PortId,
-        },
+        channel::ChannelId,
         client::Height as IbcHeight,
     },
     IdentifierError,
-};
-use penumbra_ibc::component::packet::{
-    IBCPacket,
-    Unchecked,
 };
 use penumbra_proto::penumbra::core::component::ibc::v1alpha1::FungibleTokenPacketData;
 
@@ -61,18 +54,6 @@ impl From<Ics20Withdrawal> for FungibleTokenPacketData {
             sender: withdrawal.return_address.to_string(),
             receiver: withdrawal.destination_chain_address,
         }
-    }
-}
-
-impl From<Ics20Withdrawal> for IBCPacket<Unchecked> {
-    fn from(withdrawal: Ics20Withdrawal) -> Self {
-        Self::new(
-            PortId::transfer(),
-            withdrawal.source_channel.clone(),
-            withdrawal.timeout_height,
-            withdrawal.timeout_time,
-            withdrawal.packet_data(),
-        )
     }
 }
 

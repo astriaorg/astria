@@ -29,6 +29,16 @@ use crate::{
     transaction::action_handler::ActionHandler,
 };
 
+fn withdrawal_to_unchecked_ibc_packet(withdrawal: &Ics20Withdrawal) -> IBCPacket<Unchecked> {
+    IBCPacket::new(
+        PortId::transfer(),
+        withdrawal.source_channel.clone(),
+        withdrawal.timeout_height,
+        withdrawal.timeout_time,
+        withdrawal.packet_data(),
+    )
+}
+
 #[async_trait::async_trait]
 impl ActionHandler for Ics20Withdrawal {
     #[instrument(skip(self))]
@@ -50,7 +60,7 @@ impl ActionHandler for Ics20Withdrawal {
         from: Address,
         _fee_asset_id: asset::Id,
     ) -> Result<()> {
-        let packet: IBCPacket<Unchecked> = self.clone().into();
+        let packet: IBCPacket<Unchecked> = withdrawal_to_unchecked_ibc_packet(self);
         state
             .send_packet_check(packet)
             .await
@@ -75,7 +85,7 @@ impl ActionHandler for Ics20Withdrawal {
         from: Address,
         _fee_asset_id: asset::Id,
     ) -> Result<()> {
-        let checked_packet = IBCPacket::<Unchecked>::from(self.clone()).assume_checked();
+        let checked_packet = withdrawal_to_unchecked_ibc_packet(self).assume_checked();
 
         let from_transfer_balance = state
             .get_account_balance(from, self.denom.id())
