@@ -1,33 +1,25 @@
 # Astria Proto
 
+This crate contains code to interact with the public API of Astria. In particularly
+it contains definitions to convert Rust sources generated from the Astria protobuf
+spececifications to idiomatic Rust types.
+
+The Rust sources generated from protobuf specifications at [`../proto/`](../proto) are
+commited to this crate under [`./src/proto/generated/`](./src/proto/generated/).
+
 This repo contains all the protobuf packages for Astria. All rust code generated
 from the protobuf files in [`proto/`](`./proto/`) is committed to this repository
 and no extra tools are needed to encode to/decode from protobuf.
 
-Only when changing protobuf definitions and regenerating the Rust code from
-these (which is done by running an integration test) is extra tooling required.
-See below.
-
 ## Modifying existing and adding new protobuf
 
 CI verifies that the generated Rust code is in sync with the source protobuf
-definitions in CI. The test invoked by `cargo test -p astria-proto build` calls
-the `buf` CLI tool and verifies that the Rust code before and after the change
-is the same. If not, the test fails and leaves the repository in a dirty state.
-Commit the generated Rust code and then rerun the test:
+definitions in CI.
 
+Add new or modify existing protobuf types in [`../proto`] and then regenerate
+the Rust sources with Astria's protobuf compiler tool from the root of the monorepo:
 ```sh
-$ cargo test -p astria-proto build
-test build ... FAILED
-
-failures:
-
----- build stdout ----
-thread 'build' panicked at 'the generated files have changed; please commit the
-changes', crates/astria-proto/tests/proto_build.rs:126:5
-$ git commit -am "<message about protobuf changes>"
-$ cargo test -p astria-proto build
-test build ... ok
+$ cargo run --manifest-path tools/protobuf-compiler
 ```
 
 ## Protos and Buf Build

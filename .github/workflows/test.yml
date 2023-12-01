@@ -38,7 +38,7 @@ jobs:
           modified=$(git status --porcelain)
           if [[ -n "$modified" ]]; then
             echo "ERROR: protobuf specs are out of sync with the commited Rust sources"
-            echo "Recompile with `just compile-protos` and commit to the repository."            exit 1
+            echo "Recompile locally with `just compile-protos` and commit to the repository."            exit 1
             echo "Files that reported differences:"
             echo "$modified"
             exit 1
