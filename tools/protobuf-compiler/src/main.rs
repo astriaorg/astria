@@ -27,12 +27,15 @@ fn main() {
     let buf_img = tempfile::NamedTempFile::new()
         .expect("should be able to create a temp file to hold the buf image file descriptor set");
 
+    let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let src_dir = crate_dir.join(SRC_DIR);
+    let out_dir = crate_dir.join(OUT_DIR);
+
     cmd.arg("build")
         .arg("--output")
         .arg(buf_img.path())
         .arg("--as-file-descriptor-set")
-        .arg(SRC_DIR)
-        .current_dir(env!("CARGO_MANIFEST_DIR"));
+        .arg(&src_dir);
 
     let buf_output = match cmd.output() {
         Err(e) => {
@@ -60,7 +63,7 @@ fn main() {
         );
     }
 
-    let files = find_protos(SRC_DIR);
+    let files = find_protos(&src_dir);
 
     tonic_build::configure()
         .build_client(true)
@@ -73,13 +76,13 @@ fn main() {
         .extern_path(".tendermint.types", "::tendermint-proto::types")
         .extern_path(".penumbra", "::penumbra-proto")
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
-        .out_dir(OUT_DIR)
+        .out_dir(&out_dir)
         .file_descriptor_set_path(buf_img.path())
         .skip_protoc_run()
         .compile(&files, INCLUDES)
         .expect("should be able to compile protobuf using tonic");
 
-    let mut after_build = build_content_map(OUT_DIR);
+    let mut after_build = build_content_map(&out_dir);
     clean_non_astria_code(&mut after_build);
 }
 
