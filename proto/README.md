@@ -4,7 +4,6 @@ This directory holds the Protobuf specifications that are used
 by all Astria services. See the [`astria-proto`](../crates/astria-proto) crate
 for how to use them.
 
-
 ## Protos and Buf Build
 
 [Buf Build](https://buf.build/) is a platform and registry for sharing Protocol
@@ -22,7 +21,8 @@ Add new or modify existing protobuf types in [`../proto`] and then regenerate
 the Rust sources with Astria's protobuf compiler tool from the root of the monorepo:
 
 ```sh
-$ cargo run --manifest-path tools/protobuf-compiler
+$ cargo run --manifest-path tools/protobuf-compiler/Cargo.toml
+# Will emit warnings or errors raised by buf
 ```
 
 When creating a new package, follow the following convention:

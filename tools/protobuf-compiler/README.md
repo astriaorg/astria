@@ -6,4 +6,5 @@ This small binary invokes the `buf` protobuf management cli and
 [`../crates/astria-proto/src/proto/generated`](../crates/astria-proto/src/proto/generated).
 
 See [`proto/README.md`](../proto/README.md) and
-[`astria-proto/README.md`](../crates/astria-proto/README.md) for how to use this tool.
+[`astria-proto/README.md`](../crates/astria-proto/README.md) for how to use this
+tool.

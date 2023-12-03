@@ -4,8 +4,9 @@ This crate contains code to interact with the public API of Astria. In particula
 it contains definitions to convert Rust sources generated from the Astria protobuf
 spececifications to idiomatic Rust types.
 
-The Rust sources generated from protobuf specifications at [`../proto/`](../proto) are
-commited to this crate under [`./src/proto/generated/`](./src/proto/generated/).
+The Rust sources generated from protobuf specifications at
+[`../proto/`](../proto) are commited to this crate under
+[`./src/proto/generated/`](./src/proto/generated/).
 
 This repo contains all the protobuf packages for Astria. All rust code generated
 from the protobuf files in [`proto/`](`./proto/`) is committed to this repository
@@ -18,8 +19,10 @@ definitions in CI.
 
 Add new or modify existing protobuf types in [`../proto`] and then regenerate
 the Rust sources with Astria's protobuf compiler tool from the root of the monorepo:
+
 ```sh
 $ cargo run --manifest-path tools/protobuf-compiler
+# Will emit warnings or errors raised by buf
 ```
 
 ## Protos and Buf Build
