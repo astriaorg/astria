@@ -25,6 +25,9 @@ use crate::{
     },
 };
 
+#[cfg(feature = "test-utils")]
+pub mod test_utils;
+
 pub const ADDRESS_LEN: usize = 20;
 pub const ROLLUP_ID_LEN: usize = 32;
 
@@ -2493,7 +2496,8 @@ pub fn merge_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
 /// This hashes each item before pushing it into the Merkle Tree, which
 /// effectively causes a double hashing. The leaf hash of an item `d_i`
 /// is then `MTH(d_i) = SHA256(0x00 || SHA256(d_i))`.
-fn merkle_tree_from_data<I, B>(iter: I) -> merkle::Tree
+#[must_use]
+pub fn merkle_tree_from_data<I, B>(iter: I) -> merkle::Tree
 where
     I: IntoIterator<Item = B>,
     B: AsRef<[u8]>,
