@@ -34,7 +34,6 @@ tracing = { workspace = true }
 tryhard = { workspace = true }
 
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
-sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }
 optimism = { package = "astria-optimism", path = "../astria-optimism" }
 config = { package = "astria-config", path = "../astria-config" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
@@ -60,5 +59,6 @@ config = { package = "astria-config", path = "../astria-config", features = [
 ] }
 proto = { package = "astria-proto", path = "../astria-proto", features = [
   "server",
+  "test-utils",
 ] }
 tokio-stream = { version = "0.1.14", features = ["net"] }

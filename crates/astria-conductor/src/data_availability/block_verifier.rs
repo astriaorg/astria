@@ -281,10 +281,11 @@ mod test {
     };
 
     use proto::native::sequencer::v1alpha1::{
+        merkle_tree_from_data,
+        test_utils::make_cometbft_block,
         RollupId,
         UncheckedCelestiaSequencerBlob,
     };
-    // use sequencer_types::ChainId;
     use tendermint::{
         account,
         block::Commit,
@@ -356,15 +357,13 @@ mod test {
         let rollup_transactions_root = merkle::Tree::from_leaves([[1, 2, 3], [4, 5, 6]]).root();
         let chain_ids_commitment = merkle::Tree::new().root();
 
-        let tree = sequencer_types::cometbft::merkle_tree_from_transactions([
-            rollup_transactions_root,
-            chain_ids_commitment,
-        ]);
+        let tree = merkle_tree_from_data([rollup_transactions_root, chain_ids_commitment]);
         let data_hash = tree.root();
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();
 
-        let mut header = sequencer_types::test_utils::default_header();
+        let mut header = make_cometbft_block().header;
+
         let height = header.height.value().try_into().unwrap();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
@@ -394,15 +393,12 @@ mod test {
         let rollup_transactions_root = rollup_transactions_tree.root();
         let rollup_ids_root = merkle::Tree::from_leaves(std::iter::once(rollup_id)).root();
 
-        let tree = sequencer_types::cometbft::merkle_tree_from_transactions([
-            rollup_transactions_root,
-            rollup_ids_root,
-        ]);
+        let tree = merkle_tree_from_data([rollup_transactions_root, rollup_ids_root]);
         let data_hash = tree.root();
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();
 
-        let mut header = sequencer_types::test_utils::default_header();
+        let mut header = make_cometbft_block().header;
         let height = header.height.value().try_into().unwrap();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
