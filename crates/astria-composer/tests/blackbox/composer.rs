@@ -264,7 +264,7 @@ async fn mount_matcher_verifying_tx_integrity(
 
         let expected_rlp = expected_rlp.rlp().to_vec();
 
-        expected_rlp == sequence_action.data
+        expected_rlp == sequence_action.transactions()[0]
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
@@ -315,7 +315,7 @@ fn chain_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
     };
 
     (
-        sequence_action.rollup_id,
+        sequence_action.rollup_id(),
         signed_tx.unsigned_transaction().nonce,
     )
 }
