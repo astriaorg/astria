@@ -111,12 +111,24 @@ pub(crate) fn calculate_fee(action: &SequenceAction) -> Option<u128> {
 
 #[cfg(test)]
 mod test {
-    use super::calculate_fee;
+    use proto::native::sequencer::v1alpha1::{
+        RollupId,
+        SequenceAction,
+    };
+
+    #[track_caller]
+    fn construct_action_and_assert_fee(transactions: Vec<Vec<u8>>, expected_fee: u128) {
+        let mut action = SequenceAction::new(RollupId::new([42; 32]));
+        action.set_transactions(transactions);
+        let actual_fee = super::calculate_fee(&action).unwrap();
+        assert_eq!(expected_fee, actual_fee);
+    }
 
     #[test]
-    fn calculate_fee_ok() {
-        assert_eq!(calculate_fee(&[]), Some(0));
-        assert_eq!(calculate_fee(&[0]), Some(1));
-        assert_eq!(calculate_fee(&[0u8; 10]), Some(10));
+    fn calculate_fee() {
+        construct_action_and_assert_fee(vec![], 32);
+        construct_action_and_assert_fee(vec![vec![0]], 32 + 1 + 1);
+        construct_action_and_assert_fee(vec![vec![0u8; 10]], 32 + 10 + 1);
+        construct_action_and_assert_fee(vec![vec![0u8; 10]; 10], 32 + 10 * 10 + 10);
     }
 }
