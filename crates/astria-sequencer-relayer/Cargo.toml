@@ -45,7 +45,9 @@ config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
-proto = { package = "astria-proto", path = "../astria-proto", features = ["test-utils"] }
+proto = { package = "astria-proto", path = "../astria-proto", features = [
+  "test-utils",
+] }
 
 jsonrpsee = { workspace = true, features = ["server"] }
 once_cell = { workspace = true }
