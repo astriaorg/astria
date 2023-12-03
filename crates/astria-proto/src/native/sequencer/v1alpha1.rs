@@ -653,6 +653,11 @@ pub struct SequenceAction {
 }
 
 impl SequenceAction {
+    /// Construct a new sequence action with the given [`RollupId`].
+    ///
+    /// The returned action will not contain transaction data. Use
+    /// [`SequenceAction::set_transaction`] to set it.
+    #[must_use]
     pub fn new(rollup_id: RollupId) -> Self {
         Self {
             rollup_id,
@@ -660,22 +665,30 @@ impl SequenceAction {
         }
     }
 
+    /// Sets the sequence action's transactions.
     pub fn set_transactions(&mut self, transactions: Vec<Vec<u8>>) {
         self.transactions = transactions;
     }
 
+    /// Return the sequence action's [`RollupId`].
+    #[must_use]
     pub fn rollup_id(&self) -> RollupId {
         self.rollup_id
     }
 
+    /// Return a reference to the sequence action's transactions.
+    #[must_use]
     pub fn transactions(&self) -> &[Vec<u8>] {
         &self.transactions
     }
 
-    pub fn into_transactiosn(self) -> Vec<Vec<u8>> {
+    /// Return the transactions contained in the action, consuming it.
+    #[must_use]
+    pub fn into_transactions(self) -> Vec<Vec<u8>> {
         self.transactions
     }
 
+    /// Convert the sequence action into its raw unchecked representation, consuming it.
     #[must_use]
     pub fn into_raw(self) -> raw::SequenceAction {
         let Self {
@@ -689,6 +702,9 @@ impl SequenceAction {
         }
     }
 
+    /// Convert the sequence action into its raw unchecked representation.
+    ///
+    /// This method clones/re-allocates the transactions.
     #[must_use]
     pub fn to_raw(&self) -> raw::SequenceAction {
         let Self {
@@ -2599,7 +2615,7 @@ mod tests {
                     bytes_in_transactions: 10,
                 }
             })
-        ))
+        ));
     }
 
     #[test]

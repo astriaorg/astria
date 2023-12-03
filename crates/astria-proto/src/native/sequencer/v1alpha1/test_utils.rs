@@ -12,6 +12,10 @@ use super::{
     UnsignedTransaction,
 };
 
+/// Create a Comet BFT block.
+///
+/// If you don't really care what's in the block, you just need it to be a valid block.
+#[must_use]
 pub fn make_cometbft_block() -> tendermint::Block {
     use rand::rngs::OsRng;
     let height = 1;
@@ -24,6 +28,10 @@ pub fn make_cometbft_block() -> tendermint::Block {
     .make()
 }
 
+/// Allows configuring a Comet BFT block setting the height, signing key and
+/// proposer address.
+///
+/// If the proposer address is not set it will be generated from the signing key.
 pub struct ConfigureCometBftBlock {
     pub height: u32,
     pub proposer_address: Option<tendermint::account::Id>,
@@ -31,6 +39,9 @@ pub struct ConfigureCometBftBlock {
 }
 
 impl ConfigureCometBftBlock {
+    /// Construct a Comet BFT block with the configured parameters.
+    #[must_use]
+    #[allow(clippy::missing_panics_doc)] // This should only be used in tests, so everything here is unwrapped
     pub fn make(self) -> tendermint::Block {
         use sha2::Digest as _;
         use tendermint::{
