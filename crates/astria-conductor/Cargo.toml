@@ -48,9 +48,6 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["server"] }
 
-sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types", features = [
-  "test-utils",
-] }
 optimism = { package = "astria-optimism", path = "../astria-optimism", features = [
   "test-utils",
 ] }
