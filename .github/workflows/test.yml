@@ -18,18 +18,17 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
+      - uses: actions/checkout@v3
       - name: Install `buf` protobuf manager
         uses: bufbuild/buf-setup-action@v1
         with:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install `protoc` protobuf compiler
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "24.4"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@1.73.0
+      - uses: Swatinem/rust-cache@v2.6.1
+        with:
+          cache-provider: "buildjet"
       - name: Install `just` command runner
         uses:  taiki-e/install-action@just
       - name: Check if protobuf specs compile to commited Rust sources
