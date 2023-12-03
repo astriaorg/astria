@@ -888,18 +888,13 @@ mod test {
         let mut app = initialize_app(None, vec![]).await;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
-        let data = b"hello world".to_vec();
-        let fee = calculate_fee(&data).unwrap();
+        let action = make_sequence_action();
+
+        let fee = calculate_fee(&action).unwrap();
 
         let tx = UnsignedTransaction {
             nonce: 0,
-            actions: vec![
-                SequenceAction {
-                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                    data,
-                }
-                .into(),
-            ],
+            actions: vec![action.into()],
             fee_asset_id: get_native_asset().id(),
         };
 
@@ -1130,16 +1125,10 @@ mod test {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
         // create tx with invalid nonce 1
-        let data = b"hello world".to_vec();
+        let sequence_action = make_sequence_action();
         let tx = UnsignedTransaction {
             nonce: 1,
-            actions: vec![
-                SequenceAction {
-                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                    data,
-                }
-                .into(),
-            ],
+            actions: vec![sequence_action.into()],
             fee_asset_id: get_native_asset().id(),
         };
 
@@ -1214,5 +1203,12 @@ mod test {
                 balance
             );
         }
+    }
+
+    fn make_sequence_action() -> SequenceAction {
+        let transactions = vec![b"hello world".to_vec()];
+        let mut action = SequenceAction::new(RollupId::from_unhashed_bytes(b"testchainid"));
+        action.set_transactions(transactions);
+        action
     }
 }

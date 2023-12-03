@@ -259,15 +259,12 @@ mod test {
     };
 
     fn make_unsigned_tx() -> UnsignedTransaction {
+        let mut sequence_action =
+            SequenceAction::new(RollupId::from_unhashed_bytes(b"testchainid"));
+        sequence_action.set_transactions(vec![Vec::from(*b"helloworld")]);
         UnsignedTransaction {
             nonce: 0,
-            actions: vec![
-                SequenceAction {
-                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-                    data: b"helloworld".to_vec(),
-                }
-                .into(),
-            ],
+            actions: vec![sequence_action.into()],
             fee_asset_id: get_native_asset().id(),
         }
     }

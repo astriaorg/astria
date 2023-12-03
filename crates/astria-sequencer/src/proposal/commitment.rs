@@ -77,14 +77,18 @@ mod test {
         NATIVE_ASSET,
     };
 
+    fn make_sequence_action() -> SequenceAction {
+        let mut sequence_action =
+            SequenceAction::new(RollupId::from_unhashed_bytes(b"testchainid"));
+        sequence_action.set_transactions(vec![Vec::from(*b"helloworld")]);
+        sequence_action
+    }
+
     #[test]
     fn generate_sequence_actions_commitment_should_ignore_transfers() {
         let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
 
-        let sequence_action = SequenceAction {
-            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-            data: b"helloworld".to_vec(),
-        };
+        let sequence_action = make_sequence_action();
         let transfer_action = TransferAction {
             to: Address([0u8; 20]),
             amount: 1,
@@ -130,10 +134,7 @@ mod test {
         // thus if this test needs to be updated, we should cut a new release.
         let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
 
-        let sequence_action = SequenceAction {
-            rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
-            data: b"helloworld".to_vec(),
-        };
+        let sequence_action = make_sequence_action();
         let transfer_action = TransferAction {
             to: Address([0u8; 20]),
             amount: 1,
