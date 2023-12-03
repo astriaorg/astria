@@ -25,7 +25,6 @@ prost = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-sha2 = { workspace = true }
 tendermint = { workspace = true, features = ["rust-crypto"] }
 tendermint-config = { workspace = true }
 tendermint-rpc = { workspace = true, features = ["http-client"] }
@@ -46,11 +45,7 @@ config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
-sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types", features = [
-  "test-utils",
-] }
-
-rand_core = { version = "0.6", features = ["getrandom"] }
+proto = { package = "astria-proto", path = "../astria-proto", features = ["test-utils"] }
 
 jsonrpsee = { workspace = true, features = ["server"] }
 once_cell = { workspace = true }
