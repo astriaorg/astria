@@ -158,7 +158,7 @@ jobs:
 
   test:
     if: ${{ always() && !cancelled() }}
-    needs: [compiles, rust, doctest, clippy, lockfile]
+    needs: [compiles, protos-compiled, rust, doctest, clippy, lockfile]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}
