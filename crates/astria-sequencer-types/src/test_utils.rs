@@ -87,7 +87,7 @@ pub fn create_tendermint_block() -> tendermint::Block {
         fee_asset_id: asset.id(),
     }
     .into_signed(&signing_key);
-    let rollup_transactions = proto::native::sequencer::v1alpha1::group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(&[signed_transaction.clone()]);
+    let rollup_transactions = proto::native::sequencer::v1alpha1::merge_sequence_actions_in_signed_transaction_transactions_by_rollup_id(&[signed_transaction.clone()]);
     let rollup_transactions_tree =
         proto::native::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(
             &rollup_transactions,

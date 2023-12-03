@@ -158,12 +158,9 @@ impl Searcher {
         // on tokio's blocking threadpool
         self.conversion_tasks.spawn_blocking(move || {
             let data = rollup_tx.rlp().to_vec();
-            let seq_action = Action::Sequence(SequenceAction {
-                rollup_id,
-                data,
-            });
-
-            vec![seq_action]
+            let mut action = SequenceAction::new(rollup_id);
+            action.set_transactions(vec![data]);
+            vec![Action::Sequence(action)]
         });
     }
 

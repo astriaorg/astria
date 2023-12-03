@@ -57,6 +57,9 @@ message SequenceAction {
     // The rollup ID identifying the rollup these transactions belong to.
     // Always 32 byyes.
     bytes rollup_id = 1;
+    // DEPRECATED: use the `transactions` field instead.
+    // the opaque bytes of standard serialization format understood by
+    // the rollup.
     bytes data = 2 [deprecated = true];
     // A list of one or more transactions. The transactions are opaque bytes in the
     // standard serialization format understood by the rollup. For example, RLP

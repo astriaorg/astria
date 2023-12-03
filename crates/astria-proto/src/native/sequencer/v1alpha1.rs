@@ -576,11 +576,32 @@ impl SequenceActionError {
             kind: SequenceActionErrorKind::RollupId(inner),
         }
     }
+
+    fn both_transaction_fields_populated(data: &[u8], transactions: &[Vec<u8>]) -> Self {
+        Self {
+            kind: SequenceActionErrorKind::BothTransactionFieldsSet {
+                bytes_in_deprecated: data.len(),
+                len_transactions: transactions.len(),
+                bytes_in_transactions: transactions
+                    .iter()
+                    .fold(0usize, |acc, elem| acc + elem.len()),
+            },
+        }
+    }
 }
 
 impl Display for SequenceActionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
+            SequenceActionErrorKind::BothTransactionFieldsSet {
+                bytes_in_deprecated,
+                len_transactions,
+                bytes_in_transactions,
+            } => f.write_fmt(format_args!(
+                "both deprecated `data` field and new `transactions` were populated; bytes in \
+                 `data`: {bytes_in_deprecated}, number of transactions: {len_transactions}, total \
+                 transactions bytes: {bytes_in_transactions}"
+            )),
             SequenceActionErrorKind::RollupId(_) => {
                 f.pad("`rollup_id` field did not contain a valid rollup ID")
             }
@@ -591,6 +612,9 @@ impl Display for SequenceActionError {
 impl Error for SequenceActionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
+            SequenceActionErrorKind::BothTransactionFieldsSet {
+                ..
+            } => None,
             SequenceActionErrorKind::RollupId(e) => Some(e),
         }
     }
@@ -599,6 +623,11 @@ impl Error for SequenceActionError {
 #[derive(Debug)]
 enum SequenceActionErrorKind {
     RollupId(IncorrectRollupIdLength),
+    BothTransactionFieldsSet {
+        bytes_in_deprecated: usize,
+        len_transactions: usize,
+        bytes_in_transactions: usize,
+    },
 }
 
 #[derive(Debug)]
@@ -616,20 +645,44 @@ impl Error for IncorrectRollupIdLength {}
 
 #[derive(Clone, Debug)]
 pub struct SequenceAction {
-    pub rollup_id: RollupId,
-    pub data: Vec<u8>,
+    rollup_id: RollupId,
+    transactions: Vec<Vec<u8>>,
 }
 
 impl SequenceAction {
+    pub fn new(rollup_id: RollupId) -> Self {
+        Self {
+            rollup_id,
+            transactions: vec![],
+        }
+    }
+
+    pub fn set_transactions(&mut self, transactions: Vec<Vec<u8>>) {
+        self.transactions = transactions;
+    }
+
+    pub fn rollup_id(&self) -> RollupId {
+        self.rollup_id
+    }
+
+    pub fn transactions(&self) -> &[Vec<u8>] {
+        &self.transactions
+    }
+
+    pub fn into_transactiosn(self) -> Vec<Vec<u8>> {
+        self.transactions
+    }
+
     #[must_use]
     pub fn into_raw(self) -> raw::SequenceAction {
         let Self {
             rollup_id,
-            data,
+            transactions,
         } = self;
         raw::SequenceAction {
             rollup_id: rollup_id.to_vec(),
-            data,
+            transactions,
+            ..raw::SequenceAction::default()
         }
     }
 
@@ -637,11 +690,12 @@ impl SequenceAction {
     pub fn to_raw(&self) -> raw::SequenceAction {
         let Self {
             rollup_id,
-            data,
+            transactions,
         } = self;
         raw::SequenceAction {
             rollup_id: rollup_id.to_vec(),
-            data: data.clone(),
+            transactions: transactions.clone(),
+            ..raw::SequenceAction::default()
         }
     }
 
@@ -650,15 +704,34 @@ impl SequenceAction {
     /// # Errors
     /// Returns an error if the `proto.rollup_id` field was not 32 bytes.
     pub fn try_from_raw(proto: raw::SequenceAction) -> Result<Self, SequenceActionError> {
+        #[allow(deprecated)]
         let raw::SequenceAction {
             rollup_id,
             data,
+            transactions,
         } = proto;
         let rollup_id =
             RollupId::try_from_slice(&rollup_id).map_err(SequenceActionError::rollup_id)?;
+
+        let transactions = match (data.is_empty(), transactions.is_empty()) {
+            // Old sequence action with only deprecated field set:
+            // convert to a single-transaction list: data -> [data]
+            (false, true) => vec![data],
+
+            // Wrong sequence action with deprecated data field and new transactions field set:
+            // Error
+            (false, false) => Err(SequenceActionError::both_transaction_fields_populated(
+                &data,
+                &transactions,
+            ))?,
+
+            // Deprecated field not set: take new transacionns field no matter if empty, not empty
+            (true, _) => transactions,
+        };
+
         Ok(Self {
             rollup_id,
-            data,
+            transactions,
         })
     }
 }
@@ -1033,6 +1106,16 @@ impl RollupId {
         Self {
             inner,
         }
+    }
+
+    /// Returns the number of bytes in the rollup ID. Always 32 bytes.
+    ///
+    /// This is intended as a utility method for downstream users that
+    /// need not know about the implementation details of `RollupId`.
+    #[must_use]
+    #[allow(clippy::len_without_is_empty)] // makes no sense as this is constant size
+    pub const fn len(&self) -> usize {
+        ROLLUP_ID_LEN
     }
 
     /// Returns the 32 bytes array representing the rollup ID.
@@ -1658,11 +1741,11 @@ impl SequencerBlock {
             for action in signed_tx.transaction.actions {
                 if let Action::Sequence(SequenceAction {
                     rollup_id,
-                    data,
+                    mut transactions,
                 }) = action
                 {
                     let elem = rollup_transactions.entry(rollup_id).or_insert(vec![]);
-                    elem.push(data);
+                    elem.append(&mut transactions);
                 }
             }
         }
@@ -2388,7 +2471,7 @@ where
 }
 
 // TODO: This can all be done in-place once https://github.com/rust-lang/rust/issues/80552 is stabilized.
-pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
+pub fn merge_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
     signed_transactions: &[SignedTransaction],
 ) -> IndexMap<RollupId, Vec<Vec<u8>>> {
     let mut map = IndexMap::new();
@@ -2397,8 +2480,8 @@ pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
         .flat_map(SignedTransaction::actions)
     {
         if let Some(action) = action.as_sequence() {
-            let txs_for_rollup: &mut Vec<Vec<u8>> = map.entry(action.rollup_id).or_insert(vec![]);
-            txs_for_rollup.push(action.data.clone());
+            let txs_for_rollup = map.entry(action.rollup_id).or_insert(vec![]);
+            txs_for_rollup.extend_from_slice(&action.transactions);
         }
     }
     map.sort_unstable_keys();
@@ -2421,10 +2504,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
+        raw,
         Address,
         BalanceResponse,
         IncorrectAddressLength,
         NonceResponse,
+        RollupId,
+        SequenceAction,
+        SequenceActionError,
+        SequenceActionErrorKind,
     };
 
     #[test]
@@ -2470,5 +2558,58 @@ mod tests {
         account_conversion_check(&[42; 19]);
         account_conversion_check(&[42; 21]);
         account_conversion_check(&[42; 100]);
+    }
+
+    #[test]
+    fn sequence_action_with_deprecated_data_is_converted() {
+        let expected_rollup_id = RollupId::new([42; 32]);
+        let data = vec![1, 2, 4, 8, 16];
+        #[allow(deprecated)]
+        let raw_action = raw::SequenceAction {
+            rollup_id: expected_rollup_id.to_vec(),
+            data: data.clone(),
+            transactions: vec![],
+        };
+        let action = SequenceAction::try_from_raw(raw_action).unwrap();
+        assert_eq!(expected_rollup_id, action.rollup_id);
+        assert_eq!(vec![data], action.transactions);
+    }
+
+    #[test]
+    fn sequence_action_with_deprecated_data_and_new_transactions_is_error() {
+        let expected_rollup_id = RollupId::new([42; 32]);
+        let data = vec![1, 2, 4, 8, 16];
+        #[allow(deprecated)]
+        let raw_action = raw::SequenceAction {
+            rollup_id: expected_rollup_id.to_vec(),
+            data: data.clone(),
+            transactions: vec![data.clone(), data.clone()],
+        };
+        let error = SequenceAction::try_from_raw(raw_action);
+        assert!(matches!(
+            error,
+            Err(SequenceActionError {
+                kind: SequenceActionErrorKind::BothTransactionFieldsSet {
+                    bytes_in_deprecated: 5,
+                    len_transactions: 2,
+                    bytes_in_transactions: 10,
+                }
+            })
+        ))
+    }
+
+    #[test]
+    fn sequence_action_with_transactions_is_converted() {
+        let expected_rollup_id = RollupId::new([42; 32]);
+        let transactions = vec![vec![0, 1, 3, 7, 15], vec![31, 63, 127, 255]];
+        #[allow(deprecated)]
+        let raw_action = raw::SequenceAction {
+            rollup_id: expected_rollup_id.to_vec(),
+            transactions: transactions.clone(),
+            ..raw::SequenceAction::default()
+        };
+        let action = SequenceAction::try_from_raw(raw_action).unwrap();
+        assert_eq!(expected_rollup_id, action.rollup_id);
+        assert_eq!(transactions, action.transactions);
     }
 }

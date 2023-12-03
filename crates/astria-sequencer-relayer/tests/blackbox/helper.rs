@@ -362,7 +362,7 @@ fn create_block_response(
         fee_asset_id: default_native_asset_id(),
     }
     .into_signed(signing_key);
-    let rollup_txs = proto::native::sequencer::v1alpha1::group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
+    let rollup_txs = proto::native::sequencer::v1alpha1::merge_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
         &[signed_tx.clone()]
     );
     let action_tree_root =

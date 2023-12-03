@@ -33,7 +33,7 @@ impl ActionHandler for SequenceAction {
             .get_account_balance(from, fee_asset_id)
             .await
             .context("failed getting `from` account balance for fee payment")?;
-        let fee = calculate_fee(&self.data).context("calculated fee overflows u128")?;
+        let fee = calculate_fee(self).context("calculating fee overflowed u128")?;
         ensure!(curr_balance >= fee, "insufficient funds");
         Ok(())
     }
@@ -41,10 +41,10 @@ impl ActionHandler for SequenceAction {
     async fn check_stateless(&self) -> Result<()> {
         // TODO: do we want to place a maximum on the size of the data?
         // https://github.com/astriaorg/astria/issues/222
-        ensure!(
-            !self.data.is_empty(),
-            "cannot have empty data for sequence action"
-        );
+
+        // XXX(superfluffy): I have removed the check for data being empty/containing
+        // no bytes. As all sequence actions now cost money due to the roll ID being priced
+        // in users are free to submit as many empty transactions as desired.
         Ok(())
     }
 
@@ -60,7 +60,7 @@ impl ActionHandler for SequenceAction {
         from: Address,
         fee_asset_id: asset::Id,
     ) -> Result<()> {
-        let fee = calculate_fee(&self.data).context("failed to calculate fee")?;
+        let fee = calculate_fee(self).context("calculating fee overflowed u128")?;
         let from_balance = state
             .get_account_balance(from, fee_asset_id)
             .await
@@ -72,19 +72,46 @@ impl ActionHandler for SequenceAction {
     }
 }
 
-/// Calculates the fee for a sequence `Action` based on the length of the `data`.
-/// Returns `None` if the fee overflows `u128`.
-pub(crate) fn calculate_fee(data: &[u8]) -> Option<u128> {
-    SEQUENCE_ACTION_FEE_PER_BYTE.checked_mul(
-        data.len()
-            .try_into()
-            .expect("a usize should always convert to a u128"),
-    )
+/// Calculates the fee for submitting a sequence action to the sequencer.
+///
+/// The fee is calculated as:
+/// ```ignore
+/// bytes =  len(ID) + sum_i(len(tx_i)) + N
+/// fee = FEE_PER_BYTE * bytes
+/// ```
+/// where `len(ID)` is the length of the rollup ID (32 bytes),
+/// `sum_i(len(tx_i))` is the sum over the number of bytes per transaction `i`,
+/// and `N` is the total number of transactions.
+///
+/// `N` is a naive heuristic for how many extra bytes protobuf will store for the
+/// index of each additional transaction. Since these indices are encoded as varints
+/// this heuristic breaks down for large N, but should be fine up to 255 transactions
+/// or so.
+///
+/// Returns `None` if accumulating the total number of bytes or multiplying
+/// the total number of bytes by the fee overflows `u128`.
+pub(crate) fn calculate_fee(action: &SequenceAction) -> Option<u128> {
+    // bytes = len(ID) + N
+    let mut bytes = action
+        .rollup_id()
+        .len()
+        .checked_add(action.transactions().len())?;
+
+    // bytes += sum(len(tx_i))
+    for tx in action.transactions() {
+        bytes = bytes.checked_add(tx.len())?;
+    }
+
+    let bytes = bytes
+        .try_into()
+        .expect("usize converts to u128 on all currently existing machines");
+
+    SEQUENCE_ACTION_FEE_PER_BYTE.checked_mul(bytes)
 }
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use super::calculate_fee;
 
     #[test]
     fn calculate_fee_ok() {

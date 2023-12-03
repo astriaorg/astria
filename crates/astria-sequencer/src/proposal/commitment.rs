@@ -40,7 +40,7 @@ impl GeneratedCommitments {
 pub(crate) fn generate_sequence_actions_commitment(
     signed_txs: &[SignedTransaction],
 ) -> GeneratedCommitments {
-    let rollup_ids_to_txs = proto::native::sequencer::v1alpha1::group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(signed_txs);
+    let rollup_ids_to_txs = proto::native::sequencer::v1alpha1::merge_sequence_actions_in_signed_transaction_transactions_by_rollup_id(signed_txs);
     let rollup_ids_root = merkle::Tree::from_leaves(rollup_ids_to_txs.keys()).root();
 
     // each leaf of the action tree is the root of a merkle tree of the `sequence::Action`s

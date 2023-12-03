@@ -260,10 +260,21 @@ pub struct TransferAction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SequenceAction {
+    /// The rollup ID identifying the rollup these transactions belong to.
+    /// Always 32 byyes.
     #[prost(bytes = "vec", tag = "1")]
     pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    /// DEPRECATED: use the `transactions` field instead.
+    /// the opaque bytes of standard serialization format understood by
+    /// the rollup.
+    #[deprecated]
     #[prost(bytes = "vec", tag = "2")]
     pub data: ::prost::alloc::vec::Vec<u8>,
+    /// A list of one or more transactions. The transactions are opaque bytes in the
+    /// standard serialization format understood by the rollup. For example, RLP
+    /// for ethereum based rollups.
+    #[prost(bytes = "vec", repeated, tag = "3")]
+    pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
 }
 /// / `SudoAddressChangeAction` represents a transaction that changes
 /// / the sudo address of the chain, which is the address authorized to
