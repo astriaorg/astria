@@ -46,16 +46,9 @@ fn main() {
         }
         Ok(output) => output,
     };
-    println!("buf stdout:");
-    std::io::stdout()
-        .lock()
-        .write_all(&buf_output.stdout)
-        .expect("could write to stdout");
-    println!("buf stderr:");
-    std::io::stdout()
-        .lock()
-        .write_all(&buf_output.stderr)
-        .expect("could write to stdout");
+
+    emit_buf_stdout(&buf_output.stdout).expect("able to write to stdout");
+    emit_buf_stderr(&buf_output.stderr).expect("able to write to stderr");
 
     if !buf_output.status.success() {
         panic!(
@@ -68,6 +61,7 @@ fn main() {
     tonic_build::configure()
         .build_client(true)
         .build_server(true)
+        .emit_rerun_if_changed(false)
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
         .extern_path(".tendermint.abci", "::tendermint-proto::abci")
@@ -84,6 +78,22 @@ fn main() {
 
     let mut after_build = build_content_map(&out_dir);
     clean_non_astria_code(&mut after_build);
+}
+
+fn emit_buf_stdout(buf: &[u8]) -> std::io::Result<()> {
+    if !buf.is_empty() {
+        std::io::stdout().lock().write_all(buf)?;
+        print!("\n");
+    }
+    Ok(())
+}
+
+fn emit_buf_stderr(buf: &[u8]) -> std::io::Result<()> {
+    if !buf.is_empty() {
+        std::io::stderr().lock().write_all(buf)?;
+        eprint!("\n");
+    }
+    Ok(())
 }
 
 fn clean_non_astria_code(generated: &mut ContentMap) {

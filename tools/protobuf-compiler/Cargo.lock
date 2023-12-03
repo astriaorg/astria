@@ -18,6 +18,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4668cab20f66d8d020e1fbc0ebe47217433c1b6c8f2040faf858554e394ace6"
 
 [[package]]
+name = "astria-protobuf-compiler"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "tonic-build",
+ "walkdir",
+ "which 5.0.0",
+]
+
+[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -232,16 +242,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "193898f59edcf43c26227dcd4c8427f00d99d61e95dcde58dabd49fa291d470e"
 dependencies = [
  "prost",
-]
-
-[[package]]
-name = "protobuf-compiler"
-version = "0.1.0"
-dependencies = [
- "tempfile",
- "tonic-build",
- "walkdir",
- "which 5.0.0",
 ]
 
 [[package]]
