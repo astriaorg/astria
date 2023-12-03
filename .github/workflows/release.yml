@@ -23,7 +23,7 @@ jobs:
       - uses: bufbuild/buf-push-action@v1
         with:
           draft:  ${{ github.ref_name != 'main'}}
-          input: "proto"
+          input: "proto/astria"
           buf_token: ${{ secrets.BUF_TOKEN }}
 
   conductor:
