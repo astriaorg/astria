@@ -23,8 +23,8 @@ impl ParseError {
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad(
-            "invalid rollup definition, must be `<rollup_name>::<url>, with \
-            <rollup_name> being lowercase alphanumeric ascii and -",
+            "invalid rollup definition, must be `<rollup_name>::<url>, with <rollup_name> being \
+             lowercase alphanumeric ascii and -",
         )
     }
 }
