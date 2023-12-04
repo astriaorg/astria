@@ -34,8 +34,9 @@ pub struct Config {
     /// URL of the sequencer cometbft websocket
     pub sequencer_url: String,
 
-    /// Chain ID that we want to work in
-    pub chain_id: String,
+    /// Rollup name which the conductor will derive the astria rollup_id, and
+    /// celestia namespace from.
+    pub rollup_name: String,
 
     /// Address of the RPC server for execution
     pub execution_rpc_url: String,

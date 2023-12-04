@@ -96,7 +96,7 @@ impl Conductor {
         let signals = spawn_signal_handler();
 
         let rollup_id =
-            proto::native::sequencer::v1alpha1::RollupId::from_unhashed_bytes(&cfg.chain_id);
+            proto::native::sequencer::v1alpha1::RollupId::from_unhashed_bytes(&cfg.rollup_name);
 
         // Spawn the executor task.
         let (executor_tx, sync_start_block_height) = {
