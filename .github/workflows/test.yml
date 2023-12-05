@@ -148,13 +148,17 @@ jobs:
         with:
           version: "24.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: run pedantic clippy
+      - name: run pedantic clippy on workspace crates
         run: |
           cargo clippy --workspace \
-          --all-targets \
-          --all-features \
-          -- --warn clippy::pedantic \
-             --deny warnings
+          --all-targets --all-features \
+          -- --warn clippy::pedantic --deny warnings
+      - name: run pedantic clippy on tools/protobuf-compiler
+      - run: |
+          cargo clippy --manifest-path tools/protobuf-compiler/Cargo.toml \
+          --all-targets --all-features \
+          -- --warn clippy::pedantic --deny warnings
+
 
   test:
     if: ${{ always() && !cancelled() }}
