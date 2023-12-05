@@ -58,12 +58,9 @@ pub struct ConfigCreateArgs {
     pub log_level: String,
 
     // rollup config
-    /// The name of the rollup
+    /// The name of the rollup, lowercase alphanumeric and '-' allowed. Max 240 charachters.
     #[clap(long = "rollup.name", env = "ROLLUP_NAME")]
     pub name: String,
-    /// Optional. Will be derived from the rollup name if not provided
-    #[clap(long = "rollup.chain-id", env = "ROLLUP_CHAIN_ID", required = false)]
-    pub chain_id: Option<String>,
     /// The Network ID for the EVM chain
     #[clap(long = "rollup.network-id", env = "ROLLUP_NETWORK_ID", default_value_t = DEFAULT_NETWORK_ID)]
     pub network_id: u64,

@@ -162,11 +162,6 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
     type Error = eyre::Report;
 
     fn try_from(args: &ConfigCreateArgs) -> eyre::Result<Self> {
-        let chain_id = args
-            .chain_id
-            .clone()
-            .unwrap_or(format!("{}-chain", args.name));
-
         // Set to block 1 if nothing set.
         let sequencer_initial_block_height = args.sequencer_initial_block_height.unwrap_or(1);
 
@@ -180,7 +175,6 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
         Ok(Self {
             rollup: RollupConfig {
                 name: args.name.clone(),
-                chain_id,
                 network_id: args.network_id.to_string(),
                 skip_empty_blocks: args.skip_empty_blocks,
                 genesis_accounts,
@@ -198,7 +192,6 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
 #[serde(rename_all = "camelCase")]
 pub struct RollupConfig {
     name: String,
-    chain_id: String,
     // NOTE - String here because yaml will serialize large ints w/ scientific notation
     network_id: String,
     skip_empty_blocks: bool,
@@ -246,7 +239,6 @@ mod tests {
             use_tty: true,
             log_level: "debug".to_string(),
             name: "rollup1".to_string(),
-            chain_id: Some("chain1".to_string()),
             network_id: 1,
             skip_empty_blocks: true,
             genesis_accounts: vec![
@@ -275,7 +267,6 @@ mod tests {
             deployment_config: RollupDeploymentConfig {
                 rollup: RollupConfig {
                     name: "rollup1".to_string(),
-                    chain_id: "chain1".to_string(),
                     network_id: "1".to_string(),
                     skip_empty_blocks: true,
                     genesis_accounts: vec![
@@ -321,7 +312,6 @@ mod tests {
             use_tty: false,
             log_level: "info".to_string(),
             name: "rollup2".to_string(),
-            chain_id: None,
             network_id: 2_211_011_801,
             skip_empty_blocks: false,
             genesis_accounts: vec![GenesisAccountArg {
@@ -344,7 +334,6 @@ mod tests {
             deployment_config: RollupDeploymentConfig {
                 rollup: RollupConfig {
                     name: "rollup2".to_string(),
-                    chain_id: "rollup2-chain".to_string(), // Derived from name
                     network_id: "2211011801".to_string(),
                     skip_empty_blocks: false,
                     genesis_accounts: vec![GenesisAccount {

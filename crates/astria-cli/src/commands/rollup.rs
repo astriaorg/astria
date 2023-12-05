@@ -18,7 +18,7 @@ use astria_sequencer_client::{
 };
 use color_eyre::{
     eyre,
-    eyre::Context,
+    eyre::{Context, ensure},
 };
 
 use crate::{
@@ -106,6 +106,11 @@ fn update_yaml_value(
 pub(crate) async fn create_config(args: &ConfigCreateArgs) -> eyre::Result<()> {
     // create rollup from args
     let mut conf = args.clone();
+
+    ensure!(
+        conf.name.len() <= 240 && conf.name.chars().all(|c| c.is_ascii_lowercase() || c.is_numeric() || c == '-'),
+        "rollup name must be alphanumeric or '-' and less than 240 characters"
+    );
 
     // Fetch the latest block from sequencer if none specified.
     if conf.sequencer_initial_block_height.is_none() {
@@ -326,7 +331,6 @@ mod test {
         ConfigCreateArgs {
             use_tty: false,
             name: "test".to_string(),
-            chain_id: None,
             network_id: 0,
             skip_empty_blocks: false,
             genesis_accounts: vec![],
