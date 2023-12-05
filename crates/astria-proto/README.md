@@ -18,10 +18,11 @@ CI verifies that the generated Rust code is in sync with the source protobuf
 definitions in CI.
 
 Add new or modify existing protobuf types in [`../proto`] and then regenerate
-the Rust sources with Astria's protobuf compiler tool from the root of the monorepo:
+the Rust sources with Astria's protobuf compiler tool relative to the root of
+the monorepo:
 
 ```sh
-$ cargo run --manifest-path tools/protobuf-compiler
+$ cargo run --manifest-path ../../tools/protobuf-compiler/Cargo.toml
 # Will emit warnings or errors raised by buf
 ```
 
