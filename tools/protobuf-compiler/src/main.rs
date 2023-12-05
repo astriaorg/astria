@@ -50,11 +50,10 @@ fn main() {
     emit_buf_stdout(&buf_output.stdout).expect("able to write to stdout");
     emit_buf_stderr(&buf_output.stderr).expect("able to write to stderr");
 
-    if !buf_output.status.success() {
-        panic!(
-            "failed creating file descriptor set from protobuf: `buf` returned non-zero exit code"
-        );
-    }
+    assert!(
+        buf_output.status.success(),
+        "failed creating file descriptor set from protobuf: `buf` returned non-zero exit code"
+    );
 
     let files = find_protos(&src_dir);
 
@@ -83,7 +82,7 @@ fn main() {
 fn emit_buf_stdout(buf: &[u8]) -> std::io::Result<()> {
     if !buf.is_empty() {
         std::io::stdout().lock().write_all(buf)?;
-        print!("\n");
+        println!();
     }
     Ok(())
 }
@@ -91,7 +90,7 @@ fn emit_buf_stdout(buf: &[u8]) -> std::io::Result<()> {
 fn emit_buf_stderr(buf: &[u8]) -> std::io::Result<()> {
     if !buf.is_empty() {
         std::io::stderr().lock().write_all(buf)?;
-        eprint!("\n");
+        eprintln!();
     }
     Ok(())
 }
