@@ -18,7 +18,10 @@ use astria_sequencer_client::{
 };
 use color_eyre::{
     eyre,
-    eyre::{Context, ensure},
+    eyre::{
+        ensure,
+        Context,
+    },
 };
 
 use crate::{
@@ -108,7 +111,11 @@ pub(crate) async fn create_config(args: &ConfigCreateArgs) -> eyre::Result<()> {
     let mut conf = args.clone();
 
     ensure!(
-        conf.name.len() <= 240 && conf.name.chars().all(|c| c.is_ascii_lowercase() || c.is_numeric() || c == '-'),
+        conf.name.len() <= 240
+            && conf
+                .name
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_numeric() || c == '-'),
         "rollup name must be alphanumeric or '-' and less than 240 characters"
     );
 
