@@ -27,7 +27,7 @@ $ cargo run --manifest-path tools/protobuf-compiler/Cargo.toml
 
 When creating a new package, follow the following convention:
 
-* Create a new folder `proto/astria/astria/<pkg-name>/<version>`.
+* Create a new folder `proto/astria/<pkg-name>/<version>`.
 * Write protos in this folder using the convention name
   `astria.<pkg-name>.<version>`.
 
