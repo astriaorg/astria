@@ -1,2 +1,2 @@
-crates/astria-proto/src/proto/generated/** linguist-generated=true
+crates/proto/src/proto/generated/** linguist-generated=true
 specs/** linguist-documentation=true

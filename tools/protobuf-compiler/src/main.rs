@@ -15,7 +15,7 @@ use std::{
     process::Command,
 };
 
-const OUT_DIR: &str = "../../crates/astria-proto/src/proto/generated";
+const OUT_DIR: &str = "../../crates/proto/src/proto/generated";
 const SRC_DIR: &str = "../../proto";
 
 const INCLUDES: &[&str] = &[SRC_DIR];
