@@ -33,11 +33,12 @@ jobs:
       - uses: bufbuild/buf-lint-action@v1
         with:
           input: "proto/"
+      - run: buf format proto -d --exit-code
       - uses: bufbuild/buf-breaking-action@v1
         with:
           # The 'main' branch of the GitHub repository that defines the module.
           input: "proto"
-          against: "https://github.com/astriaorg/astria.git#branch=main,ref=HEAD,subdir=proto"
+          against: "buf.build/astria/astria"
 
   rust:
     runs-on: ubuntu-22.04
