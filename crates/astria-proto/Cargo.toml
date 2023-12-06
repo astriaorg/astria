@@ -32,6 +32,7 @@ tonic = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
 indexmap = "2.1.0"
+rand = { workspace = true, optional = true }
 
 [features]
 default = ["native"]
@@ -39,6 +40,7 @@ client = ["dep:tonic"]
 native = ["dep:ed25519-consensus", "dep:hex", "dep:sha2", "dep:tracing"]
 serde = ["dep:serde", "hex?/serde"]
 server = ["dep:tonic"]
+test-utils = ["dep:rand"]
 
 [dev-dependencies]
 tonic-build = "0.10"

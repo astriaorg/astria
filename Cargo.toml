@@ -13,7 +13,7 @@ members = [
   "crates/astria-proto",
   "crates/astria-sequencer",
   "crates/astria-sequencer-client",
-  "crates/astria-sequencer-relayer",
+  # "crates/astria-sequencer-relayer",
   "crates/astria-sequencer-types",
   "crates/astria-sequencer-utils",
   "crates/astria-telemetry",

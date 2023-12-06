@@ -16,6 +16,7 @@ use ed25519_consensus::SigningKey;
 use once_cell::sync::Lazy;
 use proto::native::sequencer::v1alpha1::{
     asset::default_native_asset_id,
+    test_utils::ConfigureCometBftBlock,
     RollupId,
     SequenceAction,
     UnsignedTransaction,
@@ -378,39 +379,19 @@ fn create_block_response(
         &data.iter().map(sha2::Sha256::digest).collect::<Vec<_>>(),
     )));
 
-    let (last_commit_hash, last_commit) = sequencer_types::test_utils::make_test_commit_and_hash();
+    let block = ConfigureCometBftBlock {
+        height,
+        signing_key: signing_key.clone(),
+        proposer_address: Some(proposer_address),
+    }
+    .make();
 
     endpoint::block::Response {
         block_id: block::Id {
             hash: Hash::Sha256([0; 32]),
             part_set_header: block::parts::Header::new(0, Hash::None).unwrap(),
         },
-        block: Block::new(
-            block::Header {
-                version: block::header::Version {
-                    block: 0,
-                    app: 0,
-                },
-                chain_id: chain::Id::try_from("test").unwrap(),
-                height: block::Height::from(height),
-                time: Time::now(),
-                last_block_id: None,
-                last_commit_hash: (height > 1).then_some(last_commit_hash),
-                data_hash,
-                validators_hash: Hash::Sha256([0; 32]),
-                next_validators_hash: Hash::Sha256([0; 32]),
-                consensus_hash: Hash::Sha256([0; 32]),
-                app_hash: AppHash::try_from([0; 32].to_vec()).unwrap(),
-                last_results_hash: None,
-                evidence_hash: None,
-                proposer_address,
-            },
-            data,
-            evidence::List::default(),
-            // The first height must not, every height after must contain a last commit
-            (height > 1).then_some(last_commit),
-        )
-        .unwrap(),
+        block,
     }
 }
 

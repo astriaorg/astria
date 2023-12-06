@@ -22,12 +22,3 @@ merkle = { package = "astria-merkle", path = "../astria-merkle", features = [
 proto = { package = "astria-proto", path = "../astria-proto", features = [
   "serde",
 ] }
-
-ed25519-consensus = { workspace = true, optional = true }
-rand = { workspace = true, optional = true }
-
-[features]
-test-utils = ["dep:ed25519-consensus", "dep:rand"]
-
-[dev-dependencies]
-astria-sequencer-types = { path = ".", features = ["test-utils"] }
