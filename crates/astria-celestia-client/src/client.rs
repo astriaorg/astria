@@ -1,3 +1,9 @@
+use astria_core::sequencer::v1alpha1::{
+    CelestiaRollupBlob,
+    CelestiaSequencerBlob,
+    CelestiaSequencerBlobError,
+    SequencerBlock,
+};
 use async_trait::async_trait;
 use base64::{
     display::Base64Display,
@@ -10,13 +16,7 @@ use celestia_types::{
     Blob,
     Commitment,
 };
-use proto::{
-    native::sequencer::v1alpha1::{
-        CelestiaRollupBlob,
-        CelestiaSequencerBlob,
-        CelestiaSequencerBlobError,
-        SequencerBlock,
-    },
+use prost::{
     DecodeError,
     Message as _,
 };
@@ -94,7 +94,7 @@ pub trait CelestiaClientExt: BlobClient {
             }
             'blob: {
                 let raw_blob =
-                    match proto::generated::sequencer::v1alpha1::CelestiaSequencerBlob::decode(
+                    match astria_core::generated::sequencer::v1alpha1::CelestiaSequencerBlob::decode(
                         &*blob.data,
                     ) {
                         Ok(blob) => blob,
@@ -283,7 +283,9 @@ fn convert_and_filter_rollup_blobs(
             continue;
         }
         let proto_blob =
-            match proto::generated::sequencer::v1alpha1::CelestiaRollupBlob::decode(&*blob.data) {
+            match astria_core::generated::sequencer::v1alpha1::CelestiaRollupBlob::decode(
+                &*blob.data,
+            ) {
                 Err(e) => {
                     warn!(
                         error = &e as &dyn std::error::Error,

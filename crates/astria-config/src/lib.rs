@@ -113,7 +113,7 @@ pub fn get<T: Config>() -> Result<T, Error> {
 /// let config: MyConfig = config::get()?;
 /// # Ok::<_, Error>(())
 /// ```
-pub trait Config: core::fmt::Debug + DeserializeOwned {
+pub trait Config: ::core::fmt::Debug + DeserializeOwned {
     const PREFIX: &'static str;
 
     /// Creates `Self` by reading its fields from the environment.

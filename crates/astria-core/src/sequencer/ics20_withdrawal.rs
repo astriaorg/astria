@@ -21,10 +21,8 @@ use crate::{
         primitive::v1::Uint128,
         sequencer::v1alpha1 as raw,
     },
-    native::{
-        sequencer::v1alpha1::Address,
-        Protobuf,
-    },
+    sequencer::v1alpha1::Address,
+    Protobuf,
 };
 
 /// Represents an IBC withdrawal of an asset from a source chain to a destination chain.

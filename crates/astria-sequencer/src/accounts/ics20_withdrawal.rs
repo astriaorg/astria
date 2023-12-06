@@ -3,6 +3,12 @@ use anyhow::{
     Context as _,
     Result,
 };
+use astria_core::sequencer::v1alpha1::{
+    asset,
+    asset::IbcAsset,
+    Address,
+    Ics20Withdrawal,
+};
 use ibc_types::core::channel::{
     ChannelId,
     PortId,
@@ -12,12 +18,6 @@ use penumbra_ibc::component::packet::{
     SendPacketRead as _,
     SendPacketWrite as _,
     Unchecked,
-};
-use proto::native::sequencer::v1alpha1::{
-    asset,
-    asset::IbcAsset,
-    Address,
-    Ics20Withdrawal,
 };
 use tracing::instrument;
 

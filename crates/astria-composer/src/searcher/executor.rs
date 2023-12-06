@@ -9,6 +9,12 @@ use std::{
     time::Duration,
 };
 
+use astria_core::sequencer::v1alpha1::{
+    asset::default_native_asset_id,
+    Action,
+    SignedTransaction,
+    UnsignedTransaction,
+};
 use color_eyre::eyre::{
     self,
     eyre,
@@ -25,15 +31,7 @@ use futures::{
     Future,
 };
 use pin_project_lite::pin_project;
-use proto::{
-    native::sequencer::v1alpha1::{
-        asset::default_native_asset_id,
-        Action,
-        SignedTransaction,
-        UnsignedTransaction,
-    },
-    Message as _,
-};
+use prost::Message as _;
 use secrecy::{
     ExposeSecret as _,
     SecretString,
