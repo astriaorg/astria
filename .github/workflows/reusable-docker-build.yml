@@ -54,20 +54,20 @@ jobs:
             type=sha
             # set latest tag for `main` branch
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
-      # - name: Build and push
-      #   uses: docker/build-push-action@v4
-      #   with:
-      #     # this gets rid of the unknown/unknown image that is created without this setting
-      #     # https://github.com/docker/build-push-action/issues/820#issuecomment-1455687416
-      #     provenance: false
-      #     context: .
-      #     file: containerfiles/Dockerfile
-      #     build-args: |
-      #       TARGETBINARY=${{ inputs.target-binary }}
-      #     platforms: 'linux/amd64,linux/arm64'
-      #     push: true
-      #     tags: ${{ steps.metadata.outputs.tags }}
-      #     labels: ${{ steps.metadata.outputs.labels }}
-      #     cache-from: type=registry,ref=${{ format('ghcr.io/astriaorg/{0}:buildcache', inputs.package-name) }}
-      #     cache-to: type=registry,ref=${{ format('ghcr.io/astriaorg/{0}:buildcache', inputs.package-name) }},mode=max
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          # this gets rid of the unknown/unknown image that is created without this setting
+          # https://github.com/docker/build-push-action/issues/820#issuecomment-1455687416
+          provenance: false
+          context: .
+          file: containerfiles/Dockerfile
+          build-args: |
+            TARGETBINARY=${{ inputs.target-binary }}
+          platforms: 'linux/amd64,linux/arm64'
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=registry,ref=${{ format('ghcr.io/astriaorg/{0}:buildcache', inputs.package-name) }}
+          cache-to: type=registry,ref=${{ format('ghcr.io/astriaorg/{0}:buildcache', inputs.package-name) }},mode=max
         
