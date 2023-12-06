@@ -32,11 +32,11 @@ jobs:
           github_token: ${{ github.token }}
       - uses: bufbuild/buf-lint-action@v1
         with:
-          input: "crates/astria-proto"
+          input: "proto/"
       - uses: bufbuild/buf-breaking-action@v1
         with:
           # The 'main' branch of the GitHub repository that defines the module.
-          input: "crates/astria-proto/proto"
+          input: "proto"
           against: "https://github.com/astriaorg/astria.git#branch=main,ref=HEAD,subdir=crates/astria-proto/proto"
 
   rust:

@@ -41,3 +41,6 @@ lint-md:
 
 install-cli:
   cargo install --path ./crates/astria-cli --locked
+
+compile-protos:
+  cargo run --manifest-path tools/protobuf-compiler/Cargo.toml
