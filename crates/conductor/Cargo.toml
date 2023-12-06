@@ -38,9 +38,7 @@ sequencer-types = { package = "astria-sequencer-types", path = "../sequencer-typ
 optimism = { package = "astria-optimism", path = "../optimism" }
 config = { package = "astria-config", path = "../config" }
 merkle = { package = "astria-merkle", path = "../merkle" }
-proto = { package = "astria-proto", path = "../proto", features = [
-  "client",
-] }
+proto = { package = "astria-proto", path = "../proto", features = ["client"] }
 sequencer-client = { package = "astria-sequencer-client", path = "../sequencer-client", features = [
   "websocket",
 ] }
@@ -55,10 +53,6 @@ sequencer-types = { package = "astria-sequencer-types", path = "../sequencer-typ
 optimism = { package = "astria-optimism", path = "../optimism", features = [
   "test-utils",
 ] }
-config = { package = "astria-config", path = "../config", features = [
-  "tests",
-] }
-proto = { package = "astria-proto", path = "../proto", features = [
-  "server",
-] }
+config = { package = "astria-config", path = "../config", features = ["tests"] }
+proto = { package = "astria-proto", path = "../proto", features = ["server"] }
 tokio-stream = { version = "0.1.14", features = ["net"] }

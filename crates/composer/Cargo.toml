@@ -53,9 +53,7 @@ package = "astria-sequencer-types"
 path = "../sequencer-types"
 
 [dev-dependencies]
-config = { package = "astria-config", path = "../config", features = [
-  "tests",
-] }
+config = { package = "astria-config", path = "../config", features = ["tests"] }
 proto = { package = "astria-proto", path = "../proto" }
 test_utils = { package = "astria-test-utils", path = "../test-utils", features = [
   "geth",
