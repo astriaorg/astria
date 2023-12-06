@@ -24,7 +24,7 @@ pub struct Config {
     /// Address of the RPC server for the sequencer chain
     pub sequencer_url: String,
 
-    /// A list of <chain_id>::<url> pairs
+    /// A list of <rollup_name>::<url> pairs
     pub rollups: String,
 
     /// Private key for the sequencer account used for signing transactions

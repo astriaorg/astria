@@ -36,9 +36,9 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
     .await
     .expect("setup guard failed");
 
-    let expected_chain_ids = vec![RollupId::from_unhashed_bytes("test1")];
+    let expected_rollup_ids = vec![RollupId::from_unhashed_bytes("test1")];
     let mock_guard =
-        mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_chain_ids, vec![0]).await;
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_rollup_ids, vec![0]).await;
     test_composer.rollup_nodes["test1"]
         .push_tx(Transaction::default())
         .unwrap();
@@ -60,12 +60,12 @@ async fn tx_from_two_rollups_are_received_by_sequencer() {
     .await
     .expect("setup guard failed");
 
-    let expected_chain_ids = vec![
+    let expected_rollup_ids = vec![
         RollupId::from_unhashed_bytes("test1"),
         RollupId::from_unhashed_bytes("test2"),
     ];
     let test_guard =
-        mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_chain_ids, vec![0, 1])
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_rollup_ids, vec![0, 1])
             .await;
     test_composer.rollup_nodes["test1"]
         .push_tx(Transaction::default())
@@ -81,11 +81,11 @@ async fn tx_from_two_rollups_are_received_by_sequencer() {
     .await
     .expect("mocked sequencer should have received a broadcast messages from composer");
 
-    // Validate that the received nonces and chain_ids were unique
+    // Validate that the received nonces and rollup_ids were unique
     let mut received_nonces: Vec<u32> = vec![];
-    let mut received_chain_ids: Vec<RollupId> = vec![];
+    let mut received_rollup_ids: Vec<RollupId> = vec![];
     for request in test_guard.received_requests().await {
-        let (chain_id, nonce) = chain_id_nonce_from_request(&request);
+        let (rollup_id, nonce) = rollup_id_nonce_from_request(&request);
         assert!(
             !received_nonces.contains(&nonce),
             "duplicate nonce received"
@@ -93,10 +93,10 @@ async fn tx_from_two_rollups_are_received_by_sequencer() {
         received_nonces.push(nonce);
 
         assert!(
-            !received_chain_ids.contains(&chain_id),
-            "duplicate chain id received"
+            !received_rollup_ids.contains(&rollup_id),
+            "duplicate rollup id received"
         );
-        received_chain_ids.push(chain_id);
+        received_rollup_ids.push(rollup_id);
     }
 }
 
@@ -132,10 +132,10 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
     )
     .await;
 
-    let expected_chain_ids = vec![RollupId::from_unhashed_bytes("test1")];
+    let expected_rollup_ids = vec![RollupId::from_unhashed_bytes("test1")];
     // Expect nonce 1 again so that the resubmitted tx is accepted
     let valid_nonce_guard =
-        mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_chain_ids, vec![1]).await;
+        mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_rollup_ids, vec![1]).await;
 
     // Push a tx to the rollup node so that it is picked up by the composer and submitted with the
     // stored nonce of 0, triggering the nonce refetch process
@@ -183,21 +183,21 @@ async fn single_rollup_tx_payload_integrity() {
 }
 
 /// Deserizalizes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
-/// verifies that the contained sequence action is in the given `expected_chain_ids` and
+/// verifies that the contained sequence action is in the given `expected_rollup_ids` and
 /// `expected_nonces`.
 async fn mount_broadcast_tx_sync_mock(
     server: &MockServer,
-    expected_chain_ids: Vec<RollupId>,
+    expected_rollup_ids: Vec<RollupId>,
     expected_nonces: Vec<u32>,
 ) -> MockGuard {
     let expected_calls = expected_nonces.len().try_into().unwrap();
     let matcher = move |request: &Request| {
-        let (chain_id, nonce) = chain_id_nonce_from_request(request);
+        let (rollup_id, nonce) = rollup_id_nonce_from_request(request);
 
-        let valid_chain_id = expected_chain_ids.contains(&chain_id);
+        let valid_rollup_id = expected_rollup_ids.contains(&rollup_id);
         let valid_nonce = expected_nonces.contains(&nonce);
 
-        valid_chain_id && valid_nonce
+        valid_rollup_id && valid_nonce
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
@@ -219,15 +219,15 @@ async fn mount_broadcast_tx_sync_mock(
 }
 
 /// Deserizalizes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction and
-/// verifies that the contained sequence action is for the given `expected_chain_id`. It then
+/// verifies that the contained sequence action is for the given `expected_rollup_id`. It then
 /// rejects the transaction for an invalid nonce.
 async fn mount_broadcast_tx_sync_invalid_nonce_mock(
     server: &MockServer,
-    expected_chain_id: RollupId,
+    expected_rollup_id: RollupId,
 ) -> MockGuard {
     let matcher = move |request: &Request| {
-        let (chain_id, _) = chain_id_nonce_from_request(request);
-        chain_id == expected_chain_id
+        let (rollup_id, _) = rollup_id_nonce_from_request(request);
+        rollup_id == expected_rollup_id
     };
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
@@ -303,7 +303,7 @@ fn signed_tx_from_request(request: &Request) -> SignedTransaction {
     signed_tx
 }
 
-fn chain_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
+fn rollup_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
     let signed_tx = signed_tx_from_request(request);
 
     // validate that the transaction's first action is a sequence action

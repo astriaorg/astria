@@ -63,10 +63,10 @@ impl Rollup {
 
     pub(super) fn into_parts(self) -> (String, String) {
         let Self {
-            rollup_name: chain_id,
+            rollup_name,
             url,
         } = self;
-        (chain_id, url)
+        (rollup_name, url)
     }
 }
 

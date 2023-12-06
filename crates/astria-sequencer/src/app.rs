@@ -92,7 +92,7 @@ pub(crate) struct App {
 
     /// set to `0` when `begin_block` is called, and set to `1` or `2` when
     /// `deliver_tx` is called for the first two times.
-    /// this is a hack to allow the `sequence_actions_commitment` and `chain_ids_commitment`
+    /// this is a hack to allow the `sequence_actions_commitment` and `rollup_ids_commitment`
     /// to pass `deliver_tx`, as they're the first two "tx"s delivered.
     ///
     /// when the app is fully updated to ABCI++, `begin_block`, `deliver_tx`,

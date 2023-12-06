@@ -349,7 +349,7 @@ fn create_block_response(
         Time,
     };
     let suffix = height.to_string().into_bytes();
-    let rollup_id = RollupId::from_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
+    let rollup_id = RollupId::from_unhashed_bytes([b"test_rollup_id_", &*suffix].concat());
     let signed_tx = UnsignedTransaction {
         nonce: 1,
         actions: vec![
@@ -368,10 +368,10 @@ fn create_block_response(
     let action_tree_root =
         proto::native::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(&rollup_txs).root();
 
-    let chain_ids_commitment = merkle::Tree::from_leaves(std::iter::once(rollup_id)).root();
+    let rollup_ids_commitment = merkle::Tree::from_leaves(std::iter::once(rollup_id)).root();
     let data = vec![
         action_tree_root.to_vec(),
-        chain_ids_commitment.to_vec(),
+        rollup_ids_commitment.to_vec(),
         signed_tx.into_raw().encode_to_vec(),
     ];
     let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(

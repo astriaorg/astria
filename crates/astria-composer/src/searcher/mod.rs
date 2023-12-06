@@ -266,9 +266,9 @@ impl Searcher {
 
     /// Spawns all collector on the collector task set.
     fn spawn_collectors(&mut self) {
-        for (chain_id, collector) in self.collectors.drain() {
+        for (rollup_name, collector) in self.collectors.drain() {
             self.collector_tasks
-                .spawn(chain_id, collector.run_until_stopped());
+                .spawn(rollup_name, collector.run_until_stopped());
         }
     }
 
@@ -284,7 +284,7 @@ impl Searcher {
         let mut statuses = self
             .collector_statuses
             .iter()
-            .map(|(chain_id, status)| {
+            .map(|(rollup_name, status)| {
                 let mut status = status.clone();
                 async move {
                     match status.wait_for(collector::Status::is_connected).await {
@@ -297,14 +297,14 @@ impl Searcher {
                         Err(e) => Err(e),
                     }
                 }
-                .map(|fut| (chain_id.clone(), fut))
+                .map(|fut| (rollup_name.clone(), fut))
             })
             .collect::<FuturesUnordered<_>>();
-        while let Some((chain_id, maybe_err)) = statuses.next().await {
+        while let Some((rollup_name, maybe_err)) = statuses.next().await {
             if let Err(e) = maybe_err {
                 return Err(e).wrap_err_with(|| {
                     format!(
-                        "collector for chain ID {chain_id} failed while waiting for it to become \
+                        "collector for rollup {rollup_name} failed while waiting for it to become \
                          ready"
                     )
                 });

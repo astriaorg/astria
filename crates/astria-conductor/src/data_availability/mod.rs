@@ -58,13 +58,13 @@ pub(crate) struct SequencerBlockSubset {
 }
 
 impl SequencerBlockSubset {
-    pub(crate) fn from_sequencer_block(block: SequencerBlock, chain_id: RollupId) -> Self {
+    pub(crate) fn from_sequencer_block(block: SequencerBlock, rollup_id: RollupId) -> Self {
         let mut block = block.into_unchecked();
         let header = block.header;
         let block_hash = header.hash();
         let transactions = block
             .rollup_transactions
-            .remove(&chain_id)
+            .remove(&rollup_id)
             .unwrap_or_default();
         Self {
             block_hash,

@@ -354,11 +354,11 @@ mod test {
     #[test]
     fn validate_sequencer_blob_last_commit_none_ok() {
         let rollup_transactions_root = merkle::Tree::from_leaves([[1, 2, 3], [4, 5, 6]]).root();
-        let chain_ids_commitment = merkle::Tree::new().root();
+        let rollup_names_commitment = merkle::Tree::new().root();
 
         let tree = sequencer_types::cometbft::merkle_tree_from_transactions([
             rollup_transactions_root,
-            chain_ids_commitment,
+            rollup_names_commitment,
         ]);
         let data_hash = tree.root();
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
@@ -385,7 +385,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn validate_sequencer_blob_with_chain_ids() {
+    async fn validate_sequencer_blob_with_rollup_ids() {
         let test_tx = b"test-tx".to_vec();
         let rollup_id = RollupId::from_unhashed_bytes(b"test-chain");
         let grouped_txs = BTreeMap::from([(rollup_id, vec![test_tx.clone()])]);
