@@ -6,9 +6,6 @@ on:
       package-name:
         required: true
         type: string
-      target-binary:
-        required: true
-        type: string
     secrets:
       DOCKER_TOKEN:
         required: true
@@ -63,7 +60,8 @@ jobs:
           context: .
           file: containerfiles/Dockerfile
           build-args: |
-            TARGETBINARY=${{ inputs.target-binary }}
+            TARGETBINARY=astria-${{ inputs.package-name }}
+            TARGETFOLEDER=${{ inputs.package-name }}
           platforms: 'linux/amd64,linux/arm64'
           push: true
           tags: ${{ steps.metadata.outputs.tags }}

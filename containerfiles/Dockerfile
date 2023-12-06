@@ -43,8 +43,9 @@ RUN \
 # install targets
 FROM chef AS planner
 ARG TARGETBINARY
+ARG TARGETFOLDER
 COPY . .
-RUN cargo chef prepare --bin crates/$TARGETBINARY --recipe-path recipe.json
+RUN cargo chef prepare --bin crates/$TARGETFOLDER --recipe-path recipe.json
 
 FROM chef as builder
 COPY --from=planner /build/recipe.json recipe.json
