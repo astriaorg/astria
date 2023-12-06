@@ -38,7 +38,7 @@ proto = { package = "astria-proto", path = "../proto" }
 sequencer-client = { package = "astria-sequencer-client", path = "../sequencer-client", features = [
   "http",
 ] }
-telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
+telemetry = { package = "astria-telemetry", path = "../telemetry" }
 
 [dev-dependencies]
 celestia-mock = { package = "astria-celestia-mock", path = "../celestia-mock" }
