@@ -354,11 +354,11 @@ mod test {
     #[test]
     fn validate_sequencer_blob_last_commit_none_ok() {
         let rollup_transactions_root = merkle::Tree::from_leaves([[1, 2, 3], [4, 5, 6]]).root();
-        let rollup_names_commitment = merkle::Tree::new().root();
+        let rollup_ids_commitment = merkle::Tree::new().root();
 
         let tree = sequencer_types::cometbft::merkle_tree_from_transactions([
             rollup_transactions_root,
-            rollup_names_commitment,
+            rollup_ids_commitment,
         ]);
         let data_hash = tree.root();
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
