@@ -20,7 +20,7 @@ jobs:
         id: release_version
         uses: joroshiba/version-check@v2
         with:
-          file: ${{ format('crates/astria-{0}/Cargo.toml', inputs.package-name) }}
+          file: ${{ format('crates/{0}/Cargo.toml', inputs.package-name) }}
           tagFormat: ${{ format('v${{version}}--{0}', inputs.package-name) }}
           failBuild: false
       # Notice appears when the version has changed on a PR to main
@@ -30,7 +30,7 @@ jobs:
           github.event_name == 'pull_request' &&
           github.base_ref == 'main' 
         run: |
-          FILE="${{ format('crates/astria-{0}/Cargo.toml', inputs.package-name) }}"
+          FILE="${{ format('crates/{0}/Cargo.toml', inputs.package-name) }}"
           TITLE="New ${{ inputs.display-name}} Release"
           MESSAGE=("This PR updates the version of ${{ inputs.package-name }}."
                    "After merging a new release ${{steps.release_version.outputs.rawVersion}}"

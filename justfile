@@ -8,7 +8,7 @@ docker-build crate tag=default_docker_tag:
   docker buildx build --load --build-arg TARGETBINARY={{crate}} -f containerfiles/Dockerfile -t {{crate}}:{{tag}} .
 
 install-cli:
-  cargo install --path ./crates/astria-cli --locked
+  cargo install --path ./crates/cli --locked
 
 # Compiles the generated rust code from protos which are used in crates.
 compile-protos:

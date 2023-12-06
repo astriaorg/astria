@@ -6,6 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
+celestia-client = { package = "astria-celestia-client", path = "../celestia-client" }
 
 jsonrpsee = { workspace = true, features = ["macros", "server"] }

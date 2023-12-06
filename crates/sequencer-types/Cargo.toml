@@ -16,10 +16,10 @@ tendermint-proto = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
-merkle = { package = "astria-merkle", path = "../astria-merkle", features = [
+merkle = { package = "astria-merkle", path = "../merkle", features = [
   "serde",
 ] }
-proto = { package = "astria-proto", path = "../astria-proto", features = [
+proto = { package = "astria-proto", path = "../proto", features = [
   "serde",
 ] }
 

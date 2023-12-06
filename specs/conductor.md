@@ -139,9 +139,9 @@ the hash map is deleted.
 
 An instance of the Conductor is meant to be run alongside the rollup node.
 
-The `chain_id` that Conductor uses as the rollup's identifier is pulled from the
+The `rollup_id` that Conductor uses as the rollup's identifier is pulled from the
 rollup's config. When a user submits a transaction to be sequenced, they specify
-the `chain_id` of its destination.
+the `rollup_id` of its destination.
 
 When a Sequencer block is received, the Conductor filters the transactions for
 its chain ID and executes only those transactions on top of its parent state.

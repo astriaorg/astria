@@ -18,8 +18,8 @@ tendermint = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
-merkle = { package = "astria-merkle", path = "../astria-merkle" }
-proto = { package = "astria-proto", path = "../astria-proto" }
+merkle = { package = "astria-merkle", path = "../merkle" }
+proto = { package = "astria-proto", path = "../proto" }
 
 ### Celestia specific imports
 #

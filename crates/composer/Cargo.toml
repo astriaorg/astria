@@ -7,9 +7,9 @@ rust-version = "1.70.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-config = { package = "astria-config", path = "../astria-config" }
-proto = { package = "astria-proto", path = "../astria-proto" }
-telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
+config = { package = "astria-config", path = "../config" }
+proto = { package = "astria-proto", path = "../proto" }
+telemetry = { package = "astria-telemetry", path = "../telemetry" }
 
 pin-project-lite = "0.2.13"
 secrecy = { version = "0.8", features = ["serde"] }
@@ -50,14 +50,14 @@ features = ["http"]
 
 [dependencies.sequencer-types]
 package = "astria-sequencer-types"
-path = "../astria-sequencer-types"
+path = "../sequencer-types"
 
 [dev-dependencies]
-config = { package = "astria-config", path = "../astria-config", features = [
+config = { package = "astria-config", path = "../config", features = [
   "tests",
 ] }
-proto = { package = "astria-proto", path = "../astria-proto" }
-test_utils = { package = "astria-test-utils", path = "../astria-test-utils", features = [
+proto = { package = "astria-proto", path = "../proto" }
+test_utils = { package = "astria-test-utils", path = "../test-utils", features = [
   "geth",
 ] }
 tokio-test = { workspace = true }

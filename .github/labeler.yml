@@ -1,19 +1,19 @@
 ci:
   - '.github/**'
 conductor:
-  - 'crates/astria-conductor/**'
+  - 'crates/conductor/**'
 composer:
-  - 'crates/astria-composer/**'
+  - 'crates/composer/**'
 docker:
   - 'containerfiles/**'
 proto:
-  - 'crates/astria-proto/**'
+  - 'proto/**'
 sequencer:
-  - 'crates/astria-sequencer/**'
-  - 'crates/astria-sequencer-client/**'
-  - 'crates/astria-sequencer-utils/**'
+  - 'crates/sequencer/**'
+  - 'crates/sequencer-client/**'
+  - 'crates/sequencer-utils/**'
 sequencer-relayer:
-  - 'crates/astria-sequencer-relayer/**'
-  - 'crates/astria-gossipnet/**'
+  - 'crates/sequencer-relayer/**'
+  - 'crates/gossipnet/**'
 documentation:
   - 'specs/**'
