@@ -46,7 +46,7 @@ config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
-sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types", features = [
+proto = { package = "astria-proto", path = "../astria-proto", features = [
   "test-utils",
 ] }
 
