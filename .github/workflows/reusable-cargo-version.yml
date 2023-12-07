@@ -62,7 +62,7 @@ jobs:
     
   upload-binaries:
     needs: rust-version-release
-    if: inputs.compile-binary == 'true' # && needs.rust-version-release.outputs.release-cut == 'true'
+    if: inputs.compile-binary == 'true'
     strategy:
       matrix:
         include:
