@@ -112,7 +112,7 @@ pub struct BlockHeightGetArgs {
     /// The url of the Sequencer node
     #[clap(
         long,
-        env = "SEQUENCER_URL", 
+        env = "SEQUENCER_URL",
         default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
