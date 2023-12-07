@@ -738,6 +738,48 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-sequencer-relayer"
+version = "0.9.0"
+dependencies = [
+ "astria-celestia-client",
+ "astria-celestia-mock",
+ "astria-config",
+ "astria-merkle",
+ "astria-proto",
+ "astria-sequencer-client",
+ "astria-telemetry",
+ "axum",
+ "backon",
+ "base64 0.21.5",
+ "base64-serde",
+ "dirs",
+ "ed25519-consensus",
+ "eyre",
+ "futures",
+ "hex",
+ "http",
+ "humantime",
+ "hyper",
+ "jsonrpsee",
+ "once_cell",
+ "prost",
+ "rand_core 0.6.4",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "sha2 0.10.8",
+ "tempfile",
+ "tendermint 0.34.0",
+ "tendermint-config",
+ "tendermint-rpc",
+ "tokio",
+ "tracing",
+ "wiremock",
+ "zeroize",
+]
+
+[[package]]
 name = "astria-sequencer-types"
 version = "0.1.0"
 dependencies = [
