@@ -110,7 +110,11 @@ pub enum BlockHeightCommand {
 #[derive(Args, Debug)]
 pub struct BlockHeightGetArgs {
     /// The url of the Sequencer node
-    #[clap(long)]
+    #[clap(
+        long,
+        env = "SEQUENCER_URL", 
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
     pub(crate) sequencer_url: String,
 }
 
