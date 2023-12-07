@@ -9,10 +9,16 @@ on:
       display-name:
         required: true
         type: string
+      compile-binary:
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   rust-version-release:
     runs-on: ubuntu-latest
+    outputs: 
+      release-cut: ${{ steps.output.outputs.release_cut }}
     steps:
       - uses: actions/checkout@v3
       - run: git fetch --all --tags
@@ -51,4 +57,33 @@ jobs:
           release_name: ${{ inputs.display-name }} ${{ steps.release_version.outputs.rawVersion }}
           draft: true
           prerelease: true
-        
+      - name: output
+        run: echo release_cut=${{ steps.release_version.outputs.versionChanged == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main' }} >> "$GITHUB_OUTPUT"
+    
+  upload-binaries:
+    needs: rust-version-release
+    if: inputs.compile-binary == 'true' # && needs.rust-version-release.outputs.release-cut == 'true'
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-unknown-linux-gnu
+            os: buildjet-4vcpu-ubuntu-2204-arm	
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-unknown-linux-gnu
+            os: buildjet-4vcpu-ubuntu-2204-arm	
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: universal-apple-darwin
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: astria-cli
+          # (optional) Target triple, default is host triple.
+          target: ${{ matrix.target }}
+          # (required) GitHub token for uploading assets to GitHub Releases.
+          token: ${{ secrets.GITHUB_TOKEN }}
+          dry-run: true
