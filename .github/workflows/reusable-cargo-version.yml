@@ -62,20 +62,19 @@ jobs:
     
   upload-binaries:
     needs: rust-version-release
-    if: inputs.compile-binary == true
+    if: inputs.compile-binary == true # && needs.rust-version-release.outputs.release-cut == 'true' && github.event_name == 'tag'
     strategy:
       matrix:
         include:
-          - target: aarch64-unknown-linux-gnu
-            os: buildjet-4vcpu-ubuntu-2204-arm	
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            build-tool: cargo-zigbuild
+          - target: aarch64-unknown-linux-gnu.2.17
+            os: ubuntu-latest
+            build-tool: cargo-zigbuild
           - target: aarch64-apple-darwin
             os: macos-latest
-          - target: x86_64-unknown-linux-gnu
-            os: buildjet-4vcpu-ubuntu-2204-arm	
-          - target: x86_64-apple-darwin
-            os: macos-latest
-          - target: universal-apple-darwin
-            os: macos-latest
+            build-tool: cargo
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -84,6 +83,7 @@ jobs:
           bin: astria-cli
           # (optional) Target triple, default is host triple.
           target: ${{ matrix.target }}
+          # (optional) Tool to build binaries (cargo, cross, or cargo-zigbuild)
+          build-tool: ${{ matrix.build-tool }}
           # (required) GitHub token for uploading assets to GitHub Releases.
           token: ${{ secrets.GITHUB_TOKEN }}
-          dry-run: true
