@@ -1,4 +1,6 @@
 [workspace]
+exclude = ["tools/protobuf-compiler"]
+
 members = [
   "crates/astria-celestia-client",
   "crates/astria-celestia-mock",

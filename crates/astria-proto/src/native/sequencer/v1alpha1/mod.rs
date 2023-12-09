@@ -28,6 +28,9 @@ use crate::{
     },
 };
 
+#[cfg(feature = "test-utils")]
+pub mod test_utils;
+
 pub const ADDRESS_LEN: usize = 20;
 pub const ROLLUP_ID_LEN: usize = 32;
 

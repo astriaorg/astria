@@ -151,6 +151,11 @@ impl IbcAsset {
     pub fn prefix_is(&self, prefix: &str) -> bool {
         self.prefix == prefix
     }
+
+    #[must_use]
+    pub fn denomination_trace(&self) -> String {
+        format!("{}/{}", self.prefix, self.base_denom)
+    }
 }
 
 impl Display for IbcAsset {
