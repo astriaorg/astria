@@ -397,7 +397,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             .context("failed to check if ibc asset exists in state")?
         {
             state
-                .put_ibc_asset(&asset)
+                .put_ibc_asset(asset.id(), &asset)
                 .context("failed to put IBC asset in storage")?;
         }
 
