@@ -1,6 +1,6 @@
 use anyhow::{
-    anyhow,
-    Context,
+    bail,
+    Context as _,
     Result,
 };
 use async_trait::async_trait;
@@ -23,14 +23,24 @@ use tracing::instrument;
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct DenominationTrace(String);
 
-const ASSET_PREFIX: &str = "asset";
-
 fn asset_storage_key(asset: asset::Id) -> String {
-    format!("{}/{}", ASSET_PREFIX, asset.encode_hex::<String>())
+    format!("asset/{}", asset.encode_hex::<String>())
 }
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
+    #[instrument(skip(self))]
+    async fn has_ibc_asset(&self, id: asset::Id) -> Result<bool> {
+        match self
+            .get_raw(&asset_storage_key(id))
+            .await
+            .context("failed reading raw asset from state")?
+        {
+            Some(_) => Ok(true),
+            None => Ok(false),
+        }
+    }
+
     #[instrument(skip(self))]
     async fn get_ibc_asset(&self, id: asset::Id) -> Result<IbcAsset> {
         let Some(bytes) = self
@@ -38,8 +48,9 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed reading raw asset from state")?
         else {
-            return Err(anyhow!("asset not found"));
+            bail!("asset not found");
         };
+
         let DenominationTrace(asset) =
             DenominationTrace::try_from_slice(&bytes).context("invalid asset bytes")?;
         let asset: IbcAsset = asset.parse().context("invalid asset denomination")?;
@@ -52,7 +63,7 @@ impl<T: StateRead> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
-    fn put_ibc_asset(&mut self, asset: IbcAsset) -> Result<()> {
+    fn put_ibc_asset(&mut self, asset: &IbcAsset) -> Result<()> {
         let bytes = DenominationTrace(asset.denomination_trace())
             .try_to_vec()
             .context("failed to serialize asset")?;

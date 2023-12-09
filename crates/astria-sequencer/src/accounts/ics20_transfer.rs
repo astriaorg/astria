@@ -354,12 +354,27 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             .get_ibc_channel_balance(source_channel, asset.id())
             .await
             .context("failed to get IBC channel balance in execute_ics20_transfer")?;
+
         let user_balance = state.get_account_balance(recipient, asset.id()).await?;
         state
-            .put_ibc_channel_balance(source_channel, asset.id(), escrow_balance - packet_amount)
+            .put_ibc_channel_balance(
+                source_channel,
+                asset.id(),
+                escrow_balance
+                    .checked_sub(packet_amount)
+                    .ok_or(anyhow::anyhow!(
+                        "insufficient balance in escrow account to transfer tokens"
+                    ))?,
+            )
             .context("failed to update escrow account balance in execute_ics20_transfer")?;
         state
-            .put_account_balance(recipient, asset.id(), user_balance + packet_amount)
+            .put_account_balance(
+                recipient,
+                asset.id(),
+                user_balance
+                    .checked_add(packet_amount)
+                    .ok_or(anyhow::anyhow!("overflow when adding to user balance"))?,
+            )
             .context("failed to update user account balance in execute_ics20_transfer")?;
     } else {
         let prefixed_denomination = if is_refund {
@@ -376,9 +391,13 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             .context("failed to parse prefixed denomination as IbcAsset")?;
 
         // register denomination in global ID -> denom map if it's not already there
-        if state.get_ibc_asset(asset.id()).await.is_err() {
+        if !state
+            .has_ibc_asset(asset.id())
+            .await
+            .context("failed to check if ibc asset exists in state")?
+        {
             state
-                .put_ibc_asset(asset.clone())
+                .put_ibc_asset(&asset)
                 .context("failed to put IBC asset in storage")?;
         }
 
@@ -387,7 +406,13 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             .await
             .context("failed to get user account balance in execute_ics20_transfer")?;
         state
-            .put_account_balance(recipient, asset.id(), user_balance + packet_amount)
+            .put_account_balance(
+                recipient,
+                asset.id(),
+                user_balance
+                    .checked_add(packet_amount)
+                    .ok_or(anyhow::anyhow!("overflow when adding to user balance"))?,
+            )
             .context("failed to update user account balance in execute_ics20_transfer")?;
     }
 
