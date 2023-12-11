@@ -62,7 +62,7 @@ jobs:
     
   upload-binaries:
     needs: rust-version-release
-    if: inputs.compile-binary == true # && needs.rust-version-release.outputs.release-cut == 'true' && github.event_name == 'tag'
+    if: inputs.compile-binary == true && needs.rust-version-release.outputs.release-cut == 'true' && github.event_name == 'tag'
     strategy:
       matrix:
         include:
@@ -77,7 +77,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
-          dry-run: true
           bin: astria-cli
           # (optional) Target triple, default is host triple.
           target: ${{ matrix.target }}
