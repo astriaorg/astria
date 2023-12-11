@@ -8,7 +8,7 @@ use color_eyre::eyre;
 use serde::Serialize;
 
 const DEFAULT_ROLLUP_CHART_PATH: &str =
-    "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.7.0.tgz";
+    "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.7.1.tgz";
 const DEFAULT_SEQUENCER_WS: &str = "wss://rpc.sequencer.dusk-2.devnet.astria.org/websocket";
 const DEFAULT_LOG_LEVEL: &str = "debug";
 const DEFAULT_NETWORK_ID: u64 = 1337;
