@@ -328,7 +328,6 @@ mod test {
             name: "test".to_string(),
             chain_id: None,
             network_id: 0,
-            skip_empty_blocks: false,
             genesis_accounts: vec![],
             sequencer_initial_block_height: Some(1),
             sequencer_websocket: String::new(),

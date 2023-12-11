@@ -182,7 +182,6 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
                 name: args.name.clone(),
                 chain_id,
                 network_id: args.network_id.to_string(),
-                skip_empty_blocks: args.skip_empty_blocks,
                 genesis_accounts,
             },
             sequencer: SequencerConfig {
@@ -201,7 +200,6 @@ pub struct RollupConfig {
     chain_id: String,
     // NOTE - String here because yaml will serialize large ints w/ scientific notation
     network_id: String,
-    skip_empty_blocks: bool,
     genesis_accounts: Vec<GenesisAccount>,
 }
 
@@ -248,7 +246,6 @@ mod tests {
             name: "rollup1".to_string(),
             chain_id: Some("chain1".to_string()),
             network_id: 1,
-            skip_empty_blocks: true,
             genesis_accounts: vec![
                 GenesisAccountArg {
                     address: "0xA5TR14".to_string(),
@@ -277,7 +274,6 @@ mod tests {
                     name: "rollup1".to_string(),
                     chain_id: "chain1".to_string(),
                     network_id: "1".to_string(),
-                    skip_empty_blocks: true,
                     genesis_accounts: vec![
                         GenesisAccount {
                             address: "0xA5TR14".to_string(),
@@ -323,7 +319,6 @@ mod tests {
             name: "rollup2".to_string(),
             chain_id: None,
             network_id: 2_211_011_801,
-            skip_empty_blocks: false,
             genesis_accounts: vec![GenesisAccountArg {
                 address: "0xA5TR14".to_string(),
                 balance: 10000,
@@ -346,7 +341,6 @@ mod tests {
                     name: "rollup2".to_string(),
                     chain_id: "rollup2-chain".to_string(), // Derived from name
                     network_id: "2211011801".to_string(),
-                    skip_empty_blocks: false,
                     genesis_accounts: vec![GenesisAccount {
                         address: "0xA5TR14".to_string(),
                         balance: "10000".to_string(),

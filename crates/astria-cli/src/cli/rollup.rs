@@ -67,10 +67,6 @@ pub struct ConfigCreateArgs {
     /// The Network ID for the EVM chain
     #[clap(long = "rollup.network-id", env = "ROLLUP_NETWORK_ID", default_value_t = DEFAULT_NETWORK_ID)]
     pub network_id: u64,
-    /// When enabled, rollup will skip blocks which contain zero transactions.
-    #[clap(long = "rollup.skip-empty-blocks", env = "ROLLUP_SKIP_EMPTY_BLOCKS")]
-    pub skip_empty_blocks: bool,
-
     /// List of genesis accounts to fund, in the form of `address:balance`
     #[clap(
         long = "rollup.genesis-accounts", 
