@@ -8,9 +8,8 @@ use color_eyre::eyre;
 use serde::Serialize;
 
 const DEFAULT_ROLLUP_CHART_PATH: &str =
-    "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.4.4.tgz";
-const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-1.devnet.astria.org";
-const DEFAULT_SEQUENCER_WS: &str = "wss://rpc.sequencer.dusk-1.devnet.astria.org/websocket";
+    "https://astriaorg.github.io/dev-cluster/astria-evm-rollup-0.7.1.tgz";
+const DEFAULT_SEQUENCER_WS: &str = "wss://rpc.sequencer.dusk-2.devnet.astria.org/websocket";
 const DEFAULT_LOG_LEVEL: &str = "debug";
 const DEFAULT_NETWORK_ID: u64 = 1337;
 const DEFAULT_HOSTNAME: &str = "localdev.me";
@@ -68,10 +67,6 @@ pub struct ConfigCreateArgs {
     /// The Network ID for the EVM chain
     #[clap(long = "rollup.network-id", env = "ROLLUP_NETWORK_ID", default_value_t = DEFAULT_NETWORK_ID)]
     pub network_id: u64,
-    /// When enabled, rollup will skip blocks which contain zero transactions.
-    #[clap(long = "rollup.skip-empty-blocks", env = "ROLLUP_SKIP_EMPTY_BLOCKS")]
-    pub skip_empty_blocks: bool,
-
     /// List of genesis accounts to fund, in the form of `address:balance`
     #[clap(
         long = "rollup.genesis-accounts", 
@@ -99,7 +94,7 @@ pub struct ConfigCreateArgs {
     #[clap(
         long = "sequencer.rpc", 
         env = "ROLLUP_SEQUENCER_RPC", 
-        default_value = DEFAULT_SEQUENCER_RPC
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub sequencer_rpc: String,
     /// Optional. Will default to 'localdev.me' for local deployments. Will need to separately
@@ -219,6 +214,10 @@ pub struct DeploymentCreateArgs {
     // that overwrite the key on drop and don't reveal it when printing.
     #[clap(long, env = "ROLLUP_SEQUENCER_PRIVATE_KEY")]
     pub(crate) sequencer_private_key: String,
+    /// Set if you want to see all k8s resources created by the deployment
+    /// Set if you want to do a dry run of the deployment
+    #[clap(long, env = "ROLLUP_DEBUG_DEPLOY", default_value = "false")]
+    pub(crate) debug: bool,
 }
 
 #[derive(Args, Debug)]
