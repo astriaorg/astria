@@ -4,10 +4,10 @@ package astria.sequencer.v1alpha1;
 
 // A proof for a tree of the given size containing the audit path from a leaf to the root.
 message Proof {
-    // A sequence of 32 byte hashes used to reconstruct a Merkle Tree Hash.
-    bytes audit_path = 1;
-    // The index of the leaf this proof applies to.
-    uint64 leaf_index = 2;
-    // The total size of the tree this proof was derived from.
-    uint64 tree_size = 3;
+  // A sequence of 32 byte hashes used to reconstruct a Merkle Tree Hash.
+  bytes audit_path = 1;
+  // The index of the leaf this proof applies to.
+  uint64 leaf_index = 2;
+  // The total size of the tree this proof was derived from.
+  uint64 tree_size = 3;
 }

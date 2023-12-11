@@ -25,6 +25,19 @@ $ cargo run --manifest-path tools/protobuf-compiler/Cargo.toml
 # Will emit warnings or errors raised by buf
 ```
 
+There are also just commands which can be run from anywhere in repo:
+
+```sh
+# Compiles protos as above
+$ just compile-protos
+
+# Will apply formatting to proto files
+$ just fmt proto
+
+# checks for breaking changes, buf lint errors, and logs any formatting changes
+$ just lint proto
+```
+
 When creating a new package, follow the following convention:
 
 * Create a new folder `proto/astria/<pkg-name>/<version>`.
@@ -39,9 +52,3 @@ When creating a new package, follow the following convention:
   * [other ways to install](https://docs.buf.build/installation)
 * `$ buf registry login` - [must first create an API
   token](https://docs.buf.build/tutorials/getting-started-with-bsr#create-an-api-token)
-
-### Building and pushing after making changes in `proto`
-
-* `$ buf build` - [builds the proto files into a single binary
-  file](https://docs.buf.build/build/explanation#what-are-buf-images)
-* `$ buf push` - pushes a module to the registry

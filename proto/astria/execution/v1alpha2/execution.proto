@@ -35,11 +35,11 @@ message GetBlockRequest {
 message BatchGetBlocksRequest {
   repeated BlockIdentifier identifiers = 1;
 }
+
 // The list of blocks in response to BatchGetBlocks.
 message BatchGetBlocksResponse {
   repeated Block blocks = 1;
 }
-
 
 // ExecuteBlockRequest contains all the information needed to create a new rollup
 // block.
@@ -71,7 +71,7 @@ message CommitmentState {
 }
 
 // There is only one CommitmentState object, so the request is empty.
-message GetCommitmentStateRequest{}
+message GetCommitmentStateRequest {}
 
 // The CommitmentState to set, must include complete state.
 message UpdateCommitmentStateRequest {
@@ -79,7 +79,7 @@ message UpdateCommitmentStateRequest {
 }
 
 // ExecutionService is used to drive deterministic production of blocks.
-// 
+//
 // The service can be implemented by any blockchain which wants to utilize the
 // Astria Shared Sequencer, and will have block production driven via the Astria
 // "Conductor".
