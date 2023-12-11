@@ -2,8 +2,8 @@ use anyhow::{
     bail,
     Context,
 };
+use astria_core::sequencer::v1alpha1::AbciErrorCode;
 use cnidarium::Storage;
-use sequencer_types::abci_code::AbciCode;
 use tendermint::v0_37::abci::{
     request,
     response,
@@ -193,10 +193,10 @@ impl Consensus {
                 // node
                 let code = if let Some(_e) = e.downcast_ref::<InvalidNonce>() {
                     tracing::warn!("{}", e);
-                    AbciCode::INVALID_NONCE
+                    AbciErrorCode::INVALID_NONCE
                 } else {
                     tracing::warn!(error = ?e, "deliver_tx failed");
-                    AbciCode::INTERNAL_ERROR
+                    AbciErrorCode::INTERNAL_ERROR
                 };
                 response::DeliverTx {
                     code: code.into(),

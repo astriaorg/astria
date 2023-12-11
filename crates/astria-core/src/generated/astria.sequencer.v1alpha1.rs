@@ -1,3 +1,41 @@
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum AbciErrorCode {
+    Unspecified = 0,
+    UnknownPath = 1,
+    InvalidParameter = 2,
+    InternalError = 3,
+    InvalidNonce = 4,
+    TransactionTooLarge = 5,
+}
+impl AbciErrorCode {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            AbciErrorCode::Unspecified => "ABCI_ERROR_CODE_UNSPECIFIED",
+            AbciErrorCode::UnknownPath => "ABCI_ERROR_CODE_UNKNOWN_PATH",
+            AbciErrorCode::InvalidParameter => "ABCI_ERROR_CODE_INVALID_PARAMETER",
+            AbciErrorCode::InternalError => "ABCI_ERROR_CODE_INTERNAL_ERROR",
+            AbciErrorCode::InvalidNonce => "ABCI_ERROR_CODE_INVALID_NONCE",
+            AbciErrorCode::TransactionTooLarge => "ABCI_ERROR_CODE_TRANSACTION_TOO_LARGE",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "ABCI_ERROR_CODE_UNSPECIFIED" => Some(Self::Unspecified),
+            "ABCI_ERROR_CODE_UNKNOWN_PATH" => Some(Self::UnknownPath),
+            "ABCI_ERROR_CODE_INVALID_PARAMETER" => Some(Self::InvalidParameter),
+            "ABCI_ERROR_CODE_INTERNAL_ERROR" => Some(Self::InternalError),
+            "ABCI_ERROR_CODE_INVALID_NONCE" => Some(Self::InvalidNonce),
+            "ABCI_ERROR_CODE_TRANSACTION_TOO_LARGE" => Some(Self::TransactionTooLarge),
+            _ => None,
+        }
+    }
+}
 /// A response containing the balance of an account.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
