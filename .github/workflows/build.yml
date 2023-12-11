@@ -1,0 +1,33 @@
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "cli-v[0-9]+.[0-9]+.[0-9]+"
+      - "cli-v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+"
+      - "cli-v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+"
+      - "cli-v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
+
+jobs:
+  upload-cli-binaries:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            build-tool: cargo
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            build-tool: cargo
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: astria-cli
+          dry-run: ${{ github.event_name != 'tag' }}
+          # (optional) Target triple, default is host triple.
+          target: ${{ matrix.target }}
+          # (optional) Tool to build binaries (cargo, cross, or cargo-zigbuild)
+          build-tool: ${{ matrix.build-tool }}
+          # (required) GitHub token for uploading assets to GitHub Releases.
+          token: ${{ secrets.GITHUB_TOKEN }}
