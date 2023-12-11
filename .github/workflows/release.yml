@@ -65,7 +65,6 @@ jobs:
     with:
       package-name: 'cli'
       display-name: 'CLI'
-      compile-binary: true
 
   release:
     needs: [proto, conductor, composer, sequencer, sequencer-relayer, cli]

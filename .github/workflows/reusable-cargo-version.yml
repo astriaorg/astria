@@ -9,10 +9,6 @@ on:
       display-name:
         required: true
         type: string
-      compile-binary:
-        required: false
-        type: boolean
-        default: false
 
 jobs:
   rust-version-release:
@@ -57,30 +53,5 @@ jobs:
           release_name: ${{ inputs.display-name }} ${{ steps.release_version.outputs.rawVersion }}
           draft: true
           prerelease: true
-      - name: output
-        run: echo release_cut=${{ steps.release_version.outputs.versionChanged == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main' }} >> "$GITHUB_OUTPUT"
     
-  upload-binaries:
-    needs: rust-version-release
-    if: inputs.compile-binary == true && needs.rust-version-release.outputs.release-cut == 'true' && github.event_name == 'tag'
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            build-tool: cargo
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            build-tool: cargo
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: taiki-e/upload-rust-binary-action@v1
-        with:
-          bin: astria-cli
-          # (optional) Target triple, default is host triple.
-          target: ${{ matrix.target }}
-          # (optional) Tool to build binaries (cargo, cross, or cargo-zigbuild)
-          build-tool: ${{ matrix.build-tool }}
-          # (required) GitHub token for uploading assets to GitHub Releases.
-          token: ${{ secrets.GITHUB_TOKEN }}
+
