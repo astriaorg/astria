@@ -1,14 +1,19 @@
 on:
+  # TODO: allow workflow dispatch to specify which binaries to build
   workflow_dispatch:
   push:
     tags:
-      - "cli-v[0-9]+.[0-9]+.[0-9]+"
-      - "cli-v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+"
-      - "cli-v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+"
-      - "cli-v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
+      - "**-v[0-9]+.[0-9]+.[0-9]+"
+      - "**-v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+"
+      - "**-v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+"
+      - "**-v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
+
+name: Build Binaries
 
 jobs:
+  # TODO: Make generic and run on any tagged release
   upload-cli-binaries:
+    if: startsWith(github.ref, 'refs/tags/cli-v') || github.event_name == 'workflow_dispatch'
     strategy:
       matrix:
         include:
@@ -26,8 +31,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
+          dry-run: ${{ !startsWith(github.ref, 'refs/tags/cli-v') }}
           bin: astria-cli
-          dry-run: ${{ github.event_name != 'tag' }}
           # (optional) Target triple, default is host triple.
           target: ${{ matrix.target }}
           # (optional) Tool to build binaries (cargo, cross, or cargo-zigbuild)
