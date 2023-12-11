@@ -1,8 +1,8 @@
 use astria_core::sequencer::v1alpha1::{
     asset::default_native_asset_id,
+    transaction::action::TransferAction,
     Address,
     SignedTransaction,
-    TransferAction,
     UnsignedTransaction,
 };
 use ed25519_consensus::SigningKey;

@@ -509,11 +509,14 @@ mod test {
     use astria_core::sequencer::v1alpha1::{
         asset,
         asset::DEFAULT_NATIVE_ASSET_DENOM,
+        transaction::action::{
+            Action,
+            SequenceAction,
+            SudoAddressChangeAction,
+            TransferAction,
+        },
         Address,
         RollupId,
-        SequenceAction,
-        SudoAddressChangeAction,
-        TransferAction,
         UnsignedTransaction,
         ADDRESS_LEN,
     };
@@ -933,9 +936,7 @@ mod test {
 
         let tx = UnsignedTransaction {
             nonce: 0,
-            actions: vec![astria_core::sequencer::v1alpha1::Action::ValidatorUpdate(
-                update.clone(),
-            )],
+            actions: vec![Action::ValidatorUpdate(update.clone())],
             fee_asset_id: get_native_asset().id(),
         };
 
@@ -963,11 +964,9 @@ mod test {
 
         let tx = UnsignedTransaction {
             nonce: 0,
-            actions: vec![astria_core::sequencer::v1alpha1::Action::SudoAddressChange(
-                SudoAddressChangeAction {
-                    new_address,
-                },
-            )],
+            actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
+                new_address,
+            })],
             fee_asset_id: get_native_asset().id(),
         };
 
@@ -993,11 +992,9 @@ mod test {
 
         let tx = UnsignedTransaction {
             nonce: 0,
-            actions: vec![astria_core::sequencer::v1alpha1::Action::SudoAddressChange(
-                SudoAddressChangeAction {
-                    new_address: alice_address,
-                },
-            )],
+            actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
+                new_address: alice_address,
+            })],
             fee_asset_id: get_native_asset().id(),
         };
 

@@ -232,9 +232,9 @@ mod test {
 
     use astria_core::sequencer::v1alpha1::{
         asset::DEFAULT_NATIVE_ASSET_DENOM,
+        transaction::action::SequenceAction,
         Address,
         RollupId,
-        SequenceAction,
         UnsignedTransaction,
     };
     use bytes::Bytes;

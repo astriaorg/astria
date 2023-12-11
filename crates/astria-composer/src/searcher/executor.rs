@@ -11,7 +11,7 @@ use std::{
 
 use astria_core::sequencer::v1alpha1::{
     asset::default_native_asset_id,
-    Action,
+    transaction::Action,
     SignedTransaction,
     UnsignedTransaction,
 };

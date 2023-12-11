@@ -62,10 +62,12 @@ mod test {
             Denom,
             DEFAULT_NATIVE_ASSET_DENOM,
         },
+        transaction::action::{
+            SequenceAction,
+            TransferAction,
+        },
         Address,
         RollupId,
-        SequenceAction,
-        TransferAction,
         UnsignedTransaction,
     };
     use ed25519_consensus::SigningKey;

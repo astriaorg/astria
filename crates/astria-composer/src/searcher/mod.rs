@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use astria_core::sequencer::v1alpha1::{
+use astria_core::sequencer::v1alpha1::transaction::{
+    action::SequenceAction,
     Action,
-    SequenceAction,
 };
 use color_eyre::eyre::{
     self,
