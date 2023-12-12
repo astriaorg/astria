@@ -10,8 +10,6 @@ use color_eyre::{
     eyre::Context,
 };
 
-const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-1.devnet.astria.org";
-
 /// Interact with a Sequencer node
 #[derive(Debug, Subcommand)]
 pub enum Command {
@@ -55,7 +53,7 @@ pub struct BasicAccountArgs {
     #[clap(
         long,
         env = "SEQUENCER_URL", 
-        default_value = DEFAULT_SEQUENCER_RPC
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
     /// The address of the Sequencer account
@@ -80,7 +78,7 @@ pub struct TransferArgs {
     #[clap(
         long,
         env = "SEQUENCER_URL", 
-        default_value = DEFAULT_SEQUENCER_RPC
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
     )]
     pub(crate) sequencer_url: String,
 }
@@ -112,7 +110,11 @@ pub enum BlockHeightCommand {
 #[derive(Args, Debug)]
 pub struct BlockHeightGetArgs {
     /// The url of the Sequencer node
-    #[clap(long)]
+    #[clap(
+        long,
+        env = "SEQUENCER_URL",
+        default_value = crate::cli::DEFAULT_SEQUENCER_RPC
+    )]
     pub(crate) sequencer_url: String,
 }
 
