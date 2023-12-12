@@ -522,7 +522,7 @@ dependencies = [
 
 [[package]]
 name = "astria-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "assert_cmd",
  "astria-proto",
@@ -664,6 +664,7 @@ dependencies = [
  "penumbra-proto",
  "prost",
  "prost-types",
+ "rand 0.8.5",
  "serde",
  "sha2 0.10.8",
  "tempfile",
@@ -749,7 +750,6 @@ dependencies = [
  "astria-merkle",
  "astria-proto",
  "astria-sequencer-client",
- "astria-sequencer-types",
  "astria-telemetry",
  "axum",
  "backon",
@@ -788,13 +788,10 @@ version = "0.1.0"
 dependencies = [
  "astria-merkle",
  "astria-proto",
- "astria-sequencer-types",
  "base64 0.21.5",
  "base64-serde",
- "ed25519-consensus",
  "hex",
  "prost",
- "rand 0.8.5",
  "serde",
  "serde_json",
  "sha2 0.10.8",

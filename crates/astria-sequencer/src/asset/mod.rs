@@ -1,3 +1,5 @@
+pub(crate) mod state_ext;
+
 use std::sync::OnceLock;
 
 use proto::native::sequencer::v1alpha1::asset::Denom;
