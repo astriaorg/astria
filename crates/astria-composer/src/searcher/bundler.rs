@@ -1,15 +1,10 @@
-use std::{
-    collections::HashMap,
-    time::Duration,
-};
+use std::time::Duration;
 
 use color_eyre::eyre;
-use ethers::types::Transaction;
 use proto::native::sequencer::v1alpha1::{
     Action,
     SequenceAction,
 };
-use sequencer_types::ChainId;
 use tokio::{
     select,
     sync::{
@@ -26,70 +21,10 @@ use tracing::{
 
 use super::collector::RollupTransaction;
 
-/// Max bytes size of a sequencer transactionis set to 250KB.
-pub(super) const MAX_BYTES_SIZE: usize = 250_000;
 // TODO: should get this from the ChainId type
 const CHAIN_ID_LEN: usize = 32;
 
-#[derive(Debug, thiserror::Error)]
-enum TransactionBufferError {
-    #[error("rollup transaction is too large")]
-    RollupTransacionTooLarge,
-    #[error(
-        "sequencer transaction will be too large with the addition of this rollup transaction"
-    )]
-    BufferFull,
-}
-
-/// Buffer for building up a set of rollup transactions to turn into an `UnsignedTransaction` and
-/// submit to the executor
-struct TransactionBuffer {
-    pub actions: Vec<Action>,
-    pub bytes_sz: usize,
-    max_bytes_size: usize,
-}
-
-impl TransactionBuffer {
-    pub fn new(max_bytes_size: usize) -> Self {
-        Self {
-            actions: vec![],
-            bytes_sz: 0,
-            max_bytes_size,
-        }
-    }
-
-    pub fn push(
-        &mut self,
-        ru_transaction: RollupTransaction,
-    ) -> Result<(), TransactionBufferError> {
-        let transaction_bytes = ru_transaction.inner.rlp().to_vec();
-        let transaction_bytes_size = transaction_bytes.len();
-        if transaction_bytes_size > self.max_bytes_size {
-            return Err(TransactionBufferError::RollupTransacionTooLarge);
-        }
-
-        let data = ru_transaction.inner.rlp().to_vec();
-        if self.bytes_sz + CHAIN_ID_LEN + data.len() > self.max_bytes_size {
-            return Err(TransactionBufferError::BufferFull);
-        }
-        self.actions.push(Action::Sequence(SequenceAction {
-            chain_id: ru_transaction.chain_id,
-            data,
-        }));
-        self.bytes_sz += CHAIN_ID_LEN + data.len();
-        Ok(())
-    }
-
-    fn is_empty(&self) -> bool {
-        self.actions.is_empty()
-    }
-
-    fn flush(&mut self) -> Vec<Action> {
-        let ret = self.actions;
-        *self = Self::new(self.max_bytes_size);
-        ret
-    }
-}
+fn to_sequence_action(ru_transaction: RollupTransaction) -> SequenceAction {}
 
 /// The status of this `Bundler` instance.
 // TODO: should this report current buffer transactions, chain_ids?
@@ -121,17 +56,16 @@ impl Status {
 pub(super) struct Bundler {
     // The status of this `Bundler` instance.
     status: watch::Sender<Status>,
-    // Buffer for building up a set of `RollupTransaction`s to turn into an `Vec<Action>`
-    buffer: TransactionBuffer,
+    // Max amount of bytes to fit in a bundle.
+    max_bytes_size: usize,
     // The channel on which the bundler receives new `RollupTransaction`s from the `Collector`.
     rollup_transactions_rx: mpsc::Receiver<RollupTransaction>,
     // The channel on which the bundler sends new `Vec<Action>`s to the `Executor`.
     bundles_tx: mpsc::Sender<Vec<Action>>,
-    // Timer for flushing the buffer at least once every block.
-    // TODO: add block timer
-    block_time: u64,
     // Duration to wait for backpressure before dropping the transaction as stale
     backpressure_timeout: u64,
+    // Channel to receive block timer ticks from the executor
+    block_timer: 
 }
 
 impl Bundler {
@@ -140,17 +74,14 @@ impl Bundler {
         rollup_transactions_rx: mpsc::Receiver<RollupTransaction>,
         sequencer_transactions_tx: mpsc::Sender<Vec<Action>>,
         max_bytes_size: usize,
-        block_time: u64,
         backpressure_timeout: u64,
     ) -> Self {
-        // TODO: add block timer
         let (status, _) = watch::channel(Status::new());
         Self {
             status,
-            buffer: TransactionBuffer::new(max_bytes_size),
+            max_bytes_size,
             rollup_transactions_rx,
             bundles_tx: sequencer_transactions_tx,
-            block_time,
             backpressure_timeout,
         }
     }
@@ -159,14 +90,13 @@ impl Bundler {
         self.status.subscribe()
     }
 
-    async fn flush_to_executor(&mut self) -> eyre::Result<()> {
-        let actions = self.buffer.flush();
+    async fn flush_to_executor(&mut self, bundle: Vec<Action>) -> eyre::Result<()> {
         // TODO: this is where backpressure resulting from the executor's transaction
-        // submission would happen. need to properly report this
-        // here
+        // submission would happen. need to properly report this here
         if let Err(e) = self
             .bundles_tx
-            .send_timeout(actions, Duration::from_millis(self.backpressure_timeout))
+            // try_send_timeout instead
+            .send_timeout(bundle, Duration::from_millis(self.backpressure_timeout))
             .await
         {
             error!(
@@ -179,33 +109,57 @@ impl Bundler {
     }
 
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        let mut block_timer = time::interval(Duration::from_millis(self.block_time));
+        let mut curr_bundle = vec![];
+        let mut curr_bytes = 0;
+
         loop {
             select! {
                 Some(ru_transaction) = self.rollup_transactions_rx.recv() => {
-                    // TODO: how to link from the rollup transaction's span to this buffer's span?
-                    match self.buffer.push(ru_transaction) {
-                        Ok(()) => {
-                            debug!("rollup transaction added to bundler's buffer");
-                            // TODO: log identifying info for this rollup transaction
-                        }
-                        Err(TransactionBufferError::RollupTransacionTooLarge) => {
-                            warn!("rollup transaction is too large");
-                            // TODO: log identifying info for this rollup transaction
-                            // TODO: drop the rollup transaction
-                        }
-                        Err(TransactionBufferError::BufferFull) => {
-                            debug!(
-                                "bundler's buffer is full, flushing all buffered actions to the executor"
-                            );
-                            self.flush_to_executor().await?;
-                        }
+                    // convert to seq action
+                    let seq_action = SequenceAction {
+                        chain_id: ru_transaction.chain_id,
+                        data: ru_transaction.inner.rlp().to_vec(),
+                    };
+
+                    // check seq action length
+                    if seq_action.data.len() + CHAIN_ID_LEN > self.max_bytes_size {
+                        warn!(
+                            transaction.chain_id = ru_transaction.chain_id.to_string(),
+                            transaction.hash = ru_transaction.inner.hash.to_string(),
+                            "failed to bundle rollup transaction: transaction is too large. Transaction is dropped."
+                        );
+                        continue;
                     }
+
+                    // if buffer doesn't have space for tx, flush it
+                    if curr_bytes + CHAIN_ID_LEN + seq_action.data.len() > self.max_bytes_size {
+                        debug!(
+                            "bundler's buffer is full, flushing all buffered actions to the executor"
+                        );
+                        // TODO: move async out of body of select?
+                        // change to try_send
+                        self.flush_to_executor(curr_bundle).await?;
+                        curr_bundle = vec![];
+                    }
+
+                    // otherwise, add to buffer
+                    // TODO: use ru_transaction's span to map ru_tx to bundle
+                    debug!(
+                        transaction.chain_id = seq_action.chain_id.to_string(),
+                        bytes = curr_bytes,
+                        "bundled rollup transaction",
+                    );
+                    curr_bytes += CHAIN_ID_LEN + seq_action.data.len();
+                    curr_bundle.push(Action::Sequence(seq_action));
                 }
-                // TODO: add block timer
+
+                // receive bundle request signal from executor
                 _ = block_timer.tick() => {
+                    // receive oneshot from executor
+                    // flush bundle to the oneshot
                     debug!("bundler's block timer tick, flushing actions to the executor to ensure timely arrival of rollup transactions");
-                    self.flush_to_executor().await?;
+                    self.flush_to_executor(curr_bundle).await?;
+                    curr_bundle = vec![];
                 }
             }
         }

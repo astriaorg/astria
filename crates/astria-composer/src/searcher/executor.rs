@@ -82,6 +82,8 @@ pub(super) struct Executor {
     sequencer_key: SigningKey,
     // The sequencer address associated with the private key
     address: Address,
+    // Milliseconds for bundle timer to make sure bundles are submitted at least once per block.
+    block_time: u64,
 }
 
 impl Drop for Executor {
@@ -112,6 +114,7 @@ impl Executor {
         sequencer_url: &str,
         private_key: &SecretString,
         new_bundles: mpsc::Receiver<Vec<Action>>,
+        block_time: u64,
     ) -> eyre::Result<Self> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
@@ -134,6 +137,7 @@ impl Executor {
             sequencer_client,
             sequencer_key,
             address: sequencer_address,
+            block_time,
         })
     }
 
@@ -154,6 +158,9 @@ impl Executor {
             .await
             .wrap_err("failed getting initial nonce from sequencer")?;
         self.status.send_modify(|status| status.is_connected = true);
+
+        let mut block_timer = time::interval(Duration::from_millis(self.block_time));
+
         loop {
             select! {
                 biased;
@@ -190,6 +197,9 @@ impl Executor {
                     .instrument(span)
                     .fuse();
                 }
+
+                // block_timer.tick()
+                //   request new bundle from bundler
             }
         }
     }
