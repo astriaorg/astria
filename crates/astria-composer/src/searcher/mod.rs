@@ -4,13 +4,11 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
-use proto::native::sequencer::v1alpha1::Action;
 use tokio::{
     select,
     sync::{
         mpsc::{
             self,
-            Receiver,
             Sender,
         },
         watch,
@@ -26,15 +24,12 @@ use tracing::{
 
 use crate::Config;
 
-mod bundler;
 mod collector;
 mod executor;
 mod rollup;
 
 use collector::Collector;
 use executor::Executor;
-
-use self::bundler::Bundler;
 
 /// A Searcher collates transactions from multiple rollups and bundles them into
 /// Astria sequencer transactions that are then passed on to the
@@ -48,24 +43,14 @@ pub(super) struct Searcher {
     collectors: HashMap<String, Collector>,
     // The collection of the collector statuses.
     collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
-    // TODO: remove
-    // The rx part of the channel on which the searcher receives transactions from its collectors.
-    rollup_transactions_rx: Receiver<collector::RollupTransaction>,
-    // TODO: rename to bundles_tx
     // The tx part that collectors use to send transactions to their parent searcher.
     rollup_transactions_tx: Sender<collector::RollupTransaction>,
     // The map of chain ID to the URLs to which collectors should connect.
     rollups: HashMap<String, String>,
     // The set of tasks tracking if the collectors are still running.
     collector_tasks: JoinMap<String, eyre::Result<()>>,
-    // The Bundler object that is responsible for bundling rollup transactions into `Vec<Action>`s
-    bundler: Option<Bundler>,
-    // Channel from which to read the internal status of the bundler.
-    bundler_status: watch::Receiver<bundler::Status>,
     // The Executor object that is responsible for signing and submitting sequencer transactions.
     executor: Option<Executor>,
-    // A channel on which to send the `Executor` bundles for attaching a nonce to, sign and submit
-    bundle_tx: mpsc::Sender<Vec<Action>>,
     // Channel from which to read the internal status of the executor.
     executor_status: watch::Receiver<executor::Status>,
 }
@@ -121,32 +106,23 @@ impl Searcher {
 
         let (status, _) = watch::channel(Status::default());
 
-        let (bundle_tx, bundle_rx) = mpsc::channel(256);
-        let executor = Executor::new(&cfg.sequencer_url, &cfg.private_key, bundle_rx)
-            .wrap_err("executor construction from config failed")?;
+        let executor = Executor::new(
+            &cfg.sequencer_url,
+            &cfg.private_key,
+            rollup_transactions_rx,
+            cfg.block_time,
+            cfg.max_bundle_sz,
+        )
+        .wrap_err("executor construction from config failed")?;
 
         let executor_status = executor.subscribe();
-
-        let bundler = bundler::Bundler::new(
-            rollup_transactions_rx,
-            bundle_tx,
-            bundler::MAX_BYTES_SIZE,
-            // TODO: add timer values
-            0,
-            0,
-        );
-        let bundler_status = bundler.subscribe();
 
         Ok(Searcher {
             status,
             collectors,
             collector_statuses,
-            rollup_transactions_rx,
             rollup_transactions_tx,
             collector_tasks: JoinMap::new(),
-            bundle_tx,
-            bundler: Some(bundler),
-            bundler_status,
             executor_status,
             executor: Some(executor),
             rollups,
@@ -158,17 +134,6 @@ impl Searcher {
         self.status.subscribe()
     }
 
-    async fn handle_bundle_execution(&self, bundle: Vec<Action>) {
-        // send bundle to executor
-        if let Err(e) = self.bundle_tx.send(bundle).await {
-            error!(
-                error.message = %e,
-                error.cause_chain = ?e,
-                "failed to send bundle to executor",
-            );
-        }
-    }
-
     /// Starts the searcher and runs it until failure
     ///
     /// # Backpressure
@@ -176,12 +141,6 @@ impl Searcher {
     /// in-depth explanation and suggested solution
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         self.spawn_collectors();
-        let mut bundler_handle = tokio::spawn(
-            self.bundler
-                .take()
-                .expect("bundler should only be run once")
-                .run_until_stopped(),
-        );
         let mut executor_handle = tokio::spawn(
             self.executor
                 .take()
@@ -202,30 +161,6 @@ impl Searcher {
                     self.reconnect_exited_collector(rollup, collector_exit);
                 }
 
-                ret = &mut bundler_handle = {
-                    match ret {
-                        Ok(Ok(())) => {
-                            error!("bundler task exited unexpectedly");
-                        }
-                        Ok(Err(e)) => {
-                            error!(
-                                error.message = %e,
-                                error.cause_chain = ?e,
-                                "bundler returned with error",
-                            );
-                        }
-                        Err(e) => {
-                            error!(
-                                error.message = %e,
-                                error.cause_chain = ?e,
-                                "bundler task panicked",
-                            );
-                        }
-                    }
-                    break;
-                }
-
-                // TODO: ?
                 ret = &mut executor_handle => {
                     match ret {
                         Ok(Ok(())) => {
@@ -250,6 +185,7 @@ impl Searcher {
                 }
             );
         }
+        Ok(())
     }
 
     #[instrument(skip_all, fields(rollup))]

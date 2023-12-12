@@ -29,6 +29,7 @@ use proto::{
     native::sequencer::v1alpha1::{
         asset::default_native_asset_id,
         Action,
+        SequenceAction,
         SignedTransaction,
         UnsignedTransaction,
     },
@@ -51,6 +52,7 @@ use tokio::{
         mpsc,
         watch,
     },
+    time,
 };
 use tracing::{
     debug,
@@ -64,6 +66,11 @@ use tracing::{
     Span,
 };
 
+use super::collector::RollupTransaction;
+
+// TODO: should get this from the ChainId type
+const CHAIN_ID_LEN: usize = 32;
+
 /// The `Executor` interfaces with the sequencer. It handles account nonces, transaction signing,
 /// and transaction submission.
 /// The `Executor` receives `Vec<Action>` from the bundling logic, packages them with a nonce into
@@ -74,7 +81,7 @@ pub(super) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
     // Channel for receiving action bundles for submission to the sequencer.
-    new_bundles: mpsc::Receiver<Vec<Action>>,
+    rollup_txs: mpsc::Receiver<RollupTransaction>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
     sequencer_client: sequencer_client::HttpClient,
@@ -84,6 +91,8 @@ pub(super) struct Executor {
     address: Address,
     // Milliseconds for bundle timer to make sure bundles are submitted at least once per block.
     block_time: u64,
+    // Max bytes in a sequencer action bundle
+    max_bundle_sz: usize,
 }
 
 impl Drop for Executor {
@@ -113,8 +122,9 @@ impl Executor {
     pub(super) fn new(
         sequencer_url: &str,
         private_key: &SecretString,
-        new_bundles: mpsc::Receiver<Vec<Action>>,
+        rollup_txs: mpsc::Receiver<RollupTransaction>,
         block_time: u64,
+        max_bundle_sz: usize,
     ) -> eyre::Result<Self> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
@@ -133,11 +143,12 @@ impl Executor {
 
         Ok(Self {
             status,
-            new_bundles,
+            rollup_txs,
             sequencer_client,
             sequencer_key,
             address: sequencer_address,
             block_time,
+            max_bundle_sz,
         })
     }
 
@@ -161,6 +172,9 @@ impl Executor {
 
         let mut block_timer = time::interval(Duration::from_millis(self.block_time));
 
+        let mut curr_bundle = vec![];
+        let curr_bundle_sz = 0;
+
         loop {
             select! {
                 biased;
@@ -177,14 +191,69 @@ impl Executor {
                 }
 
                 // receive new bundle for processing
-                Some(bundle) = self.new_bundles.recv(), if submission_fut.is_terminated() => {
+                Some(ru_transaction) = self.rollup_txs.recv(), if submission_fut.is_terminated() => {
+                    let seq_action = SequenceAction {
+                        chain_id: ru_transaction.chain_id,
+                        data: ru_transaction.inner.rlp().to_vec(),
+                    };
+                    let seq_action_sz = seq_action.data.len() + CHAIN_ID_LEN;
+
+                    if seq_action_sz > self.max_bundle_sz {
+                             warn!(
+                                transaction.chain_id = ru_transaction.chain_id.to_string(),
+                                transaction.hash = ru_transaction.inner.hash.to_string(),
+                                "failed to bundle rollup transaction: transaction is too large. Transaction \
+                                 is dropped."
+                            );
+                        }
+
+                    if curr_bundle_sz + seq_action_sz > self.max_bundle_sz {
+                            debug!("bundler's buffer is full, flushing all buffered actions to the executor");
+                            let bundle = curr_bundle;
+                            curr_bundle = vec![];
+
+                            // TODO(https://github.com/astriaorg/astria/issues/476): Attach the hash of the
+                            // bundle to the span. Linked GH issue is for agreeing on a hash for `SignedTransaction`,
+                            // but both should be addressed.
+                            let span =  info_span!(
+                                "submit bundle",
+                                nonce.initial = nonce,
+                                bundle.len = bundle.len(),
+                            );
+                            submission_fut = SubmitFut {
+                                client: self.sequencer_client.clone(),
+                                address: self.address,
+                                nonce,
+                                signing_key: self.sequencer_key.clone(),
+                                state: SubmitState::NotStarted,
+                                bundle,
+                            }
+                            .instrument(span)
+                            .fuse();
+                    }
+
+                    curr_bundle.push(Action::Sequence(seq_action));
+                    debug!(
+                        transaction.hash = ?ru_transaction.inner.hash,
+                        transaction.chain_id = ?ru_transaction.chain_id,
+                        bytes = seq_action_sz,
+                        "bundled rollup transaction",
+                    );
+                }
+
+                // receive bundle request signal from executor
+                _ = block_timer.tick() => {
+                    // receive oneshot from executor
+                    // flush bundle to the oneshot
+                    debug!("bundler's block timer tick, flushing actions to the executor to ensure timely arrival of rollup transactions");
+
                     // TODO(https://github.com/astriaorg/astria/issues/476): Attach the hash of the
                     // bundle to the span. Linked GH issue is for agreeing on a hash for `SignedTransaction`,
                     // but both should be addressed.
                     let span =  info_span!(
                         "submit bundle",
                         nonce.initial = nonce,
-                        bundle.len = bundle.len(),
+                        bundle.size = curr_bundle_sz,
                     );
                     submission_fut = SubmitFut {
                         client: self.sequencer_client.clone(),
@@ -192,12 +261,12 @@ impl Executor {
                         nonce,
                         signing_key: self.sequencer_key.clone(),
                         state: SubmitState::NotStarted,
-                        bundle,
+                        bundle: curr_bundle,
                     }
                     .instrument(span)
                     .fuse();
+                    curr_bundle = vec![];
                 }
-
                 // block_timer.tick()
                 //   request new bundle from bundler
             }
