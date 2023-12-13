@@ -48,7 +48,7 @@ pub struct Ics20Withdrawal {
     return_address: Address,
     // the height (on Astria) at which this transfer expires.
     timeout_height: IbcHeight,
-    // the unix timestamp at which this transfer expires.
+    // the unix timestamp (in nanoseconds) at which this transfer expires.
     timeout_time: u64,
     // the source channel used for the withdrawal.
     source_channel: ChannelId,

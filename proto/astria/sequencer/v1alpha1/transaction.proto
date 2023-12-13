@@ -90,7 +90,7 @@ message Ics20Withdrawal {
   bytes return_address = 4;
   // the height (on Astria) at which this transfer expires.
   IbcHeight timeout_height = 5;
-  // the unix timestamp at which this transfer expires.
+  // the unix timestamp (in nanoseconds) at which this transfer expires.
   uint64 timeout_time = 6;
   // the source channel used for the withdrawal.
   string source_channel = 7;
