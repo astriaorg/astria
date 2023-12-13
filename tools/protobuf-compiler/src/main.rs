@@ -6,8 +6,8 @@ use std::{
         read_dir,
         read_to_string,
         remove_file,
-        write,
     },
+    io::Write as _,
     path::{
         Path,
         PathBuf,
@@ -15,70 +15,52 @@ use std::{
     process::Command,
 };
 
-use tempfile::tempdir;
+const OUT_DIR: &str = "../../crates/astria-proto/src/proto/generated";
+const SRC_DIR: &str = "../../proto";
 
-const OUT_DIR: &str = "src/proto/generated";
+const INCLUDES: &[&str] = &[SRC_DIR];
 
-const PROTO_DIR: &str = "proto/";
-const INCLUDES: &[&str] = &[PROTO_DIR];
-
-fn get_buf_from_env() -> PathBuf {
-    let os_specific_hint = match env::consts::OS {
-        "macos" => "You could try running `brew install buf` or downloading a recent release from https://github.com/bufbuild/buf/releases",
-        "linux" => "You can download it from https://github.com/bufbuild/buf/releases; if you are on Arch Linux, install it from the AUR with `rua install buf` or another helper",
-        _other =>  "Check if there is a precompiled version for your OS at https://github.com/bufbuild/buf/releases"
-    };
-    let error_msg = "Could not find `buf` installation and this build crate cannot proceed without
-    this knowledge. If `buf` is installed and this crate had trouble finding
-    it, you can set the `BUF` environment variable with the specific path to your
-    installed `buf` binary.";
-    let msg = format!("{error_msg} {os_specific_hint}");
-
-    env::var_os("BUF")
-        .map(PathBuf::from)
-        .or_else(|| which::which("buf").ok())
-        .expect(&msg)
-}
-#[test]
-fn build() {
-    let before_build = build_content_map(OUT_DIR);
-
+fn main() {
     let buf = get_buf_from_env();
     let mut cmd = Command::new(buf.clone());
 
     let buf_img = tempfile::NamedTempFile::new()
         .expect("should be able to create a temp file to hold the buf image file descriptor set");
+
+    let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let src_dir = crate_dir.join(SRC_DIR);
+    let out_dir = crate_dir.join(OUT_DIR);
+
     cmd.arg("build")
         .arg("--output")
         .arg(buf_img.path())
         .arg("--as-file-descriptor-set")
-        .arg(".")
-        .current_dir(env!("CARGO_MANIFEST_DIR"));
+        .arg(&src_dir);
 
-    match cmd.output() {
+    let buf_output = match cmd.output() {
         Err(e) => {
             panic!(
                 "failed creating file descriptor set from protobuf: failed to invoke buf (path: \
                  {buf:?}): {e:?}"
             );
         }
-        Ok(output) if !output.status.success() => {
-            panic!(
-                "failed creating file descriptor set from protobuf: `buf` returned error: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
-        }
-        Ok(_) => {}
+        Ok(output) => output,
     };
 
-    let files = find_protos(PROTO_DIR);
+    emit_buf_stdout(&buf_output.stdout).expect("able to write to stdout");
+    emit_buf_stderr(&buf_output.stderr).expect("able to write to stderr");
 
-    let out_dir =
-        tempdir().expect("should be able to create a temp dir to store the generated files");
+    assert!(
+        buf_output.status.success(),
+        "failed creating file descriptor set from protobuf: `buf` returned non-zero exit code"
+    );
+
+    let files = find_protos(&src_dir);
 
     tonic_build::configure()
         .build_client(true)
         .build_server(true)
+        .emit_rerun_if_changed(false)
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
         .extern_path(".tendermint.abci", "::tendermint-proto::abci")
@@ -87,15 +69,30 @@ fn build() {
         .extern_path(".tendermint.types", "::tendermint-proto::types")
         .extern_path(".penumbra", "::penumbra-proto")
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
-        .out_dir(out_dir.path())
+        .out_dir(&out_dir)
         .file_descriptor_set_path(buf_img.path())
         .skip_protoc_run()
         .compile(&files, INCLUDES)
         .expect("should be able to compile protobuf using tonic");
 
-    let mut after_build = build_content_map(out_dir.path());
+    let mut after_build = build_content_map(&out_dir);
     clean_non_astria_code(&mut after_build);
-    ensure_files_are_the_same(&before_build, after_build, OUT_DIR);
+}
+
+fn emit_buf_stdout(buf: &[u8]) -> std::io::Result<()> {
+    if !buf.is_empty() {
+        std::io::stdout().lock().write_all(buf)?;
+        println!();
+    }
+    Ok(())
+}
+
+fn emit_buf_stderr(buf: &[u8]) -> std::io::Result<()> {
+    if !buf.is_empty() {
+        std::io::stderr().lock().write_all(buf)?;
+        eprintln!();
+    }
+    Ok(())
 }
 
 fn clean_non_astria_code(generated: &mut ContentMap) {
@@ -128,31 +125,6 @@ fn find_protos<P: AsRef<Path>>(dir: P) -> Vec<PathBuf> {
         .collect()
 }
 
-fn ensure_files_are_the_same(before: &ContentMap, after: ContentMap, target_dir: &'static str) {
-    if before.codes == after.codes {
-        return;
-    }
-
-    assert!(
-        env::var_os("CI").is_none(),
-        "files compiled from protobuf have changed, but this is a CI environment. Rerun this test \
-         locally and commit the changes."
-    );
-
-    for (name, content) in after.codes {
-        let dst = Path::new(target_dir).join(name);
-        if let Err(e) = write(&dst, content) {
-            panic!(
-                "failed to write code generated from protobuf to `{}`; if this is a CI \
-                 environment, rerun the test locally and commit the changes. Error: {e:?}",
-                dst.display(),
-            );
-        }
-    }
-
-    panic!("the generated files have changed; please commit the changes");
-}
-
 struct ContentMap {
     files: HashMap<String, PathBuf>,
     codes: HashMap<String, String>,
@@ -180,4 +152,22 @@ fn build_content_map(path: impl AsRef<Path>) -> ContentMap {
         files,
         codes,
     }
+}
+
+fn get_buf_from_env() -> PathBuf {
+    let os_specific_hint = match env::consts::OS {
+        "macos" => "You could try running `brew install buf` or downloading a recent release from https://github.com/bufbuild/buf/releases",
+        "linux" => "You can download it from https://github.com/bufbuild/buf/releases; if you are on Arch Linux, install it from the AUR with `rua install buf` or another helper",
+        _other =>  "Check if there is a precompiled version for your OS at https://github.com/bufbuild/buf/releases"
+    };
+    let error_msg = "Could not find `buf` installation and this build crate cannot proceed without
+    this knowledge. If `buf` is installed and this crate had trouble finding
+    it, you can set the `BUF` environment variable with the specific path to your
+    installed `buf` binary.";
+    let msg = format!("{error_msg} {os_specific_hint}");
+
+    env::var_os("BUF")
+        .map(PathBuf::from)
+        .or_else(|| which::which("buf").ok())
+        .expect(&msg)
 }

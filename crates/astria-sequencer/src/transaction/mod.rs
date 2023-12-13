@@ -114,6 +114,10 @@ impl ActionHandler for UnsignedTransaction {
                         .await
                         .context("stateless check failed for IbcAction")?;
                 }
+                Action::Ics20Withdrawal(act) => act
+                    .check_stateless()
+                    .await
+                    .context("stateless check failed for Ics20WithdrawalAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateless()
@@ -158,6 +162,10 @@ impl ActionHandler for UnsignedTransaction {
                 Action::Ibc(_) => {
                     // no-op; IBC actions merge check_stateful and execute.
                 }
+                Action::Ics20Withdrawal(act) => act
+                    .check_stateful(state, from, fee_asset_id)
+                    .await
+                    .context("stateful check failed for Ics20WithdrawalAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateful(state, from, fee_asset_id)
@@ -224,6 +232,11 @@ impl ActionHandler for UnsignedTransaction {
                     penumbra_component::ActionHandler::execute(&action, &mut *state)
                         .await
                         .context("execution failed for IbcAction")?;
+                }
+                Action::Ics20Withdrawal(act) => {
+                    act.execute(state, from, fee_asset_id)
+                        .await
+                        .context("execution failed for Ics20WithdrawalAction")?;
                 }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => {

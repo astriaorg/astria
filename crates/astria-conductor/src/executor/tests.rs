@@ -9,19 +9,22 @@ use ethers::{
     utils::AnvilInstance,
 };
 use k256::ecdsa::SigningKey;
-use proto::generated::execution::v1alpha2::{
-    execution_service_server::{
-        ExecutionService,
-        ExecutionServiceServer,
+use proto::{
+    generated::execution::v1alpha2::{
+        execution_service_server::{
+            ExecutionService,
+            ExecutionServiceServer,
+        },
+        BatchGetBlocksRequest,
+        BatchGetBlocksResponse,
+        Block,
+        CommitmentState,
+        ExecuteBlockRequest,
+        GetBlockRequest,
+        GetCommitmentStateRequest,
+        UpdateCommitmentStateRequest,
     },
-    BatchGetBlocksRequest,
-    BatchGetBlocksResponse,
-    Block,
-    CommitmentState,
-    ExecuteBlockRequest,
-    GetBlockRequest,
-    GetCommitmentStateRequest,
-    UpdateCommitmentStateRequest,
+    native::sequencer::v1alpha1::test_utils::make_cometbft_block,
 };
 use sha2::Digest as _;
 use tokio::{
@@ -141,7 +144,7 @@ fn hash(s: &[u8]) -> Vec<u8> {
 fn get_test_block_subset() -> SequencerBlockSubset {
     SequencerBlockSubset {
         block_hash: hash(b"block1").try_into().unwrap(),
-        header: sequencer_types::test_utils::default_header(),
+        header: make_cometbft_block().header,
         transactions: vec![],
     }
 }

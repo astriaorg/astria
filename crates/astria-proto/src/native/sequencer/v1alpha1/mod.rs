@@ -16,7 +16,13 @@ use sha2::{
 };
 use tracing::info;
 
-pub use super::asset;
+pub use super::{
+    asset,
+    ics20_withdrawal::{
+        Ics20Withdrawal,
+        Ics20WithdrawalError,
+    },
+};
 use crate::{
     generated::sequencer::v1alpha1 as raw,
     native::{
@@ -24,6 +30,9 @@ use crate::{
         Protobuf,
     },
 };
+
+#[cfg(feature = "test-utils")]
+pub mod test_utils;
 
 pub const ADDRESS_LEN: usize = 20;
 pub const ROLLUP_ID_LEN: usize = 32;
@@ -354,6 +363,7 @@ pub enum Action {
     SudoAddressChange(SudoAddressChangeAction),
     Mint(MintAction),
     Ibc(IbcRelay),
+    Ics20Withdrawal(Ics20Withdrawal),
 }
 
 impl Action {
@@ -367,6 +377,7 @@ impl Action {
             Action::SudoAddressChange(act) => Value::SudoAddressChangeAction(act.into_raw()),
             Action::Mint(act) => Value::MintAction(act.into_raw()),
             Action::Ibc(act) => Value::IbcAction(act.into()),
+            Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.into_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -385,6 +396,7 @@ impl Action {
             }
             Action::Mint(act) => Value::MintAction(act.to_raw()),
             Action::Ibc(act) => Value::IbcAction(act.clone().into()),
+            Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.clone().to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -425,6 +437,9 @@ impl Action {
             Value::IbcAction(act) => {
                 Self::Ibc(IbcRelay::try_from(act).map_err(|e| ActionError::ibc(e.into()))?)
             }
+            Value::Ics20Withdrawal(act) => Self::Ics20Withdrawal(
+                Ics20Withdrawal::try_from_raw(act).map_err(ActionError::ics20withdrawal)?,
+            ),
         };
         Ok(action)
     }
@@ -523,6 +538,12 @@ impl ActionError {
             kind: ActionErrorKind::Ibc(inner),
         }
     }
+
+    fn ics20withdrawal(inner: Ics20WithdrawalError) -> Self {
+        Self {
+            kind: ActionErrorKind::Ics20Withdrawal(inner),
+        }
+    }
 }
 
 impl Display for ActionError {
@@ -535,6 +556,7 @@ impl Display for ActionError {
             ActionErrorKind::SudoAddressChange(_) => "raw sudo address change action was not valid",
             ActionErrorKind::Mint(_) => "raw mint action was not valid",
             ActionErrorKind::Ibc(_) => "raw ibc action was not valid",
+            ActionErrorKind::Ics20Withdrawal(_) => "raw ics20 withdrawal action was not valid",
         };
         f.pad(msg)
     }
@@ -550,6 +572,7 @@ impl Error for ActionError {
             ActionErrorKind::SudoAddressChange(e) => Some(e),
             ActionErrorKind::Mint(e) => Some(e),
             ActionErrorKind::Ibc(e) => Some(e.as_ref()),
+            ActionErrorKind::Ics20Withdrawal(e) => Some(e),
         }
     }
 }
@@ -563,6 +586,7 @@ enum ActionErrorKind {
     SudoAddressChange(SudoAddressChangeActionError),
     Mint(MintActionError),
     Ibc(Box<dyn Error + Send + Sync>),
+    Ics20Withdrawal(Ics20WithdrawalError),
 }
 
 #[derive(Debug)]

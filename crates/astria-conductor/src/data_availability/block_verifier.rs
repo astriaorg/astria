@@ -136,13 +136,12 @@ fn ensure_commit_has_quorum(
     chain_id: &tendermint::chain::Id,
 ) -> eyre::Result<()> {
     // Validator set at Block N-1 is used for block N
-    if commit.height.value() != validator_set.block_height.value() + 1 {
-        bail!(
-            "commit height mismatch: expected {}, got {}",
-            validator_set.block_height.value() + 1,
-            commit.height
-        );
-    }
+    let expected_height = validator_set.block_height.increment();
+    let actual_height = commit.height;
+    ensure!(
+        expected_height == actual_height,
+        "commit height mismatch; expected `{expected_height}`, got `{actual_height}`"
+    );
 
     let Some(total_voting_power) = validator_set
         .validators
@@ -282,6 +281,7 @@ mod test {
     };
 
     use proto::native::sequencer::v1alpha1::{
+        test_utils::make_cometbft_block,
         RollupId,
         UncheckedCelestiaSequencerBlob,
     };
@@ -365,7 +365,7 @@ mod test {
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();
 
-        let mut header = sequencer_types::test_utils::default_header();
+        let mut header = make_cometbft_block().header;
         let height = header.height.value().try_into().unwrap();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 
@@ -403,7 +403,7 @@ mod test {
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();
 
-        let mut header = sequencer_types::test_utils::default_header();
+        let mut header = make_cometbft_block().header;
         let height = header.height.value().try_into().unwrap();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
 

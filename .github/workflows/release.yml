@@ -23,7 +23,7 @@ jobs:
       - uses: bufbuild/buf-push-action@v1
         with:
           draft:  ${{ github.ref_name != 'main'}}
-          input: "crates/astria-proto/proto"
+          input: "proto"
           buf_token: ${{ secrets.BUF_TOKEN }}
 
   conductor:
@@ -58,9 +58,16 @@ jobs:
       package-name: 'sequencer-relayer'
       display-name: 'Sequencer Relayer'
 
+  cli:
+    needs: run_checker
+    if: needs.run_checker.outputs.run_release_services == 'true'
+    uses: ./.github/workflows/reusable-cargo-version.yml
+    with:
+      package-name: 'cli'
+      display-name: 'CLI'
 
   release:
-    needs: [proto, conductor, composer, sequencer, sequencer-relayer]
+    needs: [proto, conductor, composer, sequencer, sequencer-relayer, cli]
     if: ${{ always() && !cancelled() }}
     uses: ./.github/workflows/reusable-success.yml
     with:

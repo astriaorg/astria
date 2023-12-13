@@ -60,7 +60,7 @@ pub(crate) struct Reader {
     shutdown: oneshot::Receiver<()>,
 
     /// The start height from which to start syncing sequencer blocks.
-    start_sync_height: u32,
+    start_sync_height: Height,
 
     /// The sync-done channel to notify `Conductor` that `Reader` has finished syncing.
     sync_done: oneshot::Sender<()>,
@@ -68,7 +68,7 @@ pub(crate) struct Reader {
 
 impl Reader {
     pub(crate) fn new(
-        start_sync_height: u32,
+        start_sync_height: Height,
         pool: Pool<ClientProvider>,
         shutdown: oneshot::Receiver<()>,
         executor_tx: executor::Sender,
@@ -128,7 +128,7 @@ impl Reader {
         );
 
         let mut sync = sync::run(
-            start_sync_height.into(),
+            start_sync_height,
             next_height,
             pool.clone(),
             executor_tx.clone(),
@@ -408,7 +408,7 @@ mod tests {
         },
         stream::FuturesOrdered,
     };
-    use sequencer_types::test_utils::create_tendermint_block;
+    use proto::native::sequencer::v1alpha1::test_utils::make_cometbft_block;
 
     use super::{
         forward_block_or_resync,
@@ -446,9 +446,9 @@ mod tests {
     #[tokio::test]
     async fn block_at_expected_height_is_forwarded() {
         let expected_height = 5u32.into();
-        let mut tendermint_block = create_tendermint_block();
-        tendermint_block.header.height = expected_height;
-        let expected_block = SequencerBlock::try_from_cometbft(tendermint_block)
+        let mut block = make_cometbft_block();
+        block.header.height = expected_height;
+        let expected_block = SequencerBlock::try_from_cometbft(block)
             .expect("the tendermint block should be well formed");
 
         let mut env = ForwardBlockOrResyncEnvironment::setup().await;
@@ -487,9 +487,9 @@ mod tests {
     async fn future_block_triggers_resync() {
         let expected_height = 5u32.into();
         let future_height = 8u32.into();
-        let mut tendermint_block = create_tendermint_block();
-        tendermint_block.header.height = future_height;
-        let expected_block = SequencerBlock::try_from_cometbft(tendermint_block)
+        let mut block = make_cometbft_block();
+        block.header.height = future_height;
+        let expected_block = SequencerBlock::try_from_cometbft(block)
             .expect("the tendermint block should be well formed");
 
         let mut env = ForwardBlockOrResyncEnvironment::setup().await;
@@ -516,9 +516,9 @@ mod tests {
     #[tokio::test]
     async fn older_block_is_dropped() {
         let expected_height = 5u32.into();
-        let mut tendermint_block = create_tendermint_block();
-        tendermint_block.header.height = 3u32.into();
-        let expected_block = SequencerBlock::try_from_cometbft(tendermint_block)
+        let mut block = make_cometbft_block();
+        block.header.height = 3u32.into();
+        let expected_block = SequencerBlock::try_from_cometbft(block)
             .expect("the tendermint block should be well formed");
 
         let mut env = ForwardBlockOrResyncEnvironment::setup().await;
