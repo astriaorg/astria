@@ -158,6 +158,12 @@ impl IbcAsset {
     }
 }
 
+impl Display for IbcAsset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}", self.prefix, self.base_denom)
+    }
+}
+
 /// Creates an `IbcAsset` given a denomination trace.
 ///
 /// # Errors
