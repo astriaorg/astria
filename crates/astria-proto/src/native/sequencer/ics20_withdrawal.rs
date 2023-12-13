@@ -31,44 +31,65 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Ics20Withdrawal {
     // a transparent value consisting of an amount and a denom.
-    pub amount: u128,
-    pub denom: IbcAsset,
+    amount: u128,
+    denom: IbcAsset,
     // the address on the destination chain to send the transfer to.
-    pub destination_chain_address: String,
+    destination_chain_address: String,
     // an Astria address to use to return funds from this withdrawal
     // in the case it fails.
-    pub return_address: Address,
+    return_address: Address,
     // the height (on Astria) at which this transfer expires.
-    pub timeout_height: IbcHeight,
+    timeout_height: IbcHeight,
     // the timestamp at which this transfer expires.
-    pub timeout_time: u64,
+    timeout_time: u64,
     // the source channel used for the withdrawal.
-    pub source_channel: ChannelId,
-}
-
-impl From<Ics20Withdrawal> for FungibleTokenPacketData {
-    fn from(withdrawal: Ics20Withdrawal) -> Self {
-        Self {
-            amount: withdrawal.amount.to_string(),
-            denom: withdrawal.denom.to_string(),
-            sender: withdrawal.return_address.to_string(),
-            receiver: withdrawal.destination_chain_address,
-        }
-    }
+    source_channel: ChannelId,
 }
 
 impl Ics20Withdrawal {
-    /// Returns the JSON-encoded packet data for this withdrawal.
-    ///
-    /// # Panics
-    ///
-    /// If the packet data cannot be serialized as JSON.
     #[must_use]
-    pub fn packet_data(&self) -> Vec<u8> {
-        let ftpd: FungibleTokenPacketData = self.clone().into();
+    pub fn amount(&self) -> u128 {
+        self.amount
+    }
 
-        // In violation of the ICS20 spec, ibc-go encodes transfer packets as JSON.
-        serde_json::to_vec(&ftpd).expect("can serialize FungibleTokenPacketData as JSON")
+    #[must_use]
+    pub fn denom(&self) -> &IbcAsset {
+        &self.denom
+    }
+
+    #[must_use]
+    pub fn destination_chain_address(&self) -> &str {
+        &self.destination_chain_address
+    }
+
+    #[must_use]
+    pub fn return_address(&self) -> &Address {
+        &self.return_address
+    }
+
+    #[must_use]
+    pub fn timeout_height(&self) -> &IbcHeight {
+        &self.timeout_height
+    }
+
+    #[must_use]
+    pub fn timeout_time(&self) -> u64 {
+        self.timeout_time
+    }
+
+    #[must_use]
+    pub fn source_channel(&self) -> &ChannelId {
+        &self.source_channel
+    }
+
+    #[must_use]
+    pub fn to_fungible_token_packet_data(&self) -> FungibleTokenPacketData {
+        FungibleTokenPacketData {
+            amount: self.amount.to_string(),
+            denom: self.denom.to_string(),
+            sender: self.return_address.to_string(),
+            receiver: self.destination_chain_address.clone(),
+        }
     }
 
     #[must_use]
@@ -137,6 +158,39 @@ impl From<raw::IbcHeight> for IbcHeight {
     }
 }
 
+impl crate::native::Protobuf for IbcHeight {
+    type Error = ::std::convert::Infallible;
+    type Raw = raw::IbcHeight;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        Ok(Self {
+            revision_number: raw.revision_number,
+            revision_height: raw.revision_height,
+        })
+    }
+
+    fn try_from_raw(h: Self::Raw) -> Result<Self, Self::Error> {
+        Ok(Self {
+            revision_number: h.revision_number,
+            revision_height: h.revision_height,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        Self::Raw {
+            revision_number: self.revision_number,
+            revision_height: self.revision_height,
+        }
+    }
+
+    fn into_raw(self) -> Self::Raw {
+        Self::Raw {
+            revision_number: self.revision_number,
+            revision_height: self.revision_height,
+        }
+    }
+}
+
 impl From<IbcHeight> for raw::IbcHeight {
     fn from(h: IbcHeight) -> Self {
         Self {
@@ -168,4 +222,13 @@ impl Display for Ics20WithdrawalError {
     }
 }
 
-impl Error for Ics20WithdrawalError {}
+impl Error for Ics20WithdrawalError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::MissingAmount | Self::MissingTimeoutHeight => None,
+            Self::InvalidDenom(e) => Some(e),
+            Self::InvalidReturnAddress(e) => Some(e),
+            Self::InvalidSourceChannel(e) => Some(e),
+        }
+    }
+}

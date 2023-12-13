@@ -18,7 +18,10 @@ use tracing::info;
 
 pub use super::{
     asset,
-    ics20_withdrawal::Ics20Withdrawal,
+    ics20_withdrawal::{
+        Ics20Withdrawal,
+        Ics20WithdrawalError,
+    },
 };
 use crate::{
     generated::sequencer::v1alpha1 as raw,
@@ -435,8 +438,7 @@ impl Action {
                 Self::Ibc(IbcRelay::try_from(act).map_err(|e| ActionError::ibc(e.into()))?)
             }
             Value::Ics20Withdrawal(act) => Self::Ics20Withdrawal(
-                Ics20Withdrawal::try_from_raw(act)
-                    .map_err(|e| ActionError::ics20withdrawal(e.into()))?,
+                Ics20Withdrawal::try_from_raw(act).map_err(ActionError::ics20withdrawal)?,
             ),
         };
         Ok(action)
@@ -537,7 +539,7 @@ impl ActionError {
         }
     }
 
-    fn ics20withdrawal(inner: Box<dyn Error + Send + Sync>) -> Self {
+    fn ics20withdrawal(inner: Ics20WithdrawalError) -> Self {
         Self {
             kind: ActionErrorKind::Ics20Withdrawal(inner),
         }
@@ -569,7 +571,8 @@ impl Error for ActionError {
             ActionErrorKind::ValidatorUpdate(e) => Some(e),
             ActionErrorKind::SudoAddressChange(e) => Some(e),
             ActionErrorKind::Mint(e) => Some(e),
-            ActionErrorKind::Ibc(e) | ActionErrorKind::Ics20Withdrawal(e) => Some(e.as_ref()),
+            ActionErrorKind::Ibc(e) => Some(e.as_ref()),
+            ActionErrorKind::Ics20Withdrawal(e) => Some(e),
         }
     }
 }
@@ -583,7 +586,7 @@ enum ActionErrorKind {
     SudoAddressChange(SudoAddressChangeActionError),
     Mint(MintActionError),
     Ibc(Box<dyn Error + Send + Sync>),
-    Ics20Withdrawal(Box<dyn Error + Send + Sync>),
+    Ics20Withdrawal(Ics20WithdrawalError),
 }
 
 #[derive(Debug)]
