@@ -25,6 +25,7 @@ humantime = { workspace = true }
 hyper = { workspace = true }
 hex = { workspace = true }
 once_cell = { workspace = true }
+prost = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 rand = { workspace = true }
 regex = { workspace = true }
@@ -42,7 +43,6 @@ tokio = { workspace = true, features = [
 tokio-util = { workspace = true, features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
 tryhard = { workspace = true }
-prost.workspace = true
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"
