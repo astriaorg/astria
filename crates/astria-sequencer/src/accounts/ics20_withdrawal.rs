@@ -1,6 +1,6 @@
 use anyhow::{
     ensure,
-    Context,
+    Context as _,
     Result,
 };
 use ibc_types::core::channel::{
@@ -93,16 +93,14 @@ impl ActionHandler for Ics20Withdrawal {
             .get_account_balance(from, self.denom().id())
             .await
             .context("failed getting `from` account balance for transfer")?;
-        ensure!(
-            from_transfer_balance >= self.amount(),
-            "insufficient funds for transfer"
-        );
 
         state
             .put_account_balance(
                 from,
                 self.denom().id(),
-                from_transfer_balance - self.amount(),
+                from_transfer_balance
+                    .checked_sub(self.amount())
+                    .context("insufficient funds for transfer")?,
             )
             .context("failed to update sender balance")?;
 

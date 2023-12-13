@@ -78,12 +78,21 @@ message MintAction {
 }
 
 message Ics20Withdrawal {
+  // first two fields are a transparent value consisting of an amount and a denom.
   astria.primitive.v1.Uint128 amount = 1;
   string denom = 2;
+  // the address on the destination chain to send the transfer to.
+  // this is not validated by Astria; it is up to the destination chain
+  // to interpret it.
   string destination_chain_address = 3;
+  // an Astria address to use to return funds from this withdrawal
+  // in the case it fails.
   bytes return_address = 4;
+  // the height (on Astria) at which this transfer expires.
   IbcHeight timeout_height = 5;
+  // the unix timestamp at which this transfer expires.
   uint64 timeout_time = 6;
+  // the source channel used for the withdrawal.
   string source_channel = 7;
 }
 
