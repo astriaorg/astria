@@ -32,6 +32,7 @@ use proto::{
         SequenceAction,
         SignedTransaction,
         UnsignedTransaction,
+        CHAIN_ID_LEN,
     },
     Message as _,
 };
@@ -52,7 +53,9 @@ use tokio::{
         mpsc,
         watch,
     },
-    time,
+    time::{
+        self,
+    },
 };
 use tracing::{
     debug,
@@ -66,11 +69,6 @@ use tracing::{
     Span,
 };
 
-use super::collector::RollupTransaction;
-
-// TODO: should get this from the ChainId type
-const CHAIN_ID_LEN: usize = 32;
-
 /// The `Executor` interfaces with the sequencer. It handles account nonces, transaction signing,
 /// and transaction submission.
 /// The `Executor` receives `Vec<Action>` from the bundling logic, packages them with a nonce into
@@ -81,7 +79,7 @@ pub(super) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
     // Channel for receiving action bundles for submission to the sequencer.
-    rollup_txs: mpsc::Receiver<RollupTransaction>,
+    seq_actions_rx: mpsc::Receiver<SequenceAction>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
     sequencer_client: sequencer_client::HttpClient,
@@ -122,7 +120,7 @@ impl Executor {
     pub(super) fn new(
         sequencer_url: &str,
         private_key: &SecretString,
-        rollup_txs: mpsc::Receiver<RollupTransaction>,
+        seq_actions: mpsc::Receiver<SequenceAction>,
         block_time: u64,
         max_bundle_sz: usize,
     ) -> eyre::Result<Self> {
@@ -143,7 +141,7 @@ impl Executor {
 
         Ok(Self {
             status,
-            rollup_txs,
+            seq_actions_rx: seq_actions,
             sequencer_client,
             sequencer_key,
             address: sequencer_address,
@@ -191,24 +189,11 @@ impl Executor {
                 }
 
                 // receive new bundle for processing
-                Some(ru_transaction) = self.rollup_txs.recv(), if submission_fut.is_terminated() => {
-                    let seq_action = SequenceAction {
-                        chain_id: ru_transaction.chain_id,
-                        data: ru_transaction.inner.rlp().to_vec(),
-                    };
+                Some(seq_action) = self.seq_actions_rx.recv(), if submission_fut.is_terminated() => {
                     let seq_action_sz = seq_action.data.len() + CHAIN_ID_LEN;
 
-                    if seq_action_sz > self.max_bundle_sz {
-                             warn!(
-                                transaction.chain_id = ru_transaction.chain_id.to_string(),
-                                transaction.hash = ru_transaction.inner.hash.to_string(),
-                                "failed to bundle rollup transaction: transaction is too large. Transaction \
-                                 is dropped."
-                            );
-                        }
-
                     if curr_bundle_sz + seq_action_sz > self.max_bundle_sz {
-                            debug!("bundler's buffer is full, flushing all buffered actions to the executor");
+                            debug!("current bundle full, submitting to sequencer");
                             let bundle = curr_bundle;
                             curr_bundle = vec![];
 
@@ -216,9 +201,10 @@ impl Executor {
                             // bundle to the span. Linked GH issue is for agreeing on a hash for `SignedTransaction`,
                             // but both should be addressed.
                             let span =  info_span!(
-                                "submit bundle",
+                                "submit full bundle",
                                 nonce.initial = nonce,
                                 bundle.len = bundle.len(),
+                                bundle.size = curr_bundle_sz,
                             );
                             submission_fut = SubmitFut {
                                 client: self.sequencer_client.clone(),
@@ -233,26 +219,21 @@ impl Executor {
                     }
 
                     curr_bundle.push(Action::Sequence(seq_action));
-                    debug!(
-                        transaction.hash = ?ru_transaction.inner.hash,
-                        transaction.chain_id = ?ru_transaction.chain_id,
-                        bytes = seq_action_sz,
-                        "bundled rollup transaction",
-                    );
                 }
 
                 // receive bundle request signal from executor
-                _ = block_timer.tick() => {
+                _ = block_timer.tick(), if curr_bundle.len() != 0 => {
                     // receive oneshot from executor
                     // flush bundle to the oneshot
-                    debug!("bundler's block timer tick, flushing actions to the executor to ensure timely arrival of rollup transactions");
+                    debug!("executor's block timer ticked, flushing bundle to the sequencer");
 
                     // TODO(https://github.com/astriaorg/astria/issues/476): Attach the hash of the
                     // bundle to the span. Linked GH issue is for agreeing on a hash for `SignedTransaction`,
                     // but both should be addressed.
                     let span =  info_span!(
-                        "submit bundle",
+                        "submit bundle on block timer",
                         nonce.initial = nonce,
+                        bundle.len = curr_bundle.len(),
                         bundle.size = curr_bundle_sz,
                     );
                     submission_fut = SubmitFut {

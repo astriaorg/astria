@@ -4,19 +4,28 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use proto::native::sequencer::v1alpha1::{
+    SequenceAction,
+    CHAIN_ID_LEN,
+};
 use tokio::{
     select,
     sync::{
         mpsc::{
             self,
+            Receiver,
             Sender,
         },
         watch,
     },
-    task::JoinError,
+    task::{
+        JoinError,
+        JoinSet,
+    },
 };
 use tokio_util::task::JoinMap;
 use tracing::{
+    debug,
     error,
     instrument,
     warn,
@@ -43,12 +52,21 @@ pub(super) struct Searcher {
     collectors: HashMap<String, Collector>,
     // The collection of the collector statuses.
     collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
+    // The rx part of the channel on which the searcher receives transactions from its collectors.
+    new_transactions_rx: Receiver<collector::RollupTransaction>,
     // The tx part that collectors use to send transactions to their parent searcher.
-    rollup_transactions_tx: Sender<collector::RollupTransaction>,
+    new_transactions_tx: Sender<collector::RollupTransaction>,
     // The map of chain ID to the URLs to which collectors should connect.
     rollups: HashMap<String, String>,
     // The set of tasks tracking if the collectors are still running.
     collector_tasks: JoinMap<String, eyre::Result<()>>,
+    // Set of currently running jobs converting pending eth transactions to signed sequencer
+    // transactions.
+    conversion_tasks: JoinSet<SequenceAction>,
+    // The maximum number of bytes to accept in a single sequencer transaction.
+    max_bundle_sz: usize,
+    // The sender of sequence actions to the executor.
+    seq_actions_tx: Sender<SequenceAction>,
     // The Executor object that is responsible for signing and submitting sequencer transactions.
     executor: Option<Executor>,
     // Channel from which to read the internal status of the executor.
@@ -86,16 +104,13 @@ impl Searcher {
             .collect::<Result<HashMap<_, _>, _>>()
             .wrap_err("failed parsing provided <chain_id>::<url> pairs as rollups")?;
 
-        let (rollup_transactions_tx, rollup_transactions_rx) = mpsc::channel(256);
+        let (new_transactions_tx, new_transactions_rx) = mpsc::channel(256);
 
         let collectors = rollups
             .iter()
             .map(|(chain_id, url)| {
-                let collector = Collector::new(
-                    chain_id.clone(),
-                    url.clone(),
-                    rollup_transactions_tx.clone(),
-                );
+                let collector =
+                    Collector::new(chain_id.clone(), url.clone(), new_transactions_tx.clone());
                 (chain_id.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
@@ -106,10 +121,12 @@ impl Searcher {
 
         let (status, _) = watch::channel(Status::default());
 
+        let (seq_actions_tx, seq_actions_rx) = mpsc::channel(256);
+
         let executor = Executor::new(
             &cfg.sequencer_url,
             &cfg.private_key,
-            rollup_transactions_rx,
+            seq_actions_rx,
             cfg.block_time,
             cfg.max_bundle_sz,
         )
@@ -121,8 +138,12 @@ impl Searcher {
             status,
             collectors,
             collector_statuses,
-            rollup_transactions_tx,
+            new_transactions_rx,
+            new_transactions_tx,
             collector_tasks: JoinMap::new(),
+            conversion_tasks: JoinSet::new(),
+            seq_actions_tx,
+            max_bundle_sz: cfg.max_bundle_sz,
             executor_status,
             executor: Some(executor),
             rollups,
@@ -132,6 +153,37 @@ impl Searcher {
     /// Other modules can use this to get notified of changes to the Searcher state
     pub(crate) fn subscribe_to_state(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
+    }
+
+    /// Serializes and signs a sequencer tx from a rollup tx.
+    fn bundle_pending_tx(&mut self, tx: collector::RollupTransaction) {
+        let collector::RollupTransaction {
+            chain_id,
+            inner: rollup_tx,
+        } = tx;
+        let max_bundle_sz = self.max_bundle_sz;
+
+        // rollup transaction data serialization is a heavy compute task, so it is spawned
+        // on tokio's blocking threadpool
+        self.conversion_tasks.spawn_blocking(move || {
+            let data = rollup_tx.rlp().to_vec();
+            let seq_action = SequenceAction {
+                chain_id,
+                data,
+            };
+
+            let seq_action_sz = seq_action.data.len() + CHAIN_ID_LEN;
+
+            if seq_action_sz > max_bundle_sz {
+                warn!(
+                    transaction.chain_id = ?rollup_tx.chain_id,
+                    transaction.hash = ?rollup_tx.hash,
+                    "failed to bundle rollup transaction: transaction is too large. Transaction \
+                     is dropped."
+                );
+            }
+            seq_action
+        });
     }
 
     /// Starts the searcher and runs it until failure
@@ -157,6 +209,37 @@ impl Searcher {
 
         loop {
             select!(
+                // serialize and sign sequencer tx for incoming pending rollup txs
+                Some(rollup_tx) = self.new_transactions_rx.recv() => self.bundle_pending_tx(rollup_tx),
+
+                // submit sequence actions to the executor for bundling and submission
+                Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
+                    match join_result {
+                        Ok(seq_action) => {
+                            let seq_action_sz = seq_action.data.len() + CHAIN_ID_LEN;
+                            match self.seq_actions_tx.try_send(seq_action) {
+                                Ok(()) => {
+                                    // TODO: use span from the rollup transaction to log here instead
+                                    debug!(
+                                        bytes = seq_action_sz,
+                                        "bundled rollup transaction",
+                                    )
+                                }
+                                Err(e) => warn!(
+                                    error.message = %e,
+                                    error.cause_chain = ?e,
+                                    "failed to forward sequence action to the executor due to backpressure",
+                                ),
+                            }
+                        },
+                        Err(e) => warn!(
+                            error.message = %e,
+                            error.cause_chain = ?e,
+                            "conversion task failed while trying to convert pending rollup transaction to signed sequencer transaction",
+                        ),
+                    }
+                }
+
                 Some((rollup, collector_exit)) = self.collector_tasks.join_next() => {
                     self.reconnect_exited_collector(rollup, collector_exit);
                 }
@@ -197,7 +280,7 @@ impl Searcher {
         reconnect_exited_collector(
             &mut self.collector_statuses,
             &mut self.collector_tasks,
-            self.rollup_transactions_tx.clone(),
+            self.new_transactions_tx.clone(),
             &self.rollups,
             rollup,
             exit_result,
