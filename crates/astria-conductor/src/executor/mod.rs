@@ -178,19 +178,7 @@ impl ExecutorBuilder<WithBlockChannel, WithRollupAddress, WithRollupId, WithShut
             "initial execution commitment state",
         );
 
-        let Some(executable_sequencer_block_height) = calculate_executable_block_height(
-            sequencer_height_with_first_rollup_block,
-            commitment_state.soft.number,
-        ) else {
-            bail!(
-                "encountered overflow when calculating first executable block height; sequencer \
-                 height with first rollup block: {sequencer_height_with_first_rollup_block}, \
-                 height recorded in soft commitment state: {}",
-                commitment_state.soft.number,
-            );
-        };
-
-        let executable_da_block_height = commitment_state.firm.number;
+        // let da_height_with_first_rollup_block = commitment_state.firm.number;
 
         Ok(Executor {
             block_channel,
@@ -198,8 +186,8 @@ impl ExecutorBuilder<WithBlockChannel, WithRollupAddress, WithRollupId, WithShut
             execution_rpc_client,
             rollup_id,
             commitment_state,
-            executable_sequencer_block_height,
-            executable_da_block_height,
+            sequencer_height_with_first_rollup_block,
+            // da_height_with_first_rollup_block,
             sequencer_hash_to_execution_block: HashMap::new(),
             pre_execution_hook,
         })
@@ -326,13 +314,16 @@ pub(crate) struct Executor {
     /// Tracks SOFT and FIRM on the execution chain
     commitment_state: ExecutorCommitmentState,
 
-    /// Tracks the height of the next sequencer block that can be executed (the
-    /// soft commit height)
-    executable_sequencer_block_height: u32,
+    /// The first block height from sequencer used for a rollup block,
+    /// executable block height & finalizable block height can be calcuated from
+    /// this plus the commitment_state
+    sequencer_height_with_first_rollup_block: u32,
 
-    /// Tracks the height of the next sequencer block from DA that can be
-    /// executed (the firm commit height)
-    executable_da_block_height: u32,
+    // TODO: remove me?
+    /// The first block height from da used for a rollup block,
+    /// executable block height & finalizable block height can be calcuated from
+    /// this plus the commitment_state
+    // da_height_with_first_rollup_block: u32,
 
     /// map of sequencer block hash to execution block
     ///

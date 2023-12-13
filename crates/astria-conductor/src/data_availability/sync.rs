@@ -6,7 +6,11 @@ use celestia_client::{
         Height,
     },
     jsonrpsee::http_client::HttpClient,
+    // CelestiaClientExt as _,
+};
+use celestia_client::{
     CelestiaClientExt as _,
+    CelestiaSequencerBlob,
 };
 use color_eyre::eyre::{
     self,
@@ -30,17 +34,42 @@ use crate::{
     data_availability::{
         send_sequencer_subsets,
         verify_sequencer_blobs_and_assemble_rollups,
-        SequencerNamespaceData,
+        // SequencerNamespaceData,
     },
     executor,
 };
 
-async fn get_new_sequencer_block_data_with_retry(
+pub(crate) async fn find_first_da_block_with_sequencer_data(
+    start_height: Height,
+    celestia_client: HttpClient,
+    sequencer_namespace: Namespace,
+) -> Height {
+    let mut height = start_height;
+    loop {
+        let sequencer_blobs = celestia_client
+            .get_sequencer_blobs(height, sequencer_namespace)
+            .await;
+
+        match sequencer_blobs {
+            Ok(_blobs) => {
+                info!(height = %height.value(), "found sequencer blob");
+                break height;
+            }
+            Err(error) => {
+                warn!(height = %height.value(), error = %error, "error returned when fetching sequencer data; skipping");
+                height = height.increment();
+                continue;
+            }
+        }
+    }
+}
+
+pub(crate) async fn get_new_sequencer_block_data_with_retry(
     height: Height,
     celestia_client: HttpClient,
     sequencer_namespace: Namespace,
-) -> Result<Vec<SequencerNamespaceData>, Report> {
-    let retry_config = RetryFutureConfig::new(50)
+) -> Result<Vec<CelestiaSequencerBlob>, Report> {
+    let retry_config = RetryFutureConfig::new(2)
         .exponential_backoff(Duration::from_secs(5))
         .max_delay(Duration::from_secs(60))
         .on_retry(|attempt, next_delay: Option<Duration>, error: &Report| {
@@ -52,6 +81,7 @@ async fn get_new_sequencer_block_data_with_retry(
             async move {
                 warn!(
                     attempt,
+                    height = %height.value(),
                     wait_duration,
                     error,
                     "attempt to get data from DA failed; retrying after backoff",
@@ -61,16 +91,17 @@ async fn get_new_sequencer_block_data_with_retry(
 
     tryhard::retry_fn(|| async {
         celestia_client
-            .get_sequencer_data(height, sequencer_namespace)
+            .get_sequencer_blobs(height, sequencer_namespace)
             .await
             .wrap_err("failed to fetch sequencer data from celestia")
-            .map(|rsp| rsp.datas)
+            // .map(|rsp| rsp.datas)
+            .map(|rsp| rsp.sequencer_blobs)
     })
     .with_config(retry_config)
     .await
 }
 
-#[instrument(name = "sync DA", skip_all)]
+#[instrument(name = "da_sync", skip_all)]
 pub(crate) async fn run(
     start_sync_height: u32,
     end_sync_height: u32,
@@ -110,6 +141,7 @@ pub(crate) async fn run(
                     }
 
                     Ok(datas) => {
+                        // TODO: skip the genesis block at height 0?
                         verification_stream.push_back(async move {
                             verify_sequencer_blobs_and_assemble_rollups(
                                 height,
