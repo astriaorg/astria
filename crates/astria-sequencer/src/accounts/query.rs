@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use penumbra_storage::{
+use cnidarium::{
     Snapshot,
     Storage,
 };

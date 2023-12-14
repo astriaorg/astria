@@ -14,6 +14,10 @@ use anyhow::{
     Context as _,
     Result,
 };
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 use ibc_types::{
     core::channel::{
         channel,
@@ -39,10 +43,6 @@ use penumbra_ibc::component::app_handler::{
     AppHandlerExecute,
 };
 use penumbra_proto::penumbra::core::component::ibc::v1alpha1::FungibleTokenPacketData;
-use penumbra_storage::{
-    StateRead,
-    StateWrite,
-};
 use proto::native::sequencer::v1alpha1::{
     asset::IbcAsset,
     Address,
