@@ -484,3 +484,235 @@ fn sha256(data: &[u8]) -> [u8; 32] {
     hasher.update(data);
     hasher.finalize().into()
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use color_eyre::eyre;
+    use proto::{
+        native::sequencer::v1alpha1::{
+            SequenceAction,
+            CHAIN_ID_LEN,
+        },
+        Message,
+    };
+    use sequencer_client::SignedTransaction;
+    use sequencer_types::ChainId;
+    use serde_json::json;
+    use tendermint_rpc::{
+        endpoint::broadcast::tx_sync,
+        request,
+        response,
+        Id,
+    };
+    use tokio::sync::{
+        mpsc,
+        watch,
+    };
+    use tracing::debug;
+    use wiremock::{
+        matchers::{
+            body_partial_json,
+            body_string_contains,
+        },
+        Mock,
+        MockGuard,
+        MockServer,
+        Request,
+        ResponseTemplate,
+    };
+
+    use super::{
+        Executor,
+        Status,
+    };
+    use crate::Config;
+
+    /// Start a mock sequencer server and mount a mock for the `accounts/nonce` query.
+    async fn setup() -> (MockServer, MockGuard, Config) {
+        use proto::generated::sequencer::v1alpha1::NonceResponse;
+        let server = MockServer::start().await;
+        let startup_guard = mount_nonce_query_mock(
+            &server,
+            "accounts/nonce",
+            NonceResponse {
+                height: 0,
+                nonce: 0,
+            },
+        )
+        .await;
+
+        let cfg = Config {
+            log: String::new(),
+            api_listen_addr: "127.0.0.1:0".parse().unwrap(),
+            rollups: String::new(),
+            sequencer_url: server.uri(),
+            private_key: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
+                .to_string()
+                .into(),
+            block_time: 2000,
+            max_bundle_sz: 128,
+        };
+        (server, startup_guard, cfg)
+    }
+
+    /// Mount a mock for the `abci_query` endpoint.
+    async fn mount_nonce_query_mock(
+        server: &MockServer,
+        query_path: &str,
+        response: impl Message,
+    ) -> MockGuard {
+        let expected_body = json!({
+            "method": "abci_query"
+        });
+        let response = tendermint_rpc::endpoint::abci_query::Response {
+            response: tendermint_rpc::endpoint::abci_query::AbciQuery {
+                value: response.encode_to_vec(),
+                ..Default::default()
+            },
+        };
+        let wrapper = response::Wrapper::new_with_id(Id::Num(1), Some(response), None);
+        Mock::given(body_partial_json(&expected_body))
+            .and(body_string_contains(query_path))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(&wrapper)
+                    .append_header("Content-Type", "application/json"),
+            )
+            .up_to_n_times(1)
+            .expect(1)
+            .mount_as_scoped(server)
+            .await
+    }
+
+    /// Convert a `Request` object to a `SignedTransaction`
+    fn signed_tx_from_request(request: &Request) -> SignedTransaction {
+        use proto::{
+            generated::sequencer::v1alpha1::SignedTransaction as RawSignedTransaction,
+            Message as _,
+        };
+
+        let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
+            serde_json::from_slice(&request.body)
+                .expect("can't deserialize to JSONRPC wrapped tx_sync::Request");
+        let raw_signed_tx = RawSignedTransaction::decode(&*wrapped_tx_sync_req.params().tx)
+            .expect("can't deserialize signed sequencer tx from broadcast jsonrpc request");
+        let signed_tx = SignedTransaction::try_from_raw(raw_signed_tx)
+            .expect("can't convert raw signed tx to checked signed tx");
+        debug!(?signed_tx, "sequencer mock received signed transaction");
+
+        signed_tx
+    }
+
+    /// Deserizalizes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction
+    /// and verifies that the contained sequence action is in the given `expected_chain_ids` and
+    /// `expected_nonces`.
+    async fn mount_broadcast_tx_sync_seq_actions_mock(server: &MockServer) -> MockGuard {
+        let matcher = move |request: &Request| {
+            let signed_tx = signed_tx_from_request(request);
+            let actions = signed_tx.actions();
+
+            // verify all received actions are sequence actions
+            actions.iter().all(|action| action.as_sequence().is_some())
+        };
+        let jsonrpc_rsp = response::Wrapper::new_with_id(
+            Id::Num(1),
+            Some(tx_sync::Response {
+                code: 0.into(),
+                data: vec![].into(),
+                log: String::new(),
+                hash: tendermint::Hash::Sha256([0; 32]),
+            }),
+            None,
+        );
+
+        Mock::given(matcher)
+            .respond_with(ResponseTemplate::new(200).set_body_json(&jsonrpc_rsp))
+            .up_to_n_times(1)
+            .expect(1)
+            .mount_as_scoped(server)
+            .await
+    }
+
+    async fn wait_for_executor(status: watch::Receiver<Status>) -> eyre::Result<()> {
+        // wait to receive executor status
+        let mut status = status.clone();
+        status.wait_for(super::Status::is_connected).await.unwrap();
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn two_seq_actions_bundle_full() {
+        // set up the executor, channel for writing seq actions, and the sequencer mock
+        let (sequencer, nonce_guard, cfg) = setup().await;
+        let (seq_actions_tx, seq_actions_rx) = mpsc::channel(2);
+        let executor = Executor::new(
+            &cfg.sequencer_url,
+            &cfg.private_key,
+            seq_actions_rx,
+            cfg.block_time,
+            cfg.max_bundle_sz,
+        )
+        .unwrap();
+        let status = executor.subscribe();
+        let _executor_task = tokio::spawn(executor.run_until_stopped());
+
+        // wait for sequencer to get the initial nonce request from sequencer
+        wait_for_executor(status).await.unwrap();
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            nonce_guard.wait_until_satisfied(),
+        )
+        .await
+        .unwrap();
+
+        // send a sequence action with 32 bytes of 0 to chain id 0
+        let seq0 = SequenceAction {
+            chain_id: ChainId::new([0; CHAIN_ID_LEN]),
+            data: vec![0; (cfg.max_bundle_sz / 2) - CHAIN_ID_LEN],
+        };
+        seq_actions_tx.send(seq0.clone()).await.unwrap();
+
+        // send a sequence action with 32 bytes of 1 to chain id 1
+        let seq1 = SequenceAction {
+            chain_id: ChainId::new([1; CHAIN_ID_LEN]),
+            data: vec![1; (cfg.max_bundle_sz / 2) - CHAIN_ID_LEN],
+        };
+        seq_actions_tx.send(seq1.clone()).await.unwrap();
+
+        // wait for the mock sequencer to receive the signed transaction
+        let expected_seq_actions = vec![seq0, seq1];
+        let response_guard = mount_broadcast_tx_sync_seq_actions_mock(&sequencer).await;
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            response_guard.wait_until_satisfied(),
+        )
+        .await
+        .unwrap();
+
+        // expect a signed transaction with 32 bytes of 0 under chain id 0 and 32 bytes of 1 under
+        // chain id 1
+        let requests = response_guard.received_requests().await;
+        assert_eq!(requests.len(), 1);
+        let signed_tx = signed_tx_from_request(&requests[0]);
+        let actions = signed_tx.actions();
+        for (action, expected_seq_action) in actions.iter().zip(expected_seq_actions.iter()) {
+            let seq_action = action.as_sequence().unwrap();
+            assert_eq!(
+                seq_action.chain_id, expected_seq_action.chain_id,
+                "chain id does not match. actual {:?} expected {:?}",
+                seq_action.chain_id, expected_seq_action.chain_id
+            );
+            assert_eq!(
+                seq_action.data, expected_seq_action.data,
+                "data does not match expected data for action with chain_id {:?}",
+                seq_action.chain_id,
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn one_seq_action_bundle_on_block_time() {}
+}
