@@ -49,56 +49,6 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
 }
 
 #[tokio::test]
-async fn tx_from_two_rollups_are_received_by_sequencer() {
-    let test_composer = spawn_composer(&["test1", "test2"]).await;
-    tokio::time::timeout(
-        Duration::from_millis(100),
-        test_composer.setup_guard.wait_until_satisfied(),
-    )
-    .await
-    .expect("setup guard failed");
-
-    let expected_chain_ids = vec![
-        ChainId::with_unhashed_bytes("test1"),
-        ChainId::with_unhashed_bytes("test2"),
-    ];
-    let test_guard =
-        mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_chain_ids, vec![0, 1])
-            .await;
-    test_composer.rollup_nodes["test1"]
-        .push_tx(Transaction::default())
-        .unwrap();
-    test_composer.rollup_nodes["test2"]
-        .push_tx(Transaction::default())
-        .unwrap();
-
-    tokio::time::timeout(
-        Duration::from_millis(100),
-        test_guard.wait_until_satisfied(),
-    )
-    .await
-    .expect("mocked sequencer should have received a broadcast messages from composer");
-
-    // Validate that the received nonces and chain_ids were unique
-    let mut received_nonces: Vec<u32> = vec![];
-    let mut received_chain_ids: Vec<ChainId> = vec![];
-    for request in test_guard.received_requests().await {
-        let (chain_id, nonce) = chain_id_nonce_from_request(&request);
-        assert!(
-            !received_nonces.contains(&nonce),
-            "duplicate nonce received"
-        );
-        received_nonces.push(nonce);
-
-        assert!(
-            !received_chain_ids.contains(&chain_id),
-            "duplicate chain id received"
-        );
-        received_chain_ids.push(chain_id);
-    }
-}
-
-#[tokio::test]
 async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
     use crate::helper::mock_sequencer::mount_abci_query_mock;
 

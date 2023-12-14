@@ -323,6 +323,8 @@ async fn submit_tx(
     client: sequencer_client::HttpClient,
     tx: SignedTransaction,
 ) -> eyre::Result<tx_sync::Response> {
+    // TODO: change to info and log tx hash (to match info log in `SubmitFut`'s response handling
+    // logic)
     debug!("submitting signed transaction to sequencer");
     let span = Span::current();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
@@ -520,9 +522,12 @@ mod tests {
         response,
         Id,
     };
-    use tokio::sync::{
-        mpsc,
-        watch,
+    use tokio::{
+        sync::{
+            mpsc,
+            watch,
+        },
+        time,
     };
     use tracing::debug;
     use wiremock::{
@@ -666,6 +671,8 @@ mod tests {
         Ok(())
     }
 
+    /// Test to check that the executor sends a signed transaction to the sequencer as soon as it
+    /// receives a `SequenceAction` that fills it beyond its `max_bundle_sz`.
     #[tokio::test]
     async fn full_bundle() {
         // set up the executor, channel for writing seq actions, and the sequencer mock
@@ -703,12 +710,10 @@ mod tests {
 
         let seq1 = SequenceAction {
             chain_id: ChainId::new([1; CHAIN_ID_LEN]),
-            data: vec![0u8; 1],
+            data: vec![1u8; 1],
         };
 
-        // TODO: pause time so that the executor doesn't submit the bundle due to block timer
-        // instead of due to full bundle
-        // right now it will submit regardless of the seq_action sizes due to the block timer
+        // push both sequence actions to the executor in order to force the full bundle to be sent
         seq_actions_tx.send(seq0.clone()).await.unwrap();
         seq_actions_tx.send(seq1.clone()).await.unwrap();
 
@@ -720,11 +725,13 @@ mod tests {
         .await
         .unwrap();
 
-        // verify the expected sequence actions were received
+        // verify only one signed transaction was received by the mock sequencer
+        // i.e. only the full bundle was sent and not the second one due to the block timer
         let expected_seq_actions = vec![seq0];
         let requests = response_guard.received_requests().await;
         assert_eq!(requests.len(), 1);
 
+        // verify the expected sequence actions were received
         let signed_tx = signed_tx_from_request(&requests[0]);
         let actions = signed_tx.actions();
 
@@ -749,9 +756,171 @@ mod tests {
         }
     }
 
+    /// Test to check that the executor sends a signed transaction to the sequencer after its
+    /// `block_timer` has ticked
     #[tokio::test]
-    async fn two_seq_actions_single_bundle() {}
+    async fn bundle_triggered_by_block_timer() {
+        // set up the executor, channel for writing seq actions, and the sequencer mock
+        let (sequencer, nonce_guard, cfg) = setup().await;
+        let (seq_actions_tx, seq_actions_rx) = mpsc::channel(2);
+        let executor = Executor::new(
+            &cfg.sequencer_url,
+            &cfg.private_key,
+            seq_actions_rx,
+            cfg.block_time,
+            cfg.max_bundle_sz,
+        )
+        .unwrap();
+        let status = executor.subscribe();
+        let _executor_task = tokio::spawn(executor.run_until_stopped());
 
+        // wait for sequencer to get the initial nonce request from sequencer
+        wait_for_executor(status).await.unwrap();
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            nonce_guard.wait_until_satisfied(),
+        )
+        .await
+        .unwrap();
+
+        let response_guard = mount_broadcast_tx_sync_seq_actions_mock(&sequencer).await;
+
+        // send two sequence actions to the executor, both small enough to fit in a single bundle
+        // without filling it
+        let seq0 = SequenceAction {
+            chain_id: ChainId::new([0; CHAIN_ID_LEN]),
+            data: vec![0u8; cfg.max_bundle_sz / 4],
+        };
+
+        // make sure at least one block has passed so that the executor will submit the bundle
+        // despite it not being full
+        time::pause();
+        seq_actions_tx.send(seq0.clone()).await.unwrap();
+        time::advance(Duration::from_millis(cfg.block_time)).await;
+        time::resume();
+
+        // wait for the mock sequencer to receive the signed transaction
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            response_guard.wait_until_satisfied(),
+        )
+        .await
+        .unwrap();
+
+        // verify only one signed transaction was received by the mock sequencer
+        let expected_seq_actions = vec![seq0];
+        let requests = response_guard.received_requests().await;
+        assert_eq!(requests.len(), 1);
+
+        // verify the expected sequence actions were received
+        let signed_tx = signed_tx_from_request(&requests[0]);
+        let actions = signed_tx.actions();
+
+        assert_eq!(
+            actions.len(),
+            expected_seq_actions.len(),
+            "received more than one action, one was supposed to fill the bundle"
+        );
+
+        for (action, expected_seq_action) in actions.iter().zip(expected_seq_actions.iter()) {
+            let seq_action = action.as_sequence().unwrap();
+            assert_eq!(
+                seq_action.chain_id, expected_seq_action.chain_id,
+                "chain id does not match. actual {:?} expected {:?}",
+                seq_action.chain_id, expected_seq_action.chain_id
+            );
+            assert_eq!(
+                seq_action.data, expected_seq_action.data,
+                "data does not match expected data for action with chain_id {:?}",
+                seq_action.chain_id,
+            );
+        }
+    }
+
+    /// Test to check that the executor sends a signed transaction with two sequence actions to the
+    /// sequencer.
     #[tokio::test]
-    async fn bundle_triggered_by_block_timer() {}
+    async fn two_seq_actions_single_bundle() {
+        // set up the executor, channel for writing seq actions, and the sequencer mock
+        let (sequencer, nonce_guard, cfg) = setup().await;
+        let (seq_actions_tx, seq_actions_rx) = mpsc::channel(2);
+        let executor = Executor::new(
+            &cfg.sequencer_url,
+            &cfg.private_key,
+            seq_actions_rx,
+            cfg.block_time,
+            cfg.max_bundle_sz,
+        )
+        .unwrap();
+        let status = executor.subscribe();
+        let _executor_task = tokio::spawn(executor.run_until_stopped());
+
+        // wait for sequencer to get the initial nonce request from sequencer
+        wait_for_executor(status).await.unwrap();
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            nonce_guard.wait_until_satisfied(),
+        )
+        .await
+        .unwrap();
+
+        let response_guard = mount_broadcast_tx_sync_seq_actions_mock(&sequencer).await;
+
+        // send two sequence actions to the executor, both small enough to fit in a single bundle
+        // without filling it
+        let seq0 = SequenceAction {
+            chain_id: ChainId::new([0; CHAIN_ID_LEN]),
+            data: vec![0u8; cfg.max_bundle_sz / 4],
+        };
+
+        let seq1 = SequenceAction {
+            chain_id: ChainId::new([1; CHAIN_ID_LEN]),
+            data: vec![1u8; cfg.max_bundle_sz / 4],
+        };
+
+        // make sure at least one block has passed so that the executor will submit the bundle
+        // despite it not being full
+        time::pause();
+        seq_actions_tx.send(seq0.clone()).await.unwrap();
+        seq_actions_tx.send(seq1.clone()).await.unwrap();
+        time::advance(Duration::from_millis(cfg.block_time)).await;
+        time::resume();
+
+        // wait for the mock sequencer to receive the signed transaction
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            response_guard.wait_until_satisfied(),
+        )
+        .await
+        .unwrap();
+
+        // verify only one signed transaction was received by the mock sequencer
+        let expected_seq_actions = vec![seq0, seq1];
+        let requests = response_guard.received_requests().await;
+        assert_eq!(requests.len(), 1);
+
+        // verify the expected sequence actions were received
+        let signed_tx = signed_tx_from_request(&requests[0]);
+        let actions = signed_tx.actions();
+
+        assert_eq!(
+            actions.len(),
+            expected_seq_actions.len(),
+            "received more than one action, one was supposed to fill the bundle"
+        );
+
+        for (action, expected_seq_action) in actions.iter().zip(expected_seq_actions.iter()) {
+            let seq_action = action.as_sequence().unwrap();
+            assert_eq!(
+                seq_action.chain_id, expected_seq_action.chain_id,
+                "chain id does not match. actual {:?} expected {:?}",
+                seq_action.chain_id, expected_seq_action.chain_id
+            );
+            assert_eq!(
+                seq_action.data, expected_seq_action.data,
+                "data does not match expected data for action with chain_id {:?}",
+                seq_action.chain_id,
+            );
+        }
+    }
 }
