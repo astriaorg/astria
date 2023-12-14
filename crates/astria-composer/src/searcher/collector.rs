@@ -25,7 +25,7 @@ use tracing::{
 ///
 /// Used to send new transactions to the searcher.
 pub(super) struct RollupTransaction {
-    pub(super) chain_id: ChainId,
+    pub(super) rollup_id: RollupId,
     pub(super) inner: ethers::types::Transaction,
 }
 
@@ -147,10 +147,16 @@ impl Collector {
 
         while let Some(tx) = tx_stream.next().await {
             debug!(transaction.hash = %tx.hash, "collected transaction from rollup");
-            match new_bundles.send_timeout(RollupTransaction {
-                chain_id,
-                inner: tx,
-            }) {
+            match new_bundles
+                .send_timeout(
+                    RollupTransaction {
+                        rollup_id,
+                        inner: tx,
+                    },
+                    Duration::from_millis(500),
+                )
+                .await
+            {
                 Ok(()) => {}
                 Err(SendTimeoutError::Timeout(tx)) => {
                     warn!(

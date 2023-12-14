@@ -32,7 +32,7 @@ use proto::{
         SequenceAction,
         SignedTransaction,
         UnsignedTransaction,
-        CHAIN_ID_LEN,
+        ROLLUP_ID_LEN,
     },
     Message as _,
 };
@@ -190,7 +190,7 @@ impl Executor {
 
                 // receive new bundle for processing
                 Some(seq_action) = self.seq_actions_rx.recv(), if submission_fut.is_terminated() => {
-                    let seq_action_sz = seq_action.data.len() + CHAIN_ID_LEN;
+                    let seq_action_sz = seq_action.data.len() + ROLLUP_ID_LEN;
 
                     if curr_bundle_sz + seq_action_sz > self.max_bundle_sz {
                             debug!(
@@ -499,13 +499,13 @@ mod tests {
     use once_cell::sync::Lazy;
     use proto::{
         native::sequencer::v1alpha1::{
+            RollupId,
             SequenceAction,
-            CHAIN_ID_LEN,
+            ROLLUP_ID_LEN,
         },
         Message,
     };
     use sequencer_client::SignedTransaction;
-    use sequencer_types::ChainId;
     use serde_json::json;
     use tendermint_rpc::{
         endpoint::broadcast::tx_sync,
@@ -695,12 +695,12 @@ mod tests {
         // bundle sending the second should cause the first to immediately be submitted in
         // order to make space for the second
         let seq0 = SequenceAction {
-            chain_id: ChainId::new([0; CHAIN_ID_LEN]),
-            data: vec![0u8; cfg.max_bundle_sz - CHAIN_ID_LEN],
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+            data: vec![0u8; cfg.max_bundle_sz - ROLLUP_ID_LEN],
         };
 
         let seq1 = SequenceAction {
-            chain_id: ChainId::new([1; CHAIN_ID_LEN]),
+            rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             data: vec![1u8; 1],
         };
 
@@ -735,14 +735,14 @@ mod tests {
         for (action, expected_seq_action) in actions.iter().zip(expected_seq_actions.iter()) {
             let seq_action = action.as_sequence().unwrap();
             assert_eq!(
-                seq_action.chain_id, expected_seq_action.chain_id,
+                seq_action.rollup_id, expected_seq_action.rollup_id,
                 "chain id does not match. actual {:?} expected {:?}",
-                seq_action.chain_id, expected_seq_action.chain_id
+                seq_action.rollup_id, expected_seq_action.rollup_id
             );
             assert_eq!(
                 seq_action.data, expected_seq_action.data,
-                "data does not match expected data for action with chain_id {:?}",
-                seq_action.chain_id,
+                "data does not match expected data for action with rollup_id {:?}",
+                seq_action.rollup_id,
             );
         }
     }
@@ -779,7 +779,7 @@ mod tests {
         // send two sequence actions to the executor, both small enough to fit in a single bundle
         // without filling it
         let seq0 = SequenceAction {
-            chain_id: ChainId::new([0; CHAIN_ID_LEN]),
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0u8; cfg.max_bundle_sz / 4],
         };
 
@@ -816,14 +816,14 @@ mod tests {
         for (action, expected_seq_action) in actions.iter().zip(expected_seq_actions.iter()) {
             let seq_action = action.as_sequence().unwrap();
             assert_eq!(
-                seq_action.chain_id, expected_seq_action.chain_id,
+                seq_action.rollup_id, expected_seq_action.rollup_id,
                 "chain id does not match. actual {:?} expected {:?}",
-                seq_action.chain_id, expected_seq_action.chain_id
+                seq_action.rollup_id, expected_seq_action.rollup_id
             );
             assert_eq!(
                 seq_action.data, expected_seq_action.data,
-                "data does not match expected data for action with chain_id {:?}",
-                seq_action.chain_id,
+                "data does not match expected data for action with rollup_id {:?}",
+                seq_action.rollup_id,
             );
         }
     }
@@ -860,12 +860,12 @@ mod tests {
         // send two sequence actions to the executor, both small enough to fit in a single bundle
         // without filling it
         let seq0 = SequenceAction {
-            chain_id: ChainId::new([0; CHAIN_ID_LEN]),
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
             data: vec![0u8; cfg.max_bundle_sz / 4],
         };
 
         let seq1 = SequenceAction {
-            chain_id: ChainId::new([1; CHAIN_ID_LEN]),
+            rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
             data: vec![1u8; cfg.max_bundle_sz / 4],
         };
 
@@ -903,14 +903,14 @@ mod tests {
         for (action, expected_seq_action) in actions.iter().zip(expected_seq_actions.iter()) {
             let seq_action = action.as_sequence().unwrap();
             assert_eq!(
-                seq_action.chain_id, expected_seq_action.chain_id,
+                seq_action.rollup_id, expected_seq_action.rollup_id,
                 "chain id does not match. actual {:?} expected {:?}",
-                seq_action.chain_id, expected_seq_action.chain_id
+                seq_action.rollup_id, expected_seq_action.rollup_id
             );
             assert_eq!(
                 seq_action.data, expected_seq_action.data,
-                "data does not match expected data for action with chain_id {:?}",
-                seq_action.chain_id,
+                "data does not match expected data for action with rollup_id {:?}",
+                seq_action.rollup_id,
             );
         }
     }

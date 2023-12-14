@@ -6,7 +6,7 @@ use color_eyre::eyre::{
 };
 use proto::native::sequencer::v1alpha1::{
     SequenceAction,
-    CHAIN_ID_LEN,
+    ROLLUP_ID_LEN,
 };
 use tokio::{
     select,
@@ -161,7 +161,7 @@ impl Searcher {
     /// Serializes and signs a sequencer tx from a rollup tx.
     fn bundle_pending_tx(&mut self, tx: collector::RollupTransaction) {
         let collector::RollupTransaction {
-            chain_id,
+            rollup_id,
             inner: rollup_tx,
         } = tx;
         let max_bundle_sz = self.max_bundle_sz;
@@ -171,11 +171,11 @@ impl Searcher {
         self.conversion_tasks.spawn_blocking(move || {
             let data = rollup_tx.rlp().to_vec();
             let seq_action = SequenceAction {
-                chain_id,
+                rollup_id,
                 data,
             };
 
-            let seq_action_sz = seq_action.data.len() + CHAIN_ID_LEN;
+            let seq_action_sz = seq_action.data.len() + ROLLUP_ID_LEN;
 
             if seq_action_sz > max_bundle_sz {
                 warn!(
@@ -219,7 +219,7 @@ impl Searcher {
                 Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
                     match join_result {
                         Ok(seq_action) => {
-                            let seq_action_sz = seq_action.data.len() + CHAIN_ID_LEN;
+                            let seq_action_sz = seq_action.data.len() + ROLLUP_ID_LEN;
                             match self.seq_actions_tx.try_send(seq_action) {
                                 Ok(()) => {
                                     // TODO: use span from the rollup transaction to log here instead
