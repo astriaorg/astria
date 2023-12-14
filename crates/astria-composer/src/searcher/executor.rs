@@ -545,6 +545,7 @@ mod tests {
             telemetry::init(std::io::sink, "").unwrap();
         }
     });
+
     /// Start a mock sequencer server and mount a mock for the `accounts/nonce` query.
     async fn setup() -> (MockServer, MockGuard, Config) {
         use proto::generated::sequencer::v1alpha1::NonceResponse;
@@ -652,10 +653,21 @@ mod tests {
             .await
     }
 
-    async fn wait_for_executor(status: watch::Receiver<Status>) -> eyre::Result<()> {
+    /// Helper to wait for the executor to connect to the mock sequencer
+    async fn wait_for_startup(
+        status: watch::Receiver<Status>,
+        nonce_guard: MockGuard,
+    ) -> eyre::Result<()> {
         // wait to receive executor status
         let mut status = status.clone();
         status.wait_for(super::Status::is_connected).await.unwrap();
+
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            nonce_guard.wait_until_satisfied(),
+        )
+        .await
+        .unwrap();
 
         Ok(())
     }
@@ -679,13 +691,7 @@ mod tests {
         let _executor_task = tokio::spawn(executor.run_until_stopped());
 
         // wait for sequencer to get the initial nonce request from sequencer
-        wait_for_executor(status).await.unwrap();
-        tokio::time::timeout(
-            Duration::from_millis(100),
-            nonce_guard.wait_until_satisfied(),
-        )
-        .await
-        .unwrap();
+        wait_for_startup(status, nonce_guard).await.unwrap();
 
         let response_guard = mount_broadcast_tx_sync_seq_actions_mock(&sequencer).await;
 
@@ -764,13 +770,7 @@ mod tests {
         let _executor_task = tokio::spawn(executor.run_until_stopped());
 
         // wait for sequencer to get the initial nonce request from sequencer
-        wait_for_executor(status).await.unwrap();
-        tokio::time::timeout(
-            Duration::from_millis(100),
-            nonce_guard.wait_until_satisfied(),
-        )
-        .await
-        .unwrap();
+        wait_for_startup(status, nonce_guard).await.unwrap();
 
         let response_guard = mount_broadcast_tx_sync_seq_actions_mock(&sequencer).await;
 
@@ -845,13 +845,7 @@ mod tests {
         let _executor_task = tokio::spawn(executor.run_until_stopped());
 
         // wait for sequencer to get the initial nonce request from sequencer
-        wait_for_executor(status).await.unwrap();
-        tokio::time::timeout(
-            Duration::from_millis(100),
-            nonce_guard.wait_until_satisfied(),
-        )
-        .await
-        .unwrap();
+        wait_for_startup(status, nonce_guard).await.unwrap();
 
         let response_guard = mount_broadcast_tx_sync_seq_actions_mock(&sequencer).await;
 
