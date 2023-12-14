@@ -48,7 +48,7 @@ use executor::Executor;
 pub(super) struct Searcher {
     // Channel to report the internal status of the searcher to other parts of the system.
     status: watch::Sender<Status>,
-    // The collection of collectors and their chain IDs.
+    // The collection of collectors and their rollup names.
     collectors: HashMap<String, Collector>,
     // The collection of the collector statuses.
     collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
@@ -102,21 +102,24 @@ impl Searcher {
             .filter(|s| !s.is_empty())
             .map(|s| Rollup::parse(s).map(Rollup::into_parts))
             .collect::<Result<HashMap<_, _>, _>>()
-            .wrap_err("failed parsing provided <chain_id>::<url> pairs as rollups")?;
+            .wrap_err("failed parsing provided <rollup_name>::<url> pairs as rollups")?;
 
         let (new_transactions_tx, new_transactions_rx) = mpsc::channel(256);
 
         let collectors = rollups
             .iter()
-            .map(|(chain_id, url)| {
-                let collector =
-                    Collector::new(chain_id.clone(), url.clone(), new_transactions_tx.clone());
-                (chain_id.clone(), collector)
+            .map(|(rollup_name, url)| {
+                let collector = Collector::new(
+                    rollup_name.clone(),
+                    url.clone(),
+                    new_transactions_tx.clone(),
+                );
+                (rollup_name.clone(), collector)
             })
             .collect::<HashMap<_, _>>();
         let collector_statuses = collectors
             .iter()
-            .map(|(chain_id, collector)| (chain_id.clone(), collector.subscribe()))
+            .map(|(rollup_name, collector)| (rollup_name.clone(), collector.subscribe()))
             .collect();
 
         let (status, _) = watch::channel(Status::default());
@@ -391,7 +394,7 @@ mod tests {
     use std::collections::HashMap;
 
     use ethers::types::Transaction;
-    use sequencer_types::ChainId;
+    use proto::native::sequencer::v1alpha1::RollupId;
     use tokio_util::task::JoinMap;
 
     use crate::searcher::collector::{
@@ -422,15 +425,15 @@ mod tests {
         let collector_tx = rx.recv().await.unwrap();
 
         assert_eq!(
-            ChainId::with_unhashed_bytes(&rollup_name),
-            collector_tx.chain_id
+            RollupId::from_unhashed_bytes(&rollup_name),
+            collector_tx.rollup_id,
         );
         assert_eq!(expected_transaction, collector_tx.inner);
 
         let _ = mock_geth.abort().unwrap();
 
-        let (chain_id, exit_result) = collector_tasks.join_next().await.unwrap();
-        assert_eq!(chain_id, rollup_name);
+        let (exited_rollup_name, exit_result) = collector_tasks.join_next().await.unwrap();
+        assert_eq!(exited_rollup_name, rollup_name);
         assert!(collector_tasks.is_empty());
 
         // after aborting pushing a new tx to subscribers should fail as there are no broadcast
@@ -458,8 +461,8 @@ mod tests {
         let collector_tx = rx.recv().await.unwrap();
 
         assert_eq!(
-            ChainId::with_unhashed_bytes(&rollup_name),
-            collector_tx.chain_id
+            RollupId::from_unhashed_bytes(&rollup_name),
+            collector_tx.rollup_id,
         );
         assert_eq!(expected_transaction, collector_tx.inner);
     }

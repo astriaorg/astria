@@ -1,6 +1,6 @@
 [package]
 name = "astria-sequencer"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 rust-version = "1.73.0"
 
@@ -14,7 +14,6 @@ sequencer_types = { package = "astria-sequencer-types", path = "../astria-sequen
 anyhow = "1"
 borsh = "0.10.3"
 matchit = "0.7.2"
-ibc-types = { version = "0.7.0", features = ["with_serde"] }
 tower = "0.4"
 tower-abci = "0.11.0"
 tower-actor = "0.1.0"
@@ -24,8 +23,9 @@ bytes = { workspace = true }
 ed25519-consensus = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
+ibc-types = { workspace = true, features = ["with_serde"] }
 penumbra-component = { workspace = true }
-penumbra-ibc = { workspace = true }
+penumbra-ibc = { workspace = true, features = ["component"] }
 penumbra-proto = { workspace = true }
 penumbra-storage = { workspace = true }
 penumbra-tower-trace = { workspace = true }

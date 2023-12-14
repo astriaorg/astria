@@ -14,12 +14,7 @@ use celestia_client::celestia_types::{
 };
 use ed25519_consensus::SigningKey;
 use once_cell::sync::Lazy;
-use proto::native::sequencer::v1alpha1::{
-    asset::default_native_asset_id,
-    SequenceAction,
-    UnsignedTransaction,
-};
-use sequencer_types::ChainId;
+use proto::native::sequencer::v1alpha1::test_utils::ConfigureCometBftBlock;
 use serde_json::json;
 use tempfile::NamedTempFile;
 use tendermint_config::PrivValidatorKey;
@@ -336,78 +331,23 @@ fn create_block_response(
     proposer_address: tendermint::account::Id,
     height: u32,
 ) -> endpoint::block::Response {
-    use proto::Message as _;
-    use sha2::Digest as _;
     use tendermint::{
         block,
-        chain,
-        evidence,
-        hash::AppHash,
-        merkle::simple_hash_from_byte_vectors,
-        Block,
         Hash,
-        Time,
     };
-    let suffix = height.to_string().into_bytes();
-    let chain_id = ChainId::with_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
-    let signed_tx_bytes = UnsignedTransaction {
-        nonce: 1,
-        actions: vec![
-            SequenceAction {
-                chain_id,
-                data: [b"hello_world_id_", &*suffix].concat(),
-            }
-            .into(),
-        ],
-        fee_asset_id: default_native_asset_id(),
+    let block = ConfigureCometBftBlock {
+        height,
+        signing_key: signing_key.clone(),
+        proposer_address: Some(proposer_address),
     }
-    .into_signed(signing_key)
-    .into_raw()
-    .encode_to_vec();
-    let action_tree_root = merkle::Tree::from_leaves(std::iter::once(&signed_tx_bytes)).root();
-    let chain_ids_commitment = merkle::Tree::from_leaves(std::iter::once(chain_id)).root();
-    let data = vec![
-        action_tree_root.to_vec(),
-        chain_ids_commitment.to_vec(),
-        signed_tx_bytes,
-    ];
-    let data_hash = Some(Hash::Sha256(simple_hash_from_byte_vectors::<sha2::Sha256>(
-        &data.iter().map(sha2::Sha256::digest).collect::<Vec<_>>(),
-    )));
-
-    let (last_commit_hash, last_commit) = sequencer_types::test_utils::make_test_commit_and_hash();
+    .make();
 
     endpoint::block::Response {
         block_id: block::Id {
             hash: Hash::Sha256([0; 32]),
             part_set_header: block::parts::Header::new(0, Hash::None).unwrap(),
         },
-        block: Block::new(
-            block::Header {
-                version: block::header::Version {
-                    block: 0,
-                    app: 0,
-                },
-                chain_id: chain::Id::try_from("test").unwrap(),
-                height: block::Height::from(height),
-                time: Time::now(),
-                last_block_id: None,
-                last_commit_hash: (height > 1).then_some(last_commit_hash),
-                data_hash,
-                validators_hash: Hash::Sha256([0; 32]),
-                next_validators_hash: Hash::Sha256([0; 32]),
-                consensus_hash: Hash::Sha256([0; 32]),
-                app_hash: AppHash::try_from([0; 32].to_vec()).unwrap(),
-                last_results_hash: None,
-                evidence_hash: None,
-                proposer_address,
-            },
-            data,
-            evidence::List::default(),
-            // The first height must not, every height after must contain a last commit
-            (height > 1).then_some(last_commit),
-        )
-        .unwrap(),
+        block,
     }
 }
 

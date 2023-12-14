@@ -89,7 +89,7 @@ markdown.
 # Install rustfmt
 rustup +nightly-2023-08-18 component add rustfmt
 # Run rustfmt
-just fmt-rust
+just fmt rust
 ```
 
 ### Toml
@@ -101,7 +101,7 @@ brew install taplo
 sudo pacman -S taplo
 
 # Run
-just fmt-toml
+just fmt toml
 ```
 
 ### Markdown
@@ -115,7 +115,7 @@ sudo pacman -S markdownlint-cli2
 npm install markdownlint-cli2 --global
 
 # Run
-markdownlint-cli2 "**/*.md" "#target" "#.github"
+just lint md
 
 # Run with docker
 docker run -v $PWD:/workdir davidanson/markdownlint-cli2:v0.8.1 "**/*.md" "#.github"

@@ -5,10 +5,6 @@ use std::{
     time::Duration,
 };
 
-use base64::{
-    display::Base64Display,
-    engine::general_purpose::STANDARD,
-};
 use celestia_client::celestia_types::nmt::Namespace;
 use color_eyre::eyre::{
     self,
@@ -99,15 +95,31 @@ impl Conductor {
 
         let signals = spawn_signal_handler();
 
+        let rollup_id =
+            proto::native::sequencer::v1alpha1::RollupId::from_unhashed_bytes(&cfg.chain_id);
+
         // Spawn the executor task.
         let (executor_tx, sync_start_block_height) = {
             let (block_tx, block_rx) = mpsc::unbounded_channel();
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-            let executor = make_executor(&cfg, block_rx, shutdown_rx)
+            let hook = make_optimism_hook(&cfg)
+                .await
+                .wrap_err("failed constructing optimism hook")?;
+
+            let executor = Executor::builder()
+                .rollup_address(&cfg.execution_rpc_url)
+                .rollup_id(rollup_id)
+                .sequencer_height_with_first_rollup_block(cfg.initial_sequencer_block_height)
+                .block_channel(block_rx)
+                .shutdown(shutdown_rx)
+                .set_optimism_hook(hook)
+                .build()
                 .await
                 .wrap_err("failed to construct executor")?;
-            let executable_sequencer_block_height = executor.get_executable_block_height();
+            let executable_sequencer_block_height = executor
+                .calculate_executable_block_height()
+                .wrap_err("failed calculating the next executable block height")?;
 
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
             shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
@@ -168,11 +180,14 @@ impl Conductor {
                     .await
                     .wrap_err("failed to get sequencer namespace")?
             };
-            info!(
-                celestia_namespace = %Base64Display::new(sequencer_namespace.as_bytes(), &STANDARD),
-                sequencer_chain_id = %cfg.chain_id,
-                "celestia namespace derived from sequencer chain id",
-            );
+            // XXX: This log is very misleading. The field called `sequencer_chain_id` is actually
+            // the rollup ID.
+            //
+            // info!(
+            //     celestia_namespace = %Base64Display::new(sequencer_namespace.as_bytes(),
+            // &STANDARD),     sequencer_chain_id = %cfg.chain_id,
+            //     "celestia namespace derived from sequencer chain id",
+            // );
 
             let celestia_config = CelestiaReaderConfig {
                 node_url: cfg.celestia_node_url,
@@ -185,9 +200,7 @@ impl Conductor {
                 executor_tx.clone(),
                 sequencer_client_pool.clone(),
                 sequencer_namespace,
-                celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(
-                    cfg.chain_id.as_ref(),
-                ),
+                celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id),
                 shutdown_rx,
             )
             .await
@@ -315,30 +328,12 @@ impl Conductor {
     }
 }
 
-async fn make_executor(
+async fn make_optimism_hook(
     cfg: &Config,
-    block_rx: mpsc::UnboundedReceiver<crate::executor::ExecutorCommand>,
-    shutdown_rx: oneshot::Receiver<()>,
-) -> eyre::Result<Executor> {
-    let hook = if cfg.enable_optimism {
-        Some(make_optimism_hook(cfg).await?)
-    } else {
-        None
-    };
-
-    Executor::builder()
-        .rollup_address(&cfg.execution_rpc_url)
-        .chain_id(&cfg.chain_id)
-        .sequencer_height_with_first_rollup_block(cfg.initial_sequencer_block_height)
-        .block_channel(block_rx)
-        .shutdown(shutdown_rx)
-        .set_optimism_hook(hook)
-        .build()
-        .await
-        .wrap_err("failed to construct executor")
-}
-
-async fn make_optimism_hook(cfg: &Config) -> eyre::Result<crate::executor::optimism::Handler> {
+) -> eyre::Result<Option<crate::executor::optimism::Handler>> {
+    if !cfg.enable_optimism {
+        return Ok(None);
+    }
     let provider = Arc::new(
         Provider::<Ws>::connect(cfg.ethereum_l1_url.clone())
             .await
@@ -353,11 +348,11 @@ async fn make_optimism_hook(cfg: &Config) -> eyre::Result<crate::executor::optim
         .wrap_err("failed to parse contract address")?
         .into();
 
-    Ok(crate::executor::optimism::Handler::new(
+    Ok(Some(crate::executor::optimism::Handler::new(
         provider,
         contract_address,
         cfg.initial_ethereum_l1_block_height,
-    ))
+    )))
 }
 
 struct SignalReceiver {
@@ -415,19 +410,16 @@ async fn get_sequencer_namespace(
             |attempt: u32,
              next_delay: Option<Duration>,
              error: &sequencer_client::extension_trait::Error| {
-                let error = error.clone();
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
-                async move {
-                    let error = &error as &(dyn std::error::Error + 'static);
-                    warn!(
-                        attempt,
-                        wait_duration,
-                        error,
-                        "attempt to grab sequencer block failed; retrying after backoff",
-                    );
-                }
+                warn!(
+                    attempt,
+                    wait_duration,
+                    error = error as &dyn std::error::Error,
+                    "attempt to grab sequencer block failed; retrying after backoff",
+                );
+                futures::future::ready(())
             },
         );
 
@@ -436,7 +428,7 @@ async fn get_sequencer_namespace(
         .await
         .wrap_err("failed to get block from sequencer after 10 attempts")?;
 
-    let chain_id = block.into_raw().header.chain_id;
-
-    Ok(celestia_client::blob_space::celestia_namespace_v0_from_hashed_bytes(chain_id.as_bytes()))
+    Ok(celestia_client::celestia_namespace_v0_from_cometbft_header(
+        block.header(),
+    ))
 }

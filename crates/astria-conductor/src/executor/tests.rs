@@ -9,19 +9,22 @@ use ethers::{
     utils::AnvilInstance,
 };
 use k256::ecdsa::SigningKey;
-use proto::generated::execution::v1alpha2::{
-    execution_service_server::{
-        ExecutionService,
-        ExecutionServiceServer,
+use proto::{
+    generated::execution::v1alpha2::{
+        execution_service_server::{
+            ExecutionService,
+            ExecutionServiceServer,
+        },
+        BatchGetBlocksRequest,
+        BatchGetBlocksResponse,
+        Block,
+        CommitmentState,
+        ExecuteBlockRequest,
+        GetBlockRequest,
+        GetCommitmentStateRequest,
+        UpdateCommitmentStateRequest,
     },
-    BatchGetBlocksRequest,
-    BatchGetBlocksResponse,
-    Block,
-    CommitmentState,
-    ExecuteBlockRequest,
-    GetBlockRequest,
-    GetCommitmentStateRequest,
-    UpdateCommitmentStateRequest,
+    native::sequencer::v1alpha1::test_utils::make_cometbft_block,
 };
 use sha2::Digest as _;
 use tokio::{
@@ -141,8 +144,8 @@ fn hash(s: &[u8]) -> Vec<u8> {
 fn get_test_block_subset() -> SequencerBlockSubset {
     SequencerBlockSubset {
         block_hash: hash(b"block1").try_into().unwrap(),
-        header: sequencer_types::test_utils::default_header(),
-        rollup_transactions: vec![],
+        header: make_cometbft_block().header,
+        transactions: vec![],
     }
 }
 
@@ -162,7 +165,7 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
 
     let executor = Executor::builder()
         .rollup_address(&server_url)
-        .chain_id("test")
+        .rollup_id(RollupId::from_unhashed_bytes(b"test"))
         .sequencer_height_with_first_rollup_block(1)
         .block_channel(block_rx)
         .shutdown(shutdown_rx)
@@ -222,11 +225,11 @@ async fn execute_sequencer_block_with_txs() {
     let mut mock = start_mock(None).await;
 
     let mut block = get_test_block_subset();
-    block.rollup_transactions.push(b"test_transaction".to_vec());
+    block.transactions.push(b"test_transaction".to_vec());
 
     let expected_exection_hash = get_expected_execution_hash(
         &mock.executor.commitment_state.soft.hash,
-        &block.rollup_transactions,
+        &block.transactions,
     );
     let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash;
     assert_eq!(expected_exection_hash, execution_block_hash);
@@ -237,12 +240,12 @@ async fn execute_unexecuted_da_block_with_transactions() {
     let mut mock = start_mock(None).await;
 
     let mut block = get_test_block_subset();
-    block.rollup_transactions.push(b"test_transaction".to_vec());
+    block.transactions.push(b"test_transaction".to_vec());
 
     // using firm hash here as da blocks are executed on top of the firm commitment
     let expected_exection_hash = get_expected_execution_hash(
         &mock.executor.commitment_state.firm.hash,
-        &block.rollup_transactions,
+        &block.transactions,
     );
 
     mock.executor
@@ -320,13 +323,13 @@ async fn try_execute_out_of_order_block_from_celestia() {
     let mut mock = start_mock(None).await;
     let mut block = get_test_block_subset();
 
-    // 0 is always the genesis block, so this should fail
+    // We skip blocks which have already been finalized, so even genesis should succeed
     block.header.height = 0_u32.into();
     let execution_result = mock
         .executor
         .execute_and_finalize_blocks_from_celestia(vec![block.clone()])
         .await;
-    assert!(execution_result.is_err());
+    assert!(execution_result.is_ok());
 
     // the first block to execute should always be 1, this should fail as it is
     // in the future
@@ -343,6 +346,7 @@ mod optimism_tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "install solc-select and foundry-rs and run with --ignored"]
     async fn deposit_events_are_converted_and_executed() {
         use ::optimism::contract::*;
 

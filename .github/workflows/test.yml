@@ -12,7 +12,37 @@ on:
 jobs:
   run_checker:
     uses: ./.github/workflows/reusable-run-checker.yml
-              
+
+  protos-compiled:
+    runs-on: ubuntu-22.04
+    needs: run_checker
+    if: needs.run_checker.outputs.run_tests == 'true'
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install `buf` protobuf manager
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.17.0"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.73.0
+      - uses: Swatinem/rust-cache@v2.6.1
+        with:
+          cache-provider: "buildjet"
+      - name: Install `just` command runner
+        uses:  taiki-e/install-action@just
+      - name: Check if protobuf specs compile to commited Rust sources
+        run: |
+          just compile-protos
+          modified=$(git status --porcelain)
+          if [[ -n "$modified" ]]; then
+            echo "ERROR: protobuf specs are out of sync with the commited Rust sources"
+            echo "Recompile locally with `just compile-protos` and commit to the repository."            exit 1
+            echo "Files that reported differences:"
+            echo "$modified"
+            exit 1
+          fi
+
   compiles:
     runs-on: buildjet-4vcpu-ubuntu-2204
     needs: run_checker
@@ -64,11 +94,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
-      - name: Install buf cli
-        uses: bufbuild/buf-setup-action@v1
-        with:
-          version: "1.17.0"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
@@ -88,6 +113,7 @@ jobs:
           cargo test --release --workspace \
           --all-features \
           --all-targets \
+          -- --include-ignored
 
   doctest:
     runs-on: buildjet-8vcpu-ubuntu-2204
@@ -118,25 +144,25 @@ jobs:
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
-      - uses: bufbuild/buf-setup-action@v1
-        with:
-          version: "1.17.0"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: run pedantic clippy
+      - name: run pedantic clippy on workspace crates
         run: |
           cargo clippy --workspace \
-          --all-targets \
-          --all-features \
-          -- --warn clippy::pedantic \
-             --deny warnings
+          --all-targets --all-features \
+          -- --warn clippy::pedantic --deny warnings
+      - name: run pedantic clippy on tools/protobuf-compiler
+        run: |
+          cargo clippy --manifest-path tools/protobuf-compiler/Cargo.toml \
+          --all-targets --all-features \
+          -- --warn clippy::pedantic --deny warnings
+
 
   test:
     if: ${{ always() && !cancelled() }}
-    needs: [compiles, rust, doctest, clippy, lockfile]
+    needs: [compiles, protos-compiled, rust, doctest, clippy, lockfile]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}

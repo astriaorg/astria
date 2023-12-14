@@ -1,6 +1,6 @@
 [package]
 name = "astria-sequencer-relayer"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.73"
@@ -35,7 +35,9 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 config = { package = "astria-config", path = "../astria-config" }
 proto = { package = "astria-proto", path = "../astria-proto" }
-sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }
+sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
+  "http",
+] }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 [dev-dependencies]
@@ -44,7 +46,7 @@ config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
-sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types", features = [
+proto = { package = "astria-proto", path = "../astria-proto", features = [
   "test-utils",
 ] }
 

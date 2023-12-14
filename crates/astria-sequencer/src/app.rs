@@ -205,14 +205,14 @@ impl App {
         self.processed_txs = 0;
 
         let mut txs = VecDeque::from(process_proposal.txs);
-        let received_action_commitment: [u8; 32] = txs
+        let received_sequence_actions_root: [u8; 32] = txs
             .pop_front()
             .context("no transaction commitment in proposal")?
             .to_vec()
             .try_into()
             .map_err(|_| anyhow!("transaction commitment must be 32 bytes"))?;
 
-        let received_chain_ids_commitment: [u8; 32] = txs
+        let received_rollup_ids_root: [u8; 32] = txs
             .pop_front()
             .context("no chain IDs commitment in proposal")?
             .to_vec()
@@ -233,16 +233,16 @@ impl App {
         );
 
         let GeneratedCommitments {
-            sequence_actions_commitment: expected_action_commitment,
-            chain_ids_commitment: expected_chain_ids_commitment,
+            sequence_actions_root: expected_sequence_actions_root,
+            rollup_ids_root: expected_rollup_ids_root,
         } = generate_sequence_actions_commitment(&signed_txs);
         ensure!(
-            received_action_commitment == expected_action_commitment,
+            received_sequence_actions_root == expected_sequence_actions_root,
             "transaction commitment does not match expected",
         );
 
         ensure!(
-            received_chain_ids_commitment == expected_chain_ids_commitment,
+            received_rollup_ids_root == expected_rollup_ids_root,
             "chain IDs commitment does not match expected",
         );
 
@@ -513,7 +513,7 @@ mod test {
         asset,
         asset::DEFAULT_NATIVE_ASSET_DENOM,
         Address,
-        ChainId,
+        RollupId,
         SequenceAction,
         SudoAddressChangeAction,
         TransferAction,
@@ -895,7 +895,7 @@ mod test {
             nonce: 0,
             actions: vec![
                 SequenceAction {
-                    chain_id: ChainId::with_unhashed_bytes(b"testchainid"),
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data,
                 }
                 .into(),
@@ -1135,7 +1135,7 @@ mod test {
             nonce: 1,
             actions: vec![
                 SequenceAction {
-                    chain_id: ChainId::with_unhashed_bytes(b"testchainid"),
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data,
                 }
                 .into(),

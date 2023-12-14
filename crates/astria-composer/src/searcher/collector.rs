@@ -7,7 +7,7 @@ use ethers::providers::{
     ProviderError,
     Ws,
 };
-use sequencer_types::ChainId;
+use proto::native::sequencer::v1alpha1::RollupId;
 use tokio::sync::{
     mpsc::{
         error::SendTimeoutError,
@@ -41,7 +41,7 @@ pub(super) struct RollupTransaction {
 pub(super) struct Collector {
     // Chain ID to identify in the astria sequencer block which rollup a serialized sequencer
     // action belongs to. Created from `chain_name`.
-    chain_id: ChainId,
+    rollup_id: RollupId,
     // Name of the chain the transactions are read from.
     chain_name: String,
     // The channel on which the collector sends new txs to the searcher.
@@ -78,7 +78,7 @@ impl Collector {
     ) -> Self {
         let (status, _) = watch::channel(Status::new());
         Self {
-            chain_id: ChainId::with_unhashed_bytes(&chain_name),
+            rollup_id: RollupId::from_unhashed_bytes(&chain_name),
             chain_name,
             new_bundles,
             status,
@@ -101,7 +101,7 @@ impl Collector {
         use futures::stream::StreamExt as _;
 
         let Self {
-            chain_id,
+            rollup_id,
             new_bundles,
             status,
             url,
@@ -147,16 +147,10 @@ impl Collector {
 
         while let Some(tx) = tx_stream.next().await {
             debug!(transaction.hash = %tx.hash, "collected transaction from rollup");
-            match new_bundles
-                .send_timeout(
-                    RollupTransaction {
-                        chain_id,
-                        inner: tx,
-                    },
-                    Duration::from_millis(500),
-                )
-                .await
-            {
+            match new_bundles.send_timeout(RollupTransaction {
+                chain_id,
+                inner: tx,
+            }) {
                 Ok(()) => {}
                 Err(SendTimeoutError::Timeout(tx)) => {
                     warn!(

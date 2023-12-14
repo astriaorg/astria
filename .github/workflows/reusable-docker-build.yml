@@ -20,7 +20,7 @@ env:
 jobs:
   build-and-push:
     runs-on: buildjet-8vcpu-ubuntu-2204
-    if: ${{ contains(github.ref, 'refs/tags/v') && endsWith(github.ref, format('--{0}', inputs.package-name)) || github.ref == 'refs/heads/main' || github.event_name == 'pull_request' }}
+    if: ${{ startsWith(github.ref, format('refs/tags/{0}-v', inputs.package-name)) || github.ref == 'refs/heads/main' || github.event_name == 'pull_request' }}
     steps:
       # Checking out the repo
       - uses: actions/checkout@v3
@@ -50,7 +50,7 @@ jobs:
           images: ${{ format('ghcr.io/astriaorg/{0}', inputs.package-name) }}
           tags: |
             type=ref,event=pr
-            type=semver,pattern={{major}}.{{minor}}.{{patch}}
+            type=match,pattern=([a-z-]+)-v(.*),group=2
             type=sha
             # set latest tag for `main` branch
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}

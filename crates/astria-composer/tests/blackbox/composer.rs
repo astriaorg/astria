@@ -1,12 +1,14 @@
 use std::time::Duration;
 
 use ethers::types::Transaction;
-use proto::generated::sequencer::v1alpha1::NonceResponse;
-use sequencer_client::SignedTransaction;
-use sequencer_types::{
-    AbciCode,
-    ChainId,
+use proto::{
+    generated::sequencer::v1alpha1::NonceResponse,
+    native::sequencer::v1alpha1::{
+        RollupId,
+        SignedTransaction,
+    },
 };
+use sequencer_types::AbciCode;
 use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
     request,
@@ -34,7 +36,7 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
     .await
     .expect("setup guard failed");
 
-    let expected_chain_ids = vec![ChainId::with_unhashed_bytes("test1")];
+    let expected_chain_ids = vec![RollupId::from_unhashed_bytes("test1")];
     let mock_guard =
         mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_chain_ids, vec![0]).await;
     test_composer.rollup_nodes["test1"]
@@ -65,7 +67,7 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
     // Reject the first transaction for invalid nonce
     let invalid_nonce_guard = mount_broadcast_tx_sync_invalid_nonce_mock(
         &test_composer.sequencer,
-        ChainId::with_unhashed_bytes("test1"),
+        RollupId::from_unhashed_bytes("test1"),
     )
     .await;
 
@@ -80,7 +82,7 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
     )
     .await;
 
-    let expected_chain_ids = vec![ChainId::with_unhashed_bytes("test1")];
+    let expected_chain_ids = vec![RollupId::from_unhashed_bytes("test1")];
     // Expect nonce 1 again so that the resubmitted tx is accepted
     let valid_nonce_guard =
         mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_chain_ids, vec![1]).await;
@@ -135,7 +137,7 @@ async fn single_rollup_tx_payload_integrity() {
 /// `expected_nonces`.
 async fn mount_broadcast_tx_sync_mock(
     server: &MockServer,
-    expected_chain_ids: Vec<ChainId>,
+    expected_chain_ids: Vec<RollupId>,
     expected_nonces: Vec<u32>,
 ) -> MockGuard {
     let expected_calls = expected_nonces.len().try_into().unwrap();
@@ -171,7 +173,7 @@ async fn mount_broadcast_tx_sync_mock(
 /// rejects the transaction for an invalid nonce.
 async fn mount_broadcast_tx_sync_invalid_nonce_mock(
     server: &MockServer,
-    expected_chain_id: ChainId,
+    expected_chain_id: RollupId,
 ) -> MockGuard {
     let matcher = move |request: &Request| {
         let (chain_id, _) = chain_id_nonce_from_request(request);
@@ -251,7 +253,7 @@ fn signed_tx_from_request(request: &Request) -> SignedTransaction {
     signed_tx
 }
 
-fn chain_id_nonce_from_request(request: &Request) -> (ChainId, u32) {
+fn chain_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
     let signed_tx = signed_tx_from_request(request);
 
     // validate that the transaction's first action is a sequence action
@@ -263,7 +265,7 @@ fn chain_id_nonce_from_request(request: &Request) -> (ChainId, u32) {
     };
 
     (
-        sequence_action.chain_id,
+        sequence_action.rollup_id,
         signed_tx.unsigned_transaction().nonce,
     )
 }
