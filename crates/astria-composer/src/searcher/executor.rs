@@ -227,11 +227,11 @@ impl Executor {
                         new_bundle_sz = ?curr_bundle_sz,
                         seq_action_sz = ?seq_action_sz,
                         "bundled new sequence action"
-                    )
+                    );
                 }
 
                 // receive bundle request signal from executor
-                _ = block_timer.tick(), if curr_bundle.len() != 0 && submission_fut.is_terminated() => {
+                _ = block_timer.tick(), if !curr_bundle.is_empty() && submission_fut.is_terminated() => {
                     // receive oneshot from executor
                     // flush bundle to the oneshot
                     debug!("executor's block timer ticked, flushing bundle to the sequencer");

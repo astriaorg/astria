@@ -226,7 +226,7 @@ impl Searcher {
                                     debug!(
                                         bytes = seq_action_sz,
                                         "bundled rollup transaction",
-                                    )
+                                    );
                                 }
                                 Err(e) => warn!(
                                     error.message = %e,
