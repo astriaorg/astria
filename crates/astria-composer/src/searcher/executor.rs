@@ -170,8 +170,9 @@ impl Executor {
 
         let mut block_timer = time::interval(Duration::from_millis(self.block_time));
 
+        // TODO: feels like kind of a code smell not to encapsulate these in a struct
         let mut curr_bundle = vec![];
-        let curr_bundle_sz = 0;
+        let mut curr_bundle_sz = 0;
 
         loop {
             select! {
@@ -193,9 +194,10 @@ impl Executor {
                     let seq_action_sz = seq_action.data.len() + CHAIN_ID_LEN;
 
                     if curr_bundle_sz + seq_action_sz > self.max_bundle_sz {
-                            debug!("current bundle full, submitting to sequencer");
-                            let bundle = curr_bundle;
-                            curr_bundle = vec![];
+                            debug!(
+                                curr_bundle_sz=?curr_bundle_sz,
+                                seq_action_sz=?seq_action_sz,
+                                "current bundle full, submitting to sequencer");
 
                             // TODO(https://github.com/astriaorg/astria/issues/476): Attach the hash of the
                             // bundle to the span. Linked GH issue is for agreeing on a hash for `SignedTransaction`,
@@ -203,7 +205,7 @@ impl Executor {
                             let span =  info_span!(
                                 "submit full bundle",
                                 nonce.initial = nonce,
-                                bundle.len = bundle.len(),
+                                bundle.len = curr_bundle.len(),
                                 bundle.size = curr_bundle_sz,
                             );
                             submission_fut = SubmitFut {
@@ -212,17 +214,27 @@ impl Executor {
                                 nonce,
                                 signing_key: self.sequencer_key.clone(),
                                 state: SubmitState::NotStarted,
-                                bundle,
+                                bundle: curr_bundle,
                             }
                             .instrument(span)
                             .fuse();
+
+                            curr_bundle = vec![];
+                            curr_bundle_sz = 0;
                     }
 
+                    curr_bundle_sz += seq_action_sz;
                     curr_bundle.push(Action::Sequence(seq_action));
+                    debug!(
+                        old_bundle_sz = ?(curr_bundle_sz - seq_action_sz),
+                        new_bundle_sz = ?curr_bundle_sz,
+                        seq_action_sz = ?seq_action_sz,
+                        "bundled new sequence action"
+                    )
                 }
 
                 // receive bundle request signal from executor
-                _ = block_timer.tick(), if curr_bundle.len() != 0 => {
+                _ = block_timer.tick(), if curr_bundle.len() != 0 && submission_fut.is_terminated() => {
                     // receive oneshot from executor
                     // flush bundle to the oneshot
                     debug!("executor's block timer ticked, flushing bundle to the sequencer");
@@ -247,6 +259,7 @@ impl Executor {
                     .instrument(span)
                     .fuse();
                     curr_bundle = vec![];
+                    curr_bundle_sz = 0;
                 }
                 // block_timer.tick()
                 //   request new bundle from bundler
@@ -490,6 +503,7 @@ mod tests {
     use std::time::Duration;
 
     use color_eyre::eyre;
+    use once_cell::sync::Lazy;
     use proto::{
         native::sequencer::v1alpha1::{
             SequenceAction,
@@ -529,9 +543,18 @@ mod tests {
     };
     use crate::Config;
 
+    static TELEMETRY: Lazy<()> = Lazy::new(|| {
+        if std::env::var_os("TEST_LOG").is_some() {
+            let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
+            telemetry::init(std::io::stdout, &filter_directives).unwrap();
+        } else {
+            telemetry::init(std::io::sink, "").unwrap();
+        }
+    });
     /// Start a mock sequencer server and mount a mock for the `accounts/nonce` query.
     async fn setup() -> (MockServer, MockGuard, Config) {
         use proto::generated::sequencer::v1alpha1::NonceResponse;
+        Lazy::force(&TELEMETRY);
         let server = MockServer::start().await;
         let startup_guard = mount_nonce_query_mock(
             &server,
@@ -552,7 +575,7 @@ mod tests {
                 .to_string()
                 .into(),
             block_time: 2000,
-            max_bundle_sz: 128,
+            max_bundle_sz: 1000,
         };
         (server, startup_guard, cfg)
     }
@@ -644,7 +667,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn two_seq_actions_bundle_full() {
+    async fn full_bundle() {
         // set up the executor, channel for writing seq actions, and the sequencer mock
         let (sequencer, nonce_guard, cfg) = setup().await;
         let (seq_actions_tx, seq_actions_rx) = mpsc::channel(2);
@@ -668,23 +691,28 @@ mod tests {
         .await
         .unwrap();
 
-        // send a sequence action with 32 bytes of 0 to chain id 0
+        let response_guard = mount_broadcast_tx_sync_seq_actions_mock(&sequencer).await;
+
+        // send two sequence actions to the executor, the first of which is large enough to fill the
+        // bundle sending the second should cause the first to immediately be submitted in
+        // order to make space for the second
         let seq0 = SequenceAction {
             chain_id: ChainId::new([0; CHAIN_ID_LEN]),
-            data: vec![0; (cfg.max_bundle_sz / 2) - CHAIN_ID_LEN],
+            data: vec![0u8; cfg.max_bundle_sz - CHAIN_ID_LEN],
         };
-        seq_actions_tx.send(seq0.clone()).await.unwrap();
 
-        // send a sequence action with 32 bytes of 1 to chain id 1
         let seq1 = SequenceAction {
             chain_id: ChainId::new([1; CHAIN_ID_LEN]),
-            data: vec![1; (cfg.max_bundle_sz / 2) - CHAIN_ID_LEN],
+            data: vec![0u8; 1],
         };
+
+        // TODO: pause time so that the executor doesn't submit the bundle due to block timer
+        // instead of due to full bundle
+        // right now it will submit regardless of the seq_action sizes due to the block timer
+        seq_actions_tx.send(seq0.clone()).await.unwrap();
         seq_actions_tx.send(seq1.clone()).await.unwrap();
 
         // wait for the mock sequencer to receive the signed transaction
-        let expected_seq_actions = vec![seq0, seq1];
-        let response_guard = mount_broadcast_tx_sync_seq_actions_mock(&sequencer).await;
         tokio::time::timeout(
             Duration::from_millis(100),
             response_guard.wait_until_satisfied(),
@@ -692,12 +720,20 @@ mod tests {
         .await
         .unwrap();
 
-        // expect a signed transaction with 32 bytes of 0 under chain id 0 and 32 bytes of 1 under
-        // chain id 1
+        // verify the expected sequence actions were received
+        let expected_seq_actions = vec![seq0];
         let requests = response_guard.received_requests().await;
         assert_eq!(requests.len(), 1);
+
         let signed_tx = signed_tx_from_request(&requests[0]);
         let actions = signed_tx.actions();
+
+        assert_eq!(
+            actions.len(),
+            expected_seq_actions.len(),
+            "received more than one action, one was supposed to fill the bundle"
+        );
+
         for (action, expected_seq_action) in actions.iter().zip(expected_seq_actions.iter()) {
             let seq_action = action.as_sequence().unwrap();
             assert_eq!(
@@ -714,5 +750,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn one_seq_action_bundle_on_block_time() {}
+    async fn two_seq_actions_single_bundle() {}
+
+    #[tokio::test]
+    async fn bundle_triggered_by_block_timer() {}
 }
