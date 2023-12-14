@@ -76,6 +76,21 @@ pub(crate) trait StateReadExt: StateRead {
 
         String::from_utf8(bytes).context("failed to parse native asset denom from raw bytes")
     }
+
+    #[instrument(skip(self))]
+    async fn get_block_fees(&self) -> Result<u128> {
+        let Some(bytes) = self
+            .nonverifiable_get_raw(b"block_fees")
+            .await
+            .context("failed to read raw block_fees from state")?
+        else {
+            bail!("block fees not found");
+        };
+        let Ok(bytes): Result<[u8; 16], _> = bytes.try_into() else {
+            bail!("failed turning raw block fees bytes into u128; not 16 bytes?");
+        };
+        Ok(u128::from_be_bytes(bytes))
+    }
 }
 
 impl<T: StateRead> StateReadExt for T {}
@@ -103,6 +118,11 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
     fn put_native_asset_denom(&mut self, denom: &str) {
         self.nonverifiable_put_raw(NATIVE_ASSET_KEY.to_vec(), denom.as_bytes().to_vec());
+    }
+
+    #[instrument(skip(self))]
+    fn put_block_fees(&mut self, fees: u128) {
+        self.nonverifiable_put_raw(b"block_fees".to_vec(), fees.to_be_bytes().to_vec());
     }
 }
 
