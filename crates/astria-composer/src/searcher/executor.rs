@@ -53,9 +53,7 @@ use tokio::{
         mpsc,
         watch,
     },
-    time::{
-        self,
-    },
+    time,
 };
 use tracing::{
     debug,
