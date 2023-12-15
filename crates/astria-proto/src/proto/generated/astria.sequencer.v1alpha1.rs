@@ -215,7 +215,7 @@ pub struct UnsignedTransaction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Action {
-    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6")]
+    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6, 7")]
     pub value: ::core::option::Option<action::Value>,
 }
 /// Nested message and enum types in `Action`.
@@ -235,6 +235,8 @@ pub mod action {
         MintAction(super::MintAction),
         #[prost(message, tag = "6")]
         IbcAction(::penumbra_proto::core::component::ibc::v1alpha1::IbcRelay),
+        #[prost(message, tag = "7")]
+        Ics20Withdrawal(super::Ics20Withdrawal),
     }
 }
 /// `TransferAction` represents a value transfer transaction.
@@ -287,4 +289,39 @@ pub struct MintAction {
     pub to: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, optional, tag = "2")]
     pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Ics20Withdrawal {
+    /// first two fields are a transparent value consisting of an amount and a denom.
+    #[prost(message, optional, tag = "1")]
+    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
+    #[prost(string, tag = "2")]
+    pub denom: ::prost::alloc::string::String,
+    /// the address on the destination chain to send the transfer to.
+    /// this is not validated by Astria; it is up to the destination chain
+    /// to interpret it.
+    #[prost(string, tag = "3")]
+    pub destination_chain_address: ::prost::alloc::string::String,
+    /// an Astria address to use to return funds from this withdrawal
+    /// in the case it fails.
+    #[prost(bytes = "vec", tag = "4")]
+    pub return_address: ::prost::alloc::vec::Vec<u8>,
+    /// the height (on Astria) at which this transfer expires.
+    #[prost(message, optional, tag = "5")]
+    pub timeout_height: ::core::option::Option<IbcHeight>,
+    /// the unix timestamp (in nanoseconds) at which this transfer expires.
+    #[prost(uint64, tag = "6")]
+    pub timeout_time: u64,
+    /// the source channel used for the withdrawal.
+    #[prost(string, tag = "7")]
+    pub source_channel: ::prost::alloc::string::String,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IbcHeight {
+    #[prost(uint64, tag = "1")]
+    pub revision_number: u64,
+    #[prost(uint64, tag = "2")]
+    pub revision_height: u64,
 }

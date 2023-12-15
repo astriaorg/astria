@@ -19,6 +19,7 @@ merkle = { package = "astria-merkle", path = "../astria-merkle" }
 
 ed25519-consensus = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
+ibc-types = { workspace = true }
 penumbra-ibc = { workspace = true }
 penumbra-proto = { workspace = true }
 prost = { workspace = true }
