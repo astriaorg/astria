@@ -13,7 +13,6 @@ use serde::{
 
 /// The high-level config for creating an astria-composer service.
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct Config {
     /// Log level. One of debug, info, warn, or error
     pub log: String,
@@ -61,10 +60,5 @@ mod tests {
     #[test]
     fn example_env_config_is_up_to_date() {
         config::tests::example_env_config_is_up_to_date::<Config>(EXAMPLE_ENV);
-    }
-
-    #[test]
-    fn config_should_reject_unknown_var() {
-        config::tests::config_should_reject_unknown_var::<Config>(EXAMPLE_ENV);
     }
 }

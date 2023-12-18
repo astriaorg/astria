@@ -20,7 +20,6 @@
 //! };
 //!
 //! #[derive(Clone, Debug, Serialize, Deserialize)]
-//! #[serde(deny_unknown_fields)]
 //! pub struct MyConfig {
 //!     pub log: String,
 //!     pub api_listen_addr: SocketAddr,
