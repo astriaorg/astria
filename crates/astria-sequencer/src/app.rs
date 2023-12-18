@@ -505,7 +505,7 @@ impl App {
 #[cfg(test)]
 mod test {
     #[cfg(feature = "mint")]
-    use astria_core::sequencer::v1alpha1::MintAction;
+    use astria_core::sequencer::v1alpha1::transaction::action::MintAction;
     use astria_core::sequencer::v1alpha1::{
         asset,
         asset::DEFAULT_NATIVE_ASSET_DENOM,
