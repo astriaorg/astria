@@ -110,7 +110,7 @@ impl ActionHandler for UnsignedTransaction {
                     let action = act
                         .clone()
                         .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer>();
-                    penumbra_component::ActionHandler::check_stateless(&action, ())
+                    cnidarium_component::ActionHandler::check_stateless(&action, ())
                         .await
                         .context("stateless check failed for IbcAction")?;
                 }
@@ -229,7 +229,7 @@ impl ActionHandler for UnsignedTransaction {
                     let action = act
                         .clone()
                         .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer>();
-                    penumbra_component::ActionHandler::execute(&action, &mut *state)
+                    cnidarium_component::ActionHandler::execute(&action, &mut *state)
                         .await
                         .context("execution failed for IbcAction")?;
                 }

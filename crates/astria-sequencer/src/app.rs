@@ -11,8 +11,9 @@ use anyhow::{
     ensure,
     Context,
 };
-use penumbra_storage::{
+use cnidarium::{
     ArcStateDeltaExt,
+    RootHash,
     Snapshot,
     StateDelta,
     Storage,
@@ -38,7 +39,6 @@ use tracing::{
 
 use crate::{
     accounts::component::AccountsComponent,
-    app_hash::AppHash,
     authority::{
         component::{
             AuthorityComponent,
@@ -447,7 +447,7 @@ impl App {
     }
 
     #[instrument(name = "App::commit", skip(self, storage))]
-    pub(crate) async fn commit(&mut self, storage: Storage) -> AppHash {
+    pub(crate) async fn commit(&mut self, storage: Storage) -> RootHash {
         // We need to extract the State we've built up to commit it.  Fill in a dummy state.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
 
@@ -468,12 +468,10 @@ impl App {
         );
 
         // Commit the pending writes, clearing the state.
-        let jmt_root = storage
+        let app_hash = storage
             .commit(state)
             .await
             .expect("must be able to successfully commit to storage");
-
-        let app_hash = AppHash::from(jmt_root);
         tracing::debug!(?app_hash, "finished committing state");
 
         // Get the latest version of the state, now that we've committed it.
@@ -601,7 +599,7 @@ mod test {
         genesis_state: Option<GenesisState>,
         genesis_validators: Vec<tendermint::validator::Update>,
     ) -> App {
-        let storage = penumbra_storage::TempStorage::new()
+        let storage = cnidarium::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();
@@ -1168,7 +1166,7 @@ mod test {
 
     #[tokio::test]
     async fn app_commit() {
-        let storage = penumbra_storage::TempStorage::new()
+        let storage = cnidarium::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();

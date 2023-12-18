@@ -11,7 +11,7 @@ use borsh::{
     BorshDeserialize,
     BorshSerialize,
 };
-use penumbra_storage::{
+use cnidarium::{
     StateRead,
     StateWrite,
 };

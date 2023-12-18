@@ -6,11 +6,11 @@ use std::{
     },
 };
 
+use cnidarium::Storage;
 use futures::{
     Future,
     FutureExt,
 };
-use penumbra_storage::Storage;
 use tendermint::v0_37::abci::{
     request,
     response,

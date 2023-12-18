@@ -2,7 +2,7 @@ use anyhow::{
     bail,
     Context,
 };
-use penumbra_storage::Storage;
+use cnidarium::Storage;
 use sequencer_types::abci_code::AbciCode;
 use tendermint::v0_37::abci::{
     request,
@@ -482,7 +482,7 @@ mod test {
             ..Default::default()
         };
 
-        let storage = penumbra_storage::TempStorage::new().await.unwrap();
+        let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
         app.init_chain(genesis_state, vec![]).await.unwrap();
