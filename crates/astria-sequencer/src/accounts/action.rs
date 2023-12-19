@@ -6,8 +6,8 @@ use anyhow::{
 };
 use astria_core::sequencer::v1alpha1::{
     asset,
+    transaction::action::TransferAction,
     Address,
-    TransferAction,
 };
 use tracing::instrument;
 

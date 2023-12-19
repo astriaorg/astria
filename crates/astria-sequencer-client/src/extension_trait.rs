@@ -27,11 +27,11 @@ use std::{
 };
 
 pub use astria_core::sequencer::v1alpha1::{
+    block::SequencerBlockError,
     Address,
     BalanceResponse,
     NonceResponse,
     SequencerBlock,
-    SequencerBlockError,
     SignedTransaction,
 };
 use async_trait::async_trait;

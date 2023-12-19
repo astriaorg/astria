@@ -1,6 +1,8 @@
 use astria_core::sequencer::v1alpha1::{
-    Action,
-    TransferAction,
+    transaction::action::{
+        Action,
+        TransferAction,
+    },
     UnsignedTransaction,
 };
 use astria_sequencer_client::{
@@ -178,9 +180,9 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
         actions: vec![Action::Transfer(TransferAction {
             to: to_address,
             amount: args.amount,
-            asset_id: astria_core::sequencer::asset::default_native_asset_id(),
+            asset_id: astria_core::sequencer::v1alpha1::asset::default_native_asset_id(),
         })],
-        fee_asset_id: astria_core::sequencer::asset::default_native_asset_id(),
+        fee_asset_id: astria_core::sequencer::v1alpha1::asset::default_native_asset_id(),
     }
     .into_signed(&sequencer_key);
     let res = sequencer_client

@@ -281,9 +281,9 @@ mod test {
     };
 
     use astria_core::sequencer::v1alpha1::{
+        celestia::UncheckedCelestiaSequencerBlob,
         test_utils::make_cometbft_block,
         RollupId,
-        UncheckedCelestiaSequencerBlob,
     };
     // use sequencer_types::ChainId;
     use tendermint::{

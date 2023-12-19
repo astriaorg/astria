@@ -1,7 +1,7 @@
 use astria_core::sequencer::v1alpha1::{
+    celestia::CelestiaSequencerBlobError,
     CelestiaRollupBlob,
     CelestiaSequencerBlob,
-    CelestiaSequencerBlobError,
     SequencerBlock,
 };
 use async_trait::async_trait;
@@ -194,7 +194,7 @@ pub trait CelestiaClientExt: BlobClient {
 
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
         for (i, block) in blocks.into_iter().enumerate() {
-            let mut blobs = assemble_blobs_from_sequencer_block(&block).map_err(|source| {
+            let mut blobs = assemble_blobs_from_sequencer_block(block).map_err(|source| {
                 SubmitSequencerBlocksError::AssembleBlobs {
                     source,
                     index: i,
@@ -234,9 +234,9 @@ pub enum BlobAssemblyError {
 }
 
 fn assemble_blobs_from_sequencer_block(
-    block: &SequencerBlock,
+    block: SequencerBlock,
 ) -> Result<Vec<Blob>, BlobAssemblyError> {
-    let (sequencer_blob, rollup_blobs) = block.to_celestia_blobs();
+    let (sequencer_blob, rollup_blobs) = block.into_celestia_blobs();
 
     let mut blobs = Vec::with_capacity(rollup_blobs.len() + 1);
 
