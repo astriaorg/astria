@@ -3,6 +3,12 @@ use anyhow::{
     Context as _,
     Result,
 };
+use astria_core::sequencer::v1alpha1::{
+    asset,
+    asset::IbcAsset,
+    transaction::action,
+    Address,
+};
 use ibc_types::core::channel::{
     ChannelId,
     PortId,
@@ -12,12 +18,6 @@ use penumbra_ibc::component::packet::{
     SendPacketRead as _,
     SendPacketWrite as _,
     Unchecked,
-};
-use proto::native::sequencer::v1alpha1::{
-    asset,
-    asset::IbcAsset,
-    Address,
-    Ics20Withdrawal,
 };
 use tracing::instrument;
 
@@ -29,7 +29,9 @@ use crate::{
     transaction::action_handler::ActionHandler,
 };
 
-fn withdrawal_to_unchecked_ibc_packet(withdrawal: &Ics20Withdrawal) -> IBCPacket<Unchecked> {
+fn withdrawal_to_unchecked_ibc_packet(
+    withdrawal: &action::Ics20Withdrawal,
+) -> IBCPacket<Unchecked> {
     let packet_data = withdrawal.to_fungible_token_packet_data();
     let serialized_packet_data =
         serde_json::to_vec(&packet_data).expect("can serialize FungibleTokenPacketData as JSON");
@@ -44,7 +46,7 @@ fn withdrawal_to_unchecked_ibc_packet(withdrawal: &Ics20Withdrawal) -> IBCPacket
 }
 
 #[async_trait::async_trait]
-impl ActionHandler for Ics20Withdrawal {
+impl ActionHandler for action::Ics20Withdrawal {
     #[instrument(skip(self))]
     async fn check_stateless(&self) -> Result<()> {
         ensure!(self.timeout_time() != 0, "timeout time must be non-zero",);

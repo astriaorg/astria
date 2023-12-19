@@ -1,3 +1,10 @@
+use astria_core::sequencer::v1alpha1::{
+    transaction::action::{
+        Action,
+        TransferAction,
+    },
+    UnsignedTransaction,
+};
 use astria_sequencer_client::{
     Address,
     HttpClient,
@@ -12,11 +19,6 @@ use color_eyre::{
     },
 };
 use ed25519_consensus::SigningKey;
-use proto::native::sequencer::v1alpha1::{
-    Action,
-    TransferAction,
-    UnsignedTransaction,
-};
 use rand::rngs::OsRng;
 
 use crate::cli::sequencer::{
@@ -178,9 +180,9 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
         actions: vec![Action::Transfer(TransferAction {
             to: to_address,
             amount: args.amount,
-            asset_id: proto::native::sequencer::asset::default_native_asset_id(),
+            asset_id: astria_core::sequencer::v1alpha1::asset::default_native_asset_id(),
         })],
-        fee_asset_id: proto::native::sequencer::asset::default_native_asset_id(),
+        fee_asset_id: astria_core::sequencer::v1alpha1::asset::default_native_asset_id(),
     }
     .into_signed(&sequencer_key);
     let res = sequencer_client

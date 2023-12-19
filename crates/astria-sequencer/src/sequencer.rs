@@ -44,7 +44,7 @@ impl Sequencer {
 
         let substore_prefixes = vec![penumbra_ibc::IBC_SUBSTORE_PREFIX];
 
-        let storage = penumbra_storage::Storage::load(
+        let storage = cnidarium::Storage::load(
             config.db_filepath.clone(),
             substore_prefixes
                 .into_iter()

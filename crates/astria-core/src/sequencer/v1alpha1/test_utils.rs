@@ -4,11 +4,11 @@ use prost::Message as _;
 
 use super::{
     // FIXME(github....): bring these assets under v1alpha1
-    super::asset::default_native_asset_id,
+    asset::default_native_asset_id,
     derive_merkle_tree_from_rollup_txs,
     group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
+    transaction::action::SequenceAction,
     RollupId,
-    SequenceAction,
     UnsignedTransaction,
 };
 
