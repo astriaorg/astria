@@ -18,7 +18,10 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use futures::stream::FuturesOrdered;
-use tokio::select;
+use tokio::{
+    select,
+    // time,
+};
 use tracing::{
     error,
     info,
@@ -45,7 +48,19 @@ pub(crate) async fn find_first_da_block_with_sequencer_data(
     sequencer_namespace: Namespace,
 ) -> Height {
     let mut height = start_height;
+    let mut loop_count = 0;
+    let da_block_range = 100; // TODO: da block range
     loop {
+        // TODO: update this to be controlled by DA block range
+        if loop_count > da_block_range {
+            panic!(
+                "{}",
+                format!(
+                    "sequencer block not found after {} attempts",
+                    da_block_range
+                )
+            );
+        }
         let sequencer_blobs = celestia_client
             .get_sequencer_blobs(height, sequencer_namespace)
             .await;
@@ -58,6 +73,7 @@ pub(crate) async fn find_first_da_block_with_sequencer_data(
             Err(error) => {
                 warn!(height = %height.value(), error = %error, "error returned when fetching sequencer data; skipping");
                 height = height.increment();
+                loop_count += 1;
                 continue;
             }
         }
@@ -117,7 +133,7 @@ pub(crate) async fn run(
 
     info!("running DA sync");
 
-    let mut height_stream = futures::stream::iter(start_sync_height..end_sync_height);
+    let mut height_stream = futures::stream::iter(start_sync_height..=end_sync_height);
     let mut block_stream = FuturesOrdered::new();
     let mut verification_stream = FuturesOrdered::new();
 
@@ -162,10 +178,11 @@ pub(crate) async fn run(
                     Err(error) => {
                         let error = error.as_ref() as &(dyn std::error::Error + 'static);
 
-                        warn!(da_block_height = %height.value(), error, "verification of sequencer blocs failed; skipping");
+                        warn!(da_block_height = %height.value(), error, "verification of sequencer blocks failed; skipping");
 
                     }
-                    Ok(blocks) => {
+                    Ok(mut blocks) => {
+                        blocks.sort_by_key(|block| block.header.height);
                         let span = tracing::info_span!("send_sequencer_subsets", %height);
                         span.in_scope(|| send_sequencer_subsets(executor_tx.clone(), Ok(Ok(blocks))))
                             .wrap_err("failed sending sequencer subsets to executor")?;
@@ -175,6 +192,8 @@ pub(crate) async fn run(
 
             else => {
                 info!("DA sync finished");
+                // info!("waiting for 5 seconds for async tasks to finish");
+                // time::sleep(Duration::from_secs(5)).await;
                 break 'sync Ok(())
             }
         );

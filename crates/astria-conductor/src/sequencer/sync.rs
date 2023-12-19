@@ -89,7 +89,7 @@ pub(super) async fn run(
                         let block = Box::new(block);
                         if let Err(e) = executor.send(crate::executor::ExecutorCommand::FromSequencer { block }) {
                             let error = &e as &(dyn std::error::Error + 'static);
-                            error!(height, error, "failed forwarding block to executor; aborting async");
+                            error!(height, error, "failed forwarding block to executor; aborting sync");
                             break 'sync Err(e).wrap_err("failed forwarding block to executor");
                         }
                     }

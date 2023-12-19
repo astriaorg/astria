@@ -93,9 +93,11 @@ pub(crate) struct Reader {
     /// The between the reader waits until it queries celestia for new blocks
     celestia_poll_interval: Duration,
 
-    /// the last block height fetched from Celestia
+    /// The last block height fetched from Celestia
     current_block_height: Height,
 
+    // /// The most recent sequencer block height seen in the latest Celestia blob
+    // latest_sequencer_height: Height,
     block_verifier: BlockVerifier,
 
     /// Sequencer Namespace ID
@@ -113,6 +115,9 @@ pub(crate) struct Reader {
     verify_sequencer_blobs_and_assemble_rollups:
         JoinMap<Height, eyre::Result<Vec<SequencerBlockSubset>>>,
 
+    /// Initial sequencer block height
+    initial_seq_block_height: u32,
+
     /// Initial DA block height
     initial_da_block_height: u32,
 
@@ -125,6 +130,7 @@ pub(crate) struct Reader {
     sync_done: Option<oneshot::Sender<()>>,
 }
 
+#[derive(Clone)]
 pub(crate) struct CelestiaReaderConfig {
     pub(crate) node_url: String,
     pub(crate) bearer_token: Option<String>,
@@ -136,6 +142,7 @@ impl Reader {
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn new(
         initial_da_height: u32,
+        initial_seq_height: u32,
         firm_commit_height: u32,
         celestia_config: CelestiaReaderConfig,
         executor_tx: executor::Sender,
@@ -143,7 +150,7 @@ impl Reader {
         sequencer_namespace: Namespace,
         rollup_namespace: Namespace,
         shutdown: oneshot::Receiver<()>,
-        sync_done: oneshot::Sender<()>,
+        sync_done: Option<oneshot::Sender<()>>,
     ) -> eyre::Result<Self> {
         use celestia_client::celestia_rpc::HeaderClient;
 
@@ -184,15 +191,16 @@ impl Reader {
             block_verifier,
             sequencer_namespace,
             rollup_namespace,
+            initial_seq_block_height: initial_seq_height,
             initial_da_block_height: initial_da_height,
             firm_commit_height,
             shutdown,
-            sync_done: Some(sync_done),
+            sync_done,
         })
     }
 
     #[instrument(skip(self))]
-    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+    pub(crate) async fn run_da_sync(mut self) -> eyre::Result<()> {
         // Setup a dummy future that is always ready to be polled to be checked
         // if we don't need to sync from DA.
         #[allow(clippy::unused_async)]
@@ -201,8 +209,7 @@ impl Reader {
         }
         let mut sync = ready().boxed().fuse();
 
-        info!("starting reader event loop.");
-
+        info!("syncing from DA");
         // If the firm commit height is greater than 1, that means we have seen
         // sequencer blocks from DA before and we need to sync to the latest.
         // If the firm commit height is 0, that means we are starting the
@@ -219,12 +226,14 @@ impl Reader {
                  never happen"
             );
         }
+
         if (current_block_height - self.initial_da_block_height) >= 1 {
             info!("initializing da sync");
             let sync_start_height = find_da_sync_start_height(
                 self.celestia_client.clone(),
                 self.initial_da_block_height,
                 self.firm_commit_height,
+                self.initial_seq_block_height,
                 self.sequencer_namespace,
             )
             .await;
@@ -256,9 +265,103 @@ impl Reader {
             );
         }
 
-        // panic!("stopping here for testing");
-        // TODO: add da sync done to asycn run the sync
-        // TODO: add sync done check to the event loop below
+        loop {
+            select!(
+                shutdown_res = &mut self.shutdown => {
+                    match shutdown_res {
+                        Ok(()) => info!("received shutdown command; exiting"),
+                        Err(e) => {
+                            let error = &e as &(dyn std::error::Error + 'static);
+                            warn!(error, "shutdown receiver dropped; exiting");
+                        }
+                    }
+                    break;
+                }
+
+                res = &mut sync, if !sync.is_terminated() => {
+                    if let Err(e) = res {
+                        let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                        warn!(error, "sync failed; continuing with normal operation");
+                    } else {
+                        info!("sync finished successfully");
+                    }
+                    // First sync at startup: notify conductor that sync is done.
+                    // Every resync after: don't.
+                    if let Some(sync_done) = self.sync_done.take() {
+                        let _ = sync_done.send(());
+                    }
+                }
+            );
+        }
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+        // Setup a dummy future that is always ready to be polled to be checked
+        // if we don't need to sync from DA.
+        // #[allow(clippy::unused_async)]
+        // async fn ready() -> eyre::Result<()> {
+        //     Ok(())
+        // }
+        // let mut sync = ready().boxed().fuse();
+
+        info!("starting reader event loop.");
+        // If the firm commit height is greater than 1, that means we have seen
+        // sequencer blocks from DA before and we need to sync to the latest.
+        // If the firm commit height is 0, that means we are starting the
+        // conductor on a fresh chain and we don't need to sync.
+        // TODO: make this check more sophisticated
+        // if current block height / 5 >  1 -> run the sync
+        // if self.firm_commit_height > 1 {
+        // let current_block_height = u32::try_from(self.current_block_height.value())
+        //     .expect("casting from u64 to u32 failed");
+        // info!(current_block_height = %current_block_height, initial_da_block_height =
+        // %self.initial_da_block_height); if self.initial_da_block_height >
+        // current_block_height {     bail!(
+        //         "initial da block height is greater than the current block height; this should \
+        //          never happen"
+        //     );
+        // }
+
+        // if (current_block_height - self.initial_da_block_height) >= 1 {
+        //     info!("initializing da sync");
+        //     let sync_start_height = find_da_sync_start_height(
+        //         self.celestia_client.clone(),
+        //         self.initial_da_block_height,
+        //         self.firm_commit_height,
+        //         self.initial_seq_block_height,
+        //         self.sequencer_namespace,
+        //     )
+        //     .await;
+
+        //     let latest_height = u32::try_from(
+        //         find_latest_height(self.celestia_client.clone())
+        //             .await
+        //             .wrap_err("failed to get latest height from celestia")?
+        //             .value(),
+        //     )
+        //     .expect("casting from u64 to u32 failed");
+
+        //     info!(start_sync_height = %sync_start_height, end_sync_height = %latest_height, "sync
+        // range");
+
+        //     sync = sync::run(
+        //         sync_start_height,
+        //         latest_height,
+        //         self.sequencer_namespace,
+        //         self.executor_tx.clone(),
+        //         self.celestia_client.clone(),
+        //         self.block_verifier.clone(),
+        //     )
+        //     .boxed()
+        //     .fuse();
+        // } else {
+        //     info!(
+        //         "current da block height is the same as the initial da block height; skipping da
+        // \          sync"
+        //     );
+        // }
 
         let mut interval = tokio::time::interval(self.celestia_poll_interval);
         loop {
@@ -283,19 +386,19 @@ impl Reader {
                     }));
                 }
 
-                res = &mut sync, if !sync.is_terminated() => {
-                    if let Err(e) = res {
-                        let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                        warn!(error, "sync failed; continuing with normal operation");
-                    } else {
-                        info!("sync finished successfully");
-                    }
-                    // First sync at startup: notify conductor that sync is done.
-                    // Every resync after: don't.
-                    if let Some(sync_done) = self.sync_done.take() {
-                        let _ = sync_done.send(());
-                    }
-                }
+                // res = &mut sync, if !sync.is_terminated() => {
+                //     if let Err(e) = res {
+                //         let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                //         warn!(error, "sync failed; continuing with normal operation");
+                //     } else {
+                //         info!("sync finished successfully");
+                //     }
+                //     // First sync at startup: notify conductor that sync is done.
+                //     // Every resync after: don't.
+                //     if let Some(sync_done) = self.sync_done.take() {
+                //         let _ = sync_done.send(());
+                //     }
+                // }
 
                 res = async { self.get_latest_height.as_mut().unwrap().await }, if self.get_latest_height.is_some() => {
                     self.get_latest_height = None;
@@ -481,6 +584,7 @@ async fn find_da_sync_start_height(
     client: HttpClient,
     initial_da_height: u32,
     firm_commit_height: u32,
+    initial_seq_block_height: u32,
     sequencer_namespace: Namespace,
     // block_verifier: BlockVerifier,
 ) -> u32 {
@@ -504,8 +608,10 @@ async fn find_da_sync_start_height(
         return initial_da_height;
     }
 
-    let mut guess_blob_height = Height::from(initial_da_height + (firm_commit_height / 4));
-    info!(guess_block_height = %guess_blob_height, "guessing da block height before simple search");
+    // let mut guess_blob_height = Height::from(initial_da_height + (firm_commit_height / 4));
+    let mut guess_blob_height = Height::from(initial_da_height);
+    info!(guess_block_height = %guess_blob_height, "guessing da block height before simple
+    search");
     guess_blob_height = sync::find_first_da_block_with_sequencer_data(
         guess_blob_height,
         client.clone(),
@@ -517,6 +623,7 @@ async fn find_da_sync_start_height(
     // TODO: starting at the guess block height, search forward until we find
     // the block that contains the firm commit
     loop {
+        // info!(height = %guess_blob_height.value(), "searching for firm commit in DA block");
         let height = guess_blob_height.value();
 
         let sequencer_blobs = client
@@ -532,10 +639,20 @@ async fn find_da_sync_start_height(
                 } else if blobs.sequencer_blobs.into_iter().any(|b| {
                     let h: u32 =
                         u32::try_from(b.height().value()).expect("casting from u64 to u32 failed");
+                    info!(height = %h, initial_seq_block_height = %initial_seq_block_height, "cometbft height vs initial seq block height");
+                    if initial_seq_block_height > h {
+                        return false;
+                    }
+                    let h = h - initial_seq_block_height; // need to account for the sequencer block offset
+                    info!(height = %h, firm_commit = %firm_commit_height, "looking for firm commit height");
                     h == firm_commit_height
                 }) {
                     return u32::try_from(guess_blob_height.value())
                         .expect("casting from u64 to u32 failed");
+                } else {
+                    warn!(height = %height, "firm commit height not found in celestia block; skipping");
+                    guess_blob_height = guess_blob_height.increment();
+                    continue;
                 }
             }
             Err(error) => {

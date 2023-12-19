@@ -85,7 +85,10 @@ impl Reader {
     }
 
     #[instrument(skip_all)]
-    pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
+    pub(crate) async fn run_until_stopped(
+        self,
+        updated_sync_start_height: Option<u32>,
+    ) -> eyre::Result<()> {
         use futures::{
             future::FusedFuture as _,
             stream::FuturesOrdered,
@@ -94,11 +97,16 @@ impl Reader {
         };
         let Self {
             executor_tx,
-            start_sync_height,
+            mut start_sync_height,
             pool,
             mut shutdown,
             sync_done,
         } = self;
+
+        if updated_sync_start_height.is_some() {
+            info!("received updated sync start height");
+            start_sync_height = updated_sync_start_height.unwrap().into();
+        }
 
         let mut new_blocks: stream::Fuse<NewBlocksStream> = subscribe_new_blocks(pool.clone())
             .await

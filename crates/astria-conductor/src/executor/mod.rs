@@ -81,6 +81,14 @@ impl ExecutorCommitmentState {
             soft,
         }
     }
+
+    // pub(crate) fn soft_height(&self) -> u32 {
+    //     self.soft.number
+    // }
+
+    pub(crate) fn firm_height(&self) -> u32 {
+        self.firm.number
+    }
 }
 
 // Given `Time`, convert to protobuf timestamp
@@ -317,12 +325,6 @@ pub(crate) struct Executor {
     /// executable block height & finalizable block height can be calcuated from
     /// this plus the commitment_state
     sequencer_height_with_first_rollup_block: u32,
-
-    // TODO: remove me?
-    /// The first block height from da used for a rollup block,
-    /// executable block height & finalizable block height can be calcuated from
-    /// this plus the commitment_state
-    // da_height_with_first_rollup_block: u32,
 
     /// map of sequencer block hash to execution block
     ///
