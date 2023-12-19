@@ -3,6 +3,7 @@ use std::{
     time::Duration,
 };
 
+use astria_core::sequencer::v1alpha1::test_utils::ConfigureCometBftBlock;
 use astria_sequencer_relayer::{
     config::Config,
     telemetry,
@@ -14,7 +15,6 @@ use celestia_client::celestia_types::{
 };
 use ed25519_consensus::SigningKey;
 use once_cell::sync::Lazy;
-use proto::native::sequencer::v1alpha1::test_utils::ConfigureCometBftBlock;
 use serde_json::json;
 use tempfile::NamedTempFile;
 use tendermint_config::PrivValidatorKey;

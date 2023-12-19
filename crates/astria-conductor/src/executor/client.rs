@@ -1,9 +1,4 @@
-use color_eyre::eyre::{
-    Result,
-    WrapErr,
-};
-use prost_types::Timestamp;
-use proto::generated::execution::v1alpha2::{
+use astria_core::generated::execution::v1alpha2::{
     execution_service_client::ExecutionServiceClient,
     BatchGetBlocksRequest,
     BatchGetBlocksResponse,
@@ -15,6 +10,11 @@ use proto::generated::execution::v1alpha2::{
     GetCommitmentStateRequest,
     UpdateCommitmentStateRequest,
 };
+use color_eyre::eyre::{
+    Result,
+    WrapErr,
+};
+use prost_types::Timestamp;
 use tonic::transport::Channel;
 
 use super::ExecutorCommitmentState;

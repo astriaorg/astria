@@ -9,7 +9,7 @@ use anyhow::{
     ensure,
     Context as _,
 };
-use proto::native::sequencer::v1alpha1::{
+use astria_core::sequencer::v1alpha1::{
     asset,
     Action,
     Address,

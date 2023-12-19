@@ -230,21 +230,19 @@ impl Consensus {
 mod test {
     use std::str::FromStr;
 
+    use astria_core::sequencer::v1alpha1::{
+        asset::DEFAULT_NATIVE_ASSET_DENOM,
+        Address,
+        RollupId,
+        SequenceAction,
+        UnsignedTransaction,
+    };
     use bytes::Bytes;
     use ed25519_consensus::{
         SigningKey,
         VerificationKey,
     };
-    use proto::{
-        native::sequencer::v1alpha1::{
-            asset::DEFAULT_NATIVE_ASSET_DENOM,
-            Address,
-            RollupId,
-            SequenceAction,
-            UnsignedTransaction,
-        },
-        Message as _,
-    };
+    use prost::Message as _;
     use rand::rngs::OsRng;
     use tendermint::{
         account::Id,

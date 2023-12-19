@@ -1,5 +1,13 @@
 use std::collections::HashMap;
 
+use astria_core::{
+    generated::execution::v1alpha2::{
+        execution_service_client::ExecutionServiceClient,
+        Block,
+        CommitmentState,
+    },
+    sequencer::v1alpha1::RollupId,
+};
 use color_eyre::eyre::{
     self,
     bail,
@@ -8,14 +16,6 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use prost_types::Timestamp as ProstTimestamp;
-use proto::{
-    generated::execution::v1alpha2::{
-        execution_service_client::ExecutionServiceClient,
-        Block,
-        CommitmentState,
-    },
-    native::sequencer::v1alpha1::RollupId,
-};
 use sequencer_client::SequencerBlock;
 use tendermint::{
     Hash,

@@ -2,6 +2,10 @@ use anyhow::{
     Context,
     Result,
 };
+use astria_core::sequencer::v1alpha1::{
+    asset,
+    Address,
+};
 use async_trait::async_trait;
 use borsh::{
     BorshDeserialize,
@@ -13,10 +17,6 @@ use cnidarium::{
 };
 use hex::ToHex as _;
 use ibc_types::core::channel::ChannelId;
-use proto::native::sequencer::v1alpha1::{
-    asset,
-    Address,
-};
 use tracing::{
     debug,
     instrument,

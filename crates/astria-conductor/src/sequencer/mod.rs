@@ -392,6 +392,7 @@ mod tests {
         pin::Pin,
     };
 
+    use astria_core::sequencer::v1alpha1::test_utils::make_cometbft_block;
     use color_eyre::eyre;
     use futures::{
         future::{
@@ -402,7 +403,6 @@ mod tests {
         },
         stream::FuturesOrdered,
     };
-    use proto::native::sequencer::v1alpha1::test_utils::make_cometbft_block;
 
     use super::{
         forward_block_or_resync,

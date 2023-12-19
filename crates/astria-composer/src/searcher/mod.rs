@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
+use astria_core::sequencer::v1alpha1::{
+    Action,
+    SequenceAction,
+};
 use color_eyre::eyre::{
     self,
     WrapErr as _,
-};
-use proto::native::sequencer::v1alpha1::{
-    Action,
-    SequenceAction,
 };
 use tokio::{
     select,
@@ -367,8 +367,8 @@ fn reconnect_exited_collector(
 mod tests {
     use std::collections::HashMap;
 
+    use astria_core::sequencer::v1alpha1::RollupId;
     use ethers::types::Transaction;
-    use proto::native::sequencer::v1alpha1::RollupId;
     use tokio_util::task::JoinMap;
 
     use crate::searcher::collector::{

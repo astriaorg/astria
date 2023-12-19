@@ -10,6 +10,7 @@ use ed25519_consensus::{
 };
 use indexmap::IndexMap;
 use penumbra_ibc::IbcRelay;
+use prost::Message as _;
 use sha2::{
     Digest as _,
     Sha256,
@@ -25,10 +26,8 @@ pub use super::{
 };
 use crate::{
     generated::sequencer::v1alpha1 as raw,
-    native::{
-        sequencer::v1alpha1::asset::IncorrectAssetIdLength,
-        Protobuf,
-    },
+    sequencer::v1alpha1::asset::IncorrectAssetIdLength,
+    Protobuf,
 };
 
 #[cfg(feature = "test-utils")]
@@ -171,7 +170,6 @@ impl SignedTransaction {
     /// if the native [`UnsignedTransaction`] could not be created from the inner raw
     /// [`raw::UnsignedTransaction`].
     pub fn try_from_raw(proto: raw::SignedTransaction) -> Result<Self, SignedTransactionError> {
-        use crate::Message as _;
         let raw::SignedTransaction {
             signature,
             public_key,
@@ -239,7 +237,6 @@ pub struct UnsignedTransaction {
 impl UnsignedTransaction {
     #[must_use]
     pub fn into_signed(self, signing_key: &SigningKey) -> SignedTransaction {
-        use crate::Message as _;
         let bytes = self.to_raw().encode_to_vec();
         let signature = signing_key.sign(&bytes);
         let verification_key = signing_key.verification_key();
@@ -1031,10 +1028,7 @@ impl Display for Address {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct RollupId {
-    #[cfg_attr(feature = "serde", serde(with = "hex::serde"))]
     inner: [u8; 32],
 }
 
@@ -1047,7 +1041,7 @@ impl RollupId {
     ///
     /// # Examples
     /// ```
-    /// use astria_proto::native::sequencer::v1alpha1::RollupId;
+    /// use astria_core::sequencer::v1alpha1::RollupId;
     /// let bytes = [42u8; 32];
     /// let rollup_id = RollupId::new(bytes);
     /// assert_eq!(bytes, rollup_id.get());
@@ -1063,7 +1057,7 @@ impl RollupId {
     ///
     /// # Examples
     /// ```
-    /// use astria_proto::native::sequencer::v1alpha1::RollupId;
+    /// use astria_core::sequencer::v1alpha1::RollupId;
     /// let bytes = [42u8; 32];
     /// let rollup_id = RollupId::new(bytes);
     /// assert_eq!(bytes, rollup_id.get());
@@ -1077,7 +1071,7 @@ impl RollupId {
     ///
     /// Examples
     /// ```
-    /// use astria_proto::native::sequencer::v1alpha1::RollupId;
+    /// use astria_core::sequencer::v1alpha1::RollupId;
     /// use sha2::{
     ///     Digest,
     ///     Sha256,
@@ -1098,7 +1092,7 @@ impl RollupId {
     ///
     /// # Examples
     /// ```
-    /// use astria_proto::native::sequencer::v1alpha1::RollupId;
+    /// use astria_core::sequencer::v1alpha1::RollupId;
     /// let rollup_id = RollupId::new([42u8; 32]);
     /// assert_eq!(vec![42u8; 32], rollup_id.to_vec());
     /// ```
