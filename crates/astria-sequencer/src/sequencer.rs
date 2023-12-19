@@ -44,7 +44,7 @@ impl Sequencer {
 
         let substore_prefixes = vec![penumbra_ibc::IBC_SUBSTORE_PREFIX];
 
-        let storage = penumbra_storage::Storage::load(
+        let storage = cnidarium::Storage::load(
             config.db_filepath.clone(),
             substore_prefixes
                 .into_iter()
@@ -105,10 +105,7 @@ impl Sequencer {
     }
 }
 
-fn start_grpc_server(
-    storage: &penumbra_storage::Storage,
-    grpc_addr: std::net::SocketAddr,
-) -> Result<()> {
+fn start_grpc_server(storage: &cnidarium::Storage, grpc_addr: std::net::SocketAddr) -> Result<()> {
     use ibc_proto::ibc::core::{
         channel::v1::query_server::QueryServer as ChannelQueryServer,
         client::v1::query_server::QueryServer as ClientQueryServer,

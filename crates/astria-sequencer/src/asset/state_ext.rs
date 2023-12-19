@@ -8,11 +8,11 @@ use borsh::{
     BorshDeserialize,
     BorshSerialize,
 };
-use hex::ToHex as _;
-use penumbra_storage::{
+use cnidarium::{
     StateRead,
     StateWrite,
 };
+use hex::ToHex as _;
 use proto::native::sequencer::v1alpha1::{
     asset,
     asset::IbcAsset,

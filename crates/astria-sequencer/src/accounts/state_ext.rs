@@ -7,12 +7,12 @@ use borsh::{
     BorshDeserialize,
     BorshSerialize,
 };
-use hex::ToHex as _;
-use ibc_types::core::channel::ChannelId;
-use penumbra_storage::{
+use cnidarium::{
     StateRead,
     StateWrite,
 };
+use hex::ToHex as _;
+use ibc_types::core::channel::ChannelId;
 use proto::native::sequencer::v1alpha1::{
     asset,
     Address,
