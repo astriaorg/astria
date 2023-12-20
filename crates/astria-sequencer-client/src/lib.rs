@@ -6,7 +6,7 @@ compile_error!("at least one of the `http` or `websocket` features must be enabl
 
 #[cfg(any(feature = "http", feature = "websocket"))]
 pub use __feature_gated_exports::*;
-pub use proto::native::sequencer::v1alpha1::{
+pub use astria_core::sequencer::v1alpha1::{
     Address,
     BalanceResponse,
     NonceResponse,

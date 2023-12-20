@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use astria_core::sequencer::v1alpha1::RollupId;
 use celestia_client::{
     celestia_types::{
         nmt::Namespace,
@@ -14,7 +15,6 @@ use color_eyre::eyre::{
     bail,
     WrapErr as _,
 };
-use proto::native::sequencer::v1alpha1::RollupId;
 use sequencer_client::SequencerBlock;
 use tendermint::{
     block::Header,

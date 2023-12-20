@@ -146,14 +146,14 @@ impl Service<InfoRequest> for Info {
 
 #[cfg(test)]
 mod test {
-    use cnidarium::StateDelta;
-    use proto::native::sequencer::{
+    use astria_core::sequencer::v1alpha1::{
         asset::{
             Denom,
             DEFAULT_NATIVE_ASSET_DENOM,
         },
-        v1alpha1::Address,
+        Address,
     };
+    use cnidarium::StateDelta;
     use tendermint::v0_37::abci::{
         request,
         InfoRequest,

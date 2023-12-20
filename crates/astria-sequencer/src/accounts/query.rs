@@ -1,9 +1,10 @@
 use anyhow::Context as _;
+use astria_core::sequencer::v1alpha1::Address;
 use cnidarium::{
     Snapshot,
     Storage,
 };
-use proto::native::sequencer::v1alpha1::Address;
+use prost::Message as _;
 use sequencer_types::abci_code::AbciCode;
 use tendermint::{
     abci::{
@@ -24,10 +25,7 @@ pub(crate) async fn balance_request(
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
-    use proto::{
-        native::sequencer::v1alpha1::BalanceResponse,
-        Message as _,
-    };
+    use astria_core::sequencer::v1alpha1::BalanceResponse;
     let (address, snapshot, height) = match preprocess_request(&storage, &request, &params).await {
         Ok(tup) => tup,
         Err(err_rsp) => return err_rsp,
@@ -70,10 +68,7 @@ pub(crate) async fn nonce_request(
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
-    use proto::{
-        native::sequencer::v1alpha1::NonceResponse,
-        Message as _,
-    };
+    use astria_core::sequencer::v1alpha1::NonceResponse;
     let (address, snapshot, height) = match preprocess_request(&storage, &request, &params).await {
         Ok(tup) => tup,
         Err(err_rsp) => return err_rsp,

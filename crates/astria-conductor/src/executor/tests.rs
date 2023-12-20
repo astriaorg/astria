@@ -4,12 +4,7 @@ use std::{
 };
 
 use ::optimism::test_utils::deploy_mock_optimism_portal;
-use ethers::{
-    prelude::*,
-    utils::AnvilInstance,
-};
-use k256::ecdsa::SigningKey;
-use proto::{
+use astria_core::{
     generated::execution::v1alpha2::{
         execution_service_server::{
             ExecutionService,
@@ -24,8 +19,13 @@ use proto::{
         GetCommitmentStateRequest,
         UpdateCommitmentStateRequest,
     },
-    native::sequencer::v1alpha1::test_utils::make_cometbft_block,
+    sequencer::v1alpha1::test_utils::make_cometbft_block,
 };
+use ethers::{
+    prelude::*,
+    utils::AnvilInstance,
+};
+use k256::ecdsa::SigningKey;
 use sha2::Digest as _;
 use tokio::{
     sync::{

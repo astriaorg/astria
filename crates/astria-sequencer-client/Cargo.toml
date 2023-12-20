@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-proto = { package = "astria-proto", path = "../astria-proto" }
+astria-core = { path = "../astria-core" }
 
 async-trait = { workspace = true }
 futures = { workspace = true }
@@ -13,6 +13,7 @@ tendermint = { workspace = true }
 tendermint-rpc = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
+prost.workspace = true
 
 [features]
 http = ["tendermint-rpc/http-client"]

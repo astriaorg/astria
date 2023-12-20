@@ -3,10 +3,10 @@ use anyhow::{
     Context as _,
     Result,
 };
-use proto::native::sequencer::v1alpha1::{
+use astria_core::sequencer::v1alpha1::{
     asset,
+    transaction::action::SudoAddressChangeAction,
     Address,
-    SudoAddressChangeAction,
 };
 use tracing::instrument;
 
