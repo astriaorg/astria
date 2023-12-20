@@ -31,11 +31,12 @@ pub struct Config {
     #[serde(serialize_with = "serialize_private_key")]
     pub private_key: SecretString,
 
-    /// Block time in milliseconds
+    /// Sequencer block time in milliseconds
     pub block_time: u64,
 
-    /// Max bytes to send in a single sequencer `SignedTransaction` (sum of all `SequenceAction`s)
-    pub max_bundle_sz: usize,
+    /// Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
+    /// public key, nonce. This is the sum of the sizes of all the `SequenceAction`s
+    pub max_bundle_size: usize,
 }
 
 impl config::Config for Config {

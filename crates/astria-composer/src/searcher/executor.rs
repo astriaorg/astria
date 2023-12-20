@@ -4,7 +4,6 @@
 /// - Managing the connection to the sequencer
 /// - Submitting transactions to the sequencer
 use std::{
-    mem,
     pin::Pin,
     task::Poll,
     time::Duration,
@@ -33,7 +32,6 @@ use proto::{
         SequenceAction,
         SignedTransaction,
         UnsignedTransaction,
-        ROLLUP_ID_LEN,
     },
     Message as _,
 };
@@ -67,63 +65,7 @@ use tracing::{
     Span,
 };
 
-/// A bundle sequence actions to be submitted to the sequencer. Maintains the total size of the
-/// bytes pushed to it and enforces a max size in bytes passed in the constructor. If an incoming
-/// `seq_action` won't fit in the buffer it is flushed and a new bundle is started.
-struct SizedBundle {
-    /// The buffer of actions
-    pub(self) buffer: Vec<Action>,
-    /// The current size of the bundle in bytes. This is equal to the sum of the size of the
-    /// `seq_action`s + `ROLLUP_ID_LEN` for each.
-    pub(self) curr_sz: usize,
-    /// The max bundle size in bytes to enforce.
-    max_sz: usize,
-}
-
-impl SizedBundle {
-    /// Create a new empty bundle with the given max size.
-    pub(self) fn new(max_sz: usize) -> Self {
-        Self {
-            buffer: vec![],
-            curr_sz: 0,
-            max_sz,
-        }
-    }
-
-    /// Buffer `seq_action` into the bundle. If the bundle won't fit `seq_action`, flush `buffer`,
-    /// returning it, and start building up a new buffer using `seq_action`.
-    pub(self) fn push(&mut self, seq_action: SequenceAction) -> Option<SizedBundle> {
-        let seq_action_sz = seq_action.data.len() + ROLLUP_ID_LEN;
-        let full_bundle = {
-            if self.curr_sz + seq_action_sz > self.max_sz {
-                Some(self.flush())
-            } else {
-                None
-            }
-        };
-        self.buffer.push(Action::Sequence(seq_action));
-        self.curr_sz += seq_action_sz;
-        full_bundle
-    }
-
-    /// Replace self with a new empty bundle, returning the old bundle.
-    pub(self) fn flush(&mut self) -> SizedBundle {
-        mem::replace(self, Self::new(self.max_sz))
-    }
-
-    /// Consume self and return the underlying buffer of actions.
-    pub(self) fn into_actions(self) -> Vec<Action> {
-        self.buffer
-    }
-
-    pub(self) fn is_empty(&self) -> bool {
-        self.buffer.is_empty()
-    }
-
-    pub(self) fn len(&self) -> usize {
-        self.buffer.len()
-    }
-}
+use crate::searcher::bundler::Bundler;
 
 /// The `Executor` interfaces with the sequencer. It handles account nonces, transaction signing,
 /// and transaction submission.
@@ -134,7 +76,7 @@ impl SizedBundle {
 pub(super) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
-    // Channel for receiving action bundles for submission to the sequencer.
+    // Channel for receiving `SequenceAction`s to be bundled.
     seq_actions_rx: mpsc::Receiver<SequenceAction>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
@@ -146,7 +88,7 @@ pub(super) struct Executor {
     // Milliseconds for bundle timer to make sure bundles are submitted at least once per block.
     block_time: u64,
     // Max bytes in a sequencer action bundle
-    max_bundle_sz: usize,
+    max_bundle_size: usize,
 }
 
 impl Drop for Executor {
@@ -178,7 +120,7 @@ impl Executor {
         private_key: &SecretString,
         seq_actions: mpsc::Receiver<SequenceAction>,
         block_time: u64,
-        max_bundle_sz: usize,
+        max_bundle_size: usize,
     ) -> eyre::Result<Self> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
@@ -202,7 +144,7 @@ impl Executor {
             sequencer_key,
             address: sequencer_address,
             block_time,
-            max_bundle_sz,
+            max_bundle_size,
         })
     }
 
@@ -225,7 +167,7 @@ impl Executor {
         self.status.send_modify(|status| status.is_connected = true);
 
         let mut block_timer = time::interval(Duration::from_millis(self.block_time));
-        let mut curr_bundle = SizedBundle::new(self.max_bundle_sz);
+        let mut bundler = Bundler::new(self.max_bundle_size);
 
         loop {
             select! {
@@ -241,62 +183,24 @@ impl Executor {
                             break Err(e).wrap_err("failed submitting bundle to sequencer");
                         }
                     }
+                    // reset timer for preempt bundle if it doesn't fill up within the sequencer block time
+                    block_timer.reset_immediately();
                 }
 
-                // receive new seq_action for processing, submit if current bundle doesn't have room
-                Some(seq_action) = self.seq_actions_rx.recv(), if submission_fut.is_terminated() => {
-                    let seq_action_sz = seq_action.data.len() + ROLLUP_ID_LEN;
-
-                    if let Some(full_bundle) = curr_bundle.push(seq_action) {
-                            debug!(
-                                curr_bundle_sz=?curr_bundle.curr_sz,
-                                seq_action_sz=?seq_action_sz,
-                                "current bundle full, submitting to sequencer"
-                            );
-
-                            // TODO(https://github.com/astriaorg/astria/issues/476): Attach the hash of the
-                            // bundle to the span. Linked GH issue is for agreeing on a hash for `SignedTransaction`,
-                            // but both should be addressed.
-                            let span =  info_span!(
-                                "submit full bundle",
-                                nonce.initial = nonce,
-                                bundle.len = full_bundle.len(),
-                                bundle.size = full_bundle.curr_sz,
-                            );
-                            submission_fut = SubmitFut {
-                                client: self.sequencer_client.clone(),
-                                address: self.address,
-                                nonce,
-                                signing_key: self.sequencer_key.clone(),
-                                state: SubmitState::NotStarted,
-                                bundle: full_bundle.into_actions(),
-                            }
-                            .instrument(span)
-                            .fuse();
-                    }
-
+                Some(bundle) = bundler.get_next(), if submission_fut.is_terminated() => {
                     debug!(
-                        new_bundle_sz = ?curr_bundle.curr_sz,
-                        seq_action_sz = ?seq_action_sz,
-                        "bundled new sequence action"
+                        bundle_size=?bundle.curr_size,
+                        "submitting bundle to sequencer"
                     );
-                }
 
-                // submit bundle on block timer tick
-                _ = block_timer.tick(), if !curr_bundle.is_empty() && submission_fut.is_terminated() => {
-                    // receive oneshot from executor
-                    // flush bundle to the oneshot
-                    debug!("executor's block timer ticked, flushing bundle to the sequencer");
-
-                    let bundle = curr_bundle.flush();
                     // TODO(https://github.com/astriaorg/astria/issues/476): Attach the hash of the
                     // bundle to the span. Linked GH issue is for agreeing on a hash for `SignedTransaction`,
                     // but both should be addressed.
                     let span =  info_span!(
-                        "submit bundle on block timer",
+                        "submit bundle",
                         nonce.initial = nonce,
                         bundle.len = bundle.len(),
-                        bundle.size = bundle.curr_sz,
+                        bundle.size = bundle.curr_size,
                     );
                     submission_fut = SubmitFut {
                         client: self.sequencer_client.clone(),
@@ -308,6 +212,16 @@ impl Executor {
                     }
                     .instrument(span)
                     .fuse();
+                    }
+
+                // receive new seq_action for processing, submit if current bundle doesn't have room
+                Some(seq_action) = self.seq_actions_rx.recv(), if submission_fut.is_terminated() => {
+                    bundler.push(seq_action);
+                }
+
+                // submit bundle on block timer tick
+                _ = block_timer.tick(), if submission_fut.is_terminated() => {
+                    bundler.preempt_curr_bundle();
                 }
             }
         }
@@ -619,7 +533,7 @@ mod tests {
                 .to_string()
                 .into(),
             block_time: 2000,
-            max_bundle_sz: 1000,
+            max_bundle_size: 1000,
         };
         (server, startup_guard, cfg)
     }
@@ -722,7 +636,7 @@ mod tests {
     }
 
     /// Test to check that the executor sends a signed transaction to the sequencer as soon as it
-    /// receives a `SequenceAction` that fills it beyond its `max_bundle_sz`.
+    /// receives a `SequenceAction` that fills it beyond its `max_bundle_size`.
     #[tokio::test]
     async fn full_bundle() {
         // set up the executor, channel for writing seq actions, and the sequencer mock
@@ -733,7 +647,7 @@ mod tests {
             &cfg.private_key,
             seq_actions_rx,
             cfg.block_time,
-            cfg.max_bundle_sz,
+            cfg.max_bundle_size,
         )
         .unwrap();
         let status = executor.subscribe();
@@ -749,7 +663,7 @@ mod tests {
         // order to make space for the second
         let seq0 = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0u8; cfg.max_bundle_sz - ROLLUP_ID_LEN],
+            data: vec![0u8; cfg.max_bundle_size - ROLLUP_ID_LEN],
         };
 
         let seq1 = SequenceAction {
@@ -812,7 +726,7 @@ mod tests {
             &cfg.private_key,
             seq_actions_rx,
             cfg.block_time,
-            cfg.max_bundle_sz,
+            cfg.max_bundle_size,
         )
         .unwrap();
         let status = executor.subscribe();
@@ -827,7 +741,7 @@ mod tests {
         // without filling it
         let seq0 = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0u8; cfg.max_bundle_sz / 4],
+            data: vec![0u8; cfg.max_bundle_size / 4],
         };
 
         // make sure at least one block has passed so that the executor will submit the bundle
@@ -887,7 +801,7 @@ mod tests {
             &cfg.private_key,
             seq_actions_rx,
             cfg.block_time,
-            cfg.max_bundle_sz,
+            cfg.max_bundle_size,
         )
         .unwrap();
         let status = executor.subscribe();
@@ -902,12 +816,12 @@ mod tests {
         // without filling it
         let seq0 = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0u8; cfg.max_bundle_sz / 4],
+            data: vec![0u8; cfg.max_bundle_size / 4],
         };
 
         let seq1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-            data: vec![1u8; cfg.max_bundle_sz / 4],
+            data: vec![1u8; cfg.max_bundle_size / 4],
         };
 
         // make sure at least one block has passed so that the executor will submit the bundle

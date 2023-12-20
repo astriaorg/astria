@@ -33,6 +33,7 @@ use tracing::{
 
 use crate::Config;
 
+mod bundler;
 mod collector;
 mod executor;
 mod rollup;
@@ -131,7 +132,7 @@ impl Searcher {
             &cfg.private_key,
             seq_actions_rx,
             cfg.block_time,
-            cfg.max_bundle_sz,
+            cfg.max_bundle_size,
         )
         .wrap_err("executor construction from config failed")?;
 
@@ -146,7 +147,7 @@ impl Searcher {
             collector_tasks: JoinMap::new(),
             conversion_tasks: JoinSet::new(),
             seq_actions_tx,
-            max_bundle_sz: cfg.max_bundle_sz,
+            max_bundle_sz: cfg.max_bundle_size,
             executor_status,
             executor: Some(executor),
             rollups,

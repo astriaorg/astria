@@ -27,6 +27,7 @@ static TELEMETRY: Lazy<()> = Lazy::new(|| {
 });
 
 pub struct TestComposer {
+    pub cfg: Config,
     pub composer: JoinHandle<()>,
     pub rollup_nodes: HashMap<String, Geth>,
     pub sequencer: wiremock::MockServer,
@@ -65,7 +66,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
             .to_string()
             .into(),
         block_time: 2000,
-        max_bundle_sz: 200_000,
+        max_bundle_size: 200_000,
     };
     let (composer_addr, composer) = {
         let composer = Composer::from_config(&config).unwrap();
@@ -77,6 +78,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
     debug!("looping until composer is ready");
     loop_until_composer_is_ready(composer_addr).await;
     TestComposer {
+        cfg: config,
         composer,
         rollup_nodes,
         sequencer,
