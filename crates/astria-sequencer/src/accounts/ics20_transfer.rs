@@ -14,6 +14,10 @@ use anyhow::{
     Context as _,
     Result,
 };
+use astria_core::sequencer::v1alpha1::{
+    asset::IbcAsset,
+    Address,
+};
 use cnidarium::{
     StateRead,
     StateWrite,
@@ -43,10 +47,6 @@ use penumbra_ibc::component::app_handler::{
     AppHandlerExecute,
 };
 use penumbra_proto::penumbra::core::component::ibc::v1alpha1::FungibleTokenPacketData;
-use proto::native::sequencer::v1alpha1::{
-    asset::IbcAsset,
-    Address,
-};
 
 use super::state_ext::{
     StateReadExt as _,

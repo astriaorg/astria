@@ -1,5 +1,8 @@
 use std::{
-    collections::HashMap,
+    collections::{
+        HashMap,
+        HashSet,
+    },
     env,
     ffi::OsStr,
     fs::{
@@ -15,7 +18,7 @@ use std::{
     process::Command,
 };
 
-const OUT_DIR: &str = "../../crates/astria-proto/src/proto/generated";
+const OUT_DIR: &str = "../../crates/astria-core/src/generated";
 const SRC_DIR: &str = "../../proto";
 
 const INCLUDES: &[&str] = &[SRC_DIR];
@@ -96,12 +99,14 @@ fn emit_buf_stderr(buf: &[u8]) -> std::io::Result<()> {
 }
 
 fn clean_non_astria_code(generated: &mut ContentMap) {
-    let foreign_file_names: Vec<_> = generated
+    let mut foreign_file_names: HashSet<_> = generated
         .files
         .keys()
         .filter(|name| !name.starts_with("astria."))
         .cloned()
         .collect();
+    // also mask mod.rs because we need are defining it
+    foreign_file_names.remove("mod.rs");
     for name in foreign_file_names {
         let _ = generated.codes.remove(&name);
         let file = generated

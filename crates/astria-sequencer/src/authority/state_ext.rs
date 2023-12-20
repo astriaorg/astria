@@ -6,6 +6,10 @@ use anyhow::{
     Context,
     Result,
 };
+use astria_core::sequencer::v1alpha1::{
+    Address,
+    ADDRESS_LEN,
+};
 use async_trait::async_trait;
 use borsh::{
     BorshDeserialize,
@@ -14,10 +18,6 @@ use borsh::{
 use cnidarium::{
     StateRead,
     StateWrite,
-};
-use proto::native::sequencer::v1alpha1::{
-    Address,
-    ADDRESS_LEN,
 };
 use serde::{
     Deserialize,

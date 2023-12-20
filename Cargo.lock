@@ -494,8 +494,8 @@ dependencies = [
 name = "astria-celestia-client"
 version = "0.1.0"
 dependencies = [
+ "astria-core",
  "astria-merkle",
- "astria-proto",
  "async-trait",
  "base64 0.21.5",
  "base64-serde",
@@ -503,6 +503,7 @@ dependencies = [
  "celestia-types",
  "hex",
  "jsonrpsee",
+ "prost",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -522,10 +523,10 @@ dependencies = [
 
 [[package]]
 name = "astria-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "assert_cmd",
- "astria-proto",
+ "astria-core",
  "astria-sequencer-client",
  "clap",
  "color-eyre",
@@ -546,7 +547,7 @@ name = "astria-composer"
 version = "0.3.0"
 dependencies = [
  "astria-config",
- "astria-proto",
+ "astria-core",
  "astria-sequencer-client",
  "astria-sequencer-types",
  "astria-telemetry",
@@ -563,6 +564,7 @@ dependencies = [
  "hyper",
  "once_cell",
  "pin-project-lite",
+ "prost",
  "rand 0.8.5",
  "regex",
  "reqwest",
@@ -587,9 +589,9 @@ version = "0.11.0"
 dependencies = [
  "astria-celestia-client",
  "astria-config",
+ "astria-core",
  "astria-merkle",
  "astria-optimism",
- "astria-proto",
  "astria-sequencer-client",
  "astria-sequencer-types",
  "astria-telemetry",
@@ -633,6 +635,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-core"
+version = "0.1.0"
+dependencies = [
+ "astria-merkle",
+ "ed25519-consensus",
+ "hex",
+ "ibc-types",
+ "indexmap 2.1.0",
+ "penumbra-ibc",
+ "penumbra-proto",
+ "prost",
+ "prost-types",
+ "rand 0.8.5",
+ "sha2 0.10.8",
+ "tempfile",
+ "tendermint 0.34.0",
+ "tendermint-proto 0.34.0",
+ "thiserror",
+ "tonic",
+ "tonic-build",
+ "tracing",
+ "walkdir",
+ "which",
+]
+
+[[package]]
 name = "astria-merkle"
 version = "0.1.0"
 dependencies = [
@@ -653,40 +681,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "astria-proto"
-version = "0.1.0"
-dependencies = [
- "astria-merkle",
- "ed25519-consensus",
- "hex",
- "ibc-types",
- "indexmap 2.1.0",
- "penumbra-ibc",
- "penumbra-proto",
- "prost",
- "prost-types",
- "rand 0.8.5",
- "serde",
- "sha2 0.10.8",
- "tempfile",
- "tendermint 0.34.0",
- "tendermint-proto 0.34.0",
- "thiserror",
- "tonic",
- "tonic-build",
- "tracing",
- "walkdir",
- "which",
-]
-
-[[package]]
 name = "astria-sequencer"
 version = "0.7.0"
 dependencies = [
  "anyhow",
  "astria-config",
+ "astria-core",
  "astria-merkle",
- "astria-proto",
  "astria-sequencer-types",
  "astria-telemetry",
  "async-trait",
@@ -723,12 +724,13 @@ dependencies = [
 name = "astria-sequencer-client"
 version = "0.1.0"
 dependencies = [
- "astria-proto",
+ "astria-core",
  "async-trait",
  "ed25519-consensus",
  "futures",
  "hex",
  "hex-literal",
+ "prost",
  "regex",
  "serde",
  "serde_json",
@@ -748,8 +750,8 @@ dependencies = [
  "astria-celestia-client",
  "astria-celestia-mock",
  "astria-config",
+ "astria-core",
  "astria-merkle",
- "astria-proto",
  "astria-sequencer-client",
  "astria-telemetry",
  "axum",
@@ -788,18 +790,12 @@ name = "astria-sequencer-types"
 version = "0.1.0"
 dependencies = [
  "astria-merkle",
- "astria-proto",
- "base64 0.21.5",
- "base64-serde",
- "hex",
+ "ed25519-consensus",
  "prost",
- "serde",
- "serde_json",
+ "rand 0.8.5",
  "sha2 0.10.8",
  "tendermint 0.34.0",
  "tendermint-proto 0.34.0",
- "thiserror",
- "tracing",
 ]
 
 [[package]]

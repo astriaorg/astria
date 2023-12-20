@@ -11,6 +11,13 @@ use anyhow::{
     ensure,
     Context,
 };
+use astria_core::{
+    generated::sequencer::v1alpha1 as raw,
+    sequencer::v1alpha1::{
+        Address,
+        SignedTransaction,
+    },
+};
 use cnidarium::{
     ArcStateDeltaExt,
     RootHash,
@@ -18,14 +25,7 @@ use cnidarium::{
     StateDelta,
     Storage,
 };
-use proto::{
-    generated::sequencer::v1alpha1 as raw,
-    native::sequencer::v1alpha1::{
-        Address,
-        SignedTransaction,
-    },
-    Message as _,
-};
+use prost::Message as _;
 use sha2::Digest as _;
 use tendermint::abci::{
     self,
@@ -364,7 +364,7 @@ impl App {
     #[instrument(name = "App::deliver_tx", skip(self))]
     pub(crate) async fn deliver_tx(
         &mut self,
-        signed_tx: proto::native::sequencer::v1alpha1::SignedTransaction,
+        signed_tx: astria_core::sequencer::v1alpha1::SignedTransaction,
     ) -> anyhow::Result<Vec<abci::Event>> {
         let signed_tx_2 = signed_tx.clone();
         let stateless =
@@ -504,20 +504,23 @@ impl App {
 
 #[cfg(test)]
 mod test {
-    use ed25519_consensus::SigningKey;
     #[cfg(feature = "mint")]
-    use proto::native::sequencer::v1alpha1::MintAction;
-    use proto::native::sequencer::v1alpha1::{
+    use astria_core::sequencer::v1alpha1::transaction::action::MintAction;
+    use astria_core::sequencer::v1alpha1::{
         asset,
         asset::DEFAULT_NATIVE_ASSET_DENOM,
+        transaction::action::{
+            Action,
+            SequenceAction,
+            SudoAddressChangeAction,
+            TransferAction,
+        },
         Address,
         RollupId,
-        SequenceAction,
-        SudoAddressChangeAction,
-        TransferAction,
         UnsignedTransaction,
         ADDRESS_LEN,
     };
+    use ed25519_consensus::SigningKey;
     use tendermint::{
         abci::types::CommitInfo,
         account,
@@ -933,9 +936,7 @@ mod test {
 
         let tx = UnsignedTransaction {
             nonce: 0,
-            actions: vec![proto::native::sequencer::v1alpha1::Action::ValidatorUpdate(
-                update.clone(),
-            )],
+            actions: vec![Action::ValidatorUpdate(update.clone())],
             fee_asset_id: get_native_asset().id(),
         };
 
@@ -963,13 +964,9 @@ mod test {
 
         let tx = UnsignedTransaction {
             nonce: 0,
-            actions: vec![
-                proto::native::sequencer::v1alpha1::Action::SudoAddressChange(
-                    SudoAddressChangeAction {
-                        new_address,
-                    },
-                ),
-            ],
+            actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
+                new_address,
+            })],
             fee_asset_id: get_native_asset().id(),
         };
 
@@ -995,13 +992,9 @@ mod test {
 
         let tx = UnsignedTransaction {
             nonce: 0,
-            actions: vec![
-                proto::native::sequencer::v1alpha1::Action::SudoAddressChange(
-                    SudoAddressChangeAction {
-                        new_address: alice_address,
-                    },
-                ),
-            ],
+            actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
+                new_address: alice_address,
+            })],
             fee_asset_id: get_native_asset().id(),
         };
 

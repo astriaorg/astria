@@ -1,3 +1,4 @@
+use astria_core::sequencer::v1alpha1::RollupId;
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -7,7 +8,6 @@ use ethers::providers::{
     ProviderError,
     Ws,
 };
-use proto::native::sequencer::v1alpha1::RollupId;
 use tokio::sync::{
     mpsc::{
         error::SendTimeoutError,

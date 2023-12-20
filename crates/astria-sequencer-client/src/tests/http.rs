@@ -1,12 +1,12 @@
-use ed25519_consensus::SigningKey;
-use hex_literal::hex;
-use proto::native::sequencer::v1alpha1::{
+use astria_core::sequencer::v1alpha1::{
     asset::default_native_asset_id,
+    transaction::action::TransferAction,
     Address,
     SignedTransaction,
-    TransferAction,
     UnsignedTransaction,
 };
+use ed25519_consensus::SigningKey;
+use hex_literal::hex;
 use serde_json::json;
 use tendermint::{
     block::Height,
@@ -56,7 +56,7 @@ impl MockSequencer {
 async fn register_abci_query_response(
     server: &MockServer,
     query_path: &str,
-    raw: impl proto::Message,
+    raw: impl prost::Message,
 ) -> MockGuard {
     let response = tendermint_rpc::endpoint::abci_query::Response {
         response: tendermint_rpc::endpoint::abci_query::AbciQuery {
@@ -141,7 +141,7 @@ fn create_signed_transaction() -> SignedTransaction {
 
 #[tokio::test]
 async fn get_latest_nonce() {
-    use proto::generated::sequencer::v1alpha1::NonceResponse;
+    use astria_core::generated::sequencer::v1alpha1::NonceResponse;
     let MockSequencer {
         server,
         client,
@@ -164,7 +164,7 @@ async fn get_latest_nonce() {
 
 #[tokio::test]
 async fn get_latest_balance() {
-    use proto::generated::sequencer::v1alpha1::BalanceResponse;
+    use astria_core::generated::sequencer::v1alpha1::BalanceResponse;
     let MockSequencer {
         server,
         client,

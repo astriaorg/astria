@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use astria_core::sequencer::v1alpha1::RollupId;
 use celestia_client::celestia_types::nmt::Namespace;
 use color_eyre::eyre::{
     self,
@@ -95,8 +96,7 @@ impl Conductor {
 
         let signals = spawn_signal_handler();
 
-        let rollup_id =
-            proto::native::sequencer::v1alpha1::RollupId::from_unhashed_bytes(&cfg.chain_id);
+        let rollup_id = RollupId::from_unhashed_bytes(&cfg.chain_id);
 
         // Spawn the executor task.
         let (executor_tx, sync_start_block_height) = {
