@@ -6,7 +6,6 @@ use serde::{
 };
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct Config {
     /// The endpoint on which Sequencer will listen for ABCI requests
     pub listen_addr: String,
@@ -32,10 +31,5 @@ mod tests {
     #[test]
     fn example_env_config_is_up_to_date() {
         config::tests::example_env_config_is_up_to_date::<Config>(EXAMPLE_ENV);
-    }
-
-    #[test]
-    fn config_should_reject_unknown_var() {
-        config::tests::config_should_reject_unknown_var::<Config>(EXAMPLE_ENV);
     }
 }

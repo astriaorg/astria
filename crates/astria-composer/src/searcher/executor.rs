@@ -9,6 +9,15 @@ use std::{
     time::Duration,
 };
 
+use astria_core::sequencer::v1alpha1::{
+    asset::default_native_asset_id,
+    transaction::{
+        action::SequenceAction,
+        Action,
+    },
+    SignedTransaction,
+    UnsignedTransaction,
+};
 use color_eyre::eyre::{
     self,
     eyre,
@@ -25,16 +34,7 @@ use futures::{
     Future,
 };
 use pin_project_lite::pin_project;
-use proto::{
-    native::sequencer::v1alpha1::{
-        asset::default_native_asset_id,
-        Action,
-        SequenceAction,
-        SignedTransaction,
-        UnsignedTransaction,
-    },
-    Message as _,
-};
+use prost::Message as _;
 use secrecy::{
     ExposeSecret as _,
     SecretString,
@@ -187,6 +187,7 @@ impl Executor {
                     block_timer.reset_immediately();
                 }
 
+                // submit the next available bundle
                 Some(bundle) = bundler.get_next(), if submission_fut.is_terminated() => {
                     debug!(
                         bundle_size=?bundle.curr_size,
@@ -214,12 +215,12 @@ impl Executor {
                     .fuse();
                     }
 
-                // receive new seq_action for processing, submit if current bundle doesn't have room
+                // receive new seq_action and bundle it
                 Some(seq_action) = self.seq_actions_rx.recv(), if submission_fut.is_terminated() => {
                     bundler.push(seq_action);
                 }
 
-                // submit bundle on block timer tick
+                // try to preempt current bundle if the timer has ticked without submitting the next bundle
                 _ = block_timer.tick(), if submission_fut.is_terminated() => {
                     bundler.preempt_curr_bundle();
                 }
@@ -456,16 +457,14 @@ fn sha256(data: &[u8]) -> [u8; 32] {
 mod tests {
     use std::time::Duration;
 
+    use astria_core::sequencer::v1alpha1::{
+        transaction::action::SequenceAction,
+        RollupId,
+        ROLLUP_ID_LEN,
+    };
     use color_eyre::eyre;
     use once_cell::sync::Lazy;
-    use proto::{
-        native::sequencer::v1alpha1::{
-            RollupId,
-            SequenceAction,
-            ROLLUP_ID_LEN,
-        },
-        Message,
-    };
+    use prost::Message;
     use sequencer_client::SignedTransaction;
     use serde_json::json;
     use tendermint_rpc::{
@@ -511,7 +510,7 @@ mod tests {
 
     /// Start a mock sequencer server and mount a mock for the `accounts/nonce` query.
     async fn setup() -> (MockServer, MockGuard, Config) {
-        use proto::generated::sequencer::v1alpha1::NonceResponse;
+        use astria_core::generated::sequencer::v1alpha1::NonceResponse;
         Lazy::force(&TELEMETRY);
         let server = MockServer::start().await;
         let startup_guard = mount_nonce_query_mock(
@@ -569,10 +568,8 @@ mod tests {
 
     /// Convert a `Request` object to a `SignedTransaction`
     fn signed_tx_from_request(request: &Request) -> SignedTransaction {
-        use proto::{
-            generated::sequencer::v1alpha1::SignedTransaction as RawSignedTransaction,
-            Message as _,
-        };
+        use astria_core::generated::sequencer::v1alpha1::SignedTransaction as RawSignedTransaction;
+        use prost::Message as _;
 
         let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
             serde_json::from_slice(&request.body)

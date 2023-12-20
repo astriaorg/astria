@@ -494,8 +494,8 @@ dependencies = [
 name = "astria-celestia-client"
 version = "0.1.0"
 dependencies = [
+ "astria-core",
  "astria-merkle",
- "astria-proto",
  "async-trait",
  "base64 0.21.5",
  "base64-serde",
@@ -503,6 +503,7 @@ dependencies = [
  "celestia-types",
  "hex",
  "jsonrpsee",
+ "prost",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -522,10 +523,10 @@ dependencies = [
 
 [[package]]
 name = "astria-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "assert_cmd",
- "astria-proto",
+ "astria-core",
  "astria-sequencer-client",
  "clap",
  "color-eyre",
@@ -546,7 +547,7 @@ name = "astria-composer"
 version = "0.3.0"
 dependencies = [
  "astria-config",
- "astria-proto",
+ "astria-core",
  "astria-sequencer-client",
  "astria-sequencer-types",
  "astria-telemetry",
@@ -563,6 +564,7 @@ dependencies = [
  "hyper",
  "once_cell",
  "pin-project-lite",
+ "prost",
  "rand 0.8.5",
  "regex",
  "reqwest",
@@ -587,9 +589,9 @@ version = "0.11.0"
 dependencies = [
  "astria-celestia-client",
  "astria-config",
+ "astria-core",
  "astria-merkle",
  "astria-optimism",
- "astria-proto",
  "astria-sequencer-client",
  "astria-sequencer-types",
  "astria-telemetry",
@@ -633,6 +635,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-core"
+version = "0.1.0"
+dependencies = [
+ "astria-merkle",
+ "ed25519-consensus",
+ "hex",
+ "ibc-types",
+ "indexmap 2.1.0",
+ "penumbra-ibc",
+ "penumbra-proto",
+ "prost",
+ "prost-types",
+ "rand 0.8.5",
+ "sha2 0.10.8",
+ "tempfile",
+ "tendermint 0.34.0",
+ "tendermint-proto 0.34.0",
+ "thiserror",
+ "tonic",
+ "tonic-build",
+ "tracing",
+ "walkdir",
+ "which",
+]
+
+[[package]]
 name = "astria-merkle"
 version = "0.1.0"
 dependencies = [
@@ -653,54 +681,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "astria-proto"
-version = "0.1.0"
-dependencies = [
- "astria-merkle",
- "ed25519-consensus",
- "hex",
- "ibc-types",
- "indexmap 2.1.0",
- "penumbra-ibc",
- "penumbra-proto",
- "prost",
- "prost-types",
- "rand 0.8.5",
- "serde",
- "sha2 0.10.8",
- "tempfile",
- "tendermint 0.34.0",
- "tendermint-proto 0.34.0",
- "thiserror",
- "tonic",
- "tonic-build",
- "tracing",
- "walkdir",
- "which",
-]
-
-[[package]]
 name = "astria-sequencer"
 version = "0.7.0"
 dependencies = [
  "anyhow",
  "astria-config",
+ "astria-core",
  "astria-merkle",
- "astria-proto",
  "astria-sequencer-types",
  "astria-telemetry",
  "async-trait",
  "borsh",
  "bytes",
+ "cnidarium",
+ "cnidarium-component",
  "ed25519-consensus",
  "futures",
  "hex",
  "ibc-types",
  "matchit",
- "penumbra-component",
  "penumbra-ibc",
  "penumbra-proto",
- "penumbra-storage",
  "penumbra-tower-trace",
  "prost",
  "rand 0.8.5",
@@ -720,12 +721,13 @@ dependencies = [
 name = "astria-sequencer-client"
 version = "0.1.0"
 dependencies = [
- "astria-proto",
+ "astria-core",
  "async-trait",
  "ed25519-consensus",
  "futures",
  "hex",
  "hex-literal",
+ "prost",
  "regex",
  "serde",
  "serde_json",
@@ -745,8 +747,8 @@ dependencies = [
  "astria-celestia-client",
  "astria-celestia-mock",
  "astria-config",
+ "astria-core",
  "astria-merkle",
- "astria-proto",
  "astria-sequencer-client",
  "astria-telemetry",
  "axum",
@@ -785,18 +787,12 @@ name = "astria-sequencer-types"
 version = "0.1.0"
 dependencies = [
  "astria-merkle",
- "astria-proto",
- "base64 0.21.5",
- "base64-serde",
- "hex",
+ "ed25519-consensus",
  "prost",
- "serde",
- "serde_json",
+ "rand 0.8.5",
  "sha2 0.10.8",
  "tendermint 0.34.0",
  "tendermint-proto 0.34.0",
- "thiserror",
- "tracing",
 ]
 
 [[package]]
@@ -1595,6 +1591,45 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 
 [[package]]
+name = "cnidarium"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "borsh",
+ "futures",
+ "hex",
+ "ibc-types",
+ "ics23",
+ "jmt",
+ "metrics",
+ "once_cell",
+ "parking_lot",
+ "pin-project",
+ "rocksdb",
+ "sha2 0.10.8",
+ "smallvec",
+ "tempfile",
+ "tendermint 0.34.0",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+]
+
+[[package]]
+name = "cnidarium-component"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "cnidarium",
+ "hex",
+ "tendermint 0.34.0",
+]
+
+[[package]]
 name = "coins-bip32"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1976,8 +2011,8 @@ dependencies = [
 
 [[package]]
 name = "decaf377-fmd"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
@@ -1990,8 +2025,8 @@ dependencies = [
 
 [[package]]
 name = "decaf377-ka"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "ark-ff 0.4.2",
  "decaf377 0.5.0",
@@ -4692,8 +4727,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-asset"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "aes",
  "anyhow",
@@ -4737,25 +4772,25 @@ dependencies = [
 
 [[package]]
 name = "penumbra-chain"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
  "async-trait",
  "bincode",
  "bytes",
+ "cnidarium",
+ "cnidarium-component",
  "decaf377 0.5.0",
  "hex",
  "ibc-types",
  "ics23",
  "once_cell",
  "penumbra-asset",
- "penumbra-component",
  "penumbra-keys",
  "penumbra-num",
  "penumbra-proto",
- "penumbra-storage",
  "penumbra-tct",
  "serde",
  "sha2 0.9.9",
@@ -4766,27 +4801,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "penumbra-component"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
-dependencies = [
- "anyhow",
- "async-trait",
- "hex",
- "penumbra-storage",
- "tendermint 0.34.0",
-]
-
-[[package]]
 name = "penumbra-ibc"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
  "async-trait",
  "base64 0.20.0",
  "blake2b_simd 0.5.11",
+ "cnidarium",
+ "cnidarium-component",
  "hex",
  "ibc-proto",
  "ibc-types",
@@ -4797,11 +4822,9 @@ dependencies = [
  "pbjson-types",
  "penumbra-asset",
  "penumbra-chain",
- "penumbra-component",
  "penumbra-keys",
  "penumbra-num",
  "penumbra-proto",
- "penumbra-storage",
  "prost",
  "serde",
  "serde_json",
@@ -4814,8 +4837,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-keys"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "aes",
  "anyhow",
@@ -4860,8 +4883,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-num"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "aes",
  "anyhow",
@@ -4904,14 +4927,15 @@ dependencies = [
 
 [[package]]
 name = "penumbra-proto"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "anyhow",
  "async-stream 0.2.1",
  "async-trait",
  "bech32 0.8.1",
  "bytes",
+ "cnidarium",
  "decaf377-fmd",
  "decaf377-rdsa",
  "futures",
@@ -4921,10 +4945,10 @@ dependencies = [
  "ics23",
  "pbjson",
  "pbjson-types",
- "penumbra-storage",
  "pin-project",
  "prost",
  "serde",
+ "serde_json",
  "subtle-encoding",
  "tendermint 0.34.0",
  "tonic",
@@ -4932,36 +4956,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "penumbra-storage"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
-dependencies = [
- "anyhow",
- "async-trait",
- "borsh",
- "futures",
- "hex",
- "ibc-types",
- "ics23",
- "jmt",
- "metrics",
- "once_cell",
- "parking_lot",
- "pin-project",
- "rocksdb",
- "sha2 0.10.8",
- "smallvec",
- "tempfile",
- "tendermint 0.34.0",
- "tokio",
- "tokio-stream",
- "tracing",
-]
-
-[[package]]
 name = "penumbra-tct"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "ark-ed-on-bls12-377",
  "ark-ff 0.4.2",
@@ -4988,8 +4985,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-tower-trace"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "futures",
  "hex",

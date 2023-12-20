@@ -7,9 +7,11 @@ use std::{
     mem,
 };
 
-use proto::native::sequencer::v1alpha1::{
-    Action,
-    SequenceAction,
+use astria_core::sequencer::v1alpha1::{
+    transaction::{
+        action::SequenceAction,
+        Action,
+    },
     ROLLUP_ID_LEN,
 };
 use tracing::debug;

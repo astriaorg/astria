@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
+use astria_core::sequencer::v1alpha1::{
+    transaction::action::SequenceAction,
+    ROLLUP_ID_LEN,
+};
 use color_eyre::eyre::{
     self,
     WrapErr as _,
-};
-use proto::native::sequencer::v1alpha1::{
-    SequenceAction,
-    ROLLUP_ID_LEN,
 };
 use tokio::{
     select,
@@ -220,20 +220,22 @@ impl Searcher {
                 Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
                     match join_result {
                         Ok(seq_action) => {
-                            let seq_action_sz = seq_action.data.len() + ROLLUP_ID_LEN;
+                            let seq_action_size = seq_action.data.len() + ROLLUP_ID_LEN;
                             match self.seq_actions_tx.try_send(seq_action) {
                                 Ok(()) => {
                                     // TODO: use span from the rollup transaction to log here instead
                                     debug!(
-                                        bytes = seq_action_sz,
+                                        bytes_size = seq_action_size,
                                         "bundled rollup transaction",
                                     );
                                 }
-                                Err(e) => warn!(
-                                    error.message = %e,
-                                    error.cause_chain = ?e,
-                                    "failed to forward sequence action to the executor due to backpressure",
-                                ),
+                                Err(e) => {
+                                    let error: &dyn std::error::Error = &e;
+                                    warn!(
+                                        error,
+                                        "failed to forward sequence action to the executor due to backpressure"
+                                    );
+                                },
                             }
                         },
                         Err(e) => warn!(
@@ -244,10 +246,12 @@ impl Searcher {
                     }
                 }
 
+                // handle dead `Collector`
                 Some((rollup, collector_exit)) = self.collector_tasks.join_next() => {
                     self.reconnect_exited_collector(rollup, collector_exit);
                 }
 
+                // handle dead `Executor`
                 ret = &mut executor_handle => {
                     match ret {
                         Ok(Ok(())) => {
@@ -394,8 +398,8 @@ fn reconnect_exited_collector(
 mod tests {
     use std::collections::HashMap;
 
+    use astria_core::sequencer::v1alpha1::RollupId;
     use ethers::types::Transaction;
-    use proto::native::sequencer::v1alpha1::RollupId;
     use tokio_util::task::JoinMap;
 
     use crate::searcher::collector::{

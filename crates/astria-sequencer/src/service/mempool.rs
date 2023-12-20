@@ -6,11 +6,11 @@ use std::{
     },
 };
 
+use cnidarium::Storage;
 use futures::{
     Future,
     FutureExt,
 };
-use penumbra_storage::Storage;
 use tendermint::v0_37::abci::{
     request,
     response,
@@ -72,11 +72,11 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     req: request::CheckTx,
     state: S,
 ) -> response::CheckTx {
-    use proto::{
+    use astria_core::{
         generated::sequencer::v1alpha1 as raw,
-        native::sequencer::v1alpha1::SignedTransaction,
-        Message as _,
+        sequencer::v1alpha1::SignedTransaction,
     };
+    use prost::Message as _;
     use sequencer_types::abci_code::AbciCode;
 
     use crate::transaction;

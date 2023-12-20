@@ -1,3 +1,9 @@
+use astria_core::sequencer::v1alpha1::{
+    celestia::CelestiaSequencerBlobError,
+    CelestiaRollupBlob,
+    CelestiaSequencerBlob,
+    SequencerBlock,
+};
 use async_trait::async_trait;
 use base64::{
     display::Base64Display,
@@ -10,13 +16,7 @@ use celestia_types::{
     Blob,
     Commitment,
 };
-use proto::{
-    native::sequencer::v1alpha1::{
-        CelestiaRollupBlob,
-        CelestiaSequencerBlob,
-        CelestiaSequencerBlobError,
-        SequencerBlock,
-    },
+use prost::{
     DecodeError,
     Message as _,
 };
@@ -94,7 +94,7 @@ pub trait CelestiaClientExt: BlobClient {
             }
             'blob: {
                 let raw_blob =
-                    match proto::generated::sequencer::v1alpha1::CelestiaSequencerBlob::decode(
+                    match astria_core::generated::sequencer::v1alpha1::CelestiaSequencerBlob::decode(
                         &*blob.data,
                     ) {
                         Ok(blob) => blob,
@@ -194,7 +194,7 @@ pub trait CelestiaClientExt: BlobClient {
 
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
         for (i, block) in blocks.into_iter().enumerate() {
-            let mut blobs = assemble_blobs_from_sequencer_block(&block).map_err(|source| {
+            let mut blobs = assemble_blobs_from_sequencer_block(block).map_err(|source| {
                 SubmitSequencerBlocksError::AssembleBlobs {
                     source,
                     index: i,
@@ -234,9 +234,9 @@ pub enum BlobAssemblyError {
 }
 
 fn assemble_blobs_from_sequencer_block(
-    block: &SequencerBlock,
+    block: SequencerBlock,
 ) -> Result<Vec<Blob>, BlobAssemblyError> {
-    let (sequencer_blob, rollup_blobs) = block.to_celestia_blobs();
+    let (sequencer_blob, rollup_blobs) = block.into_celestia_blobs();
 
     let mut blobs = Vec::with_capacity(rollup_blobs.len() + 1);
 
@@ -283,7 +283,9 @@ fn convert_and_filter_rollup_blobs(
             continue;
         }
         let proto_blob =
-            match proto::generated::sequencer::v1alpha1::CelestiaRollupBlob::decode(&*blob.data) {
+            match astria_core::generated::sequencer::v1alpha1::CelestiaRollupBlob::decode(
+                &*blob.data,
+            ) {
                 Err(e) => {
                     warn!(
                         error = &e as &dyn std::error::Error,

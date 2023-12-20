@@ -2,7 +2,7 @@ use anyhow::{
     bail,
     Context,
 };
-use penumbra_storage::Storage;
+use cnidarium::Storage;
 use sequencer_types::abci_code::AbciCode;
 use tendermint::v0_37::abci::{
     request,
@@ -230,21 +230,19 @@ impl Consensus {
 mod test {
     use std::str::FromStr;
 
+    use astria_core::sequencer::v1alpha1::{
+        asset::DEFAULT_NATIVE_ASSET_DENOM,
+        transaction::action::SequenceAction,
+        Address,
+        RollupId,
+        UnsignedTransaction,
+    };
     use bytes::Bytes;
     use ed25519_consensus::{
         SigningKey,
         VerificationKey,
     };
-    use proto::{
-        native::sequencer::v1alpha1::{
-            asset::DEFAULT_NATIVE_ASSET_DENOM,
-            Address,
-            RollupId,
-            SequenceAction,
-            UnsignedTransaction,
-        },
-        Message as _,
-    };
+    use prost::Message as _;
     use rand::rngs::OsRng;
     use tendermint::{
         account::Id,
@@ -482,7 +480,7 @@ mod test {
             ..Default::default()
         };
 
-        let storage = penumbra_storage::TempStorage::new().await.unwrap();
+        let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
         app.init_chain(genesis_state, vec![]).await.unwrap();
