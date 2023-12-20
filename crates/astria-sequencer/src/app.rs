@@ -25,6 +25,8 @@ use cnidarium::{
     StateDelta,
     Storage,
 };
+use cnidarium_component::Component as _;
+use penumbra_ibc::component::IBCComponent;
 use prost::Message as _;
 use sha2::Digest as _;
 use tendermint::abci::{
@@ -49,7 +51,7 @@ use crate::{
             StateWriteExt as _,
         },
     },
-    component::Component,
+    component::Component as _,
     genesis::GenesisState,
     proposal::commitment::{
         generate_sequence_actions_commitment,
@@ -146,6 +148,8 @@ impl App {
         )
         .await
         .context("failed to call init_chain on AuthorityComponent")?;
+        IBCComponent::init_chain(&mut state_tx, Some(&())).await;
+
         state_tx.apply();
         Ok(())
     }
@@ -319,6 +323,7 @@ impl App {
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .context("failed to call begin_block on AuthorityComponent")?;
+        IBCComponent::begin_block(&mut arc_state_tx, begin_block).await;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -423,6 +428,7 @@ impl App {
         AuthorityComponent::end_block(&mut arc_state_tx, end_block)
             .await
             .context("failed to call end_block on AuthorityComponent")?;
+        IBCComponent::end_block(&mut arc_state_tx, end_block).await;
 
         // gather and return validator updates
         let validator_updates = self
