@@ -375,7 +375,7 @@ impl Conductor {
                 }
 
                 // Start the sequencer reader
-                res = &mut self.da_sync_done, if !self.da_sync_done.is_terminated() => {
+                res = &mut self.da_sync_done, if !self.da_sync_done.is_terminated() && !self.execution_commit_level.is_firm_only() => {
                     match res {
                         Ok(()) => {
                             info!("received sync-complete signal from da reader");
@@ -418,7 +418,7 @@ impl Conductor {
                 }
 
                 // Start the data availability reader
-                res = &mut self.seq_sync_done, if !self.seq_sync_done.is_terminated() => {
+                res = &mut self.seq_sync_done, if !self.seq_sync_done.is_terminated() || (self.execution_commit_level.is_firm_only() && self.da_sync_done.is_terminated()) => {
                     match res {
                         Ok(()) => {
                             info!("received sync-complete signal from sequencer reader");
@@ -430,7 +430,6 @@ impl Conductor {
                     }
                     info!("starting data availability reader");
                     if let Some(data_availability_reader) = self.data_availability_reader.take() {
-                        info!("in the thing!");
                         self.tasks.spawn(
                             Self::DATA_AVAILABILITY,
                             data_availability_reader.run_until_stopped(),
