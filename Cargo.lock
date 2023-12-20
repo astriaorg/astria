@@ -715,6 +715,7 @@ dependencies = [
  "tower-abci",
  "tower-actor",
  "tracing",
+ "wrapper-derive",
 ]
 
 [[package]]
@@ -1593,7 +1594,7 @@ checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 [[package]]
 name = "cnidarium"
 version = "0.64.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1a1e66c86f39de0a3e40b3e2c491da0d9cc56314#1a1e66c86f39de0a3e40b3e2c491da0d9cc56314"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1620,7 +1621,7 @@ dependencies = [
 [[package]]
 name = "cnidarium-component"
 version = "0.64.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1a1e66c86f39de0a3e40b3e2c491da0d9cc56314#1a1e66c86f39de0a3e40b3e2c491da0d9cc56314"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2012,7 +2013,7 @@ dependencies = [
 [[package]]
 name = "decaf377-fmd"
 version = "0.64.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1a1e66c86f39de0a3e40b3e2c491da0d9cc56314#1a1e66c86f39de0a3e40b3e2c491da0d9cc56314"
 dependencies = [
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
@@ -2026,7 +2027,7 @@ dependencies = [
 [[package]]
 name = "decaf377-ka"
 version = "0.64.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1a1e66c86f39de0a3e40b3e2c491da0d9cc56314#1a1e66c86f39de0a3e40b3e2c491da0d9cc56314"
 dependencies = [
  "ark-ff 0.4.2",
  "decaf377 0.5.0",
@@ -4728,7 +4729,7 @@ dependencies = [
 [[package]]
 name = "penumbra-asset"
 version = "0.64.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1a1e66c86f39de0a3e40b3e2c491da0d9cc56314#1a1e66c86f39de0a3e40b3e2c491da0d9cc56314"
 dependencies = [
  "aes",
  "anyhow",
@@ -4773,7 +4774,7 @@ dependencies = [
 [[package]]
 name = "penumbra-chain"
 version = "0.64.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1a1e66c86f39de0a3e40b3e2c491da0d9cc56314#1a1e66c86f39de0a3e40b3e2c491da0d9cc56314"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -4803,7 +4804,7 @@ dependencies = [
 [[package]]
 name = "penumbra-ibc"
 version = "0.64.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1a1e66c86f39de0a3e40b3e2c491da0d9cc56314#1a1e66c86f39de0a3e40b3e2c491da0d9cc56314"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -4838,7 +4839,7 @@ dependencies = [
 [[package]]
 name = "penumbra-keys"
 version = "0.64.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1a1e66c86f39de0a3e40b3e2c491da0d9cc56314#1a1e66c86f39de0a3e40b3e2c491da0d9cc56314"
 dependencies = [
  "aes",
  "anyhow",
@@ -4884,7 +4885,7 @@ dependencies = [
 [[package]]
 name = "penumbra-num"
 version = "0.64.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1a1e66c86f39de0a3e40b3e2c491da0d9cc56314#1a1e66c86f39de0a3e40b3e2c491da0d9cc56314"
 dependencies = [
  "aes",
  "anyhow",
@@ -4928,7 +4929,7 @@ dependencies = [
 [[package]]
 name = "penumbra-proto"
 version = "0.64.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1a1e66c86f39de0a3e40b3e2c491da0d9cc56314#1a1e66c86f39de0a3e40b3e2c491da0d9cc56314"
 dependencies = [
  "anyhow",
  "async-stream 0.2.1",
@@ -4958,7 +4959,7 @@ dependencies = [
 [[package]]
 name = "penumbra-tct"
 version = "0.64.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1a1e66c86f39de0a3e40b3e2c491da0d9cc56314#1a1e66c86f39de0a3e40b3e2c491da0d9cc56314"
 dependencies = [
  "ark-ed-on-bls12-377",
  "ark-ff 0.4.2",
@@ -4986,7 +4987,7 @@ dependencies = [
 [[package]]
 name = "penumbra-tower-trace"
 version = "0.64.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1a1e66c86f39de0a3e40b3e2c491da0d9cc56314#1a1e66c86f39de0a3e40b3e2c491da0d9cc56314"
 dependencies = [
  "futures",
  "hex",
@@ -7821,6 +7822,16 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "wrapper-derive"
+version = "0.1.0"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1a1e66c86f39de0a3e40b3e2c491da0d9cc56314#1a1e66c86f39de0a3e40b3e2c491da0d9cc56314"
+dependencies = [
+ "proc-macro2 1.0.70",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]

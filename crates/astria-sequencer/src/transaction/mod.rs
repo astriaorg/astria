@@ -18,9 +18,12 @@ use astria_core::sequencer::v1alpha1::{
 };
 use tracing::instrument;
 
-use crate::accounts::state_ext::{
-    StateReadExt,
-    StateWriteExt,
+use crate::{
+    accounts::state_ext::{
+        StateReadExt,
+        StateWriteExt,
+    },
+    chain_state_read_ext::StateDeltaWrapper,
 };
 
 pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
@@ -110,7 +113,8 @@ impl ActionHandler for UnsignedTransaction {
                     let action = act
                         .clone()
                         .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer>();
-                    cnidarium_component::ActionHandler::check_stateless(&action, ())
+                    action
+                        .check_stateless(())
                         .await
                         .context("stateless check failed for IbcAction")?;
                 }
@@ -229,7 +233,9 @@ impl ActionHandler for UnsignedTransaction {
                     let action = act
                         .clone()
                         .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer>();
-                    cnidarium_component::ActionHandler::execute(&action, &mut *state)
+                    let wrapper = StateDeltaWrapper(&mut *state);
+                    action
+                        .execute(wrapper)
                         .await
                         .context("execution failed for IbcAction")?;
                 }

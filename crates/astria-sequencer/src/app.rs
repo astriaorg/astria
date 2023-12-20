@@ -25,7 +25,6 @@ use cnidarium::{
     StateDelta,
     Storage,
 };
-use cnidarium_component::Component as _;
 use penumbra_ibc::component::IBCComponent;
 use prost::Message as _;
 use sha2::Digest as _;
@@ -51,6 +50,7 @@ use crate::{
             StateWriteExt as _,
         },
     },
+    chain_state_read_ext::ArcStateDeltaWrapper,
     component::Component as _,
     genesis::GenesisState,
     proposal::commitment::{
@@ -133,6 +133,8 @@ impl App {
         crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
         state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
 
+        // TODO: pass from config
+        state_tx.put_chain_id("astria".to_string());
         state_tx.put_block_height(0);
 
         // call init_chain on all components
@@ -323,7 +325,8 @@ impl App {
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .context("failed to call begin_block on AuthorityComponent")?;
-        IBCComponent::begin_block(&mut arc_state_tx, begin_block).await;
+        let mut wrapper = ArcStateDeltaWrapper(&mut arc_state_tx);
+        IBCComponent::begin_block(&mut wrapper, begin_block).await;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");

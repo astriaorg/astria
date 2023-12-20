@@ -2,6 +2,7 @@ pub(crate) mod accounts;
 pub(crate) mod app;
 pub(crate) mod asset;
 pub(crate) mod authority;
+pub(crate) mod chain_state_read_ext;
 pub(crate) mod component;
 pub mod config;
 pub(crate) mod genesis;

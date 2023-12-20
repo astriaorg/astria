@@ -17,8 +17,9 @@ matchit = "0.7.2"
 tower = "0.4"
 tower-abci = "0.11.0"
 tower-actor = "0.1.0"
-cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.64.1" }
-cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.64.1" }
+cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "1a1e66c86f39de0a3e40b3e2c491da0d9cc56314" }
+cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "1a1e66c86f39de0a3e40b3e2c491da0d9cc56314" }
+wrapper-derive = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "1a1e66c86f39de0a3e40b3e2c491da0d9cc56314" }
 
 async-trait = { workspace = true }
 bytes = { workspace = true }
