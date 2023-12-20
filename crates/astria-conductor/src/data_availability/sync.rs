@@ -6,9 +6,6 @@ use celestia_client::{
         Height,
     },
     jsonrpsee::http_client::HttpClient,
-    // CelestiaClientExt as _,
-};
-use celestia_client::{
     CelestiaClientExt as _,
     CelestiaSequencerBlob,
 };
@@ -18,10 +15,7 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use futures::stream::FuturesOrdered;
-use tokio::{
-    select,
-    // time,
-};
+use tokio::select;
 use tracing::{
     error,
     info,
@@ -30,19 +24,16 @@ use tracing::{
 };
 use tryhard::RetryFutureConfig;
 
-// mod block_verifier;
 use super::block_verifier::BlockVerifier;
 use crate::{
-    // block_verifier::BlockVerifier,
     data_availability::{
         send_sequencer_subsets,
         verify_sequencer_blobs_and_assemble_rollups,
-        // SequencerNamespaceData,
     },
     executor,
 };
 
-pub(crate) async fn find_first_da_block_with_sequencer_data(
+pub(crate) async fn find_da_block_with_sequencer_data(
     start_height: Height,
     celestia_client: HttpClient,
     sequencer_namespace: Namespace,
@@ -80,12 +71,15 @@ pub(crate) async fn find_first_da_block_with_sequencer_data(
     }
 }
 
+/// Fetch sequencer data from DA with at given height and namespace with
+/// retries. The fetch will be retried 10 times with exponential backoff before
+/// failing.
 pub(crate) async fn get_new_sequencer_block_data_with_retry(
     height: Height,
     celestia_client: HttpClient,
     sequencer_namespace: Namespace,
 ) -> Result<Vec<CelestiaSequencerBlob>, Report> {
-    let retry_config = RetryFutureConfig::new(2)
+    let retry_config = RetryFutureConfig::new(10)
         .exponential_backoff(Duration::from_secs(5))
         .max_delay(Duration::from_secs(60))
         .on_retry(|attempt, next_delay: Option<Duration>, error: &Report| {
@@ -141,6 +135,8 @@ pub(crate) async fn run(
         let client = client.clone();
         let block_verifier = block_verifier.clone();
         select!(
+
+            // get new data from da
             Some(height) = height_stream.next(), if block_stream.len() <= 20 => {
                 let height = Height::from(height);
                 block_stream.push_back(async move {
@@ -148,6 +144,7 @@ pub(crate) async fn run(
                 }.map(move |res| (height, res)).boxed());
             }
 
+            // verify sequencer blocks
             Some((height, res)) = block_stream.next() => {
                 match res {
                     Err(error) => {
@@ -157,7 +154,6 @@ pub(crate) async fn run(
                     }
 
                     Ok(datas) => {
-                        // TODO: skip the genesis block at height 0?
                         verification_stream.push_back(async move {
                             verify_sequencer_blobs_and_assemble_rollups(
                                 height,
@@ -173,6 +169,7 @@ pub(crate) async fn run(
                 }
             }
 
+            // pass verified sequencer blocks to executor
             Some((height, res)) = verification_stream.next() => {
                 match res {
                     Err(error) => {
@@ -192,8 +189,6 @@ pub(crate) async fn run(
 
             else => {
                 info!("DA sync finished");
-                // info!("waiting for 5 seconds for async tasks to finish");
-                // time::sleep(Duration::from_secs(5)).await;
                 break 'sync Ok(())
             }
         );

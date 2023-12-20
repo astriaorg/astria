@@ -82,10 +82,7 @@ impl ExecutorCommitmentState {
         }
     }
 
-    // pub(crate) fn soft_height(&self) -> u32 {
-    //     self.soft.number
-    // }
-
+    /// Returns the firm commit height.
     pub(crate) fn firm_height(&self) -> u32 {
         self.firm.number
     }
@@ -106,9 +103,9 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> ProstTimestamp {
 
 #[derive(Debug)]
 pub(crate) enum ExecutorCommand {
-    /// used when a block is received from the subscription stream to sequencer
+    /// Used when a block is received from the subscription stream to sequencer
     FromSequencer { block: Box<SequencerBlock> },
-    /// used when a block is received from the reader (Celestia)
+    /// Used when a block is received from the reader (Celestia)
     FromCelestia(Vec<SequencerBlockSubset>),
 }
 
@@ -185,8 +182,6 @@ impl ExecutorBuilder<WithBlockChannel, WithRollupAddress, WithRollupId, WithShut
             "initial execution commitment state",
         );
 
-        // let da_height_with_first_rollup_block = commitment_state.firm.number;
-
         Ok(Executor {
             block_channel,
             shutdown,
@@ -194,7 +189,6 @@ impl ExecutorBuilder<WithBlockChannel, WithRollupAddress, WithRollupId, WithShut
             rollup_id,
             commitment_state,
             sequencer_height_with_first_rollup_block,
-            // da_height_with_first_rollup_block,
             sequencer_hash_to_execution_block: HashMap::new(),
             pre_execution_hook,
         })
@@ -326,9 +320,9 @@ pub(crate) struct Executor {
     /// this plus the commitment_state
     sequencer_height_with_first_rollup_block: u32,
 
-    /// map of sequencer block hash to execution block
+    /// Map of sequencer block hash to execution block
     ///
-    /// this is required because when we receive sequencer blocks (from network or DA),
+    /// This is required because when we receive sequencer blocks (from network or DA),
     /// we only know the sequencer block hash, but not the execution block hash,
     /// as the execution block hash is created by executing the block.
     /// as well, the execution layer is not aware of the sequencer block hash.
@@ -337,7 +331,7 @@ pub(crate) struct Executor {
     /// we receive a finalized sequencer block.
     sequencer_hash_to_execution_block: HashMap<Hash, Block>,
 
-    /// optional hook which is called to modify the rollup transaction list
+    /// Optional hook which is called to modify the rollup transaction list
     /// right before it's sent to the execution layer via `ExecuteBlock`.
     pre_execution_hook: Option<optimism::Handler>,
 }
@@ -467,7 +461,6 @@ impl Executor {
             .await
             .wrap_err("failed to call execute_block")?;
 
-        // store block hash returned by execution client, as we need it to finalize the block later
         info!(
             execution_block_hash = hex::encode(&executed_block.hash),
             tx_count, "executed sequencer block",

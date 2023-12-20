@@ -32,6 +32,7 @@ use tokio::{
     sync::oneshot,
 };
 use tracing::{
+    debug,
     error,
     info,
     instrument,
@@ -74,7 +75,7 @@ impl Reader {
         executor_tx: executor::Sender,
         sync_done: oneshot::Sender<()>,
     ) -> Self {
-        info!("creating sequencer reader");
+        debug!("creating sequencer reader");
         Self {
             executor_tx,
             pool,

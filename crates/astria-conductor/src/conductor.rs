@@ -337,13 +337,16 @@ impl Conductor {
             self.seq_sync_done.is_terminated()
         );
 
+        // if we are running in soft-only mode, only start the sequencer reader
         if self.execution_commit_level.is_soft_only() {
             info!("starting sequencer reader");
             if let Some(sequencer_reader) = self.sequencer_reader.take() {
                 self.tasks
                     .spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped(None));
             }
-        } else {
+        }
+        // if we are running in firm-only mode, start the da syncer
+        else {
             info!("starting data availability sync");
             if let Some(data_availability_syncer) = self.data_availability_syncer.take() {
                 self.tasks.spawn(
@@ -379,41 +382,13 @@ impl Conductor {
                         }
                     }
                     if let Some(sequencer_reader) = self.sequencer_reader.take() {
-                        // TODO: get the latest firm commit height and pass into
-                        // sequencer reader for a starting point for syncing
-                        // let execution_rpc_client = ExecutionServiceClient::connect(self.execution_rpc_url.clone())
-                        //     .await
-                        //     .wrap_err("failed to create execution rpc client");
-                        // let mut execution_rpc_client = match execution_rpc_client {
-                        //         Ok(client) => client,
-                        //         Err(e) => {
-                        //             let error = e.as_ref() as &(dyn std::error::Error + 'static);
-                        //             error!(error, "failed to create execution rpc client");
-                        //             // TODO: decide if the code should continue or not
-                        //             continue;
-                        //     }
-                        // };
-                        // let request = GetCommitmentStateRequest {};
-                        // let response = execution_rpc_client
-                        //     .get_commitment_state(request)
-                        //     .await
-                        //     .wrap_err("failed to get commitment state");
-                        // let response = match response {
-                        //         Ok(response) => response,
-                        //         Err(e) => {
-                        //             let error = e.as_ref() as &(dyn std::error::Error + 'static);
-                        //             error!(error, "failed to get commitment state");
-                        //             // TODO: decide if the code should continue or not
-                        //             continue;
-                        //     }
-                        // };
-                        // let response = response.into_inner();
-                        // let commitment_state =
-                        //     ExecutorCommitmentState::from_execution_client_commitment_state(response);
 
                         // FIXME: waiting here is a tempory solution. better
                         // solution would be to not send the da sync complete
                         // until all tasks for da sync are completed.
+                        // implementing the proper solution would require
+                        // communicating with the executor to make sure that the
+                        // execution queue is empty.
                         info!("waiting for 10 seconds for async tasks to finish");
                         time::sleep(Duration::from_secs(10)).await;
 
@@ -425,24 +400,10 @@ impl Conductor {
                             Err(e) => {
                                 let error = e.as_ref() as &(dyn std::error::Error + 'static);
                                 error!(error, "failed to get firm commit height of rollup");
-                                // TODO: decide if the code should continue or not
-                                continue;
+                                break;
                             }
                         };
                         height += self.initial_sequencer_block_height;
-                        // let (tx, rx) = tokio::sync::oneshot::channel::<u32>();
-
-                        // let _ = self.executor_tx.send(GetExecutableBlockHeight(tx)).wrap_err("failed to send GetExecutableBlockHeight to executor");
-                        // let height = match rx.await {
-                        //     Ok(height) => height,
-                        //     Err(e) => {
-                        //         let error = &e as &(dyn std::error::Error + 'static);
-                        //         error!(error = ?error, "failed to get executable block height from executor");
-                        //         break;
-                        //     }
-                        // };
-                            // .wrap_err("failed to receive executor sender from
-                            // sequencer reader");
 
                         info!("starting sequencer reader");
                         self.tasks.spawn(
@@ -452,6 +413,7 @@ impl Conductor {
                     }
                 }
 
+                // Start the data availability reader
                 res = &mut self.seq_sync_done, if !self.seq_sync_done.is_terminated() => {
                     match res {
                         Ok(()) => {
@@ -547,6 +509,8 @@ impl Conductor {
         }
     }
 
+    // Get the firm commit height of the rollup from the execution rpc client
+    // for starting the sequencer reader at the correct height.
     async fn get_firm_commit_height_of_rollup(&self) -> eyre::Result<u32> {
         let mut execution_rpc_client =
             ExecutionServiceClient::connect(self.execution_rpc_url.clone())
