@@ -37,12 +37,11 @@ pub(crate) async fn find_da_block_with_sequencer_data(
     start_height: Height,
     celestia_client: HttpClient,
     sequencer_namespace: Namespace,
+    da_block_range: u32,
 ) -> Height {
     let mut height = start_height;
     let mut loop_count = 0;
-    let da_block_range = 100; // TODO: da block range
     loop {
-        // TODO: update this to be controlled by DA block range
         assert!(
             loop_count <= da_block_range,
             "{}",

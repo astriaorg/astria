@@ -49,6 +49,9 @@ pub struct Config {
     /// The DA block height that the rollup's first block was in
     pub initial_da_block_height: u32,
 
+    /// The number of block on DA in which the first sequencer block for the rollup should be found
+    pub da_block_range: u32,
+
     /// The execution commit level used for controlling how blocks are sent to
     /// the execution layer.
     pub execution_commit_level: CommitLevel,

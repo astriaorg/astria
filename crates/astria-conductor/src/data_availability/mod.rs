@@ -121,6 +121,10 @@ pub(crate) struct Reader {
     /// Firm commit height from the rollup
     firm_commit_height: u32,
 
+    /// The number of blocks on DA in which the first sequencer block for the rollup should be
+    /// found
+    da_block_range: u32,
+
     shutdown: oneshot::Receiver<()>,
 
     /// The sync-done channel to notify `Conductor` that `Reader` has finished syncing.
@@ -141,6 +145,7 @@ impl Reader {
         initial_da_height: u32,
         initial_seq_height: u32,
         firm_commit_height: u32,
+        da_block_range: u32,
         celestia_config: CelestiaReaderConfig,
         executor_tx: executor::Sender,
         sequencer_client_pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
@@ -166,16 +171,12 @@ impl Reader {
             bail!("expected a celestia HTTP client but got a websocket client");
         };
 
-        // TODO: we should probably pass in the height we want to start at from some genesis/config
-        // file
         let current_block_height = celestia_client
             .header_network_head()
             .await
             .wrap_err("failed to get network head from celestia to extract latest head")?
             .header
             .height;
-
-        info!(da_block_height = %current_block_height, "creating Reader");
 
         Ok(Self {
             executor_tx,
@@ -191,6 +192,7 @@ impl Reader {
             initial_seq_block_height: initial_seq_height,
             initial_da_block_height: initial_da_height,
             firm_commit_height,
+            da_block_range,
             shutdown,
             sync_done,
         })
@@ -221,13 +223,13 @@ impl Reader {
         // check if we are near the tip of the chain and if we need to sync.
         // sync will be started if we are more than 1 da block behind the tip of the chain.
         if (current_block_height - self.initial_da_block_height) >= 1 {
-            info!("initializing da sync");
             let sync_start_height = find_da_sync_start_height(
                 self.celestia_client.clone(),
                 self.initial_da_block_height,
                 self.firm_commit_height,
                 self.initial_seq_block_height,
                 self.sequencer_namespace,
+                self.da_block_range,
             )
             .await;
 
@@ -239,7 +241,7 @@ impl Reader {
             )
             .expect("casting from u64 to u32 failed");
 
-            info!(start_sync_height = %sync_start_height, end_sync_height = %latest_height, "sync range");
+            info!(start_sync_height = %sync_start_height, end_sync_height = %latest_height, "sync range found");
 
             sync = sync::run(
                 sync_start_height,
@@ -291,7 +293,7 @@ impl Reader {
 
     #[instrument(skip(self))]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        info!("starting DA reader event loop.");
+        info!("starting DA reader run loop.");
 
         let mut interval = tokio::time::interval(self.celestia_poll_interval);
         loop {
@@ -501,10 +503,11 @@ async fn find_da_sync_start_height(
     firm_commit_height: u32,
     initial_seq_block_height: u32,
     sequencer_namespace: Namespace,
+    da_block_range: u32,
 ) -> u32 {
-    info!("finding da sync start height");
-    info!(initial_da_height = %initial_da_height);
-    info!(firm_commit_height = %firm_commit_height);
+    debug!("finding da sync start height");
+    debug!(initial_da_height = %initial_da_height);
+    debug!(firm_commit_height = %firm_commit_height);
 
     if firm_commit_height == 0 {
         return initial_da_height;
@@ -517,6 +520,7 @@ async fn find_da_sync_start_height(
         guess_blob_height,
         client.clone(),
         sequencer_namespace,
+        da_block_range,
     )
     .await;
 
@@ -545,9 +549,10 @@ async fn find_da_sync_start_height(
                         return false;
                     }
                     let h = h - initial_seq_block_height; // need to account for the sequencer block offset
-                    info!(height = %h, firm_commit = %firm_commit_height, "looking for firm commit height");
+                    debug!(height = %h, firm_commit = %firm_commit_height, "looking for firm commit height");
                     h == firm_commit_height
                 }) {
+                    info!(height = %guess_blob_height.value(), "firm commit found in da block");
                     return u32::try_from(guess_blob_height.value())
                         .expect("casting from u64 to u32 failed");
                 }
