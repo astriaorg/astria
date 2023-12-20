@@ -124,6 +124,9 @@ impl Conductor {
     /// Returns an error in the following cases if one of its constituent
     /// actors could not be spawned (executor, sequencer reader, or data availability reader).
     /// This usually happens if the actors failed to connect to their respective endpoints.
+    ///
+    /// # Panics
+    /// Panics if casting from firm commit Height to u32 fails.
     // TODO: refactor this function to be more readable and reduce the number of lines
     #[allow(clippy::too_many_lines)]
     pub async fn new(cfg: Config) -> eyre::Result<Self> {
@@ -324,6 +327,7 @@ impl Conductor {
         })
     }
 
+    #[allow(clippy::too_many_lines)]
     pub async fn run_until_stopped(mut self) {
         use futures::future::FusedFuture as _;
 

@@ -43,15 +43,11 @@ pub(crate) async fn find_da_block_with_sequencer_data(
     let da_block_range = 100; // TODO: da block range
     loop {
         // TODO: update this to be controlled by DA block range
-        if loop_count > da_block_range {
-            panic!(
-                "{}",
-                format!(
-                    "sequencer block not found after {} attempts",
-                    da_block_range
-                )
-            );
-        }
+        assert!(
+            loop_count <= da_block_range,
+            "{}",
+            format!("initial sequencer block not found after searching {da_block_range} da blocks")
+        );
         let sequencer_blobs = celestia_client
             .get_sequencer_blobs(height, sequencer_namespace)
             .await;

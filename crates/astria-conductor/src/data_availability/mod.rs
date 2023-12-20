@@ -550,10 +550,6 @@ async fn find_da_sync_start_height(
                 }) {
                     return u32::try_from(guess_blob_height.value())
                         .expect("casting from u64 to u32 failed");
-                } else {
-                    warn!(height = %height, "firm commit height not found in celestia block; skipping");
-                    guess_blob_height = guess_blob_height.increment();
-                    continue;
                 }
             }
             Err(error) => {
