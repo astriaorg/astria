@@ -1,0 +1,20 @@
+error: tracing events must not contain debug-formatted fields
+  --> $DIR/main.rs:8:41
+   |
+LL |     info!(field = tracing::field::debug(val), "using the function");
+   |                                         ^^^
+   |
+   = help: implement the std::fmt::Display trait or a newtype wrapper, and use tracing::field::display or the `%` sigil instead
+   = note: `-D tracing-debug-field` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(tracing_debug_field)]`
+
+error: tracing events must not contain debug-formatted fields
+  --> $DIR/main.rs:9:20
+   |
+LL |     info!(field = ?Wrapped("wrapped"), "using the sigil");
+   |                    ^^^^^^^^^^^^^^^^^^
+   |
+   = help: implement the std::fmt::Display trait or a newtype wrapper, and use tracing::field::display or the `%` sigil instead
+
+error: aborting due to 2 previous errors
+

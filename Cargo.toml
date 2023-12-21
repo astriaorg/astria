@@ -17,8 +17,12 @@ members = [
   "crates/astria-sequencer-utils",
   "crates/astria-telemetry",
   "crates/astria-test-utils",
+  "lint/*"
 ]
 resolver = "2"
+
+[workspace.metadata.dylint]
+libraries = [{ path = "lint/tracing_debug_field" }]
 
 [workspace.dependencies]
 async-trait = "0.1.52"
