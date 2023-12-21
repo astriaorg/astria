@@ -304,6 +304,9 @@ impl App {
         &mut self,
         begin_block: &abci::request::BeginBlock,
     ) -> anyhow::Result<Vec<abci::Event>> {
+        // clear the processed_txs count when beginning block execution
+        self.processed_txs = 0;
+
         let mut state_tx = StateDelta::new(self.state.clone());
 
         // store the block height
