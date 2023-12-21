@@ -189,6 +189,7 @@ async fn start_ibc_grpc_server(
         .add_service(ChannelQueryServer::new(ibc.clone()))
         .add_service(ConnectionQueryServer::new(ibc.clone()));
 
+    info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
     grpc_server
         .serve_with_shutdown(grpc_addr, shutdown_rx.map_ok_or_else(|_| (), |()| ()))
         .await?;
