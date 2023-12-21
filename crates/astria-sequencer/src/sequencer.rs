@@ -123,10 +123,10 @@ impl Sequencer {
                 match res {
                     Ok(()) => {
                         // this shouldn't happen, as there isn't a way for the ABCI server to exit
-                        info!("server exited successfully");
+                        info!("ABCI server exited successfully");
                     }
                     Err(e) => {
-                        error!(?e, "server exited with error");
+                        error!(err = e.as_ref(), "ABCI server exited with error");
                     }
                 }
             }
@@ -183,10 +183,9 @@ fn start_ibc_grpc_server(
         .add_service(ConnectionQueryServer::new(ibc.clone()));
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
-    let handle = tokio::task::spawn(
-        grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.map_ok_or_else(|_| (), |()| ())),
-    );
-    handle
+    tokio::task::spawn(
+        grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.unwrap_or_else(|_| ())),
+    )
 }
 
 struct SignalReceiver {
