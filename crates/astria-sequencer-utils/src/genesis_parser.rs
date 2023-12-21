@@ -48,7 +48,11 @@ impl GenesisParser {
                 .wrap_err("failed deserializing cometbft genesis state from file")?;
 
         // insert sequencer app genesis data into cometbft genesis data
-        insert_app_state(&mut destination_genesis_data, &source_genesis_data);
+        insert_app_state_and_chain_id(
+            &mut destination_genesis_data,
+            &source_genesis_data,
+            data.chain_id,
+        );
 
         // write new state
         let dest_file = File::create(Path::new(data.destination_genesis_file.as_str()))
@@ -60,11 +64,12 @@ impl GenesisParser {
     }
 }
 
-fn insert_app_state(dst: &mut Value, app_state: &Value) {
+fn insert_app_state_and_chain_id(dst: &mut Value, app_state: &Value, chain_id: String) {
     let Value::Object(dst) = dst else {
         panic!("dst is not an object");
     };
     dst.insert("app_state".to_string(), app_state.clone());
+    dst.insert("chain_id".to_string(), chain_id.into());
 }
 
 #[cfg(test)]
@@ -129,10 +134,11 @@ mod tests {
                         "balance": 1000
                     }
                 ]
-            }
+            },
+            "chain_id": "test"
         });
 
-        insert_app_state(&mut a, &b);
+        insert_app_state_and_chain_id(&mut a, &b, "test".to_string());
         assert_eq!(a, output);
     }
 }
