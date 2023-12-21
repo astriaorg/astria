@@ -6,6 +6,7 @@ pub(crate) mod chain_state_read_ext;
 pub(crate) mod component;
 pub mod config;
 pub(crate) mod genesis;
+pub(crate) mod ibc_storage_wrapper;
 #[cfg(feature = "mint")]
 pub(crate) mod mint;
 pub(crate) mod proposal;

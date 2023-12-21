@@ -8,8 +8,21 @@ use penumbra_tower_trace::{
     v037::RequestExt as _,
 };
 use tendermint::v0_37::abci::ConsensusRequest;
+use tokio::{
+    select,
+    signal::unix::{
+        signal,
+        SignalKind,
+    },
+    sync::{
+        oneshot,
+        watch,
+    },
+    task::JoinHandle,
+};
 use tower_abci::v037::Server;
 use tracing::{
+    error,
     info,
     instrument,
 };
@@ -17,6 +30,7 @@ use tracing::{
 use crate::{
     app::App,
     config::Config,
+    ibc_storage_wrapper::StorageWrapper,
     service,
     state_ext::StateReadExt as _,
 };
@@ -41,6 +55,8 @@ impl Sequencer {
                 "creating storage db"
             );
         }
+
+        let mut signals = spawn_signal_handler();
 
         let substore_prefixes = vec![penumbra_ibc::IBC_SUBSTORE_PREFIX];
 
@@ -90,11 +106,118 @@ impl Sequencer {
             .finish()
             .ok_or_else(|| anyhow!("server builder didn't return server; are all fields set?"))?;
 
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+
+        let grpc_addr = config
+            .grpc_addr
+            .parse()
+            .context("failed to parse grpc_addr address")?;
+        let grpc_server_handle = start_ibc_grpc_server(&storage, grpc_addr, shutdown_rx);
+
         info!(config.listen_addr, "starting sequencer");
-        server
-            .listen_tcp(&config.listen_addr)
+        select! {
+            _ = signals.stop_rx.changed() => {
+                info!("shutting down sequencer");
+            }
+
+            res = server.listen_tcp(&config.listen_addr) => {
+                match res {
+                    Ok(()) => {
+                        // this shouldn't happen, as there isn't a way for the ABCI server to exit
+                        info!("server exited successfully");
+                    }
+                    Err(e) => {
+                        error!(?e, "server exited with error");
+                    }
+                }
+            }
+        }
+
+        shutdown_tx
+            .send(())
+            .map_err(|()| anyhow!("failed to send shutdown signal to grpc server"))?;
+        grpc_server_handle
             .await
-            .expect("should listen");
+            .context("grpc server task failed")?
+            .context("grpc server failed")?;
         Ok(())
+    }
+}
+
+fn start_ibc_grpc_server(
+    storage: &cnidarium::Storage,
+    grpc_addr: std::net::SocketAddr,
+    shutdown_rx: oneshot::Receiver<()>,
+) -> JoinHandle<Result<(), tonic::transport::Error>> {
+    use futures::TryFutureExt as _;
+    use ibc_proto::ibc::core::{
+        channel::v1::query_server::QueryServer as ChannelQueryServer,
+        client::v1::query_server::QueryServer as ClientQueryServer,
+        connection::v1::query_server::QueryServer as ConnectionQueryServer,
+    };
+    use penumbra_tower_trace::remote_addr;
+    use tower_http::cors::CorsLayer;
+
+    let ibc = penumbra_ibc::component::rpc::IbcQuery::new(StorageWrapper(storage.clone()));
+    let cors_layer = CorsLayer::permissive();
+
+    // TODO: setup HTTPS?
+    let grpc_server = tonic::transport::Server::builder()
+        .trace_fn(|req| {
+            if let Some(remote_addr) = remote_addr(req) {
+                let addr = remote_addr.to_string();
+                tracing::error_span!("grpc", addr)
+            } else {
+                tracing::error_span!("grpc")
+            }
+        })
+        // (from Penumbra) Allow HTTP/1, which will be used by grpc-web connections.
+        // This is particularly important when running locally, as gRPC
+        // typically uses HTTP/2, which requires HTTPS. Accepting HTTP/2
+        // allows local applications such as web browsers to talk to pd.
+        .accept_http1(true)
+        // (from Penumbra) Add permissive CORS headers, so pd's gRPC services are accessible
+        // from arbitrary web contexts, including from localhost.
+        .layer(cors_layer)
+        .add_service(ClientQueryServer::new(ibc.clone()))
+        .add_service(ChannelQueryServer::new(ibc.clone()))
+        .add_service(ConnectionQueryServer::new(ibc.clone()));
+
+    info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
+    let handle = tokio::task::spawn(
+        grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.map_ok_or_else(|_| (), |()| ())),
+    );
+    handle
+}
+
+struct SignalReceiver {
+    stop_rx: watch::Receiver<()>,
+}
+
+fn spawn_signal_handler() -> SignalReceiver {
+    let (stop_tx, stop_rx) = watch::channel(());
+    tokio::spawn(async move {
+        let mut sigint = signal(SignalKind::interrupt()).expect(
+            "setting a SIGINT listener should always work on unix; is this running on unix?",
+        );
+        let mut sigterm = signal(SignalKind::terminate()).expect(
+            "setting a SIGTERM listener should always work on unix; is this running on unix?",
+        );
+        loop {
+            select! {
+                _ = sigint.recv() => {
+                    info!("received SIGINT");
+                    let _ = stop_tx.send(());
+                }
+                _ = sigterm.recv() => {
+                    info!("received SIGTERM");
+                    let _ = stop_tx.send(());
+                }
+            }
+        }
+    });
+
+    SignalReceiver {
+        stop_rx,
     }
 }
