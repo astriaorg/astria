@@ -16,6 +16,8 @@ pub struct Config {
     /// Set to true to enable the mint component
     /// Only used if the "mint" feature is enabled
     pub enable_mint: bool,
+    /// The gRPC endpoint
+    pub grpc_addr: String,
 }
 
 impl config::Config for Config {
