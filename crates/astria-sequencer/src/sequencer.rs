@@ -129,14 +129,23 @@ impl Sequencer {
                     }
                 }
             }
+
+            res = grpc_server_handle => {
+                match res {
+                    Ok(()) => {
+                        // this shouldn't happen, as there isn't a way for the gRPC server to exit
+                        info!("grpc server exited successfully");
+                    }
+                    Err(e) => {
+                        error!(?e, "grpc server exited with error");
+                    }
+                }
+            }
         }
 
         shutdown_tx
             .send(())
             .map_err(|()| anyhow!("failed to send shutdown signal to grpc server"))?;
-        grpc_server_handle
-            .await
-            .context("grpc server task failed")?;
         Ok(())
     }
 }
