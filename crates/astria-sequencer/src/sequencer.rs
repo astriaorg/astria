@@ -8,8 +8,20 @@ use penumbra_tower_trace::{
     v037::RequestExt as _,
 };
 use tendermint::v0_37::abci::ConsensusRequest;
+use tokio::{
+    select,
+    signal::unix::{
+        signal,
+        SignalKind,
+    },
+    sync::{
+        oneshot,
+        watch,
+    },
+};
 use tower_abci::v037::Server;
 use tracing::{
+    error,
     info,
     instrument,
 };
@@ -41,6 +53,8 @@ impl Sequencer {
                 "creating storage db"
             );
         }
+
+        let mut signals = spawn_signal_handler();
 
         let substore_prefixes = vec![penumbra_ibc::IBC_SUBSTORE_PREFIX];
 
@@ -90,22 +104,46 @@ impl Sequencer {
             .finish()
             .ok_or_else(|| anyhow!("server builder didn't return server; are all fields set?"))?;
 
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+
         let grpc_addr = config
             .grpc_addr
             .parse()
             .context("failed to parse grpc_addr address")?;
-        start_grpc_server(&storage, grpc_addr)?;
+        start_grpc_server(&storage, grpc_addr, shutdown_rx)?;
 
         info!(config.listen_addr, "starting sequencer");
-        server
-            .listen_tcp(&config.listen_addr)
-            .await
-            .expect("should listen");
+        select! {
+            _ = signals.stop_rx.changed() => {
+                info!("shutting down sequencer");
+            }
+
+            res = server.listen_tcp(&config.listen_addr) => {
+                match res {
+                    Ok(()) => {
+                        // this shouldn't happen, as there isn't a way for the ABCI server to exit
+                        info!("server exited successfully");
+                    }
+                    Err(e) => {
+                        error!(?e, "server exited with error");
+                    }
+                }
+            }
+        }
+
+        shutdown_tx
+            .send(())
+            .map_err(|()| anyhow!("failed to send shutdown signal to grpc server"))?;
         Ok(())
     }
 }
 
-fn start_grpc_server(storage: &cnidarium::Storage, grpc_addr: std::net::SocketAddr) -> Result<()> {
+fn start_grpc_server(
+    storage: &cnidarium::Storage,
+    grpc_addr: std::net::SocketAddr,
+    shutdown_rx: oneshot::Receiver<()>,
+) -> Result<()> {
+    use futures::TryFutureExt as _;
     use ibc_proto::ibc::core::{
         channel::v1::query_server::QueryServer as ChannelQueryServer,
         client::v1::query_server::QueryServer as ClientQueryServer,
@@ -141,7 +179,41 @@ fn start_grpc_server(storage: &cnidarium::Storage, grpc_addr: std::net::SocketAd
 
     tokio::task::Builder::new()
         .name("grpc_server")
-        .spawn(grpc_server.serve(grpc_addr))
+        .spawn(
+            grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.map_ok_or_else(|_| (), |()| ())),
+        )
         .context("failed to spawn grpc server")?;
     Ok(())
+}
+
+struct SignalReceiver {
+    stop_rx: watch::Receiver<()>,
+}
+
+fn spawn_signal_handler() -> SignalReceiver {
+    let (stop_tx, stop_rx) = watch::channel(());
+    tokio::spawn(async move {
+        let mut sigint = signal(SignalKind::interrupt()).expect(
+            "setting a SIGINT listener should always work on unix; is this running on unix?",
+        );
+        let mut sigterm = signal(SignalKind::terminate()).expect(
+            "setting a SIGTERM listener should always work on unix; is this running on unix?",
+        );
+        loop {
+            select! {
+                _ = sigint.recv() => {
+                    info!("received SIGINT");
+                    let _ = stop_tx.send(());
+                }
+                _ = sigterm.recv() => {
+                    info!("received SIGTERM");
+                    let _ = stop_tx.send(());
+                }
+            }
+        }
+    });
+
+    SignalReceiver {
+        stop_rx,
+    }
 }
