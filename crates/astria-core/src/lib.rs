@@ -8,6 +8,7 @@ pub mod generated;
 
 pub mod primitive;
 pub mod sequencer;
+pub mod utils;
 
 /// A trait to convert from raw decoded protobuf types to idiomatic astria types.
 ///

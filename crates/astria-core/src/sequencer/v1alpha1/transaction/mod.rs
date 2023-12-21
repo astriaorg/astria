@@ -162,6 +162,27 @@ impl SignedTransaction {
     }
 }
 
+impl crate::Protobuf for SignedTransaction {
+    type Error = SignedTransactionError;
+    type Raw = raw::SignedTransaction;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw.clone())
+    }
+
+    fn try_from_raw(raw: Self::Raw) -> Result<Self, Self::Error> {
+        Self::try_from_raw(raw)
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        Self::to_raw(self)
+    }
+
+    fn into_raw(self) -> Self::Raw {
+        Self::into_raw(self)
+    }
+}
+
 #[derive(Clone, Debug)]
 #[allow(clippy::module_name_repetitions)]
 pub struct UnsignedTransaction {
