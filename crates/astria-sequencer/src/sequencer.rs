@@ -110,7 +110,7 @@ impl Sequencer {
             .grpc_addr
             .parse()
             .context("failed to parse grpc_addr address")?;
-        start_grpc_server(&storage, grpc_addr, shutdown_rx)?;
+        let grpc_server_handle = start_ibc_grpc_server(&storage, grpc_addr, shutdown_rx);
 
         info!(config.listen_addr, "starting sequencer");
         select! {
@@ -134,11 +134,14 @@ impl Sequencer {
         shutdown_tx
             .send(())
             .map_err(|()| anyhow!("failed to send shutdown signal to grpc server"))?;
+        grpc_server_handle
+            .await
+            .context("grpc server task failed")?;
         Ok(())
     }
 }
 
-fn start_grpc_server(
+async fn start_ibc_grpc_server(
     storage: &cnidarium::Storage,
     grpc_addr: std::net::SocketAddr,
     shutdown_rx: oneshot::Receiver<()>,
@@ -150,17 +153,17 @@ fn start_grpc_server(
         connection::v1::query_server::QueryServer as ConnectionQueryServer,
     };
     use penumbra_tower_trace::remote_addr;
-    use tonic::transport::Server;
     use tower_http::cors::CorsLayer;
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::new(storage.clone());
     let cors_layer = CorsLayer::permissive();
 
     // TODO: setup HTTPS?
-    let grpc_server = Server::builder()
+    let grpc_server = tonic::transport::Server::builder()
         .trace_fn(|req| {
             if let Some(remote_addr) = remote_addr(req) {
-                tracing::error_span!("grpc", ?remote_addr)
+                let addr = remote_addr.to_string();
+                tracing::error_span!("grpc", addr)
             } else {
                 tracing::error_span!("grpc")
             }
@@ -177,12 +180,9 @@ fn start_grpc_server(
         .add_service(ChannelQueryServer::new(ibc.clone()))
         .add_service(ConnectionQueryServer::new(ibc.clone()));
 
-    tokio::task::Builder::new()
-        .name("grpc_server")
-        .spawn(
-            grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.map_ok_or_else(|_| (), |()| ())),
-        )
-        .context("failed to spawn grpc server")?;
+    grpc_server
+        .serve_with_shutdown(grpc_addr, shutdown_rx.map_ok_or_else(|_| (), |()| ()))
+        .await?;
     Ok(())
 }
 
