@@ -4,21 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-base64 = { workspace = true }
-base64-serde = { workspace = true }
-hex = { workspace = true, features = ["serde"] }
 prost = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true, features = ["raw_value"] }
 sha2 = { workspace = true }
 tendermint = { workspace = true, features = ["rust-crypto"] }
 tendermint-proto = { workspace = true }
-thiserror = { workspace = true }
-tracing = { workspace = true }
 
-merkle = { package = "astria-merkle", path = "../astria-merkle", features = [
-  "serde",
-] }
-proto = { package = "astria-proto", path = "../astria-proto", features = [
-  "serde",
-] }
+merkle = { package = "astria-merkle", path = "../astria-merkle" }
+
+ed25519-consensus = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
+
+[features]
+test-utils = ["dep:ed25519-consensus", "dep:rand"]

@@ -1,4 +1,4 @@
-use proto::Message;
+use prost::Message;
 use serde_json::json;
 use tendermint_rpc::{
     response,
@@ -16,7 +16,7 @@ use wiremock::{
 };
 
 pub async fn start() -> (MockServer, MockGuard) {
-    use proto::generated::sequencer::v1alpha1::NonceResponse;
+    use astria_core::generated::sequencer::v1alpha1::NonceResponse;
     let server = MockServer::start().await;
     let startup_guard = mount_abci_query_mock(
         &server,

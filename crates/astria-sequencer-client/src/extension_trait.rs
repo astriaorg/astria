@@ -26,15 +26,19 @@ use std::{
     sync::Arc,
 };
 
-use async_trait::async_trait;
-use futures::Stream;
-pub use proto::native::sequencer::v1alpha1::{
+pub use astria_core::sequencer::v1alpha1::{
+    block::SequencerBlockError,
     Address,
     BalanceResponse,
     NonceResponse,
     SequencerBlock,
-    SequencerBlockError,
     SignedTransaction,
+};
+use async_trait::async_trait;
+use futures::Stream;
+use prost::{
+    DecodeError,
+    Message as _,
 };
 #[cfg(feature = "http")]
 use tendermint_rpc::HttpClient;
@@ -106,7 +110,7 @@ impl Error {
     fn abci_query_deserialization(
         target: &'static str,
         response: tendermint_rpc::endpoint::abci_query::AbciQuery,
-        inner: proto::DecodeError,
+        inner: DecodeError,
     ) -> Self {
         Self {
             inner: ErrorKind::abci_query_deserialization(target, response, inner),
@@ -130,7 +134,7 @@ impl Error {
 /// Error if deserialization of the bytes in an abci query response failed.
 #[derive(Clone, Debug)]
 pub struct AbciQueryDeserializationError {
-    inner: proto::DecodeError,
+    inner: DecodeError,
     response: Box<tendermint_rpc::endpoint::abci_query::AbciQuery>,
     target: &'static str,
 }
@@ -252,7 +256,7 @@ impl ErrorKind {
     fn abci_query_deserialization(
         target: &'static str,
         response: tendermint_rpc::endpoint::abci_query::AbciQuery,
-        inner: proto::DecodeError,
+        inner: DecodeError,
     ) -> Self {
         Self::AbciQueryDeserialization(AbciQueryDeserializationError {
             inner,
@@ -387,7 +391,6 @@ pub trait SequencerClientExt: Client {
         AddressT: Into<Address> + Send,
         HeightT: Into<tendermint::block::Height> + Send,
     {
-        use proto::Message as _;
         const PREFIX: &[u8] = b"accounts/balance/";
 
         let path = make_path_from_prefix_and_address(PREFIX, address.into().0);
@@ -398,7 +401,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            proto::generated::sequencer::v1alpha1::BalanceResponse::decode(&*response.value)
+            astria_core::generated::sequencer::v1alpha1::BalanceResponse::decode(&*response.value)
                 .map_err(|e| {
                     Error::abci_query_deserialization(
                         "astria.sequencer.v1alpha1.BalanceResponse",
@@ -439,7 +442,6 @@ pub trait SequencerClientExt: Client {
         AddressT: Into<Address> + Send,
         HeightT: Into<tendermint::block::Height> + Send,
     {
-        use proto::Message as _;
         const PREFIX: &[u8] = b"accounts/nonce/";
 
         let path = make_path_from_prefix_and_address(PREFIX, address.into().0);
@@ -450,7 +452,7 @@ pub trait SequencerClientExt: Client {
             .map_err(|e| Error::tendermint_rpc("abci_query", e))?;
 
         let proto_response =
-            proto::generated::sequencer::v1alpha1::NonceResponse::decode(&*response.value)
+            astria_core::generated::sequencer::v1alpha1::NonceResponse::decode(&*response.value)
                 .map_err(|e| {
                     Error::abci_query_deserialization(
                         "astria.sequencer.v1alpha1.NonceResponse",
@@ -514,7 +516,6 @@ pub trait SequencerClientExt: Client {
         &self,
         tx: SignedTransaction,
     ) -> Result<tx_sync::Response, Error> {
-        use proto::Message as _;
         let tx_bytes = tx.into_raw().encode_to_vec();
         self.broadcast_tx_sync(tx_bytes)
             .await
@@ -533,7 +534,6 @@ pub trait SequencerClientExt: Client {
         &self,
         tx: SignedTransaction,
     ) -> Result<tx_commit::Response, Error> {
-        use proto::Message as _;
         let tx_bytes = tx.into_raw().encode_to_vec();
         self.broadcast_tx_commit(tx_bytes)
             .await

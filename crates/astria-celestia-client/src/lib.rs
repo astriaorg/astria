@@ -1,5 +1,9 @@
 pub mod client;
 
+pub use astria_core::sequencer::v1alpha1::{
+    CelestiaRollupBlob,
+    CelestiaSequencerBlob,
+};
 pub use celestia_rpc;
 pub use celestia_tendermint;
 pub use celestia_types;
@@ -9,11 +13,6 @@ use celestia_types::nmt::{
 };
 pub use client::CelestiaClientExt;
 pub use jsonrpsee;
-use proto::native::sequencer::v1alpha1::RollupId;
-pub use proto::native::sequencer::v1alpha1::{
-    CelestiaRollupBlob,
-    CelestiaSequencerBlob,
-};
 
 #[must_use = "a celestia namespace must be used in order to be useful"]
 pub const fn celestia_namespace_v0_from_array<const N: usize>(bytes: [u8; N]) -> Namespace {
@@ -30,7 +29,9 @@ pub const fn celestia_namespace_v0_from_array<const N: usize>(bytes: [u8; N]) ->
 }
 
 #[must_use = "a celestia namespace must be used in order to be useful"]
-pub const fn celestia_namespace_v0_from_rollup_id(rollup_id: RollupId) -> Namespace {
+pub const fn celestia_namespace_v0_from_rollup_id(
+    rollup_id: astria_core::sequencer::v1alpha1::RollupId,
+) -> Namespace {
     celestia_namespace_v0_from_array(rollup_id.get())
 }
 

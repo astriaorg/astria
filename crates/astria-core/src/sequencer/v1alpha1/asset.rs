@@ -1,9 +1,3 @@
-use std::{
-    error::Error,
-    fmt::Display,
-    str::FromStr,
-};
-
 /// The default sequencer asset base denomination.
 pub const DEFAULT_NATIVE_ASSET_DENOM: &str = "nria";
 
@@ -100,18 +94,11 @@ impl AsRef<[u8]> for Id {
 }
 
 /// Indicates that the protobuf response contained an array field that was not 32 bytes long.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("expected 32 bytes, got {received}")]
 pub struct IncorrectAssetIdLength {
     received: usize,
 }
-
-impl Display for IncorrectAssetIdLength {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "expected 32 bytes, got {}", self.received)
-    }
-}
-
-impl Error for IncorrectAssetIdLength {}
 
 /// Represents an IBC asset.
 ///
@@ -158,7 +145,7 @@ impl IbcAsset {
     }
 }
 
-impl Display for IbcAsset {
+impl std::fmt::Display for IbcAsset {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}/{}", self.prefix, self.base_denom)
     }
@@ -169,12 +156,12 @@ impl Display for IbcAsset {
 /// # Errors
 ///
 /// - if the denomination string is invalid, ie. does not contain any slashes.
-impl FromStr for IbcAsset {
+impl std::str::FromStr for IbcAsset {
     type Err = IbcAssetError;
 
     fn from_str(denom: &str) -> Result<Self, Self::Err> {
         let Some((prefix, base_denom)) = denom.rsplit_once('/') else {
-            return Err(IbcAssetError::InvalidDenomination);
+            return Err(IbcAssetError::invalid_denomination());
         };
         let id = Id::from_denom(denom);
 
@@ -186,19 +173,18 @@ impl FromStr for IbcAsset {
     }
 }
 
-#[derive(Debug)]
-pub enum IbcAssetError {
-    InvalidDenomination,
-}
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct IbcAssetError(IbcAssetErrorKind);
 
-impl Display for IbcAssetError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InvalidDenomination => {
-                f.write_str("denomination must contain at least one slash")
-            }
-        }
+impl IbcAssetError {
+    fn invalid_denomination() -> Self {
+        Self(IbcAssetErrorKind::InvalidDenomination)
     }
 }
 
-impl Error for IbcAssetError {}
+#[derive(Debug, thiserror::Error)]
+enum IbcAssetErrorKind {
+    #[error("denomination must contain at least one slash")]
+    InvalidDenomination,
+}

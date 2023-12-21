@@ -7,11 +7,11 @@ use std::{
 };
 
 use anyhow::Context as _;
+use cnidarium::Storage;
 use futures::{
     Future,
     FutureExt,
 };
-use penumbra_storage::Storage;
 use penumbra_tower_trace::v037::RequestExt as _;
 use tendermint::v0_37::abci::{
     request,
@@ -72,13 +72,12 @@ impl Info {
                     .get_block_height()
                     .await
                     .unwrap_or(0);
-                let app_hash = crate::app_hash::AppHash::from(
-                    self.storage
-                        .latest_snapshot()
-                        .root_hash()
-                        .await
-                        .context("failed to get app hash")?,
-                );
+                let app_hash = self
+                    .storage
+                    .latest_snapshot()
+                    .root_hash()
+                    .await
+                    .context("failed to get app hash")?;
 
                 let response = InfoResponse::Info(response::Info {
                     version: env!("CARGO_PKG_VERSION").to_string(),
@@ -147,14 +146,14 @@ impl Service<InfoRequest> for Info {
 
 #[cfg(test)]
 mod test {
-    use penumbra_storage::StateDelta;
-    use proto::native::sequencer::{
+    use astria_core::sequencer::v1alpha1::{
         asset::{
             Denom,
             DEFAULT_NATIVE_ASSET_DENOM,
         },
-        v1alpha1::Address,
+        Address,
     };
+    use cnidarium::StateDelta;
     use tendermint::v0_37::abci::{
         request,
         InfoRequest,
@@ -173,7 +172,7 @@ mod test {
 
     #[tokio::test]
     async fn handle_query() {
-        let storage = penumbra_storage::TempStorage::new()
+        let storage = cnidarium::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let height = 99;

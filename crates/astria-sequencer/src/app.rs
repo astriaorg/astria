@@ -11,20 +11,21 @@ use anyhow::{
     ensure,
     Context,
 };
-use penumbra_storage::{
+use astria_core::{
+    generated::sequencer::v1alpha1 as raw,
+    sequencer::v1alpha1::{
+        Address,
+        SignedTransaction,
+    },
+};
+use cnidarium::{
     ArcStateDeltaExt,
+    RootHash,
     Snapshot,
     StateDelta,
     Storage,
 };
-use proto::{
-    generated::sequencer::v1alpha1 as raw,
-    native::sequencer::v1alpha1::{
-        Address,
-        SignedTransaction,
-    },
-    Message as _,
-};
+use prost::Message as _;
 use sha2::Digest as _;
 use tendermint::abci::{
     self,
@@ -38,7 +39,6 @@ use tracing::{
 
 use crate::{
     accounts::component::AccountsComponent,
-    app_hash::AppHash,
     authority::{
         component::{
             AuthorityComponent,
@@ -367,7 +367,7 @@ impl App {
     #[instrument(name = "App::deliver_tx", skip(self))]
     pub(crate) async fn deliver_tx(
         &mut self,
-        signed_tx: proto::native::sequencer::v1alpha1::SignedTransaction,
+        signed_tx: astria_core::sequencer::v1alpha1::SignedTransaction,
     ) -> anyhow::Result<Vec<abci::Event>> {
         let signed_tx_2 = signed_tx.clone();
         let stateless =
@@ -450,7 +450,7 @@ impl App {
     }
 
     #[instrument(name = "App::commit", skip(self, storage))]
-    pub(crate) async fn commit(&mut self, storage: Storage) -> AppHash {
+    pub(crate) async fn commit(&mut self, storage: Storage) -> RootHash {
         // We need to extract the State we've built up to commit it.  Fill in a dummy state.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
 
@@ -471,12 +471,10 @@ impl App {
         );
 
         // Commit the pending writes, clearing the state.
-        let jmt_root = storage
+        let app_hash = storage
             .commit(state)
             .await
             .expect("must be able to successfully commit to storage");
-
-        let app_hash = AppHash::from(jmt_root);
         tracing::debug!(?app_hash, "finished committing state");
 
         // Get the latest version of the state, now that we've committed it.
@@ -509,20 +507,23 @@ impl App {
 
 #[cfg(test)]
 mod test {
-    use ed25519_consensus::SigningKey;
     #[cfg(feature = "mint")]
-    use proto::native::sequencer::v1alpha1::MintAction;
-    use proto::native::sequencer::v1alpha1::{
+    use astria_core::sequencer::v1alpha1::transaction::action::MintAction;
+    use astria_core::sequencer::v1alpha1::{
         asset,
         asset::DEFAULT_NATIVE_ASSET_DENOM,
+        transaction::action::{
+            Action,
+            SequenceAction,
+            SudoAddressChangeAction,
+            TransferAction,
+        },
         Address,
         RollupId,
-        SequenceAction,
-        SudoAddressChangeAction,
-        TransferAction,
         UnsignedTransaction,
         ADDRESS_LEN,
     };
+    use ed25519_consensus::SigningKey;
     use tendermint::{
         abci::types::CommitInfo,
         account,
@@ -604,7 +605,7 @@ mod test {
         genesis_state: Option<GenesisState>,
         genesis_validators: Vec<tendermint::validator::Update>,
     ) -> App {
-        let storage = penumbra_storage::TempStorage::new()
+        let storage = cnidarium::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();
@@ -938,9 +939,7 @@ mod test {
 
         let tx = UnsignedTransaction {
             nonce: 0,
-            actions: vec![proto::native::sequencer::v1alpha1::Action::ValidatorUpdate(
-                update.clone(),
-            )],
+            actions: vec![Action::ValidatorUpdate(update.clone())],
             fee_asset_id: get_native_asset().id(),
         };
 
@@ -968,13 +967,9 @@ mod test {
 
         let tx = UnsignedTransaction {
             nonce: 0,
-            actions: vec![
-                proto::native::sequencer::v1alpha1::Action::SudoAddressChange(
-                    SudoAddressChangeAction {
-                        new_address,
-                    },
-                ),
-            ],
+            actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
+                new_address,
+            })],
             fee_asset_id: get_native_asset().id(),
         };
 
@@ -1000,13 +995,9 @@ mod test {
 
         let tx = UnsignedTransaction {
             nonce: 0,
-            actions: vec![
-                proto::native::sequencer::v1alpha1::Action::SudoAddressChange(
-                    SudoAddressChangeAction {
-                        new_address: alice_address,
-                    },
-                ),
-            ],
+            actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
+                new_address: alice_address,
+            })],
             fee_asset_id: get_native_asset().id(),
         };
 
@@ -1171,7 +1162,7 @@ mod test {
 
     #[tokio::test]
     async fn app_commit() {
-        let storage = penumbra_storage::TempStorage::new()
+        let storage = cnidarium::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();

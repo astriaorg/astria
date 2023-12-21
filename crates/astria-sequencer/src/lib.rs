@@ -1,6 +1,5 @@
 pub(crate) mod accounts;
 pub(crate) mod app;
-pub(crate) mod app_hash;
 pub(crate) mod asset;
 pub(crate) mod authority;
 pub(crate) mod component;
