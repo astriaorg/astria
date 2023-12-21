@@ -395,7 +395,7 @@ impl App {
         transaction::execute(&signed_tx, &mut state_tx)
             .await
             .context("failed executing transaction")?;
-        state_tx.apply();
+        let (_, events) = state_tx.apply();
 
         // note: deliver_tx is now called (internally) before begin_block,
         // so increment the logged height by 1.
@@ -406,9 +406,10 @@ impl App {
             ?signed_tx,
             height = height + 1,
             sender = %Address::from_verification_key(signed_tx.verification_key()),
+            event_count = events.len(),
             "executed transaction"
         );
-        Ok(vec![])
+        Ok(events)
     }
 
     #[instrument(name = "App::end_block", skip(self))]
