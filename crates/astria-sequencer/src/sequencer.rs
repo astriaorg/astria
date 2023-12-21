@@ -18,6 +18,7 @@ use tokio::{
         oneshot,
         watch,
     },
+    task::JoinHandle,
 };
 use tower_abci::v037::Server;
 use tracing::{
@@ -129,32 +130,24 @@ impl Sequencer {
                     }
                 }
             }
-
-            res = grpc_server_handle => {
-                match res {
-                    Ok(()) => {
-                        // this shouldn't happen, as there isn't a way for the gRPC server to exit
-                        info!("grpc server exited successfully");
-                    }
-                    Err(e) => {
-                        error!(?e, "grpc server exited with error");
-                    }
-                }
-            }
         }
 
         shutdown_tx
             .send(())
             .map_err(|()| anyhow!("failed to send shutdown signal to grpc server"))?;
+        grpc_server_handle
+            .await
+            .context("grpc server task failed")?
+            .context("grpc server failed")?;
         Ok(())
     }
 }
 
-async fn start_ibc_grpc_server(
+fn start_ibc_grpc_server(
     storage: &cnidarium::Storage,
     grpc_addr: std::net::SocketAddr,
     shutdown_rx: oneshot::Receiver<()>,
-) -> Result<()> {
+) -> JoinHandle<Result<(), tonic::transport::Error>> {
     use futures::TryFutureExt as _;
     use ibc_proto::ibc::core::{
         channel::v1::query_server::QueryServer as ChannelQueryServer,
@@ -190,10 +183,10 @@ async fn start_ibc_grpc_server(
         .add_service(ConnectionQueryServer::new(ibc.clone()));
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
-    grpc_server
-        .serve_with_shutdown(grpc_addr, shutdown_rx.map_ok_or_else(|_| (), |()| ()))
-        .await?;
-    Ok(())
+    let handle = tokio::task::spawn(
+        grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.map_ok_or_else(|_| (), |()| ())),
+    );
+    handle
 }
 
 struct SignalReceiver {
