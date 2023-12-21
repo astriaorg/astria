@@ -4,6 +4,7 @@ use ed25519_consensus::{
     VerificationKey,
 };
 use prost::Message as _;
+use sha2::Sha256;
 
 use super::raw;
 
@@ -63,6 +64,13 @@ pub struct SignedTransaction {
 }
 
 impl SignedTransaction {
+    #[must_use]
+    pub fn hash(&self) -> [u8; 32] {
+        use sha2::Digest as _;
+        let bytes = self.to_raw().encode_to_vec();
+        Sha256::digest(bytes).into()
+    }
+
     #[must_use]
     pub fn into_raw(self) -> raw::SignedTransaction {
         let Self {

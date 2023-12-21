@@ -361,7 +361,7 @@ impl App {
     /// successfully.
     ///
     /// Note that `begin_block` is now called *after* transaction execution.
-    #[instrument(name = "App::deliver_tx", skip(self))]
+    #[instrument(name = "App::deliver_tx", skip_all, fields(tx_hash = hex::encode(signed_tx.hash())))]
     pub(crate) async fn deliver_tx(
         &mut self,
         signed_tx: astria_core::sequencer::v1alpha1::SignedTransaction,
@@ -392,7 +392,7 @@ impl App {
         transaction::execute(&signed_tx, &mut state_tx)
             .await
             .context("failed executing transaction")?;
-        state_tx.apply();
+        let (_, events) = state_tx.apply();
 
         // note: deliver_tx is now called (internally) before begin_block,
         // so increment the logged height by 1.
@@ -400,12 +400,15 @@ impl App {
             "block height must be set, as `begin_block` is always called before `deliver_tx`",
         );
         info!(
+            tx_hash = hex::encode(signed_tx.hash()),
             ?signed_tx,
             height = height + 1,
             sender = %Address::from_verification_key(signed_tx.verification_key()),
+            events = ?events,
             "executed transaction"
         );
-        Ok(vec![])
+
+        Ok(events)
     }
 
     #[instrument(name = "App::end_block", skip(self))]
