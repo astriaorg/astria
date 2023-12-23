@@ -86,6 +86,11 @@ pub(crate) struct App {
     // `prepare_proposal`, and re-executing them would cause failure.
     is_proposer: bool,
 
+    // set to true when `prepare_proposal` or `process_proposal` is called, indicating we are a
+    // validator for the block. set to false when `commit` is called.
+    //
+    // if true, `deliver_tx` does not execute transactions, as we have called either
+    // `prepare_proposal` or `process_proposal` which executes them. 
     is_validator: bool,
 
     // cache of results of executing of transactions in prepare_proposal or process_proposal.
