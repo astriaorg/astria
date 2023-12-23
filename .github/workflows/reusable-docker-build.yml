@@ -20,7 +20,7 @@ env:
 jobs:
   build-and-push:
     runs-on: buildjet-8vcpu-ubuntu-2204
-    if: ${{ contains(github.ref, 'refs/tags/v') && endsWith(github.ref, format('--{0}', inputs.package-name)) || github.ref == 'refs/heads/main' || github.event_name == 'pull_request' }}
+    if: ${{ contains(github.ref, 'refs/tags/v') && endsWith(github.ref, format('--{0}', inputs.package-name)) || github.ref == 'refs/heads/sequencer-v0.7.x' || github.event_name == 'pull_request' }}
     steps:
       # Checking out the repo
       - uses: actions/checkout@v3
@@ -53,7 +53,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}.{{patch}}
             type=sha
             # set latest tag for `main` branch
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+            type=raw,value=sequencer-v0.7.x,enable=${{ github.ref == format('refs/heads/{0}', 'sequencer-v0.7.x') }}
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
@@ -68,6 +68,6 @@ jobs:
           push: true
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
-          cache-from: type=registry,ref=${{ format('ghcr.io/astriaorg/{0}:buildcache', inputs.package-name) }}
-          cache-to: type=registry,ref=${{ format('ghcr.io/astriaorg/{0}:buildcache', inputs.package-name) }},mode=max
+          cache-from: type=registry,ref=${{ format('ghcr.io/astriaorg/{0}:sequencer-v0.7.x-buildcache', inputs.package-name) }}
+          cache-to: type=registry,ref=${{ format('ghcr.io/astriaorg/{0}:sequencer-v0.7.x-buildcache', inputs.package-name) }},mode=max
         

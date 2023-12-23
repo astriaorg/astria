@@ -177,14 +177,11 @@ impl Consensus {
 
     #[instrument(skip(self))]
     async fn deliver_tx(&mut self, deliver_tx: request::DeliverTx) -> response::DeliverTx {
-        use sha2::Digest as _;
-
         use crate::transaction::InvalidNonce;
 
-        let tx_hash: [u8; 32] = sha2::Sha256::digest(&deliver_tx.tx).into();
-        match self
-            .app
-            .deliver_tx_after_execution(&tx_hash)
+        let executed_tx_hash = self.app.deliver_tx_after_proposal(deliver_tx).await;
+
+        match executed_tx_hash
             .expect("all transactions in the block must have already been executed")
         {
             Ok(_events) => response::DeliverTx::default(),

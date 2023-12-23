@@ -86,6 +86,8 @@ pub(crate) struct App {
     // `prepare_proposal`, and re-executing them would cause failure.
     is_proposer: bool,
 
+    is_validator: bool,
+
     // cache of results of executing of transactions in prepare_proposal or process_proposal.
     // cleared at the end of each block.
     execution_result: HashMap<[u8; 32], anyhow::Result<Vec<abci::Event>>>,
@@ -112,6 +114,7 @@ impl App {
         Self {
             state,
             is_proposer: false,
+            is_validator: false,
             execution_result: HashMap::new(),
             processed_txs: 0,
         }
@@ -167,6 +170,7 @@ impl App {
         self.execution_result.clear();
         self.processed_txs = 0;
         self.is_proposer = true;
+        self.is_validator = true;
 
         let (signed_txs, txs_to_include) = self.execute_block_data(prepare_proposal.txs).await;
 
@@ -197,7 +201,7 @@ impl App {
             self.is_proposer = false;
             return Ok(());
         }
-
+        self.is_validator = true;
         self.is_proposer = false;
 
         // clear the cache of transaction execution results
@@ -304,6 +308,9 @@ impl App {
         &mut self,
         begin_block: &abci::request::BeginBlock,
     ) -> anyhow::Result<Vec<abci::Event>> {
+        // clear the processed_txs count when beginning block execution
+        self.processed_txs = 0;
+
         let mut state_tx = StateDelta::new(self.state.clone());
 
         // store the block height
@@ -334,17 +341,24 @@ impl App {
     ///
     /// Note that the first two "transactions" in the block, which are the proposer-generated
     /// commitments, are ignored.
-    #[instrument(name = "App::deliver_tx_after_execution", skip(self))]
-    pub(crate) fn deliver_tx_after_execution(
+    #[instrument(name = "App::deliver_tx_after_proposal", skip(self))]
+    pub(crate) async fn deliver_tx_after_proposal(
         &mut self,
-        tx_hash: &[u8; 32],
+        tx: abci::request::DeliverTx,
     ) -> Option<anyhow::Result<Vec<abci::Event>>> {
         if self.processed_txs < 2 {
             self.processed_txs += 1;
             return Some(Ok(vec![]));
         }
 
-        self.execution_result.remove(tx_hash)
+        // Process and prepare proposal are not called for full nodes, so we must
+        // exeucte the tx.
+        if !self.is_validator {
+            self.execute_block_data(vec![tx.tx.clone()]).await;
+        }
+
+        let tx_hash: [u8; 32] = sha2::Sha256::digest(&tx.tx).into();
+        self.execution_result.remove(&tx_hash)
     }
 
     /// Executes a signed transaction.
@@ -448,6 +462,9 @@ impl App {
 
     #[instrument(name = "App::commit", skip(self, storage))]
     pub(crate) async fn commit(&mut self, storage: Storage) -> AppHash {
+        // Clear out validator status before next block round starts.
+        self.is_validator = false;
+
         // We need to extract the State we've built up to commit it.  Fill in a dummy state.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
 
