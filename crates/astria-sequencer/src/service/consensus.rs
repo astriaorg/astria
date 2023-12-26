@@ -68,7 +68,7 @@ impl Consensus {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, req))]
     async fn handle_request(
         &mut self,
         req: ConsensusRequest,
