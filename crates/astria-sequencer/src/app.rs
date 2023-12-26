@@ -65,6 +65,8 @@ use crate::{
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
 
+const MAX_BLOCK_SIZE: usize = 256_000;
+
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
 /// Note: this is called `App` because this is a Tendermint ABCI application,
@@ -274,7 +276,20 @@ impl App {
         let mut signed_txs = Vec::with_capacity(txs.len());
         let mut validated_txs = Vec::with_capacity(txs.len());
 
+        let mut total_tx_size: usize = 0;
+
         for tx in txs {
+            // Don't include tx if it would make the block too large.
+            let tx_size = tx.len();
+            if total_tx_size + tx_size > MAX_BLOCK_SIZE {
+                debug!(
+                    total_tx_size,
+                    tx_size,
+                    "block size limit reached, not including transaction in block"
+                );
+                continue;
+            }
+
             let Some(signed_tx) = raw::SignedTransaction::decode(&*tx)
             .map_err(|err| {
                 debug!(error = ?err, "failed to deserialize bytes as a signed transaction");
@@ -296,11 +311,12 @@ impl App {
             match self.deliver_tx(signed_tx.clone()).await {
                 Ok(events) => {
                     self.execution_result.insert(tx_hash.into(), Ok(events));
+                    total_tx_size += tx_size;
                     signed_txs.push(signed_tx);
                     validated_txs.push(tx);
                 }
                 Err(e) => {
-                    debug!(?tx_hash, error = ?e, "failed to execute transaction, not including in block");
+                    debug!(?tx_hash, /* error = ?e, */ "failed to execute transaction, not including in block");
                     self.execution_result.insert(tx_hash.into(), Err(e));
                 }
             }
