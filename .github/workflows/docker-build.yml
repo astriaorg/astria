@@ -45,7 +45,6 @@ jobs:
 
   sequencer:
     needs: run_checker
-    if: needs.run_checker.outputs.run_docker == 'true'
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: sequencer
