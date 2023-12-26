@@ -144,7 +144,7 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, prepare_proposal))]
     async fn handle_prepare_proposal(
         &mut self,
         prepare_proposal: request::PrepareProposal,
@@ -152,7 +152,7 @@ impl Consensus {
         self.app.prepare_proposal(prepare_proposal).await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, process_proposal))]
     async fn handle_process_proposal(
         &mut self,
         process_proposal: request::ProcessProposal,
@@ -175,7 +175,7 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, deliver_tx))]
     async fn deliver_tx(&mut self, deliver_tx: request::DeliverTx) -> response::DeliverTx {
         use crate::transaction::InvalidNonce;
 

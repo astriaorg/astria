@@ -347,7 +347,7 @@ impl App {
     ///
     /// Note that the first two "transactions" in the block, which are the proposer-generated
     /// commitments, are ignored.
-    #[instrument(name = "App::deliver_tx_after_proposal", skip(self))]
+    #[instrument(name = "App::deliver_tx_after_proposal", skip(self, tx))]
     pub(crate) async fn deliver_tx_after_proposal(
         &mut self,
         tx: abci::request::DeliverTx,
@@ -381,7 +381,7 @@ impl App {
     /// successfully.
     ///
     /// Note that `begin_block` is now called *after* transaction execution.
-    #[instrument(name = "App::deliver_tx", skip(self))]
+    #[instrument(name = "App::deliver_tx", skip(self, signed_tx))]
     pub(crate) async fn deliver_tx(
         &mut self,
         signed_tx: proto::native::sequencer::v1alpha1::SignedTransaction,
@@ -419,7 +419,7 @@ impl App {
             "block height must be set, as `begin_block` is always called before `deliver_tx`",
         );
         info!(
-            ?signed_tx,
+            // ?signed_tx,
             height = height + 1,
             sender = %Address::from_verification_key(signed_tx.verification_key()),
             "executed transaction"
