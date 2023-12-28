@@ -62,9 +62,8 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check that each crate compiles individually (circumventing workspace wide dependency resolution)
         run: |
-          cargo hack check --all-features \
-          # Explicitly exclude tracing_debug_field because cargo hack operates on all
-          # workspace members ignoring the default-members field
+          : # exclude all lints because cargo-hack ignores default-members and operates on all workspace members
+          cargo hack check --workspace --all-features \
           --exclude tracing_debug_field
 
   lockfile:
@@ -180,8 +179,8 @@ jobs:
         run: cargo install cargo-dylink@2.5.0 dylint-link@2.5.0 --locked
       - name: run clippy against custom lints
         run: |
+          : # list all lint packages here to have clippy explicitly test them
           cargo clippy --all-targets --all-features \
-          # Explicitly list all lints here
           -p tracing_debug_field \
           -- --warn clippy::pedantic --deny warnings
       - name: run dylint clippy on workspace crates
