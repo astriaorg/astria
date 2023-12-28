@@ -170,9 +170,8 @@ jobs:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain
         with:
-          # This has to match `rust-toolchain` in the rust-toolchain file of the dylint lints
           toolchain: nightly-2023-10-06
-          components: "clippy llvm-tools-preview, rustc-dev"
+          components: "clippy, llvm-tools-preview, rustc-dev"
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
@@ -181,7 +180,6 @@ jobs:
       - name: run clippy against custom lints
         run: |
           cargo clippy --all-targets --all-features \
-          # Explicitly list all lints here
           -p tracing_debug_field \
           -- --warn clippy::pedantic --deny warnings
       - name: run dylint clippy on workspace crates

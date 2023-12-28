@@ -1,18 +1,18 @@
 # `tracing_debug_field`
 
-### What it does
+## What it does
 
 Warns about fields in `tracing::event!` macros that are debug formatted
 using either the `?` sigil or the [`tracing::field::debug`](https://docs.rs/tracing/0.1.40/tracing/field/fn.debug.html) 
 utility.
 
-### Why is this bad?
+## Why is this bad?
 
 Debug formatted fields are bad for observability as they are usually unparseable and
 unreadable. They also surface language-specific implementation details that are unnecessary
 and too verbose for operators.
 
-### What to do instead
+## What to do instead
 
 Depending on the complexity of what must be logged:
 
@@ -26,7 +26,7 @@ Depending on the complexity of what must be logged:
 5. Hash an object and emit the hash (this works very well for messages that will be otherwise recorded and
    can be retrieved outside the observability intake).
 
-### Example
+## Example
 ```rust
 #[derive(Clone, Copy, Debug)]
 struct Wrapped(&'static str);
