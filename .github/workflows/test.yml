@@ -175,8 +175,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
-      - name: install cargo-dylink and dylint-link
-        run: cargo install cargo-dylink@2.5.0 dylint-link@2.5.0 --locked
+      - name: install cargo-dylint and dylint-link
+        run: cargo install cargo-dylint@2.5.0 dylint-link@2.5.0 --locked
       - name: run clippy against custom lints
         run: |
           : # list all lint packages here to have clippy explicitly test them
