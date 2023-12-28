@@ -71,7 +71,11 @@ impl<'tcx> LateLintPass<'tcx> for TracingDebugField {
                     *span,
                     "tracing events must not contain debug-formatted fields",
                     None,
-                    "implement the std::fmt::Display trait or a newtype wrapper, and use tracing::field::display or the `%` sigil instead",
+                    "emit the std::fmt::Display format of the object using the % sigil. \
+                    You might have to implement the Display trait or serialize the object \
+                    to a format that can be written as a string (like JSON). Consider if \
+                    emitting the entire object is necessary or if the information can be \
+                    reduced."
                 )
             }
         )
