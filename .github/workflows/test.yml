@@ -171,7 +171,7 @@ jobs:
       - uses: dtolnay/rust-toolchain
         with:
           # This has to match `rust-toolchain` in the rust-toolchain file of the dylint lints
-          toolchain: nightly-2023-10-6
+          toolchain: nightly-2023-10-06
           components: "clippy llvm-tools-preview, rustc-dev"
       - uses: Swatinem/rust-cache@v2.6.1
         with:
