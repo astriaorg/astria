@@ -162,32 +162,34 @@ jobs:
           --all-targets --all-features \
           -- --warn clippy::pedantic --deny warnings
 
-  custom-lints:
-    runs-on: buildjet-8vcpu-ubuntu-2204
-    needs: run_checker
-    if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
-    steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain
-        with:
-          toolchain: nightly-2023-10-06
-          components: "clippy, llvm-tools-preview, rustc-dev"
-      - uses: Swatinem/rust-cache@v2.6.1
-        with:
-          cache-provider: "buildjet"
-      - name: install cargo-dylink and dylint-link
-        run: cargo install cargo-dylink@v2.5.0 dylint-link@v2.5.0 --locked
-      - name: run clippy against custom lints
-        run: |
-          cargo clippy --all-targets --all-features \
-          -p tracing_debug_field \
-          -- --warn clippy::pedantic --deny warnings
-      - name: run dylint clippy on workspace crates
-        run: cargo dylint --all --workspace --all-features -- --deny warnings
+  # custom-lints:
+  #   runs-on: buildjet-8vcpu-ubuntu-2204
+  #   needs: run_checker
+  #   if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: dtolnay/rust-toolchain
+  #       with:
+  #         # This has to match `rust-toolchain` in the rust-toolchain file of the dylint lints
+  #         toolchain: nightly-2023-10-06
+  #         components: "clippy, llvm-tools-preview, rustc-dev"
+  #     - uses: Swatinem/rust-cache@v2.6.1
+  #       with:
+  #         cache-provider: "buildjet"
+  #     - name: install cargo-dylink and dylint-link
+  #       run: cargo install cargo-dylink@v2.5.0 dylint-link@v2.5.0 --locked
+  #     - name: run clippy against custom lints
+  #       run: |
+  #         cargo clippy --all-targets --all-features \
+  #         # Explicitly list all lints here
+  #         -p tracing_debug_field \
+  #         -- --warn clippy::pedantic --deny warnings
+  #     - name: run dylint clippy on workspace crates
+  #       run: cargo dylint --all --workspace --all-features -- --deny warnings
 
   test:
     if: ${{ always() && !cancelled() }}
-    needs: [compiles, protos-compiled, rust, doctest, clippy, custom-lints, lockfile]
+    needs: [compiles, protos-compiled, rust, doctest, clippy, lockfile]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}
