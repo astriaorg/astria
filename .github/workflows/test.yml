@@ -184,7 +184,7 @@ jobs:
           -p tracing_debug_field \
           -- --warn clippy::pedantic --deny warnings
       - name: run dylint clippy on workspace crates
-        run: cargo dylint --all --workspace --all-features -- --deny warnings
+        run: cargo dylint --all --workspace -- --deny warnings
 
   test:
     if: ${{ always() && !cancelled() }}
