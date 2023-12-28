@@ -162,7 +162,7 @@ jobs:
           --all-targets --all-features \
           -- --warn clippy::pedantic --deny warnings
 
-  dylint:
+  custom-lints:
     runs-on: buildjet-8vcpu-ubuntu-2204
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
@@ -189,7 +189,7 @@ jobs:
 
   test:
     if: ${{ always() && !cancelled() }}
-    needs: [compiles, protos-compiled, rust, doctest, clippy, dylint, lockfile]
+    needs: [compiles, protos-compiled, rust, doctest, clippy, custom-lints, lockfile]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}
