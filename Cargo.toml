@@ -19,6 +19,26 @@ members = [
   "crates/astria-test-utils",
   "lint/*"
 ]
+# Specify default members so that cargo invocations in github actions will
+# not act on lints
+default-members = [
+  "crates/astria-celestia-client",
+  "crates/astria-celestia-mock",
+  "crates/astria-cli",
+  "crates/astria-composer",
+  "crates/astria-conductor",
+  "crates/astria-config",
+  "crates/astria-core",
+  "crates/astria-merkle",
+  "crates/astria-optimism",
+  "crates/astria-sequencer",
+  "crates/astria-sequencer-client",
+  "crates/astria-sequencer-relayer",
+  "crates/astria-sequencer-types",
+  "crates/astria-sequencer-utils",
+  "crates/astria-telemetry",
+  "crates/astria-test-utils",
+]
 resolver = "2"
 
 [workspace.metadata.dylint]

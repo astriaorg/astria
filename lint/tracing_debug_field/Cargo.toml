@@ -1,13 +1,16 @@
 [package]
 name = "tracing_debug_field"
 version = "0.1.0"
-authors = ["authors go here"]
-description = "description goes here"
+authors = ["https://astria.org"]
 edition = "2021"
 publish = false
 
 [lib]
 crate-type = ["cdylib"]
+
+[[example]]
+name = "ui"
+path = "ui/main.rs"
 
 [dependencies]
 clippy_utils = { git = "https://github.com/rust-lang/rust-clippy", rev = "b105fb4c39bc1a010807a6c076193cef8d93c109" }

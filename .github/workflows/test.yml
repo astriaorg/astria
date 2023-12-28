@@ -61,7 +61,11 @@ jobs:
           version: "24.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check that each crate compiles individually (circumventing workspace wide dependency resolution)
-        run: cargo hack check --all --all-features
+        run: |
+          cargo hack check --all-features \
+          # Explicitly exclude tracing_debug_field because cargo hack operates on all
+          # workspace members ignoring the default-members field
+          --exclude tracing_debug_field
 
   lockfile:
     runs-on: ubuntu-22.04
@@ -104,13 +108,13 @@ jobs:
           version: "nightly-60ec00296f00754bc21ed68fd05ab6b54b50e024"
       - name: Build tests
         run: |
-          cargo test --no-run --release --workspace \
+          cargo test --no-run --release \
           --all-features \
-          --all-targets \
+          --all-targets
       - name: Run tests
         timeout-minutes: 20
         run: |
-          cargo test --release --workspace \
+          cargo test --release \
           --all-features \
           --all-targets \
           -- --include-ignored
@@ -150,8 +154,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: run pedantic clippy on workspace crates
         run: |
-          cargo clippy --workspace \
-          --all-targets --all-features \
+          cargo clippy --all-targets --all-features \
           -- --warn clippy::pedantic --deny warnings
       - name: run pedantic clippy on tools/protobuf-compiler
         run: |
@@ -159,10 +162,34 @@ jobs:
           --all-targets --all-features \
           -- --warn clippy::pedantic --deny warnings
 
+  dylint:
+    runs-on: buildjet-8vcpu-ubuntu-2204
+    needs: run_checker
+    if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain
+        with:
+          # This has to match `rust-toolchain` in the rust-toolchain file of the dylint lints
+          toolchain: nightly-2023-10-6
+          components: "clippy llvm-tools-preview, rustc-dev"
+      - uses: Swatinem/rust-cache@v2.6.1
+        with:
+          cache-provider: "buildjet"
+      - name: install cargo-dylink and dylint-link
+        run: cargo install cargo-dylink@v2.5.0 dylint-link@v2.5.0 --locked
+      - name: run clippy against custom lints
+        run: |
+          cargo clippy --all-targets --all-features \
+          # Explicitly list all lints here
+          -p tracing_debug_field \
+          -- --warn clippy::pedantic --deny warnings
+      - name: run dylint clippy on workspace crates
+        run: cargo dylint --all --workspace --all-features -- --deny warnings
 
   test:
     if: ${{ always() && !cancelled() }}
-    needs: [compiles, protos-compiled, rust, doctest, clippy, lockfile]
+    needs: [compiles, protos-compiled, rust, doctest, clippy, dylint, lockfile]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}

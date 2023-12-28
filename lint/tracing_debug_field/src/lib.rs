@@ -78,7 +78,7 @@ impl<'tcx> LateLintPass<'tcx> for TracingDebugField {
                     reduced."
                 )
             }
-        )
+        );
     }
 
     fn check_expr_post(&mut self, _cx: &LateContext<'tcx>, expr: &Expr<'_>) {
