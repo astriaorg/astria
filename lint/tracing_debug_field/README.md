@@ -4,7 +4,7 @@
 
 Warns about fields in `tracing::event!` macros that are debug formatted
 using either the `?` sigil or the
-[`tracing::field::debug`](https://docs.rs/tracing/0.1.40/tracing/field/fn.debug.html) 
+[`tracing::field::debug`](https://docs.rs/tracing/0.1.40/tracing/field/fn.debug.html)
 utility.
 
 ## Why is this bad?
@@ -30,6 +30,7 @@ Depending on the complexity of what must be logged:
    be otherwise recorded and can be retrieved outside the observability intake).
 
 ## Example
+
 ```rust
 #[derive(Clone, Copy, Debug)]
 struct Wrapped(&'static str);
@@ -39,7 +40,9 @@ fn main() {
     info!(field = ?val, "using the sigil");
 }
 ```
+
 Use instead:
+
 ```rust
 use std::fmt::{self, Display, Formatter};
 
