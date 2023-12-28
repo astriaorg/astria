@@ -184,7 +184,11 @@ jobs:
           -p tracing_debug_field \
           -- --warn clippy::pedantic --deny warnings
       - name: run dylint clippy on workspace crates
-        run: cargo dylint --all --workspace -- --deny warnings
+        env:
+          # set the dylint driver path to the target/ directory so that it's hopefully cached by rust-cache
+          DYLINT_DRIVER_PATH: ${{ github.workspace }}/target/dylint_drivers
+          DYLINT_RUSTFLAGS: "-D warnings"
+        run: cargo dylint --all --workspace
 
   test:
     if: ${{ always() && !cancelled() }}
