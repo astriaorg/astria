@@ -177,6 +177,10 @@ jobs:
           cache-provider: "buildjet"
       - name: install cargo-dylint and dylint-link
         run: cargo install cargo-dylint@2.5.0 dylint-link@2.5.0 --locked
+      - uses: arduino/setup-protoc@v2
+        with:
+          version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: run clippy against custom lints
         run: |
           : # list all lint packages here to have clippy explicitly test them
