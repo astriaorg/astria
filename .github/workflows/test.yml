@@ -177,7 +177,7 @@ jobs:
         with:
           cache-provider: "buildjet"
       - name: install cargo-dylink and dylint-link
-        run: cargo install cargo-dylink@v2.5.0 dylint-link@v2.5.0 --locked
+        run: cargo install cargo-dylink@2.5.0 dylint-link@2.5.0 --locked
       - name: run clippy against custom lints
         run: |
           cargo clippy --all-targets --all-features \
