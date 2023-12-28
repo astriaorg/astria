@@ -2,11 +2,11 @@
 #![warn(unused_extern_crates)]
 
 extern crate rustc_hir;
+extern crate rustc_span;
 
 use clippy_utils::{
     diagnostics::span_lint_and_help,
     is_expr_path_def_path,
-    is_from_proc_macro,
 };
 use if_chain::if_chain;
 use rustc_hir::{
@@ -17,38 +17,44 @@ use rustc_lint::{
     LateContext,
     LateLintPass,
 };
+use rustc_span::{
+    hygiene::{
+        ExpnKind,
+        MacroKind,
+    },
+    Span,
+};
 
 const TRACING_FIELD_DEBUG: [&str; 3] = ["tracing_core", "field", "debug"];
 
-dylint_linting::declare_late_lint! {
-    /// ### What it does
-    ///
-    /// ### Why is this bad?
-    ///
-    /// ### Known problems
-    /// Remove if none.
-    ///
-    /// ### Example
-    /// ```rust
-    /// // example code where a warning is issued
-    /// ```
-    /// Use instead:
-    /// ```rust
-    /// // example code that does not raise a warning
-    /// ```
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("../README.md")]
     pub TRACING_DEBUG_FIELD,
     Warn,
-    "description goes here"
+    "use of debug formatted field in tracing event macro",
+    TracingDebugField::default()
+}
+
+#[derive(Default)]
+struct TracingDebugField {
+    event_span_depth: usize,
 }
 
 impl<'tcx> LateLintPass<'tcx> for TracingDebugField {
-    fn check_expr(&mut self, cx: &LateContext<'tcx>, expr: &Expr<'tcx>) {
+    fn check_expr(&mut self, cx: &LateContext<'tcx>, expr: &Expr<'_>) {
+        if is_in_tracing_event_macro(expr.span) {
+            self.event_span_depth += 1;
+        }
         if_chain!(
+            // match function calls, i.e. expressions f(...args)
             if let ExprKind::Call(callee, args) = expr.kind;
+            // match tracing_core::field::debug
             if is_expr_path_def_path(cx, callee, &TRACING_FIELD_DEBUG);
-            if !is_from_proc_macro(cx, expr);
+            // match only tracing::event! declarative macros ignoring instrument attributes;
+            // if `event_span_depth > 0` this means we are in a tracing::event! macro
+            if self.event_span_depth > 0;
+            // tracing_core::field::debug has one argument
             if let Some(arg) = args.first();
-
             if let
             // case 1: using the ? sigil. We know that the tracing macros
             // will transform `?foo` into `debug(&foo)`.
@@ -70,6 +76,23 @@ impl<'tcx> LateLintPass<'tcx> for TracingDebugField {
             }
         )
     }
+
+    fn check_expr_post(&mut self, _cx: &LateContext<'tcx>, expr: &Expr<'_>) {
+        if is_in_tracing_event_macro(expr.span) {
+            self.event_span_depth -= 1;
+        }
+    }
+}
+
+fn is_in_tracing_event_macro(span: Span) -> bool {
+    if_chain!(
+        if let ExpnKind::Macro(MacroKind::Bang, name) = span.ctxt().outer_expn_data().kind;
+        if name.as_str() == "$crate::event";
+        then {
+            return true;
+        }
+    );
+    false
 }
 
 #[test]
