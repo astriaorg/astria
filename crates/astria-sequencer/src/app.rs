@@ -290,7 +290,12 @@ impl App {
                     validated_txs.push(tx);
                 }
                 Err(e) => {
-                    debug!(?tx_hash, error = ?e, "failed to execute transaction, not including in block");
+                    // debug!(?tx_hash, error = ?e, "failed to execute transaction, not including in
+                    // block");
+                    debug!(
+                        ?tx_hash,
+                        "failed to execute transaction, not including in block"
+                    );
                     self.execution_result.insert(tx_hash.into(), Err(e));
                 }
             }
