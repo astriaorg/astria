@@ -88,16 +88,14 @@ fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
         Ok(Ok(())) => info!(task = task_name, "task exited successfully"),
         Ok(Err(e)) => {
             error!(
-                error.cause_chain = ?e,
-                error.message = %e,
+                error = AsRef::<dyn std::error::Error>::as_ref(&e),
                 task = task_name,
-                "task failed",
+                "task returned with error",
             );
         }
         Err(e) => {
             error!(
-                error.cause_chain = ?e,
-                error.message = %e,
+                error = &e as &dyn std::error::Error,
                 task = task_name,
                 "task failed to complete",
             );
