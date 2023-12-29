@@ -4,7 +4,8 @@ use tracing::info;
 struct Wrapped(&'static str);
 
 fn main() {
-    let val = Wrapped("wrapped");
-    info!(field = tracing::field::debug(val), "using the function");
-    info!(field = ?val, "using the sigil");
+    let field = Wrapped("wrapped");
+    info!(field = tracing::field::debug(field), "using the function");
+    info!(field = ?field, "using the sigil");
+    info!(?field, "using shorthand with sigil");
 }

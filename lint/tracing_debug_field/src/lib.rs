@@ -55,20 +55,12 @@ impl<'tcx> LateLintPass<'tcx> for TracingDebugField {
             if self.event_span_depth > 0;
             // tracing_core::field::debug has one argument
             if let Some(arg) = args.first();
-            if let
-            // case 1: using the ? sigil. We know that the tracing macros
-            // will transform `?foo` into `debug(&foo)`.
-             Expr { kind: ExprKind::AddrOf(_, _, Expr { span, ..}), .. }
-            // case2 : using tracing_core::field::debug directly. This is
-            // evaluated eagerly and the span points to the actual source,
-            // not to the generated code.
-            | Expr { span, ..}
-            = arg;
             then {
+                let span = first_span_in_crate(arg);
                 span_lint_and_help(
                     cx,
                     TRACING_DEBUG_FIELD,
-                    *span,
+                    span,
                     "tracing events must not contain debug-formatted fields",
                     None,
                     "emit the std::fmt::Display format of the object using the % sigil. \
@@ -97,6 +89,40 @@ fn is_in_tracing_event_macro(span: Span) -> bool {
         }
     );
     false
+}
+
+fn first_span_in_crate(arg: &Expr<'_>) -> Span {
+    let mut span = 'get_span: {
+        // Case 1: fields like foo = ?bar that are transformed as debug(&bar).
+        if let Expr {
+            kind:
+                ExprKind::AddrOf(
+                    _,
+                    _,
+                    Expr {
+                        span, ..
+                    },
+                ),
+            ..
+        } = arg
+        {
+            break 'get_span *span;
+        };
+        // Case 2: fields like foo = tracing::field::debug(bar) or the shorthand ?bar.
+        // These either point to the actual source as they are evaluated eagerly (first case),
+        // or are expanded inside the tracing::event! macro (short case).
+        arg.span
+    };
+
+    // Find the first span that is not from an expansion.
+    // While the cases `foo = ?bar` and `foo = debug(bar)` yield spans that directly point
+    // to source code, the shorthand `?bar` does not. Instead one has to loop over its expansion
+    // data until the first call site that is inside the crate source is found. This is usually
+    // the entire tracing::event! macro.
+    while span.from_expansion() {
+        span = span.ctxt().outer_expn_data().call_site;
+    }
+    span
 }
 
 #[test]
