@@ -134,7 +134,7 @@ impl Sequencer {
             }
 
             _ = server_exit_rx => {
-                info!("ABCI server task exited")
+                error!("ABCI server task exited, this shouldn't happen");
             }
         }
 
