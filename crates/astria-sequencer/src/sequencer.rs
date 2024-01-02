@@ -106,6 +106,7 @@ impl Sequencer {
             .ok_or_else(|| anyhow!("server builder didn't return server; are all fields set?"))?;
 
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+        let (server_exit_tx, server_exit_rx) = tokio::sync::oneshot::channel();
 
         let grpc_addr = config
             .grpc_addr
@@ -114,21 +115,26 @@ impl Sequencer {
         let grpc_server_handle = start_ibc_grpc_server(&storage, grpc_addr, shutdown_rx);
 
         info!(config.listen_addr, "starting sequencer");
+        let server_handle = tokio::spawn(async move {
+            match server.listen_tcp(&config.listen_addr).await {
+                Ok(()) => {
+                    // this shouldn't happen, as there isn't a way for the ABCI server to exit
+                    info!("ABCI server exited successfully");
+                }
+                Err(e) => {
+                    error!(err = e.as_ref(), "ABCI server exited with error");
+                }
+            }
+            let _ = server_exit_tx.send(());
+        });
+
         select! {
             _ = signals.stop_rx.changed() => {
                 info!("shutting down sequencer");
             }
 
-            res = server.listen_tcp(&config.listen_addr) => {
-                match res {
-                    Ok(()) => {
-                        // this shouldn't happen, as there isn't a way for the ABCI server to exit
-                        info!("ABCI server exited successfully");
-                    }
-                    Err(e) => {
-                        error!(err = e.as_ref(), "ABCI server exited with error");
-                    }
-                }
+            _ = server_exit_rx => {
+                error!("ABCI server task exited, this shouldn't happen");
             }
         }
 
@@ -139,6 +145,7 @@ impl Sequencer {
             .await
             .context("grpc server task failed")?
             .context("grpc server failed")?;
+        server_handle.abort();
         Ok(())
     }
 }
