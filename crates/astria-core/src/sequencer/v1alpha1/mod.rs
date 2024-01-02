@@ -10,6 +10,7 @@ use crate::{
     Protobuf,
 };
 
+pub mod abci;
 pub mod account;
 pub mod asset;
 pub mod block;
@@ -18,6 +19,7 @@ pub mod celestia;
 pub mod test_utils;
 pub mod transaction;
 
+pub use abci::AbciErrorCode;
 pub use account::{
     BalanceResponse,
     NonceResponse,

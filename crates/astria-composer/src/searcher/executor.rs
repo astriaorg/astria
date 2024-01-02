@@ -12,6 +12,7 @@ use std::{
 use astria_core::sequencer::v1alpha1::{
     asset::default_native_asset_id,
     transaction::Action,
+    AbciErrorCode,
     SignedTransaction,
     UnsignedTransaction,
 };
@@ -42,7 +43,6 @@ use sequencer_client::{
     Address,
     SequencerClientExt as _,
 };
-use sequencer_types::abci_code::AbciCode;
 use tokio::{
     select,
     sync::{
@@ -341,30 +341,32 @@ impl Future for SubmitFut {
                 SubmitStateProj::WaitingForSend {
                     fut,
                 } => match ready!(fut.poll(cx)) {
-                    Ok(rsp) => match AbciCode::from_cometbft(rsp.code) {
-                        Some(AbciCode::OK) => {
-                            info!("sequencer responded with AbciCode zero; submission successful");
+                    Ok(rsp) => {
+                        let tendermint::abci::Code::Err(code) = rsp.code else {
+                            info!("sequencer responded with ok; submission successful");
                             return Poll::Ready(Ok(*this.nonce + 1));
-                        }
-                        Some(AbciCode::INVALID_NONCE) => {
-                            info!(
-                                "sequencer responded with `invalid nonce` abci code; fetching new \
-                                 nonce"
-                            );
-                            SubmitState::WaitingForNonce {
-                                fut: get_latest_nonce(this.client.clone(), *this.address).boxed(),
+                        };
+                        match AbciErrorCode::from(code) {
+                            AbciErrorCode::INVALID_NONCE => {
+                                info!(
+                                    "sequencer rejected transaction due to invalid nonce; \
+                                     fetching new nonce"
+                                );
+                                SubmitState::WaitingForNonce {
+                                    fut: get_latest_nonce(this.client.clone(), *this.address)
+                                        .boxed(),
+                                }
+                            }
+                            _other => {
+                                warn!(
+                                    abci.code = rsp.code.value(),
+                                    abci.log = rsp.log,
+                                    "sequencer rejected the transaction; the bundle is likely lost",
+                                );
+                                return Poll::Ready(Ok(*this.nonce));
                             }
                         }
-                        _other => {
-                            warn!(
-                                abci.code = rsp.code.value(),
-                                abci.log = rsp.log,
-                                "sequencer responded with non-zero abci code; the bundle is \
-                                 likely lost",
-                            );
-                            return Poll::Ready(Ok(*this.nonce));
-                        }
-                    },
+                    }
                     Err(e) => {
                         let error: &(dyn std::error::Error + 'static) = e.as_ref();
                         error!(error, "failed sending transaction to sequencer");

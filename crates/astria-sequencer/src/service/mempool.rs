@@ -74,10 +74,12 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
 ) -> response::CheckTx {
     use astria_core::{
         generated::sequencer::v1alpha1 as raw,
-        sequencer::v1alpha1::SignedTransaction,
+        sequencer::v1alpha1::{
+            AbciErrorCode,
+            SignedTransaction,
+        },
     };
     use prost::Message as _;
-    use sequencer_types::abci_code::AbciCode;
 
     use crate::transaction;
 
@@ -86,12 +88,12 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     } = req;
     if tx.len() > MAX_TX_SIZE {
         return response::CheckTx {
-            code: AbciCode::INVALID_SIZE.into(),
+            code: AbciErrorCode::TRANSACTION_TOO_LARGE.into(),
             log: format!(
-                "transaction size too large; received: {}, allowed: {MAX_TX_SIZE}",
+                "transaction size too large; allowed: {MAX_TX_SIZE} bytes, got {}",
                 tx.len()
             ),
-            info: AbciCode::INVALID_SIZE.to_string(),
+            info: AbciErrorCode::TRANSACTION_TOO_LARGE.to_string(),
             ..response::CheckTx::default()
         };
     }
@@ -100,7 +102,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         Ok(tx) => tx,
         Err(e) => {
             return response::CheckTx {
-                code: AbciCode::INVALID_PARAMETER.into(),
+                code: AbciErrorCode::INVALID_PARAMETER.into(),
                 log: format!("{e:?}"),
                 info: "failed decoding bytes as a protobuf SignedTransaction".into(),
                 ..response::CheckTx::default()
@@ -111,7 +113,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
         Ok(tx) => tx,
         Err(e) => {
             return response::CheckTx {
-                code: AbciCode::INVALID_PARAMETER.into(),
+                code: AbciErrorCode::INVALID_PARAMETER.into(),
                 info: "the provided bytes was not a valid protobuf-encoded SignedTransaction, or \
                        the signature was invalid"
                     .into(),
@@ -127,7 +129,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     //       and a worker task similar to penumbra
     if let Err(e) = transaction::check_nonce_mempool(&signed_tx, &state).await {
         return response::CheckTx {
-            code: AbciCode::INVALID_NONCE.into(),
+            code: AbciErrorCode::INVALID_NONCE.into(),
             info: "failed verifying transaction nonce".into(),
             log: format!("{e:?}"),
             ..response::CheckTx::default()
@@ -137,7 +139,7 @@ async fn handle_check_tx<S: StateReadExt + 'static>(
     match transaction::check_stateless(&signed_tx).await {
         Ok(()) => response::CheckTx::default(),
         Err(e) => response::CheckTx {
-            code: AbciCode::INVALID_PARAMETER.into(),
+            code: AbciErrorCode::INVALID_PARAMETER.into(),
             info: "transaction failed stateless check".into(),
             log: format!("{e:?}"),
             ..response::CheckTx::default()
