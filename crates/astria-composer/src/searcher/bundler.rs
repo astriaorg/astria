@@ -103,8 +103,6 @@ impl Bundler {
         {
             // if the bundle is full, flush it and start a new one
             self.finished.push_back(self.curr_bundle.flush());
-            // TODO: this will error if the seq_action size is larger than the max bundle size -
-            // should panic if its reached this point
             self.curr_bundle
                 .push(seq_action)
                 .expect("seq_action should not be larger than max bundle size");
@@ -123,10 +121,10 @@ impl Bundler {
 
     /// Flush the current bundle into the `finished` queue. A bundle can be preempted if there are
     /// no pending `finished` and the `curr_bundle` is not empty.
-    pub(super) fn preempt_curr_bundle(&mut self) {
+    pub(super) fn flush_curr_bundle(&mut self) {
         if !self.curr_bundle.is_empty() && self.finished.is_empty() {
             debug!(
-                bundle_size=?self.curr_bundle.curr_size,
+                bundle_size = self.curr_bundle.curr_size,
                 "bundler preempting current bundle to the finished queue"
             );
             self.finished.push_back(self.curr_bundle.flush());

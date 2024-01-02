@@ -222,7 +222,7 @@ impl Executor {
 
                 // try to preempt current bundle if the timer has ticked without submitting the next bundle
                 _ = block_timer.tick(), if submission_fut.is_terminated() => {
-                    bundler.preempt_curr_bundle();
+                    bundler.flush_curr_bundle();
                 }
             }
         }
