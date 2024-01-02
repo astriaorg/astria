@@ -31,7 +31,10 @@ use tracing::{
     warn,
 };
 
-use crate::Config;
+use crate::{
+    searcher::bundler::seq_action_size,
+    Config,
+};
 
 mod bundler;
 mod collector;
@@ -132,7 +135,7 @@ impl Searcher {
             &cfg.private_key,
             seq_actions_rx,
             cfg.block_time,
-            cfg.max_bundle_size,
+            cfg.max_bundle_bytes,
         )
         .wrap_err("executor construction from config failed")?;
 
@@ -147,7 +150,7 @@ impl Searcher {
             collector_tasks: JoinMap::new(),
             conversion_tasks: JoinSet::new(),
             seq_actions_tx,
-            max_bundle_sz: cfg.max_bundle_size,
+            max_bundle_sz: cfg.max_bundle_bytes,
             executor_status,
             executor: Some(executor),
             rollups,
@@ -220,7 +223,7 @@ impl Searcher {
                 Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
                     match join_result {
                         Ok(seq_action) => {
-                            let seq_action_size = seq_action.data.len() + ROLLUP_ID_LEN;
+                            let seq_action_size = seq_action_size(&seq_action);
                             match self.seq_actions_tx.try_send(seq_action) {
                                 Ok(()) => {
                                     // TODO: use span from the rollup transaction to log here instead

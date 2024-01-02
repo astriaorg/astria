@@ -532,7 +532,7 @@ mod tests {
                 .to_string()
                 .into(),
             block_time: 2000,
-            max_bundle_size: 1000,
+            max_bundle_bytes: 1000,
         };
         (server, startup_guard, cfg)
     }
@@ -644,7 +644,7 @@ mod tests {
             &cfg.private_key,
             seq_actions_rx,
             cfg.block_time,
-            cfg.max_bundle_size,
+            cfg.max_bundle_bytes,
         )
         .unwrap();
         let status = executor.subscribe();
@@ -660,7 +660,7 @@ mod tests {
         // order to make space for the second
         let seq0 = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0u8; cfg.max_bundle_size - ROLLUP_ID_LEN],
+            data: vec![0u8; cfg.max_bundle_bytes - ROLLUP_ID_LEN],
         };
 
         let seq1 = SequenceAction {
@@ -723,7 +723,7 @@ mod tests {
             &cfg.private_key,
             seq_actions_rx,
             cfg.block_time,
-            cfg.max_bundle_size,
+            cfg.max_bundle_bytes,
         )
         .unwrap();
         let status = executor.subscribe();
@@ -738,7 +738,7 @@ mod tests {
         // without filling it
         let seq0 = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0u8; cfg.max_bundle_size / 4],
+            data: vec![0u8; cfg.max_bundle_bytes / 4],
         };
 
         // make sure at least one block has passed so that the executor will submit the bundle
@@ -798,7 +798,7 @@ mod tests {
             &cfg.private_key,
             seq_actions_rx,
             cfg.block_time,
-            cfg.max_bundle_size,
+            cfg.max_bundle_bytes,
         )
         .unwrap();
         let status = executor.subscribe();
@@ -813,12 +813,12 @@ mod tests {
         // without filling it
         let seq0 = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0u8; cfg.max_bundle_size / 4],
+            data: vec![0u8; cfg.max_bundle_bytes / 4],
         };
 
         let seq1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-            data: vec![1u8; cfg.max_bundle_size / 4],
+            data: vec![1u8; cfg.max_bundle_bytes / 4],
         };
 
         // make sure at least one block has passed so that the executor will submit the bundle

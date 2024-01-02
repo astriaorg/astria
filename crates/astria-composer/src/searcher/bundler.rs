@@ -48,7 +48,7 @@ impl SizedBundle {
     /// Buffer `seq_action` into the bundle. If the bundle won't fit `seq_action`, flush `buffer`,
     /// returning it, and start building up a new buffer using `seq_action`.
     fn push(&mut self, seq_action: SequenceAction) -> Result<(), SizedBundleError> {
-        let seq_action_size = seq_action.data.len() + ROLLUP_ID_LEN;
+        let seq_action_size = seq_action_size(&seq_action);
         if self.curr_size + seq_action_size > self.max_size {
             return Err(SizedBundleError::NotEnoughSpace(seq_action));
         }
@@ -130,4 +130,8 @@ impl Bundler {
             self.finished.push_back(self.curr_bundle.flush());
         }
     }
+}
+
+pub(super) fn seq_action_size(seq_action: &SequenceAction) -> usize {
+    seq_action.data.len() + ROLLUP_ID_LEN
 }

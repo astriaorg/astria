@@ -35,7 +35,7 @@ pub struct Config {
 
     /// Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
     /// public key, nonce. This is the sum of the sizes of all the `SequenceAction`s
-    pub max_bundle_size: usize,
+    pub max_bundle_bytes: usize,
 }
 
 impl config::Config for Config {
