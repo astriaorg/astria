@@ -266,18 +266,27 @@ impl App {
 
         for tx in txs {
             let Some(signed_tx) = raw::SignedTransaction::decode(&*tx)
-            .map_err(|err| {
-                debug!(error = ?err, "failed to deserialize bytes as a signed transaction");
-                err
-            })
-            .ok()
-            .and_then(|raw_tx| SignedTransaction::try_from_raw(raw_tx)
-                .map_err(|err| {
-                    debug!(error = ?err, "failed to convert raw signed transaction to native signed transaction");
-                    err
+                .map_err(|e| {
+                    debug!(
+                        error = &e as &dyn std::error::Error,
+                        "failed to deserialize bytes as a signed transaction",
+                    );
+                    e
                 })
                 .ok()
-            ) else {
+                .and_then(|raw_tx| {
+                    SignedTransaction::try_from_raw(raw_tx)
+                        .map_err(|e| {
+                            debug!(
+                                error = &e as &dyn std::error::Error,
+                                "failed to convert raw signed transaction to native signed \
+                                 transaction"
+                            );
+                            e
+                        })
+                        .ok()
+                })
+            else {
                 continue;
             };
 
@@ -290,10 +299,9 @@ impl App {
                     validated_txs.push(tx);
                 }
                 Err(e) => {
-                    // debug!(?tx_hash, error = ?e, "failed to execute transaction, not including in
-                    // block");
                     debug!(
-                        ?tx_hash,
+                        transaction_hash = %telemetry::display::hex(&tx_hash),
+                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to execute transaction, not including in block"
                     );
                     self.execution_result.insert(tx_hash.into(), Err(e));
@@ -369,7 +377,10 @@ impl App {
     /// successfully.
     ///
     /// Note that `begin_block` is now called *after* transaction execution.
-    #[instrument(name = "App::deliver_tx", skip(self))]
+    #[instrument(name = "App::deliver_tx", skip_all, fields(
+        signed_transaction_hash = %telemetry::display::hex(&signed_tx.to_raw().encode_to_vec()),
+        sender = %Address::from_verification_key(signed_tx.verification_key()),
+    ))]
     pub(crate) async fn deliver_tx(
         &mut self,
         signed_tx: astria_core::sequencer::v1alpha1::SignedTransaction,
@@ -407,10 +418,9 @@ impl App {
         let height = self.state.get_block_height().await.expect(
             "block height must be set, as `begin_block` is always called before `deliver_tx`",
         );
+
         info!(
-            ?signed_tx,
             height = height + 1,
-            sender = %Address::from_verification_key(signed_tx.verification_key()),
             event_count = events.len(),
             "executed transaction"
         );
@@ -481,7 +491,10 @@ impl App {
             .commit(state)
             .await
             .expect("must be able to successfully commit to storage");
-        tracing::debug!(?app_hash, "finished committing state");
+        tracing::debug!(
+            app_hash = %telemetry::display::hex(&app_hash),
+            "finished committing state",
+        );
 
         // Get the latest version of the state, now that we've committed it.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
