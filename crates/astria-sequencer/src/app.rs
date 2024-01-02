@@ -26,7 +26,10 @@ use cnidarium::{
     Storage,
 };
 use prost::Message as _;
-use sha2::Digest as _;
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 use tendermint::abci::{
     self,
     Event,
@@ -291,7 +294,7 @@ impl App {
             };
 
             // store transaction execution result, indexed by tx hash
-            let tx_hash = sha2::Sha256::digest(&tx);
+            let tx_hash = Sha256::digest(&tx);
             match self.deliver_tx(signed_tx.clone()).await {
                 Ok(events) => {
                     self.execution_result.insert(tx_hash.into(), Ok(events));
@@ -378,7 +381,7 @@ impl App {
     ///
     /// Note that `begin_block` is now called *after* transaction execution.
     #[instrument(name = "App::deliver_tx", skip_all, fields(
-        signed_transaction_hash = %telemetry::display::hex(&signed_tx.to_raw().encode_to_vec()),
+        signed_transaction_hash = %telemetry::display::hex(&Sha256::digest(signed_tx.to_raw().encode_to_vec())),
         sender = %Address::from_verification_key(signed_tx.verification_key()),
     ))]
     pub(crate) async fn deliver_tx(
