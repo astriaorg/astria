@@ -11,10 +11,9 @@ copy-env type=default_env:
 run:
   cargo run
 
-
 run-cometbft:
   cometbft init
-  ../../target/debug/astria-sequencer-utils --genesis-app-state-file=test-genesis-app-state.json --destination-genesis-file=$HOME/.cometbft/config/genesis.json
+  ../../target/debug/astria-sequencer-utils --genesis-app-state-file=test-genesis-app-state.json --destination-genesis-file=$HOME/.cometbft/config/genesis.json --chain-id=astria
   sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "15s"/g' ~/.cometbft/config/config.toml
   cometbft node
 
