@@ -523,7 +523,7 @@ dependencies = [
 
 [[package]]
 name = "astria-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "assert_cmd",
  "astria-core",
@@ -695,6 +695,7 @@ dependencies = [
  "ed25519-consensus",
  "futures",
  "hex",
+ "ibc-proto",
  "ibc-types",
  "matchit",
  "penumbra-ibc",
@@ -708,9 +709,11 @@ dependencies = [
  "tendermint 0.34.0",
  "tendermint-proto 0.34.0",
  "tokio",
+ "tonic",
  "tower",
  "tower-abci",
  "tower-actor",
+ "tower-http",
  "tracing",
 ]
 
@@ -3131,6 +3134,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "http-range-header"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "add0ab9360ddbd88cfeb3bd9574a1d85cfdfa14db10b3e21d3700dbc4328758f"
+
+[[package]]
 name = "http-types"
 version = "2.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4815,6 +4824,7 @@ dependencies = [
  "sha2 0.10.8",
  "tendermint 0.34.0",
  "tendermint-light-client-verifier",
+ "tonic",
  "tower",
  "tracing",
 ]
@@ -7117,6 +7127,24 @@ dependencies = [
  "tokio-util 0.7.10",
  "tower",
  "tracing",
+]
+
+[[package]]
+name = "tower-http"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61c5bb1d698276a2443e5ecfabc1008bf15a36c12e6a7176e7bf089ea9131140"
+dependencies = [
+ "bitflags 2.4.1",
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "http",
+ "http-body",
+ "http-range-header",
+ "pin-project-lite",
+ "tower-layer",
+ "tower-service",
 ]
 
 [[package]]

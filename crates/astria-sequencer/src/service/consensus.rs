@@ -187,7 +187,10 @@ impl Consensus {
             .deliver_tx_after_execution(&tx_hash)
             .expect("all transactions in the block must have already been executed")
         {
-            Ok(_events) => response::DeliverTx::default(),
+            Ok(events) => response::DeliverTx {
+                events,
+                ..Default::default()
+            },
             Err(e) => {
                 // we don't want to panic on failing to deliver_tx as that would crash the entire
                 // node
