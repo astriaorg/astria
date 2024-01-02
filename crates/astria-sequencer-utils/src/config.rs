@@ -7,6 +7,9 @@ pub struct Config {
 
     #[clap(long)]
     pub destination_genesis_file: String,
+
+    #[clap(long)]
+    pub chain_id: String,
 }
 
 impl Config {
