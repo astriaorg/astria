@@ -14,6 +14,11 @@ install-cli:
 compile-protos:
   cargo run --manifest-path tools/protobuf-compiler/Cargo.toml
 
+update-containerfiles-cargo-toml:
+  dasel delete -r toml -f Cargo.toml -o - 'workspace.default-members' \
+  | taplo fmt - --stdin-filepath Cargo.toml \
+  > containerfiles/Cargo.toml
+
 ## Scripts related to formatting code
 default_lang := 'all'
 
