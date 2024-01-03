@@ -29,7 +29,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
-      - name: Install `just` command runner
+      - name: Install just
         uses:  taiki-e/install-action@just
       - name: Check if protobuf specs compile to commited Rust sources
         run: |
@@ -37,11 +37,42 @@ jobs:
           modified=$(git status --porcelain)
           if [[ -n "$modified" ]]; then
             echo "ERROR: protobuf specs are out of sync with the commited Rust sources"
-            echo "Recompile locally with `just compile-protos` and commit to the repository."            exit 1
+            echo "Recompile locally with \`just compile-protos\` and commit to the repository."
             echo "Files that reported differences:"
             echo "$modified"
             exit 1
           fi
+
+  cargo-toml-synced-with-containerfiles:
+    runs-on: ubuntu-22.04
+    needs: run_checker
+    if: needs.run_checker.outputs.run_tests == 'true'
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download and install dasel
+        run: |
+          curl -fsSL \
+            https://github.com/TomWright/dasel/releases/download/v2.5.0/dasel_linux_amd64.gz \
+            | gzip -d - \
+            | install -m 755 /dev/stdin /usr/local/bin/dasel
+      - name: Download and install taplo
+        run: |
+          curl -fsSL \
+          https://github.com/tamasfe/taplo/releases/download/0.8.1/taplo-full-linux-x86_64.gz \
+          | gzip -d - \
+          | install -m 755 /dev/stdin /usr/local/bin/taplo
+      - name: Install just
+        uses: taiki-e/install-action@just
+      - name: Check if containerfiles/Cargo.toml is in sync with Cargo.toml
+        run: |
+          just update-containerfiles-cargo-toml
+          modified=$(git status --porcelain)
+          if [[ -n $modified ]]; then
+            echo "ERROR: containerfiles/Cargo.toml is out of sync with workspcae Cargo.toml"
+            echo "Run locally with \`just update-container-files-cargo-toml\` and commit to the repository."
+            exit 1
+          fi
+
 
   compiles:
     runs-on: buildjet-4vcpu-ubuntu-2204
@@ -198,7 +229,7 @@ jobs:
 
   test:
     if: ${{ always() && !cancelled() }}
-    needs: [compiles, protos-compiled, rust, doctest, clippy, lockfile, custom-lints]
+    needs: [compiles, protos-compiled, rust, doctest, clippy, lockfile, custom-lints, cargo-toml-synced-with-containerfiles]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}
