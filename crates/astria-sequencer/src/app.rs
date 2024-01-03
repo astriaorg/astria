@@ -160,6 +160,18 @@ impl App {
         Ok(())
     }
 
+    fn update_state_for_new_round(&mut self, storage: &Storage) {
+        // reset app state to latest committed state, in case of a round not being committed
+        // but `self.state` was changed due to executing the previous round's data.
+        //
+        // if the previous round was committed, then the state stays the same.
+        self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
+
+        // clear the cache of transaction execution results
+        self.execution_result.clear();
+        self.processed_txs = 0;
+    }
+
     /// Generates a commitment to the `sequence::Actions` in the block's transactions.
     ///
     /// This is required so that a rollup can easily verify that the transactions it
@@ -172,12 +184,11 @@ impl App {
     pub(crate) async fn prepare_proposal(
         &mut self,
         prepare_proposal: abci::request::PrepareProposal,
+        storage: Storage,
     ) -> abci::response::PrepareProposal {
-        // clear the cache of transaction execution results
-        self.execution_result.clear();
-        self.processed_txs = 0;
         self.is_proposer = true;
         self.is_validator = true;
+        self.update_state_for_new_round(&storage);
 
         let (signed_txs, txs_to_include) = self.execute_block_data(prepare_proposal.txs).await;
 
@@ -197,6 +208,7 @@ impl App {
     pub(crate) async fn process_proposal(
         &mut self,
         process_proposal: abci::request::ProcessProposal,
+        storage: Storage,
     ) -> anyhow::Result<()> {
         // if we proposed this block (ie. prepare_proposal was called directly before this), then
         // we skip execution for this `process_proposal` call.
@@ -212,9 +224,7 @@ impl App {
         self.is_proposer = false;
         self.is_validator = true;
 
-        // clear the cache of transaction execution results
-        self.execution_result.clear();
-        self.processed_txs = 0;
+        self.update_state_for_new_round(&storage);
 
         let mut txs = VecDeque::from(process_proposal.txs);
         let received_action_commitment: [u8; 32] = txs
