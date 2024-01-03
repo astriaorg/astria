@@ -31,7 +31,7 @@ use tracing::{
 
 /// `BlockVerifier` is verifying blocks received from celestia.
 #[derive(Clone)]
-pub(super) struct BlockVerifier {
+pub(crate) struct BlockVerifier {
     pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
 }
 

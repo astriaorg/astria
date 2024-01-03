@@ -33,34 +33,41 @@ use crate::{
     executor,
 };
 
-pub(crate) async fn find_da_block_with_sequencer_data(
+pub(crate) async fn find_data_availability_blob_with_sequencer_data(
     start_height: Height,
     celestia_client: HttpClient,
     sequencer_namespace: Namespace,
-    da_block_range: u32,
-) -> Height {
+    da_search_window: u32,
+) -> eyre::Result<Height> {
     let mut height = start_height;
     let mut loop_count = 0;
     loop {
-        assert!(
-            loop_count <= da_block_range,
-            "{}",
-            format!("initial sequencer block not found after searching {da_block_range} da blocks")
-        );
+        // assert!(
+        //     loop_count <= da_search_window,
+        //     "{}",
+        //     format!(
+        //         "initial sequencer block not found after searching {da_search_window} da blocks"
+        //     )
+        // );
+        if loop_count > da_search_window {
+            break Err(eyre::eyre!(
+                "initial sequencer block not found after searching {da_search_window} da blocks"
+            ));
+        }
         let sequencer_blobs = celestia_client
             .get_sequencer_blobs(height, sequencer_namespace)
             .await;
 
         match sequencer_blobs {
             Ok(_blobs) => {
-                info!(height = %height.value(), "found sequencer blob");
-                break height;
+                info!(height = %height, "found sequencer blob");
+                break Ok(height);
             }
             Err(error) => {
-                warn!(height = %height.value(), error = %error, "error returned when fetching sequencer data; skipping");
+                let error = &error as &(dyn std::error::Error + 'static);
+                warn!(height = %height, error, "error returned when fetching sequencer data; skipping");
                 height = height.increment();
                 loop_count += 1;
-                continue;
             }
         }
     }
@@ -99,7 +106,6 @@ pub(crate) async fn get_new_sequencer_block_data_with_retry(
             .get_sequencer_blobs(height, sequencer_namespace)
             .await
             .wrap_err("failed to fetch sequencer data from celestia")
-            // .map(|rsp| rsp.datas)
             .map(|rsp| rsp.sequencer_blobs)
     })
     .with_config(retry_config)
@@ -183,7 +189,7 @@ pub(crate) async fn run(
             }
 
             else => {
-                info!("DA sync finished");
+                info!("sync finished");
                 break 'sync Ok(())
             }
         );

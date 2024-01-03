@@ -16,7 +16,10 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use futures::{
-    future::FusedFuture,
+    future::{
+        ready,
+        FusedFuture,
+    },
     FutureExt,
 };
 use proto::native::sequencer::v1alpha1::RollupId;
@@ -123,7 +126,7 @@ pub(crate) struct Reader {
 
     /// The number of blocks on DA in which the first sequencer block for the rollup should be
     /// found
-    da_block_range: u32,
+    da_search_window: u32,
 
     shutdown: oneshot::Receiver<()>,
 
@@ -138,25 +141,37 @@ pub(crate) struct CelestiaReaderConfig {
     pub(crate) poll_interval: Duration,
 }
 
+#[derive(Clone)]
+pub(crate) struct ReaderInitHeightData {
+    pub(crate) initial_da_height: u32,
+    pub(crate) initial_seq_height: u32,
+    pub(crate) firm_commit_height: u32,
+    pub(crate) da_block_search_window: u32,
+}
+
+pub(crate) struct ReaderChannels {
+    pub(crate) executor_tx: executor::Sender,
+    pub(crate) shutdown: oneshot::Receiver<()>,
+    pub(crate) sync_done: Option<oneshot::Sender<()>>,
+}
+
+#[derive(Clone)]
+pub(crate) struct ReaderNamespaceData {
+    pub(crate) sequencer_namespace: Namespace,
+    pub(crate) rollup_namespace: Namespace,
+}
+
 impl Reader {
     /// Creates a new Reader instance and returns a command sender.
-    #[allow(clippy::too_many_arguments)]
+    #[instrument(skip_all)]
     pub(crate) async fn new(
-        initial_da_height: u32,
-        initial_seq_height: u32,
-        firm_commit_height: u32,
-        da_block_range: u32,
+        init_height_data: ReaderInitHeightData,
         celestia_config: CelestiaReaderConfig,
-        executor_tx: executor::Sender,
         sequencer_client_pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
-        sequencer_namespace: Namespace,
-        rollup_namespace: Namespace,
-        shutdown: oneshot::Receiver<()>,
-        sync_done: Option<oneshot::Sender<()>>,
+        namespace_data: ReaderNamespaceData,
+        channels: ReaderChannels,
     ) -> eyre::Result<Self> {
         use celestia_client::celestia_rpc::HeaderClient;
-
-        info!("creating da reader");
 
         let block_verifier = BlockVerifier::new(sequencer_client_pool);
 
@@ -179,7 +194,7 @@ impl Reader {
             .height;
 
         Ok(Self {
-            executor_tx,
+            executor_tx: channels.executor_tx,
             celestia_client,
             celestia_poll_interval: celestia_config.poll_interval,
             current_block_height,
@@ -187,25 +202,21 @@ impl Reader {
             fetch_sequencer_blobs_at_height: JoinMap::new(),
             verify_sequencer_blobs_and_assemble_rollups: JoinMap::new(),
             block_verifier,
-            sequencer_namespace,
-            rollup_namespace,
-            initial_seq_block_height: initial_seq_height,
-            initial_da_block_height: initial_da_height,
-            firm_commit_height,
-            da_block_range,
-            shutdown,
-            sync_done,
+            sequencer_namespace: namespace_data.sequencer_namespace,
+            rollup_namespace: namespace_data.rollup_namespace,
+            initial_seq_block_height: init_height_data.initial_seq_height,
+            initial_da_block_height: init_height_data.initial_da_height,
+            firm_commit_height: init_height_data.firm_commit_height,
+            da_search_window: init_height_data.da_block_search_window,
+            shutdown: channels.shutdown,
+            sync_done: channels.sync_done,
         })
     }
 
     #[instrument(skip(self))]
     pub(crate) async fn run_da_sync(mut self) -> eyre::Result<()> {
         // Setup a dummy future that is always ready to be polled
-        #[allow(clippy::unused_async)]
-        async fn ready() -> eyre::Result<()> {
-            Ok(())
-        }
-        let mut sync = ready().boxed().fuse();
+        let mut sync = ready(Ok(())).boxed().fuse();
 
         info!("syncing from DA");
 
@@ -229,9 +240,9 @@ impl Reader {
                 self.firm_commit_height,
                 self.initial_seq_block_height,
                 self.sequencer_namespace,
-                self.da_block_range,
+                self.da_search_window,
             )
-            .await;
+            .await?;
 
             let latest_height = u32::try_from(
                 find_latest_height(self.celestia_client.clone())
@@ -504,27 +515,40 @@ async fn find_da_sync_start_height(
     initial_seq_block_height: u32,
     sequencer_namespace: Namespace,
     da_block_range: u32,
-) -> u32 {
+) -> eyre::Result<u32> {
     debug!("finding da sync start height");
     debug!(initial_da_height = %initial_da_height);
     debug!(firm_commit_height = %firm_commit_height);
 
     if firm_commit_height == 0 {
-        return initial_da_height;
+        return Ok(initial_da_height);
     }
 
     // find a da block with sequencer data
-    let mut guess_blob_height = Height::from(initial_da_height);
-    debug!(guess_block_height = %guess_blob_height, "guessing da block height before simple search");
-    guess_blob_height = sync::find_da_block_with_sequencer_data(
-        guess_blob_height,
+    // let mut guess_blob_height = Height::from(initial_da_height);
+    // debug!(guess_block_height = %guess_blob_height, "guessing da block height before simple
+    // search");
+    let guess_blob_height = sync::find_data_availability_blob_with_sequencer_data(
+        Height::from(initial_da_height),
         client.clone(),
         sequencer_namespace,
         da_block_range,
     )
     .await;
 
-    debug!(guess_block_height = %guess_blob_height, "guess da block height after simple search");
+    let mut guess_blob_height = match guess_blob_height {
+        Ok(height) => {
+            debug!(height = %height, "found da block with sequencer data");
+            height
+            // return u32::try_from(height.value()).expect("casting from u64 to u32 failed");
+        }
+        Err(e) => {
+            // let error = &e as &(dyn std::error::Error + 'static);
+            // warn!(error, "failed to find da block with sequencer data");
+            return Err(e);
+        }
+    };
+    // debug!(guess_block_height = %guess_blob_height, "guess da block height after simple search");
 
     // find the da block with the sequencer data that contains the firm commit
     // height for the rollup
@@ -553,8 +577,8 @@ async fn find_da_sync_start_height(
                     h == firm_commit_height
                 }) {
                     info!(height = %guess_blob_height.value(), "firm commit found in da block");
-                    return u32::try_from(guess_blob_height.value())
-                        .expect("casting from u64 to u32 failed");
+                    return Ok(u32::try_from(guess_blob_height.value())
+                        .expect("casting from u64 to u32 failed"));
                 }
             }
             Err(error) => {

@@ -18,7 +18,6 @@ use ethers::prelude::{
 use futures::future::Fuse;
 use proto::generated::execution::v1alpha2::{
     execution_service_client::ExecutionServiceClient,
-    // CommitmentState,
     GetCommitmentStateRequest,
 };
 use tokio::{
@@ -56,10 +55,8 @@ use crate::{
         self,
         CelestiaReaderConfig,
     },
-    // executor,
     executor::{
         Executor,
-        // ExecutorCommand::GetExecutableBlockHeight,
         ExecutorCommitmentState,
     },
     sequencer,
@@ -82,8 +79,6 @@ pub struct Conductor {
     /// block height and sequencer block height
     initial_sequencer_block_height: u32,
 
-    // /// The executor that is spawned at the start of the conductor.
-    // executor: Executor,
     /// The object pool of sequencer clients that restarts the websocket connection
     /// on failure.
     sequencer_client_pool: deadpool::managed::Pool<ClientProvider>,
@@ -108,8 +103,6 @@ pub struct Conductor {
 
     /// The URL of the rollup end point
     execution_rpc_url: String,
-    // /// Sender channel to the Executor
-    // executor_tx: executor::Sender,
 }
 
 impl Conductor {
@@ -140,6 +133,7 @@ impl Conductor {
         let rollup_id =
             proto::native::sequencer::v1alpha1::RollupId::from_unhashed_bytes(&cfg.chain_id);
 
+        // TODO: this can be its own function
         // Spawn the executor task.
         let (executor_tx, soft_commit_height, firm_commit_height) = {
             let (block_tx, block_rx) = mpsc::unbounded_channel();
@@ -184,8 +178,9 @@ impl Conductor {
 
         let mut sequencer_reader = None;
 
-        info!(execution_commit_level = ?cfg.execution_commit_level);
+        info!(execution_commit_level = %cfg.execution_commit_level);
 
+        // TODO: this can be its own function
         match cfg.execution_commit_level {
             CommitLevel::SoftOnly => {
                 info!("only syncing from sequencer");
@@ -273,36 +268,55 @@ impl Conductor {
             let firm_commit_height = u32::try_from(firm_commit_height.value())
                 .expect("casting from u64 to u32 failed")
                 - cfg.initial_sequencer_block_height;
-            let da_reader = data_availability::Reader::new(
-                cfg.initial_da_block_height,
-                cfg.initial_sequencer_block_height,
+
+            // collect the block height data needed for creating the data availability reader
+            let da_init_height_data = data_availability::ReaderInitHeightData {
+                initial_da_height: cfg.initial_celestia_block_height,
+                initial_seq_height: cfg.initial_sequencer_block_height,
                 firm_commit_height,
-                cfg.da_block_range,
-                celestia_config.clone(),
-                executor_tx.clone(),
-                sequencer_client_pool.clone(),
+                da_block_search_window: cfg.celestia_search_window,
+            };
+
+            // collect the namespace data needed for creating the data availability reader
+            let da_namespace_data = data_availability::ReaderNamespaceData {
                 sequencer_namespace,
-                celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id),
-                shutdown_rx,
-                None,
+                rollup_namespace: celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id),
+            };
+
+            // collect the channels needed for creating the data availability reader
+            let da_reader_channels = data_availability::ReaderChannels {
+                executor_tx: executor_tx.clone(),
+                shutdown: shutdown_rx,
+                sync_done: None,
+            };
+
+            // create the data availability reader for normal operation
+            let da_reader = data_availability::Reader::new(
+                da_init_height_data.clone(),
+                celestia_config.clone(),
+                sequencer_client_pool.clone(),
+                da_namespace_data.clone(),
+                da_reader_channels,
             )
             .await
             .wrap_err("failed constructing data availability reader")?;
             data_availability_reader = Some(da_reader);
             shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
 
+            // collect the channels needed for creating the data availability syncer
+            let da_syncer_channels = data_availability::ReaderChannels {
+                executor_tx: executor_tx.clone(),
+                shutdown: sync_shutdown_rx,
+                sync_done: Some(sync_done_tx),
+            };
+
+            // create the data availability reader for sync operation
             let da_syncer = data_availability::Reader::new(
-                cfg.initial_da_block_height,
-                cfg.initial_sequencer_block_height,
-                firm_commit_height,
-                cfg.da_block_range,
+                da_init_height_data,
                 celestia_config,
-                executor_tx.clone(),
                 sequencer_client_pool.clone(),
-                sequencer_namespace,
-                celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id),
-                sync_shutdown_rx,
-                Some(sync_done_tx),
+                da_namespace_data,
+                da_syncer_channels,
             )
             .await
             .wrap_err("failed constructing data availability reader")?;
@@ -325,7 +339,6 @@ impl Conductor {
             tasks,
             execution_commit_level: cfg.execution_commit_level,
             execution_rpc_url: cfg.execution_rpc_url,
-            // executor_tx,
         })
     }
 

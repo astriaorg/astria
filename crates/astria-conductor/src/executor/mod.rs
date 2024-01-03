@@ -513,10 +513,10 @@ impl Executor {
         &mut self,
         blocks: Vec<SequencerBlockSubset>,
     ) -> Result<()> {
-        if blocks.is_empty() {
-            info!("received a message from data availability without blocks; skipping execution");
-            return Ok(());
-        }
+        // if blocks.is_empty() {
+        //     info!("received a message from data availability without blocks; skipping
+        // execution");     return Ok(());
+        // }
         for block in blocks {
             let finalizable_block_height = self
                 .calculate_finalizable_block_height()

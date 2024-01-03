@@ -1,5 +1,7 @@
 //! The conductor configuration.
 
+use std::fmt;
+
 use serde::{
     Deserialize,
     Serialize,
@@ -10,6 +12,16 @@ pub enum CommitLevel {
     SoftOnly,
     FirmOnly,
     SoftAndFirm,
+}
+
+impl fmt::Display for CommitLevel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CommitLevel::SoftOnly => write!(f, "SoftOnly"),
+            CommitLevel::FirmOnly => write!(f, "FirmOnly"),
+            CommitLevel::SoftAndFirm => write!(f, "SoftAndFirm"),
+        }
+    }
 }
 
 impl CommitLevel {
@@ -47,10 +59,11 @@ pub struct Config {
     pub initial_sequencer_block_height: u32,
 
     /// The DA block height that the rollup's first block was in
-    pub initial_da_block_height: u32,
+    pub initial_celestia_block_height: u32,
 
-    /// The number of block on DA in which the first sequencer block for the rollup should be found
-    pub da_block_range: u32,
+    /// The number of block on Celestia in which the first sequencer block for the rollup should be
+    /// found
+    pub celestia_search_window: u32,
 
     /// The execution commit level used for controlling how blocks are sent to
     /// the execution layer.
