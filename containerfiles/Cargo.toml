@@ -1,88 +1,94 @@
 [workspace]
-exclude = ['tools/protobuf-compiler']
+exclude = ["tools/protobuf-compiler"]
+
 members = [
-  'crates/astria-celestia-client',
-  'crates/astria-celestia-mock',
-  'crates/astria-cli',
-  'crates/astria-composer',
-  'crates/astria-conductor',
-  'crates/astria-config',
-  'crates/astria-core',
-  'crates/astria-merkle',
-  'crates/astria-optimism',
-  'crates/astria-sequencer',
-  'crates/astria-sequencer-client',
-  'crates/astria-sequencer-relayer',
-  'crates/astria-sequencer-utils',
-  'crates/astria-telemetry',
-  'crates/astria-test-utils',
-  'lint/*',
+  "crates/astria-celestia-client",
+  "crates/astria-celestia-mock",
+  "crates/astria-cli",
+  "crates/astria-composer",
+  "crates/astria-conductor",
+  "crates/astria-config",
+  "crates/astria-core",
+  "crates/astria-merkle",
+  "crates/astria-optimism",
+  "crates/astria-sequencer",
+  "crates/astria-sequencer-client",
+  "crates/astria-sequencer-relayer",
+  "crates/astria-sequencer-utils",
+  "crates/astria-telemetry",
+  "crates/astria-test-utils",
+  "lint/*",
 ]
-resolver = '2'
+# Specify default members so that cargo invocations in github actions will
+# not act on lints
+default-members = [
+  "crates/astria-celestia-client",
+  "crates/astria-celestia-mock",
+  "crates/astria-cli",
+  "crates/astria-composer",
+  "crates/astria-conductor",
+  "crates/astria-config",
+  "crates/astria-core",
+  "crates/astria-merkle",
+  "crates/astria-optimism",
+  "crates/astria-sequencer",
+  "crates/astria-sequencer-client",
+  "crates/astria-sequencer-relayer",
+  "crates/astria-sequencer-utils",
+  "crates/astria-telemetry",
+  "crates/astria-test-utils",
+]
+resolver = "2"
+
+[workspace.metadata.dylint]
+libraries = [{ path = "lint/tracing_debug_field" }]
 
 [workspace.dependencies]
-async-trait = '0.1.52'
-axum = '0.6.16'
-backon = '0.4.1'
-base64 = '0.21'
-base64-serde = '0.7.0'
-bytes = '1.4'
-clap = '4'
-color-eyre = '0.6'
-ed25519-consensus = '2.1.0'
-ethers = '2.0.11'
-eyre = '0.6'
-futures = '0.3'
-hex = '0.4'
-hex-literal = '0.4.1'
-humantime = '2.1.0'
-hyper = '0.14'
-ibc-types = '0.10.0'
-once_cell = '1.17.1'
-prost = '0.12'
-prost-types = '0.12'
-rand = '0.8.5'
-regex = '1.9'
-serde = '1'
-serde_json = '1'
-sha2 = '0.10'
-tempfile = '3.6.0'
-tendermint = '0.34.0'
-tendermint-config = '0.34.0'
-tendermint-proto = '0.34.0'
-tendermint-rpc = '0.34.0'
-thiserror = '1'
-tokio = '1.28'
-tokio-test = '0.4.2'
-tokio-util = '0.7.9'
-tonic = '0.10'
-tracing = '0.1'
-tryhard = '0.5.1'
-which = '4.4.0'
-wiremock = '0.5'
-
-[workspace.dependencies.jsonrpsee]
-version = '0.20'
-
-[workspace.dependencies.penumbra-ibc]
-default-features = false
-git = 'https://github.com/penumbra-zone/penumbra.git'
-tag = 'v0.64.1'
-
-[workspace.dependencies.penumbra-proto]
-git = 'https://github.com/penumbra-zone/penumbra.git'
-tag = 'v0.64.1'
-
-[workspace.dependencies.penumbra-tower-trace]
-git = 'https://github.com/penumbra-zone/penumbra.git'
-tag = 'v0.64.1'
-
-[workspace.dependencies.reqwest]
-default-features = false
-features = ['rustls-tls']
-version = '0.11'
-
-[workspace.metadata]
-[workspace.metadata.dylint]
-[[workspace.metadata.dylint.libraries]]
-path = 'lint/tracing_debug_field'
+async-trait = "0.1.52"
+axum = "0.6.16"
+backon = "0.4.1"
+base64 = "0.21"
+base64-serde = "0.7.0"
+bytes = "1.4"
+clap = "4"
+color-eyre = "0.6"
+ed25519-consensus = "2.1.0"
+ethers = "2.0.11"
+eyre = "0.6"
+futures = "0.3"
+hex = "0.4"
+hex-literal = "0.4.1"
+humantime = "2.1.0"
+hyper = "0.14"
+ibc-types = "0.10.0"
+jsonrpsee = { version = "0.20" }
+once_cell = "1.17.1"
+sha2 = "0.10"
+serde = "1"
+serde_json = "1"
+penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.64.1", default-features = false }
+penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.64.1" }
+penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.64.1" }
+prost = "0.12"
+prost-types = "0.12"
+rand = "0.8.5"
+regex = "1.9"
+# disable default features and explicitly enable rustls-tls to ensure openssl is disabled
+# in the entire workspace
+reqwest = { version = "0.11", default-features = false, features = [
+  "rustls-tls",
+] }
+tempfile = "3.6.0"
+tendermint = "0.34.0"
+tendermint-config = "0.34.0"
+tendermint-proto = "0.34.0"
+tendermint-rpc = "0.34.0"
+thiserror = "1"
+tokio = "1.28"
+tokio-test = "0.4.2"
+tokio-util = "0.7.9"
+tonic = "0.10"
+tracing = "0.1"
+tryhard = "0.5.1"
+which = "4.4.0"
+wiremock = "0.5"
