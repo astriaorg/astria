@@ -43,6 +43,8 @@ _fmt-rust:
 [no-exit-message]
 _lint-rust:
   cargo +nightly-2023-08-18 fmt --all -- --check
+  cargo clippy -- --warn clippy::pedantic
+  cargo dylint --all
 
 [no-exit-message]
 _fmt-toml:
