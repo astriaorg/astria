@@ -52,7 +52,7 @@ jobs:
       - name: Download and install dasel
         run: |
           curl -fsSL \
-            https://github.com/TomWright/dasel/releases/download/v2.5.0/dasel_linux_amd64.gz |
+            https://github.com/TomWright/dasel/releases/download/v2.5.0/dasel_linux_amd64.gz \
             | gzip -d - \
             | install -m 755 /dev/stdin /usr/local/bin/dasel
       - name: Download and install taplo
