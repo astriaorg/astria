@@ -149,7 +149,9 @@ impl Consensus {
         &mut self,
         prepare_proposal: request::PrepareProposal,
     ) -> response::PrepareProposal {
-        self.app.prepare_proposal(prepare_proposal).await
+        self.app
+            .prepare_proposal(prepare_proposal, self.storage.clone())
+            .await
     }
 
     #[instrument(skip(self))]
@@ -157,7 +159,9 @@ impl Consensus {
         &mut self,
         process_proposal: request::ProcessProposal,
     ) -> anyhow::Result<()> {
-        self.app.process_proposal(process_proposal).await
+        self.app
+            .process_proposal(process_proposal, self.storage.clone())
+            .await
     }
 
     #[instrument(skip(self))]
