@@ -69,12 +69,12 @@ impl BlockVerifier {
              {}, got {}",
             height,
             block_resp.block_id.hash,
-            super::DisplayBlockHash(blob_hash),
+            telemetry::display::hex(&blob_hash),
         );
 
         debug!(
             sequencer_height = height,
-            sequencer_block_hash = %super::DisplayBlockHash(blob_hash),
+            sequencer_block_hash = %telemetry::display::hex(&blob_hash),
             "validating sequencer namespace data"
         );
 

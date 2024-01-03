@@ -23,10 +23,8 @@ use tracing::{
     warn,
 };
 
-use crate::{
-    macros::report_err,
-    validator::Validator,
-};
+use crate::validator::Validator;
+
 pub(crate) struct Relayer {
     /// The actual client used to poll the sequencer.
     sequencer: HttpClient,
@@ -156,8 +154,10 @@ impl Relayer {
             Ok(submission_result) => submission_result,
             // Report if the task failed, i.e. panicked
             Err(e) => {
-                // TODO: inject the correct tracing span
-                report_err!(e, "submission task failed");
+                warn!(
+                    error = &e as &dyn std::error::Error,
+                    "submission task failed",
+                );
                 return;
             }
         };
@@ -170,8 +170,10 @@ impl Relayer {
                 );
                 state.current_data_availability_height.replace(height);
             }),
-            // TODO: add more context to this error, maybe inject a span?
-            Err(e) => report_err!(e, "submitting blocks to data availability layer failed"),
+            Err(e) => warn!(
+                error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                "failed submitting blocks to celestia",
+            ),
         }
     }
 
