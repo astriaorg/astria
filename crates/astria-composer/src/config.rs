@@ -31,7 +31,7 @@ pub struct Config {
     pub private_key: SecretString,
 
     /// Sequencer block time in milliseconds
-    pub block_time: u64,
+    pub block_time_ms: u64,
 
     /// Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
     /// public key, nonce. This is the sum of the sizes of all the `SequenceAction`s

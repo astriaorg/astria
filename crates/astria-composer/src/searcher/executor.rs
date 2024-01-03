@@ -52,7 +52,10 @@ use tokio::{
         mpsc,
         watch,
     },
-    time,
+    time::{
+        self,
+        Instant,
+    },
 };
 use tracing::{
     debug,
@@ -60,12 +63,16 @@ use tracing::{
     info,
     info_span,
     instrument,
+    instrument::Instrumented,
     warn,
     Instrument,
     Span,
 };
 
-use crate::searcher::bundler::Bundler;
+use crate::searcher::bundler::{
+    seq_action_size,
+    BundleFactory,
+};
 
 /// The `Executor` interfaces with the sequencer. It handles account nonces, transaction signing,
 /// and transaction submission.
@@ -86,7 +93,7 @@ pub(super) struct Executor {
     // The sequencer address associated with the private key
     address: Address,
     // Milliseconds for bundle timer to make sure bundles are submitted at least once per block.
-    block_time: u64,
+    block_time_ms: u64,
     // Max bytes in a sequencer action bundle
     max_bundle_size: usize,
 }
@@ -143,7 +150,7 @@ impl Executor {
             sequencer_client,
             sequencer_key,
             address: sequencer_address,
-            block_time,
+            block_time_ms: block_time,
             max_bundle_size,
         })
     }
@@ -151,6 +158,31 @@ impl Executor {
     /// Return a reader to the status reporting channel
     pub(super) fn subscribe(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
+    }
+
+    fn make_submission_fut(
+        &self,
+        nonce: u32,
+        bundle: Vec<Action>,
+    ) -> Fuse<Instrumented<SubmitFut>> {
+        // TODO(https://github.com/astriaorg/astria/issues/476): Attach the hash of the
+        // bundle to the span. Linked GH issue is for agreeing on a hash for `SignedTransaction`,
+        // but both should be addressed.
+        let span = info_span!(
+            "submit bundle",
+            nonce.initial = nonce,
+            bundle.len = bundle.len(),
+        );
+        SubmitFut {
+            client: self.sequencer_client.clone(),
+            address: self.address,
+            nonce,
+            signing_key: self.sequencer_key.clone(),
+            state: SubmitState::NotStarted,
+            bundle,
+        }
+        .instrument(span)
+        .fuse()
     }
 
     /// Run the Executor loop, calling `process_bundle` on each bundle received from the channel.
@@ -166,8 +198,9 @@ impl Executor {
             .wrap_err("failed getting initial nonce from sequencer")?;
         self.status.send_modify(|status| status.is_connected = true);
 
-        let mut block_timer = time::interval(Duration::from_millis(self.block_time));
-        let mut bundler = Bundler::new(self.max_bundle_size);
+        let block_timer = time::sleep(Duration::from_millis(self.block_time_ms));
+        tokio::pin!(block_timer);
+        let mut bundle_factory = BundleFactory::new(self.max_bundle_size);
 
         loop {
             select! {
@@ -183,46 +216,43 @@ impl Executor {
                             break Err(e).wrap_err("failed submitting bundle to sequencer");
                         }
                     }
-                    // reset timer for preempt bundle if it doesn't fill up within the sequencer block time
-                    block_timer.reset_immediately();
+
+                    block_timer.as_mut().reset(Instant::now() + Duration::from_millis(self.block_time_ms));
                 }
 
-                // submit the next available bundle
-                Some(bundle) = bundler.get_next(), if submission_fut.is_terminated() => {
+                Some(bundle) = bundle_factory.pop_complete(), if submission_fut.is_terminated() => {
                     debug!(
-                        bundle_size=?bundle.curr_size,
+                        bundle_len=bundle.len(),
                         "submitting bundle to sequencer"
                     );
-
-                    // TODO(https://github.com/astriaorg/astria/issues/476): Attach the hash of the
-                    // bundle to the span. Linked GH issue is for agreeing on a hash for `SignedTransaction`,
-                    // but both should be addressed.
-                    let span =  info_span!(
-                        "submit bundle",
-                        nonce.initial = nonce,
-                        bundle.len = bundle.len(),
-                        bundle.size = bundle.curr_size,
-                    );
-                    submission_fut = SubmitFut {
-                        client: self.sequencer_client.clone(),
-                        address: self.address,
-                        nonce,
-                        signing_key: self.sequencer_key.clone(),
-                        state: SubmitState::NotStarted,
-                        bundle: bundle.into_actions(),
-                    }
-                    .instrument(span)
-                    .fuse();
-                    }
+                    submission_fut = self.make_submission_fut(nonce, bundle);
+                }
 
                 // receive new seq_action and bundle it
                 Some(seq_action) = self.seq_actions_rx.recv(), if submission_fut.is_terminated() => {
-                    bundler.push(seq_action);
+                    let seq_action_size = seq_action_size(&seq_action);
+                    match bundle_factory.try_push(seq_action) {
+                        Ok(()) => {}
+                        Err(_seq_action) => {
+                            warn!(
+                                seq_action_size = seq_action_size,
+                                "failed to bundle sequence action: too large. sequence action is dropped."
+                            );
+                        }
+                    }
                 }
 
                 // try to preempt current bundle if the timer has ticked without submitting the next bundle
-                _ = block_timer.tick(), if submission_fut.is_terminated() => {
-                    bundler.flush_curr_bundle();
+                () = &mut block_timer, if submission_fut.is_terminated() => {
+                    if let Some(bundle) = bundle_factory.pop_now() {
+                        debug!(
+                            bundle_len=bundle.len(),
+                            "forcing bundle submission to sequencer"
+                        );
+                        submission_fut = self.make_submission_fut(nonce, bundle);
+                    }
+
+                    block_timer.as_mut().reset(Instant::now() + Duration::from_millis(self.block_time_ms));
                 }
             }
         }
@@ -531,7 +561,7 @@ mod tests {
             private_key: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
                 .to_string()
                 .into(),
-            block_time: 2000,
+            block_time_ms: 2000,
             max_bundle_bytes: 1000,
         };
         (server, startup_guard, cfg)
@@ -643,7 +673,7 @@ mod tests {
             &cfg.sequencer_url,
             &cfg.private_key,
             seq_actions_rx,
-            cfg.block_time,
+            cfg.block_time_ms,
             cfg.max_bundle_bytes,
         )
         .unwrap();
@@ -722,7 +752,7 @@ mod tests {
             &cfg.sequencer_url,
             &cfg.private_key,
             seq_actions_rx,
-            cfg.block_time,
+            cfg.block_time_ms,
             cfg.max_bundle_bytes,
         )
         .unwrap();
@@ -745,7 +775,7 @@ mod tests {
         // despite it not being full
         time::pause();
         seq_actions_tx.send(seq0.clone()).await.unwrap();
-        time::advance(Duration::from_millis(cfg.block_time)).await;
+        time::advance(Duration::from_millis(cfg.block_time_ms)).await;
         time::resume();
 
         // wait for the mock sequencer to receive the signed transaction
@@ -797,7 +827,7 @@ mod tests {
             &cfg.sequencer_url,
             &cfg.private_key,
             seq_actions_rx,
-            cfg.block_time,
+            cfg.block_time_ms,
             cfg.max_bundle_bytes,
         )
         .unwrap();
@@ -826,7 +856,7 @@ mod tests {
         time::pause();
         seq_actions_tx.send(seq0.clone()).await.unwrap();
         seq_actions_tx.send(seq1.clone()).await.unwrap();
-        time::advance(Duration::from_millis(cfg.block_time)).await;
+        time::advance(Duration::from_millis(cfg.block_time_ms)).await;
         time::resume();
 
         // wait for the mock sequencer to receive the signed transaction

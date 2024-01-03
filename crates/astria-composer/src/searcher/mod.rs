@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use astria_core::sequencer::v1alpha1::{
-    transaction::action::SequenceAction,
-    ROLLUP_ID_LEN,
-};
+use astria_core::sequencer::v1alpha1::transaction::action::SequenceAction;
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -25,16 +22,12 @@ use tokio::{
 };
 use tokio_util::task::JoinMap;
 use tracing::{
-    debug,
     error,
     instrument,
     warn,
 };
 
-use crate::{
-    searcher::bundler::seq_action_size,
-    Config,
-};
+use crate::Config;
 
 mod bundler;
 mod collector;
@@ -67,8 +60,6 @@ pub(super) struct Searcher {
     // Set of currently running jobs converting pending eth transactions to signed sequencer
     // transactions.
     conversion_tasks: JoinSet<SequenceAction>,
-    // The maximum number of bytes to accept in a single sequencer transaction.
-    max_bundle_sz: usize,
     // The sender of sequence actions to the executor.
     seq_actions_tx: Sender<SequenceAction>,
     // The Executor object that is responsible for signing and submitting sequencer transactions.
@@ -134,7 +125,7 @@ impl Searcher {
             &cfg.sequencer_url,
             &cfg.private_key,
             seq_actions_rx,
-            cfg.block_time,
+            cfg.block_time_ms,
             cfg.max_bundle_bytes,
         )
         .wrap_err("executor construction from config failed")?;
@@ -150,7 +141,6 @@ impl Searcher {
             collector_tasks: JoinMap::new(),
             conversion_tasks: JoinSet::new(),
             seq_actions_tx,
-            max_bundle_sz: cfg.max_bundle_bytes,
             executor_status,
             executor: Some(executor),
             rollups,
@@ -163,33 +153,20 @@ impl Searcher {
     }
 
     /// Serializes and signs a sequencer tx from a rollup tx.
-    fn bundle_pending_tx(&mut self, tx: collector::RollupTransaction) {
+    fn serialize_pending_tx(&mut self, tx: collector::RollupTransaction) {
         let collector::RollupTransaction {
             rollup_id,
             inner: rollup_tx,
         } = tx;
-        let max_bundle_sz = self.max_bundle_sz;
 
         // rollup transaction data serialization is a heavy compute task, so it is spawned
         // on tokio's blocking threadpool
         self.conversion_tasks.spawn_blocking(move || {
             let data = rollup_tx.rlp().to_vec();
-            let seq_action = SequenceAction {
+            SequenceAction {
                 rollup_id,
                 data,
-            };
-
-            let seq_action_sz = seq_action.data.len() + ROLLUP_ID_LEN;
-
-            if seq_action_sz > max_bundle_sz {
-                warn!(
-                    transaction.chain_id = ?rollup_tx.chain_id,
-                    transaction.hash = ?rollup_tx.hash,
-                    "failed to bundle rollup transaction: transaction is too large. Transaction \
-                     is dropped."
-                );
             }
-            seq_action
         });
     }
 
@@ -217,34 +194,28 @@ impl Searcher {
         loop {
             select!(
                 // serialize and sign sequencer tx for incoming pending rollup txs
-                Some(rollup_tx) = self.new_transactions_rx.recv() => self.bundle_pending_tx(rollup_tx),
+                Some(rollup_tx) = self.new_transactions_rx.recv() => self.serialize_pending_tx(rollup_tx),
 
                 // submit sequence actions to the executor for bundling and submission
                 Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
                     match join_result {
                         Ok(seq_action) => {
-                            let seq_action_size = seq_action_size(&seq_action);
                             match self.seq_actions_tx.try_send(seq_action) {
-                                Ok(()) => {
-                                    // TODO: use span from the rollup transaction to log here instead
-                                    debug!(
-                                        bytes_size = seq_action_size,
-                                        "bundled rollup transaction",
-                                    );
-                                }
-                                Err(e) => {
-                                    let error: &dyn std::error::Error = &e;
-                                    warn!(
-                                        error,
-                                        "failed to forward sequence action to the executor due to backpressure"
-                                    );
+                                Ok(()) => {},
+                                Err(mpsc::error::TrySendError::Full(_seq_action)) => {
+                                    // TODO: use span from the rollup transaction to identify which one was dropped
+                                    warn!("failed to forward sequence action to the executor due to backpressure. transaction was returned.");
                                 },
+                                Err(mpsc::error::TrySendError::Closed(_)) => {
+                                    error!("sequence actions channel closed unexpectedly");
+                                    break;
+                                }
                             }
                         },
                         Err(e) => warn!(
                             error.message = %e,
                             error.cause_chain = ?e,
-                            "conversion task failed while trying to convert pending rollup transaction to signed sequencer transaction",
+                            "conversion task failed while trying to convert pending rollup transaction to sequence action",
                         ),
                     }
                 }

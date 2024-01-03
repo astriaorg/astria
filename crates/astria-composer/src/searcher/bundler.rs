@@ -1,9 +1,6 @@
 use std::{
     collections::VecDeque,
-    future::{
-        self,
-        Ready,
-    },
+    future,
     mem,
 };
 
@@ -20,24 +17,26 @@ use tracing::debug;
 enum SizedBundleError {
     #[error("bundle does not have enough space left for the given sequence action")]
     NotEnoughSpace(SequenceAction),
+    #[error("sequence action is larger than the max bundle size")]
+    SequenceActionTooLarge(SequenceAction),
 }
 
 /// A bundle sequence actions to be submitted to the sequencer. Maintains the total size of the
 /// bytes pushed to it and enforces a max size in bytes passed in the constructor. If an incoming
 /// `seq_action` won't fit in the buffer it is flushed and a new bundle is started.
-pub(super) struct SizedBundle {
+struct SizedBundle {
     /// The buffer of actions
-    pub(super) buffer: Vec<Action>,
+    buffer: Vec<Action>,
     /// The current size of the bundle in bytes. This is equal to the sum of the size of the
     /// `seq_action`s + `ROLLUP_ID_LEN` for each.
-    pub(super) curr_size: usize,
+    curr_size: usize,
     /// The max bundle size in bytes to enforce.
     max_size: usize,
 }
 
 impl SizedBundle {
     /// Create a new empty bundle with the given max size.
-    pub(super) fn new(max_size: usize) -> Self {
+    fn new(max_size: usize) -> Self {
         Self {
             buffer: vec![],
             curr_size: 0,
@@ -49,9 +48,15 @@ impl SizedBundle {
     /// returning it, and start building up a new buffer using `seq_action`.
     fn push(&mut self, seq_action: SequenceAction) -> Result<(), SizedBundleError> {
         let seq_action_size = seq_action_size(&seq_action);
+
+        if seq_action_size > self.max_size {
+            return Err(SizedBundleError::SequenceActionTooLarge(seq_action));
+        }
+
         if self.curr_size + seq_action_size > self.max_size {
             return Err(SizedBundleError::NotEnoughSpace(seq_action));
         }
+
         self.buffer.push(Action::Sequence(seq_action));
         self.curr_size += seq_action_size;
         Ok(())
@@ -63,16 +68,12 @@ impl SizedBundle {
     }
 
     /// Consume self and return the underlying buffer of actions.
-    pub(super) fn into_actions(self) -> Vec<Action> {
+    fn into_actions(self) -> Vec<Action> {
         self.buffer
     }
 
-    pub(super) fn is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         self.buffer.is_empty()
-    }
-
-    pub(super) fn len(&self) -> usize {
-        self.buffer.len()
     }
 }
 
@@ -80,14 +81,14 @@ impl SizedBundle {
 /// added to the `finished` queue when an incoming `SequenceAction` won't fit in the current bundle.
 /// The `finished` queue operates in FIFO order, where `SizedBundle`s are added to the back and
 /// taken off from the front.
-pub(super) struct Bundler {
+pub(super) struct BundleFactory {
     /// The current bundle being built.
-    pub(super) curr_bundle: SizedBundle,
+    curr_bundle: SizedBundle,
     /// The queue of bundles that have been built but not yet sent to the sequencer.
-    pub(super) finished: VecDeque<SizedBundle>,
+    finished: VecDeque<SizedBundle>,
 }
 
-impl Bundler {
+impl BundleFactory {
     pub(super) fn new(max_size: usize) -> Self {
         Self {
             curr_bundle: SizedBundle::new(max_size),
@@ -97,31 +98,55 @@ impl Bundler {
 
     /// Buffer `seq_action` into the current bundle. If the bundle won't fit `seq_action`, flush
     /// `curr_bundle` into the `finished` queue and start a new bundle
-    pub(super) fn push(&mut self, seq_action: SequenceAction) {
-        let seq_action_size = seq_action.data.len() + ROLLUP_ID_LEN;
-        if let Err(SizedBundleError::NotEnoughSpace(seq_action)) = self.curr_bundle.push(seq_action)
-        {
-            // if the bundle is full, flush it and start a new one
-            self.finished.push_back(self.curr_bundle.flush());
-            self.curr_bundle
-                .push(seq_action)
-                .expect("seq_action should not be larger than max bundle size");
+    pub(super) fn try_push(&mut self, seq_action: SequenceAction) -> Result<(), SequenceAction> {
+        let seq_action_size = seq_action_size(&seq_action);
+
+        match self.curr_bundle.push(seq_action) {
+            Err(SizedBundleError::SequenceActionTooLarge(seq_action)) => {
+                // reject the sequence action if it is larger than the max bundle size
+                Err(seq_action)
+            }
+            Err(SizedBundleError::NotEnoughSpace(seq_action)) => {
+                // if the bundle is full, flush it and start a new one
+                self.finished.push_back(self.curr_bundle.flush());
+                self.curr_bundle
+                    .push(seq_action)
+                    .expect("seq_action should not be larger than max bundle size");
+                Ok(())
+            }
+            Ok(()) => {
+                debug!(
+                    new_bundle_size = ?self.curr_bundle.curr_size,
+                    seq_action_size = ?seq_action_size,
+                    "bundled new sequence action"
+                );
+                Ok(())
+            }
         }
-        debug!(
-            new_bundle_size = ?self.curr_bundle.curr_size,
-            seq_action_size = ?seq_action_size,
-            "bundled new sequence action"
-        );
     }
 
-    /// Get the next bundle from the `finished` queue. If the queue is empty, flush `curr_bundle`
-    pub(super) fn get_next(&mut self) -> Ready<Option<SizedBundle>> {
-        future::ready(self.finished.pop_front())
+    /// Get the next bundle from the `finished` queue.
+    pub(super) fn pop_complete(&mut self) -> future::Ready<Option<Vec<Action>>> {
+        future::ready(self.finished.pop_front().map(SizedBundle::into_actions))
+    }
+
+    /// Get the next bundle from the `finished` queue. If the queue is empty, flush `curr_bundle`.
+    /// If `finished` and `curr_bundle` are both empty, return `None`.
+    pub(super) fn pop_now(&mut self) -> Option<Vec<Action>> {
+        self.finished
+            .pop_front()
+            .or({
+                // flush and pop again if the `finished` queue was empty
+                self.flush_curr_bundle();
+                self.finished.pop_front()
+            })
+            .filter(|bundle| !bundle.is_empty())
+            .map(SizedBundle::into_actions)
     }
 
     /// Flush the current bundle into the `finished` queue. A bundle can be preempted if there are
     /// no pending `finished` and the `curr_bundle` is not empty.
-    pub(super) fn flush_curr_bundle(&mut self) {
+    fn flush_curr_bundle(&mut self) {
         if !self.curr_bundle.is_empty() && self.finished.is_empty() {
             debug!(
                 bundle_size = self.curr_bundle.curr_size,
@@ -132,6 +157,7 @@ impl Bundler {
     }
 }
 
+/// The size of the `seq_action` in bytes, including the rollup id.
 pub(super) fn seq_action_size(seq_action: &SequenceAction) -> usize {
     seq_action.data.len() + ROLLUP_ID_LEN
 }
