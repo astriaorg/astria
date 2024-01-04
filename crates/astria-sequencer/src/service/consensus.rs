@@ -194,7 +194,7 @@ impl Consensus {
             .app
             .deliver_tx_after_proposal(deliver_tx)
             .await
-            .expect("all transactions in the block must have already been executed")
+            .expect("transactions must be executable or previously executed during proposal phases")
         {
             Ok(events) => response::DeliverTx {
                 events,
