@@ -25,7 +25,10 @@ use proto::{
     },
     Message as _,
 };
-use sha2::Digest as _;
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 use tendermint::abci::{
     self,
     Event,
@@ -92,7 +95,7 @@ pub(crate) struct App {
     // validator for the block. set to false when `commit` is called.
     //
     // if true, `deliver_tx` does not execute transactions, as we have called either
-    // `prepare_proposal` or `process_proposal` which executes them. 
+    // `prepare_proposal` or `process_proposal` which executes them.
     is_validator: bool,
 
     // cache of results of executing of transactions in prepare_proposal or process_proposal.
@@ -180,7 +183,7 @@ impl App {
     /// It puts this special "commitment" as the first transaction in a block.
     /// When other validators receive the block, they know the first transaction is
     /// supposed to be the commitment, and verifies that is it correct.
-    #[instrument(name = "App::prepare_proposal", skip(self, prepare_proposal))]
+    #[instrument(name = "App::prepare_proposal", skip_all, fields(tx_count = prepare_proposal.txs.len(), proposer = %prepare_proposal.proposer_address, height = %prepare_proposal.height))]
     pub(crate) async fn prepare_proposal(
         &mut self,
         prepare_proposal: abci::request::PrepareProposal,
@@ -204,7 +207,7 @@ impl App {
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
     /// and ensures it matches the commitment created by the proposer, which
     /// should be the first transaction in the block.
-    #[instrument(name = "App::process_proposal", skip(self, process_proposal))]
+    #[instrument(name = "App::process_proposal", skip_all, fields(tx_count = process_proposal.txs.len(), proposer = %process_proposal.proposer_address, height = %process_proposal.height))]
     pub(crate) async fn process_proposal(
         &mut self,
         process_proposal: abci::request::ProcessProposal,
@@ -278,7 +281,7 @@ impl App {
     ///
     /// Returns the transactions which were successfully decoded and executed
     /// in both their [`SignedTransaction`] and raw bytes form.
-    #[instrument(name = "App::execute_block_data", skip(self, txs))]
+    #[instrument(name = "App::execute_block_data", skip_all, fields(tx_count = txs.len()))]
     async fn execute_block_data(
         &mut self,
         txs: Vec<bytes::Bytes>,
@@ -294,8 +297,7 @@ impl App {
             if total_tx_size + tx_size > MAX_BLOCK_SIZE {
                 debug!(
                     total_tx_size,
-                    tx_size,
-                    "block size limit reached, not including transaction in block"
+                    tx_size, "block size limit reached, not including transaction in block"
                 );
                 continue;
             }
@@ -326,7 +328,11 @@ impl App {
                     validated_txs.push(tx);
                 }
                 Err(e) => {
-                    debug!(?tx_hash, /* error = ?e, */ "failed to execute transaction, not including in block");
+                    debug!(
+                        ?tx_hash,
+                        // error = ?e,
+                        "failed to execute transaction, not including in block"
+                    );
                     self.execution_result.insert(tx_hash.into(), Err(e));
                 }
             }
@@ -335,7 +341,7 @@ impl App {
         (signed_txs, validated_txs)
     }
 
-    #[instrument(name = "App::begin_block", skip(self))]
+    #[instrument(name = "App::begin_block", skip_all, fields(height = %begin_block.header.height, hash = %begin_block.hash))]
     pub(crate) async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
@@ -373,7 +379,7 @@ impl App {
     ///
     /// Note that the first two "transactions" in the block, which are the proposer-generated
     /// commitments, are ignored.
-    #[instrument(name = "App::deliver_tx_after_proposal", skip(self, tx))]
+    #[instrument(name = "App::deliver_tx_after_proposal", skip_all)]
     pub(crate) async fn deliver_tx_after_proposal(
         &mut self,
         tx: abci::request::DeliverTx,
@@ -407,7 +413,7 @@ impl App {
     /// successfully.
     ///
     /// Note that `begin_block` is now called *after* transaction execution.
-    #[instrument(name = "App::deliver_tx", skip(self, signed_tx))]
+    #[instrument(name = "App::deliver_tx", skip_all, fields(tx_hash = tx_hash(&signed_tx)))]
     pub(crate) async fn deliver_tx(
         &mut self,
         signed_tx: proto::native::sequencer::v1alpha1::SignedTransaction,
@@ -445,7 +451,6 @@ impl App {
             "block height must be set, as `begin_block` is always called before `deliver_tx`",
         );
         info!(
-            // ?signed_tx,
             height = height + 1,
             sender = %Address::from_verification_key(signed_tx.verification_key()),
             "executed transaction"
@@ -453,7 +458,7 @@ impl App {
         Ok(vec![])
     }
 
-    #[instrument(name = "App::end_block", skip(self))]
+    #[instrument(name = "App::end_block", skip_all, fields(height = %end_block.height))]
     pub(crate) async fn end_block(
         &mut self,
         end_block: &abci::request::EndBlock,
@@ -491,7 +496,7 @@ impl App {
         })
     }
 
-    #[instrument(name = "App::commit", skip(self, storage))]
+    #[instrument(name = "App::commit", skip_all)]
     pub(crate) async fn commit(&mut self, storage: Storage) -> AppHash {
         // Clear out validator status before next block round starts.
         self.is_validator = false;
@@ -549,6 +554,13 @@ impl App {
 
         events
     }
+}
+
+fn tx_hash(signed_tx: &proto::native::sequencer::v1alpha1::SignedTransaction) -> String {
+    use sha2::Digest as _;
+
+    let bytes = signed_tx.to_raw().encode_to_vec();
+    hex::encode(Sha256::digest(bytes))
 }
 
 #[cfg(test)]

@@ -68,7 +68,7 @@ impl Consensus {
         Ok(())
     }
 
-    #[instrument(skip(self, req))]
+    #[instrument(skip_all)]
     async fn handle_request(
         &mut self,
         req: ConsensusRequest,
@@ -144,7 +144,7 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip(self, prepare_proposal))]
+    #[instrument(skip_all)]
     async fn handle_prepare_proposal(
         &mut self,
         prepare_proposal: request::PrepareProposal,
@@ -154,7 +154,7 @@ impl Consensus {
             .await
     }
 
-    #[instrument(skip(self, process_proposal))]
+    #[instrument(skip_all)]
     async fn handle_process_proposal(
         &mut self,
         process_proposal: request::ProcessProposal,
@@ -164,7 +164,7 @@ impl Consensus {
             .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn begin_block(
         &mut self,
         begin_block: request::BeginBlock,
@@ -179,7 +179,7 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip(self, deliver_tx))]
+    #[instrument(skip_all)]
     async fn deliver_tx(&mut self, deliver_tx: request::DeliverTx) -> response::DeliverTx {
         use crate::transaction::InvalidNonce;
 
@@ -208,7 +208,7 @@ impl Consensus {
         }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn end_block(
         &mut self,
         end_block: request::EndBlock,
