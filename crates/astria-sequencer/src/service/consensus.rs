@@ -55,7 +55,11 @@ impl Consensus {
             // for some reason -- but that's not our problem.
             let rsp = self.handle_request(req).instrument(span.clone()).await;
             if let Err(e) = rsp.as_ref() {
-                warn!(parent: &span, error = ?e, "failed processing concensus request; returning error back to sender");
+                warn!(
+                    parent: &span,
+                    error = e,
+                    "failed processing concensus request; returning error back to sender",
+                );
             }
             // `send` returns the sent message if sending fail, so we are dropping it.
             if rsp_sender.send(rsp).is_err() {
@@ -89,7 +93,10 @@ impl Consensus {
                     match self.handle_process_proposal(process_proposal).await {
                         Ok(()) => response::ProcessProposal::Accept,
                         Err(e) => {
-                            warn!(error = ?e, "rejecting proposal");
+                            warn!(
+                                error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                                "rejecting proposal"
+                            );
                             response::ProcessProposal::Reject
                         }
                     },
@@ -196,15 +203,15 @@ impl Consensus {
                 ..Default::default()
             },
             Err(e) => {
-                // we don't want to panic on failing to deliver_tx as that would crash the entire
-                // node
-                let code = if let Some(_e) = e.downcast_ref::<InvalidNonce>() {
-                    tracing::warn!("{}", e);
+                let code = if e.downcast_ref::<InvalidNonce>().is_some() {
                     AbciErrorCode::INVALID_NONCE
                 } else {
-                    tracing::warn!(error = ?e, "deliver_tx failed");
                     AbciErrorCode::INTERNAL_ERROR
                 };
+                tracing::warn!(
+                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                    "failed serving deliver tx request"
+                );
                 response::DeliverTx {
                     code: code.into(),
                     info: code.to_string(),
