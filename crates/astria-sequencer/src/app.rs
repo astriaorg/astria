@@ -89,6 +89,16 @@ pub(crate) struct App {
     // `prepare_proposal`, and re-executing them would cause failure.
     is_proposer: bool,
 
+    // set to true after executing block which happens in `prepare_proposal` and 
+    // `process_proposal`. Indicating that transactions have already been attempted to be 
+    // executed for this block. Set to false at `commit`, as well as when clearing voting
+    // state.
+    //
+    // during blocksync app will not receive proposals and must execute transactions
+    // during `deliver_tx` calls. This flag is used to ensure that transactions are executed
+    // when proposal has not been received, but not double executed when it has.
+    proposal_executed: bool,
+
     // cache of results of executing of transactions in prepare_proposal or process_proposal.
     // cleared at the end of each block.
     execution_result: HashMap<[u8; 32], anyhow::Result<Vec<abci::Event>>>,
@@ -115,6 +125,7 @@ impl App {
         Self {
             state,
             is_proposer: false,
+            proposal_executed: false,
             execution_result: HashMap::new(),
             processed_txs: 0,
         }
@@ -163,6 +174,7 @@ impl App {
         // clear the cache of transaction execution results
         self.execution_result.clear();
         self.processed_txs = 0;
+        self.proposal_executed = false;
     }
 
     /// Generates a commitment to the `sequence::Actions` in the block's transactions.
@@ -321,6 +333,8 @@ impl App {
             }
         }
 
+        self.proposal_executed = true;
+
         (signed_txs, validated_txs)
     }
 
@@ -360,19 +374,42 @@ impl App {
     /// Since transaction execution now happens in the proposal phase, results
     /// are cached in the app and returned here during the usual ABCI block execution process.
     ///
+    /// If the proposal was not executed, the transaction will be executed.
+    ///
     /// Note that the first two "transactions" in the block, which are the proposer-generated
     /// commitments, are ignored.
-    #[instrument(name = "App::deliver_tx_after_execution", skip(self))]
-    pub(crate) fn deliver_tx_after_execution(
+    #[instrument(name = "App::deliver_tx_after_proposal", skip(self))]
+    pub(crate) async fn deliver_tx_after_proposal(
         &mut self,
-        tx_hash: &[u8; 32],
+        tx: abci::request::DeliverTx,
     ) -> Option<anyhow::Result<Vec<abci::Event>>> {
         if self.processed_txs < 2 {
             self.processed_txs += 1;
             return Some(Ok(vec![]));
         }
 
-        self.execution_result.remove(tx_hash)
+        if self.proposal_executed {
+            let tx_hash: [u8; 32] = sha2::Sha256::digest(&tx.tx).into();
+            return self.execution_result.remove(&tx_hash);
+        }
+
+        let Some(signed_tx) = raw::SignedTransaction::decode(&*tx.tx)
+            .map_err(|err| {
+                debug!(error = ?err, "failed to deserialize bytes as a signed transaction");
+                err
+            })
+            .ok()
+            .and_then(|raw_tx| SignedTransaction::try_from_raw(raw_tx)
+                .map_err(|err| {
+                    debug!(error = ?err, "failed to convert raw signed transaction to native signed transaction");
+                    err
+                })
+                .ok()
+            ) else {
+                return None;
+            };
+
+        Some(self.deliver_tx(signed_tx).await)
     }
 
     /// Executes a signed transaction.
@@ -507,6 +544,9 @@ impl App {
             app_hash = %telemetry::display::hex(&app_hash),
             "finished committing state",
         );
+
+        // Clear the state of whether or not block was executed in proposal
+        self.proposal_executed = false;
 
         // Get the latest version of the state, now that we've committed it.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
