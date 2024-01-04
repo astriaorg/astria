@@ -491,6 +491,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
         app.init_chain(genesis_state, vec![]).await.unwrap();
+        app.commit(storage.clone()).await;
 
         let (_tx, rx) = mpsc::channel(1);
         Consensus::new(storage.clone(), app, rx)
