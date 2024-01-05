@@ -116,8 +116,8 @@ impl BundleFactory {
             }
             Ok(()) => {
                 debug!(
-                    new_bundle_size = ?self.curr_bundle.curr_size,
-                    seq_action_size = ?seq_action_size,
+                    new_bundle_size = self.curr_bundle.curr_size,
+                    seq_action_size = seq_action_size,
                     "bundled new sequence action"
                 );
                 Ok(())
