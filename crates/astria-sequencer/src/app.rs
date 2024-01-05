@@ -120,7 +120,7 @@ impl App {
         }
     }
 
-    #[instrument(name = "App:init_chain", skip(self))]
+    #[instrument(name = "App:init_chain", skip_all)]
     pub(crate) async fn init_chain(
         &mut self,
         genesis_state: GenesisState,
@@ -161,7 +161,7 @@ impl App {
     /// It puts this special "commitment" as the first transaction in a block.
     /// When other validators receive the block, they know the first transaction is
     /// supposed to be the commitment, and verifies that is it correct.
-    #[instrument(name = "App::prepare_proposal", skip(self, prepare_proposal))]
+    #[instrument(name = "App::prepare_proposal", skip_all)]
     pub(crate) async fn prepare_proposal(
         &mut self,
         prepare_proposal: abci::request::PrepareProposal,
@@ -185,7 +185,7 @@ impl App {
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
     /// and ensures it matches the commitment created by the proposer, which
     /// should be the first transaction in the block.
-    #[instrument(name = "App::process_proposal", skip(self, process_proposal))]
+    #[instrument(name = "App::process_proposal", skip_all)]
     pub(crate) async fn process_proposal(
         &mut self,
         process_proposal: abci::request::ProcessProposal,
@@ -259,7 +259,9 @@ impl App {
     ///
     /// Returns the transactions which were successfully decoded and executed
     /// in both their [`SignedTransaction`] and raw bytes form.
-    #[instrument(name = "App::execute_block_data", skip(self, txs))]
+    #[instrument(name = "App::execute_block_data", skip_all, fields(
+        tx_count = txs.len()
+    ))]
     async fn execute_block_data(
         &mut self,
         txs: Vec<bytes::Bytes>,
@@ -315,7 +317,7 @@ impl App {
         (signed_txs, validated_txs)
     }
 
-    #[instrument(name = "App::begin_block", skip(self))]
+    #[instrument(name = "App::begin_block", skip_all)]
     pub(crate) async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
@@ -353,7 +355,9 @@ impl App {
     ///
     /// Note that the first two "transactions" in the block, which are the proposer-generated
     /// commitments, are ignored.
-    #[instrument(name = "App::deliver_tx_after_execution", skip(self))]
+    #[instrument(name = "App::deliver_tx_after_execution", skip_all, fields(
+        tx_hash =  %telemetry::display::hex(tx_hash),
+    ))]
     pub(crate) fn deliver_tx_after_execution(
         &mut self,
         tx_hash: &[u8; 32],
@@ -430,7 +434,7 @@ impl App {
         Ok(events)
     }
 
-    #[instrument(name = "App::end_block", skip(self))]
+    #[instrument(name = "App::end_block", skip_all)]
     pub(crate) async fn end_block(
         &mut self,
         end_block: &abci::request::EndBlock,
@@ -468,7 +472,7 @@ impl App {
         })
     }
 
-    #[instrument(name = "App::commit", skip(self, storage))]
+    #[instrument(name = "App::commit", skip_all)]
     pub(crate) async fn commit(&mut self, storage: Storage) -> RootHash {
         // We need to extract the State we've built up to commit it.  Fill in a dummy state.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
