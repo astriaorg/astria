@@ -64,7 +64,7 @@ pub(crate) async fn find_data_availability_blob_with_sequencer_data(
                 break Ok(height);
             }
             Err(error) => {
-                let error = &error as &(dyn std::error::Error + 'static);
+                let error = &error as &(dyn std::error::Error);
                 warn!(height = %height, error, "error returned when fetching sequencer data; skipping");
                 height = height.increment();
                 loop_count += 1;
@@ -88,7 +88,7 @@ pub(crate) async fn get_new_sequencer_block_data_with_retry(
             let wait_duration = next_delay
                 .map(humantime::format_duration)
                 .map(tracing::field::display);
-            let error: &(dyn std::error::Error + 'static) = error.as_ref();
+            let error = error.as_ref() as &(dyn std::error::Error);
             let error = error.to_string();
             async move {
                 warn!(
@@ -149,7 +149,7 @@ pub(crate) async fn run(
             Some((height, res)) = block_stream.next() => {
                 match res {
                     Err(error) => {
-                        let error = error.as_ref() as &(dyn std::error::Error + 'static);
+                        let error = error.as_ref() as &(dyn std::error::Error);
 
                         error!(da_block_height = %height.value(), error, "failed getting da block");
                     }
@@ -174,7 +174,7 @@ pub(crate) async fn run(
             Some((height, res)) = verification_stream.next() => {
                 match res {
                     Err(error) => {
-                        let error = error.as_ref() as &(dyn std::error::Error + 'static);
+                        let error = error.as_ref() as &(dyn std::error::Error);
 
                         warn!(da_block_height = %height.value(), error, "verification of sequencer blocks failed; skipping");
 

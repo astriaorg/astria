@@ -277,7 +277,7 @@ impl Reader {
                     match shutdown_res {
                         Ok(()) => info!("received shutdown command; exiting"),
                         Err(e) => {
-                            let error = &e as &(dyn std::error::Error + 'static);
+                            let error = &e as &(dyn std::error::Error);
                             warn!(error, "shutdown receiver dropped; exiting");
                         }
                     }
@@ -286,7 +286,7 @@ impl Reader {
 
                 res = &mut sync, if !sync.is_terminated() => {
                     if let Err(e) = res {
-                        let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                        let error = e.as_ref() as &(dyn std::error::Error);
                         warn!(error, "sync failed; continuing with normal operation");
                     } else {
                         info!("sync finished successfully");
@@ -315,7 +315,7 @@ impl Reader {
                     match shutdown_res {
                         Ok(()) => info!("received shutdown command; exiting"),
                         Err(e) => {
-                            let error = &e as &(dyn std::error::Error + 'static);
+                            let error = &e as &(dyn std::error::Error);
                             warn!(error, "shutdown receiver dropped; exiting");
                         }
                     }
@@ -360,13 +360,13 @@ impl Reader {
         info!("fetching DA blobs up to latest height");
         let latest_height = match latest_height_res {
             Err(e) => {
-                let error = &e as &(dyn std::error::Error + 'static);
+                let error = &e as &(dyn std::error::Error);
                 warn!(error, "task querying celestia for latest height failed");
                 return;
             }
 
             Ok(Err(e)) => {
-                let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                let error = e.as_ref() as &(dyn std::error::Error);
                 warn!(
                     error,
                     "task querying celestia for latest height returned with an error"
@@ -429,13 +429,13 @@ impl Reader {
     ) {
         let sequencer_data = match sequencer_blob_res {
             Err(e) => {
-                let error = &e as &(dyn std::error::Error + 'static);
+                let error = &e as &(dyn std::error::Error);
                 warn!(error, "task querying celestia for sequencer data failed");
                 return;
             }
 
             Ok(Err(e)) => {
-                let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                let error = e.as_ref() as &(dyn std::error::Error);
                 warn!(
                     error,
                     "task querying celestia for sequencer data returned with an error"
@@ -489,12 +489,12 @@ fn send_sequencer_subsets(
 ) -> eyre::Result<()> {
     let subsets = match sequencer_subsets_res {
         Err(e) => {
-            let error = &e as &(dyn std::error::Error + 'static);
+            let error = &e as &(dyn std::error::Error);
             warn!(error, "task processing sequencer data failed");
             return Ok(());
         }
         Ok(Err(e)) => {
-            let error: &(dyn std::error::Error + 'static) = e.as_ref();
+            let error = e.as_ref() as &(dyn std::error::Error);
             warn!(
                 error,
                 "task processing sequencer data returned with an error"
@@ -540,11 +540,8 @@ async fn find_da_sync_start_height(
         Ok(height) => {
             debug!(height = %height, "found da block with sequencer data");
             height
-            // return u32::try_from(height.value()).expect("casting from u64 to u32 failed");
         }
         Err(e) => {
-            // let error = &e as &(dyn std::error::Error + 'static);
-            // warn!(error, "failed to find da block with sequencer data");
             return Err(e);
         }
     };
@@ -610,11 +607,11 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
     while let Some((block_hash, verification_result)) = verification_tasks.join_next().await {
         match verification_result {
             Err(e) => {
-                let error = &e as &(dyn std::error::Error + 'static);
+                let error = &e as &(dyn std::error::Error);
                 warn!(block_hash = %DisplayBlockHash(block_hash), error, "task verifying sequencer data retrieved from celestia failed; dropping block");
             }
             Ok(Err(e)) => {
-                let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                let error = e.as_ref() as &(dyn std::error::Error);
                 warn!(
                     block_hash = %DisplayBlockHash(block_hash),
                     error,
@@ -669,7 +666,7 @@ async fn fetch_rollup_blob_and_forward_to_assembly(
         .await
     {
         Err(e) => {
-            let error = &e as &(dyn std::error::Error + 'static);
+            let error = &e as &(dyn std::error::Error);
             warn!(error, "failed to get rollup data from celestia");
             return;
         }

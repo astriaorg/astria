@@ -10,16 +10,21 @@ use color_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use deadpool::managed::Pool;
 use ethers::prelude::{
     Address,
     Provider,
     Ws,
 };
 use futures::future::Fuse;
-use proto::generated::execution::v1alpha2::{
-    execution_service_client::ExecutionServiceClient,
-    GetCommitmentStateRequest,
+use proto::{
+    generated::execution::v1alpha2::{
+        execution_service_client::ExecutionServiceClient,
+        GetCommitmentStateRequest,
+    },
+    native::sequencer::v1alpha1::RollupId,
 };
+use tendermint::block::Height;
 use tokio::{
     select,
     signal::unix::{
@@ -28,6 +33,7 @@ use tokio::{
     },
     sync::{
         mpsc,
+        mpsc::UnboundedSender,
         oneshot,
         watch,
     },
@@ -57,6 +63,7 @@ use crate::{
     },
     executor::{
         Executor,
+        ExecutorCommand,
         ExecutorCommitmentState,
     },
     sequencer,
@@ -133,10 +140,9 @@ impl Conductor {
         let rollup_id =
             proto::native::sequencer::v1alpha1::RollupId::from_unhashed_bytes(&cfg.chain_id);
 
-        // TODO: this can be its own function
-        // Spawn the executor task.
+        // Spawn the executor task and derive the soft and firm commit heights.
         let (executor_tx, soft_commit_height, firm_commit_height) = {
-            let (block_tx, block_rx) = mpsc::unbounded_channel();
+            let (executor_tx, executor_rx) = mpsc::unbounded_channel();
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
             let hook = make_optimism_hook(&cfg)
@@ -147,7 +153,7 @@ impl Conductor {
                 .rollup_address(&cfg.execution_rpc_url)
                 .rollup_id(rollup_id)
                 .sequencer_height_with_first_rollup_block(cfg.initial_sequencer_block_height)
-                .block_channel(block_rx)
+                .block_channel(executor_rx)
                 .shutdown(shutdown_rx)
                 .set_optimism_hook(hook)
                 .build()
@@ -161,7 +167,7 @@ impl Conductor {
             shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
 
             (
-                block_tx,
+                executor_tx,
                 sequencer_height_of_soft_commit,
                 sequencer_height_of_firm_commit,
             )
@@ -170,41 +176,10 @@ impl Conductor {
         let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
             .wrap_err("failed to create sequencer client pool")?;
 
-        // Spawn the sequencer task
-        // Only spawn the sequencer::Reader if CommitLevel is not FirmOnly, also
-        // send () to sync_done to start normal block execution behavior
-        let mut seq_sync_done = futures::future::Fuse::terminated();
-        let mut da_sync_done = futures::future::Fuse::terminated();
-
         let mut sequencer_reader = None;
 
-        info!(execution_commit_level = %cfg.execution_commit_level);
-
-        // TODO: this can be its own function
-        match cfg.execution_commit_level {
-            CommitLevel::SoftOnly => {
-                info!("only syncing from sequencer");
-                // terminate the DA sync to only execute from sequencer
-                let (sync_done_tx, sync_done_rx) = oneshot::channel();
-                da_sync_done = sync_done_rx.fuse();
-                let _ = sync_done_tx.send(());
-            }
-            CommitLevel::SoftAndFirm => {
-                info!("syncing from DA then sequencer");
-                // when running in soft and firm mode, a sync cycle from both DA
-                // and sequencer are used. First we sync from DA up to the most
-                // recent DA block, then we sync from most recent firm commit to the
-                // latest soft commit from the sequencer. Neither sync is
-                // preemtively terminated in this mode.
-            }
-            CommitLevel::FirmOnly => {
-                info!("only syncing from DA");
-                // terminate the sequencer sync to only execute from DA
-                let (sync_done_tx, sync_done_rx) = oneshot::channel();
-                seq_sync_done = sync_done_rx.fuse();
-                let _ = sync_done_tx.send(());
-            }
-        }
+        let (mut da_sync_done, mut seq_sync_done) =
+            configure_conductor_sync_behavior(&cfg.execution_commit_level);
 
         if !cfg.execution_commit_level.is_firm_only() {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -225,105 +200,51 @@ impl Conductor {
             seq_sync_done = sync_done_rx.fuse();
         }
 
-        // Construct the data availability reader without spawning it.
-        // It will be executed after sync is done.
+        // Construct the data availability reader and syncer without spawning them.
         let mut data_availability_reader = None;
         let mut data_availability_syncer = None;
 
         // Only spawn the data_availability::Reader if CommitLevel is not SoftOnly
         if !cfg.execution_commit_level.is_soft_only() {
-            let (sync_shutdown_tx, sync_shutdown_rx) = oneshot::channel();
-            let (shutdown_tx, shutdown_rx) = oneshot::channel();
-            let (sync_done_tx, sync_done_rx) = oneshot::channel();
-
-            // let block_verifier = BlockVerifier::new(sequencer_client_pool.clone());
-
-            // Sequencer namespace is defined by the chain id of attached sequencer node
-            // which can be fetched from any block header.
-            let sequencer_namespace = {
-                let client = sequencer_client_pool
-                    .get()
-                    .await
-                    .wrap_err("failed to get a sequencer client from the pool")?;
-                get_sequencer_namespace(client)
-                    .await
-                    .wrap_err("failed to get sequencer namespace")?
-            };
-            // XXX: This log is very misleading. The field called `sequencer_chain_id` is actually
-            // the rollup ID.
-            //
-            // info!(
-            //     celestia_namespace = %Base64Display::new(sequencer_namespace.as_bytes(),
-            // &STANDARD),     sequencer_chain_id = %cfg.chain_id,
-            //     "celestia namespace derived from sequencer chain id",
-            // );
-
-            let celestia_config = CelestiaReaderConfig {
-                node_url: cfg.celestia_node_url,
-                bearer_token: Some(cfg.celestia_bearer_token),
-                poll_interval: std::time::Duration::from_secs(3),
-            };
-            // convert back to rollup block height from sequencer block height
-            // for data availability reader
-            let firm_commit_height = u32::try_from(firm_commit_height.value())
-                .expect("casting from u64 to u32 failed")
-                - cfg.initial_sequencer_block_height;
-
-            // collect the block height data needed for creating the data availability reader
-            let da_init_height_data = data_availability::ReaderInitHeightData {
-                initial_da_height: cfg.initial_celestia_block_height,
-                initial_seq_height: cfg.initial_sequencer_block_height,
+            let da_init_data = collect_data_avaliability_reader_init_date(
+                cfg.clone(),
                 firm_commit_height,
-                da_block_search_window: cfg.celestia_search_window,
-            };
-
-            // collect the namespace data needed for creating the data availability reader
-            let da_namespace_data = data_availability::ReaderNamespaceData {
-                sequencer_namespace,
-                rollup_namespace: celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id),
-            };
-
-            // collect the channels needed for creating the data availability reader
-            let da_reader_channels = data_availability::ReaderChannels {
-                executor_tx: executor_tx.clone(),
-                shutdown: shutdown_rx,
-                sync_done: None,
-            };
+                rollup_id,
+                sequencer_client_pool.clone(),
+                executor_tx.clone(),
+            )
+            .await
+            .wrap_err(
+                "could not collect init data for creating the data availability reader and syncer",
+            )?;
 
             // create the data availability reader for normal operation
             let da_reader = data_availability::Reader::new(
-                da_init_height_data.clone(),
-                celestia_config.clone(),
+                da_init_data.height_data.clone(),
+                da_init_data.celestia_config.clone(),
                 sequencer_client_pool.clone(),
-                da_namespace_data.clone(),
-                da_reader_channels,
+                da_init_data.namespace_data.clone(),
+                da_init_data.reader_channels,
             )
             .await
             .wrap_err("failed constructing data availability reader")?;
             data_availability_reader = Some(da_reader);
-            shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
-
-            // collect the channels needed for creating the data availability syncer
-            let da_syncer_channels = data_availability::ReaderChannels {
-                executor_tx: executor_tx.clone(),
-                shutdown: sync_shutdown_rx,
-                sync_done: Some(sync_done_tx),
-            };
+            shutdown_channels.insert(Self::DATA_AVAILABILITY, da_init_data.shutdown_tx);
 
             // create the data availability reader for sync operation
             let da_syncer = data_availability::Reader::new(
-                da_init_height_data,
-                celestia_config,
+                da_init_data.height_data,
+                da_init_data.celestia_config,
                 sequencer_client_pool.clone(),
-                da_namespace_data,
-                da_syncer_channels,
+                da_init_data.namespace_data,
+                da_init_data.syncer_channels,
             )
             .await
-            .wrap_err("failed constructing data availability reader")?;
+            .wrap_err("failed constructing data availability syncer")?;
             data_availability_syncer = Some(da_syncer);
-            shutdown_channels.insert(Self::DATA_AVAILABILITY_SYNC, sync_shutdown_tx);
+            shutdown_channels.insert(Self::DATA_AVAILABILITY_SYNC, da_init_data.sync_shutdown_tx);
 
-            da_sync_done = sync_done_rx.fuse();
+            da_sync_done = da_init_data.sync_done_rx.fuse();
         };
 
         Ok(Self {
@@ -342,19 +263,11 @@ impl Conductor {
         })
     }
 
-    #[allow(clippy::too_many_lines)]
     pub async fn run_until_stopped(mut self) {
         use futures::future::FusedFuture as _;
 
         info!("starting conductor run loop");
-        info!(
-            "da sync complete status: {:?}",
-            self.da_sync_done.is_terminated()
-        );
-        info!(
-            "seq sync complete status: {:?}",
-            self.seq_sync_done.is_terminated()
-        );
+        info!(da_sync_done = %self.da_sync_done.is_terminated(), seq_sync_done = %self.seq_sync_done.is_terminated(), "sync status");
 
         // if we are running in soft-only mode, only start the sequencer reader
         if self.execution_commit_level.is_soft_only() {
@@ -372,6 +285,8 @@ impl Conductor {
                     Self::DATA_AVAILABILITY_SYNC,
                     data_availability_syncer.run_da_sync(),
                 );
+                // self.shutdown_channels
+                //     .insert(Self::DATA_AVAILABILITY_SYNC, da_init_data.sync_shutdown_tx);
             }
         }
 
@@ -396,7 +311,7 @@ impl Conductor {
                             info!("received sync-complete signal from da reader");
                         },
                         Err(e) => {
-                            let error = &e as &(dyn std::error::Error + 'static);
+                            let error = &e as &(dyn std::error::Error);
                             warn!(error, "da sync-complete channel failed prematurely");
                         }
                     }
@@ -417,7 +332,7 @@ impl Conductor {
                         let mut height = match height_of_firm_commit {
                             Ok(height) => height,
                             Err(e) => {
-                                let error = e.as_ref() as &(dyn std::error::Error + 'static);
+                                let error = e.as_ref() as &(dyn std::error::Error);
                                 error!(error, "failed to get firm commit height of rollup");
                                 break;
                             }
@@ -439,7 +354,7 @@ impl Conductor {
                             info!("received sync-complete signal from sequencer reader");
                         },
                         Err(e) => {
-                            let error = &e as &(dyn std::error::Error + 'static);
+                            let error = &e as &(dyn std::error::Error);
                             warn!(error, "sequencer sync-complete channel failed prematurely");
                         }
                     }
@@ -456,11 +371,11 @@ impl Conductor {
                     match res {
                         Ok(Ok(())) => error!(task.name = name, "task exited unexpectedly, shutting down"),
                         Ok(Err(e)) => {
-                            let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                            let error = e.as_ref() as &(dyn std::error::Error);
                             error!(task.name = name, error, "task exited with error; shutting down");
                         }
                         Err(e) => {
-                            let error = &e as &(dyn std::error::Error + 'static);
+                            let error = &e as &(dyn std::error::Error);
                             error!(task.name = name, error, "task failed; shutting down");
                         }
                     }
@@ -500,11 +415,11 @@ impl Conductor {
                             match res {
                                 Ok(Ok(())) => info!(task.name = name, "task exited normally"),
                                 Ok(Err(e)) => {
-                                    let error: &(dyn std::error::Error + 'static) = e.as_ref();
+                                    let error = e.as_ref() as &(dyn std::error::Error);
                                     error!(task.name = name, error, "task exited with error");
                                 }
                                 Err(e) => {
-                                    let error = &e as &(dyn std::error::Error + 'static);
+                                    let error = &e as &(dyn std::error::Error);
                                     error!(task.name = name, error, "task failed");
                                 }
                             }
@@ -543,8 +458,159 @@ impl Conductor {
         let commitment_state =
             ExecutorCommitmentState::from_execution_client_commitment_state(response);
         Ok(commitment_state.firm_height())
-        // Ok(commitment_state.soft_height())
     }
+}
+
+// fn spwan_executor_and_derive_commit_heights(cfg: Config) -> eyre::Result<()> {
+//     let (executor_tx, executor_rx) = mpsc::unbounded_channel();
+//     let (shutdown_tx, shutdown_rx) = oneshot::channel();
+
+//     let hook = make_optimism_hook(&cfg)
+//         .await
+//         .wrap_err("failed constructing optimism hook")?;
+
+//     let executor = Executor::builder()
+//         .rollup_address(&cfg.execution_rpc_url)
+//         .rollup_id(rollup_id)
+//         .sequencer_height_with_first_rollup_block(cfg.initial_sequencer_block_height)
+//         .block_channel(executor_rx)
+//         .shutdown(shutdown_rx)
+//         .set_optimism_hook(hook)
+//         .build()
+//         .await
+//         .wrap_err("failed to construct executor")?;
+
+//     let sequencer_height_of_soft_commit = executor.calculate_executable_block_height()?;
+//     let sequencer_height_of_firm_commit = executor.calculate_finalizable_block_height()?;
+
+//     tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
+//     shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
+
+//     (
+//         executor_tx,
+//         sequencer_height_of_soft_commit,
+//         sequencer_height_of_firm_commit,
+//     )
+// }
+
+struct DataAvailabilityReaderInitData {
+    sync_shutdown_tx: oneshot::Sender<()>,
+    shutdown_tx: oneshot::Sender<()>,
+    sync_done_rx: oneshot::Receiver<()>,
+    celestia_config: CelestiaReaderConfig,
+    height_data: data_availability::ReaderInitHeightData,
+    namespace_data: data_availability::ReaderNamespaceData,
+    reader_channels: data_availability::ReaderChannels,
+    syncer_channels: data_availability::ReaderChannels,
+}
+
+async fn collect_data_avaliability_reader_init_date(
+    cfg: Config,
+    firm_commit_height: Height,
+    rollup_id: RollupId,
+    sequencer_client_pool: Pool<ClientProvider>,
+    executor_tx: UnboundedSender<ExecutorCommand>,
+) -> eyre::Result<DataAvailabilityReaderInitData> {
+    let (sync_shutdown_tx, sync_shutdown_rx) = oneshot::channel();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel();
+    let (sync_done_tx, sync_done_rx) = oneshot::channel();
+
+    let sequencer_namespace = {
+        let client = sequencer_client_pool
+            .get()
+            .await
+            .wrap_err("failed to get a sequencer client from the pool")?;
+        get_sequencer_namespace(client)
+            .await
+            .wrap_err("failed to get sequencer namespace")?
+    };
+
+    let celestia_config = CelestiaReaderConfig {
+        node_url: cfg.celestia_node_url,
+        bearer_token: Some(cfg.celestia_bearer_token),
+        poll_interval: std::time::Duration::from_secs(3),
+    };
+    // convert back to rollup block height from sequencer block height
+    // for data availability reader
+    let firm_commit_height = u32::try_from(firm_commit_height.value())
+        .expect("casting from u64 to u32 failed")
+        - cfg.initial_sequencer_block_height;
+
+    // collect the block height data needed for creating the data availability reader
+    let da_init_height_data = data_availability::ReaderInitHeightData {
+        initial_da_height: cfg.initial_celestia_block_height,
+        initial_seq_height: cfg.initial_sequencer_block_height,
+        firm_commit_height,
+        da_block_search_window: cfg.celestia_search_window,
+    };
+
+    // collect the namespace data needed for creating the data availability reader
+    let da_namespace_data = data_availability::ReaderNamespaceData {
+        sequencer_namespace,
+        rollup_namespace: celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id),
+    };
+
+    // collect the channels needed for creating the data availability reader
+    let da_reader_channels = data_availability::ReaderChannels {
+        executor_tx: executor_tx.clone(),
+        shutdown: shutdown_rx,
+        sync_done: None,
+    };
+
+    let da_syncer_channels = data_availability::ReaderChannels {
+        executor_tx,
+        shutdown: sync_shutdown_rx,
+        sync_done: Some(sync_done_tx),
+    };
+
+    Ok(DataAvailabilityReaderInitData {
+        sync_shutdown_tx,
+        shutdown_tx,
+        sync_done_rx,
+        celestia_config,
+        height_data: da_init_height_data,
+        namespace_data: da_namespace_data,
+        reader_channels: da_reader_channels,
+        syncer_channels: da_syncer_channels,
+    })
+}
+
+fn configure_conductor_sync_behavior(
+    commit_level: &CommitLevel,
+) -> (Fuse<oneshot::Receiver<()>>, Fuse<oneshot::Receiver<()>>) {
+    use futures::FutureExt;
+
+    info!(execution_commit_level = %commit_level);
+
+    let mut seq_sync_done = futures::future::Fuse::terminated();
+    let mut da_sync_done = futures::future::Fuse::terminated();
+
+    match commit_level {
+        CommitLevel::SoftOnly => {
+            info!("only syncing from sequencer");
+            // terminate the DA sync to only execute from sequencer
+            let (sync_done_tx, sync_done_rx) = oneshot::channel();
+            da_sync_done = sync_done_rx.fuse();
+            let _ = sync_done_tx.send(());
+        }
+        CommitLevel::SoftAndFirm => {
+            info!("syncing from DA then sequencer");
+            // when running in soft and firm mode, a sync cycle from both DA
+            // and sequencer are used. First we sync from DA up to the most
+            // recent DA block, then we sync from most recent firm commit to the
+            // latest soft commit from the sequencer. Neither sync is
+            // preemtively terminated in this mode.
+        }
+        CommitLevel::FirmOnly => {
+            info!("only syncing from DA");
+            // terminate the sequencer sync to only execute from DA
+            let (sync_done_tx, sync_done_rx) = oneshot::channel();
+            seq_sync_done = sync_done_rx.fuse();
+            let _ = sync_done_tx.send(());
+        }
+    }
+
+    (da_sync_done, seq_sync_done)
 }
 
 async fn make_optimism_hook(
