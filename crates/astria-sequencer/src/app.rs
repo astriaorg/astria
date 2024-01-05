@@ -68,8 +68,8 @@ use crate::{
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
 
-/// The maximum number of bytes allowed in sequencer block txs.
-const MAX_BLOCK_SIZE: usize = 256_000;
+/// The maximum number of bytes allowed in sequencer action data.
+const MAX_BLOCK_SEQUENCE_DATA_SIZE: usize = 256_000;
 
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
@@ -269,21 +269,9 @@ impl App {
     ) -> (Vec<SignedTransaction>, Vec<bytes::Bytes>) {
         let mut signed_txs = Vec::with_capacity(txs.len());
         let mut validated_txs = Vec::with_capacity(txs.len());
-
-        let mut total_tx_size: usize = 0;
+        let mut total_sequenced_data_size: usize = 0;
 
         for tx in txs {
-            let tx_size = tx.len();
-            // Don't include tx if it would make the block too large.
-
-            if total_tx_size + tx_size > MAX_BLOCK_SIZE {
-                debug!(
-                    total_tx_size,
-                    tx_size, "block size limit reached, not including transaction in block"
-                );
-                continue;
-            }
-
             let Some(signed_tx) = raw::SignedTransaction::decode(&*tx)
                 .map_err(|e| {
                     debug!(
@@ -309,14 +297,35 @@ impl App {
                 continue;
             };
 
-            // store transaction execution result, indexed by tx hash
             let tx_hash = Sha256::digest(&tx);
+
+            // Sum up the total bytes in sequence actions
+            let mut sequenced_data_size = 0;
+            for action in signed_tx.clone().into_unsigned().actions {
+                if let Some(sequence_action) = action.as_sequence() {
+                    sequenced_data_size += sequence_action.data.len();
+                }
+            }
+
+            // Don't include tx if it would make the sequenced block data too large.
+            if total_sequenced_data_size + sequenced_data_size > MAX_BLOCK_SEQUENCE_DATA_SIZE {
+                debug!(
+                    transaction_hash = %telemetry::display::hex(&tx_hash),
+                    included_data_bytes = total_sequenced_data_size,
+                    tx_data_bytes = sequenced_data_size,
+                    max_data_bytes = MAX_BLOCK_SEQUENCE_DATA_SIZE,
+                    "excluding transaction: max block sequenced data limit reached"
+                );
+                continue;
+            }
+
+            // store transaction execution result, indexed by tx hash
             match self.deliver_tx(signed_tx.clone()).await {
                 Ok(events) => {
                     self.execution_result.insert(tx_hash.into(), Ok(events));
                     signed_txs.push(signed_tx);
                     validated_txs.push(tx);
-                    total_tx_size += tx_size;
+                    total_sequenced_data_size += sequenced_data_size;
                 }
                 Err(e) => {
                     debug!(
