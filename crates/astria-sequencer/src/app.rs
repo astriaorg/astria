@@ -89,8 +89,8 @@ pub(crate) struct App {
     // `prepare_proposal`, and re-executing them would cause failure.
     is_proposer: bool,
 
-    // set to true after executing block which happens in `prepare_proposal` and 
-    // `process_proposal`. Indicating that transactions have already been attempted to be 
+    // set to true after executing block which happens in `prepare_proposal` and
+    // `process_proposal`. Indicating that transactions have already been attempted to be
     // executed for this block. Set to false at `commit`, as well as when clearing voting
     // state.
     //
@@ -394,20 +394,28 @@ impl App {
         }
 
         let Some(signed_tx) = raw::SignedTransaction::decode(&*tx.tx)
-            .map_err(|err| {
-                debug!(error = ?err, "failed to deserialize bytes as a signed transaction");
-                err
+            .map_err(|e| {
+                debug!(
+                    error = &e as &dyn std::error::Error,
+                    "failed to deserialize bytes as a signed transaction",
+                );
+                e
             })
             .ok()
-            .and_then(|raw_tx| SignedTransaction::try_from_raw(raw_tx)
-                .map_err(|err| {
-                    debug!(error = ?err, "failed to convert raw signed transaction to native signed transaction");
-                    err
-                })
-                .ok()
-            ) else {
-                return None;
-            };
+            .and_then(|raw_tx| {
+                SignedTransaction::try_from_raw(raw_tx)
+                    .map_err(|e| {
+                        debug!(
+                            error = &e as &dyn std::error::Error,
+                            "failed to convert raw signed transaction to native signed transaction"
+                        );
+                        e
+                    })
+                    .ok()
+            })
+        else {
+            return None;
+        };
 
         Some(self.deliver_tx(signed_tx).await)
     }
