@@ -125,7 +125,11 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip_all, fields(chain_id = init_chain.chain_id, time = %init_chain.time, init_height = %init_chain.initial_height))]
+    #[instrument(skip_all, fields(
+        chain_id = init_chain.chain_id,
+        time = %init_chain.time,
+        init_height = %init_chain.initial_height
+    ))]
     async fn init_chain(
         &mut self,
         init_chain: request::InitChain,
