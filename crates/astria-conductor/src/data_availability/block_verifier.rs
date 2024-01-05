@@ -69,12 +69,12 @@ impl BlockVerifier {
              {}, got {}",
             height,
             block_resp.block_id.hash,
-            super::DisplayBlockHash(blob_hash),
+            telemetry::display::hex(&blob_hash),
         );
 
         debug!(
             sequencer_height = height,
-            sequencer_block_hash = %super::DisplayBlockHash(blob_hash),
+            sequencer_block_hash = %telemetry::display::hex(&blob_hash),
             "validating sequencer namespace data"
         );
 
@@ -296,6 +296,23 @@ mod test {
 
     use super::*;
 
+    /// Constructs a `[merkle::Tree]` from an iterator yielding byte slices.
+    ///
+    /// This hashes each item before pushing it into the Merkle Tree, which
+    /// effectively causes a double hashing. The leaf hash of an item `d_i`
+    /// is then `MTH(d_i) = SHA256(0x00 || SHA256(d_i))`.
+    fn merkle_tree_from_transactions<I, B>(iter: I) -> merkle::Tree
+    where
+        I: IntoIterator<Item = B>,
+        B: AsRef<[u8]>,
+    {
+        use sha2::{
+            Digest as _,
+            Sha256,
+        };
+        merkle::Tree::from_leaves(iter.into_iter().map(|item| Sha256::digest(&item)))
+    }
+
     fn make_test_validator_set_and_commit(
         height: u32,
         chain_id: tendermint::chain::Id,
@@ -357,10 +374,7 @@ mod test {
         let rollup_transactions_root = merkle::Tree::from_leaves([[1, 2, 3], [4, 5, 6]]).root();
         let chain_ids_commitment = merkle::Tree::new().root();
 
-        let tree = sequencer_types::cometbft::merkle_tree_from_transactions([
-            rollup_transactions_root,
-            chain_ids_commitment,
-        ]);
+        let tree = merkle_tree_from_transactions([rollup_transactions_root, chain_ids_commitment]);
         let data_hash = tree.root();
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();
@@ -395,10 +409,7 @@ mod test {
         let rollup_transactions_root = rollup_transactions_tree.root();
         let rollup_ids_root = merkle::Tree::from_leaves(std::iter::once(rollup_id)).root();
 
-        let tree = sequencer_types::cometbft::merkle_tree_from_transactions([
-            rollup_transactions_root,
-            rollup_ids_root,
-        ]);
+        let tree = merkle_tree_from_transactions([rollup_transactions_root, rollup_ids_root]);
         let data_hash = tree.root();
         let rollup_transactions_proof = tree.construct_proof(0).unwrap();
         let rollup_ids_proof = tree.construct_proof(1).unwrap();

@@ -44,6 +44,10 @@ RUN \
 FROM chef AS planner
 ARG TARGETBINARY
 COPY . .
+# XXX: override Cargo.toml in the root with containerfiles/Cargo.toml, which
+#      does not contain the `default-members` entry. It currently throws off
+#      cargo chef.
+COPY containerfiles/Cargo.toml Cargo.toml
 RUN cargo chef prepare --bin crates/$TARGETBINARY --recipe-path recipe.json
 
 FROM chef as builder

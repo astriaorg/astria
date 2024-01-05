@@ -213,9 +213,8 @@ impl Searcher {
                             }
                         },
                         Err(e) => warn!(
-                            error.message = %e,
-                            error.cause_chain = ?e,
-                            "conversion task failed while trying to convert pending rollup transaction to sequence action",
+                            error = &e as &dyn std::error::Error,
+                            "task failed to convert pending rollup transaction to signed sequencer transaction",
                         ),
                     }
                 }
@@ -233,15 +232,13 @@ impl Searcher {
                         }
                         Ok(Err(e)) => {
                             error!(
-                                error.message = %e,
-                                error.cause_chain = ?e,
+                                error = AsRef::<dyn std::error::Error>::as_ref(&e),
                                 "executor returned with error",
                             );
                         }
                         Err(e) => {
                             error!(
-                                error.message = %e,
-                                error.cause_chain = ?e,
+                                error = &e as &dyn std::error::Error,
                                 "executor task panicked",
                             );
                         }

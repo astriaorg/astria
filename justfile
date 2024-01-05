@@ -14,6 +14,11 @@ install-cli:
 compile-protos:
   cargo run --manifest-path tools/protobuf-compiler/Cargo.toml
 
+update-containerfiles-cargo-toml:
+  dasel delete -r toml -f Cargo.toml -o - 'workspace.default-members' \
+  | taplo fmt - --stdin-filepath Cargo.toml \
+  > containerfiles/Cargo.toml
+
 ## Scripts related to formatting code
 default_lang := 'all'
 
@@ -43,6 +48,8 @@ _fmt-rust:
 [no-exit-message]
 _lint-rust:
   cargo +nightly-2023-08-18 fmt --all -- --check
+  cargo clippy -- --warn clippy::pedantic
+  cargo dylint --all
 
 [no-exit-message]
 _fmt-toml:
