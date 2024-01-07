@@ -37,7 +37,7 @@ pub use transaction::{
     UnsignedTransaction,
 };
 
-pub const ADDRESS_LEN: usize = 20;
+pub const ADDRESS_LEN: usize = 33;
 pub const ROLLUP_ID_LEN: usize = 32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,12 +53,11 @@ impl Address {
     ///
     /// The first 20 bytes of the sha256 hash of the verification key is the address.
     #[must_use]
-    // Silence the clippy lint because the function body asserts that the panic
-    // cannot happen.
+    // Allow: the function body asserts at compile time that the panic cannot happen.
     #[allow(clippy::missing_panics_doc)]
     pub fn from_verification_key(public_key: ed25519_consensus::VerificationKey) -> Self {
-        /// this ensures that `ADDRESS_LEN` is never accidentally changed to a value
-        /// that would violate this assumption.
+        // Ensure that `ADDRESS_LEN` is not changed to violate this assumption.
+        // Allow: false-positive because clippy does not understand compile time constraints.
         #[allow(clippy::assertions_on_constants)]
         const _: () = assert!(ADDRESS_LEN <= 32);
         let bytes: [u8; 32] = Sha256::digest(public_key).into();
