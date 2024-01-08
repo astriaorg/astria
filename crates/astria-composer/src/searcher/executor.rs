@@ -69,9 +69,10 @@ use tracing::{
     Span,
 };
 
-use crate::searcher::bundler::{
+use crate::searcher::bundle_factory::{
     seq_action_size,
     BundleFactory,
+    BundleFactoryError,
 };
 
 /// The `Executor` interfaces with the sequencer. It handles account nonces, transaction signing,
@@ -84,7 +85,7 @@ pub(super) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
     // Channel for receiving `SequenceAction`s to be bundled.
-    seq_actions_rx: mpsc::Receiver<SequenceAction>,
+    serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
     sequencer_client: sequencer_client::HttpClient,
@@ -125,7 +126,7 @@ impl Executor {
     pub(super) fn new(
         sequencer_url: &str,
         private_key: &SecretString,
-        seq_actions: mpsc::Receiver<SequenceAction>,
+        serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
         block_time: u64,
         max_bundle_size: usize,
     ) -> eyre::Result<Self> {
@@ -146,7 +147,7 @@ impl Executor {
 
         Ok(Self {
             status,
-            seq_actions_rx: seq_actions,
+            serialized_rollup_transactions_rx,
             sequencer_client,
             sequencer_key,
             address: sequencer_address,
@@ -229,13 +230,12 @@ impl Executor {
                 }
 
                 // receive new seq_action and bundle it
-                Some(seq_action) = self.seq_actions_rx.recv(), if submission_fut.is_terminated() => {
-                    let seq_action_size = seq_action_size(&seq_action);
+                Some(seq_action) = self.serialized_rollup_transactions_rx.recv() => {
                     match bundle_factory.try_push(seq_action) {
                         Ok(()) => {}
-                        Err(_seq_action) => {
+                        Err(BundleFactoryError::SequenceActionTooLarge{size}) => {
                             warn!(
-                                seq_action_size = seq_action_size,
+                                seq_action_size = size,
                                 "failed to bundle sequence action: too large. sequence action is dropped."
                             );
                         }
@@ -247,12 +247,10 @@ impl Executor {
                     if let Some(bundle) = bundle_factory.pop_now() {
                         debug!(
                             bundle_len=bundle.len(),
-                            "forcing bundle submission to sequencer"
+                            "forcing bundle submission to sequencer due to block timer"
                         );
                         submission_fut = self.make_submission_fut(nonce, bundle);
                     }
-
-                    block_timer.as_mut().reset(Instant::now() + Duration::from_millis(self.block_time_ms));
                 }
             }
         }

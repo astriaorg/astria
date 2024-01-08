@@ -11,7 +11,10 @@ use astria_core::sequencer::v1alpha1::{
     },
     ROLLUP_ID_LEN,
 };
-use tracing::debug;
+use tracing::{
+    debug,
+    trace,
+};
 
 #[derive(Debug, thiserror::Error)]
 enum SizedBundleError {
@@ -77,9 +80,15 @@ impl SizedBundle {
     }
 }
 
-/// Manages the bundling of sequence actions into `SizedBundle`s. A `SizedBundle` is flushed and
+#[derive(Debug, thiserror::Error)]
+pub(super) enum BundleFactoryError {
+    #[error("sequence action is larger than the max bundle size. seq_action size: {size}")]
+    SequenceActionTooLarge { size: usize },
+}
+
+/// Manages the bundling of sequence actions into `SizedBundle`s. A `Vec<Action>` is flushed and
 /// added to the `finished` queue when an incoming `SequenceAction` won't fit in the current bundle.
-/// The `finished` queue operates in FIFO order, where `SizedBundle`s are added to the back and
+/// The `finished` queue operates in FIFO order, where `Vec<Action>`s are added to the back and
 /// taken off from the front.
 pub(super) struct BundleFactory {
     /// The current bundle being built.
@@ -89,7 +98,7 @@ pub(super) struct BundleFactory {
 }
 
 impl BundleFactory {
-    pub(super) fn new(max_bundle_size: usize) -> Self {
+    pub(super) fn new(max_size: usize) -> Self {
         Self {
             curr_bundle: SizedBundle::new(max_size),
             finished: VecDeque::new(),
@@ -98,13 +107,18 @@ impl BundleFactory {
 
     /// Buffer `seq_action` into the current bundle. If the bundle won't fit `seq_action`, flush
     /// `curr_bundle` into the `finished` queue and start a new bundle
-    pub(super) fn try_push(&mut self, seq_action: SequenceAction) -> Result<(), SequenceAction> {
+    pub(super) fn try_push(
+        &mut self,
+        seq_action: SequenceAction,
+    ) -> Result<(), BundleFactoryError> {
         let seq_action_size = seq_action_size(&seq_action);
 
         match self.curr_bundle.push(seq_action) {
-            Err(SizedBundleError::SequenceActionTooLarge(seq_action)) => {
+            Err(SizedBundleError::SequenceActionTooLarge(_seq_action)) => {
                 // reject the sequence action if it is larger than the max bundle size
-                Err(seq_action)
+                Err(BundleFactoryError::SequenceActionTooLarge {
+                    size: seq_action_size,
+                })
             }
             Err(SizedBundleError::NotEnoughSpace(seq_action)) => {
                 // if the bundle is full, flush it and start a new one
@@ -115,7 +129,7 @@ impl BundleFactory {
                 Ok(())
             }
             Ok(()) => {
-                debug!(
+                trace!(
                     new_bundle_size = self.curr_bundle.curr_size,
                     seq_action_size = seq_action_size,
                     "bundled new sequence action"

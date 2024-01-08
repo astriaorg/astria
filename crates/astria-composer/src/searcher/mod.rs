@@ -29,7 +29,7 @@ use tracing::{
 
 use crate::Config;
 
-mod bundler;
+mod bundle_factory;
 mod collector;
 mod executor;
 mod rollup;
@@ -61,7 +61,7 @@ pub(super) struct Searcher {
     // transactions.
     conversion_tasks: JoinSet<SequenceAction>,
     // The sender of sequence actions to the executor.
-    seq_actions_tx: Sender<SequenceAction>,
+    serialized_rollup_transactions_tx: Sender<SequenceAction>,
     // The Executor object that is responsible for signing and submitting sequencer transactions.
     executor: Option<Executor>,
     // Channel from which to read the internal status of the executor.
@@ -119,12 +119,13 @@ impl Searcher {
 
         let (status, _) = watch::channel(Status::default());
 
-        let (seq_actions_tx, seq_actions_rx) = mpsc::channel(256);
+        let (serialized_rollup_transactions_tx, serialized_rollup_transactions_rx) =
+            mpsc::channel(256);
 
         let executor = Executor::new(
             &cfg.sequencer_url,
             &cfg.private_key,
-            seq_actions_rx,
+            serialized_rollup_transactions_rx,
             cfg.block_time_ms,
             cfg.max_bundle_bytes,
         )
@@ -140,7 +141,7 @@ impl Searcher {
             new_transactions_tx,
             collector_tasks: JoinMap::new(),
             conversion_tasks: JoinSet::new(),
-            seq_actions_tx,
+            serialized_rollup_transactions_tx,
             executor_status,
             executor: Some(executor),
             rollups,
@@ -200,7 +201,7 @@ impl Searcher {
                 Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
                     match join_result {
                         Ok(seq_action) => {
-                            match self.seq_actions_tx.try_send(seq_action) {
+                            match self.serialized_rollup_transactions_tx.try_send(seq_action) {
                                 Ok(()) => {},
                                 Err(mpsc::error::TrySendError::Full(_seq_action)) => {
                                     // TODO: use span from the rollup transaction to identify which one was dropped
@@ -219,12 +220,10 @@ impl Searcher {
                     }
                 }
 
-                // handle dead `Collector`
                 Some((rollup, collector_exit)) = self.collector_tasks.join_next() => {
                     self.reconnect_exited_collector(rollup, collector_exit);
                 }
 
-                // handle dead `Executor`
                 ret = &mut executor_handle => {
                     match ret {
                         Ok(Ok(())) => {
