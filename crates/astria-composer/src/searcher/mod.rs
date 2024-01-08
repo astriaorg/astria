@@ -207,7 +207,7 @@ impl Searcher {
                                     warn!("failed to forward sequence action to the executor due to backpressure. transaction was returned.");
                                 },
                                 Err(mpsc::error::TrySendError::Closed(_)) => {
-                                    error!("sequence actions channel closed unexpectedly");
+                                    error!("channel to executor closed unexpectedly; exiting");
                                     break;
                                 }
                             }
