@@ -5,6 +5,7 @@ use crate::{
     Protobuf,
 };
 
+/// An error when transforming a [`raw::Block`] into a [`Block`].
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct BlockError(BlockErrorKind);
@@ -35,6 +36,13 @@ enum BlockErrorKind {
     IncorrectParentBlockHashLength(usize),
 }
 
+/// An Astria execution block on a rollup.
+///
+/// Contains information about the block number, its hash,
+/// its parent block's hash, and timestamp.
+///
+/// Usually constructed its [`Protobuf`] implementation from a
+/// [`raw::Block`].
 #[derive(Clone, Debug)]
 pub struct Block {
     /// The block number
@@ -138,6 +146,10 @@ impl CommitmentStateError {
     fn soft(source: BlockError) -> Self {
         Self(CommitmentStateErrorKind::Soft(source))
     }
+
+    fn firm_exceeds_soft(source: FirmExceedsSoft) -> Self {
+        Self(CommitmentStateErrorKind::FirmExceedsSoft(source))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -148,24 +160,103 @@ enum CommitmentStateErrorKind {
     Firm(#[source] BlockError),
     #[error(".soft field did not contain a valid block")]
     Soft(#[source] BlockError),
+    #[error(transparent)]
+    FirmExceedsSoft(FirmExceedsSoft),
 }
 
-/// The CommitmentState holds the block at each stage of sequencer commitment
-/// level
+#[derive(Debug, thiserror::Error)]
+#[error("firm commitment at `{firm} exceeds soft commitment at `{soft}")]
+pub struct FirmExceedsSoft {
+    firm: u32,
+    soft: u32,
+}
+
+pub struct NoFirm;
+pub struct NoSoft;
+pub struct WithFirm(Block);
+pub struct WithSoft(Block);
+
+#[derive(Default)]
+pub struct CommitmentStateBuilder<TFirm = NoFirm, TSoft = NoSoft> {
+    firm: TFirm,
+    soft: TSoft,
+}
+
+impl CommitmentStateBuilder<NoFirm, NoSoft> {
+    fn new() -> Self {
+        Self {
+            firm: NoFirm,
+            soft: NoSoft,
+        }
+    }
+}
+
+impl<TFirm, TSoft> CommitmentStateBuilder<TFirm, TSoft> {
+    pub fn firm(self, firm: Block) -> CommitmentStateBuilder<WithFirm, TSoft> {
+        let Self {
+            soft, ..
+        } = self;
+        CommitmentStateBuilder {
+            firm: WithFirm(firm),
+            soft,
+        }
+    }
+
+    pub fn soft(self, soft: Block) -> CommitmentStateBuilder<TFirm, WithSoft> {
+        let Self {
+            firm, ..
+        } = self;
+        CommitmentStateBuilder {
+            firm,
+            soft: WithSoft(soft),
+        }
+    }
+}
+
+impl CommitmentStateBuilder<WithFirm, WithSoft> {
+    /// Finalize the commitment state.
+    ///
+    /// # Errors
+    /// Returns an error if the firm block exceeds the soft one.
+    pub fn build(self) -> Result<CommitmentState, FirmExceedsSoft> {
+        let Self {
+            firm: WithFirm(firm),
+            soft: WithSoft(soft),
+        } = self;
+        if firm.number() > soft.number() {
+            return Err(FirmExceedsSoft {
+                firm: firm.number(),
+                soft: soft.number(),
+            });
+        }
+        Ok(CommitmentState {
+            soft,
+            firm,
+        })
+    }
+}
+
+/// Information about the [`Block`] at each sequencer commitment level.
 ///
-/// A Valid CommitmentState:
-/// - Block numbers are such that soft >= firm.
+/// A commitment state is valid if:
+/// - Block numbers are such that soft >= firm (upheld by this type).
 /// - No blocks ever decrease in block number.
 /// - The chain defined by soft is the head of the canonical chain the firm block must belong to.
+// NOTE: The type's fields are public because no invariants are upheld.
 #[derive(Clone, Debug)]
 pub struct CommitmentState {
     /// Soft commitment is the rollup block matching latest sequencer block.
-    pub soft: Block,
+    soft: Block,
     /// Firm commitment is achieved when data has been seen in DA.
-    pub firm: Block,
+    firm: Block,
 }
 
 impl CommitmentState {
+    #[must_use = "a commitment state must be built to be useful"]
+    pub fn builder() -> CommitmentStateBuilder {
+        CommitmentStateBuilder::new()
+    }
+
     #[must_use]
     pub fn firm(&self) -> &Block {
         &self.firm
@@ -198,10 +289,11 @@ impl Protobuf for CommitmentState {
             };
             Block::try_from_raw_ref(firm).map_err(Self::Error::firm)
         }?;
-        Ok(Self {
-            soft,
-            firm,
-        })
+        Self::builder()
+            .firm(firm)
+            .soft(soft)
+            .build()
+            .map_err(Self::Error::firm_exceeds_soft)
     }
 
     fn to_raw(&self) -> Self::Raw {
