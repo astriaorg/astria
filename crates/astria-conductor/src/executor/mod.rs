@@ -360,12 +360,9 @@ impl Executor {
                     .execute_block(block_subset)
                     .await
                     .wrap_err("failed to execute block")?;
-                self.update_commitment_state(CommitmentState {
-                    soft: executed_block,
-                    firm: self.commitment_state.firm().clone(),
-                })
-                .await
-                .wrap_err("failed to update soft commitment state")?;
+                self.update_commitment_state(self.commitment_state.firm().clone(), executed_block)
+                    .await
+                    .wrap_err("failed to update soft commitment state")?;
             }
 
             ExecutorCommand::FromCelestia(blocks) => self
@@ -441,10 +438,12 @@ impl Executor {
         Ok(executed_block)
     }
 
-    async fn update_commitment_state(
-        &mut self,
-        commitment_state: CommitmentState,
-    ) -> eyre::Result<()> {
+    async fn update_commitment_state(&mut self, firm: Block, soft: Block) -> eyre::Result<()> {
+        let commitment_state = CommitmentState::builder()
+            .firm(firm)
+            .soft(soft)
+            .build()
+            .wrap_err("failed constructing commitment state")?;
         let new_state = self
             .client
             .update_commitment_state(commitment_state)
@@ -482,12 +481,9 @@ impl Executor {
                 .cloned();
             if let Some(block) = maybe_executed_block {
                 // this case means block has already been executed.
-                self.update_commitment_state(CommitmentState {
-                    firm: block,
-                    soft: self.commitment_state.soft().clone(),
-                })
-                .await
-                .wrap_err("failed to update firm commitment state")?;
+                self.update_commitment_state(block, self.commitment_state.soft().clone())
+                    .await
+                    .wrap_err("failed to update firm commitment state")?;
                 // remove the sequencer block hash from the map, as it's been firmly committed
                 self.sequencer_hash_to_execution_block
                     .remove(&sequencer_block_hash);
@@ -504,12 +500,9 @@ impl Executor {
 
                 // when we execute a block received from da, nothing else has been executed on
                 // top of it, so we set FIRM and SOFT to this executed block
-                self.update_commitment_state(CommitmentState {
-                    firm: executed_block.clone(),
-                    soft: executed_block,
-                })
-                .await
-                .wrap_err("failed to setting both commitment states to executed block")?;
+                self.update_commitment_state(executed_block.clone(), executed_block)
+                    .await
+                    .wrap_err("failed to setting both commitment states to executed block")?;
                 // remove the sequencer block hash from the map, as it's been firmly committed
                 self.sequencer_hash_to_execution_block
                     .remove(&sequencer_block_hash);

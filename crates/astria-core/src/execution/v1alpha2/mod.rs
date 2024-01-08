@@ -242,7 +242,6 @@ impl CommitmentStateBuilder<WithFirm, WithSoft> {
 /// - Block numbers are such that soft >= firm (upheld by this type).
 /// - No blocks ever decrease in block number.
 /// - The chain defined by soft is the head of the canonical chain the firm block must belong to.
-// NOTE: The type's fields are public because no invariants are upheld.
 #[derive(Clone, Debug)]
 pub struct CommitmentState {
     /// Soft commitment is the rollup block matching latest sequencer block.

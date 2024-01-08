@@ -29,7 +29,7 @@ impl Client {
         }
     }
 
-    /// Calls remote procedure ExecuteBlock
+    /// Calls remote procedure `astria.execution.v1alpha2.ExecuteBlock`
     ///
     /// # Arguments
     ///
@@ -58,7 +58,7 @@ impl Client {
         Ok(block)
     }
 
-    /// Calls remote procedure GetCommitmentState
+    /// Calls remote procedure `astria.execution.v1alpha2.GetCommitmentState`
     pub(super) async fn get_commitment_state(&mut self) -> eyre::Result<CommitmentState> {
         let request = raw::GetCommitmentStateRequest {};
         let response = self
@@ -72,7 +72,7 @@ impl Client {
         Ok(commitment_state)
     }
 
-    /// Calls remote procedure UpdateCommitmentState
+    /// Calls remote procedure `astria.execution.v1alpha2.UpdateCommitmentState`
     ///
     /// # Arguments
     ///
