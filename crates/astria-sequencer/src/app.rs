@@ -369,7 +369,7 @@ impl App {
     #[instrument(name = "App::deliver_tx_after_proposal", skip_all, fields(
         tx_hash =  %telemetry::display::hex(&Sha256::digest(&tx.tx)),
     ))]
-    pub(crate) async fn deliver_tx_after_execution(
+    pub(crate) async fn deliver_tx_after_proposal(
         &mut self,
         tx: abci::request::DeliverTx,
     ) -> Option<anyhow::Result<Vec<abci::Event>>> {
