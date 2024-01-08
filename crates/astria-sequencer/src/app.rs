@@ -350,7 +350,7 @@ impl App {
                 excluded_tx_count = excluded_tx_count,
                 included_tx_count = validated_txs.len(),
                 "excluded transactions from block"
-            )
+            );
         }
 
         (signed_txs, validated_txs)
