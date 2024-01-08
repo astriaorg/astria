@@ -289,29 +289,15 @@ impl App {
         let mut validated_txs = Vec::with_capacity(txs.len());
 
         for tx in txs {
-            let Some(signed_tx) = raw::SignedTransaction::decode(&*tx)
-                .map_err(|e| {
+            let signed_tx = match signed_transaction_from_bytes(&tx) {
+                Err(e) => {
                     debug!(
-                        error = &e as &dyn std::error::Error,
-                        "failed to deserialize bytes as a signed transaction",
+                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                        "failed to decode deliver tx payload to signed transaction; ignoring it",
                     );
-                    e
-                })
-                .ok()
-                .and_then(|raw_tx| {
-                    SignedTransaction::try_from_raw(raw_tx)
-                        .map_err(|e| {
-                            debug!(
-                                error = &e as &dyn std::error::Error,
-                                "failed to convert raw signed transaction to native signed \
-                                 transaction"
-                            );
-                            e
-                        })
-                        .ok()
-                })
-            else {
-                continue;
+                    continue;
+                }
+                Ok(tx) => tx,
             };
 
             // store transaction execution result, indexed by tx hash
@@ -374,7 +360,7 @@ impl App {
     /// Since transaction execution now happens in the proposal phase, results
     /// are cached in the app and returned here during the usual ABCI block execution process.
     ///
-    /// If the proposal was not executed, the transaction will be executed.
+    /// If the tx was not executed during the proposal phase it will be executed here.
     ///
     /// Note that the first two "transactions" in the block, which are the proposer-generated
     /// commitments, are ignored.
@@ -393,28 +379,15 @@ impl App {
             return self.execution_result.remove(&tx_hash);
         }
 
-        let Some(signed_tx) = raw::SignedTransaction::decode(&*tx.tx)
-            .map_err(|e| {
+        let signed_tx = match signed_transaction_from_bytes(&tx.tx) {
+            Err(e) => {
                 debug!(
-                    error = &e as &dyn std::error::Error,
-                    "failed to deserialize bytes as a signed transaction",
+                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                    "failed to decode deliver tx payload to signed transaction; ignoring it",
                 );
-                e
-            })
-            .ok()
-            .and_then(|raw_tx| {
-                SignedTransaction::try_from_raw(raw_tx)
-                    .map_err(|e| {
-                        debug!(
-                            error = &e as &dyn std::error::Error,
-                            "failed to convert raw signed transaction to native signed transaction"
-                        );
-                        e
-                    })
-                    .ok()
-            })
-        else {
-            return None;
+                return None;
+            }
+            Ok(tx) => tx,
         };
 
         Some(self.deliver_tx(signed_tx).await)
@@ -582,6 +555,15 @@ impl App {
 
         events
     }
+}
+
+fn signed_transaction_from_bytes(bytes: &[u8]) -> anyhow::Result<SignedTransaction> {
+    let raw = raw::SignedTransaction::decode(bytes)
+        .context("failed to decode protobuf to signed transaction")?;
+    let tx = SignedTransaction::try_from_raw(raw)
+        .context("failed to transform raw signed transaction to verified type")?;
+
+    Ok(tx)
 }
 
 #[cfg(test)]
