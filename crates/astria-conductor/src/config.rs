@@ -63,7 +63,7 @@ pub struct Config {
 
     /// The number of block on Celestia in which the first sequencer block for the rollup should be
     /// found
-    pub celestia_search_window: u32,
+    pub celestia_search_window: u64,
 
     /// The execution commit level used for controlling how blocks are sent to
     /// the execution layer.

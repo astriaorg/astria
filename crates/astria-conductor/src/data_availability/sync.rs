@@ -33,27 +33,16 @@ use crate::{
     executor,
 };
 
-pub(crate) async fn find_data_availability_blob_with_sequencer_data(
+/// Find the height of the first Celestia block with sequencer data including/after the
+/// initial Celestia height provided.
+pub(crate) async fn find_height_with_sequencer_blob(
     start_height: Height,
     celestia_client: HttpClient,
     sequencer_namespace: Namespace,
-    da_search_window: u32,
+    da_search_window: u64,
 ) -> eyre::Result<Height> {
-    let mut height = start_height;
-    let mut loop_count = 0;
-    loop {
-        // assert!(
-        //     loop_count <= da_search_window,
-        //     "{}",
-        //     format!(
-        //         "initial sequencer block not found after searching {da_search_window} da blocks"
-        //     )
-        // );
-        if loop_count > da_search_window {
-            break Err(eyre::eyre!(
-                "initial sequencer block not found after searching {da_search_window} da blocks"
-            ));
-        }
+    let start_height = start_height.value();
+    for height in start_height..=(start_height + da_search_window) {
         let sequencer_blobs = celestia_client
             .get_sequencer_blobs(height, sequencer_namespace)
             .await;
@@ -61,16 +50,18 @@ pub(crate) async fn find_data_availability_blob_with_sequencer_data(
         match sequencer_blobs {
             Ok(_blobs) => {
                 info!(height = %height, "found sequencer blob");
-                break Ok(height);
+                return Ok(Height::try_from(height)?);
             }
             Err(error) => {
                 let error = &error as &(dyn std::error::Error);
                 warn!(height = %height, error, "error returned when fetching sequencer data; skipping");
-                height = height.increment();
-                loop_count += 1;
             }
         }
     }
+
+    Err(eyre::eyre!(
+        "initial sequencer block not found after searching {da_search_window} da blocks"
+    ))
 }
 
 /// Fetch sequencer data from DA with at given height and namespace with
@@ -89,6 +80,7 @@ pub(crate) async fn get_new_sequencer_block_data_with_retry(
                 .map(humantime::format_duration)
                 .map(tracing::field::display);
             let error = error.as_ref() as &(dyn std::error::Error);
+            // for some reason the error needs to be owned for the async closure?
             let error = error.to_string();
             async move {
                 warn!(

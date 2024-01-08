@@ -390,7 +390,7 @@ fn schedule_for_forwarding_or_resubscribe(
                 );
             }
             Ok(block) => {
-                info!(at_height = %block.header().height, "received new block from sequencer subscription");
+                info!(at_height = %block.header().height, "received new block");
                 pending_blocks.push_back(futures::future::ready(block));
             }
         }

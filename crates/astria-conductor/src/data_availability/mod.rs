@@ -126,7 +126,7 @@ pub(crate) struct Reader {
 
     /// The number of blocks on DA in which the first sequencer block for the rollup should be
     /// found
-    da_search_window: u32,
+    da_search_window: u64,
 
     shutdown: oneshot::Receiver<()>,
 
@@ -146,7 +146,7 @@ pub(crate) struct ReaderInitHeightData {
     pub(crate) initial_da_height: u32,
     pub(crate) initial_seq_height: u32,
     pub(crate) firm_commit_height: u32,
-    pub(crate) da_block_search_window: u32,
+    pub(crate) da_block_search_window: u64,
 }
 
 pub(crate) struct ReaderChannels {
@@ -482,7 +482,7 @@ async fn find_latest_height(celestia_client: HttpClient) -> eyre::Result<Height>
     Ok(celestia_client.header_network_head().await?.header.height)
 }
 
-#[instrument(skip_all, fields(height))]
+#[instrument(skip_all)]
 fn send_sequencer_subsets(
     executor_tx: executor::Sender,
     sequencer_subsets_res: Result<eyre::Result<Vec<SequencerBlockSubset>>, JoinError>,
@@ -514,7 +514,7 @@ async fn find_da_sync_start_height(
     firm_commit_height: u32,
     initial_seq_block_height: u32,
     sequencer_namespace: Namespace,
-    da_block_range: u32,
+    da_block_range: u64,
 ) -> eyre::Result<u32> {
     debug!("finding da sync start height");
     debug!(initial_da_height = %initial_da_height);
@@ -528,7 +528,7 @@ async fn find_da_sync_start_height(
     // let mut guess_blob_height = Height::from(initial_da_height);
     // debug!(guess_block_height = %guess_blob_height, "guessing da block height before simple
     // search");
-    let guess_blob_height = sync::find_data_availability_blob_with_sequencer_data(
+    let guess_blob_height = sync::find_height_with_sequencer_blob(
         Height::from(initial_da_height),
         client.clone(),
         sequencer_namespace,
@@ -545,7 +545,6 @@ async fn find_da_sync_start_height(
             return Err(e);
         }
     };
-    // debug!(guess_block_height = %guess_blob_height, "guess da block height after simple search");
 
     // find the da block with the sequencer data that contains the firm commit
     // height for the rollup
