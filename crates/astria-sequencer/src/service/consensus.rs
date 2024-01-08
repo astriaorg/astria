@@ -156,7 +156,9 @@ impl Consensus {
         &mut self,
         prepare_proposal: request::PrepareProposal,
     ) -> response::PrepareProposal {
-        self.app.prepare_proposal(prepare_proposal).await
+        self.app
+            .prepare_proposal(prepare_proposal, self.storage.clone())
+            .await
     }
 
     #[instrument(skip(self))]
@@ -164,7 +166,9 @@ impl Consensus {
         &mut self,
         process_proposal: request::ProcessProposal,
     ) -> anyhow::Result<()> {
-        self.app.process_proposal(process_proposal).await
+        self.app
+            .process_proposal(process_proposal, self.storage.clone())
+            .await
     }
 
     #[instrument(skip(self))]
@@ -494,6 +498,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
         app.init_chain(genesis_state, vec![]).await.unwrap();
+        app.commit(storage.clone()).await;
 
         let (_tx, rx) = mpsc::channel(1);
         Consensus::new(storage.clone(), app, rx)
