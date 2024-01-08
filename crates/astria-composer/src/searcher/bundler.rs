@@ -89,7 +89,7 @@ pub(super) struct BundleFactory {
 }
 
 impl BundleFactory {
-    pub(super) fn new(max_size: usize) -> Self {
+    pub(super) fn new(max_bundle_size: usize) -> Self {
         Self {
             curr_bundle: SizedBundle::new(max_size),
             finished: VecDeque::new(),
