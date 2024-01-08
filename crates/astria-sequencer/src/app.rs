@@ -14,6 +14,7 @@ use anyhow::{
 use astria_core::{
     generated::sequencer::v1alpha1 as raw,
     sequencer::v1alpha1::{
+        transaction::Action,
         Address,
         SignedTransaction,
     },
@@ -69,7 +70,7 @@ use crate::{
 type InterBlockState = Arc<StateDelta<Snapshot>>;
 
 /// The maximum number of bytes allowed in sequencer action data.
-const MAX_BLOCK_SEQUENCE_DATA_SIZE: usize = 256_000;
+const MAX_SEQUENCE_DATA_BYTES_PER_BLOCK: usize = 256_000;
 
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
@@ -269,7 +270,8 @@ impl App {
     ) -> (Vec<SignedTransaction>, Vec<bytes::Bytes>) {
         let mut signed_txs = Vec::with_capacity(txs.len());
         let mut validated_txs = Vec::with_capacity(txs.len());
-        let mut total_sequenced_data_size: usize = 0;
+        let mut block_sequence_data_bytes: usize = 0;
+        let mut excluded_tx_count: usize = 0;
 
         for tx in txs {
             let Some(signed_tx) = raw::SignedTransaction::decode(&*tx)
@@ -278,6 +280,7 @@ impl App {
                         error = &e as &dyn std::error::Error,
                         "failed to deserialize bytes as a signed transaction",
                     );
+                    excluded_tx_count += 1;
                     e
                 })
                 .ok()
@@ -289,6 +292,7 @@ impl App {
                                 "failed to convert raw signed transaction to native signed \
                                  transaction"
                             );
+                            excluded_tx_count += 1;
                             e
                         })
                         .ok()
@@ -299,23 +303,25 @@ impl App {
 
             let tx_hash = Sha256::digest(&tx);
 
-            // Sum up the total bytes in sequence actions
-            let mut sequenced_data_size = 0;
-            for action in signed_tx.clone().into_unsigned().actions {
-                if let Some(sequence_action) = action.as_sequence() {
-                    sequenced_data_size += sequence_action.data.len();
-                }
-            }
+            let tx_sequence_data_bytes = signed_tx
+                .unsigned_transaction()
+                .actions
+                .iter()
+                .filter_map(Action::as_sequence)
+                .fold(0usize, |acc, seq| acc + seq.data.len());
 
             // Don't include tx if it would make the sequenced block data too large.
-            if total_sequenced_data_size + sequenced_data_size > MAX_BLOCK_SEQUENCE_DATA_SIZE {
+            if block_sequence_data_bytes + tx_sequence_data_bytes
+                > MAX_SEQUENCE_DATA_BYTES_PER_BLOCK
+            {
                 debug!(
                     transaction_hash = %telemetry::display::hex(&tx_hash),
-                    included_data_bytes = total_sequenced_data_size,
-                    tx_data_bytes = sequenced_data_size,
-                    max_data_bytes = MAX_BLOCK_SEQUENCE_DATA_SIZE,
+                    included_data_bytes = block_sequence_data_bytes,
+                    tx_data_bytes = tx_sequence_data_bytes,
+                    max_data_bytes = MAX_SEQUENCE_DATA_BYTES_PER_BLOCK,
                     "excluding transaction: max block sequenced data limit reached"
                 );
+                excluded_tx_count += 1;
                 continue;
             }
 
@@ -325,7 +331,7 @@ impl App {
                     self.execution_result.insert(tx_hash.into(), Ok(events));
                     signed_txs.push(signed_tx);
                     validated_txs.push(tx);
-                    total_sequenced_data_size += sequenced_data_size;
+                    block_sequence_data_bytes += tx_sequence_data_bytes;
                 }
                 Err(e) => {
                     debug!(
@@ -333,9 +339,18 @@ impl App {
                         error = AsRef::<dyn std::error::Error>::as_ref(&e),
                         "failed to execute transaction, not including in block"
                     );
+                    excluded_tx_count += 1;
                     self.execution_result.insert(tx_hash.into(), Err(e));
                 }
             }
+        }
+
+        if excluded_tx_count > 0 {
+            info!(
+                excluded_tx_count = excluded_tx_count,
+                included_tx_count = validated_txs.len(),
+                "excluded transactions from block"
+            )
         }
 
         (signed_txs, validated_txs)
