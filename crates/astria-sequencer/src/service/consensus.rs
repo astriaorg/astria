@@ -177,7 +177,7 @@ impl Consensus {
         tx_count = process_proposal.txs.len(),
         proposer = %process_proposal.proposer_address,
         hash = %telemetry::display::hex(&process_proposal.hash),
-        next_validators_hash = %process_proposal.next_validators_hash,
+        next_validators_hash = %telemetry::display::hex(&process_proposal.next_validators_hash),
     ))]
     async fn handle_process_proposal(
         &mut self,
