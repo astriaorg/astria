@@ -70,7 +70,6 @@ use tracing::{
 };
 
 use crate::searcher::bundle_factory::{
-    seq_action_size,
     BundleFactory,
     BundleFactoryError,
 };
@@ -96,7 +95,7 @@ pub(super) struct Executor {
     // Milliseconds for bundle timer to make sure bundles are submitted at least once per block.
     block_time_ms: u64,
     // Max bytes in a sequencer action bundle
-    max_bundle_size: usize,
+    max_bytes_per_bundle: usize,
 }
 
 impl Drop for Executor {
@@ -128,7 +127,7 @@ impl Executor {
         private_key: &SecretString,
         serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
         block_time: u64,
-        max_bundle_size: usize,
+        max_bytes_per_bundle: usize,
     ) -> eyre::Result<Self> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
@@ -152,7 +151,7 @@ impl Executor {
             sequencer_key,
             address: sequencer_address,
             block_time_ms: block_time,
-            max_bundle_size,
+            max_bytes_per_bundle,
         })
     }
 
@@ -201,7 +200,7 @@ impl Executor {
 
         let block_timer = time::sleep(Duration::from_millis(self.block_time_ms));
         tokio::pin!(block_timer);
-        let mut bundle_factory = BundleFactory::new(self.max_bundle_size);
+        let mut bundle_factory = BundleFactory::new(self.max_bytes_per_bundle);
 
         loop {
             select! {
@@ -562,7 +561,7 @@ mod tests {
                 .to_string()
                 .into(),
             block_time_ms: 2000,
-            max_bundle_bytes: 1000,
+            max_bytes_per_bundle: 1000,
         };
         (server, startup_guard, cfg)
     }
@@ -674,7 +673,7 @@ mod tests {
             &cfg.private_key,
             seq_actions_rx,
             cfg.block_time_ms,
-            cfg.max_bundle_bytes,
+            cfg.max_bytes_per_bundle,
         )
         .unwrap();
         let status = executor.subscribe();
@@ -690,7 +689,7 @@ mod tests {
         // order to make space for the second
         let seq0 = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0u8; cfg.max_bundle_bytes - ROLLUP_ID_LEN],
+            data: vec![0u8; cfg.max_bytes_per_bundle - ROLLUP_ID_LEN],
         };
 
         let seq1 = SequenceAction {
@@ -753,7 +752,7 @@ mod tests {
             &cfg.private_key,
             seq_actions_rx,
             cfg.block_time_ms,
-            cfg.max_bundle_bytes,
+            cfg.max_bytes_per_bundle,
         )
         .unwrap();
         let status = executor.subscribe();
@@ -768,7 +767,7 @@ mod tests {
         // without filling it
         let seq0 = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0u8; cfg.max_bundle_bytes / 4],
+            data: vec![0u8; cfg.max_bytes_per_bundle / 4],
         };
 
         // make sure at least one block has passed so that the executor will submit the bundle
@@ -828,7 +827,7 @@ mod tests {
             &cfg.private_key,
             seq_actions_rx,
             cfg.block_time_ms,
-            cfg.max_bundle_bytes,
+            cfg.max_bytes_per_bundle,
         )
         .unwrap();
         let status = executor.subscribe();
@@ -843,12 +842,12 @@ mod tests {
         // without filling it
         let seq0 = SequenceAction {
             rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
-            data: vec![0u8; cfg.max_bundle_bytes / 4],
+            data: vec![0u8; cfg.max_bytes_per_bundle / 4],
         };
 
         let seq1 = SequenceAction {
             rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
-            data: vec![1u8; cfg.max_bundle_bytes / 4],
+            data: vec![1u8; cfg.max_bytes_per_bundle / 4],
         };
 
         // make sure at least one block has passed so that the executor will submit the bundle

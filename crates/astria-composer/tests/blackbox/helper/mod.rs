@@ -66,7 +66,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
             .to_string()
             .into(),
         block_time_ms: 2000,
-        max_bundle_bytes: 200_000,
+        max_bytes_per_bundle: 200_000,
     };
     let (composer_addr, composer) = {
         let composer = Composer::from_config(&config).unwrap();

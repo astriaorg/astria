@@ -127,7 +127,7 @@ impl Searcher {
             &cfg.private_key,
             serialized_rollup_transactions_rx,
             cfg.block_time_ms,
-            cfg.max_bundle_bytes,
+            cfg.max_bytes_per_bundle,
         )
         .wrap_err("executor construction from config failed")?;
 
