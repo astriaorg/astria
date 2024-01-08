@@ -204,7 +204,7 @@ impl Searcher {
                                 Ok(()) => {},
                                 Err(mpsc::error::TrySendError::Full(_seq_action)) => {
                                     // TODO: use span from the rollup transaction to identify which one was dropped
-                                    warn!("failed to forward sequence action to the executor due to backpressure. transaction was returned.");
+                                    warn!("failed to forward transaction to executor due to backpressure. Dropping it.");
                                 },
                                 Err(mpsc::error::TrySendError::Closed(_)) => {
                                     error!("channel to executor closed unexpectedly; exiting");
