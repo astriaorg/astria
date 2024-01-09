@@ -360,7 +360,7 @@ impl Executor {
                     .execute_block(block_subset)
                     .await
                     .wrap_err("failed to execute block")?;
-                self.update_commitment_state(UpdateCommitmentState::OnlySoft(executed_block))
+                self.update_commitment_state(Update::OnlySoft(executed_block))
                     .await
                     .wrap_err("failed to update soft commitment state")?;
             }
@@ -466,7 +466,7 @@ impl Executor {
                 .cloned();
             if let Some(block) = maybe_executed_block {
                 // this case means block has already been executed.
-                self.update_commitment_state(UpdateCommitmentState::OnlyFirm(block))
+                self.update_commitment_state(Update::OnlyFirm(block))
                     .await
                     .wrap_err("failed to update firm commitment state")?;
                 // remove the sequencer block hash from the map, as it's been firmly committed
@@ -485,7 +485,7 @@ impl Executor {
 
                 // when we execute a block received from da, nothing else has been executed on
                 // top of it, so we set FIRM and SOFT to this executed block
-                self.update_commitment_state(UpdateCommitmentState::ToSame(executed_block))
+                self.update_commitment_state(Update::ToSame(executed_block))
                     .await
                     .wrap_err("failed to setting both commitment states to executed block")?;
                 // remove the sequencer block hash from the map, as it's been firmly committed
@@ -534,8 +534,8 @@ impl Executor {
         Ok(finalizable_block_height.into())
     }
 
-    async fn update_commitment_state(&mut self, update: UpdateCommitmentState) -> eyre::Result<()> {
-        use UpdateCommitmentState::*;
+    async fn update_commitment_state(&mut self, update: Update) -> eyre::Result<()> {
+        use Update::*;
         let (firm, soft) = match update {
             OnlyFirm(firm) => (firm, self.commitment_state.soft().clone()),
             OnlySoft(soft) => (self.commitment_state.firm().clone(), soft),
@@ -570,7 +570,7 @@ fn calculate_sequencer_block_height(
     initial_sequencer_height.checked_add(rollup_height)
 }
 
-enum UpdateCommitmentState {
+enum Update {
     OnlyFirm(Block),
     OnlySoft(Block),
     ToSame(Block),
