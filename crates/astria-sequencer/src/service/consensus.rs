@@ -4,6 +4,10 @@ use anyhow::{
 };
 use astria_core::sequencer::v1alpha1::AbciErrorCode;
 use cnidarium::Storage;
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 use tendermint::v0_37::abci::{
     request,
     response,
@@ -72,7 +76,7 @@ impl Consensus {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn handle_request(
         &mut self,
         req: ConsensusRequest,
@@ -121,7 +125,11 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(
+        chain_id = init_chain.chain_id,
+        time = %init_chain.time,
+        init_height = %init_chain.initial_height
+    ))]
     async fn init_chain(
         &mut self,
         init_chain: request::InitChain,
@@ -151,23 +159,43 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(
+        height = %prepare_proposal.height,
+        tx_count = prepare_proposal.txs.len(),
+        time = %prepare_proposal.time
+    ))]
     async fn handle_prepare_proposal(
         &mut self,
         prepare_proposal: request::PrepareProposal,
     ) -> response::PrepareProposal {
-        self.app.prepare_proposal(prepare_proposal).await
+        self.app
+            .prepare_proposal(prepare_proposal, self.storage.clone())
+            .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(
+        height = %process_proposal.height,
+        time = %process_proposal.time,
+        tx_count = process_proposal.txs.len(),
+        proposer = %process_proposal.proposer_address,
+        hash = %telemetry::display::hex(&process_proposal.hash),
+        next_validators_hash = %telemetry::display::hex(&process_proposal.next_validators_hash),
+    ))]
     async fn handle_process_proposal(
         &mut self,
         process_proposal: request::ProcessProposal,
     ) -> anyhow::Result<()> {
-        self.app.process_proposal(process_proposal).await
+        self.app
+            .process_proposal(process_proposal, self.storage.clone())
+            .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(
+        hash = %begin_block.hash,
+        height = %begin_block.header.height,
+        time = %begin_block.header.time,
+        proposer = %begin_block.header.proposer_address
+    ))]
     async fn begin_block(
         &mut self,
         begin_block: request::BeginBlock,
@@ -182,7 +210,9 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(
+        tx_hash = %telemetry::display::hex(&Sha256::digest(&deliver_tx.tx))
+    ))]
     async fn deliver_tx(&mut self, deliver_tx: request::DeliverTx) -> response::DeliverTx {
         use sha2::Digest as _;
 
@@ -218,7 +248,7 @@ impl Consensus {
         }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(height = %end_block.height))]
     async fn end_block(
         &mut self,
         end_block: request::EndBlock,
@@ -226,7 +256,7 @@ impl Consensus {
         self.app.end_block(&end_block).await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn commit(&mut self) -> anyhow::Result<response::Commit> {
         let app_hash = self.app.commit(self.storage.clone()).await;
         Ok(response::Commit {
@@ -494,6 +524,7 @@ mod test {
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
         app.init_chain(genesis_state, vec![]).await.unwrap();
+        app.commit(storage.clone()).await;
 
         let (_tx, rx) = mpsc::channel(1);
         Consensus::new(storage.clone(), app, rx)
