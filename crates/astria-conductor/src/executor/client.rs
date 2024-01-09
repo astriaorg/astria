@@ -18,6 +18,7 @@ use tonic::transport::Channel;
 
 /// A newtype wrapper around [`ExecutionServiceClient`] to work with
 /// idiomatic types.
+#[derive(Clone)]
 pub(super) struct Client {
     inner: ExecutionServiceClient<Channel>,
 }

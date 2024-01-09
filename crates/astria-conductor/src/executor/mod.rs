@@ -360,7 +360,7 @@ impl Executor {
                     .execute_block(block_subset)
                     .await
                     .wrap_err("failed to execute block")?;
-                self.update_commitment_state(self.commitment_state.firm().clone(), executed_block)
+                self.update_commitment_state(UpdateCommitmentState::OnlySoft(executed_block))
                     .await
                     .wrap_err("failed to update soft commitment state")?;
             }
@@ -438,21 +438,6 @@ impl Executor {
         Ok(executed_block)
     }
 
-    async fn update_commitment_state(&mut self, firm: Block, soft: Block) -> eyre::Result<()> {
-        let commitment_state = CommitmentState::builder()
-            .firm(firm)
-            .soft(soft)
-            .build()
-            .wrap_err("failed constructing commitment state")?;
-        let new_state = self
-            .client
-            .update_commitment_state(commitment_state)
-            .await
-            .wrap_err("failed updating remote commitment state")?;
-        self.commitment_state = new_state;
-        Ok(())
-    }
-
     async fn execute_and_finalize_blocks_from_celestia(
         &mut self,
         blocks: Vec<SequencerBlockSubset>,
@@ -481,7 +466,7 @@ impl Executor {
                 .cloned();
             if let Some(block) = maybe_executed_block {
                 // this case means block has already been executed.
-                self.update_commitment_state(block, self.commitment_state.soft().clone())
+                self.update_commitment_state(UpdateCommitmentState::OnlyFirm(block))
                     .await
                     .wrap_err("failed to update firm commitment state")?;
                 // remove the sequencer block hash from the map, as it's been firmly committed
@@ -500,7 +485,7 @@ impl Executor {
 
                 // when we execute a block received from da, nothing else has been executed on
                 // top of it, so we set FIRM and SOFT to this executed block
-                self.update_commitment_state(executed_block.clone(), executed_block)
+                self.update_commitment_state(UpdateCommitmentState::ToSame(executed_block))
                     .await
                     .wrap_err("failed to setting both commitment states to executed block")?;
                 // remove the sequencer block hash from the map, as it's been firmly committed
@@ -548,6 +533,27 @@ impl Executor {
 
         Ok(finalizable_block_height.into())
     }
+
+    async fn update_commitment_state(&mut self, update: UpdateCommitmentState) -> eyre::Result<()> {
+        use UpdateCommitmentState::*;
+        let (firm, soft) = match update {
+            OnlyFirm(firm) => (firm, self.commitment_state.soft().clone()),
+            OnlySoft(soft) => (self.commitment_state.firm().clone(), soft),
+            ToSame(block) => (block.clone(), block),
+        };
+        let commitment_state = CommitmentState::builder()
+            .firm(firm)
+            .soft(soft)
+            .build()
+            .wrap_err("failed constructing commitment state")?;
+        let new_state = self
+            .client
+            .update_commitment_state(commitment_state)
+            .await
+            .wrap_err("failed updating remote commitment state")?;
+        self.commitment_state = new_state;
+        Ok(())
+    }
 }
 
 /// Calculates the sequencer block height for a given rollup height.
@@ -562,4 +568,10 @@ fn calculate_sequencer_block_height(
     rollup_height: u32,
 ) -> Option<u32> {
     initial_sequencer_height.checked_add(rollup_height)
+}
+
+enum UpdateCommitmentState {
+    OnlyFirm(Block),
+    OnlySoft(Block),
+    ToSame(Block),
 }
