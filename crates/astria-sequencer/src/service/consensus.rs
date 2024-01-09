@@ -202,7 +202,7 @@ impl Consensus {
     ) -> anyhow::Result<response::BeginBlock> {
         let events = self
             .app
-            .begin_block(&begin_block)
+            .begin_block(&begin_block, self.storage.clone())
             .await
             .context("failed to call App::begin_block")?;
         Ok(response::BeginBlock {

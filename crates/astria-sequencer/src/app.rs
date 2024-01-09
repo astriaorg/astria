@@ -30,9 +30,12 @@ use sha2::{
     Digest as _,
     Sha256,
 };
-use tendermint::abci::{
-    self,
-    Event,
+use tendermint::{
+    Hash,
+    abci::{
+        self,
+        Event,
+    },
 };
 use tracing::{
     debug,
@@ -97,7 +100,7 @@ pub(crate) struct App {
     // during blocksync app will not receive proposals and must execute transactions
     // during `deliver_tx` calls. This flag is used to ensure that transactions are executed
     // when proposal has not been received, but not double executed when it has.
-    proposal_executed: bool,
+    executed_proposal_hash: Hash,
 
     // cache of results of executing of transactions in prepare_proposal or process_proposal.
     // cleared at the end of each block.
@@ -125,7 +128,7 @@ impl App {
         Self {
             state,
             is_proposer: false,
-            proposal_executed: false,
+            executed_proposal_hash: Hash::default(),
             execution_result: HashMap::new(),
             processed_txs: 0,
         }
@@ -174,7 +177,7 @@ impl App {
         // clear the cache of transaction execution results
         self.execution_result.clear();
         self.processed_txs = 0;
-        self.proposal_executed = false;
+        self.executed_proposal_hash = Hash::default();
     }
 
     /// Generates a commitment to the `sequence::Actions` in the block's transactions.
@@ -222,6 +225,7 @@ impl App {
         if self.is_proposer {
             debug!("skipping process_proposal as we are the proposer for this block");
             self.is_proposer = false;
+            self.executed_proposal_hash = process_proposal.hash;
             return Ok(());
         }
 
@@ -269,6 +273,8 @@ impl App {
             received_rollup_ids_root == expected_rollup_ids_root,
             "chain IDs commitment does not match expected",
         );
+
+        self.executed_proposal_hash = process_proposal.hash;
 
         Ok(())
     }
@@ -321,8 +327,6 @@ impl App {
             }
         }
 
-        self.proposal_executed = true;
-
         (signed_txs, validated_txs)
     }
 
@@ -330,9 +334,15 @@ impl App {
     pub(crate) async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
+        storage: Storage,
     ) -> anyhow::Result<Vec<abci::Event>> {
         // clear the processed_txs count when beginning block execution
         self.processed_txs = 0;
+
+        // If we previously executed a different proposal than is being processed reset state changes.
+        if self.executed_proposal_hash != begin_block.hash {
+            self.update_state_for_new_round(&storage);
+        }
 
         let mut state_tx = StateDelta::new(self.state.clone());
 
@@ -378,7 +388,8 @@ impl App {
             return Some(Ok(vec![]));
         }
 
-        if self.proposal_executed {
+        // When the hash is not empty, we have already executed and cached the results
+        if !self.executed_proposal_hash.is_empty() {
             let tx_hash: [u8; 32] = sha2::Sha256::digest(&tx.tx).into();
             return self.execution_result.remove(&tx_hash);
         }
@@ -530,9 +541,6 @@ impl App {
             "finished committing state",
         );
 
-        // Clear the state of whether or not block was executed in proposal
-        self.proposal_executed = false;
-
         // Get the latest version of the state, now that we've committed it.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
 
@@ -669,7 +677,7 @@ mod test {
     async fn initialize_app(
         genesis_state: Option<GenesisState>,
         genesis_validators: Vec<tendermint::validator::Update>,
-    ) -> App {
+    ) -> (App, Storage) {
         let storage = cnidarium::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -685,7 +693,8 @@ mod test {
         app.init_chain(genesis_state, genesis_validators)
             .await
             .unwrap();
-        app
+
+        (app, storage.clone())
     }
 
     fn get_alice_signing_key_and_address() -> (SigningKey, Address) {
@@ -702,7 +711,7 @@ mod test {
 
     #[tokio::test]
     async fn app_genesis_and_init_chain() {
-        let app = initialize_app(None, vec![]).await;
+        let (app, _storage) = initialize_app(None, vec![]).await;
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
         for Account {
@@ -727,7 +736,7 @@ mod test {
 
     #[tokio::test]
     async fn app_begin_block() {
-        let mut app = initialize_app(None, vec![]).await;
+        let (mut app, storage) = initialize_app(None, vec![]).await;
 
         let mut begin_block = abci::request::BeginBlock {
             header: default_header(),
@@ -740,7 +749,7 @@ mod test {
         };
         begin_block.header.height = Height::try_from(1u8).unwrap();
 
-        app.begin_block(&begin_block).await.unwrap();
+        app.begin_block(&begin_block, storage).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 1);
         assert_eq!(
             app.state.get_block_timestamp().await.unwrap(),
@@ -769,7 +778,7 @@ mod test {
             },
         ];
 
-        let mut app = initialize_app(None, initial_validator_set.clone()).await;
+        let (mut app, storage) = initialize_app(None, initial_validator_set.clone()).await;
 
         let misbehavior = types::Misbehavior {
             kind: types::MisbehaviorKind::Unknown,
@@ -796,7 +805,7 @@ mod test {
         };
         begin_block.header.height = Height::try_from(1u8).unwrap();
 
-        app.begin_block(&begin_block).await.unwrap();
+        app.begin_block(&begin_block, storage).await.unwrap();
 
         // assert that validator with pubkey_a is removed
         let validator_set = app.state.get_validator_set().await.unwrap();
@@ -809,7 +818,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_transfer() {
-        let mut app = initialize_app(None, vec![]).await;
+        let (mut app, _storage) = initialize_app(None, vec![]).await;
 
         // transfer funds from Alice to Bob
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
@@ -854,7 +863,7 @@ mod test {
     async fn app_deliver_tx_transfer_not_native_token() {
         use crate::accounts::state_ext::StateWriteExt as _;
 
-        let mut app = initialize_app(None, vec![]).await;
+        let (mut app, _storage) = initialize_app(None, vec![]).await;
 
         // create some asset to be transferred and update Alice's balance of it
         let asset = asset::Id::from_denom("test");
@@ -923,7 +932,7 @@ mod test {
     async fn app_deliver_tx_transfer_balance_too_low_for_fee() {
         use rand::rngs::OsRng;
 
-        let mut app = initialize_app(None, vec![]).await;
+        let (mut app, _storage) = initialize_app(None, vec![]).await;
 
         // create a new key; will have 0 balance
         let keypair = SigningKey::new(OsRng);
@@ -954,7 +963,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_sequence() {
-        let mut app = initialize_app(None, vec![]).await;
+        let (mut app, _storage) = initialize_app(None, vec![]).await;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let data = b"hello world".to_vec();
@@ -994,7 +1003,7 @@ mod test {
             authority_sudo_key: alice_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
-        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+        let (mut app, _storage) = initialize_app(Some(genesis_state), vec![]).await;
 
         let pub_key = tendermint::public_key::PublicKey::from_raw_ed25519(&[1u8; 32]).unwrap();
         let update = tendermint::validator::Update {
@@ -1026,7 +1035,7 @@ mod test {
             authority_sudo_key: alice_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
-        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+        let (mut app, _storage) = initialize_app(Some(genesis_state), vec![]).await;
 
         let new_address = address_from_hex_string(BOB_ADDRESS);
 
@@ -1056,7 +1065,7 @@ mod test {
             authority_sudo_key: sudo_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
-        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+        let (mut app, _storage) = initialize_app(Some(genesis_state), vec![]).await;
 
         let tx = UnsignedTransaction {
             nonce: 0,
@@ -1086,7 +1095,7 @@ mod test {
             authority_sudo_key: alice_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
-        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+        let (mut app, _storage) = initialize_app(Some(genesis_state), vec![]).await;
 
         let bob_address = address_from_hex_string(BOB_ADDRESS);
         let value = 333_333;
@@ -1135,7 +1144,7 @@ mod test {
             },
         ];
 
-        let mut app = initialize_app(None, initial_validator_set).await;
+        let (mut app, _storage) = initialize_app(None, initial_validator_set).await;
 
         let validator_updates = vec![
             validator::Update {
@@ -1184,7 +1193,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_invalid_nonce() {
-        let mut app = initialize_app(None, vec![]).await;
+        let (mut app, _storage) = initialize_app(None, vec![]).await;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
