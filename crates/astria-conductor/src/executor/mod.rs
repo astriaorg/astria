@@ -535,7 +535,11 @@ impl Executor {
     }
 
     async fn update_commitment_state(&mut self, update: Update) -> eyre::Result<()> {
-        use Update::*;
+        use Update::{
+            OnlyFirm,
+            OnlySoft,
+            ToSame,
+        };
         let (firm, soft) = match update {
             OnlyFirm(firm) => (firm, self.commitment_state.soft().clone()),
             OnlySoft(soft) => (self.commitment_state.firm().clone(), soft),
