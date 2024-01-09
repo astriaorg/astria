@@ -31,11 +31,11 @@ use sha2::{
     Sha256,
 };
 use tendermint::{
-    Hash,
     abci::{
         self,
         Event,
     },
+    Hash,
 };
 use tracing::{
     debug,
@@ -92,14 +92,14 @@ pub(crate) struct App {
     // `prepare_proposal`, and re-executing them would cause failure.
     is_proposer: bool,
 
-    // set to true after executing block which happens in `prepare_proposal` and
-    // `process_proposal`. Indicating that transactions have already been attempted to be
-    // executed for this block. Set to false at `commit`, as well as when clearing voting
-    // state.
+    // This is set to the executed hash of the proposal during `process_proposal`
     //
-    // during blocksync app will not receive proposals and must execute transactions
-    // during `deliver_tx` calls. This flag is used to ensure that transactions are executed
-    // when proposal has not been received, but not double executed when it has.
+    // If it does not match the hash given during begin_block, then we clear and
+    // reset the execution results cache + state delta. Transactions are reexecuted.
+    // If it does match we utilize cached results to reduce computation.
+    //
+    // Resets to null hash at the beggining of prepare_proposal, and process_proposal if
+    // prepare_proposal was not called
     executed_proposal_hash: Hash,
 
     // cache of results of executing of transactions in prepare_proposal or process_proposal.
@@ -339,7 +339,8 @@ impl App {
         // clear the processed_txs count when beginning block execution
         self.processed_txs = 0;
 
-        // If we previously executed a different proposal than is being processed reset state changes.
+        // If we previously executed a different proposal than is being processed reset cached
+        // state changes.
         if self.executed_proposal_hash != begin_block.hash {
             self.update_state_for_new_round(&storage);
         }
