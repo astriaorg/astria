@@ -202,7 +202,7 @@ impl Consensus {
     ) -> anyhow::Result<response::BeginBlock> {
         let events = self
             .app
-            .begin_block(&begin_block)
+            .begin_block(&begin_block, self.storage.clone())
             .await
             .context("failed to call App::begin_block")?;
         Ok(response::BeginBlock {
@@ -214,15 +214,13 @@ impl Consensus {
         tx_hash = %telemetry::display::hex(&Sha256::digest(&deliver_tx.tx))
     ))]
     async fn deliver_tx(&mut self, deliver_tx: request::DeliverTx) -> response::DeliverTx {
-        use sha2::Digest as _;
-
         use crate::transaction::InvalidNonce;
 
-        let tx_hash: [u8; 32] = sha2::Sha256::digest(&deliver_tx.tx).into();
         match self
             .app
-            .deliver_tx_after_execution(&tx_hash)
-            .expect("all transactions in the block must have already been executed")
+            .deliver_tx_after_proposal(deliver_tx)
+            .await
+            .expect("transactions must be executable or previously executed during proposal phases")
         {
             Ok(events) => response::DeliverTx {
                 events,
