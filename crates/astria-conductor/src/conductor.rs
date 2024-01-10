@@ -16,7 +16,6 @@ use ethers::prelude::{
     Provider,
     Ws,
 };
-use futures::future::Fuse;
 use tokio::{
     select,
     signal::unix::{
@@ -53,10 +52,6 @@ use crate::{
 };
 
 pub struct Conductor {
-    /// The data availability reader that is spawned after sync is completed.
-    /// Constructed if constructed if `disable_finalization = false`.
-    data_availability_reader: Option<data_availability::Reader>,
-
     /// The object pool of sequencer clients that restarts the websocket connection
     /// on failure.
     sequencer_client_pool: deadpool::managed::Pool<ClientProvider>,
@@ -66,9 +61,6 @@ pub struct Conductor {
 
     /// Listens for several unix signals and notifies its subscribers.
     signals: SignalReceiver,
-
-    /// The channel over which the sequencer reader task notifies conductor that sync is completed.
-    sync_done: Fuse<oneshot::Receiver<()>>,
 
     /// The different long-running tasks that make up the conductor;
     tasks: JoinMap<&'static str, eyre::Result<()>>,
@@ -86,8 +78,6 @@ impl Conductor {
     /// actors could not be spawned (executor, sequencer reader, or data availability reader).
     /// This usually happens if the actors failed to connect to their respective endpoints.
     pub async fn new(cfg: Config) -> eyre::Result<Self> {
-        use futures::FutureExt;
-
         let mut tasks = JoinMap::new();
         let mut shutdown_channels = HashMap::new();
 
@@ -127,22 +117,8 @@ impl Conductor {
         let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
             .wrap_err("failed to create sequencer client pool")?;
 
-        // Spawn the sequencer task
-        // Only spawn the sequencer::Reader if CommitLevel is not FirmOnly, also
-        // send () to sync_done to start normal block execution behavior
-        let mut sync_done = futures::future::Fuse::terminated();
-
-        // if only using firm blocks
-        if cfg.execution_commit_level.is_firm_only() {
-            // kill the sync to just run normally
-            let (sync_done_tx, sync_done_rx) = oneshot::channel();
-            sync_done = sync_done_rx.fuse();
-            let _ = sync_done_tx.send(());
-        }
-
         if !cfg.execution_commit_level.is_firm_only() {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
-            let (sync_done_tx, sync_done_rx) = oneshot::channel();
 
             // The `sync_start_block_height` represents the height of the next
             // sequencer block that can be executed on top of the rollup state.
@@ -152,15 +128,10 @@ impl Conductor {
                 sequencer_client_pool.clone(),
                 shutdown_rx,
                 executor_tx.clone(),
-                sync_done_tx,
             );
             tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
             shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
-            sync_done = sync_done_rx.fuse();
         }
-        // Construct the data availability reader without spawning it.
-        // It will be executed after sync is done.
-        let mut data_availability_reader = None;
         // Only spawn the data_availability::Reader if CommitLevel is not SoftOnly
         if !cfg.execution_commit_level.is_soft_only() {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -200,22 +171,19 @@ impl Conductor {
                 .build()
                 .await
                 .wrap_err("failed constructing data availability reader")?;
-            data_availability_reader = Some(reader);
+
+            tasks.spawn(Self::DATA_AVAILABILITY, reader.run_until_stopped());
         };
 
         Ok(Self {
-            data_availability_reader,
             sequencer_client_pool,
             shutdown_channels,
             signals,
-            sync_done,
             tasks,
         })
     }
 
     pub async fn run_until_stopped(mut self) {
-        use futures::future::FusedFuture as _;
-
         loop {
             select! {
                 // FIXME: The bias should only be on the signal channels. The two handlers should have the same bias.
@@ -228,23 +196,6 @@ impl Conductor {
 
                 _ = self.signals.reload_rx.changed() => {
                     info!("reloading is currently not implemented");
-                }
-
-                res = &mut self.sync_done, if !self.sync_done.is_terminated() => {
-                    match res {
-                        Ok(()) => info!("received sync-complete signal from sequencer reader"),
-                        Err(e) => {
-                            let error = &e as &(dyn std::error::Error + 'static);
-                            warn!(error, "sync-complete channel failed prematurely");
-                        }
-                    }
-                    if let Some(data_availability_reader) = self.data_availability_reader.take() {
-                        info!("starting data availability reader");
-                        self.tasks.spawn(
-                            Self::DATA_AVAILABILITY,
-                            data_availability_reader.run_until_stopped(),
-                        );
-                    }
                 }
 
                 Some((name, res)) = self.tasks.join_next() => {
