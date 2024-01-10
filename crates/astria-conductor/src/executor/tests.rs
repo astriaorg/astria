@@ -71,9 +71,9 @@ impl MockExecutionServer {
 fn new_basic_block() -> Block {
     Block {
         number: 0,
-        hash: vec![],
-        parent_block_hash: vec![],
-        timestamp: None,
+        hash: vec![42u8; 32],
+        parent_block_hash: vec![42u8; 32],
+        timestamp: Some(std::time::SystemTime::now().into()),
     }
 }
 
@@ -213,10 +213,10 @@ async fn execute_sequencer_block_without_txs() {
 
     // using soft hash here as sequencer blocks are executed on top of the soft commitment
     let expected_exection_hash =
-        get_expected_execution_hash(&mock.executor.commitment_state.soft.hash, &[]);
+        get_expected_execution_hash(&mock.executor.commitment_state.soft().hash(), &[]);
     let block = get_test_block_subset();
 
-    let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash;
+    let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash();
     assert_eq!(expected_exection_hash, execution_block_hash);
 }
 
@@ -228,10 +228,10 @@ async fn execute_sequencer_block_with_txs() {
     block.transactions.push(b"test_transaction".to_vec());
 
     let expected_exection_hash = get_expected_execution_hash(
-        &mock.executor.commitment_state.soft.hash,
+        &mock.executor.commitment_state.soft().hash(),
         &block.transactions,
     );
-    let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash;
+    let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash();
     assert_eq!(expected_exection_hash, execution_block_hash);
 }
 
@@ -244,7 +244,7 @@ async fn execute_unexecuted_da_block_with_transactions() {
 
     // using firm hash here as da blocks are executed on top of the firm commitment
     let expected_exection_hash = get_expected_execution_hash(
-        &mock.executor.commitment_state.firm.hash,
+        &mock.executor.commitment_state.firm().hash(),
         &block.transactions,
     );
 
@@ -255,7 +255,7 @@ async fn execute_unexecuted_da_block_with_transactions() {
 
     assert_eq!(
         expected_exection_hash,
-        mock.executor.commitment_state.firm.hash
+        mock.executor.commitment_state.firm().hash(),
     );
     // should be empty because 1 block was executed and finalized, which
     // deletes it from the map
@@ -267,7 +267,7 @@ async fn execute_unexecuted_da_block_with_no_transactions() {
     let mut mock: MockEnvironment = start_mock(None).await;
     let block = get_test_block_subset();
     // using firm hash here as da blocks are executed on top of the firm commitment
-    let expected_execution_state = hash(&mock.executor.commitment_state.firm.hash);
+    let expected_execution_state = hash(&mock.executor.commitment_state.firm().hash());
 
     mock.executor
         .execute_and_finalize_blocks_from_celestia(vec![block])
@@ -276,7 +276,7 @@ async fn execute_unexecuted_da_block_with_no_transactions() {
 
     assert_eq!(
         expected_execution_state,
-        mock.executor.commitment_state.firm.hash
+        mock.executor.commitment_state.firm().hash(),
     );
     // should be empty because block was executed and finalized, which
     // deletes it from the map
@@ -287,7 +287,7 @@ async fn execute_unexecuted_da_block_with_no_transactions() {
 async fn empty_message_from_data_availability_is_dropped() {
     let mut mock = start_mock(None).await;
     // using firm hash here as da blocks are executed on top of the firm commitment
-    let expected_execution_state = mock.executor.commitment_state.firm.hash.clone();
+    let expected_execution_state = mock.executor.commitment_state.firm().hash();
 
     mock.executor
         .execute_and_finalize_blocks_from_celestia(vec![])
@@ -296,7 +296,7 @@ async fn empty_message_from_data_availability_is_dropped() {
 
     assert_eq!(
         expected_execution_state,
-        mock.executor.commitment_state.firm.hash
+        mock.executor.commitment_state.firm().hash(),
     );
     assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
 }
@@ -381,11 +381,13 @@ mod optimism_tests {
 
         // calculate the expected mock execution hash, which includes the block txs,
         // thus confirming the deposit tx was executed
-        let expected_exection_hash =
-            get_expected_execution_hash(&mock.executor.commitment_state.soft.hash, &deposit_txs);
+        let expected_exection_hash = get_expected_execution_hash(
+            &mock.executor.commitment_state.soft().hash(),
+            &deposit_txs,
+        );
         let block = get_test_block_subset();
 
-        let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash;
+        let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash();
         assert_eq!(expected_exection_hash, execution_block_hash);
     }
 }

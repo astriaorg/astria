@@ -31,9 +31,12 @@ use sha2::{
     Digest as _,
     Sha256,
 };
-use tendermint::abci::{
-    self,
-    Event,
+use tendermint::{
+    abci::{
+        self,
+        Event,
+    },
+    Hash,
 };
 use tracing::{
     debug,
@@ -93,6 +96,16 @@ pub(crate) struct App {
     // `prepare_proposal`, and re-executing them would cause failure.
     is_proposer: bool,
 
+    // This is set to the executed hash of the proposal during `process_proposal`
+    //
+    // If it does not match the hash given during begin_block, then we clear and
+    // reset the execution results cache + state delta. Transactions are reexecuted.
+    // If it does match we utilize cached results to reduce computation.
+    //
+    // Resets to default hash at the begginning of prepare_proposal, and process_proposal if
+    // prepare_proposal was not called
+    executed_proposal_hash: Hash,
+
     // cache of results of executing of transactions in prepare_proposal or process_proposal.
     // cleared at the end of each block.
     execution_result: HashMap<[u8; 32], anyhow::Result<Vec<abci::Event>>>,
@@ -119,12 +132,13 @@ impl App {
         Self {
             state,
             is_proposer: false,
+            executed_proposal_hash: Hash::default(),
             execution_result: HashMap::new(),
             processed_txs: 0,
         }
     }
 
-    #[instrument(name = "App:init_chain", skip(self))]
+    #[instrument(name = "App:init_chain", skip_all)]
     pub(crate) async fn init_chain(
         &mut self,
         genesis_state: GenesisState,
@@ -157,6 +171,19 @@ impl App {
         Ok(())
     }
 
+    fn update_state_for_new_round(&mut self, storage: &Storage) {
+        // reset app state to latest committed state, in case of a round not being committed
+        // but `self.state` was changed due to executing the previous round's data.
+        //
+        // if the previous round was committed, then the state stays the same.
+        self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
+
+        // clear the cache of transaction execution results
+        self.execution_result.clear();
+        self.processed_txs = 0;
+        self.executed_proposal_hash = Hash::default();
+    }
+
     /// Generates a commitment to the `sequence::Actions` in the block's transactions.
     ///
     /// This is required so that a rollup can easily verify that the transactions it
@@ -165,15 +192,14 @@ impl App {
     /// It puts this special "commitment" as the first transaction in a block.
     /// When other validators receive the block, they know the first transaction is
     /// supposed to be the commitment, and verifies that is it correct.
-    #[instrument(name = "App::prepare_proposal", skip(self, prepare_proposal))]
+    #[instrument(name = "App::prepare_proposal", skip_all)]
     pub(crate) async fn prepare_proposal(
         &mut self,
         prepare_proposal: abci::request::PrepareProposal,
+        storage: Storage,
     ) -> abci::response::PrepareProposal {
-        // clear the cache of transaction execution results
-        self.execution_result.clear();
-        self.processed_txs = 0;
         self.is_proposer = true;
+        self.update_state_for_new_round(&storage);
 
         let (signed_txs, txs_to_include) = self.execute_block_data(prepare_proposal.txs).await;
 
@@ -189,10 +215,11 @@ impl App {
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
     /// and ensures it matches the commitment created by the proposer, which
     /// should be the first transaction in the block.
-    #[instrument(name = "App::process_proposal", skip(self, process_proposal))]
+    #[instrument(name = "App::process_proposal", skip_all)]
     pub(crate) async fn process_proposal(
         &mut self,
         process_proposal: abci::request::ProcessProposal,
+        storage: Storage,
     ) -> anyhow::Result<()> {
         // if we proposed this block (ie. prepare_proposal was called directly before this), then
         // we skip execution for this `process_proposal` call.
@@ -202,14 +229,12 @@ impl App {
         if self.is_proposer {
             debug!("skipping process_proposal as we are the proposer for this block");
             self.is_proposer = false;
+            self.executed_proposal_hash = process_proposal.hash;
             return Ok(());
         }
 
         self.is_proposer = false;
-
-        // clear the cache of transaction execution results
-        self.execution_result.clear();
-        self.processed_txs = 0;
+        self.update_state_for_new_round(&storage);
 
         let mut txs = VecDeque::from(process_proposal.txs);
         let received_sequence_actions_root: [u8; 32] = txs
@@ -253,6 +278,8 @@ impl App {
             "chain IDs commitment does not match expected",
         );
 
+        self.executed_proposal_hash = process_proposal.hash;
+
         Ok(())
     }
 
@@ -263,7 +290,9 @@ impl App {
     ///
     /// Returns the transactions which were successfully decoded and executed
     /// in both their [`SignedTransaction`] and raw bytes form.
-    #[instrument(name = "App::execute_block_data", skip(self, txs))]
+    #[instrument(name = "App::execute_block_data", skip_all, fields(
+        tx_count = txs.len()
+    ))]
     async fn execute_block_data(
         &mut self,
         txs: Vec<bytes::Bytes>,
@@ -274,31 +303,16 @@ impl App {
         let mut excluded_tx_count: usize = 0;
 
         for tx in txs {
-            let Some(signed_tx) = raw::SignedTransaction::decode(&*tx)
-                .map_err(|e| {
+            let signed_tx = match signed_transaction_from_bytes(&tx) {
+                Err(e) => {
                     debug!(
-                        error = &e as &dyn std::error::Error,
-                        "failed to deserialize bytes as a signed transaction",
+                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                        "failed to decode deliver tx payload to signed transaction; ignoring it",
                     );
                     excluded_tx_count += 1;
-                    e
-                })
-                .ok()
-                .and_then(|raw_tx| {
-                    SignedTransaction::try_from_raw(raw_tx)
-                        .map_err(|e| {
-                            debug!(
-                                error = &e as &dyn std::error::Error,
-                                "failed to convert raw signed transaction to native signed \
-                                 transaction"
-                            );
-                            excluded_tx_count += 1;
-                            e
-                        })
-                        .ok()
-                })
-            else {
-                continue;
+                    continue;
+                }
+                Ok(tx) => tx,
             };
 
             let tx_hash = Sha256::digest(&tx);
@@ -356,13 +370,20 @@ impl App {
         (signed_txs, validated_txs)
     }
 
-    #[instrument(name = "App::begin_block", skip(self))]
+    #[instrument(name = "App::begin_block", skip_all)]
     pub(crate) async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
+        storage: Storage,
     ) -> anyhow::Result<Vec<abci::Event>> {
         // clear the processed_txs count when beginning block execution
         self.processed_txs = 0;
+
+        // If we previously executed txs in a different proposal than is being processed reset
+        // cached state changes.
+        if self.executed_proposal_hash != begin_block.hash {
+            self.update_state_for_new_round(&storage);
+        }
 
         let mut state_tx = StateDelta::new(self.state.clone());
 
@@ -392,19 +413,40 @@ impl App {
     /// Since transaction execution now happens in the proposal phase, results
     /// are cached in the app and returned here during the usual ABCI block execution process.
     ///
+    /// If the tx was not executed during the proposal phase it will be executed here.
+    ///
     /// Note that the first two "transactions" in the block, which are the proposer-generated
     /// commitments, are ignored.
-    #[instrument(name = "App::deliver_tx_after_execution", skip(self))]
-    pub(crate) fn deliver_tx_after_execution(
+    #[instrument(name = "App::deliver_tx_after_proposal", skip_all, fields(
+        tx_hash =  %telemetry::display::hex(&Sha256::digest(&tx.tx)),
+    ))]
+    pub(crate) async fn deliver_tx_after_proposal(
         &mut self,
-        tx_hash: &[u8; 32],
+        tx: abci::request::DeliverTx,
     ) -> Option<anyhow::Result<Vec<abci::Event>>> {
         if self.processed_txs < 2 {
             self.processed_txs += 1;
             return Some(Ok(vec![]));
         }
 
-        self.execution_result.remove(tx_hash)
+        // When the hash is not empty, we have already executed and cached the results
+        if !self.executed_proposal_hash.is_empty() {
+            let tx_hash: [u8; 32] = sha2::Sha256::digest(&tx.tx).into();
+            return self.execution_result.remove(&tx_hash);
+        }
+
+        let signed_tx = match signed_transaction_from_bytes(&tx.tx) {
+            Err(e) => {
+                debug!(
+                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                    "failed to decode deliver tx payload to signed transaction; ignoring it",
+                );
+                return None;
+            }
+            Ok(tx) => tx,
+        };
+
+        Some(self.deliver_tx(signed_tx).await)
     }
 
     /// Executes a signed transaction.
@@ -471,7 +513,7 @@ impl App {
         Ok(events)
     }
 
-    #[instrument(name = "App::end_block", skip(self))]
+    #[instrument(name = "App::end_block", skip_all)]
     pub(crate) async fn end_block(
         &mut self,
         end_block: &abci::request::EndBlock,
@@ -509,7 +551,7 @@ impl App {
         })
     }
 
-    #[instrument(name = "App::commit", skip(self, storage))]
+    #[instrument(name = "App::commit", skip_all)]
     pub(crate) async fn commit(&mut self, storage: Storage) -> RootHash {
         // We need to extract the State we've built up to commit it.  Fill in a dummy state.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
@@ -566,6 +608,15 @@ impl App {
 
         events
     }
+}
+
+fn signed_transaction_from_bytes(bytes: &[u8]) -> anyhow::Result<SignedTransaction> {
+    let raw = raw::SignedTransaction::decode(bytes)
+        .context("failed to decode protobuf to signed transaction")?;
+    let tx = SignedTransaction::try_from_raw(raw)
+        .context("failed to transform raw signed transaction to verified type")?;
+
+    Ok(tx)
 }
 
 #[cfg(test)]
@@ -664,10 +715,10 @@ mod test {
         }
     }
 
-    async fn initialize_app(
+    async fn initialize_app_with_storage(
         genesis_state: Option<GenesisState>,
         genesis_validators: Vec<tendermint::validator::Update>,
-    ) -> App {
+    ) -> (App, Storage) {
         let storage = cnidarium::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
@@ -683,6 +734,16 @@ mod test {
         app.init_chain(genesis_state, genesis_validators)
             .await
             .unwrap();
+
+        (app, storage.clone())
+    }
+
+    async fn initialize_app(
+        genesis_state: Option<GenesisState>,
+        genesis_validators: Vec<tendermint::validator::Update>,
+    ) -> App {
+        let (app, _storage) = initialize_app_with_storage(genesis_state, genesis_validators).await;
+
         app
     }
 
@@ -725,7 +786,7 @@ mod test {
 
     #[tokio::test]
     async fn app_begin_block() {
-        let mut app = initialize_app(None, vec![]).await;
+        let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
         let mut begin_block = abci::request::BeginBlock {
             header: default_header(),
@@ -738,7 +799,7 @@ mod test {
         };
         begin_block.header.height = Height::try_from(1u8).unwrap();
 
-        app.begin_block(&begin_block).await.unwrap();
+        app.begin_block(&begin_block, storage).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 1);
         assert_eq!(
             app.state.get_block_timestamp().await.unwrap(),
@@ -767,7 +828,8 @@ mod test {
             },
         ];
 
-        let mut app = initialize_app(None, initial_validator_set.clone()).await;
+        let (mut app, storage) =
+            initialize_app_with_storage(None, initial_validator_set.clone()).await;
 
         let misbehavior = types::Misbehavior {
             kind: types::MisbehaviorKind::Unknown,
@@ -794,7 +856,7 @@ mod test {
         };
         begin_block.header.height = Height::try_from(1u8).unwrap();
 
-        app.begin_block(&begin_block).await.unwrap();
+        app.begin_block(&begin_block, storage).await.unwrap();
 
         // assert that validator with pubkey_a is removed
         let validator_set = app.state.get_validator_set().await.unwrap();
@@ -1225,18 +1287,13 @@ mod test {
 
     #[tokio::test]
     async fn app_commit() {
-        let storage = cnidarium::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
-        let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: Address::from([0; 20]),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
 
-        app.init_chain(genesis_state, vec![]).await.unwrap();
+        let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
         let native_asset = get_native_asset().id();
