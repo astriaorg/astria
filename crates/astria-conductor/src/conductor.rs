@@ -46,10 +46,7 @@ use crate::{
         self,
         ClientProvider,
     },
-    data_availability::{
-        self,
-        CelestiaReaderConfig,
-    },
+    data_availability,
     executor::Executor,
     sequencer,
     Config,
@@ -189,22 +186,20 @@ impl Conductor {
             //     "celestia namespace derived from sequencer chain id",
             // );
 
-            let celestia_config = CelestiaReaderConfig {
-                node_url: cfg.celestia_node_url,
-                bearer_token: Some(cfg.celestia_bearer_token),
-                poll_interval: std::time::Duration::from_secs(3),
-            };
             // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
-            let reader = data_availability::Reader::new(
-                celestia_config,
-                executor_tx.clone(),
-                sequencer_client_pool.clone(),
-                sequencer_namespace,
-                celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id),
-                shutdown_rx,
-            )
-            .await
-            .wrap_err("failed constructing data availability reader")?;
+            let rollup_namespace = celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id);
+            let reader = data_availability::Reader::builder()
+                .celestia_endpoint(&cfg.celestia_node_url)
+                .celestia_poll_interval(Duration::from_secs(3))
+                .celestia_token(&cfg.celestia_bearer_token)
+                .executor_channel(executor_tx.clone())
+                .rollup_namespace(rollup_namespace)
+                .sequencer_client_pool(sequencer_client_pool.clone())
+                .sequencer_namespace(sequencer_namespace)
+                .shutdown(shutdown_rx)
+                .build()
+                .await
+                .wrap_err("failed constructing data availability reader")?;
             data_availability_reader = Some(reader);
         };
 
