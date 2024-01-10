@@ -23,7 +23,6 @@ use tokio::{
         SignalKind,
     },
     sync::{
-        mpsc,
         oneshot,
         watch,
     },
@@ -86,8 +85,7 @@ impl Conductor {
         let rollup_id = RollupId::from_unhashed_bytes(&cfg.chain_id);
 
         // Spawn the executor task.
-        let (executor_tx, sync_start_block_height) = {
-            let (block_tx, block_rx) = mpsc::unbounded_channel();
+        let (executor, sync_start_block_height) = {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
             let hook = make_optimism_hook(&cfg)
@@ -98,7 +96,6 @@ impl Conductor {
                 .rollup_address(&cfg.execution_rpc_url)
                 .rollup_id(rollup_id)
                 .sequencer_height_with_first_rollup_block(cfg.initial_sequencer_block_height)
-                .block_channel(block_rx)
                 .shutdown(shutdown_rx)
                 .set_optimism_hook(hook)
                 .build()
@@ -108,10 +105,8 @@ impl Conductor {
                 .calculate_executable_block_height()
                 .wrap_err("failed calculating the next executable block height")?;
 
-            tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
             shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
-
-            (block_tx, executable_sequencer_block_height)
+            (executor, executable_sequencer_block_height)
         };
 
         let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
@@ -127,7 +122,7 @@ impl Conductor {
                 sync_start_block_height,
                 sequencer_client_pool.clone(),
                 shutdown_rx,
-                executor_tx.clone(),
+                executor.sequencer_channel(),
             );
             tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
             shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
@@ -163,7 +158,7 @@ impl Conductor {
                 .celestia_endpoint(&cfg.celestia_node_url)
                 .celestia_poll_interval(Duration::from_secs(3))
                 .celestia_token(&cfg.celestia_bearer_token)
-                .executor_channel(executor_tx.clone())
+                .executor_channel(executor.celestia_channel())
                 .rollup_namespace(rollup_namespace)
                 .sequencer_client_pool(sequencer_client_pool.clone())
                 .sequencer_namespace(sequencer_namespace)
@@ -174,6 +169,8 @@ impl Conductor {
 
             tasks.spawn(Self::DATA_AVAILABILITY, reader.run_until_stopped());
         };
+
+        tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
 
         Ok(Self {
             sequencer_client_pool,

@@ -29,7 +29,10 @@ use sequencer_client::{
 };
 use tokio::{
     select,
-    sync::oneshot,
+    sync::{
+        mpsc,
+        oneshot,
+    },
 };
 use tracing::{
     error,
@@ -38,10 +41,7 @@ use tracing::{
     warn,
 };
 
-use crate::{
-    client_provider::ClientProvider,
-    executor,
-};
+use crate::client_provider::ClientProvider;
 
 mod sync;
 
@@ -51,7 +51,7 @@ type ResubFut = future::Fuse<
 
 pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
-    executor_tx: executor::Sender,
+    executor_channel: mpsc::UnboundedSender<Box<SequencerBlock>>,
 
     /// The object pool providing clients to the sequencer.
     pool: Pool<ClientProvider>,
@@ -68,10 +68,10 @@ impl Reader {
         start_sync_height: Height,
         pool: Pool<ClientProvider>,
         shutdown: oneshot::Receiver<()>,
-        executor_tx: executor::Sender,
+        executor_channel: mpsc::UnboundedSender<Box<SequencerBlock>>,
     ) -> Self {
         Self {
-            executor_tx,
+            executor_channel,
             pool,
             shutdown,
             start_sync_height,
@@ -87,7 +87,7 @@ impl Reader {
             StreamExt as _,
         };
         let Self {
-            executor_tx,
+            executor_channel,
             start_sync_height,
             pool,
             mut shutdown,
@@ -123,7 +123,7 @@ impl Reader {
             start_sync_height,
             next_height,
             pool.clone(),
-            executor_tx.clone(),
+            executor_channel.clone(),
         )
         .boxed()
         .fuse();
@@ -174,7 +174,7 @@ impl Reader {
                         &mut pending_blocks,
                         &mut sync,
                         pool.clone(),
-                        executor_tx.clone())
+                        executor_channel.clone())
                     {
                         Err(e) => {
                             let error: &(dyn std::error::Error + 'static) = e.as_ref();
@@ -319,7 +319,7 @@ fn forward_block_or_resync(
     pending_blocks: &mut FuturesOrdered<Ready<SequencerBlock>>,
     sync: &mut future::Fuse<Pin<Box<dyn Future<Output = eyre::Result<()>> + Send>>>,
     pool: Pool<ClientProvider>,
-    executor_tx: executor::Sender,
+    executor: mpsc::UnboundedSender<Box<SequencerBlock>>,
 ) -> eyre::Result<Height> {
     use futures::FutureExt as _;
 
@@ -328,7 +328,7 @@ fn forward_block_or_resync(
     match expected_height.cmp(&block_height) {
         // received block is at expected height: send to the executor
         std::cmp::Ordering::Equal => {
-            executor_tx
+            executor
                 .send(block.into())
                 .wrap_err("forwarding sequencer block to executor failed")?;
             Ok(expected_height.increment())
@@ -339,7 +339,7 @@ fn forward_block_or_resync(
             pending_blocks.push_front(future::ready(block));
             let missing_start = expected_height;
             let missing_end = block_height;
-            *sync = sync::run(missing_start, missing_end, pool, executor_tx)
+            *sync = sync::run(missing_start, missing_end, pool, executor)
                 .boxed()
                 .fuse();
             Ok(block_height)
@@ -391,22 +391,20 @@ mod tests {
         },
         stream::FuturesOrdered,
     };
+    use tokio::sync::mpsc;
 
     use super::{
         forward_block_or_resync,
         SequencerBlock,
     };
-    use crate::{
-        client_provider::mock::TestPool,
-        executor::ExecutorCommand,
-    };
+    use crate::client_provider::mock::TestPool;
 
     struct ForwardBlockOrResyncEnvironment {
         pending_blocks: FuturesOrdered<Ready<SequencerBlock>>,
         sync: future::Fuse<Pin<Box<dyn Future<Output = eyre::Result<()>> + Send>>>,
         test_pool: TestPool,
-        executor_rx: crate::executor::Receiver,
-        executor_tx: crate::executor::Sender,
+        executor_rx: mpsc::UnboundedReceiver<Box<SequencerBlock>>,
+        executor_tx: mpsc::UnboundedSender<Box<SequencerBlock>>,
     }
 
     impl ForwardBlockOrResyncEnvironment {
@@ -414,7 +412,7 @@ mod tests {
             let pending_blocks = FuturesOrdered::new();
             let sync = Fuse::terminated();
             let test_pool = TestPool::setup().await;
-            let (executor_tx, executor_rx) = tokio::sync::mpsc::unbounded_channel();
+            let (executor_tx, executor_rx) = mpsc::unbounded_channel();
             Self {
                 pending_blocks,
                 sync,
@@ -448,15 +446,10 @@ mod tests {
             "block should not be rescheduled"
         );
         assert!(env.sync.is_terminated(), "resync should not be triggered");
-        let ExecutorCommand::FromSequencer {
-            block: actual_block,
-        } = env
+        let actual_block = env
             .executor_rx
             .try_recv()
-            .expect("block should be forwarded")
-        else {
-            panic!("value sent to executor should be a ExecutorCommand::FromSequencer variant");
-        };
+            .expect("block should be forwarded");
         assert_eq!(expected_block, *actual_block, "block should not change");
         assert_eq!(
             expected_height.increment(),

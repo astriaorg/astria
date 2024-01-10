@@ -41,8 +41,6 @@ use tracing::{
     Instrument,
 };
 
-use crate::executor;
-
 mod block_verifier;
 use block_verifier::BlockVerifier;
 mod builder;
@@ -76,7 +74,7 @@ impl SequencerBlockSubset {
 
 pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
-    executor_channel: executor::Sender,
+    executor_channel: mpsc::UnboundedSender<Vec<SequencerBlockSubset>>,
 
     /// The client used to communicate with Celestia.
     celestia_client: HttpClient,
@@ -305,7 +303,7 @@ impl Reader {
             Ok(Ok(subsets)) => subsets,
         };
         self.executor_channel
-            .send(executor::ExecutorCommand::FromCelestia(subsets))
+            .send(subsets)
             .wrap_err("failed sending processed sequencer subsets: executor channel is closed")
     }
 }

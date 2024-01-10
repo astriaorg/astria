@@ -9,14 +9,19 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use deadpool::managed::Pool;
-use tokio::sync::oneshot;
+use tokio::sync::{
+    mpsc,
+    oneshot,
+};
 use tokio_util::task::JoinMap;
 
-use super::Reader;
+use super::{
+    Reader,
+    SequencerBlockSubset,
+};
 use crate::{
     client_provider::ClientProvider,
     data_availability::block_verifier::BlockVerifier,
-    executor,
 };
 
 pub(crate) struct ReaderBuilder<
@@ -383,7 +388,7 @@ impl<
 
     pub(crate) fn executor_channel(
         self,
-        executor_channel: executor::Sender,
+        executor_channel: mpsc::UnboundedSender<Vec<SequencerBlockSubset>>,
     ) -> ReaderBuilder<
         TCelestiaEndpoint,
         TCelestiaPollInterval,
@@ -424,7 +429,7 @@ pub(crate) struct WithCelestiaPollInterval(Duration);
 pub(crate) struct NoCelestiaToken;
 pub(crate) struct WithCelestiaToken(String);
 pub(crate) struct NoExecutorChannel;
-pub(crate) struct WithExecutorChannel(executor::Sender);
+pub(crate) struct WithExecutorChannel(mpsc::UnboundedSender<Vec<SequencerBlockSubset>>);
 pub(crate) struct NoRollupNamespace;
 pub(crate) struct WithRollupNamespace(Namespace);
 pub(crate) struct NoSequencerClientPool;

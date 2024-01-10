@@ -16,17 +16,10 @@ use color_eyre::eyre::{
 };
 use prost_types::Timestamp as ProstTimestamp;
 use sequencer_client::SequencerBlock;
-use tendermint::{
-    Hash,
-    Time,
-};
 use tokio::{
     select,
     sync::{
-        mpsc::{
-            UnboundedReceiver,
-            UnboundedSender,
-        },
+        mpsc,
         oneshot,
     },
 };
@@ -45,13 +38,8 @@ mod client;
 #[cfg(test)]
 mod tests;
 
-/// The channel for sending commands to the executor task.
-pub(crate) type Sender = UnboundedSender<ExecutorCommand>;
-/// The channel the executor task uses to listen for commands.
-pub(crate) type Receiver = UnboundedReceiver<ExecutorCommand>;
-
 // Given `Time`, convert to protobuf timestamp
-fn convert_tendermint_to_prost_timestamp(value: Time) -> ProstTimestamp {
+fn convert_tendermint_to_prost_timestamp(value: tendermint::Time) -> ProstTimestamp {
     use tendermint_proto::google::protobuf::Timestamp as TendermintTimestamp;
     let TendermintTimestamp {
         seconds,
@@ -63,38 +51,18 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> ProstTimestamp {
     }
 }
 
-#[derive(Debug)]
-pub(crate) enum ExecutorCommand {
-    /// used when a block is received from the subscription stream to sequencer
-    FromSequencer { block: Box<SequencerBlock> },
-    /// used when a block is received from the reader (Celestia)
-    FromCelestia(Vec<SequencerBlockSubset>),
-}
-
-impl From<SequencerBlock> for ExecutorCommand {
-    fn from(block: SequencerBlock) -> Self {
-        Self::FromSequencer {
-            block: Box::new(block),
-        }
-    }
-}
-
 pub(crate) struct NoRollupAddress;
 pub(crate) struct WithRollupAddress(String);
 pub(crate) struct NoRollupId;
 pub(crate) struct WithRollupId(RollupId);
-pub(crate) struct NoBlockChannel;
-pub(crate) struct WithBlockChannel(Receiver);
 pub(crate) struct NoShutdown;
 pub(crate) struct WithShutdown(oneshot::Receiver<()>);
 
 pub(crate) struct ExecutorBuilder<
-    TBlockChannel = NoBlockChannel,
     TRollupAddress = NoRollupAddress,
     TRollupId = NoRollupId,
     TShutdown = NoShutdown,
 > {
-    block_channel: TBlockChannel,
     optimism_hook: Option<optimism::Handler>,
     rollup_address: TRollupAddress,
     rollup_id: TRollupId,
@@ -105,7 +73,6 @@ pub(crate) struct ExecutorBuilder<
 impl ExecutorBuilder {
     fn new() -> Self {
         Self {
-            block_channel: NoBlockChannel,
             optimism_hook: None,
             rollup_address: NoRollupAddress,
             rollup_id: NoRollupId,
@@ -115,11 +82,10 @@ impl ExecutorBuilder {
     }
 }
 
-impl ExecutorBuilder<WithBlockChannel, WithRollupAddress, WithRollupId, WithShutdown> {
+impl ExecutorBuilder<WithRollupAddress, WithRollupId, WithShutdown> {
     pub(crate) async fn build(self) -> eyre::Result<Executor> {
         let Self {
             rollup_id,
-            block_channel,
             optimism_hook: pre_execution_hook,
             rollup_address,
             sequencer_height_with_first_rollup_block,
@@ -127,7 +93,6 @@ impl ExecutorBuilder<WithBlockChannel, WithRollupAddress, WithRollupId, WithShut
         } = self;
         let WithRollupAddress(rollup_address) = rollup_address;
         let WithRollupId(rollup_id) = rollup_id;
-        let WithBlockChannel(block_channel) = block_channel;
         let WithShutdown(shutdown) = shutdown;
 
         let mut client = client::Client::from_execution_service_client(
@@ -146,8 +111,15 @@ impl ExecutorBuilder<WithBlockChannel, WithRollupAddress, WithRollupId, WithShut
             "initial execution commitment state",
         );
 
+        let (celestia_tx, celestia_rx) = mpsc::unbounded_channel();
+        let (sequencer_tx, sequencer_rx) = mpsc::unbounded_channel();
+
         Ok(Executor {
-            block_channel,
+            celestia_rx,
+            celestia_tx: celestia_tx.downgrade(),
+            sequencer_rx,
+            sequencer_tx: sequencer_tx.downgrade(),
+
             shutdown,
             client,
             rollup_id,
@@ -159,15 +131,12 @@ impl ExecutorBuilder<WithBlockChannel, WithRollupAddress, WithRollupId, WithShut
     }
 }
 
-impl<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
-    ExecutorBuilder<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
-{
+impl<TRollupAddress, TRollupId, TShutdown> ExecutorBuilder<TRollupAddress, TRollupId, TShutdown> {
     pub(crate) fn rollup_id(
         self,
         rollup_id: RollupId,
-    ) -> ExecutorBuilder<TBlockChannel, TRollupAddress, WithRollupId, TShutdown> {
+    ) -> ExecutorBuilder<TRollupAddress, WithRollupId, TShutdown> {
         let Self {
-            block_channel,
             optimism_hook,
             rollup_address,
             sequencer_height_with_first_rollup_block,
@@ -175,32 +144,9 @@ impl<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
             ..
         } = self;
         ExecutorBuilder {
-            block_channel,
             optimism_hook,
             rollup_address,
             rollup_id: WithRollupId(rollup_id),
-            sequencer_height_with_first_rollup_block,
-            shutdown,
-        }
-    }
-
-    pub(crate) fn block_channel(
-        self,
-        block_channel: Receiver,
-    ) -> ExecutorBuilder<WithBlockChannel, TRollupAddress, TRollupId, TShutdown> {
-        let Self {
-            optimism_hook,
-            rollup_address,
-            rollup_id,
-            sequencer_height_with_first_rollup_block,
-            shutdown,
-            ..
-        } = self;
-        ExecutorBuilder {
-            block_channel: WithBlockChannel(block_channel),
-            optimism_hook,
-            rollup_address,
-            rollup_id,
             sequencer_height_with_first_rollup_block,
             shutdown,
         }
@@ -222,17 +168,15 @@ impl<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
     pub(crate) fn rollup_address(
         self,
         rollup_address: &str,
-    ) -> ExecutorBuilder<TBlockChannel, WithRollupAddress, TRollupId, TShutdown> {
+    ) -> ExecutorBuilder<WithRollupAddress, TRollupId, TShutdown> {
         let Self {
             rollup_id,
-            block_channel,
             optimism_hook,
             sequencer_height_with_first_rollup_block,
             shutdown,
             ..
         } = self;
         ExecutorBuilder {
-            block_channel,
             optimism_hook,
             rollup_address: WithRollupAddress(rollup_address.to_string()),
             rollup_id,
@@ -244,9 +188,8 @@ impl<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
     pub(crate) fn shutdown(
         self,
         shutdown: oneshot::Receiver<()>,
-    ) -> ExecutorBuilder<TBlockChannel, TRollupAddress, TRollupId, WithShutdown> {
+    ) -> ExecutorBuilder<TRollupAddress, TRollupId, WithShutdown> {
         let Self {
-            block_channel,
             optimism_hook,
             sequencer_height_with_first_rollup_block,
             rollup_address,
@@ -254,7 +197,6 @@ impl<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
             ..
         } = self;
         ExecutorBuilder {
-            block_channel,
             optimism_hook,
             sequencer_height_with_first_rollup_block,
             rollup_address,
@@ -265,8 +207,10 @@ impl<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
 }
 
 pub(crate) struct Executor {
-    /// Channel on which executor commands are received.
-    block_channel: Receiver,
+    celestia_rx: mpsc::UnboundedReceiver<Vec<SequencerBlockSubset>>,
+    celestia_tx: mpsc::WeakUnboundedSender<Vec<SequencerBlockSubset>>,
+    sequencer_rx: mpsc::UnboundedReceiver<Box<SequencerBlock>>,
+    sequencer_tx: mpsc::WeakUnboundedSender<Box<SequencerBlock>>,
 
     shutdown: oneshot::Receiver<()>,
 
@@ -293,7 +237,7 @@ pub(crate) struct Executor {
     /// we need to track the mapping of sequencer block hash -> execution block
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
-    sequencer_hash_to_execution_block: HashMap<Hash, Block>,
+    sequencer_hash_to_execution_block: HashMap<tendermint::Hash, Block>,
 
     /// optional hook which is called to modify the rollup transaction list
     /// right before it's sent to the execution layer via `ExecuteBlock`.
@@ -303,6 +247,18 @@ pub(crate) struct Executor {
 impl Executor {
     pub(super) fn builder() -> ExecutorBuilder {
         ExecutorBuilder::new()
+    }
+
+    pub(super) fn celestia_channel(&self) -> mpsc::UnboundedSender<Vec<SequencerBlockSubset>> {
+        self.celestia_tx.upgrade().expect(
+            "should work because the channel is held by self, is open, and other senders exist",
+        )
+    }
+
+    pub(super) fn sequencer_channel(&self) -> mpsc::UnboundedSender<Box<SequencerBlock>> {
+        self.sequencer_tx.upgrade().expect(
+            "should work because the channel is held by self, is open, and other senders exist",
+        )
     }
 
     #[instrument(skip_all)]
@@ -323,11 +279,24 @@ impl Executor {
                     break ret;
                 }
 
-                cmd = self.block_channel.recv() => {
-                    if let Err(e) = self.handle_executor_command(cmd).await {
-                        let message = "failed handling executor command";
-                        let error: &dyn std::error::Error = e.as_ref();
-                        error!(error, "{message}, shutting down");
+                Some(blocks) = self.celestia_rx.recv() => {
+                    if let Err(e) = self.execute_firm_blocks(blocks).await {
+                        let message = "failed finalizing celestia blocks";
+                        error!(
+                            error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                            "{message}, shutting down",
+                        );
+                        break Err(e).wrap_err(message);
+                    }
+                }
+
+                Some(block) = self.sequencer_rx.recv() => {
+                    if let Err(e) = self.execute_soft_block(block).await {
+                        let message = "failed executing block from sequencer";
+                        error!(
+                            error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                            "{message}, shutting down",
+                        );
                         break Err(e).wrap_err(message);
                     }
                 }
@@ -335,41 +304,17 @@ impl Executor {
         }
     }
 
-    /// Handle a command received on the command channel.
-    ///
-    /// If this function returns an error, the executor will shut down.
-    ///
-    /// # Errors
-    ///
-    /// - if the command channel is closed unexpectedly
-    /// - if execution or finalization of a block from celestia fails
-    async fn handle_executor_command(&mut self, cmd: Option<ExecutorCommand>) -> eyre::Result<()> {
-        let Some(cmd) = cmd else {
-            bail!("cmd channel closed unexpectedly");
-        };
-
+    async fn execute_soft_block(&mut self, block: Box<SequencerBlock>) -> eyre::Result<()> {
         // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
-        match cmd {
-            ExecutorCommand::FromSequencer {
-                block,
-            } => {
-                let block_subset =
-                    SequencerBlockSubset::from_sequencer_block(*block, self.rollup_id);
+        let block_subset = SequencerBlockSubset::from_sequencer_block(*block, self.rollup_id);
 
-                let executed_block = self
-                    .execute_block(block_subset)
-                    .await
-                    .wrap_err("failed to execute block")?;
-                self.update_commitment_state(Update::OnlySoft(executed_block))
-                    .await
-                    .wrap_err("failed to update soft commitment state")?;
-            }
-
-            ExecutorCommand::FromCelestia(blocks) => self
-                .execute_and_finalize_blocks_from_celestia(blocks)
-                .await
-                .wrap_err("failed to finalize block")?,
-        }
+        let executed_block = self
+            .execute_block(block_subset)
+            .await
+            .wrap_err("failed to execute block")?;
+        self.update_commitment_state(Update::OnlySoft(executed_block))
+            .await
+            .wrap_err("failed to update soft commitment state")?;
         Ok(())
     }
 
@@ -438,10 +383,7 @@ impl Executor {
         Ok(executed_block)
     }
 
-    async fn execute_and_finalize_blocks_from_celestia(
-        &mut self,
-        blocks: Vec<SequencerBlockSubset>,
-    ) -> eyre::Result<()> {
+    async fn execute_firm_blocks(&mut self, blocks: Vec<SequencerBlockSubset>) -> eyre::Result<()> {
         if blocks.is_empty() {
             info!("received a message from data availability without blocks; skipping execution");
             return Ok(());
