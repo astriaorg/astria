@@ -703,7 +703,7 @@ mod test {
         genesis_validators: Vec<tendermint::validator::Update>,
     ) -> App {
         let (app, _storage) = initialize_app_with_storage(genesis_state, genesis_validators).await;
-        
+
         app
     }
 
@@ -788,7 +788,8 @@ mod test {
             },
         ];
 
-        let (mut app, storage) = initialize_app_with_storage(None, initial_validator_set.clone()).await;
+        let (mut app, storage) =
+            initialize_app_with_storage(None, initial_validator_set.clone()).await;
 
         let misbehavior = types::Misbehavior {
             kind: types::MisbehaviorKind::Unknown,
@@ -1045,7 +1046,7 @@ mod test {
             authority_sudo_key: alice_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
-        let mut app= initialize_app(Some(genesis_state), vec![]).await;
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
         let new_address = address_from_hex_string(BOB_ADDRESS);
 
@@ -1105,7 +1106,7 @@ mod test {
             authority_sudo_key: alice_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
-        let mut app= initialize_app(Some(genesis_state), vec![]).await;
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
         let bob_address = address_from_hex_string(BOB_ADDRESS);
         let value = 333_333;
@@ -1154,7 +1155,7 @@ mod test {
             },
         ];
 
-        let mut app= initialize_app(None, initial_validator_set).await;
+        let mut app = initialize_app(None, initial_validator_set).await;
 
         let validator_updates = vec![
             validator::Update {
