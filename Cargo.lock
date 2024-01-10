@@ -742,7 +742,7 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer-relayer"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "astria-celestia-client",
  "astria-celestia-mock",
