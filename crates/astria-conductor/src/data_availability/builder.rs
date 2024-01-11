@@ -72,7 +72,7 @@ impl
 
         let block_verifier = BlockVerifier::new(sequencer_client_pool);
 
-        let celestia_client::celestia_rpc::Client::Http(celestia_client) =
+        let celestia_client::celestia_rpc::Client::Ws(celestia_client) =
             celestia_client::celestia_rpc::Client::new(&celestia_endpoint, Some(&celestia_token))
                 .await
                 .wrap_err("failed constructing celestia http client")?
@@ -90,7 +90,7 @@ impl
             .height;
 
         Ok(Reader {
-            celestia_client,
+            celestia_client: celestia_client.into(),
             celestia_poll_interval,
             current_block_height,
             executor_channel,

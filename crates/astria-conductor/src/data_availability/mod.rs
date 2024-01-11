@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 use astria_core::sequencer::v1alpha1::RollupId;
 use celestia_client::{
@@ -6,7 +9,7 @@ use celestia_client::{
         nmt::Namespace,
         Height,
     },
-    jsonrpsee::http_client::HttpClient,
+    jsonrpsee::ws_client::WsClient,
     CelestiaClientExt as _,
     CelestiaSequencerBlob,
 };
@@ -77,7 +80,7 @@ pub(crate) struct Reader {
     executor_channel: mpsc::UnboundedSender<Vec<SequencerBlockSubset>>,
 
     /// The client used to communicate with Celestia.
-    celestia_client: HttpClient,
+    celestia_client: Arc<WsClient>,
 
     /// The between the reader waits until it queries celestia for new blocks
     celestia_poll_interval: Duration,
@@ -314,7 +317,7 @@ impl Reader {
 async fn verify_sequencer_blobs_and_assemble_rollups(
     height: Height,
     sequencer_blobs: Vec<CelestiaSequencerBlob>,
-    client: HttpClient,
+    client: Arc<WsClient>,
     block_verifier: BlockVerifier,
     rollup_namespace: Namespace,
 ) -> eyre::Result<Vec<SequencerBlockSubset>> {
@@ -380,7 +383,7 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
     )
 )]
 async fn fetch_rollup_blob_and_forward_to_assembly(
-    client: HttpClient,
+    client: Arc<WsClient>,
     height: Height,
     blob: CelestiaSequencerBlob,
     rollup_namespace: Namespace,
