@@ -6,6 +6,7 @@ compile_error!(
 #[rustfmt::skip]
 pub mod generated;
 
+pub mod execution;
 pub mod primitive;
 pub mod sequencer;
 
