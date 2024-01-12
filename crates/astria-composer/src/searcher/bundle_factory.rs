@@ -1,6 +1,5 @@
 use std::{
     collections::VecDeque,
-    future,
     mem,
 };
 
@@ -11,10 +10,7 @@ use astria_core::sequencer::v1alpha1::{
     },
     ROLLUP_ID_LEN,
 };
-use tracing::{
-    debug,
-    trace,
-};
+use tracing::trace;
 
 #[derive(Debug, thiserror::Error)]
 enum SizedBundleError {
@@ -74,16 +70,12 @@ impl SizedBundle {
     fn into_actions(self) -> Vec<Action> {
         self.buffer
     }
-
-    fn is_empty(&self) -> bool {
-        self.buffer.is_empty()
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
 pub(super) enum BundleFactoryError {
     #[error("sequence action is larger than the max bundle size. seq_action size: {size}")]
-    SequenceActionTooLarge { size: usize },
+    SequenceActionTooLarge { size: usize, max_size: usize },
 }
 
 /// Manages the bundling of sequence actions into `SizedBundle`s. A `Vec<Action>` is flushed and
@@ -118,6 +110,7 @@ impl BundleFactory {
                 // reject the sequence action if it is larger than the max bundle size
                 Err(BundleFactoryError::SequenceActionTooLarge {
                     size: seq_action_size,
+                    max_size: self.curr_bundle.max_size,
                 })
             }
             Err(SizedBundleError::NotEnoughSpace(seq_action)) => {
@@ -140,32 +133,20 @@ impl BundleFactory {
     }
 
     /// Get the next bundle from the `finished` queue.
-    pub(super) fn pop_complete(&mut self) -> future::Ready<Option<Vec<Action>>> {
-        future::ready(self.finished.pop_front().map(SizedBundle::into_actions))
+    pub(super) fn pop_finished(&mut self) -> Vec<Action> {
+        self.finished
+            .pop_front()
+            .map(SizedBundle::into_actions)
+            .unwrap_or(vec![])
     }
 
     /// Get the next bundle from the `finished` queue. If the queue is empty, flush `curr_bundle`.
-    /// If `finished` and `curr_bundle` are both empty, return `None`.
-    pub(super) fn pop_now(&mut self) -> Option<Vec<Action>> {
+    pub(super) fn pop_now(&mut self) -> Vec<Action> {
         self.finished
             .pop_front()
-            .or_else(|| {
-                // Try to flush `curr_bundle`. It can be flushed if there are no pending `finished`
-                // and the `curr_bundle` is not empty. If `curr_bundle` cannot be flushed, return
-                // `None`.
-                if !self.curr_bundle.is_empty() && self.finished.is_empty() {
-                    trace!(
-                        bundle_size = self.curr_bundle.curr_size,
-                        "bundler preempting current bundle to the finished queue"
-                    );
-
-                    Some(self.curr_bundle.flush())
-                } else {
-                    None
-                }
-            })
-            .filter(|bundle| !bundle.is_empty())
+            .or_else(|| Some(self.curr_bundle.flush()))
             .map(SizedBundle::into_actions)
+            .unwrap_or(vec![])
     }
 }
 
@@ -175,4 +156,306 @@ fn estimate_size_of_sequence_action(seq_action: &SequenceAction) -> usize {
 }
 
 #[cfg(test)]
-mod tests {}
+mod sized_bundle_tests {
+    use astria_core::sequencer::v1alpha1::{
+        transaction::action::SequenceAction,
+        RollupId,
+        ROLLUP_ID_LEN,
+    };
+
+    use super::SizedBundle;
+    use crate::searcher::bundle_factory::{
+        estimate_size_of_sequence_action,
+        SizedBundleError,
+    };
+
+    #[test]
+    fn push_works() {
+        // create a bundle with 100 bytes of max space
+        let mut bundle = super::SizedBundle::new(100);
+
+        // push a sequence action that is 100 bytes total
+        let seq_action = super::SequenceAction {
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+            data: vec![0; 100 - ROLLUP_ID_LEN],
+        };
+
+        assert_eq!(estimate_size_of_sequence_action(&seq_action), 100);
+        bundle.push(seq_action).unwrap();
+    }
+
+    #[test]
+    fn push_seq_action_too_large() {
+        // create a bundle with 100 bytes of max space
+        let mut bundle = super::SizedBundle::new(100);
+
+        // push a sequence action that is >100 bytes total
+        let seq_action = super::SequenceAction {
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+            data: vec![0; 100 - ROLLUP_ID_LEN + 1],
+        };
+
+        assert!(estimate_size_of_sequence_action(&seq_action) > 100);
+        assert!(matches!(
+            bundle.push(seq_action),
+            Err(SizedBundleError::SequenceActionTooLarge(_))
+        ));
+    }
+
+    #[test]
+    fn push_not_enough_space() {
+        // create a bundle with 100 bytes of max space
+        let mut bundle = SizedBundle::new(100);
+
+        // push a sequence action that is 100 bytes total
+        let initial_seq_action = SequenceAction {
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+            data: vec![0; 100 - ROLLUP_ID_LEN],
+        };
+        bundle.push(initial_seq_action).unwrap();
+
+        // push another sequence action that won't fit as the bundle is full but is less than max
+        // size
+        let seq_action = SequenceAction {
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+            data: vec![0; 1],
+        };
+
+        assert!(estimate_size_of_sequence_action(&seq_action) < 100);
+        assert!(matches!(
+            bundle.push(seq_action.clone()),
+            Err(SizedBundleError::NotEnoughSpace(actual_seq_action))
+            if actual_seq_action.rollup_id == seq_action.rollup_id && actual_seq_action.data == seq_action.data
+        ));
+    }
+
+    #[test]
+    fn flush_sanity_check() {
+        // create a bundle with 100 bytes of max space
+        let mut bundle = SizedBundle::new(100);
+
+        // push a sequence action sucessfully
+        let seq_action = SequenceAction {
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+            data: vec![1; 100 - ROLLUP_ID_LEN],
+        };
+        bundle.push(seq_action.clone()).unwrap();
+
+        // flush the bundle
+        let flushed_bundle = bundle.flush();
+
+        // assert that the initial bundle is empty
+        assert!(bundle.buffer.is_empty());
+
+        // assert that the flushed bundle has just the sequence action pushed earlier
+        let actions = flushed_bundle.into_actions();
+        assert_eq!(actions.len(), 1);
+        let actual_seq_action = actions[0].as_sequence().unwrap();
+        assert_eq!(actual_seq_action.rollup_id, seq_action.rollup_id);
+        assert_eq!(actual_seq_action.data, seq_action.data);
+    }
+}
+
+#[cfg(test)]
+mod bundle_factory_tests {
+    use astria_core::sequencer::v1alpha1::{
+        transaction::action::SequenceAction,
+        RollupId,
+        ROLLUP_ID_LEN,
+    };
+
+    use super::BundleFactory;
+    use crate::searcher::bundle_factory::estimate_size_of_sequence_action;
+
+    #[test]
+    fn try_push_works_no_flush() {
+        // create a bundle factory with max bundle size as 100 bytes
+        let mut bundle_factory = BundleFactory::new(100);
+
+        // push a sequence action that is 100 bytes total
+        let seq_action = SequenceAction {
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+            data: vec![0; 100 - ROLLUP_ID_LEN],
+        };
+        bundle_factory.try_push(seq_action).unwrap();
+
+        // assert that the bundle factory has no bundles in the finished queue
+        assert!(bundle_factory.finished.is_empty());
+    }
+
+    #[test]
+    fn try_push_seq_action_too_large() {
+        // create a bundle factory with max bundle size as 100 bytes
+        let mut bundle_factory = BundleFactory::new(100);
+
+        // push a sequence action that is >100 bytes total
+        let seq_action = SequenceAction {
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+            data: vec![0; 100 - ROLLUP_ID_LEN + 1],
+        };
+        let actual_size = estimate_size_of_sequence_action(&seq_action);
+
+        assert!(matches!(
+            bundle_factory.try_push(seq_action),
+            Err(super::BundleFactoryError::SequenceActionTooLarge {
+                size,
+                max_size
+            }) if size == actual_size && max_size == 100
+        ));
+    }
+
+    #[test]
+    fn try_push_flushes_and_pop_finished_works() {
+        // create a bundle factory with max bundle size as 100 bytes
+        let mut bundle_factory = BundleFactory::new(100);
+
+        // push a sequence action that is 100 bytes total
+        let seq_action0 = SequenceAction {
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+            data: vec![0; 100 - ROLLUP_ID_LEN],
+        };
+        bundle_factory.try_push(seq_action0.clone()).unwrap();
+
+        // push another sequence action that is <100 bytes total to force the current bundle to
+        // flush
+        let seq_action1 = SequenceAction {
+            rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
+            data: vec![1; 100 - ROLLUP_ID_LEN],
+        };
+        bundle_factory.try_push(seq_action1).unwrap();
+
+        // assert that the bundle factory has one bundle in the finished queue
+        assert_eq!(bundle_factory.finished.len(), 1);
+        // assert `pop_finished()` will return `seq_action0`
+        let actions = bundle_factory.pop_finished();
+        let actual_seq_action = actions[0].as_sequence().unwrap();
+        assert_eq!(actual_seq_action.rollup_id, seq_action0.rollup_id);
+        assert_eq!(actual_seq_action.data, seq_action0.data);
+    }
+
+    #[test]
+    fn pop_finished_empty() {
+        // create a bundle factory with max bundle size as 100 bytes
+        let mut bundle_factory = BundleFactory::new(100);
+
+        // push a sequence action that is 100 bytes total so it doesn't flush
+        let seq_action = SequenceAction {
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+            data: vec![0; 100 - ROLLUP_ID_LEN],
+        };
+        bundle_factory.try_push(seq_action.clone()).unwrap();
+
+        // assert that the finished queue is empty
+        assert_eq!(bundle_factory.finished.len(), 0);
+        // assert `pop_finished()` returns an empty vec
+        let actions = bundle_factory.pop_finished();
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn pop_now_finished_empty() {
+        // create a bundle factory with max bundle size as 100 bytes
+        let mut bundle_factory = BundleFactory::new(100);
+
+        // push a sequence action that is 100 bytes total so it doesn't flush
+        let seq_action = SequenceAction {
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+            data: vec![0; 100 - ROLLUP_ID_LEN],
+        };
+        bundle_factory.try_push(seq_action.clone()).unwrap();
+
+        // assert that the finished queue is empty (curr wasnt flushed)
+        assert_eq!(bundle_factory.finished.len(), 0);
+        // assert `pop_now()` returns `seq_action`
+        let actions = bundle_factory.pop_now();
+        let actual_seq_action = actions[0].as_sequence().unwrap();
+        assert_eq!(actual_seq_action.rollup_id, seq_action.rollup_id);
+        assert_eq!(actual_seq_action.data, seq_action.data);
+    }
+
+    #[test]
+    fn pop_now_finished_not_empty() {
+        // create a bundle factory with max bundle size as 100 bytes
+        let mut bundle_factory = BundleFactory::new(100);
+
+        // push a sequence action that is 100 bytes total
+        let seq_action0 = SequenceAction {
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+            data: vec![0; 100 - ROLLUP_ID_LEN],
+        };
+        bundle_factory.try_push(seq_action0.clone()).unwrap();
+
+        // push another sequence action that is <100 bytes total to force the current bundle to
+        // flush
+        let seq_action1 = SequenceAction {
+            rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
+            data: vec![1; 100 - ROLLUP_ID_LEN],
+        };
+        bundle_factory.try_push(seq_action1).unwrap();
+
+        // assert that the bundle factory has one bundle in the finished queue
+        assert_eq!(bundle_factory.finished.len(), 1);
+        // assert `pop_now()` will return `seq_action0`
+        let actions = bundle_factory.pop_now();
+        let actual_seq_action = actions[0].as_sequence().unwrap();
+        assert_eq!(actual_seq_action.rollup_id, seq_action0.rollup_id);
+        assert_eq!(actual_seq_action.data, seq_action0.data);
+    }
+
+    #[test]
+    fn pop_now_all_empty() {
+        // create a bundle factory with max bundle size as 100 bytes
+        let mut bundle_factory = BundleFactory::new(100);
+
+        // assert that the finished queue is empty
+        assert_eq!(bundle_factory.finished.len(), 0);
+        // assert `pop_now()` returns an empty vec
+        let actions = bundle_factory.pop_now();
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn pop_now_finished_then_curr_then_empty() {
+        // create a bundle factory with max bundle size as 100 bytes
+        let mut bundle_factory = BundleFactory::new(100);
+
+        // push a sequence action that is 100 bytes total
+        let seq_action0 = SequenceAction {
+            rollup_id: RollupId::new([0; ROLLUP_ID_LEN]),
+            data: vec![0; 100 - ROLLUP_ID_LEN],
+        };
+        bundle_factory.try_push(seq_action0.clone()).unwrap();
+
+        // push another sequence action that is <100 bytes total to force the current bundle to
+        // flush
+        let seq_action1 = SequenceAction {
+            rollup_id: RollupId::new([1; ROLLUP_ID_LEN]),
+            data: vec![1; 100 - ROLLUP_ID_LEN],
+        };
+        bundle_factory.try_push(seq_action1.clone()).unwrap();
+
+        // assert that the bundle factory has one bundle in the finished queue
+        assert_eq!(bundle_factory.finished.len(), 1);
+
+        // assert `pop_now()` will return `seq_action0` on the first call
+        let actions_finished = bundle_factory.pop_now();
+        assert_eq!(actions_finished.len(), 1);
+        let actual_seq_action = actions_finished[0].as_sequence().unwrap();
+        assert_eq!(actual_seq_action.rollup_id, seq_action0.rollup_id);
+        assert_eq!(actual_seq_action.data, seq_action0.data);
+
+        // assert that the finished queue is empty now
+        assert_eq!(bundle_factory.finished.len(), 0);
+
+        // assert `pop_now()` will return `seq_action1` on the second call (i.e. from curr)
+        let actions_curr = bundle_factory.pop_now();
+        assert_eq!(actions_curr.len(), 1);
+        let actual_seq_action = actions_curr[0].as_sequence().unwrap();
+        assert_eq!(actual_seq_action.rollup_id, seq_action1.rollup_id);
+        assert_eq!(actual_seq_action.data, seq_action1.data);
+
+        // assert the third call will return an empty vec
+        let actions_empty = bundle_factory.pop_now();
+        assert!(actions_empty.is_empty());
+    }
+}

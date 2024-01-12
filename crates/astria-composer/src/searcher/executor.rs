@@ -27,6 +27,7 @@ use color_eyre::eyre::{
 use ed25519_consensus::SigningKey;
 use futures::{
     future::{
+        self,
         Fuse,
         FusedFuture as _,
         FutureExt as _,
@@ -46,6 +47,7 @@ use sequencer_client::{
     Address,
     SequencerClientExt as _,
 };
+use sha2::Sha256;
 use tokio::{
     select,
     sync::{
@@ -63,7 +65,6 @@ use tracing::{
     info,
     info_span,
     instrument,
-    instrument::Instrumented,
     warn,
     Instrument,
     Span,
@@ -160,19 +161,9 @@ impl Executor {
         self.status.subscribe()
     }
 
-    fn make_submission_fut(
-        &self,
-        nonce: u32,
-        bundle: Vec<Action>,
-    ) -> Fuse<Instrumented<SubmitFut>> {
-        // TODO(https://github.com/astriaorg/astria/issues/476): Attach the hash of the
-        // bundle to the span. Linked GH issue is for agreeing on a hash for `SignedTransaction`,
-        // but both should be addressed.
-        let span = info_span!(
-            "submit bundle",
-            nonce.initial = nonce,
-            bundle.len = bundle.len(),
-        );
+    /// Create a future to submit a bundle to the sequencer.
+    #[instrument(skip(self), fields(nonce.initial = %nonce))]
+    fn submit_bundle(&self, nonce: u32, bundle: Vec<Action>) -> Fuse<SubmitFut> {
         SubmitFut {
             client: self.sequencer_client.clone(),
             address: self.address,
@@ -181,7 +172,6 @@ impl Executor {
             state: SubmitState::NotStarted,
             bundle,
         }
-        .instrument(span)
         .fuse()
     }
 
@@ -191,8 +181,7 @@ impl Executor {
     /// An error is returned if connecting to the sequencer fails.
     #[instrument(skip_all, fields(address = %self.address))]
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        use tracing::instrument::Instrumented;
-        let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
+        let mut submission_fut: Fuse<SubmitFut> = Fuse::terminated();
         let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address)
             .await
             .wrap_err("failed getting initial nonce from sequencer")?;
@@ -220,21 +209,22 @@ impl Executor {
                     block_timer.as_mut().reset(Instant::now() + Duration::from_millis(self.block_time_ms));
                 }
 
-                Some(bundle) = bundle_factory.pop_complete(), if submission_fut.is_terminated() => {
-                    debug!(
-                        bundle_len=bundle.len(),
-                        "submitting bundle to sequencer"
-                    );
-                    submission_fut = self.make_submission_fut(nonce, bundle);
+                bundle = future::ready(bundle_factory.pop_finished()), if submission_fut.is_terminated() => {
+                    if !bundle.is_empty() {
+                        submission_fut = self.submit_bundle(nonce, bundle);
+                    }
                 }
 
                 // receive new seq_action and bundle it
                 Some(seq_action) = self.serialized_rollup_transactions_rx.recv() => {
+                    let rollup_id = seq_action.rollup_id;
                     match bundle_factory.try_push(seq_action) {
                         Ok(()) => {}
-                        Err(BundleFactoryError::SequenceActionTooLarge{size}) => {
+                        Err(BundleFactoryError::SequenceActionTooLarge{size, max_size}) => {
                             warn!(
+                                rollup_id = %rollup_id,
                                 seq_action_size = size,
+                                max_size = max_size,
                                 "failed to bundle sequence action: too large. sequence action is dropped."
                             );
                         }
@@ -243,12 +233,13 @@ impl Executor {
 
                 // try to preempt current bundle if the timer has ticked without submitting the next bundle
                 () = &mut block_timer, if submission_fut.is_terminated() => {
-                    if let Some(bundle) = bundle_factory.pop_now() {
+                    let bundle = bundle_factory.pop_now();
+                    if !bundle.is_empty() {
                         debug!(
                             bundle_len=bundle.len(),
                             "forcing bundle submission to sequencer due to block timer"
                         );
-                        submission_fut = self.make_submission_fut(nonce, bundle);
+                        submission_fut = self.submit_bundle(nonce, bundle);
                     }
                 }
             }
@@ -301,6 +292,7 @@ async fn get_latest_nonce(
     fields(
         nonce = tx.unsigned_transaction().nonce,
         transaction.hash = hex::encode(sha256(&tx.to_raw().encode_to_vec())),
+        bundle.len = %tx.actions().len()
     )
 )]
 async fn submit_tx(
@@ -473,10 +465,7 @@ impl Future for SubmitFut {
 }
 
 fn sha256(data: &[u8]) -> [u8; 32] {
-    use sha2::{
-        Digest as _,
-        Sha256,
-    };
+    use sha2::Digest as _;
     let mut hasher = Sha256::new();
     hasher.update(data);
     hasher.finalize().into()
