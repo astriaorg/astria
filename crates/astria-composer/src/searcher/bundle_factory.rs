@@ -137,7 +137,7 @@ impl BundleFactory {
         self.finished
             .pop_front()
             .map(SizedBundle::into_actions)
-            .unwrap_or(vec![])
+            .unwrap_or_default()
     }
 
     /// Get the next bundle from the `finished` queue. If the queue is empty, flush `curr_bundle`.
@@ -146,7 +146,7 @@ impl BundleFactory {
             .pop_front()
             .or_else(|| Some(self.curr_bundle.flush()))
             .map(SizedBundle::into_actions)
-            .unwrap_or(vec![])
+            .unwrap_or_default()
     }
 }
 

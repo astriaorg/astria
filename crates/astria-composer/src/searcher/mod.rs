@@ -10,15 +10,11 @@ use tokio::{
     sync::{
         mpsc::{
             self,
-            Receiver,
             Sender,
         },
         watch,
     },
-    task::{
-        JoinError,
-        JoinSet,
-    },
+    task::JoinError,
 };
 use tokio_util::task::JoinMap;
 use tracing::{
@@ -49,17 +45,10 @@ pub(super) struct Searcher {
     collectors: HashMap<String, Collector>,
     // The collection of the collector statuses.
     collector_statuses: HashMap<String, watch::Receiver<collector::Status>>,
-    // The rx part of the channel on which the searcher receives transactions from its collectors.
-    new_transactions_rx: Receiver<collector::RollupTransaction>,
-    // The tx part that collectors use to send transactions to their parent searcher.
-    new_transactions_tx: Sender<collector::RollupTransaction>,
     // The map of chain ID to the URLs to which collectors should connect.
     rollups: HashMap<String, String>,
     // The set of tasks tracking if the collectors are still running.
     collector_tasks: JoinMap<String, eyre::Result<()>>,
-    // Set of currently running jobs converting pending eth transactions to signed sequencer
-    // transactions.
-    conversion_tasks: JoinSet<SequenceAction>,
     // The sender of sequence actions to the executor.
     serialized_rollup_transactions_tx: Sender<SequenceAction>,
     // The Executor object that is responsible for signing and submitting sequencer transactions.
@@ -99,7 +88,8 @@ impl Searcher {
             .collect::<Result<HashMap<_, _>, _>>()
             .wrap_err("failed parsing provided <rollup_name>::<url> pairs as rollups")?;
 
-        let (new_transactions_tx, new_transactions_rx) = mpsc::channel(256);
+        let (serialized_rollup_transactions_tx, serialized_rollup_transactions_rx) =
+            mpsc::channel(256);
 
         let collectors = rollups
             .iter()
@@ -107,7 +97,7 @@ impl Searcher {
                 let collector = Collector::new(
                     rollup_name.clone(),
                     url.clone(),
-                    new_transactions_tx.clone(),
+                    serialized_rollup_transactions_tx.clone(),
                 );
                 (rollup_name.clone(), collector)
             })
@@ -118,9 +108,6 @@ impl Searcher {
             .collect();
 
         let (status, _) = watch::channel(Status::default());
-
-        let (serialized_rollup_transactions_tx, serialized_rollup_transactions_rx) =
-            mpsc::channel(256);
 
         let executor = Executor::new(
             &cfg.sequencer_url,
@@ -137,10 +124,7 @@ impl Searcher {
             status,
             collectors,
             collector_statuses,
-            new_transactions_rx,
-            new_transactions_tx,
             collector_tasks: JoinMap::new(),
-            conversion_tasks: JoinSet::new(),
             serialized_rollup_transactions_tx,
             executor_status,
             executor: Some(executor),
@@ -151,24 +135,6 @@ impl Searcher {
     /// Other modules can use this to get notified of changes to the Searcher state
     pub(crate) fn subscribe_to_state(&self) -> watch::Receiver<Status> {
         self.status.subscribe()
-    }
-
-    /// Serializes and signs a sequencer tx from a rollup tx.
-    fn serialize_pending_tx(&mut self, tx: collector::RollupTransaction) {
-        let collector::RollupTransaction {
-            rollup_id,
-            inner: rollup_tx,
-        } = tx;
-
-        // rollup transaction data serialization is a heavy compute task, so it is spawned
-        // on tokio's blocking threadpool
-        self.conversion_tasks.spawn_blocking(move || {
-            let data = rollup_tx.rlp().to_vec();
-            SequenceAction {
-                rollup_id,
-                data,
-            }
-        });
     }
 
     /// Starts the searcher and runs it until failure
@@ -194,34 +160,7 @@ impl Searcher {
 
         loop {
             select!(
-                // serialize and sign sequencer tx for incoming pending rollup txs
-                Some(rollup_tx) = self.new_transactions_rx.recv() => self.serialize_pending_tx(rollup_tx),
-
-                // submit sequence actions to the executor for bundling and submission
-                Some(join_result) = self.conversion_tasks.join_next(), if !self.conversion_tasks.is_empty() => {
-                    match join_result {
-                        Ok(seq_action) => {
-                            match self.serialized_rollup_transactions_tx.try_send(seq_action) {
-                                Ok(()) => {},
-                                Err(mpsc::error::TrySendError::Full(_seq_action)) => {
-                                    // TODO: use span from the rollup transaction to identify which one was dropped
-                                    warn!("failed to forward transaction to executor due to backpressure. Dropping it.");
-                                },
-                                Err(mpsc::error::TrySendError::Closed(_)) => {
-                                    error!("channel to executor closed unexpectedly; exiting");
-                                    break;
-                                }
-                            }
-                        },
-                        Err(e) => warn!(
-                            error = &e as &dyn std::error::Error,
-                            "task failed to convert pending rollup transaction to signed sequencer transaction",
-                        ),
-                    }
-                }
-
-                Some((rollup, collector_exit)) = self.collector_tasks.join_next() => {
-                    self.reconnect_exited_collector(rollup, collector_exit);
+                Some((rollup, collector_exit)) = self.collector_tasks.join_next() => {                    self.reconnect_exited_collector(rollup, collector_exit);
                 }
 
                 ret = &mut executor_handle => {
@@ -258,7 +197,7 @@ impl Searcher {
         reconnect_exited_collector(
             &mut self.collector_statuses,
             &mut self.collector_tasks,
-            self.new_transactions_tx.clone(),
+            self.serialized_rollup_transactions_tx.clone(),
             &self.rollups,
             rollup,
             exit_result,
@@ -336,7 +275,7 @@ impl Searcher {
 fn reconnect_exited_collector(
     collector_statuses: &mut HashMap<String, watch::Receiver<collector::Status>>,
     collector_tasks: &mut JoinMap<String, eyre::Result<()>>,
-    new_transactions_tx: Sender<collector::RollupTransaction>,
+    serialized_rolup_transactions_tx: Sender<SequenceAction>,
     rollups: &HashMap<String, String>,
     rollup: String,
     exit_result: Result<eyre::Result<()>, JoinError>,
@@ -359,7 +298,11 @@ fn reconnect_exited_collector(
         );
         return;
     };
-    let collector = Collector::new(rollup.clone(), url.clone(), new_transactions_tx);
+    let collector = Collector::new(
+        rollup.clone(),
+        url.clone(),
+        serialized_rolup_transactions_tx,
+    );
     collector_statuses.insert(rollup.clone(), collector.subscribe());
     collector_tasks.spawn(rollup, collector.run_until_stopped());
 }
@@ -368,7 +311,10 @@ fn reconnect_exited_collector(
 mod tests {
     use std::collections::HashMap;
 
-    use astria_core::sequencer::v1alpha1::RollupId;
+    use astria_core::sequencer::v1alpha1::{
+        transaction::action::SequenceAction,
+        RollupId,
+    };
     use ethers::types::Transaction;
     use tokio_util::task::JoinMap;
 
@@ -395,15 +341,19 @@ mod tests {
             .wait_for(collector::Status::is_connected)
             .await
             .unwrap();
-        let expected_transaction = Transaction::default();
-        let _ = mock_geth.push_tx(expected_transaction.clone()).unwrap();
+        let rollup_tx = Transaction::default();
+        let expected_seq_action = SequenceAction {
+            rollup_id: RollupId::from_unhashed_bytes(&rollup_name),
+            data: Transaction::default().rlp().to_vec(),
+        };
+        let _ = mock_geth.push_tx(rollup_tx.clone()).unwrap();
         let collector_tx = rx.recv().await.unwrap();
 
         assert_eq!(
             RollupId::from_unhashed_bytes(&rollup_name),
             collector_tx.rollup_id,
         );
-        assert_eq!(expected_transaction, collector_tx.inner);
+        assert_eq!(expected_seq_action.data, collector_tx.data);
 
         let _ = mock_geth.abort().unwrap();
 
@@ -432,13 +382,13 @@ mod tests {
             .wait_for(collector::Status::is_connected)
             .await
             .unwrap();
-        let _ = mock_geth.push_tx(expected_transaction.clone()).unwrap();
+        let _ = mock_geth.push_tx(rollup_tx).unwrap();
         let collector_tx = rx.recv().await.unwrap();
 
         assert_eq!(
             RollupId::from_unhashed_bytes(&rollup_name),
             collector_tx.rollup_id,
         );
-        assert_eq!(expected_transaction, collector_tx.inner);
+        assert_eq!(expected_seq_action.data, collector_tx.data);
     }
 }

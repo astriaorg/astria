@@ -47,7 +47,6 @@ use sequencer_client::{
     Address,
     SequencerClientExt as _,
 };
-use sha2::Sha256;
 use tokio::{
     select,
     sync::{
@@ -465,7 +464,10 @@ impl Future for SubmitFut {
 }
 
 fn sha256(data: &[u8]) -> [u8; 32] {
-    use sha2::Digest as _;
+    use sha2::{
+        Digest as _,
+        Sha256,
+    };
     let mut hasher = Sha256::new();
     hasher.update(data);
     hasher.finalize().into()
