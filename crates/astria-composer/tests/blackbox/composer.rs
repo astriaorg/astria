@@ -3,12 +3,12 @@ use std::time::Duration;
 use astria_core::{
     generated::sequencer::v1alpha1::NonceResponse,
     sequencer::v1alpha1::{
+        AbciErrorCode,
         RollupId,
         SignedTransaction,
     },
 };
 use ethers::types::Transaction;
-use sequencer_types::AbciCode;
 use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
     request,
@@ -232,7 +232,7 @@ async fn mount_broadcast_tx_sync_invalid_nonce_mock(
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
         Some(tx_sync::Response {
-            code: AbciCode::INVALID_NONCE.into(),
+            code: AbciErrorCode::INVALID_NONCE.into(),
             data: vec![].into(),
             log: String::new(),
             hash: tendermint::Hash::Sha256([0; 32]),

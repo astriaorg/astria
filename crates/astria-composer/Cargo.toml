@@ -1,6 +1,6 @@
 [package]
 name = "astria-composer"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 rust-version = "1.70.0"
 
@@ -48,10 +48,6 @@ prost.workspace = true
 package = "astria-sequencer-client"
 path = "../astria-sequencer-client"
 features = ["http"]
-
-[dependencies.sequencer-types]
-package = "astria-sequencer-types"
-path = "../astria-sequencer-types"
 
 [dev-dependencies]
 config = { package = "astria-config", path = "../astria-config", features = [

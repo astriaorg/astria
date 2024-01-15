@@ -1,6 +1,6 @@
 [package]
 name = "astria-conductor"
-version = "0.11.0"
+version = "0.11.1"
 edition = "2021"
 rust-version = "1.73"
 
@@ -35,7 +35,6 @@ tryhard = { workspace = true }
 
 astria-core = { path = "../astria-core", features = ["client"] }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
-sequencer-types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }
 optimism = { package = "astria-optimism", path = "../astria-optimism" }
 config = { package = "astria-config", path = "../astria-config" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
