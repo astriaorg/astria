@@ -164,10 +164,7 @@ async fn refund_tokens_check<S: StateRead>(
 
     let packet_data = FungibleTokenPacketData::decode(data)
         .context("failed to decode packet data into FungibleTokenPacketData")?;
-    let mut asset = packet_data
-        .denom
-        .parse::<IbcAsset>()
-        .context("failed parsing `denom` field packet data as IbcAsset")?;
+    let mut asset: IbcAsset = packet_data.denom.as_str().into();
 
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
     // so we need to look up the full trace from storage.
@@ -331,10 +328,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         &hex::decode(packet_data.receiver).context("failed to decode receiver as hex string")?,
     )
     .context("invalid receiver address")?;
-    let mut asset = packet_data
-        .denom
-        .parse::<IbcAsset>()
-        .context("failed parsing `denom` field packet data as IbcAsset")?;
+    let mut asset: IbcAsset = packet_data.denom.as_str().into();
 
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
     // so we need to look up the full trace from storage.
@@ -386,9 +380,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             format!("{dest_port}/{dest_channel}/{}", packet_data.denom)
         };
 
-        let asset: IbcAsset = prefixed_denomination
-            .parse()
-            .context("failed to parse prefixed denomination as IbcAsset")?;
+        let asset: IbcAsset = prefixed_denomination.as_str().into();
 
         // register denomination in global ID -> denom map if it's not already there
         if !state

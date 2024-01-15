@@ -105,7 +105,7 @@ pub struct IncorrectAssetIdLength {
 /// Note that the full denomination trace of the token is `prefix/base_denom`.
 /// This is hashed to create the ID.
 #[allow(clippy::module_name_repetitions)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IbcAsset {
     id: Id,
 
@@ -141,50 +141,42 @@ impl IbcAsset {
 
     #[must_use]
     pub fn denomination_trace(&self) -> String {
+        if self.prefix.is_empty() {
+            return self.base_denom.clone();
+        }
+
         format!("{}/{}", self.prefix, self.base_denom)
     }
 }
 
 impl std::fmt::Display for IbcAsset {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.prefix.is_empty() {
+            return write!(f, "{}", self.base_denom);
+        }
+
         write!(f, "{}/{}", self.prefix, self.base_denom)
     }
 }
 
 /// Creates an `IbcAsset` given a denomination trace.
 ///
-/// # Errors
-///
-/// - if the denomination string is invalid, ie. does not contain any slashes.
-impl std::str::FromStr for IbcAsset {
-    type Err = IbcAssetError;
-
-    fn from_str(denom: &str) -> Result<Self, Self::Err> {
+/// Note: if there is no slash in the denomination trace, then
+/// it is assumed that the asset is native, and thus the prefix is empty.
+impl From<&str> for IbcAsset {
+    fn from(denom: &str) -> Self {
         let Some((prefix, base_denom)) = denom.rsplit_once('/') else {
-            return Err(IbcAssetError::invalid_denomination());
+            return Self {
+                id: Id::from_denom(denom),
+                base_denom: denom.to_string(),
+                prefix: "".to_string(),
+            };
         };
-        let id = Id::from_denom(denom);
 
-        Ok(Self {
-            id,
+        Self {
+            id: Id::from_denom(denom),
             base_denom: base_denom.to_string(),
             prefix: prefix.to_string(),
-        })
+        }
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub struct IbcAssetError(IbcAssetErrorKind);
-
-impl IbcAssetError {
-    fn invalid_denomination() -> Self {
-        Self(IbcAssetErrorKind::InvalidDenomination)
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-enum IbcAssetErrorKind {
-    #[error("denomination must contain at least one slash")]
-    InvalidDenomination,
 }

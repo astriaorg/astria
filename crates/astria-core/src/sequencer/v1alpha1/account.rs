@@ -1,4 +1,39 @@
-use super::raw;
+use super::{
+    asset::IbcAsset,
+    raw,
+};
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AssetBalance {
+    pub denom: IbcAsset,
+    pub balance: u128,
+}
+
+impl AssetBalance {
+    /// Converts a protobuf [`raw::AssetBalance`] to an astria
+    /// native [`AssetBalance`].
+    #[must_use]
+    pub fn from_raw(proto: &raw::AssetBalance) -> Self {
+        let raw::AssetBalance {
+            denom,
+            balance,
+        } = proto;
+        Self {
+            denom: IbcAsset::from(denom.as_str()),
+            balance: balance.map_or(0, Into::into),
+        }
+    }
+
+    /// Converts an astria native [`AssetBalance`] to a
+    /// protobuf [`raw::AssetBalance`].
+    #[must_use]
+    pub fn into_raw(self) -> raw::AssetBalance {
+        raw::AssetBalance {
+            denom: self.denom.to_string(),
+            balance: Some(self.balance.into()),
+        }
+    }
+}
 
 impl raw::BalanceResponse {
     /// Converts an astria native [`BalanceResponse`] to a
@@ -7,11 +42,11 @@ impl raw::BalanceResponse {
     pub fn from_native(native: BalanceResponse) -> Self {
         let BalanceResponse {
             height,
-            balance,
+            balances,
         } = native;
         Self {
             height,
-            balance: Some(balance.into()),
+            balances: balances.into_iter().map(AssetBalance::into_raw).collect(),
         }
     }
 
@@ -31,10 +66,10 @@ impl raw::BalanceResponse {
 }
 
 /// The sequencer response to a balance request for a given account at a given height.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BalanceResponse {
     pub height: u64,
-    pub balance: u128,
+    pub balances: Vec<AssetBalance>,
 }
 
 impl BalanceResponse {
@@ -43,11 +78,11 @@ impl BalanceResponse {
     pub fn from_raw(proto: &raw::BalanceResponse) -> Self {
         let raw::BalanceResponse {
             height,
-            balance,
-        } = *proto;
+            balances,
+        } = proto;
         Self {
-            height,
-            balance: balance.map_or(0, Into::into),
+            height: *height,
+            balances: balances.iter().map(AssetBalance::from_raw).collect(),
         }
     }
 
@@ -122,17 +157,22 @@ impl NonceResponse {
 #[cfg(test)]
 mod tests {
     use super::{
+        AssetBalance,
         BalanceResponse,
         NonceResponse,
     };
 
     #[test]
     fn balance_roundtrip_is_correct() {
+        let balances = vec![AssetBalance {
+            denom: "nria".into(),
+            balance: 999,
+        }];
         let expected = BalanceResponse {
             height: 42,
-            balance: 42,
+            balances,
         };
-        let actual = expected.into_raw().into_native();
+        let actual = expected.clone().into_raw().into_native();
         assert_eq!(expected, actual);
     }
 

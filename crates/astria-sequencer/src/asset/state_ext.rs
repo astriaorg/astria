@@ -53,12 +53,12 @@ pub(crate) trait StateReadExt: StateRead {
 
         let DenominationTrace(asset) =
             DenominationTrace::try_from_slice(&bytes).context("invalid asset bytes")?;
-        let asset: IbcAsset = asset.parse().context("invalid asset denomination")?;
+        let asset: IbcAsset = asset.as_str().into();
         Ok(asset)
     }
 }
 
-impl<T: StateRead> StateReadExt for T {}
+impl<T: ?Sized + StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {

@@ -14,7 +14,6 @@ use crate::{
         asset::{
             self,
             IbcAsset,
-            IbcAssetError,
         },
         Address,
         IncorrectAddressLength,
@@ -627,10 +626,7 @@ impl Ics20Withdrawal {
 
         Ok(Self {
             amount: amount.into(),
-            denom: proto
-                .denom
-                .parse()
-                .map_err(Ics20WithdrawalError::invalid_denom)?,
+            denom: proto.denom.as_str().into(),
             destination_chain_address: proto.destination_chain_address,
             return_address,
             timeout_height,
@@ -683,11 +679,6 @@ impl Ics20WithdrawalError {
     }
 
     #[must_use]
-    fn invalid_denom(err: IbcAssetError) -> Self {
-        Self(Ics20WithdrawalErrorKind::InvalidDenom(err))
-    }
-
-    #[must_use]
     fn invalid_return_address(err: IncorrectAddressLength) -> Self {
         Self(Ics20WithdrawalErrorKind::InvalidReturnAddress(err))
     }
@@ -707,8 +698,6 @@ impl Ics20WithdrawalError {
 enum Ics20WithdrawalErrorKind {
     #[error("`amount` field was missing")]
     MissingAmount,
-    #[error("`denom` field was invalid")]
-    InvalidDenom(IbcAssetError),
     #[error("`return_address` field was invalid")]
     InvalidReturnAddress(IncorrectAddressLength),
     #[error("`timeout_height` field was missing")]
