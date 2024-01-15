@@ -88,6 +88,18 @@ pub(crate) trait StateReadExt: StateRead {
             let Balance(balance) =
                 Balance::try_from_slice(&value).context("invalid balance bytes")?;
 
+            let native_asset = crate::asset::get_native_asset();
+            if asset_id == native_asset.id() {
+                // TODO: this is jank, just have 1 denom type.
+                balances.push(AssetBalance {
+                    denom: astria_core::sequencer::v1alpha1::asset::IbcAsset::from(
+                        native_asset.base_denom(),
+                    ),
+                    balance,
+                });
+                continue;
+            }
+
             let denom = self.get_ibc_asset(asset_id).await?;
             balances.push(AssetBalance {
                 denom,
