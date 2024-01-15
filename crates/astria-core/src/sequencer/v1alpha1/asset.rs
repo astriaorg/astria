@@ -169,7 +169,7 @@ impl From<&str> for IbcAsset {
             return Self {
                 id: Id::from_denom(denom),
                 base_denom: denom.to_string(),
-                prefix: "".to_string(),
+                prefix: String::new(),
             };
         };
 
