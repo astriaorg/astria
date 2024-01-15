@@ -30,7 +30,7 @@ use tracing::{
     instrument,
 };
 
-use crate::data_availability::SequencerBlockSubset;
+use crate::data_availability::ReconstructedBlock;
 
 pub(crate) mod optimism;
 
@@ -207,8 +207,8 @@ impl<TRollupAddress, TRollupId, TShutdown> ExecutorBuilder<TRollupAddress, TRoll
 }
 
 pub(crate) struct Executor {
-    celestia_rx: mpsc::UnboundedReceiver<Vec<SequencerBlockSubset>>,
-    celestia_tx: mpsc::WeakUnboundedSender<Vec<SequencerBlockSubset>>,
+    celestia_rx: mpsc::UnboundedReceiver<ReconstructedBlock>,
+    celestia_tx: mpsc::WeakUnboundedSender<ReconstructedBlock>,
     sequencer_rx: mpsc::UnboundedReceiver<Box<SequencerBlock>>,
     sequencer_tx: mpsc::WeakUnboundedSender<Box<SequencerBlock>>,
 
@@ -237,7 +237,7 @@ pub(crate) struct Executor {
     /// we need to track the mapping of sequencer block hash -> execution block
     /// so that we can mark the block as final on the execution layer when
     /// we receive a finalized sequencer block.
-    sequencer_hash_to_execution_block: HashMap<tendermint::Hash, Block>,
+    sequencer_hash_to_execution_block: HashMap<[u8; 32], Block>,
 
     /// optional hook which is called to modify the rollup transaction list
     /// right before it's sent to the execution layer via `ExecuteBlock`.
@@ -249,7 +249,7 @@ impl Executor {
         ExecutorBuilder::new()
     }
 
-    pub(super) fn celestia_channel(&self) -> mpsc::UnboundedSender<Vec<SequencerBlockSubset>> {
+    pub(super) fn celestia_channel(&self) -> mpsc::UnboundedSender<ReconstructedBlock> {
         self.celestia_tx.upgrade().expect(
             "should work because the channel is held by self, is open, and other senders exist",
         )
@@ -279,8 +279,8 @@ impl Executor {
                     break ret;
                 }
 
-                Some(blocks) = self.celestia_rx.recv() => {
-                    if let Err(e) = self.execute_firm_blocks(blocks).await {
+                Some(block) = self.celestia_rx.recv() => {
+                    if let Err(e) = self.execute_firm_block(block).await {
                         let message = "failed finalizing celestia blocks";
                         error!(
                             error = AsRef::<dyn std::error::Error>::as_ref(&e),
@@ -306,10 +306,20 @@ impl Executor {
 
     async fn execute_soft_block(&mut self, block: Box<SequencerBlock>) -> eyre::Result<()> {
         // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
-        let block_subset = SequencerBlockSubset::from_sequencer_block(*block, self.rollup_id);
+        // XXX: this will be replaced.
+        let block_hash = block.block_hash();
+        let mut block = (*block).into_unchecked();
+        let reconstructed_block = ReconstructedBlock {
+            block_hash,
+            header: block.header,
+            transactions: block
+                .rollup_transactions
+                .remove(&self.rollup_id)
+                .unwrap_or_default(),
+        };
 
         let executed_block = self
-            .execute_block(block_subset)
+            .execute_block(reconstructed_block)
             .await
             .wrap_err("failed to execute block")?;
         self.update_commitment_state(Update::OnlySoft(executed_block))
@@ -322,7 +332,7 @@ impl Executor {
     /// resulting execution block. If the block has already been executed, it
     /// returns the previously-computed execution block hash.
     #[instrument(skip(self), fields(sequencer_block_hash = ?block.block_hash, sequencer_block_height = block.header.height.value()))]
-    async fn execute_block(&mut self, block: SequencerBlockSubset) -> eyre::Result<Block> {
+    async fn execute_block(&mut self, block: ReconstructedBlock) -> eyre::Result<Block> {
         let executable_block_height = self
             .calculate_executable_block_height()
             .wrap_err("failed calculating the next executable block height")?;
@@ -383,58 +393,52 @@ impl Executor {
         Ok(executed_block)
     }
 
-    async fn execute_firm_blocks(&mut self, blocks: Vec<SequencerBlockSubset>) -> eyre::Result<()> {
-        if blocks.is_empty() {
-            info!("received a message from data availability without blocks; skipping execution");
+    async fn execute_firm_block(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
+        let finalizable_block_height = self
+            .calculate_finalizable_block_height()
+            .wrap_err("failed calculating next finalizable block height")?;
+        if block.header.height < finalizable_block_height {
+            info!(
+                sequencer_block_height = %block.header.height,
+                finalized_block_height = %finalizable_block_height,
+                "received block which is already finalized; skipping finalization"
+            );
             return Ok(());
         }
-        for block in blocks {
-            let finalizable_block_height = self
-                .calculate_finalizable_block_height()
-                .wrap_err("failed calculating next finalizable block height")?;
-            if block.header.height < finalizable_block_height {
-                info!(
-                    sequencer_block_height = %block.header.height,
-                    finalized_block_height = %finalizable_block_height,
-                    "received block which is already finalized; skipping finalization"
-                );
-                continue;
-            }
 
-            let sequencer_block_hash = block.block_hash;
-            let maybe_executed_block = self
-                .sequencer_hash_to_execution_block
-                .get(&sequencer_block_hash)
-                .cloned();
-            if let Some(block) = maybe_executed_block {
-                // this case means block has already been executed.
-                self.update_commitment_state(Update::OnlyFirm(block))
-                    .await
-                    .wrap_err("failed to update firm commitment state")?;
-                // remove the sequencer block hash from the map, as it's been firmly committed
-                self.sequencer_hash_to_execution_block
-                    .remove(&sequencer_block_hash);
-            } else {
-                // this means either we didn't receive the block from the sequencer stream
+        let sequencer_block_hash = block.block_hash;
+        let maybe_executed_block = self
+            .sequencer_hash_to_execution_block
+            .get(&sequencer_block_hash)
+            .cloned();
+        if let Some(block) = maybe_executed_block {
+            // this case means block has already been executed.
+            self.update_commitment_state(Update::OnlyFirm(block))
+                .await
+                .wrap_err("failed to update firm commitment state")?;
+            // remove the sequencer block hash from the map, as it's been firmly committed
+            self.sequencer_hash_to_execution_block
+                .remove(&sequencer_block_hash);
+        } else {
+            // this means either we didn't receive the block from the sequencer stream
 
-                // try executing the block as it hasn't been executed before
-                // execute_block will check if our namespace has txs; if so, it'll return the
-                // resulting execution block hash, otherwise None
-                let executed_block = self
-                    .execute_block(block)
-                    .await
-                    .wrap_err("failed to execute block")?;
+            // try executing the block as it hasn't been executed before
+            // execute_block will check if our namespace has txs; if so, it'll return the
+            // resulting execution block hash, otherwise None
+            let executed_block = self
+                .execute_block(block)
+                .await
+                .wrap_err("failed to execute block")?;
 
-                // when we execute a block received from da, nothing else has been executed on
-                // top of it, so we set FIRM and SOFT to this executed block
-                self.update_commitment_state(Update::ToSame(executed_block))
-                    .await
-                    .wrap_err("failed to setting both commitment states to executed block")?;
-                // remove the sequencer block hash from the map, as it's been firmly committed
-                self.sequencer_hash_to_execution_block
-                    .remove(&sequencer_block_hash);
-            };
-        }
+            // when we execute a block received from da, nothing else has been executed on
+            // top of it, so we set FIRM and SOFT to this executed block
+            self.update_commitment_state(Update::ToSame(executed_block))
+                .await
+                .wrap_err("failed to setting both commitment states to executed block")?;
+            // remove the sequencer block hash from the map, as it's been firmly committed
+            self.sequencer_hash_to_execution_block
+                .remove(&sequencer_block_hash);
+        };
         Ok(())
     }
 

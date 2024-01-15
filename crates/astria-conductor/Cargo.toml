@@ -6,6 +6,7 @@ rust-version = "1.73"
 
 [dependencies]
 async-trait = "0.1.73"
+pin-project-lite = "0.2"
 
 base64 = { workspace = true }
 color-eyre = { workspace = true }
@@ -41,7 +42,7 @@ merkle = { package = "astria-merkle", path = "../astria-merkle" }
 sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
   "websocket",
 ] }
-telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = ["display"] }
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["server"] }
