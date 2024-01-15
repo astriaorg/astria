@@ -36,8 +36,8 @@ pub(crate) async fn balance_request(
         Ok(balance) => balance,
         Err(err) => {
             return response::Query {
-                code: AbciErrorCode::INVALID_PARAMETER.into(),
-                info: AbciErrorCode::INVALID_PARAMETER.to_string(),
+                code: AbciErrorCode::INTERNAL_ERROR.into(),
+                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
                 log: format!("failed getting balance for provided address: {err:?}"),
                 height,
                 ..response::Query::default()
