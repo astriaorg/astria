@@ -13,21 +13,11 @@ use ed25519_consensus::{
 };
 use prost::Message;
 use sequencer_client::{
-    tendermint_rpc::endpoint::validators,
+    tendermint,
+    tendermint_rpc,
     Client as _,
 };
-use tendermint::{
-    account,
-    block,
-    vote::{
-        self,
-        CanonicalVote,
-    },
-};
-use tracing::{
-    debug,
-    instrument,
-};
+use tracing::instrument;
 
 /// `BlockVerifier` is verifying blocks received from celestia.
 #[derive(Clone)]
@@ -44,78 +34,64 @@ impl BlockVerifier {
         }
     }
 
-    pub(super) async fn validate_sequencer_blob(
+    #[instrument(skip_all, fields(
+        height.sequencer = %blob.height(),
+        block_hash = %telemetry::display::hex(&blob.block_hash()),
+    ))]
+    pub(super) async fn validate_celestia_blob_against_sequencer(
         self,
         blob: CelestiaSequencerBlob,
     ) -> eyre::Result<CelestiaSequencerBlob> {
-        let height: u32 = blob.height().value().try_into().expect(
-            "a tendermint height (currently non-negative i32) should always fit into a u32",
+        ensure!(
+            blob.height() != tendermint::block::Height::from(0u32),
+            "cannot validate sequencer block at height 0",
         );
-
-        if height == 0 {
-            // we should never be validating the genesis block
-            bail!("cannot validate sequencer data for block height 0")
-        }
 
         let client =
             self.pool.get().await.wrap_err(
                 "failed getting a client from the pool to get the current validator set",
             )?;
-        let block_resp = client.block(height).await.wrap_err("failed to get block")?;
-        let blob_hash = blob.block_hash();
-        ensure!(
-            block_resp.block_id.hash.as_bytes() == blob_hash,
-            "ignoring SequencerNamespaceData with height {} due to block hash mismatch: expected \
-             {}, got {}",
-            height,
-            block_resp.block_id.hash,
-            telemetry::display::hex(&blob_hash),
-        );
-
-        debug!(
-            sequencer_height = height,
-            sequencer_block_hash = %telemetry::display::hex(&blob_hash),
-            "validating sequencer namespace data"
-        );
-
-        // the validator set which votes on a block at height `n` is the
-        // set at `n-1`. the validator set at height `n` is the set after
-        // the results of block `n`'s execution have occurred.
-        let validator_set = client
-            .validators(
-                height - 1,
-                sequencer_client::tendermint_rpc::Paging::Default,
-            )
+        let block_resp = client
+            .block(blob.height())
             .await
-            .wrap_err("failed to get validator set")?;
+            .wrap_err("failed to get block")?;
+
+        ensure!(
+            blob.block_hash() == block_resp.block_id.hash.as_bytes(),
+            "block hash in blob does not match block hash of sequencer block",
+        );
+
+        // the validators at height h-1 vote for the block at height h.
+        let prev_height: tendermint::block::Height =
+            (blob.height().value() - 1).try_into().wrap_err(
+                "failed converting decremented height tendermint value to tendermint height type",
+            )?;
 
         let commit = client
-            .commit(height)
+            .commit(blob.height())
             .await
             .wrap_err("failed to get commit")?;
 
         // validate commit is for our block
         ensure!(
-            commit.signed_header.header.hash().as_bytes() == blob_hash,
+            blob.block_hash() == commit.signed_header.header.hash().as_bytes(),
             "commit is not for the expected block",
         );
 
-        validate_sequencer_blob(&validator_set, &commit.signed_header.commit, &blob)
-            .wrap_err("failed validating sequencer data inside signed namespace data")?;
-        Ok(blob)
-    }
-}
+        let validator_set = client
+            .validators(prev_height, tendermint_rpc::Paging::Default)
+            .await
+            .wrap_err("failed to get validator set")?;
 
-fn validate_sequencer_blob(
-    current_validator_set: &validators::Response,
-    commit: &block::Commit,
-    blob: &CelestiaSequencerBlob,
-) -> eyre::Result<()> {
-    // verify that the validator votes on the block have >2/3 voting power
-    ensure_commit_has_quorum(commit, current_validator_set, blob.cometbft_chain_id())
+        ensure_commit_has_quorum(
+            &commit.signed_header.commit,
+            &validator_set,
+            blob.cometbft_chain_id(),
+        )
         .wrap_err("failed to ensure commit has quorum")?;
 
-    Ok(())
+        Ok(blob)
+    }
 }
 
 /// This function ensures that the given Commit has quorum, ie that the Commit contains >2/3 voting
@@ -133,7 +109,7 @@ fn validate_sequencer_blob(
 #[instrument]
 fn ensure_commit_has_quorum(
     commit: &tendermint::block::Commit,
-    validator_set: &validators::Response,
+    validator_set: &tendermint_rpc::endpoint::validators::Response,
     chain_id: &tendermint::chain::Id,
 ) -> eyre::Result<()> {
     // Validator set at Block N-1 is used for block N
@@ -156,7 +132,7 @@ fn ensure_commit_has_quorum(
         .validators
         .iter()
         .map(|v| {
-            let address = account::Id::from(v.pub_key);
+            let address = tendermint::account::Id::from(v.pub_key);
             (address, v)
         })
         .collect::<HashMap<_, _>>();
@@ -187,7 +163,7 @@ fn ensure_commit_has_quorum(
         };
 
         // verify address in signature matches validator pubkey
-        let address_from_pubkey = account::Id::from(validator.pub_key);
+        let address_from_pubkey = tendermint::account::Id::from(validator.pub_key);
 
         ensure!(
             &address_from_pubkey == validator_address,
@@ -251,11 +227,11 @@ fn verify_vote_signature(
     let signature =
         Signature::try_from(signature_bytes).wrap_err("failed to create signature from vote")?;
 
-    let canonical_vote = CanonicalVote {
-        vote_type: vote::Type::Precommit,
+    let canonical_vote = tendermint::vote::CanonicalVote {
+        vote_type: tendermint::vote::Type::Precommit,
         height: commit.height,
         round: commit.round,
-        block_id: Some(block::Id {
+        block_id: Some(tendermint::block::Id {
             hash: commit.block_id.hash,
             part_set_header: commit.block_id.part_set_header,
         }),
@@ -286,6 +262,8 @@ mod test {
         test_utils::make_cometbft_block,
         RollupId,
     };
+    use prost::Message as _;
+    use sequencer_client::tendermint_rpc::endpoint::validators;
     // use sequencer_types::ChainId;
     use tendermint::{
         account,
@@ -295,7 +273,8 @@ mod test {
         Hash,
     };
 
-    use super::*;
+    use super::ensure_commit_has_quorum;
+    use crate::celestia::block_verifier::does_commit_voting_power_have_quorum;
 
     /// Constructs a `[merkle::Tree]` from an iterator yielding byte slices.
     ///
@@ -337,8 +316,8 @@ mod test {
 
         let round = 0u16;
         let timestamp = tendermint::Time::unix_epoch();
-        let canonical_vote = CanonicalVote {
-            vote_type: vote::Type::Precommit,
+        let canonical_vote = tendermint::vote::CanonicalVote {
+            vote_type: tendermint::vote::Type::Precommit,
             height: height.into(),
             round: round.into(),
             block_id: None,
@@ -397,7 +376,8 @@ mod test {
         .try_into_celestia_sequencer_blob()
         .unwrap();
 
-        validate_sequencer_blob(&validator_set, &commit, &sequencer_blob).unwrap();
+        ensure_commit_has_quorum(&commit, &validator_set, sequencer_blob.cometbft_chain_id())
+            .unwrap();
     }
 
     #[tokio::test]
@@ -433,7 +413,8 @@ mod test {
         .try_into_celestia_sequencer_blob()
         .unwrap();
 
-        validate_sequencer_blob(&validator_set, &commit, &sequencer_blob).unwrap();
+        ensure_commit_has_quorum(&commit, &validator_set, sequencer_blob.cometbft_chain_id())
+            .unwrap();
     }
 
     #[test]
@@ -542,7 +523,7 @@ mod test {
         let commit = Commit {
             height: 79u32.into(),
             round: 0u16.into(),
-            block_id: block::Id {
+            block_id: tendermint::block::Id {
                 hash: Hash::from_str(
                     "74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA",
                 )
