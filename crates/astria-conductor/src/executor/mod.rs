@@ -30,7 +30,7 @@ use tracing::{
     instrument,
 };
 
-use crate::data_availability::ReconstructedBlock;
+use crate::celestia::ReconstructedBlock;
 
 pub(crate) mod optimism;
 
