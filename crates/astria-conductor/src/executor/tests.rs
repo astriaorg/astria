@@ -21,7 +21,10 @@ use astria_core::{
         GetGenesisInfoRequest,
         UpdateCommitmentStateRequest,
     },
-    sequencer::v1alpha1::test_utils::make_cometbft_block,
+    sequencer::v1alpha1::{
+        RollupId,
+        test_utils::make_cometbft_block,
+    },
 };
 use ethers::{
     prelude::*,
