@@ -5,7 +5,6 @@ use crate::{
     sequencer::v1alpha1::{
         IncorrectRollupIdLength,
         RollupId,
-        ROLLUP_ID_LEN,
     },
     Protobuf,
 };
