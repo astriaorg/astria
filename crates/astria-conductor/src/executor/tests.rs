@@ -15,8 +15,10 @@ use astria_core::{
         Block,
         CommitmentState,
         ExecuteBlockRequest,
+        GenesisInfo,
         GetBlockRequest,
         GetCommitmentStateRequest,
+        GetGenesisInfoRequest,
         UpdateCommitmentStateRequest,
     },
     sequencer::v1alpha1::test_utils::make_cometbft_block,
@@ -111,6 +113,21 @@ impl ExecutionService for ExecutionServiceImpl {
         }))
     }
 
+    async fn get_genesis_info(
+        &self,
+        _request: tonic::Request<GetGenesisInfoRequest>,
+    ) -> std::result::Result<tonic::Response<GenesisInfo>, tonic::Status> {
+        let bytes = [42u8; 32];
+        let rollup_id = RollupId::new(bytes).to_vec();
+
+        Ok(tonic::Response::new(GenesisInfo {
+            rollup_id,
+            sequencer_genesis_block_number: 1,
+            celestia_base_block_number: 1,
+            celestia_block_variance: 1,
+        }))
+    }
+
     async fn get_commitment_state(
         &self,
         _request: tonic::Request<GetCommitmentStateRequest>,
@@ -165,8 +182,6 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
 
     let executor = Executor::builder()
         .rollup_address(&server_url)
-        .rollup_id(RollupId::from_unhashed_bytes(b"test"))
-        .sequencer_height_with_first_rollup_block(1)
         .block_channel(block_rx)
         .shutdown(shutdown_rx)
         .set_optimism_hook(pre_execution_hook)

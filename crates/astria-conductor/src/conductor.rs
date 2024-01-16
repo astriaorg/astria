@@ -5,7 +5,6 @@ use std::{
     time::Duration,
 };
 
-use astria_core::sequencer::v1alpha1::RollupId;
 use celestia_client::celestia_types::nmt::Namespace;
 use color_eyre::eyre::{
     self,
@@ -96,10 +95,8 @@ impl Conductor {
 
         let signals = spawn_signal_handler();
 
-        let rollup_id = RollupId::from_unhashed_bytes(&cfg.chain_id);
-
         // Spawn the executor task.
-        let (executor_tx, sync_start_block_height) = {
+        let (executor_tx, genesis, sync_start_block_height) = {
             let (block_tx, block_rx) = mpsc::unbounded_channel();
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
@@ -109,14 +106,13 @@ impl Conductor {
 
             let executor = Executor::builder()
                 .rollup_address(&cfg.execution_rpc_url)
-                .rollup_id(rollup_id)
-                .sequencer_height_with_first_rollup_block(cfg.initial_sequencer_block_height)
                 .block_channel(block_rx)
                 .shutdown(shutdown_rx)
                 .set_optimism_hook(hook)
                 .build()
                 .await
                 .wrap_err("failed to construct executor")?;
+            let genesis = executor.get_genesis();
             let executable_sequencer_block_height = executor
                 .calculate_executable_block_height()
                 .wrap_err("failed calculating the next executable block height")?;
@@ -124,7 +120,7 @@ impl Conductor {
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
             shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
 
-            (block_tx, executable_sequencer_block_height)
+            (block_tx, genesis, executable_sequencer_block_height)
         };
 
         let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
@@ -200,7 +196,7 @@ impl Conductor {
                 executor_tx.clone(),
                 sequencer_client_pool.clone(),
                 sequencer_namespace,
-                celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id),
+                celestia_client::celestia_namespace_v0_from_rollup_id(genesis.rollup_id()),
                 shutdown_rx,
             )
             .await

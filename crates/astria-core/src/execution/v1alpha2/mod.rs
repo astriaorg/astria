@@ -2,8 +2,107 @@ use prost_types::Timestamp;
 
 use crate::{
     generated::execution::v1alpha2 as raw,
+    sequencer::v1alpha1::{
+        IncorrectRollupIdLength,
+        RollupId,
+        ROLLUP_ID_LEN,
+    },
     Protobuf,
 };
+
+// An error when transforming a [`raw::Block`] into a [`Block`].
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct GenesisInfoError(GenesisInfoErrorKind);
+
+impl GenesisInfoError {
+    fn incorrect_rollup_id_length(inner: IncorrectRollupIdLength) -> Self {
+        Self(GenesisInfoErrorKind::IncorrectRollupIdLength(inner))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum GenesisInfoErrorKind {
+    #[error("`rollup_id` field did not contain a valid rollup ID")]
+    IncorrectRollupIdLength(IncorrectRollupIdLength),
+}
+
+/// An Astria execution block on a rollup.
+///
+/// Contains information about the block number, its hash,
+/// its parent block's hash, and timestamp.
+///
+/// Usually constructed its [`Protobuf`] implementation from a
+/// [`raw::Block`].
+#[derive(Clone, Debug)]
+pub struct GenesisInfo {
+    /// The block number
+    rollup_id: RollupId,
+    /// The hash of the block
+    sequencer_genesis_block_number: u32,
+    celestia_base_block_number: u32,
+    celestia_block_variance: u32,
+}
+
+impl GenesisInfo {
+    #[must_use]
+    pub fn rollup_id(&self) -> RollupId {
+        self.rollup_id
+    }
+
+    #[must_use]
+    pub fn sequencer_genesis_block_number(&self) -> u32 {
+        self.sequencer_genesis_block_number
+    }
+
+    #[must_use]
+    pub fn celestia_base_block_number(&self) -> u32 {
+        self.celestia_base_block_number
+    }
+
+    #[must_use]
+    pub fn celestia_block_variance(&self) -> u32 {
+        self.celestia_block_variance
+    }
+}
+
+impl Protobuf for GenesisInfo {
+    type Error = GenesisInfoError;
+    type Raw = raw::GenesisInfo;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let raw::GenesisInfo {
+            rollup_id,
+            sequencer_genesis_block_number,
+            celestia_base_block_number,
+            celestia_block_variance,
+        } = raw;
+        let rollup_id =
+            RollupId::try_from_slice(rollup_id).map_err(Self::Error::incorrect_rollup_id_length)?;
+
+        Ok(Self {
+            rollup_id,
+            sequencer_genesis_block_number: *sequencer_genesis_block_number,
+            celestia_base_block_number: *celestia_base_block_number,
+            celestia_block_variance: *celestia_block_variance,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            rollup_id,
+            sequencer_genesis_block_number,
+            celestia_base_block_number,
+            celestia_block_variance,
+        } = self;
+        Self::Raw {
+            rollup_id: rollup_id.to_vec(),
+            sequencer_genesis_block_number: *sequencer_genesis_block_number,
+            celestia_base_block_number: *celestia_base_block_number,
+            celestia_block_variance: *celestia_block_variance,
+        }
+    }
+}
 
 /// An error when transforming a [`raw::Block`] into a [`Block`].
 #[derive(Debug, thiserror::Error)]

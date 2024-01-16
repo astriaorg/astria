@@ -4,9 +4,9 @@ use astria_core::{
     execution::v1alpha2::{
         Block,
         CommitmentState,
+        GenesisInfo,
     },
     generated::execution::v1alpha2::execution_service_client::ExecutionServiceClient,
-    sequencer::v1alpha1::RollupId,
 };
 use color_eyre::eyre::{
     self,
@@ -81,8 +81,6 @@ impl From<SequencerBlock> for ExecutorCommand {
 
 pub(crate) struct NoRollupAddress;
 pub(crate) struct WithRollupAddress(String);
-pub(crate) struct NoRollupId;
-pub(crate) struct WithRollupId(RollupId);
 pub(crate) struct NoBlockChannel;
 pub(crate) struct WithBlockChannel(Receiver);
 pub(crate) struct NoShutdown;
@@ -91,14 +89,11 @@ pub(crate) struct WithShutdown(oneshot::Receiver<()>);
 pub(crate) struct ExecutorBuilder<
     TBlockChannel = NoBlockChannel,
     TRollupAddress = NoRollupAddress,
-    TRollupId = NoRollupId,
     TShutdown = NoShutdown,
 > {
     block_channel: TBlockChannel,
     optimism_hook: Option<optimism::Handler>,
     rollup_address: TRollupAddress,
-    rollup_id: TRollupId,
-    sequencer_height_with_first_rollup_block: u32,
     shutdown: TShutdown,
 }
 
@@ -108,25 +103,20 @@ impl ExecutorBuilder {
             block_channel: NoBlockChannel,
             optimism_hook: None,
             rollup_address: NoRollupAddress,
-            rollup_id: NoRollupId,
-            sequencer_height_with_first_rollup_block: 0,
             shutdown: NoShutdown,
         }
     }
 }
 
-impl ExecutorBuilder<WithBlockChannel, WithRollupAddress, WithRollupId, WithShutdown> {
+impl ExecutorBuilder<WithBlockChannel, WithRollupAddress, WithShutdown> {
     pub(crate) async fn build(self) -> eyre::Result<Executor> {
         let Self {
-            rollup_id,
             block_channel,
             optimism_hook: pre_execution_hook,
             rollup_address,
-            sequencer_height_with_first_rollup_block,
             shutdown,
         } = self;
         let WithRollupAddress(rollup_address) = rollup_address;
-        let WithRollupId(rollup_id) = rollup_id;
         let WithBlockChannel(block_channel) = block_channel;
         let WithShutdown(shutdown) = shutdown;
 
@@ -135,6 +125,10 @@ impl ExecutorBuilder<WithBlockChannel, WithRollupAddress, WithRollupId, WithShut
                 .await
                 .wrap_err("failed to create execution rpc client")?,
         );
+        let genesis = client
+            .get_genesis_info()
+            .await
+            .wrap_err("failed to get genesis info")?;
         let commitment_state = client
             .get_commitment_state()
             .await
@@ -150,49 +144,24 @@ impl ExecutorBuilder<WithBlockChannel, WithRollupAddress, WithRollupId, WithShut
             block_channel,
             shutdown,
             client,
-            rollup_id,
             commitment_state,
-            sequencer_height_with_first_rollup_block,
+            genesis,
             sequencer_hash_to_execution_block: HashMap::new(),
             pre_execution_hook,
         })
     }
 }
 
-impl<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
-    ExecutorBuilder<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
+impl<TBlockChannel, TRollupAddress, TShutdown>
+    ExecutorBuilder<TBlockChannel, TRollupAddress, TShutdown>
 {
-    pub(crate) fn rollup_id(
-        self,
-        rollup_id: RollupId,
-    ) -> ExecutorBuilder<TBlockChannel, TRollupAddress, WithRollupId, TShutdown> {
-        let Self {
-            block_channel,
-            optimism_hook,
-            rollup_address,
-            sequencer_height_with_first_rollup_block,
-            shutdown,
-            ..
-        } = self;
-        ExecutorBuilder {
-            block_channel,
-            optimism_hook,
-            rollup_address,
-            rollup_id: WithRollupId(rollup_id),
-            sequencer_height_with_first_rollup_block,
-            shutdown,
-        }
-    }
-
     pub(crate) fn block_channel(
         self,
         block_channel: Receiver,
-    ) -> ExecutorBuilder<WithBlockChannel, TRollupAddress, TRollupId, TShutdown> {
+    ) -> ExecutorBuilder<WithBlockChannel, TRollupAddress, TShutdown> {
         let Self {
             optimism_hook,
             rollup_address,
-            rollup_id,
-            sequencer_height_with_first_rollup_block,
             shutdown,
             ..
         } = self;
@@ -200,18 +169,8 @@ impl<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
             block_channel: WithBlockChannel(block_channel),
             optimism_hook,
             rollup_address,
-            rollup_id,
-            sequencer_height_with_first_rollup_block,
             shutdown,
         }
-    }
-
-    pub(crate) fn sequencer_height_with_first_rollup_block(
-        mut self,
-        sequencer_height_with_first_rollup_block: u32,
-    ) -> Self {
-        self.sequencer_height_with_first_rollup_block = sequencer_height_with_first_rollup_block;
-        self
     }
 
     pub(crate) fn set_optimism_hook(mut self, handler: Option<optimism::Handler>) -> Self {
@@ -222,12 +181,10 @@ impl<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
     pub(crate) fn rollup_address(
         self,
         rollup_address: &str,
-    ) -> ExecutorBuilder<TBlockChannel, WithRollupAddress, TRollupId, TShutdown> {
+    ) -> ExecutorBuilder<TBlockChannel, WithRollupAddress, TShutdown> {
         let Self {
-            rollup_id,
             block_channel,
             optimism_hook,
-            sequencer_height_with_first_rollup_block,
             shutdown,
             ..
         } = self;
@@ -235,8 +192,6 @@ impl<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
             block_channel,
             optimism_hook,
             rollup_address: WithRollupAddress(rollup_address.to_string()),
-            rollup_id,
-            sequencer_height_with_first_rollup_block,
             shutdown,
         }
     }
@@ -244,21 +199,17 @@ impl<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
     pub(crate) fn shutdown(
         self,
         shutdown: oneshot::Receiver<()>,
-    ) -> ExecutorBuilder<TBlockChannel, TRollupAddress, TRollupId, WithShutdown> {
+    ) -> ExecutorBuilder<TBlockChannel, TRollupAddress, WithShutdown> {
         let Self {
             block_channel,
             optimism_hook,
-            sequencer_height_with_first_rollup_block,
             rollup_address,
-            rollup_id,
             ..
         } = self;
         ExecutorBuilder {
             block_channel,
             optimism_hook,
-            sequencer_height_with_first_rollup_block,
             rollup_address,
-            rollup_id,
             shutdown: WithShutdown(shutdown),
         }
     }
@@ -273,16 +224,10 @@ pub(crate) struct Executor {
     /// The execution rpc client that we use to send messages to the execution service
     client: client::Client,
 
-    /// Chain ID
-    rollup_id: RollupId,
-
     /// Tracks SOFT and FIRM on the execution chain
     commitment_state: CommitmentState,
 
-    /// The first block height from sequencer used for a rollup block,
-    /// executable block height & finalizable block height can be calcuated from
-    /// this plus the commitment_state
-    sequencer_height_with_first_rollup_block: u32,
+    genesis: GenesisInfo,
 
     /// map of sequencer block hash to execution block
     ///
@@ -354,7 +299,7 @@ impl Executor {
                 block,
             } => {
                 let block_subset =
-                    SequencerBlockSubset::from_sequencer_block(*block, self.rollup_id);
+                    SequencerBlockSubset::from_sequencer_block(*block, self.genesis.rollup_id());
 
                 let executed_block = self
                     .execute_block(block_subset)
@@ -501,13 +446,13 @@ impl Executor {
         &self,
     ) -> eyre::Result<tendermint::block::Height> {
         let Some(executable_block_height) = calculate_sequencer_block_height(
-            self.sequencer_height_with_first_rollup_block,
+            self.genesis.sequencer_genesis_block_number(),
             self.commitment_state.soft().number(),
         ) else {
             bail!(
                 "encountered overflow when calculating executable block height; sequencer height \
                  with first rollup block: {}, height recorded in soft commitment state: {}",
-                self.sequencer_height_with_first_rollup_block,
+                self.genesis.sequencer_genesis_block_number(),
                 self.commitment_state.soft().number(),
             );
         };
@@ -515,18 +460,22 @@ impl Executor {
         Ok(executable_block_height.into())
     }
 
+    pub(crate) fn get_genesis(&self) -> GenesisInfo {
+        self.genesis.clone()
+    }
+
     // Returns the lowest sequencer block height which can finalized on the rollup.
     pub(crate) fn calculate_finalizable_block_height(
         &self,
     ) -> eyre::Result<tendermint::block::Height> {
         let Some(finalizable_block_height) = calculate_sequencer_block_height(
-            self.sequencer_height_with_first_rollup_block,
+            self.genesis.sequencer_genesis_block_number(),
             self.commitment_state.firm().number(),
         ) else {
             bail!(
                 "encountered overflow when calculating finalizable block height; sequencer height \
                  with first rollup block: {}, height recorded in firm commitment state: {}",
-                self.sequencer_height_with_first_rollup_block,
+                self.genesis.sequencer_genesis_block_number(),
                 self.commitment_state.firm().number(),
             );
         };

@@ -4,6 +4,17 @@ package astria.execution.v1alpha2;
 
 import "google/protobuf/timestamp.proto";
 
+// GenesisInfo contains the information needed to start a rollup chain.
+//
+// This information is used to determine which sequencer & celestia data to
+// use from the Astria & Celestia networks.
+message GenesisInfo {
+  bytes rollup_id = 1;
+  uint32 sequencer_genesis_block_number = 2;
+  uint32 celestia_base_block_number = 3;
+  uint32 celestia_block_variance = 4;
+}
+
 // The set of information which deterministic driver of block production
 // must know about a given rollup Block
 message Block {
@@ -24,6 +35,8 @@ message BlockIdentifier {
     bytes block_hash = 2;
   }
 }
+
+message GetGenesisInfoRequest {}
 
 // Used in GetBlock to find a single block.
 message GetBlockRequest {
@@ -84,6 +97,9 @@ message UpdateCommitmentStateRequest {
 // Astria Shared Sequencer, and will have block production driven via the Astria
 // "Conductor".
 service ExecutionService {
+  // GetGenesisInfo returns the necessary genesis information for rollup chain.
+  rpc GetGenesisInfo(GetGenesisInfoRequest) returns (GenesisInfo);
+
   // GetBlock will return a block given an identifier.
   rpc GetBlock(GetBlockRequest) returns (Block);
 
