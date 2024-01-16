@@ -89,7 +89,7 @@ pub(crate) async fn get_balance(args: &BasicAccountArgs) -> eyre::Result<()> {
     println!("Balances for address {}:", address.0);
     for balance in res.balances {
         println!("    asset ID: {}", hex::encode(balance.denom.id()));
-        println!("    {} {}", balance.balance, balance.denom.to_string());
+        println!("    {} {}", balance.balance, balance.denom);
     }
 
     Ok(())
