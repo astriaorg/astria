@@ -16,6 +16,7 @@ use sequencer_client::{
     tendermint,
     tendermint_rpc,
     Client as _,
+    WebSocketClient,
 };
 use tracing::instrument;
 
@@ -35,62 +36,89 @@ impl BlockVerifier {
     }
 
     #[instrument(skip_all, fields(
-        height.sequencer = %blob.height(),
-        block_hash = %telemetry::display::hex(&blob.block_hash()),
+        height.in_blob = %blob.height(),
+        block_hash.in_blob = %telemetry::display::hex(&blob.block_hash()),
     ))]
-    pub(super) async fn validate_celestia_blob_against_sequencer(
-        self,
-        blob: CelestiaSequencerBlob,
-    ) -> eyre::Result<CelestiaSequencerBlob> {
-        ensure!(
-            blob.height() != tendermint::block::Height::from(0u32),
-            "cannot validate sequencer block at height 0",
-        );
-
+    pub(super) async fn verify_blob(&self, blob: &CelestiaSequencerBlob) -> eyre::Result<()> {
         let client =
             self.pool.get().await.wrap_err(
                 "failed getting a client from the pool to get the current validator set",
             )?;
-        let block_resp = client
-            .block(blob.height())
+        Verify::at_height(&client, blob.height())
             .await
-            .wrap_err("failed to get block")?;
+            .wrap_err("failed getting the required objects to verify blob")?
+            .verify(blob)
+    }
+}
+struct Verify {
+    block_hash: tendermint::Hash,
+    commit_header: tendermint::block::signed_header::SignedHeader,
+}
 
+impl Verify {
+    async fn at_height(
+        client: &WebSocketClient,
+        height: tendermint::block::Height,
+    ) -> eyre::Result<Self> {
+        use futures::TryFutureExt as _;
         ensure!(
-            blob.block_hash() == block_resp.block_id.hash.as_bytes(),
+            height != tendermint::block::Height::from(0u32),
+            "cannot validate sequencer blocks at height 0",
+        );
+        // the validators at height h-1 vote for the block at height h.
+        let prev_height: tendermint::block::Height = (height.value() - 1).try_into().wrap_err(
+            "failed converting decremented height tendermint value to tendermint height type",
+        )?;
+        let (block, commit, validator_set) = tokio::try_join!(
+            client
+                .block(height)
+                .map_err(|e| eyre::Report::new(e).wrap_err("failed fetching sequencer block")),
+            client
+                .commit(height)
+                .map_err(|e| eyre::Report::new(e).wrap_err("failed fetching commit")),
+            client
+                .validators(prev_height, tendermint_rpc::Paging::Default)
+                .map_err(|e| eyre::Report::new(e).wrap_err("failed fetching validator set")),
+        )?;
+        let block_hash = block.block_id.hash;
+        let commit_header = commit.signed_header;
+        Self::new(block_hash, commit_header, validator_set)
+    }
+
+    fn new(
+        block_hash: tendermint::Hash,
+        commit_header: tendermint::block::signed_header::SignedHeader,
+        validator_set: tendermint_rpc::endpoint::validators::Response,
+    ) -> eyre::Result<Self> {
+        ensure!(
+            block_hash == commit_header.header.hash(),
+            "block hash stored in commit header does not match block hash of sequencer block",
+        );
+        ensure_commit_has_quorum(
+            &commit_header.commit,
+            &validator_set,
+            &commit_header.header.chain_id,
+        )
+        .wrap_err("unable to verify that commit had quorum")?;
+        Ok(Self {
+            block_hash,
+            commit_header,
+        })
+    }
+
+    fn verify(&self, blob: &CelestiaSequencerBlob) -> eyre::Result<()> {
+        ensure!(
+            &self.commit_header.header.chain_id == blob.cometbft_chain_id(),
+            "expected cometbft chain ID `{}`, got {}",
+            self.commit_header.header.chain_id,
+            blob.cometbft_chain_id(),
+        );
+        ensure!(
+            blob.block_hash() == self.block_hash.as_bytes(),
             "block hash in blob does not match block hash of sequencer block",
         );
 
-        // the validators at height h-1 vote for the block at height h.
-        let prev_height: tendermint::block::Height =
-            (blob.height().value() - 1).try_into().wrap_err(
-                "failed converting decremented height tendermint value to tendermint height type",
-            )?;
-
-        let commit = client
-            .commit(blob.height())
-            .await
-            .wrap_err("failed to get commit")?;
-
-        // validate commit is for our block
-        ensure!(
-            blob.block_hash() == commit.signed_header.header.hash().as_bytes(),
-            "commit is not for the expected block",
-        );
-
-        let validator_set = client
-            .validators(prev_height, tendermint_rpc::Paging::Default)
-            .await
-            .wrap_err("failed to get validator set")?;
-
-        ensure_commit_has_quorum(
-            &commit.signed_header.commit,
-            &validator_set,
-            blob.cometbft_chain_id(),
-        )
-        .wrap_err("failed to ensure commit has quorum")?;
-
-        Ok(blob)
+        Ok(())
     }
 }
 
@@ -252,10 +280,7 @@ fn verify_vote_signature(
 
 #[cfg(test)]
 mod test {
-    use std::{
-        collections::BTreeMap,
-        str::FromStr,
-    };
+    use std::collections::BTreeMap;
 
     use astria_core::sequencer::v1alpha1::{
         celestia::UncheckedCelestiaSequencerBlob,
@@ -504,10 +529,9 @@ mod test {
             78u32.into(),
             vec![Validator {
                 name: None,
-                address: tendermint::account::Id::from_str(
-                    "D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9",
-                )
-                .unwrap(),
+                address: "D223B03AE01B4A0296053E01A41AE1E2F9CDEBC9"
+                    .parse::<tendermint::account::Id>()
+                    .unwrap(),
                 pub_key: tendermint::PublicKey::from_raw_ed25519(
                     &STANDARD
                         .decode("tyPnz5GGblrx3PBjQRxZOHbzsPEI1E8lOh62QoPSWLw=")
@@ -524,16 +548,14 @@ mod test {
             height: 79u32.into(),
             round: 0u16.into(),
             block_id: tendermint::block::Id {
-                hash: Hash::from_str(
-                    "74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA",
-                )
-                .unwrap(),
+                hash: "74BD4E7F7EF902A84D55589F2AA60B332F1C2F34DDE7652C80BFEB8E7471B1DA"
+                    .parse::<Hash>()
+                    .unwrap(),
                 part_set_header: tendermint::block::parts::Header::new(
                     1,
-                    Hash::from_str(
-                        "7632FFB5D84C3A64279BC9EA86992418ED23832C66E0C3504B7025A9AF42C8C4",
-                    )
-                    .unwrap(),
+                    "7632FFB5D84C3A64279BC9EA86992418ED23832C66E0C3504B7025A9AF42C8C4"
+                        .parse::<Hash>()
+                        .unwrap(),
                 )
                 .unwrap(),
             },
