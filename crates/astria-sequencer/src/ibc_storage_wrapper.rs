@@ -32,4 +32,8 @@ impl penumbra_ibc::component::rpc::Storage<SnapshotWrapper<cnidarium::Snapshot>>
     fn latest_snapshot(&self) -> SnapshotWrapper<cnidarium::Snapshot> {
         SnapshotWrapper(self.0.latest_snapshot())
     }
+
+    fn snapshot(&self, version: u64) -> Option<SnapshotWrapper<cnidarium::Snapshot>> {
+        self.0.snapshot(version).map(SnapshotWrapper)
+    }
 }

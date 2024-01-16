@@ -39,7 +39,7 @@ tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
 tracing = { workspace = true }
 
-ibc-proto = { version = "0.39.0", features = ["server"] }
+ibc-proto = { version = "0.40.0", features = ["server"] }
 tonic = "0.10"
 tower-http = { version = "0.4", features = ["cors"] }
 

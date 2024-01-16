@@ -60,7 +60,7 @@ hex = "0.4"
 hex-literal = "0.4.1"
 humantime = "2.1.0"
 hyper = "0.14"
-ibc-types = "0.10.0"
+ibc-types = "0.11.0"
 jsonrpsee = { version = "0.20" }
 once_cell = "1.17.1"
 sha2 = "0.10"
@@ -92,3 +92,11 @@ tracing = "0.1"
 tryhard = "0.5.1"
 which = "4.4.0"
 wiremock = "0.5"
+
+[patch.'https://github.com/penumbra-zone/penumbra.git']
+penumbra-ibc = { git = "https://github.com/noot/penumbra.git", rev = "752603311c724b6bacbc491f685ea357252b5e80" }
+penumbra-proto = { git = "https://github.com/noot/penumbra.git", rev = "752603311c724b6bacbc491f685ea357252b5e80" }
+penumbra-tower-trace = { git = "https://github.com/noot/penumbra.git", rev = "752603311c724b6bacbc491f685ea357252b5e80" }
+cnidarium = { git = "https://github.com/noot/penumbra.git", rev = "752603311c724b6bacbc491f685ea357252b5e80" }
+cnidarium-component = { git = "https://github.com/noot/penumbra.git", rev = "752603311c724b6bacbc491f685ea357252b5e80" }
+wrapper-derive = { git = "https://github.com/noot/penumbra.git", rev = "752603311c724b6bacbc491f685ea357252b5e80" }
