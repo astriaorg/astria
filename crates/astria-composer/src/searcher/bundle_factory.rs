@@ -133,11 +133,14 @@ impl BundleFactory {
     }
 
     /// Get the next bundle from the `finished` queue.
-    pub(super) fn pop_finished(&mut self) -> Vec<Action> {
-        self.finished
-            .pop_front()
-            .map(SizedBundle::into_actions)
-            .unwrap_or_default()
+    pub(super) fn next_finished(&mut self) -> Option<NextFinishedBundle> {
+        if self.finished.is_empty() {
+            None
+        } else {
+            Some(NextFinishedBundle {
+                bundle_factory: self,
+            })
+        }
     }
 
     /// Get the next bundle from the `finished` queue. If the queue is empty, flush `curr_bundle`.
@@ -147,6 +150,20 @@ impl BundleFactory {
             .or_else(|| Some(self.curr_bundle.flush()))
             .map(SizedBundle::into_actions)
             .unwrap_or_default()
+    }
+}
+
+pub(super) struct NextFinishedBundle<'a> {
+    bundle_factory: &'a mut BundleFactory,
+}
+
+impl<'a> NextFinishedBundle<'a> {
+    pub(super) fn pop(self) -> Vec<Action> {
+        self.bundle_factory
+            .finished
+            .pop_front()
+            .map(SizedBundle::into_actions)
+            .expect("next bundle exists. this is a bug.")
     }
 }
 
@@ -327,7 +344,8 @@ mod bundle_factory_tests {
         // assert that the bundle factory has one bundle in the finished queue
         assert_eq!(bundle_factory.finished.len(), 1);
         // assert `pop_finished()` will return `seq_action0`
-        let actions = bundle_factory.pop_finished();
+        let next_actions = bundle_factory.next_finished();
+        let actions = next_actions.unwrap().pop();
         let actual_seq_action = actions[0].as_sequence().unwrap();
         assert_eq!(actual_seq_action.rollup_id, seq_action0.rollup_id);
         assert_eq!(actual_seq_action.data, seq_action0.data);
@@ -348,8 +366,8 @@ mod bundle_factory_tests {
         // assert that the finished queue is empty
         assert_eq!(bundle_factory.finished.len(), 0);
         // assert `pop_finished()` returns an empty vec
-        let actions = bundle_factory.pop_finished();
-        assert!(actions.is_empty());
+        let next_bundle = bundle_factory.next_finished();
+        assert!(next_bundle.is_none());
     }
 
     #[test]

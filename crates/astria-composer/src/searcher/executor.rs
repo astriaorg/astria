@@ -47,6 +47,7 @@ use sequencer_client::{
     Address,
     SequencerClientExt as _,
 };
+use tendermint::crypto::Sha256;
 use tokio::{
     select,
     sync::{
@@ -208,7 +209,8 @@ impl Executor {
                     block_timer.as_mut().reset(Instant::now() + Duration::from_millis(self.block_time_ms));
                 }
 
-                bundle = future::ready(bundle_factory.pop_finished()), if submission_fut.is_terminated() => {
+                Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
+                    let bundle = next_bundle.pop();
                     if !bundle.is_empty() {
                         submission_fut = self.submit_bundle(nonce, bundle);
                     }
@@ -464,13 +466,8 @@ impl Future for SubmitFut {
 }
 
 fn sha256(data: &[u8]) -> [u8; 32] {
-    use sha2::{
-        Digest as _,
-        Sha256,
-    };
-    let mut hasher = Sha256::new();
-    hasher.update(data);
-    hasher.finalize().into()
+    use sha2::Sha256;
+    Sha256::digest(data)
 }
 
 #[cfg(test)]
@@ -635,11 +632,10 @@ mod tests {
 
     /// Helper to wait for the executor to connect to the mock sequencer
     async fn wait_for_startup(
-        status: watch::Receiver<Status>,
+        mut status: watch::Receiver<Status>,
         nonce_guard: MockGuard,
     ) -> eyre::Result<()> {
         // wait to receive executor status
-        let mut status = status.clone();
         status.wait_for(super::Status::is_connected).await.unwrap();
 
         tokio::time::timeout(
