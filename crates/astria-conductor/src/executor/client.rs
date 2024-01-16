@@ -2,6 +2,7 @@ use astria_core::{
     execution::v1alpha2::{
         Block,
         CommitmentState,
+        GenesisInfo,
     },
     generated::execution::{
         v1alpha2 as raw,
@@ -28,6 +29,20 @@ impl Client {
         Self {
             inner,
         }
+    }
+
+    /// Calls remote procedure `astria.execution.v1alpha2.GetGenesisInfo`
+    pub(super) async fn get_genesis_info(&mut self) -> eyre::Result<GenesisInfo> {
+        let request = raw::GetGenesisInfoRequest {};
+        let response = self
+            .inner
+            .get_genesis_info(request)
+            .await
+            .wrap_err("failed to get genesis_info")?
+            .into_inner();
+        let genesis_info = GenesisInfo::try_from_raw(response)
+            .wrap_err("failed converting raw response to validated genesis info")?;
+        Ok(genesis_info)
     }
 
     /// Calls remote procedure `astria.execution.v1alpha2.ExecuteBlock`
