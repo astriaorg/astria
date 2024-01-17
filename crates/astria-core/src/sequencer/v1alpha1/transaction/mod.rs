@@ -4,7 +4,6 @@ use ed25519_consensus::{
     VerificationKey,
 };
 use prost::Message as _;
-use sha2::Sha256;
 
 use super::raw;
 
@@ -70,7 +69,10 @@ impl SignedTransaction {
     /// and hashing the resulting bytes with sha256.
     #[must_use]
     pub fn sha256_of_proto_encoding(&self) -> [u8; 32] {
-        use sha2::Digest as _;
+        use sha2::{
+            Digest as _,
+            Sha256,
+        };
         let bytes = self.to_raw().encode_to_vec();
         Sha256::digest(bytes).into()
     }
@@ -279,10 +281,7 @@ mod test {
     use super::*;
     use crate::sequencer::v1alpha1::{
         asset::default_native_asset_id,
-        transaction::action::{
-            Action::Transfer,
-            TransferAction,
-        },
+        transaction::action::TransferAction,
         Address,
     };
 
@@ -313,7 +312,7 @@ mod test {
 
         let unsigned = UnsignedTransaction {
             nonce: 0,
-            actions: vec![Transfer(transfer)],
+            actions: vec![transfer.into()],
             fee_asset_id: default_native_asset_id(),
         };
 
