@@ -136,7 +136,7 @@ fn get_expected_execution_hash(parent_block_hash: &[u8], transactions: &[Vec<u8>
 }
 
 fn hash(s: &[u8]) -> Vec<u8> {
-    let mut hasher = sha2::Sha256::new();
+    let mut hasher = sha2::new();
     hasher.update(s);
     hasher.finalize().to_vec()
 }
