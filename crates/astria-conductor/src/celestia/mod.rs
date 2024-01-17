@@ -155,8 +155,7 @@ impl Reader {
                     break;
                 }
 
-                Some(next_block) = ready(cached_blocks.next_block()) => {
-                    let block = next_block.pop();
+                Some(block) = cached_blocks.next_block() => {
                     if let Err(e) = self.executor_channel.send(block) {
                         error!(
                             error = &e as &dyn std::error::Error,

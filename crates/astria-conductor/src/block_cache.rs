@@ -1,6 +1,10 @@
 //! A cache of sequencer blocks that are only yielded in sequential order.
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    future::Future,
+};
 
+use pin_project_lite::pin_project;
 use sequencer_client::{
     tendermint::block::Height,
     SequencerBlock,
@@ -39,6 +43,24 @@ impl<T> BlockCache<T> {
     }
 }
 
+impl<T> BlockCache<T> {
+    /// Returns the next sequential block if it exists in the cache.
+    pub(crate) fn pop(&mut self) -> Option<T> {
+        let block = self.inner.remove(&self.next_height)?;
+        self.next_height = self.next_height.increment();
+        Some(block)
+    }
+
+    /// Return a handle to the next block in the cache.
+    ///
+    /// This method exists to make fetching the next block async cancellation safe.
+    pub(crate) fn next_block(&mut self) -> NextBlock<'_, T> {
+        NextBlock {
+            cache: self,
+        }
+    }
+}
+
 impl<T: GetSequencerHeight> BlockCache<T> {
     /// Inserts a block using the height recorded in its header.
     ///
@@ -62,19 +84,6 @@ impl<T: GetSequencerHeight> BlockCache<T> {
             }),
         }
     }
-
-    /// Return a handle to the next block in the cache.
-    ///
-    /// This method exists to make fetching the next block async cancellation safe.
-    pub(crate) fn next_block(&mut self) -> Option<NextBlock<'_, T>> {
-        if self.inner.contains_key(&self.next_height) {
-            Some(NextBlock {
-                cache: self,
-            })
-        } else {
-            None
-        }
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -90,22 +99,21 @@ pub(crate) enum Error {
     },
 }
 
-#[must_use = "the next block must be popped from the handle to be useful"]
-pub(crate) struct NextBlock<'a, T> {
-    cache: &'a mut BlockCache<T>,
+pin_project! {
+    pub(crate) struct NextBlock<'a, T> {
+        cache: &'a mut BlockCache<T>,
+    }
 }
 
-impl<'a, T> NextBlock<'a, T> {
-    pub(crate) fn pop(self) -> T {
-        let Self {
-            cache,
-        } = self;
-        let block = cache
-            .inner
-            .remove(&cache.next_height)
-            .expect("the block exists; this is a bug");
-        cache.next_height = cache.next_height.increment();
-        block
+impl<'a, T> Future for NextBlock<'a, T> {
+    type Output = Option<T>;
+
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let this = self.project();
+        std::task::Poll::Ready((*this.cache).pop())
     }
 }
 
@@ -147,7 +155,7 @@ mod tests {
     #[test]
     fn empty_cache_gives_no_block() {
         let mut cache = make_cache();
-        assert!(cache.next_block().is_none())
+        assert!(cache.pop().is_none())
     }
 
     #[test]
@@ -156,10 +164,10 @@ mod tests {
         cache.insert(0u32.into()).unwrap();
         cache.insert(1u32.into()).unwrap();
         cache.insert(2u32.into()).unwrap();
-        assert_eq!(0, cache.next_block().unwrap().pop().height.value());
-        assert_eq!(1, cache.next_block().unwrap().pop().height.value());
-        assert_eq!(2, cache.next_block().unwrap().pop().height.value());
-        assert!(cache.next_block().is_none());
+        assert_eq!(0, cache.pop().unwrap().height.value());
+        assert_eq!(1, cache.pop().unwrap().height.value());
+        assert_eq!(2, cache.pop().unwrap().height.value());
+        assert!(cache.pop().is_none());
     }
 
     #[test]
@@ -174,8 +182,8 @@ mod tests {
         let mut cache = make_cache();
         cache.insert(0u32.into()).unwrap();
         cache.insert(1u32.into()).unwrap();
-        cache.next_block().unwrap().pop();
-        cache.next_block().unwrap().pop();
+        cache.pop().unwrap();
+        cache.pop().unwrap();
         assert!(cache.insert(1u32.into()).is_err());
     }
 
@@ -184,11 +192,29 @@ mod tests {
         let mut cache = make_cache();
         cache.insert(0u32.into()).unwrap();
         cache.insert(2u32.into()).unwrap();
-        assert_eq!(0, cache.next_block().unwrap().pop().height.value());
-        assert!(cache.next_block().is_none());
+        assert_eq!(0, cache.pop().unwrap().height.value());
+        assert!(cache.pop().is_none());
         cache.insert(1u32.into()).unwrap();
-        assert_eq!(1, cache.next_block().unwrap().pop().height.value());
-        assert_eq!(2, cache.next_block().unwrap().pop().height.value());
-        assert!(cache.next_block().is_none());
+        assert_eq!(1, cache.pop().unwrap().height.value());
+        assert_eq!(2, cache.pop().unwrap().height.value());
+        assert!(cache.pop().is_none());
+    }
+
+    #[tokio::test]
+    async fn awaited_next_block_pops_block() {
+        let mut cache = make_cache();
+        cache.insert(0u32.into()).unwrap();
+        assert_eq!(0, cache.next_block().await.unwrap().height.value());
+        assert!(cache.pop().is_none());
+    }
+
+    #[test]
+    fn dropped_next_block_leaves_cache_unchanged() {
+        let mut cache = make_cache();
+        cache.insert(0u32.into()).unwrap();
+        {
+            let _fut = cache.next_block();
+        }
+        assert_eq!(0, cache.pop().unwrap().height.value());
     }
 }
