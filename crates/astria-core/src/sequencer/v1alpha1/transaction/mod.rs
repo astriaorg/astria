@@ -69,7 +69,7 @@ impl SignedTransaction {
     /// The transaction hash is calculated by protobuf-encoding the transaction
     /// and hashing the resulting bytes with sha256.
     #[must_use]
-    pub fn hash(&self) -> [u8; 32] {
+    pub fn sha256_of_proto_encoding(&self) -> [u8; 32] {
         use sha2::Digest as _;
         let bytes = self.to_raw().encode_to_vec();
         Sha256::digest(bytes).into()
