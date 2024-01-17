@@ -464,7 +464,7 @@ impl App {
     ///
     /// Note that `begin_block` is now called *after* transaction execution.
     #[instrument(name = "App::deliver_tx", skip_all, fields(
-        signed_transaction_hash = %telemetry::display::hex(&Sha256::digest(signed_tx.to_raw().encode_to_vec())),
+        signed_transaction_hash = %telemetry::display::hex(&signed_tx.sha256_of_proto_encoding()),
         sender = %Address::from_verification_key(signed_tx.verification_key()),
     ))]
     pub(crate) async fn deliver_tx(
