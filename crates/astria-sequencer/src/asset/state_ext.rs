@@ -5,7 +5,7 @@ use anyhow::{
 };
 use astria_core::sequencer::v1alpha1::{
     asset,
-    asset::IbcAsset,
+    asset::Denom,
 };
 use async_trait::async_trait;
 use borsh::{
@@ -42,7 +42,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip(self))]
-    async fn get_ibc_asset(&self, id: asset::Id) -> Result<IbcAsset> {
+    async fn get_ibc_asset(&self, id: asset::Id) -> Result<Denom> {
         let Some(bytes) = self
             .get_raw(&asset_storage_key(id))
             .await
@@ -51,10 +51,10 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("asset not found");
         };
 
-        let DenominationTrace(asset) =
+        let DenominationTrace(denom_str) =
             DenominationTrace::try_from_slice(&bytes).context("invalid asset bytes")?;
-        let asset: IbcAsset = asset.as_str().into();
-        Ok(asset)
+        let denom: Denom = denom_str.as_str().into();
+        Ok(denom)
     }
 }
 
@@ -63,7 +63,7 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
-    fn put_ibc_asset(&mut self, id: asset::Id, asset: &IbcAsset) -> Result<()> {
+    fn put_ibc_asset(&mut self, id: asset::Id, asset: &Denom) -> Result<()> {
         let bytes = DenominationTrace(asset.denomination_trace())
             .try_to_vec()
             .context("failed to serialize asset")?;

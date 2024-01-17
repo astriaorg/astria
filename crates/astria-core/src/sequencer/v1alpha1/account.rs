@@ -1,11 +1,11 @@
 use super::{
-    asset::IbcAsset,
+    asset::Denom,
     raw,
 };
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AssetBalance {
-    pub denom: IbcAsset,
+    pub denom: Denom,
     pub balance: u128,
 }
 
@@ -19,7 +19,7 @@ impl AssetBalance {
             balance,
         } = proto;
         Self {
-            denom: IbcAsset::from(denom.as_str()),
+            denom: Denom::from(denom.as_str()),
             balance: balance.map_or(0, Into::into),
         }
     }

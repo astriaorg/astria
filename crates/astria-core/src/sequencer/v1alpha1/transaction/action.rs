@@ -13,7 +13,7 @@ use crate::{
     sequencer::v1alpha1::{
         asset::{
             self,
-            IbcAsset,
+            Denom,
         },
         Address,
         IncorrectAddressLength,
@@ -520,7 +520,7 @@ enum MintActionErrorKind {
 pub struct Ics20Withdrawal {
     // a transparent value consisting of an amount and a denom.
     amount: u128,
-    denom: IbcAsset,
+    denom: Denom,
     // the address on the destination chain to send the transfer to.
     destination_chain_address: String,
     // an Astria address to use to return funds from this withdrawal
@@ -541,7 +541,7 @@ impl Ics20Withdrawal {
     }
 
     #[must_use]
-    pub fn denom(&self) -> &IbcAsset {
+    pub fn denom(&self) -> &Denom {
         &self.denom
     }
 
