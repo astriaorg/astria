@@ -69,7 +69,7 @@ jobs:
           modified=$(git status --porcelain)
           if [[ -n $modified ]]; then
             echo "ERROR: containerfiles/Cargo.toml is out of sync with workspcae Cargo.toml"
-            echo "Run locally with \`just update-container-files-cargo-toml\` and commit to the repository."
+            echo "Run locally with \`just update-containerfiles-cargo-toml\` and commit to the repository."
             exit 1
           fi
 
@@ -135,7 +135,7 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: "nightly-60ec00296f00754bc21ed68fd05ab6b54b50e024"
+          version: "nightly-09fe3e041369a816365a020f715ad6f94dbce9f2"
       - name: Build tests
         run: |
           cargo test --no-run --release \
