@@ -15,6 +15,7 @@ pub mod conductor;
 pub mod config;
 pub(crate) mod executor;
 pub(crate) mod sequencer;
+pub(crate) mod utils;
 
 pub use conductor::Conductor;
 pub use config::Config;
