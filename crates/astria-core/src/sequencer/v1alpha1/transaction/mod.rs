@@ -278,10 +278,7 @@ enum UnsignedTransactionErrorKind {
 mod test {
     use super::*;
     use crate::sequencer::v1alpha1::{
-        asset::{
-            default_native_asset_id,
-            Id,
-        },
+        asset::default_native_asset_id,
         transaction::action::{
             Action::Transfer,
             TransferAction,
@@ -326,6 +323,6 @@ mod test {
             transaction: unsigned,
         };
 
-        assert_eq!(tx.hash(), expected_hash);
+        assert_eq!(tx.sha256_of_proto_encoding(), expected_hash);
     }
 }
