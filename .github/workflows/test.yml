@@ -69,7 +69,7 @@ jobs:
           modified=$(git status --porcelain)
           if [[ -n $modified ]]; then
             echo "ERROR: containerfiles/Cargo.toml is out of sync with workspcae Cargo.toml"
-            echo "Run locally with \`just update-container-files-cargo-toml\` and commit to the repository."
+            echo "Run locally with \`just update-containerfiles-cargo-toml\` and commit to the repository."
             exit 1
           fi
 
