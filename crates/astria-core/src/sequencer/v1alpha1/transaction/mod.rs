@@ -273,3 +273,59 @@ enum UnsignedTransactionErrorKind {
     #[error("`fee_asset_id` field is invalid")]
     FeeAsset(#[source] super::IncorrectAssetIdLength),
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::sequencer::v1alpha1::{
+        asset::{
+            default_native_asset_id,
+            Id,
+        },
+        transaction::action::{
+            Action::Transfer,
+            TransferAction,
+        },
+        Address,
+    };
+
+    #[test]
+    fn signed_transaction_hash() {
+        let verification_key = VerificationKey::try_from([
+            213, 191, 74, 63, 204, 231, 23, 176, 56, 139, 204, 39, 73, 235, 193, 72, 173, 153, 105,
+            178, 63, 69, 238, 27, 96, 95, 213, 135, 120, 87, 106, 196,
+        ])
+        .unwrap();
+        let signature = Signature::try_from([
+            227, 85, 139, 137, 185, 81, 103, 226, 85, 208, 68, 190, 196, 105, 191, 191, 37, 227,
+            167, 21, 69, 165, 229, 163, 187, 104, 165, 40, 92, 8, 113, 67, 166, 194, 232, 156, 232,
+            117, 134, 105, 2, 90, 151, 35, 241, 136, 200, 46, 222, 37, 124, 219, 195, 20, 195, 24,
+            227, 96, 127, 152, 22, 47, 146, 10,
+        ])
+        .unwrap();
+        let expected_hash: [u8; 32] = [
+            83, 12, 185, 239, 139, 236, 107, 26, 116, 237, 242, 144, 144, 37, 188, 82, 115, 228,
+            59, 229, 164, 251, 142, 181, 82, 188, 68, 99, 165, 61, 83, 135,
+        ];
+
+        let transfer = TransferAction {
+            to: Address::from([0; 20]),
+            amount: 0,
+            asset_id: default_native_asset_id(),
+        };
+
+        let unsigned = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![Transfer(transfer)],
+            fee_asset_id: default_native_asset_id(),
+        };
+
+        let tx = SignedTransaction {
+            signature,
+            verification_key,
+            transaction: unsigned,
+        };
+
+        assert_eq!(tx.hash(), expected_hash);
+    }
+}
