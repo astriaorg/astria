@@ -160,10 +160,8 @@ async fn refund_tokens_check<S: StateRead>(
     source_port: &PortId,
     source_channel: &ChannelId,
 ) -> Result<()> {
-    use prost::Message as _;
-
-    let packet_data = FungibleTokenPacketData::decode(data)
-        .context("failed to decode packet data into FungibleTokenPacketData")?;
+    let packet_data: FungibleTokenPacketData =
+        serde_json::from_slice(data).context("failed to decode fungible token packet data json")?;
     let mut denom: Denom = packet_data.denom.as_str().into();
 
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
