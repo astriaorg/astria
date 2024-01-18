@@ -22,8 +22,8 @@ use astria_core::{
         UpdateCommitmentStateRequest,
     },
     sequencer::v1alpha1::{
-        RollupId,
         test_utils::make_cometbft_block,
+        RollupId,
     },
 };
 use ethers::{
