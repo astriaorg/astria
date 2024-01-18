@@ -163,7 +163,7 @@ async fn refund_tokens_check<S: StateRead>(
     use prost::Message as _;
 
     let packet_data = FungibleTokenPacketData::decode(data)
-        .context("failed to decode packet data into FungibleTokenPacketData")?;
+        .context("failed to decode fungible token packet data json")?;
     let mut asset = packet_data
         .denom
         .parse::<IbcAsset>()
