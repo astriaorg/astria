@@ -1,0 +1,47 @@
+[package]
+name = "astria-core"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/astriaorg/astria"
+homepage = "https://astria.org"
+# TODO
+# documentation = ""
+
+categories = ["astria-proto", "astria-rpc", "rpc-types"]
+keywords = ["astria", "grpc", "rpc", "blockchain", "execution", "protobuf"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+merkle = { package = "astria-merkle", path = "../astria-merkle" }
+
+ed25519-consensus = { workspace = true }
+hex = { workspace = true }
+ibc-types = { workspace = true }
+penumbra-ibc = { workspace = true }
+penumbra-proto = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+rand = { workspace = true, optional = true }
+sha2 = { workspace = true }
+tendermint = { workspace = true }
+tendermint-proto = { workspace = true }
+thiserror = { workspace = true }
+tonic = { workspace = true, optional = true }
+tracing = { workspace = true }
+
+indexmap = "2.1.0"
+
+[features]
+client = ["dep:tonic"]
+server = ["dep:tonic"]
+test-utils = ["dep:rand"]
+
+[dev-dependencies]
+tonic-build = "0.10"
+walkdir = "2.4.0"
+
+tempfile = { workspace = true }
+which = { workspace = true }

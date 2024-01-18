@@ -1,12 +1,12 @@
 use anyhow::Result;
-use async_trait::async_trait;
-use penumbra_storage::{
-    StateRead,
-    StateWrite,
-};
-use proto::native::sequencer::v1alpha1::{
+use astria_core::sequencer::v1alpha1::{
     asset,
     Address,
+};
+use async_trait::async_trait;
+use cnidarium::{
+    StateRead,
+    StateWrite,
 };
 
 #[async_trait]

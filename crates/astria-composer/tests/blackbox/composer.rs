@@ -1,14 +1,14 @@
 use std::time::Duration;
 
-use ethers::types::Transaction;
-use proto::{
+use astria_core::{
     generated::sequencer::v1alpha1::NonceResponse,
-    native::sequencer::v1alpha1::{
+    sequencer::v1alpha1::{
+        AbciErrorCode,
         RollupId,
         SignedTransaction,
     },
 };
-use sequencer_types::AbciCode;
+use ethers::types::Transaction;
 use tendermint_rpc::{
     endpoint::broadcast::tx_sync,
     request,
@@ -232,7 +232,7 @@ async fn mount_broadcast_tx_sync_invalid_nonce_mock(
     let jsonrpc_rsp = response::Wrapper::new_with_id(
         Id::Num(1),
         Some(tx_sync::Response {
-            code: AbciCode::INVALID_NONCE.into(),
+            code: AbciErrorCode::INVALID_NONCE.into(),
             data: vec![].into(),
             log: String::new(),
             hash: tendermint::Hash::Sha256([0; 32]),
@@ -286,10 +286,8 @@ async fn mount_matcher_verifying_tx_integrity(
 }
 
 fn signed_tx_from_request(request: &Request) -> SignedTransaction {
-    use proto::{
-        generated::sequencer::v1alpha1::SignedTransaction as RawSignedTransaction,
-        Message as _,
-    };
+    use astria_core::generated::sequencer::v1alpha1::SignedTransaction as RawSignedTransaction;
+    use prost::Message as _;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =
         serde_json::from_slice(&request.body)

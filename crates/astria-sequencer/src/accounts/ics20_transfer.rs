@@ -14,6 +14,14 @@ use anyhow::{
     Context as _,
     Result,
 };
+use astria_core::sequencer::v1alpha1::{
+    asset::IbcAsset,
+    Address,
+};
+use cnidarium::{
+    StateRead,
+    StateWrite,
+};
 use ibc_types::{
     core::channel::{
         channel,
@@ -39,14 +47,6 @@ use penumbra_ibc::component::app_handler::{
     AppHandlerExecute,
 };
 use penumbra_proto::penumbra::core::component::ibc::v1alpha1::FungibleTokenPacketData;
-use penumbra_storage::{
-    StateRead,
-    StateWrite,
-};
-use proto::native::sequencer::v1alpha1::{
-    asset::IbcAsset,
-    Address,
-};
 
 use super::state_ext::{
     StateReadExt as _,
@@ -163,7 +163,7 @@ async fn refund_tokens_check<S: StateRead>(
     use prost::Message as _;
 
     let packet_data = FungibleTokenPacketData::decode(data)
-        .context("failed to decode packet data into FungibleTokenPacketData")?;
+        .context("failed to decode fungible token packet data json")?;
     let mut asset = packet_data
         .denom
         .parse::<IbcAsset>()
@@ -319,10 +319,8 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     dest_channel: &ChannelId,
     is_refund: bool,
 ) -> Result<()> {
-    use prost::Message as _;
-
-    let packet_data = FungibleTokenPacketData::decode(data)
-        .context("failed to decode FungibleTokenPacketData")?;
+    let packet_data: FungibleTokenPacketData =
+        serde_json::from_slice(data).context("failed to decode FungibleTokenPacketData")?;
     let packet_amount: u128 = packet_data
         .amount
         .parse()

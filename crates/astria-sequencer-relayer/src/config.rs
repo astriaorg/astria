@@ -5,7 +5,6 @@ use serde::{
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 /// The single config for creating an astria-sequencer-relayer service.
-#[serde(deny_unknown_fields)]
 pub struct Config {
     pub sequencer_endpoint: String,
     pub celestia_endpoint: String,
@@ -30,10 +29,5 @@ mod tests {
     #[test]
     fn example_env_config_is_up_to_date() {
         config::tests::example_env_config_is_up_to_date::<Config>(EXAMPLE_ENV);
-    }
-
-    #[test]
-    fn config_should_reject_unknown_var() {
-        config::tests::config_should_reject_unknown_var::<Config>(EXAMPLE_ENV);
     }
 }

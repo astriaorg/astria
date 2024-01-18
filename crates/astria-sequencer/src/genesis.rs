@@ -1,4 +1,4 @@
-use proto::native::sequencer::v1alpha1::Address;
+use astria_core::sequencer::v1alpha1::Address;
 use serde::{
     Deserialize,
     Deserializer,

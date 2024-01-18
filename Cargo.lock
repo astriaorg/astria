@@ -494,8 +494,8 @@ dependencies = [
 name = "astria-celestia-client"
 version = "0.1.0"
 dependencies = [
+ "astria-core",
  "astria-merkle",
- "astria-proto",
  "async-trait",
  "base64 0.21.5",
  "base64-serde",
@@ -503,6 +503,7 @@ dependencies = [
  "celestia-types",
  "hex",
  "jsonrpsee",
+ "prost",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -522,10 +523,10 @@ dependencies = [
 
 [[package]]
 name = "astria-cli"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "assert_cmd",
- "astria-proto",
+ "astria-core",
  "astria-sequencer-client",
  "clap",
  "color-eyre",
@@ -543,12 +544,11 @@ dependencies = [
 
 [[package]]
 name = "astria-composer"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "astria-config",
- "astria-proto",
+ "astria-core",
  "astria-sequencer-client",
- "astria-sequencer-types",
  "astria-telemetry",
  "astria-test-utils",
  "async-trait",
@@ -563,6 +563,7 @@ dependencies = [
  "hyper",
  "once_cell",
  "pin-project-lite",
+ "prost",
  "rand 0.8.5",
  "regex",
  "reqwest",
@@ -583,15 +584,14 @@ dependencies = [
 
 [[package]]
 name = "astria-conductor"
-version = "0.11.0"
+version = "0.11.1"
 dependencies = [
  "astria-celestia-client",
  "astria-config",
+ "astria-core",
  "astria-merkle",
  "astria-optimism",
- "astria-proto",
  "astria-sequencer-client",
- "astria-sequencer-types",
  "astria-telemetry",
  "async-trait",
  "base64 0.21.5",
@@ -633,6 +633,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-core"
+version = "0.1.0"
+dependencies = [
+ "astria-merkle",
+ "ed25519-consensus",
+ "hex",
+ "ibc-types",
+ "indexmap 2.1.0",
+ "penumbra-ibc",
+ "penumbra-proto",
+ "prost",
+ "prost-types",
+ "rand 0.8.5",
+ "sha2 0.10.8",
+ "tempfile",
+ "tendermint 0.34.0",
+ "tendermint-proto 0.34.0",
+ "thiserror",
+ "tonic",
+ "tonic-build",
+ "tracing",
+ "walkdir",
+ "which",
+]
+
+[[package]]
 name = "astria-merkle"
 version = "0.1.0"
 dependencies = [
@@ -653,54 +679,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "astria-proto"
-version = "0.1.0"
-dependencies = [
- "astria-merkle",
- "ed25519-consensus",
- "hex",
- "ibc-types",
- "indexmap 2.1.0",
- "penumbra-ibc",
- "penumbra-proto",
- "prost",
- "prost-types",
- "rand 0.8.5",
- "serde",
- "sha2 0.10.8",
- "tempfile",
- "tendermint 0.34.0",
- "tendermint-proto 0.34.0",
- "thiserror",
- "tonic",
- "tonic-build",
- "tracing",
- "walkdir",
- "which",
-]
-
-[[package]]
 name = "astria-sequencer"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "astria-config",
+ "astria-core",
  "astria-merkle",
- "astria-proto",
- "astria-sequencer-types",
  "astria-telemetry",
  "async-trait",
  "borsh",
  "bytes",
+ "cnidarium",
+ "cnidarium-component",
  "ed25519-consensus",
  "futures",
  "hex",
+ "ibc-proto",
  "ibc-types",
  "matchit",
- "penumbra-component",
  "penumbra-ibc",
  "penumbra-proto",
- "penumbra-storage",
  "penumbra-tower-trace",
  "prost",
  "rand 0.8.5",
@@ -710,9 +709,11 @@ dependencies = [
  "tendermint 0.34.0",
  "tendermint-proto 0.34.0",
  "tokio",
+ "tonic",
  "tower",
  "tower-abci",
  "tower-actor",
+ "tower-http",
  "tracing",
 ]
 
@@ -720,12 +721,13 @@ dependencies = [
 name = "astria-sequencer-client"
 version = "0.1.0"
 dependencies = [
- "astria-proto",
+ "astria-core",
  "async-trait",
  "ed25519-consensus",
  "futures",
  "hex",
  "hex-literal",
+ "prost",
  "regex",
  "serde",
  "serde_json",
@@ -740,13 +742,13 @@ dependencies = [
 
 [[package]]
 name = "astria-sequencer-relayer"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "astria-celestia-client",
  "astria-celestia-mock",
  "astria-config",
+ "astria-core",
  "astria-merkle",
- "astria-proto",
  "astria-sequencer-client",
  "astria-telemetry",
  "axum",
@@ -778,25 +780,6 @@ dependencies = [
  "tracing",
  "wiremock",
  "zeroize",
-]
-
-[[package]]
-name = "astria-sequencer-types"
-version = "0.1.0"
-dependencies = [
- "astria-merkle",
- "astria-proto",
- "base64 0.21.5",
- "base64-serde",
- "hex",
- "prost",
- "serde",
- "serde_json",
- "sha2 0.10.8",
- "tendermint 0.34.0",
- "tendermint-proto 0.34.0",
- "thiserror",
- "tracing",
 ]
 
 [[package]]
@@ -1595,6 +1578,56 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 
 [[package]]
+name = "clippy_utils"
+version = "0.1.75"
+source = "git+https://github.com/rust-lang/rust-clippy?rev=b105fb4c39bc1a010807a6c076193cef8d93c109#b105fb4c39bc1a010807a6c076193cef8d93c109"
+dependencies = [
+ "arrayvec 0.7.4",
+ "if_chain",
+ "itertools 0.10.5",
+ "rustc-semver",
+]
+
+[[package]]
+name = "cnidarium"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "borsh",
+ "futures",
+ "hex",
+ "ibc-types",
+ "ics23",
+ "jmt",
+ "metrics",
+ "once_cell",
+ "parking_lot",
+ "pin-project",
+ "rocksdb",
+ "sha2 0.10.8",
+ "smallvec",
+ "tempfile",
+ "tendermint 0.34.0",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+]
+
+[[package]]
+name = "cnidarium-component"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "cnidarium",
+ "hex",
+ "tendermint 0.34.0",
+]
+
+[[package]]
 name = "coins-bip32"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1678,6 +1711,28 @@ name = "colorchoice"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
+
+[[package]]
+name = "compiletest_rs"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7225fee1bcf9247bb3a1b1a2d7ecfe2f7a990e549a09d766a257a4ae30dac0d6"
+dependencies = [
+ "diff",
+ "filetime",
+ "getopts",
+ "lazy_static",
+ "libc",
+ "log",
+ "miow",
+ "regex",
+ "rustfix",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tester",
+ "winapi",
+]
 
 [[package]]
 name = "concurrent-queue"
@@ -1976,8 +2031,8 @@ dependencies = [
 
 [[package]]
 name = "decaf377-fmd"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
@@ -1990,8 +2045,8 @@ dependencies = [
 
 [[package]]
 name = "decaf377-ka"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "ark-ff 0.4.2",
  "decaf377 0.5.0",
@@ -2151,6 +2206,78 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56ce8c6da7551ec6c462cbaf3bfbc75131ebbfa1c944aeaa9dab51ca1c5f0c3b"
 
 [[package]]
+name = "dylint"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "683b9feb84cd2620b4b75119b7e914ac132dbd9e523f9a98821f3b3a7e355053"
+dependencies = [
+ "ansi_term",
+ "anyhow",
+ "cargo_metadata",
+ "dirs",
+ "dylint_internal",
+ "is-terminal",
+ "log",
+ "once_cell",
+ "semver 1.0.20",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "walkdir",
+]
+
+[[package]]
+name = "dylint_internal"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ede982d9261f23a19b92ed7dc4ddeefc8328fc21c88e2c79ffd6e071c7972be"
+dependencies = [
+ "ansi_term",
+ "anyhow",
+ "cargo_metadata",
+ "git2",
+ "home",
+ "if_chain",
+ "is-terminal",
+ "log",
+ "rust-embed",
+ "sedregex",
+]
+
+[[package]]
+name = "dylint_linting"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee7f2f02100bafd2f02c5fcc4ca981adca28397485bf3393ad0a1e8e46ec583b"
+dependencies = [
+ "cargo_metadata",
+ "dylint_internal",
+ "paste",
+ "rustversion",
+ "serde",
+ "thiserror",
+ "toml 0.8.8",
+]
+
+[[package]]
+name = "dylint_testing"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "964c9965a990e1ab44a862cb9823772603fe4d82b777b1190fe2d4d62ed8a885"
+dependencies = [
+ "anyhow",
+ "cargo_metadata",
+ "compiletest_rs",
+ "dylint",
+ "dylint_internal",
+ "env_logger",
+ "once_cell",
+ "regex",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "dyn-clone"
 version = "1.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2266,6 +2393,19 @@ dependencies = [
  "proc-macro2 1.0.70",
  "quote",
  "syn 2.0.39",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95b3f3e67048839cb0d0781f445682a35113da7121f7c949db0e2be96a4fbece"
+dependencies = [
+ "humantime",
+ "is-terminal",
+ "log",
+ "regex",
+ "termcolor",
 ]
 
 [[package]]
@@ -2695,6 +2835,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "filetime"
+version = "0.2.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ee447700ac8aa0b2f2bd7bc4462ad686ba06baa6727ac149a2d6277f0d240fd"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "redox_syscall",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "fixed-hash"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2908,6 +3060,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "getopts"
+version = "0.2.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14dbbfd5c71d70241ecf9e6f13737f7b5ce823821063188d7e46c41d371eebd5"
+dependencies = [
+ "unicode-width",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2938,10 +3099,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4271d37baee1b8c7e4b708028c57d816cf9d2434acb33a549475f78c181f6253"
 
 [[package]]
+name = "git2"
+version = "0.17.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b989d6a7ca95a362cf2cfc5ad688b3a467be1f87e480b8dad07fee8c79b0044"
+dependencies = [
+ "bitflags 1.3.2",
+ "libc",
+ "libgit2-sys",
+ "log",
+ "openssl-probe",
+ "openssl-sys",
+ "url",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
+
+[[package]]
+name = "globset"
+version = "0.4.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57da3b9b5b85bd66f31093f8c408b90a74431672542466497dcbdfdc02034be1"
+dependencies = [
+ "aho-corasick",
+ "bstr",
+ "log",
+ "regex-automata 0.4.3",
+ "regex-syntax 0.8.2",
+]
 
 [[package]]
 name = "gloo-timers"
@@ -3110,6 +3299,12 @@ dependencies = [
  "http",
  "pin-project-lite",
 ]
+
+[[package]]
+name = "http-range-header"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "add0ab9360ddbd88cfeb3bd9574a1d85cfdfa14db10b3e21d3700dbc4328758f"
 
 [[package]]
 name = "http-types"
@@ -3535,6 +3730,12 @@ dependencies = [
  "unicode-bidi",
  "unicode-normalization",
 ]
+
+[[package]]
+name = "if_chain"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb56e1aa765b4b4f3aadfab769793b7087bb03a4ea4920644a6d238e2df5b9ed"
 
 [[package]]
 name = "im"
@@ -3964,6 +4165,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89d92a4743f9a61002fae18374ed11e7973f530cb3a3255fb354818118b2203c"
 
 [[package]]
+name = "libgit2-sys"
+version = "0.15.2+1.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a80df2e11fb4a61f4ba2ab42dbe7f74468da143f1a75c74e11dee7c813f694fa"
+dependencies = [
+ "cc",
+ "libc",
+ "libssh2-sys",
+ "libz-sys",
+ "openssl-sys",
+ "pkg-config",
+]
+
+[[package]]
 name = "libloading"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4022,12 +4237,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "libssh2-sys"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2dc8a030b787e2119a731f1951d6a773e2280c660f8ec4b0f5e1505a386e71ee"
+dependencies = [
+ "cc",
+ "libc",
+ "libz-sys",
+ "openssl-sys",
+ "pkg-config",
+ "vcpkg",
+]
+
+[[package]]
 name = "libz-sys"
 version = "1.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d97137b25e321a73eef1418d1d5d2eda4d77e12813f8e6dead84bc52c5870a7b"
 dependencies = [
  "cc",
+ "libc",
  "pkg-config",
  "vcpkg",
 ]
@@ -4176,6 +4406,15 @@ dependencies = [
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "miow"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9f1c5b025cda876f66ef43a113f91ebc9f4ccef34843000e0adf6ebbab84e21"
+dependencies = [
+ "winapi",
 ]
 
 [[package]]
@@ -4471,6 +4710,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
+name = "openssl-sys"
+version = "0.9.97"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3eaad34cdd97d81de97964fc7f29e2d104f483840d906ef56daa1912338460b"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+ "vcpkg",
+]
+
+[[package]]
 name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4692,8 +4943,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-asset"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "aes",
  "anyhow",
@@ -4737,25 +4988,25 @@ dependencies = [
 
 [[package]]
 name = "penumbra-chain"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
  "async-trait",
  "bincode",
  "bytes",
+ "cnidarium",
+ "cnidarium-component",
  "decaf377 0.5.0",
  "hex",
  "ibc-types",
  "ics23",
  "once_cell",
  "penumbra-asset",
- "penumbra-component",
  "penumbra-keys",
  "penumbra-num",
  "penumbra-proto",
- "penumbra-storage",
  "penumbra-tct",
  "serde",
  "sha2 0.9.9",
@@ -4766,27 +5017,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "penumbra-component"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
-dependencies = [
- "anyhow",
- "async-trait",
- "hex",
- "penumbra-storage",
- "tendermint 0.34.0",
-]
-
-[[package]]
 name = "penumbra-ibc"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
  "async-trait",
  "base64 0.20.0",
  "blake2b_simd 0.5.11",
+ "cnidarium",
+ "cnidarium-component",
  "hex",
  "ibc-proto",
  "ibc-types",
@@ -4797,25 +5038,24 @@ dependencies = [
  "pbjson-types",
  "penumbra-asset",
  "penumbra-chain",
- "penumbra-component",
  "penumbra-keys",
  "penumbra-num",
  "penumbra-proto",
- "penumbra-storage",
  "prost",
  "serde",
  "serde_json",
  "sha2 0.10.8",
  "tendermint 0.34.0",
  "tendermint-light-client-verifier",
+ "tonic",
  "tower",
  "tracing",
 ]
 
 [[package]]
 name = "penumbra-keys"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "aes",
  "anyhow",
@@ -4860,8 +5100,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-num"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "aes",
  "anyhow",
@@ -4904,14 +5144,15 @@ dependencies = [
 
 [[package]]
 name = "penumbra-proto"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "anyhow",
  "async-stream 0.2.1",
  "async-trait",
  "bech32 0.8.1",
  "bytes",
+ "cnidarium",
  "decaf377-fmd",
  "decaf377-rdsa",
  "futures",
@@ -4921,10 +5162,10 @@ dependencies = [
  "ics23",
  "pbjson",
  "pbjson-types",
- "penumbra-storage",
  "pin-project",
  "prost",
  "serde",
+ "serde_json",
  "subtle-encoding",
  "tendermint 0.34.0",
  "tonic",
@@ -4932,36 +5173,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "penumbra-storage"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
-dependencies = [
- "anyhow",
- "async-trait",
- "borsh",
- "futures",
- "hex",
- "ibc-types",
- "ics23",
- "jmt",
- "metrics",
- "once_cell",
- "parking_lot",
- "pin-project",
- "rocksdb",
- "sha2 0.10.8",
- "smallvec",
- "tempfile",
- "tendermint 0.34.0",
- "tokio",
- "tokio-stream",
- "tracing",
-]
-
-[[package]]
 name = "penumbra-tct"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "ark-ed-on-bls12-377",
  "ark-ff 0.4.2",
@@ -4988,8 +5202,8 @@ dependencies = [
 
 [[package]]
 name = "penumbra-tower-trace"
-version = "0.63.1"
-source = "git+https://github.com/penumbra-zone/penumbra.git?rev=ab1f82970af76091b962509831ec0f53cfeb85f4#ab1f82970af76091b962509831ec0f53cfeb85f4"
+version = "0.64.1"
+source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.64.1#5b57c7b9da89b885035afef6cf2c7c4c29454280"
 dependencies = [
  "futures",
  "hex",
@@ -5804,6 +6018,41 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e666a5496a0b2186dbcd0ff6106e29e093c15591bde62c20d3842007c6978a09"
 
 [[package]]
+name = "rust-embed"
+version = "8.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "810294a8a4a0853d4118e3b94bb079905f2107c7fe979d8f0faae98765eb6378"
+dependencies = [
+ "rust-embed-impl",
+ "rust-embed-utils",
+ "walkdir",
+]
+
+[[package]]
+name = "rust-embed-impl"
+version = "8.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfc144a1273124a67b8c1d7cd19f5695d1878b31569c0512f6086f0f4676604e"
+dependencies = [
+ "proc-macro2 1.0.70",
+ "quote",
+ "rust-embed-utils",
+ "syn 2.0.39",
+ "walkdir",
+]
+
+[[package]]
+name = "rust-embed-utils"
+version = "8.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "816ccd4875431253d6bb54b804bcff4369cbde9bae33defde25fdf6c2ef91d40"
+dependencies = [
+ "globset",
+ "sha2 0.10.8",
+ "walkdir",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5822,6 +6071,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e75f6a532d0fd9f7f13144f392b6ad56a32696bfcd9c78f797f16bbb6f072d6"
 
 [[package]]
+name = "rustc-semver"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5be1bdc7edf596692617627bbfeaba522131b18e06ca4df2b6b689e3c5d5ce84"
+
+[[package]]
 name = "rustc_version"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5837,6 +6092,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfa0f585226d2e68097d4f95d113b15b83a82e819ab25717ec0590d9584ef366"
 dependencies = [
  "semver 1.0.20",
+]
+
+[[package]]
+name = "rustfix"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ecd2853d9e26988467753bd9912c3a126f642d05d229a4b53f5752ee36c56481"
+dependencies = [
+ "anyhow",
+ "log",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -6078,6 +6345,15 @@ checksum = "e932934257d3b408ed8f30db49d85ea163bfe74961f017f405b025af298f0c7a"
 dependencies = [
  "core-foundation-sys",
  "libc",
+]
+
+[[package]]
+name = "sedregex"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19411e23596093f03bbd11dc45603b6329bb4bfec77b9fd13e2b9fc9b02efe3e"
+dependencies = [
+ "regex",
 ]
 
 [[package]]
@@ -6773,6 +7049,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "termcolor"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff1bc3d3f05aff0403e8ac0d92ced918ec05b666a43f83297ccef5bea8a3d449"
+dependencies = [
+ "winapi-util",
+]
+
+[[package]]
 name = "termtree"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6785,6 +7070,19 @@ dependencies = [
  "once_cell",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "tester"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "89e8bf7e0eb2dd7b4228cc1b6821fc5114cd6841ae59f652a85488c016091e5f"
+dependencies = [
+ "cfg-if",
+ "getopts",
+ "libc",
+ "num_cpus",
+ "term",
 ]
 
 [[package]]
@@ -7139,6 +7437,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "tower-http"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61c5bb1d698276a2443e5ecfabc1008bf15a36c12e6a7176e7bf089ea9131140"
+dependencies = [
+ "bitflags 2.4.1",
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "http",
+ "http-body",
+ "http-range-header",
+ "pin-project-lite",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
 name = "tower-layer"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7279,6 +7595,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing_debug_field"
+version = "0.1.0"
+dependencies = [
+ "clippy_utils",
+ "dylint_linting",
+ "dylint_testing",
+ "if_chain",
+ "tracing",
+]
+
+[[package]]
 name = "try-lock"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7374,6 +7701,12 @@ checksum = "5c5713f0fc4b5db668a2ac63cdb7bb4469d8c9fed047b1d0292cc7b0ce2ba921"
 dependencies = [
  "tinyvec",
 ]
+
+[[package]]
+name = "unicode-width"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e51733f11c9c4f72aa0c160008246859e340b00807569a0da0e7a1079b27ba85"
 
 [[package]]
 name = "unicode-xid"

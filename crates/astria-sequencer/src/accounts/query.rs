@@ -1,10 +1,13 @@
 use anyhow::Context as _;
-use penumbra_storage::{
+use astria_core::sequencer::v1alpha1::{
+    AbciErrorCode,
+    Address,
+};
+use cnidarium::{
     Snapshot,
     Storage,
 };
-use proto::native::sequencer::v1alpha1::Address;
-use sequencer_types::abci_code::AbciCode;
+use prost::Message as _;
 use tendermint::{
     abci::{
         request,
@@ -24,10 +27,7 @@ pub(crate) async fn balance_request(
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
-    use proto::{
-        native::sequencer::v1alpha1::BalanceResponse,
-        Message as _,
-    };
+    use astria_core::sequencer::v1alpha1::BalanceResponse;
     let (address, snapshot, height) = match preprocess_request(&storage, &request, &params).await {
         Ok(tup) => tup,
         Err(err_rsp) => return err_rsp,
@@ -41,8 +41,8 @@ pub(crate) async fn balance_request(
         Ok(balance) => balance,
         Err(err) => {
             return response::Query {
-                code: AbciCode::INVALID_PARAMETER.into(),
-                info: format!("{}", AbciCode::INVALID_PARAMETER),
+                code: AbciErrorCode::INVALID_PARAMETER.into(),
+                info: AbciErrorCode::INVALID_PARAMETER.to_string(),
                 log: format!("failed getting balance for provided address: {err:?}"),
                 height,
                 ..response::Query::default()
@@ -70,10 +70,7 @@ pub(crate) async fn nonce_request(
     request: request::Query,
     params: Vec<(String, String)>,
 ) -> response::Query {
-    use proto::{
-        native::sequencer::v1alpha1::NonceResponse,
-        Message as _,
-    };
+    use astria_core::sequencer::v1alpha1::NonceResponse;
     let (address, snapshot, height) = match preprocess_request(&storage, &request, &params).await {
         Ok(tup) => tup,
         Err(err_rsp) => return err_rsp,
@@ -98,8 +95,7 @@ pub(crate) async fn nonce_request(
     .encode_to_vec()
     .into();
     response::Query {
-        code: AbciCode::OK.into(),
-        info: format!("{}", AbciCode::OK),
+        code: tendermint::abci::Code::Ok,
         key: request.path.clone().into_bytes().into(),
         value: payload,
         height,
@@ -143,8 +139,8 @@ async fn preprocess_request(
         .find_map(|(k, v)| (k == "account").then_some(v))
     else {
         return Err(response::Query {
-            code: AbciCode::INVALID_PARAMETER.into(),
-            info: AbciCode::INVALID_PARAMETER.to_string(),
+            code: AbciErrorCode::INVALID_PARAMETER.into(),
+            info: AbciErrorCode::INVALID_PARAMETER.to_string(),
             log: "path did not contain path parameter".into(),
             ..response::Query::default()
         });
@@ -155,8 +151,8 @@ async fn preprocess_request(
             Address::try_from_slice(&addr).context("failed constructing address from bytes")
         })
         .map_err(|err| response::Query {
-            code: AbciCode::INVALID_PARAMETER.into(),
-            info: AbciCode::INVALID_PARAMETER.to_string(),
+            code: AbciErrorCode::INVALID_PARAMETER.into(),
+            info: AbciErrorCode::INVALID_PARAMETER.to_string(),
             log: format!("address could not be constructed from provided parameter: {err:?}"),
             ..response::Query::default()
         })?;
@@ -164,8 +160,8 @@ async fn preprocess_request(
         Ok(tup) => tup,
         Err(err) => {
             return Err(response::Query {
-                code: AbciCode::INTERNAL_ERROR.into(),
-                info: AbciCode::INTERNAL_ERROR.to_string(),
+                code: AbciErrorCode::INTERNAL_ERROR.into(),
+                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
                 log: format!("failed to query internal storage for snapshot and height: {err:?}"),
                 ..response::Query::default()
             });

@@ -12,7 +12,7 @@ use crate::cli::{
     sequencer::Command as SequencerCommand,
 };
 
-const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-2.devnet.astria.org";
+const DEFAULT_SEQUENCER_RPC: &str = "https://rpc.sequencer.dusk-3.devnet.astria.org";
 
 /// A CLI for deploying and managing Astria services and related infrastructure.
 #[derive(Debug, Parser)]

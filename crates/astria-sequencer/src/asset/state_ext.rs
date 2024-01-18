@@ -3,20 +3,20 @@ use anyhow::{
     Context as _,
     Result,
 };
+use astria_core::sequencer::v1alpha1::{
+    asset,
+    asset::IbcAsset,
+};
 use async_trait::async_trait;
 use borsh::{
     BorshDeserialize,
     BorshSerialize,
 };
-use hex::ToHex as _;
-use penumbra_storage::{
+use cnidarium::{
     StateRead,
     StateWrite,
 };
-use proto::native::sequencer::v1alpha1::{
-    asset,
-    asset::IbcAsset,
-};
+use hex::ToHex as _;
 use tracing::instrument;
 
 /// Newtype wrapper to read and write a denomination trace from rocksdb.

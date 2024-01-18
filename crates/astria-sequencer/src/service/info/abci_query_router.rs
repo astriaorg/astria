@@ -38,12 +38,12 @@ use std::{
     pin::Pin,
 };
 
+use cnidarium::Storage;
 use matchit::{
     InsertError,
     Match,
     MatchError,
 };
-use penumbra_storage::Storage;
 use tendermint::abci::{
     request,
     response,

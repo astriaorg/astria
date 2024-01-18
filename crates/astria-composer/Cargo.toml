@@ -1,14 +1,14 @@
 [package]
 name = "astria-composer"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 rust-version = "1.70.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+astria-core = { path = "../astria-core" }
 config = { package = "astria-config", path = "../astria-config" }
-proto = { package = "astria-proto", path = "../astria-proto" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
 pin-project-lite = "0.2.13"
@@ -42,21 +42,17 @@ tokio = { workspace = true, features = [
 tokio-util = { workspace = true, features = ["rt"] }
 tracing = { workspace = true, features = ["attributes"] }
 tryhard = { workspace = true }
+prost.workspace = true
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"
 path = "../astria-sequencer-client"
 features = ["http"]
 
-[dependencies.sequencer-types]
-package = "astria-sequencer-types"
-path = "../astria-sequencer-types"
-
 [dev-dependencies]
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
-proto = { package = "astria-proto", path = "../astria-proto" }
 test_utils = { package = "astria-test-utils", path = "../astria-test-utils", features = [
   "geth",
 ] }

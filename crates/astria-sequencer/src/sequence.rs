@@ -3,10 +3,10 @@ use anyhow::{
     Context,
     Result,
 };
-use proto::native::sequencer::v1alpha1::{
+use astria_core::sequencer::v1alpha1::{
     asset,
+    transaction::action::SequenceAction,
     Address,
-    SequenceAction,
 };
 use tracing::instrument;
 

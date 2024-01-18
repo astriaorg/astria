@@ -15,6 +15,8 @@ use tracing_subscriber::{
     util::TryInitError,
 };
 
+pub mod display;
+
 /// The errors that can occur when initializing telemtry.
 #[derive(Debug)]
 pub enum Error {

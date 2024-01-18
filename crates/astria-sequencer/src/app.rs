@@ -11,24 +11,32 @@ use anyhow::{
     ensure,
     Context,
 };
-use penumbra_storage::{
+use astria_core::{
+    generated::sequencer::v1alpha1 as raw,
+    sequencer::v1alpha1::{
+        transaction::Action,
+        Address,
+        SignedTransaction,
+    },
+};
+use cnidarium::{
     ArcStateDeltaExt,
+    RootHash,
     Snapshot,
     StateDelta,
     Storage,
 };
-use proto::{
-    generated::sequencer::v1alpha1 as raw,
-    native::sequencer::v1alpha1::{
-        Address,
-        SignedTransaction,
-    },
-    Message as _,
+use prost::Message as _;
+use sha2::{
+    Digest as _,
+    Sha256,
 };
-use sha2::Digest as _;
-use tendermint::abci::{
-    self,
-    Event,
+use tendermint::{
+    abci::{
+        self,
+        Event,
+    },
+    Hash,
 };
 use tracing::{
     debug,
@@ -38,7 +46,6 @@ use tracing::{
 
 use crate::{
     accounts::component::AccountsComponent,
-    app_hash::AppHash,
     authority::{
         component::{
             AuthorityComponent,
@@ -65,6 +72,9 @@ use crate::{
 /// The inter-block state being written to by the application.
 type InterBlockState = Arc<StateDelta<Snapshot>>;
 
+/// The maximum number of bytes allowed in sequencer action data.
+const MAX_SEQUENCE_DATA_BYTES_PER_BLOCK: usize = 256_000;
+
 /// The Sequencer application, written as a bundle of [`Component`]s.
 ///
 /// Note: this is called `App` because this is a Tendermint ABCI application,
@@ -85,6 +95,16 @@ pub(crate) struct App {
     // block, and we have already executed the transactions for the block during
     // `prepare_proposal`, and re-executing them would cause failure.
     is_proposer: bool,
+
+    // This is set to the executed hash of the proposal during `process_proposal`
+    //
+    // If it does not match the hash given during begin_block, then we clear and
+    // reset the execution results cache + state delta. Transactions are reexecuted.
+    // If it does match we utilize cached results to reduce computation.
+    //
+    // Resets to default hash at the begginning of prepare_proposal, and process_proposal if
+    // prepare_proposal was not called
+    executed_proposal_hash: Hash,
 
     // cache of results of executing of transactions in prepare_proposal or process_proposal.
     // cleared at the end of each block.
@@ -112,12 +132,13 @@ impl App {
         Self {
             state,
             is_proposer: false,
+            executed_proposal_hash: Hash::default(),
             execution_result: HashMap::new(),
             processed_txs: 0,
         }
     }
 
-    #[instrument(name = "App:init_chain", skip(self))]
+    #[instrument(name = "App:init_chain", skip_all)]
     pub(crate) async fn init_chain(
         &mut self,
         genesis_state: GenesisState,
@@ -150,6 +171,19 @@ impl App {
         Ok(())
     }
 
+    fn update_state_for_new_round(&mut self, storage: &Storage) {
+        // reset app state to latest committed state, in case of a round not being committed
+        // but `self.state` was changed due to executing the previous round's data.
+        //
+        // if the previous round was committed, then the state stays the same.
+        self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
+
+        // clear the cache of transaction execution results
+        self.execution_result.clear();
+        self.processed_txs = 0;
+        self.executed_proposal_hash = Hash::default();
+    }
+
     /// Generates a commitment to the `sequence::Actions` in the block's transactions.
     ///
     /// This is required so that a rollup can easily verify that the transactions it
@@ -158,15 +192,14 @@ impl App {
     /// It puts this special "commitment" as the first transaction in a block.
     /// When other validators receive the block, they know the first transaction is
     /// supposed to be the commitment, and verifies that is it correct.
-    #[instrument(name = "App::prepare_proposal", skip(self, prepare_proposal))]
+    #[instrument(name = "App::prepare_proposal", skip_all)]
     pub(crate) async fn prepare_proposal(
         &mut self,
         prepare_proposal: abci::request::PrepareProposal,
+        storage: Storage,
     ) -> abci::response::PrepareProposal {
-        // clear the cache of transaction execution results
-        self.execution_result.clear();
-        self.processed_txs = 0;
         self.is_proposer = true;
+        self.update_state_for_new_round(&storage);
 
         let (signed_txs, txs_to_include) = self.execute_block_data(prepare_proposal.txs).await;
 
@@ -182,10 +215,11 @@ impl App {
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
     /// and ensures it matches the commitment created by the proposer, which
     /// should be the first transaction in the block.
-    #[instrument(name = "App::process_proposal", skip(self, process_proposal))]
+    #[instrument(name = "App::process_proposal", skip_all)]
     pub(crate) async fn process_proposal(
         &mut self,
         process_proposal: abci::request::ProcessProposal,
+        storage: Storage,
     ) -> anyhow::Result<()> {
         // if we proposed this block (ie. prepare_proposal was called directly before this), then
         // we skip execution for this `process_proposal` call.
@@ -195,14 +229,12 @@ impl App {
         if self.is_proposer {
             debug!("skipping process_proposal as we are the proposer for this block");
             self.is_proposer = false;
+            self.executed_proposal_hash = process_proposal.hash;
             return Ok(());
         }
 
         self.is_proposer = false;
-
-        // clear the cache of transaction execution results
-        self.execution_result.clear();
-        self.processed_txs = 0;
+        self.update_state_for_new_round(&storage);
 
         let mut txs = VecDeque::from(process_proposal.txs);
         let received_sequence_actions_root: [u8; 32] = txs
@@ -246,6 +278,8 @@ impl App {
             "chain IDs commitment does not match expected",
         );
 
+        self.executed_proposal_hash = process_proposal.hash;
+
         Ok(())
     }
 
@@ -256,54 +290,101 @@ impl App {
     ///
     /// Returns the transactions which were successfully decoded and executed
     /// in both their [`SignedTransaction`] and raw bytes form.
-    #[instrument(name = "App::execute_block_data", skip(self, txs))]
+    #[instrument(name = "App::execute_block_data", skip_all, fields(
+        tx_count = txs.len()
+    ))]
     async fn execute_block_data(
         &mut self,
         txs: Vec<bytes::Bytes>,
     ) -> (Vec<SignedTransaction>, Vec<bytes::Bytes>) {
         let mut signed_txs = Vec::with_capacity(txs.len());
         let mut validated_txs = Vec::with_capacity(txs.len());
+        let mut block_sequence_data_bytes: usize = 0;
+        let mut excluded_tx_count: usize = 0;
 
         for tx in txs {
-            let Some(signed_tx) = raw::SignedTransaction::decode(&*tx)
-            .map_err(|err| {
-                debug!(error = ?err, "failed to deserialize bytes as a signed transaction");
-                err
-            })
-            .ok()
-            .and_then(|raw_tx| SignedTransaction::try_from_raw(raw_tx)
-                .map_err(|err| {
-                    debug!(error = ?err, "failed to convert raw signed transaction to native signed transaction");
-                    err
-                })
-                .ok()
-            ) else {
-                continue;
+            let signed_tx = match signed_transaction_from_bytes(&tx) {
+                Err(e) => {
+                    debug!(
+                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                        "failed to decode deliver tx payload to signed transaction; ignoring it",
+                    );
+                    excluded_tx_count += 1;
+                    continue;
+                }
+                Ok(tx) => tx,
             };
 
+            let tx_hash = Sha256::digest(&tx);
+
+            let tx_sequence_data_bytes = signed_tx
+                .unsigned_transaction()
+                .actions
+                .iter()
+                .filter_map(Action::as_sequence)
+                .fold(0usize, |acc, seq| acc + seq.data.len());
+
+            // Don't include tx if it would make the sequenced block data too large.
+            if block_sequence_data_bytes + tx_sequence_data_bytes
+                > MAX_SEQUENCE_DATA_BYTES_PER_BLOCK
+            {
+                debug!(
+                    transaction_hash = %telemetry::display::hex(&tx_hash),
+                    included_data_bytes = block_sequence_data_bytes,
+                    tx_data_bytes = tx_sequence_data_bytes,
+                    max_data_bytes = MAX_SEQUENCE_DATA_BYTES_PER_BLOCK,
+                    "excluding transaction: max block sequenced data limit reached"
+                );
+                excluded_tx_count += 1;
+                continue;
+            }
+
             // store transaction execution result, indexed by tx hash
-            let tx_hash = sha2::Sha256::digest(&tx);
             match self.deliver_tx(signed_tx.clone()).await {
                 Ok(events) => {
                     self.execution_result.insert(tx_hash.into(), Ok(events));
                     signed_txs.push(signed_tx);
                     validated_txs.push(tx);
+                    block_sequence_data_bytes += tx_sequence_data_bytes;
                 }
                 Err(e) => {
-                    debug!(?tx_hash, error = ?e, "failed to execute transaction, not including in block");
+                    debug!(
+                        transaction_hash = %telemetry::display::hex(&tx_hash),
+                        error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                        "failed to execute transaction, not including in block"
+                    );
+                    excluded_tx_count += 1;
                     self.execution_result.insert(tx_hash.into(), Err(e));
                 }
             }
         }
 
+        if excluded_tx_count > 0 {
+            info!(
+                excluded_tx_count = excluded_tx_count,
+                included_tx_count = validated_txs.len(),
+                "excluded transactions from block"
+            );
+        }
+
         (signed_txs, validated_txs)
     }
 
-    #[instrument(name = "App::begin_block", skip(self))]
+    #[instrument(name = "App::begin_block", skip_all)]
     pub(crate) async fn begin_block(
         &mut self,
         begin_block: &abci::request::BeginBlock,
+        storage: Storage,
     ) -> anyhow::Result<Vec<abci::Event>> {
+        // clear the processed_txs count when beginning block execution
+        self.processed_txs = 0;
+
+        // If we previously executed txs in a different proposal than is being processed reset
+        // cached state changes.
+        if self.executed_proposal_hash != begin_block.hash {
+            self.update_state_for_new_round(&storage);
+        }
+
         let mut state_tx = StateDelta::new(self.state.clone());
 
         // store the block height
@@ -332,19 +413,40 @@ impl App {
     /// Since transaction execution now happens in the proposal phase, results
     /// are cached in the app and returned here during the usual ABCI block execution process.
     ///
+    /// If the tx was not executed during the proposal phase it will be executed here.
+    ///
     /// Note that the first two "transactions" in the block, which are the proposer-generated
     /// commitments, are ignored.
-    #[instrument(name = "App::deliver_tx_after_execution", skip(self))]
-    pub(crate) fn deliver_tx_after_execution(
+    #[instrument(name = "App::deliver_tx_after_proposal", skip_all, fields(
+        tx_hash =  %telemetry::display::hex(&Sha256::digest(&tx.tx)),
+    ))]
+    pub(crate) async fn deliver_tx_after_proposal(
         &mut self,
-        tx_hash: &[u8; 32],
+        tx: abci::request::DeliverTx,
     ) -> Option<anyhow::Result<Vec<abci::Event>>> {
         if self.processed_txs < 2 {
             self.processed_txs += 1;
             return Some(Ok(vec![]));
         }
 
-        self.execution_result.remove(tx_hash)
+        // When the hash is not empty, we have already executed and cached the results
+        if !self.executed_proposal_hash.is_empty() {
+            let tx_hash: [u8; 32] = sha2::Sha256::digest(&tx.tx).into();
+            return self.execution_result.remove(&tx_hash);
+        }
+
+        let signed_tx = match signed_transaction_from_bytes(&tx.tx) {
+            Err(e) => {
+                debug!(
+                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                    "failed to decode deliver tx payload to signed transaction; ignoring it",
+                );
+                return None;
+            }
+            Ok(tx) => tx,
+        };
+
+        Some(self.deliver_tx(signed_tx).await)
     }
 
     /// Executes a signed transaction.
@@ -361,10 +463,13 @@ impl App {
     /// successfully.
     ///
     /// Note that `begin_block` is now called *after* transaction execution.
-    #[instrument(name = "App::deliver_tx", skip(self))]
+    #[instrument(name = "App::deliver_tx", skip_all, fields(
+        signed_transaction_hash = %telemetry::display::hex(&signed_tx.sha256_of_proto_encoding()),
+        sender = %Address::from_verification_key(signed_tx.verification_key()),
+    ))]
     pub(crate) async fn deliver_tx(
         &mut self,
-        signed_tx: proto::native::sequencer::v1alpha1::SignedTransaction,
+        signed_tx: astria_core::sequencer::v1alpha1::SignedTransaction,
     ) -> anyhow::Result<Vec<abci::Event>> {
         let signed_tx_2 = signed_tx.clone();
         let stateless =
@@ -392,23 +497,23 @@ impl App {
         transaction::execute(&signed_tx, &mut state_tx)
             .await
             .context("failed executing transaction")?;
-        state_tx.apply();
+        let (_, events) = state_tx.apply();
 
         // note: deliver_tx is now called (internally) before begin_block,
         // so increment the logged height by 1.
         let height = self.state.get_block_height().await.expect(
             "block height must be set, as `begin_block` is always called before `deliver_tx`",
         );
+
         info!(
-            ?signed_tx,
             height = height + 1,
-            sender = %Address::from_verification_key(signed_tx.verification_key()),
+            event_count = events.len(),
             "executed transaction"
         );
-        Ok(vec![])
+        Ok(events)
     }
 
-    #[instrument(name = "App::end_block", skip(self))]
+    #[instrument(name = "App::end_block", skip_all)]
     pub(crate) async fn end_block(
         &mut self,
         end_block: &abci::request::EndBlock,
@@ -446,8 +551,8 @@ impl App {
         })
     }
 
-    #[instrument(name = "App::commit", skip(self, storage))]
-    pub(crate) async fn commit(&mut self, storage: Storage) -> AppHash {
+    #[instrument(name = "App::commit", skip_all)]
+    pub(crate) async fn commit(&mut self, storage: Storage) -> RootHash {
         // We need to extract the State we've built up to commit it.  Fill in a dummy state.
         let dummy_state = StateDelta::new(storage.latest_snapshot());
 
@@ -468,13 +573,14 @@ impl App {
         );
 
         // Commit the pending writes, clearing the state.
-        let jmt_root = storage
+        let app_hash = storage
             .commit(state)
             .await
             .expect("must be able to successfully commit to storage");
-
-        let app_hash = AppHash::from(jmt_root);
-        tracing::debug!(?app_hash, "finished committing state");
+        tracing::debug!(
+            app_hash = %telemetry::display::hex(&app_hash),
+            "finished committing state",
+        );
 
         // Get the latest version of the state, now that we've committed it.
         self.state = Arc::new(StateDelta::new(storage.latest_snapshot()));
@@ -504,22 +610,34 @@ impl App {
     }
 }
 
+fn signed_transaction_from_bytes(bytes: &[u8]) -> anyhow::Result<SignedTransaction> {
+    let raw = raw::SignedTransaction::decode(bytes)
+        .context("failed to decode protobuf to signed transaction")?;
+    let tx = SignedTransaction::try_from_raw(raw)
+        .context("failed to transform raw signed transaction to verified type")?;
+
+    Ok(tx)
+}
+
 #[cfg(test)]
 mod test {
-    use ed25519_consensus::SigningKey;
     #[cfg(feature = "mint")]
-    use proto::native::sequencer::v1alpha1::MintAction;
-    use proto::native::sequencer::v1alpha1::{
+    use astria_core::sequencer::v1alpha1::transaction::action::MintAction;
+    use astria_core::sequencer::v1alpha1::{
         asset,
         asset::DEFAULT_NATIVE_ASSET_DENOM,
+        transaction::action::{
+            Action,
+            SequenceAction,
+            SudoAddressChangeAction,
+            TransferAction,
+        },
         Address,
         RollupId,
-        SequenceAction,
-        SudoAddressChangeAction,
-        TransferAction,
         UnsignedTransaction,
         ADDRESS_LEN,
     };
+    use ed25519_consensus::SigningKey;
     use tendermint::{
         abci::types::CommitInfo,
         account,
@@ -597,11 +715,11 @@ mod test {
         }
     }
 
-    async fn initialize_app(
+    async fn initialize_app_with_storage(
         genesis_state: Option<GenesisState>,
         genesis_validators: Vec<tendermint::validator::Update>,
-    ) -> App {
-        let storage = penumbra_storage::TempStorage::new()
+    ) -> (App, Storage) {
+        let storage = cnidarium::TempStorage::new()
             .await
             .expect("failed to create temp storage backing chain state");
         let snapshot = storage.latest_snapshot();
@@ -616,6 +734,16 @@ mod test {
         app.init_chain(genesis_state, genesis_validators)
             .await
             .unwrap();
+
+        (app, storage.clone())
+    }
+
+    async fn initialize_app(
+        genesis_state: Option<GenesisState>,
+        genesis_validators: Vec<tendermint::validator::Update>,
+    ) -> App {
+        let (app, _storage) = initialize_app_with_storage(genesis_state, genesis_validators).await;
+
         app
     }
 
@@ -658,7 +786,7 @@ mod test {
 
     #[tokio::test]
     async fn app_begin_block() {
-        let mut app = initialize_app(None, vec![]).await;
+        let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
         let mut begin_block = abci::request::BeginBlock {
             header: default_header(),
@@ -671,7 +799,7 @@ mod test {
         };
         begin_block.header.height = Height::try_from(1u8).unwrap();
 
-        app.begin_block(&begin_block).await.unwrap();
+        app.begin_block(&begin_block, storage).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 1);
         assert_eq!(
             app.state.get_block_timestamp().await.unwrap(),
@@ -700,7 +828,8 @@ mod test {
             },
         ];
 
-        let mut app = initialize_app(None, initial_validator_set.clone()).await;
+        let (mut app, storage) =
+            initialize_app_with_storage(None, initial_validator_set.clone()).await;
 
         let misbehavior = types::Misbehavior {
             kind: types::MisbehaviorKind::Unknown,
@@ -727,7 +856,7 @@ mod test {
         };
         begin_block.header.height = Height::try_from(1u8).unwrap();
 
-        app.begin_block(&begin_block).await.unwrap();
+        app.begin_block(&begin_block, storage).await.unwrap();
 
         // assert that validator with pubkey_a is removed
         let validator_set = app.state.get_validator_set().await.unwrap();
@@ -935,9 +1064,7 @@ mod test {
 
         let tx = UnsignedTransaction {
             nonce: 0,
-            actions: vec![proto::native::sequencer::v1alpha1::Action::ValidatorUpdate(
-                update.clone(),
-            )],
+            actions: vec![Action::ValidatorUpdate(update.clone())],
             fee_asset_id: get_native_asset().id(),
         };
 
@@ -965,13 +1092,9 @@ mod test {
 
         let tx = UnsignedTransaction {
             nonce: 0,
-            actions: vec![
-                proto::native::sequencer::v1alpha1::Action::SudoAddressChange(
-                    SudoAddressChangeAction {
-                        new_address,
-                    },
-                ),
-            ],
+            actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
+                new_address,
+            })],
             fee_asset_id: get_native_asset().id(),
         };
 
@@ -997,13 +1120,9 @@ mod test {
 
         let tx = UnsignedTransaction {
             nonce: 0,
-            actions: vec![
-                proto::native::sequencer::v1alpha1::Action::SudoAddressChange(
-                    SudoAddressChangeAction {
-                        new_address: alice_address,
-                    },
-                ),
-            ],
+            actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
+                new_address: alice_address,
+            })],
             fee_asset_id: get_native_asset().id(),
         };
 
@@ -1168,18 +1287,13 @@ mod test {
 
     #[tokio::test]
     async fn app_commit() {
-        let storage = penumbra_storage::TempStorage::new()
-            .await
-            .expect("failed to create temp storage backing chain state");
-        let snapshot = storage.latest_snapshot();
-        let mut app = App::new(snapshot);
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
             authority_sudo_key: Address::from([0; 20]),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
 
-        app.init_chain(genesis_state, vec![]).await.unwrap();
+        let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
         assert_eq!(app.state.get_block_height().await.unwrap(), 0);
 
         let native_asset = get_native_asset().id();

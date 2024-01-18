@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
+use astria_core::sequencer::v1alpha1::transaction::{
+    action::SequenceAction,
+    Action,
+};
 use color_eyre::eyre::{
     self,
     WrapErr as _,
-};
-use proto::native::sequencer::v1alpha1::{
-    Action,
-    SequenceAction,
 };
 use tokio::{
     select,
@@ -171,8 +171,7 @@ impl Searcher {
         // send bundle to executor
         if let Err(e) = self.bundle_tx.send(bundle).await {
             error!(
-                error.message = %e,
-                error.cause_chain = ?e,
+                error = &e as &dyn std::error::Error,
                 "failed to send bundle to executor",
             );
         }
@@ -209,9 +208,8 @@ impl Searcher {
                     match join_result {
                         Ok(bundle) => self.handle_bundle_execution(bundle).await,
                         Err(e) => warn!(
-                            error.message = %e,
-                            error.cause_chain = ?e,
-                            "conversion task failed while trying to convert pending rollup transaction to signed sequencer transaction",
+                            error = &e as &dyn std::error::Error,
+                            "task failed to convert pending rollup transaction to signed sequencer transaction",
                         ),
                     }
                 }
@@ -227,15 +225,13 @@ impl Searcher {
                         }
                         Ok(Err(e)) => {
                             error!(
-                                error.message = %e,
-                                error.cause_chain = ?e,
+                                error = AsRef::<dyn std::error::Error>::as_ref(&e),
                                 "executor returned with error",
                             );
                         }
                         Err(e) => {
                             error!(
-                                error.message = %e,
-                                error.cause_chain = ?e,
+                                error = &e as &dyn std::error::Error,
                                 "executor task panicked",
                             );
                         }
@@ -367,8 +363,8 @@ fn reconnect_exited_collector(
 mod tests {
     use std::collections::HashMap;
 
+    use astria_core::sequencer::v1alpha1::RollupId;
     use ethers::types::Transaction;
-    use proto::native::sequencer::v1alpha1::RollupId;
     use tokio_util::task::JoinMap;
 
     use crate::searcher::collector::{

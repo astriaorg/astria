@@ -2,8 +2,12 @@ use anyhow::{
     bail,
     Context,
 };
-use penumbra_storage::Storage;
-use sequencer_types::abci_code::AbciCode;
+use astria_core::sequencer::v1alpha1::AbciErrorCode;
+use cnidarium::Storage;
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 use tendermint::v0_37::abci::{
     request,
     response,
@@ -55,7 +59,11 @@ impl Consensus {
             // for some reason -- but that's not our problem.
             let rsp = self.handle_request(req).instrument(span.clone()).await;
             if let Err(e) = rsp.as_ref() {
-                warn!(parent: &span, error = ?e, "failed processing concensus request; returning error back to sender");
+                warn!(
+                    parent: &span,
+                    error = e,
+                    "failed processing concensus request; returning error back to sender",
+                );
             }
             // `send` returns the sent message if sending fail, so we are dropping it.
             if rsp_sender.send(rsp).is_err() {
@@ -68,7 +76,7 @@ impl Consensus {
         Ok(())
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn handle_request(
         &mut self,
         req: ConsensusRequest,
@@ -89,7 +97,10 @@ impl Consensus {
                     match self.handle_process_proposal(process_proposal).await {
                         Ok(()) => response::ProcessProposal::Accept,
                         Err(e) => {
-                            warn!(error = ?e, "rejecting proposal");
+                            warn!(
+                                error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                                "rejecting proposal"
+                            );
                             response::ProcessProposal::Reject
                         }
                     },
@@ -114,7 +125,11 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(
+        chain_id = init_chain.chain_id,
+        time = %init_chain.time,
+        init_height = %init_chain.initial_height
+    ))]
     async fn init_chain(
         &mut self,
         init_chain: request::InitChain,
@@ -144,30 +159,50 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(
+        height = %prepare_proposal.height,
+        tx_count = prepare_proposal.txs.len(),
+        time = %prepare_proposal.time
+    ))]
     async fn handle_prepare_proposal(
         &mut self,
         prepare_proposal: request::PrepareProposal,
     ) -> response::PrepareProposal {
-        self.app.prepare_proposal(prepare_proposal).await
+        self.app
+            .prepare_proposal(prepare_proposal, self.storage.clone())
+            .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(
+        height = %process_proposal.height,
+        time = %process_proposal.time,
+        tx_count = process_proposal.txs.len(),
+        proposer = %process_proposal.proposer_address,
+        hash = %telemetry::display::hex(&process_proposal.hash),
+        next_validators_hash = %telemetry::display::hex(&process_proposal.next_validators_hash),
+    ))]
     async fn handle_process_proposal(
         &mut self,
         process_proposal: request::ProcessProposal,
     ) -> anyhow::Result<()> {
-        self.app.process_proposal(process_proposal).await
+        self.app
+            .process_proposal(process_proposal, self.storage.clone())
+            .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(
+        hash = %begin_block.hash,
+        height = %begin_block.header.height,
+        time = %begin_block.header.time,
+        proposer = %begin_block.header.proposer_address
+    ))]
     async fn begin_block(
         &mut self,
         begin_block: request::BeginBlock,
     ) -> anyhow::Result<response::BeginBlock> {
         let events = self
             .app
-            .begin_block(&begin_block)
+            .begin_block(&begin_block, self.storage.clone())
             .await
             .context("failed to call App::begin_block")?;
         Ok(response::BeginBlock {
@@ -175,29 +210,32 @@ impl Consensus {
         })
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(
+        tx_hash = %telemetry::display::hex(&Sha256::digest(&deliver_tx.tx))
+    ))]
     async fn deliver_tx(&mut self, deliver_tx: request::DeliverTx) -> response::DeliverTx {
-        use sha2::Digest as _;
-
         use crate::transaction::InvalidNonce;
 
-        let tx_hash: [u8; 32] = sha2::Sha256::digest(&deliver_tx.tx).into();
         match self
             .app
-            .deliver_tx_after_execution(&tx_hash)
-            .expect("all transactions in the block must have already been executed")
+            .deliver_tx_after_proposal(deliver_tx)
+            .await
+            .expect("transactions must be executable or previously executed during proposal phases")
         {
-            Ok(_events) => response::DeliverTx::default(),
+            Ok(events) => response::DeliverTx {
+                events,
+                ..Default::default()
+            },
             Err(e) => {
-                // we don't want to panic on failing to deliver_tx as that would crash the entire
-                // node
-                let code = if let Some(_e) = e.downcast_ref::<InvalidNonce>() {
-                    tracing::warn!("{}", e);
-                    AbciCode::INVALID_NONCE
+                let code = if e.downcast_ref::<InvalidNonce>().is_some() {
+                    AbciErrorCode::INVALID_NONCE
                 } else {
-                    tracing::warn!(error = ?e, "deliver_tx failed");
-                    AbciCode::INTERNAL_ERROR
+                    AbciErrorCode::INTERNAL_ERROR
                 };
+                tracing::warn!(
+                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                    "failed serving deliver tx request"
+                );
                 response::DeliverTx {
                     code: code.into(),
                     info: code.to_string(),
@@ -208,7 +246,7 @@ impl Consensus {
         }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(height = %end_block.height))]
     async fn end_block(
         &mut self,
         end_block: request::EndBlock,
@@ -216,7 +254,7 @@ impl Consensus {
         self.app.end_block(&end_block).await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn commit(&mut self) -> anyhow::Result<response::Commit> {
         let app_hash = self.app.commit(self.storage.clone()).await;
         Ok(response::Commit {
@@ -230,21 +268,19 @@ impl Consensus {
 mod test {
     use std::str::FromStr;
 
+    use astria_core::sequencer::v1alpha1::{
+        asset::DEFAULT_NATIVE_ASSET_DENOM,
+        transaction::action::SequenceAction,
+        Address,
+        RollupId,
+        UnsignedTransaction,
+    };
     use bytes::Bytes;
     use ed25519_consensus::{
         SigningKey,
         VerificationKey,
     };
-    use proto::{
-        native::sequencer::v1alpha1::{
-            asset::DEFAULT_NATIVE_ASSET_DENOM,
-            Address,
-            RollupId,
-            SequenceAction,
-            UnsignedTransaction,
-        },
-        Message as _,
-    };
+    use prost::Message as _;
     use rand::rngs::OsRng;
     use tendermint::{
         account::Id,
@@ -482,10 +518,11 @@ mod test {
             ..Default::default()
         };
 
-        let storage = penumbra_storage::TempStorage::new().await.unwrap();
+        let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
         app.init_chain(genesis_state, vec![]).await.unwrap();
+        app.commit(storage.clone()).await;
 
         let (_tx, rx) = mpsc::channel(1);
         Consensus::new(storage.clone(), app, rx)

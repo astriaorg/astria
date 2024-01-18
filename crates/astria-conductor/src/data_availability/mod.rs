@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use astria_core::sequencer::v1alpha1::RollupId;
 use celestia_client::{
     celestia_types::{
         nmt::Namespace,
@@ -14,7 +15,6 @@ use color_eyre::eyre::{
     bail,
     WrapErr as _,
 };
-use proto::native::sequencer::v1alpha1::RollupId;
 use sequencer_client::SequencerBlock;
 use tendermint::{
     block::Header,
@@ -383,12 +383,16 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
         match verification_result {
             Err(e) => {
                 let error = &e as &(dyn std::error::Error + 'static);
-                warn!(block_hash = %DisplayBlockHash(block_hash), error, "task verifying sequencer data retrieved from celestia failed; dropping block");
+                warn!(
+                    block_hash = %telemetry::display::hex(&block_hash),
+                    error,
+                    "task verifying sequencer data retrieved from celestia failed; dropping block",
+                );
             }
             Ok(Err(e)) => {
                 let error: &(dyn std::error::Error + 'static) = e.as_ref();
                 warn!(
-                    block_hash = %DisplayBlockHash(block_hash),
+                    block_hash = %telemetry::display::hex(&block_hash),
                     error,
                     "task verifying sequencer data retrieved from celestia returned with an \
                      error; dropping block"
@@ -425,8 +429,8 @@ async fn verify_sequencer_blobs_and_assemble_rollups(
 #[instrument(
     skip_all,
     fields(
-        height,
-        block_hash = %DisplayBlockHash(blob.block_hash()),
+        celestia_height = %height,
+        block_hash = %telemetry::display::hex(&blob.block_hash()),
     )
 )]
 async fn fetch_rollup_blob_and_forward_to_assembly(
@@ -493,7 +497,7 @@ fn verify_all_blobs(
         let blob_hash = blob.block_hash();
         if verification_tasks.contains_key(&blob_hash) {
             warn!(
-                block_hash = %DisplayBlockHash(blob_hash),
+                block_hash = %telemetry::display::hex(&blob_hash),
                 "more than one sequencer data with the same block hash retrieved from celestia; \
                  only keeping the first"
             );
@@ -513,15 +517,4 @@ fn verify_all_blobs(
         }
     }
     verification_tasks
-}
-
-struct DisplayBlockHash([u8; 32]);
-
-impl std::fmt::Display for DisplayBlockHash {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for byte in self.0 {
-            f.write_fmt(format_args!("{byte:02x}"))?;
-        }
-        Ok(())
-    }
 }

@@ -1,15 +1,14 @@
 [package]
 name = "astria-sequencer"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 rust-version = "1.73.0"
 
 [dependencies]
+"astria-core" = { path = "../astria-core" }
 config = { package = "astria-config", path = "../astria-config" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
-proto = { package = "astria-proto", path = "../astria-proto" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
-sequencer_types = { package = "astria-sequencer-types", path = "../astria-sequencer-types" }
 
 anyhow = "1"
 borsh = "0.10.3"
@@ -17,6 +16,8 @@ matchit = "0.7.2"
 tower = "0.4"
 tower-abci = "0.11.0"
 tower-actor = "0.1.0"
+cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.64.1" }
+cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.64.1" }
 
 async-trait = { workspace = true }
 bytes = { workspace = true }
@@ -24,10 +25,8 @@ ed25519-consensus = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 ibc-types = { workspace = true, features = ["with_serde"] }
-penumbra-component = { workspace = true }
-penumbra-ibc = { workspace = true, features = ["component"] }
+penumbra-ibc = { workspace = true, features = ["component", "rpc"] }
 penumbra-proto = { workspace = true }
-penumbra-storage = { workspace = true }
 penumbra-tower-trace = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
@@ -38,6 +37,10 @@ tendermint-proto = { workspace = true }
 tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
 tracing = { workspace = true }
+
+ibc-proto = { version = "0.39.0", features = ["server"] }
+tonic = "0.10"
+tower-http = { version = "0.4", features = ["cors"] }
 
 [dev-dependencies]
 config = { package = "astria-config", path = "../astria-config", features = [
