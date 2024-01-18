@@ -12,7 +12,7 @@ use sequencer_client::tendermint::block::Height;
 fn map_rollup_height_to_sequencer_height(
     first_sequencer_height: u32,
     current_rollup_height: u32,
-) -> u32 {
+) -> Height {
     first_sequencer_height
         .checked_add(current_rollup_height)
         .expect(
@@ -21,6 +21,7 @@ fn map_rollup_height_to_sequencer_height(
              rollup/sequencer have been running for several decades without cometbft ever \
              receiving an update to uin64 heights",
         )
+        .into()
 }
 
 pub(super) struct TrackCommitmentState {
@@ -70,7 +71,6 @@ impl TrackCommitmentState {
             self.sequencer_height_with_first_rollup_block,
             self.state.firm().number(),
         )
-        .into()
     }
 
     pub(super) fn next_soft_sequencer_height(&self) -> Height {
@@ -78,7 +78,6 @@ impl TrackCommitmentState {
             self.sequencer_height_with_first_rollup_block,
             self.state.soft().number(),
         )
-        .into()
     }
 }
 
@@ -125,10 +124,7 @@ mod tests {
         let commitment_state = make_commitment_state();
         let mut tracker = TrackCommitmentState::with_state(commitment_state);
         tracker.set_sequencer_height_with_first_rollup_block(10);
-        assert_eq!(
-            Height::from(1u32 + 10),
-            tracker.next_soft_sequencer_height(),
-        );
+        assert_eq!(Height::from(11u32), tracker.next_firm_sequencer_height(),);
     }
 
     #[test]
@@ -136,15 +132,15 @@ mod tests {
         let commitment_state = make_commitment_state();
         let mut tracker = TrackCommitmentState::with_state(commitment_state);
         tracker.set_sequencer_height_with_first_rollup_block(10);
-        assert_eq!(
-            Height::from(2u32 + 10),
-            tracker.next_soft_sequencer_height(),
-        );
+        assert_eq!(Height::from(12u32), tracker.next_soft_sequencer_height(),);
     }
 
     #[track_caller]
     fn assert_height_is_correct(left: u32, right: u32, expected: u32) {
-        assert_eq!(expected, map_rollup_height_to_sequencer_height(left, right),);
+        assert_eq!(
+            Height::from(expected),
+            map_rollup_height_to_sequencer_height(left, right),
+        );
     }
 
     #[test]

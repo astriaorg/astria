@@ -29,9 +29,9 @@ pub(crate) struct BlockCache<T> {
 impl<T> BlockCache<T> {
     /// Creates a new block cache.
     ///
-    /// The first block it will serve is at height 0.
+    /// The default first block is at height 1.
     pub(crate) fn new() -> Self {
-        Self::with_next_height(Height::from(0u32))
+        Self::with_next_height(Height::default())
     }
 
     /// Creates a new block cache that starts at `next_height`.
@@ -161,12 +161,12 @@ mod tests {
     #[test]
     fn blocks_are_returned_in_order() {
         let mut cache = make_cache();
-        cache.insert(0u32.into()).unwrap();
         cache.insert(1u32.into()).unwrap();
         cache.insert(2u32.into()).unwrap();
-        assert_eq!(0, cache.pop().unwrap().height.value());
+        cache.insert(3u32.into()).unwrap();
         assert_eq!(1, cache.pop().unwrap().height.value());
         assert_eq!(2, cache.pop().unwrap().height.value());
+        assert_eq!(3, cache.pop().unwrap().height.value());
         assert!(cache.pop().is_none());
     }
 
@@ -180,41 +180,41 @@ mod tests {
     #[test]
     fn old_blocks_are_rejected() {
         let mut cache = make_cache();
-        cache.insert(0u32.into()).unwrap();
         cache.insert(1u32.into()).unwrap();
+        cache.insert(2u32.into()).unwrap();
         cache.pop().unwrap();
         cache.pop().unwrap();
-        assert!(cache.insert(1u32.into()).is_err());
+        assert!(cache.insert(2u32.into()).is_err());
     }
 
     #[test]
     fn hole_leads_to_no_block() {
         let mut cache = make_cache();
-        cache.insert(0u32.into()).unwrap();
-        cache.insert(2u32.into()).unwrap();
-        assert_eq!(0, cache.pop().unwrap().height.value());
-        assert!(cache.pop().is_none());
         cache.insert(1u32.into()).unwrap();
+        cache.insert(3u32.into()).unwrap();
         assert_eq!(1, cache.pop().unwrap().height.value());
+        assert!(cache.pop().is_none());
+        cache.insert(2u32.into()).unwrap();
         assert_eq!(2, cache.pop().unwrap().height.value());
+        assert_eq!(3, cache.pop().unwrap().height.value());
         assert!(cache.pop().is_none());
     }
 
     #[tokio::test]
     async fn awaited_next_block_pops_block() {
         let mut cache = make_cache();
-        cache.insert(0u32.into()).unwrap();
-        assert_eq!(0, cache.next_block().await.unwrap().height.value());
+        cache.insert(1u32.into()).unwrap();
+        assert_eq!(1, cache.next_block().await.unwrap().height.value());
         assert!(cache.pop().is_none());
     }
 
     #[test]
     fn dropped_next_block_leaves_cache_unchanged() {
         let mut cache = make_cache();
-        cache.insert(0u32.into()).unwrap();
+        cache.insert(1u32.into()).unwrap();
         {
             let _fut = cache.next_block();
         }
-        assert_eq!(0, cache.pop().unwrap().height.value());
+        assert_eq!(1, cache.pop().unwrap().height.value());
     }
 }

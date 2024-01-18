@@ -76,7 +76,9 @@ impl Executor {
 
     /// Returns the next sequencer height expected by the executor.
     pub(super) fn next_soft_sequencer_height(&self) -> Height {
-        self.commitment_state.next_soft_sequencer_height()
+        self.commitment_state
+            .next_soft_sequencer_height()
+            .increment()
     }
 
     pub(super) fn celestia_channel(&self) -> mpsc::UnboundedSender<ReconstructedBlock> {
@@ -178,7 +180,9 @@ impl Executor {
         let executable_block = ExecutableBlock::from_reconstructed(block);
         ensure!(
             executable_block.height == self.commitment_state.next_firm_sequencer_height(),
-            "block was not at the expected height",
+            "expected block at sequencer height {}, but got {}",
+            self.commitment_state.next_firm_sequencer_height(),
+            executable_block.height,
         );
 
         match self

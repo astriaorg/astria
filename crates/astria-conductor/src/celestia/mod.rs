@@ -131,7 +131,8 @@ impl Reader {
             None => bail!("celestia header subscription was terminated unexpectedly"),
         };
 
-        let mut cached_blocks = BlockCache::new();
+        // XXX: This block cache always starts at height 1, the default value for `Height`.
+        let mut sequential_blocks = BlockCache::new();
 
         let mut reconstructed_blocks = ReconstructedBlockStream::new(
             self.celestia_start_height,
@@ -155,7 +156,7 @@ impl Reader {
                     break;
                 }
 
-                Some(block) = cached_blocks.next_block() => {
+                Some(block) = sequential_blocks.next_block() => {
                     if let Err(e) = self.executor_channel.send(block) {
                         error!(
                             error = &e as &dyn std::error::Error,
@@ -181,7 +182,7 @@ impl Reader {
                 }
 
                 Some(block) = reconstructed_blocks.next() => {
-                    if let Err(e) = cached_blocks.insert(block) {
+                    if let Err(e) = sequential_blocks.insert(block) {
                         warn!(
                             error = &e as &dyn std::error::Error,
                             "failed pushing block into cache; dropping",

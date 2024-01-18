@@ -1,6 +1,9 @@
 use std::{
     net::SocketAddr,
-    sync::Arc,
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 use ::optimism::test_utils::deploy_mock_optimism_portal;
@@ -26,7 +29,6 @@ use ethers::{
     utils::AnvilInstance,
 };
 use k256::ecdsa::SigningKey;
-use sha2::Digest as _;
 use tokio::{
     sync::oneshot,
     task::JoinHandle,
@@ -34,6 +36,8 @@ use tokio::{
 use tonic::transport::Server;
 
 use super::*;
+
+const GENESIS_HASH: [u8; 32] = [0u8; 32];
 
 #[derive(Debug)]
 struct MockExecutionServer {
@@ -50,7 +54,7 @@ impl MockExecutionServer {
 
         let server_handle = tokio::spawn(async move {
             let _ = Server::builder()
-                .add_service(ExecutionServiceServer::new(ExecutionServiceImpl))
+                .add_service(ExecutionServiceServer::new(ExecutionServiceImpl::new()))
                 .serve_with_incoming(TcpListenerStream::new(listener))
                 .await;
         });
@@ -65,16 +69,35 @@ impl MockExecutionServer {
     }
 }
 
-fn new_basic_block() -> Block {
+fn make_genesis_block() -> Block {
     Block {
         number: 0,
-        hash: vec![42u8; 32],
-        parent_block_hash: vec![42u8; 32],
+        hash: GENESIS_HASH.to_vec(),
+        parent_block_hash: GENESIS_HASH.to_vec(),
         timestamp: Some(std::time::SystemTime::now().into()),
     }
 }
 
-struct ExecutionServiceImpl;
+struct ExecutionServiceImpl {
+    hash_to_number: Mutex<HashMap<[u8; 32], u32>>,
+    commitment_state: Mutex<CommitmentState>,
+}
+
+impl ExecutionServiceImpl {
+    fn new() -> Self {
+        let mut hash_to_number = HashMap::new();
+        // insert a genesis number/block here
+        hash_to_number.insert(GENESIS_HASH, 0);
+        Self {
+            hash_to_number: hash_to_number.into(),
+            commitment_state: CommitmentState {
+                soft: Some(make_genesis_block()),
+                firm: Some(make_genesis_block()),
+            }
+            .into(),
+        }
+    }
+}
 
 #[tonic::async_trait]
 impl ExecutionService for ExecutionServiceImpl {
@@ -96,14 +119,21 @@ impl ExecutionService for ExecutionServiceImpl {
         &self,
         request: tonic::Request<ExecuteBlockRequest>,
     ) -> std::result::Result<tonic::Response<Block>, tonic::Status> {
-        let loc_request = request.into_inner();
-        let parent_block_hash = loc_request.prev_block_hash.clone();
-        let hash = get_expected_execution_hash(&parent_block_hash, &loc_request.transactions);
-        let timestamp = loc_request.timestamp.unwrap_or_default();
+        let request = request.into_inner();
+        let parent_block_hash: [u8; 32] = request.prev_block_hash.try_into().unwrap();
+        let hash = get_expected_execution_hash(&parent_block_hash, &request.transactions);
+        let new_number = {
+            let mut guard = self.hash_to_number.lock().unwrap();
+            let new_number = guard.get(&parent_block_hash).unwrap() + 1;
+            guard.insert(hash, new_number);
+            new_number
+        };
+
+        let timestamp = request.timestamp.unwrap_or_default();
         Ok(tonic::Response::new(Block {
-            number: 0, // we don't do anything with the number in the mock, can always be 0
-            hash,
-            parent_block_hash,
+            number: new_number,
+            hash: hash.to_vec(),
+            parent_block_hash: parent_block_hash.to_vec(),
             timestamp: Some(timestamp),
         }))
     }
@@ -112,36 +142,42 @@ impl ExecutionService for ExecutionServiceImpl {
         &self,
         _request: tonic::Request<GetCommitmentStateRequest>,
     ) -> std::result::Result<tonic::Response<CommitmentState>, tonic::Status> {
-        Ok(tonic::Response::new(CommitmentState {
-            soft: Some(new_basic_block()),
-            firm: Some(new_basic_block()),
-        }))
+        Ok(tonic::Response::new(
+            self.commitment_state.lock().unwrap().clone(),
+        ))
     }
 
     async fn update_commitment_state(
         &self,
         request: tonic::Request<UpdateCommitmentStateRequest>,
     ) -> std::result::Result<tonic::Response<CommitmentState>, tonic::Status> {
-        Ok(tonic::Response::new(
-            request.into_inner().commitment_state.unwrap(),
-        ))
+        let new_state = {
+            let mut guard = self.commitment_state.lock().unwrap();
+            *guard = request.into_inner().commitment_state.unwrap();
+            guard.clone()
+        };
+        Ok(tonic::Response::new(new_state))
     }
 }
 
-fn get_expected_execution_hash(parent_block_hash: &[u8], transactions: &[Vec<u8>]) -> Vec<u8> {
+fn get_expected_execution_hash(parent_block_hash: &[u8], transactions: &[Vec<u8>]) -> [u8; 32] {
     hash(&[parent_block_hash, &transactions.concat()].concat())
 }
 
-fn hash(s: &[u8]) -> Vec<u8> {
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(s);
-    hasher.finalize().to_vec()
+fn hash(s: &[u8]) -> [u8; 32] {
+    use sha2::{
+        Digest as _,
+        Sha256,
+    };
+    Sha256::digest(s).into()
 }
 
-fn get_test_block_subset() -> ReconstructedBlock {
+fn make_reconstructed_block() -> ReconstructedBlock {
+    let mut block = make_cometbft_block();
+    block.header.height = Height::from(100u32);
     ReconstructedBlock {
-        block_hash: hash(b"block1").try_into().unwrap(),
-        header: make_cometbft_block().header,
+        block_hash: hash(b"block1"),
+        header: block.header,
         transactions: vec![],
     }
 }
@@ -161,7 +197,7 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
     let executor = Executor::builder()
         .rollup_address(&server_url)
         .rollup_id(RollupId::from_unhashed_bytes(b"test"))
-        .sequencer_height_with_first_rollup_block(1)
+        .sequencer_height_with_first_rollup_block(100)
         .shutdown(shutdown_rx)
         .set_optimism_hook(pre_execution_hook)
         .build()
@@ -201,110 +237,87 @@ async fn start_mock_with_optimism_handler() -> MockEnvironmentWithEthereum {
 }
 
 #[tokio::test]
-async fn execute_sequencer_block_without_txs() {
+async fn firm_blocks_at_expected_heights_are_executed() {
     let mut mock = start_mock(None).await;
 
-    // using soft hash here as sequencer blocks are executed on top of the soft commitment
-    let expected_exection_hash =
-        get_expected_execution_hash(&mock.executor.commitment_state.soft().hash(), &[]);
-    let block = get_test_block_subset();
-
-    let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash();
-    assert_eq!(expected_exection_hash, execution_block_hash);
-}
-
-#[tokio::test]
-async fn execute_sequencer_block_with_txs() {
-    let mut mock = start_mock(None).await;
-
-    let mut block = get_test_block_subset();
+    let mut block = make_reconstructed_block();
     block.transactions.push(b"test_transaction".to_vec());
 
-    let expected_exection_hash = get_expected_execution_hash(
-        &mock.executor.commitment_state.soft().hash(),
-        &block.transactions,
-    );
-    let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash();
-    assert_eq!(expected_exection_hash, execution_block_hash);
-}
-
-#[tokio::test]
-async fn execute_unexecuted_da_block_with_transactions() {
-    let mut mock = start_mock(None).await;
-
-    let mut block = get_test_block_subset();
-    block.transactions.push(b"test_transaction".to_vec());
-
-    // using firm hash here as da blocks are executed on top of the firm commitment
     let expected_exection_hash = get_expected_execution_hash(
         &mock.executor.commitment_state.firm().hash(),
         &block.transactions,
     );
 
-    mock.executor.execute_firm_block(block).await.unwrap();
-
+    mock.executor.execute_firm(block).await.unwrap();
     assert_eq!(
         expected_exection_hash,
         mock.executor.commitment_state.firm().hash(),
     );
-    // should be empty because 1 block was executed and finalized, which
-    // deletes it from the map
-    assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
-}
 
-#[tokio::test]
-async fn execute_unexecuted_da_block_with_no_transactions() {
-    let mut mock: MockEnvironment = start_mock(None).await;
-    let block = get_test_block_subset();
-    // using firm hash here as da blocks are executed on top of the firm commitment
-    let expected_execution_state = hash(&mock.executor.commitment_state.firm().hash());
+    let mut block = make_reconstructed_block();
+    block.header.height = block.header.height.increment();
+    block.transactions.push(b"a new transaction".to_vec());
+    let expected_exection_hash = get_expected_execution_hash(
+        &mock.executor.commitment_state.firm().hash(),
+        &block.transactions,
+    );
 
-    mock.executor.execute_firm_block(block).await.unwrap();
-
+    mock.executor.execute_firm(block).await.unwrap();
     assert_eq!(
-        expected_execution_state,
+        expected_exection_hash,
         mock.executor.commitment_state.firm().hash(),
     );
-    // should be empty because block was executed and finalized, which
-    // deletes it from the map
-    assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
 }
 
 #[tokio::test]
-async fn try_execute_out_of_order_block_from_sequencer() {
+async fn soft_blocks_at_expected_heights_are_executed() {
     let mut mock = start_mock(None).await;
-    let mut block = get_test_block_subset();
 
-    // 0 is always the genesis block, so this should fail
-    block.header.height = 0_u32.into();
-    let execution_result = mock.executor.execute_block(block.clone()).await;
-    assert!(execution_result.is_err());
+    let mut block = make_cometbft_block();
+    block.header.height = Height::from(100u32);
+    let block = SequencerBlock::try_from_cometbft(block).unwrap();
+    assert!(mock.executor.execute_soft(block).await.is_ok());
 
-    // the first block to execute should always be 1, this should fail as it is
-    // in the future
-    block.header.height = 2_u32.into();
-    let execution_result = mock.executor.execute_block(block).await;
-    assert!(execution_result.is_err());
+    let mut block = make_cometbft_block();
+    block.header.height = Height::from(101u32);
+    let block = SequencerBlock::try_from_cometbft(block).unwrap();
+    assert!(mock.executor.execute_soft(block).await.is_ok());
 }
 
 #[tokio::test]
-async fn try_execute_out_of_order_block_from_celestia() {
+async fn out_of_order_soft_blocks_are_rejected() {
     let mut mock = start_mock(None).await;
-    let mut block = get_test_block_subset();
+    let mut block = make_cometbft_block();
+    block.header.height = Height::from(99u32);
+    let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
+    assert!(mock.executor.execute_soft(sequencer_block).await.is_err());
 
-    // We skip blocks which have already been finalized, so even genesis should succeed
-    block.header.height = 0_u32.into();
-    let execution_result = mock.executor.execute_firm_block(block.clone()).await;
-    assert!(execution_result.is_ok());
+    let mut block = make_cometbft_block();
+    block.header.height = Height::from(101u32);
+    let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
+    assert!(mock.executor.execute_soft(sequencer_block).await.is_err());
 
-    // the first block to execute should always be 1, this should fail as it is
-    // in the future
-    block.header.height = 2_u32.into();
-    let execution_result = mock.executor.execute_firm_block(block).await;
-    assert!(execution_result.is_err());
+    let mut block = make_cometbft_block();
+    block.header.height = Height::from(100u32);
+    let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
+    assert!(mock.executor.execute_soft(sequencer_block).await.is_ok());
 }
 
-#[cfg(test)]
+#[tokio::test]
+async fn out_of_order_firm_blocks_are_rejected() {
+    let mut mock = start_mock(None).await;
+    let mut block = make_reconstructed_block();
+
+    block.header.height = Height::from(99u32);
+    assert!(mock.executor.execute_firm(block.clone()).await.is_err());
+
+    block.header.height = Height::from(101u32);
+    assert!(mock.executor.execute_firm(block.clone()).await.is_err());
+
+    block.header.height = Height::from(100u32);
+    assert!(mock.executor.execute_firm(block.clone()).await.is_ok());
+}
+
 mod optimism_tests {
     use super::*;
 
@@ -348,9 +361,11 @@ mod optimism_tests {
             &mock.executor.commitment_state.soft().hash(),
             &deposit_txs,
         );
-        let block = get_test_block_subset();
-
-        let execution_block_hash = mock.executor.execute_block(block).await.unwrap().hash();
-        assert_eq!(expected_exection_hash, execution_block_hash);
+        let block = make_reconstructed_block();
+        mock.executor.execute_firm(block).await.unwrap();
+        assert_eq!(
+            expected_exection_hash,
+            mock.executor.commitment_state.firm().hash(),
+        );
     }
 }
