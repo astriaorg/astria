@@ -114,39 +114,52 @@ impl Executor {
 
                 shutdown = &mut self.shutdown => {
                     let ret = if let Err(e) = shutdown {
-                        let message = "shutdown channel closed unexpectedly";
-                        error!(error = &e as &dyn std::error::Error, "{message}, shutting down");
-                        Err(e).wrap_err(message)
+                        let reason = "shutdown channel closed unexpectedly";
+                        error!(error = &e as &dyn std::error::Error, reason, "shutting down");
+                        Err(e).wrap_err(reason)
                     } else {
-                        info!("received_shutdown_signal, shutting down");
+                        info!(reason = "received shutdown signal", "shutting down");
                         Ok(())
                     };
                     break ret;
                 }
 
                 Some(block) = self.celestia_rx.recv() => {
+                    debug!(
+                        block.height = %block.height(),
+                        block.hash = %telemetry::display::hex(&block.block_hash),
+                        "received block from celestia reader",
+                    );
                     if let Err(e) = self.execute_firm_block(block).await {
-                        let message = "failed finalizing celestia blocks";
+                        let reason = "failed executing firm block";
                         error!(
                             error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                            "{message}, shutting down",
+                            reason,
+                            "shutting down",
                         );
-                        break Err(e).wrap_err(message);
+                        break Err(e).wrap_err(reason);
                     }
                 }
 
                 Some(block) = self.sequencer_rx.recv() => {
+                    debug!(
+                        block.height = %block.height(),
+                        block.hash = %telemetry::display::hex(&block.block_hash()),
+                        "received block from sequencer reader",
+                    );
                     if let Err(e) = self.execute_soft_block(block).await {
-                        let message = "failed executing block from sequencer";
+                        let reason = "failed executing soft block";
                         error!(
                             error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                            "{message}, shutting down",
+                            reason,
+                            "shutting down",
                         );
-                        break Err(e).wrap_err(message);
+                        break Err(e).wrap_err(reason);
                     }
                 }
             );
         }
+        // XXX: shut down the channels here and attempt to drain them before returning.
     }
 
     async fn execute_soft_block(&mut self, block: Box<SequencerBlock>) -> eyre::Result<()> {
