@@ -314,6 +314,12 @@ impl SequencerBlock {
         &self.rollup_transactions
     }
 
+    /// Returns the map of rollup transactions, consuming `self`.
+    #[must_use]
+    pub fn into_rollup_transactions(self) -> IndexMap<RollupId, Vec<Vec<u8>>> {
+        self.rollup_transactions
+    }
+
     #[must_use]
     pub fn into_raw(self) -> raw::SequencerBlock {
         fn tuple_to_rollup_txs(

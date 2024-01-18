@@ -85,7 +85,7 @@ impl Conductor {
         let rollup_id = RollupId::from_unhashed_bytes(&cfg.chain_id);
 
         // Spawn the executor task.
-        let (executor, sync_start_block_height) = {
+        let executor = {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
             let hook = make_optimism_hook(&cfg)
@@ -101,12 +101,9 @@ impl Conductor {
                 .build()
                 .await
                 .wrap_err("failed to construct executor")?;
-            let executable_sequencer_block_height = executor
-                .calculate_executable_block_height()
-                .wrap_err("failed calculating the next executable block height")?;
 
             shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
-            (executor, executable_sequencer_block_height)
+            executor
         };
 
         let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
@@ -119,7 +116,7 @@ impl Conductor {
             // sequencer block that can be executed on top of the rollup state.
             // This value is derived by the Executor.
             let sequencer_reader = sequencer::Reader::new(
-                sync_start_block_height,
+                executor.next_soft_sequencer_height(),
                 sequencer_client_pool.clone(),
                 shutdown_rx,
                 executor.sequencer_channel(),
