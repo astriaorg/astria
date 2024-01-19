@@ -34,7 +34,7 @@ pub(crate) trait StateReadExt: StateRead {
 
     #[instrument(skip(self))]
     async fn get_revision_number(&self) -> Result<u64> {
-        // TODO: this is only for chain upgrades
+        // this is used for chain upgrades, which we do not currently have.
         Ok(0)
     }
 

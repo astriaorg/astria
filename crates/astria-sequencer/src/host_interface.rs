@@ -12,9 +12,8 @@ impl HostInterface for AstriaHost {
         state.get_chain_id().await
     }
 
-    async fn get_revision_number<S: StateRead>(_: S) -> anyhow::Result<u64> {
-        // this is used for chain upgrades, which we do not currently have.
-        Ok(0)
+    async fn get_revision_number<S: StateRead>(state: S) -> anyhow::Result<u64> {
+        state.get_revision_number().await
     }
 
     async fn get_block_height<S: StateRead>(state: S) -> anyhow::Result<u64> {
