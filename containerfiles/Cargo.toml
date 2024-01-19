@@ -1,29 +1,3 @@
-[patch]
-[patch.'https://github.com/penumbra-zone/penumbra.git']
-[patch.'https://github.com/penumbra-zone/penumbra.git'.cnidarium]
-git = 'https://github.com/noot/penumbra.git'
-rev = '752603311c724b6bacbc491f685ea357252b5e80'
-
-[patch.'https://github.com/penumbra-zone/penumbra.git'.cnidarium-component]
-git = 'https://github.com/noot/penumbra.git'
-rev = '752603311c724b6bacbc491f685ea357252b5e80'
-
-[patch.'https://github.com/penumbra-zone/penumbra.git'.penumbra-ibc]
-git = 'https://github.com/noot/penumbra.git'
-rev = '752603311c724b6bacbc491f685ea357252b5e80'
-
-[patch.'https://github.com/penumbra-zone/penumbra.git'.penumbra-proto]
-git = 'https://github.com/noot/penumbra.git'
-rev = '752603311c724b6bacbc491f685ea357252b5e80'
-
-[patch.'https://github.com/penumbra-zone/penumbra.git'.penumbra-tower-trace]
-git = 'https://github.com/noot/penumbra.git'
-rev = '752603311c724b6bacbc491f685ea357252b5e80'
-
-[patch.'https://github.com/penumbra-zone/penumbra.git'.wrapper-derive]
-git = 'https://github.com/noot/penumbra.git'
-rev = '752603311c724b6bacbc491f685ea357252b5e80'
-
 [workspace]
 exclude = ['tools/protobuf-compiler']
 members = [
@@ -93,15 +67,15 @@ version = '0.20'
 [workspace.dependencies.penumbra-ibc]
 default-features = false
 git = 'https://github.com/penumbra-zone/penumbra.git'
-rev = '4c2eaa2ca977434fa66bc9eba41cfc31b0176812'
+rev = '1b1be7e1373401eaf30d63352ee680991cb42aea'
 
 [workspace.dependencies.penumbra-proto]
 git = 'https://github.com/penumbra-zone/penumbra.git'
-rev = '4c2eaa2ca977434fa66bc9eba41cfc31b0176812'
+rev = '1b1be7e1373401eaf30d63352ee680991cb42aea'
 
 [workspace.dependencies.penumbra-tower-trace]
 git = 'https://github.com/penumbra-zone/penumbra.git'
-rev = '4c2eaa2ca977434fa66bc9eba41cfc31b0176812'
+rev = '1b1be7e1373401eaf30d63352ee680991cb42aea'
 
 [workspace.dependencies.reqwest]
 default-features = false
