@@ -53,6 +53,7 @@ impl
 {
     /// Creates a new Reader instance and returns a command sender.
     pub(crate) async fn build(self) -> eyre::Result<Reader> {
+        use celestia_client::celestia_rpc::HeaderClient as _;
         let Self {
             celestia_endpoint: WithCelestiaEndpoint(celestia_endpoint),
             celestia_poll_interval: WithCelestiaPollInterval(celestia_poll_interval),
@@ -63,7 +64,6 @@ impl
             sequencer_namespace: WithSequencerNamespace(sequencer_namespace),
             shutdown: WithShutdown(shutdown),
         } = self;
-        use celestia_client::celestia_rpc::HeaderClient;
 
         let block_verifier = BlockVerifier::new(sequencer_client_pool);
 
