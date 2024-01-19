@@ -98,7 +98,7 @@ mod tests {
             hash: vec![42u8; 32],
             parent_block_hash: vec![41u8; 32],
             timestamp: Some(Timestamp {
-                seconds: 123456,
+                seconds: 123_456,
                 nanos: 789,
             }),
         })
@@ -108,7 +108,7 @@ mod tests {
             hash: vec![43u8; 32],
             parent_block_hash: vec![42u8; 32],
             timestamp: Some(Timestamp {
-                seconds: 123456,
+                seconds: 123_456,
                 nanos: 789,
             }),
         })

@@ -204,26 +204,23 @@ impl Executor {
             executable_block.height,
         );
 
-        match self
+        if let Some(block) = self
             .blocks_pending_finalization
             .remove(&executable_block.hash)
         {
-            Some(block) => self
-                .update_commitment_state(Update::OnlyFirm(block))
+            self.update_commitment_state(Update::OnlyFirm(block))
                 .await
-                .wrap_err("failed to update firm commitment state")?,
+                .wrap_err("failed to update firm commitment state")?;
+        } else {
+            let parent_block_hash = self.commitment_state.firm_parent_hash();
+            let executed_block = self
+                .execute_block(parent_block_hash, executable_block)
+                .await
+                .wrap_err("failed to execute block")?;
 
-            None => {
-                let parent_block_hash = self.commitment_state.firm_parent_hash();
-                let executed_block = self
-                    .execute_block(parent_block_hash, executable_block)
-                    .await
-                    .wrap_err("failed to execute block")?;
-
-                self.update_commitment_state(Update::ToSame(executed_block))
-                    .await
-                    .wrap_err("failed to setting both commitment states to executed block")?;
-            }
+            self.update_commitment_state(Update::ToSame(executed_block))
+                .await
+                .wrap_err("failed to setting both commitment states to executed block")?;
         }
         Ok(())
     }
@@ -306,8 +303,8 @@ enum Update {
 struct ExecutableBlock {
     hash: [u8; 32],
     height: Height,
-    transactions: Vec<Vec<u8>>,
     timestamp: prost_types::Timestamp,
+    transactions: Vec<Vec<u8>>,
 }
 
 impl ExecutableBlock {

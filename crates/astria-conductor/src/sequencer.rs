@@ -147,7 +147,7 @@ impl Reader {
 
 
                 Some(block) = sequential_blocks.next_block() => {
-                    if let Err(e) = executor_channel.send(block.into()) {
+                    if let Err(e) = executor_channel.send(block) {
                         let reason = "failed sending next sequencer block to executor";
                         error!(
                             error = &e as &dyn std::error::Error,
