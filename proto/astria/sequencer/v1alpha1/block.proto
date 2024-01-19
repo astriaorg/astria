@@ -41,3 +41,15 @@ message SequencerBlock {
   // the rollup transactions.
   astria.sequencer.v1alpha1.Proof rollup_ids_proof = 4;
 }
+
+// `RollupSpecificSequencerBlock` is a subset of `SequencerBlock` that only contains
+// transaction data for a specific rollup.
+message RollupSpecificSequencerBlock {
+  // The original CometBFT header that was the input to this sequencer block.
+  tendermint.types.Header header = 1;
+  // The 32 bytes identifying the rollup this blob belongs to. Matches
+  // `astria.sequencer.v1alpha1.RollupTransactions.rollup_id`
+  bytes rollup_id = 2;
+  // A list of opaque bytes that are serialized rollup transactions.
+  repeated bytes transactions = 3;
+}

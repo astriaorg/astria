@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package astria.sequencer.v1alpha1;
+
+import "astria/sequencer/v1alpha1/block.proto";
+
+message GetSequencerBlockRequest {
+  // The height of the block to retrieve.
+  uint64 height = 1;
+}
+
+message GetRollupSpecificSequencerBlockRequest {
+  // The height of the block to retrieve.
+  uint64 height = 1;
+  // The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
+  bytes rollup_id = 2;
+}
+
+message SubscribeSequencerBlocksRequest {
+  // The height of the block to start the subscription from.
+  uint64 start_height = 1;
+}
+
+message SubscribeRollupSpecificSequencerBlocksRequest {
+  // The height of the block to start the subscription from.
+  uint64 start_height = 1;
+  // The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
+  bytes rollup_id = 2;
+}
+
+service SequencerService {
+  // Given a block height, returns the sequencer block at that height.
+  rpc GetSequencerBlock(GetSequencerBlockRequest) returns (SequencerBlock);
+  // Given a block height and rollup id, returns the rollup specific sequencer block
+  // at that height for the given rollup.
+  rpc GetRollupSpecificSequencerBlock(GetRollupSpecificSequencerBlockRequest) returns (RollupSpecificSequencerBlock);
+  // Starts a subscription to sequencer blocks starting from the given height.
+  // The client will receive a stream of sequencer blocks.
+  // 
+  // If the specified height is in the past will stream to catch up, otherwise will
+  // wait till given height met and stream when block is committed.
+  rpc SubscribeSequencerBlocks(SubscribeSequencerBlocksRequest) returns (stream SequencerBlock);
+  // Starts a subscription to rollup specific sequencer blocks starting from the given height.
+  // The client will receive a stream of rollup specific sequencer blocks.
+  // 
+  // If the specified height is in the past will stream to catch up, otherwise will
+  // wait until height is met.
+  // 
+  // Blocks will be streamed even if the rollup has no transactions in the block.
+  rpc SubscribeRollupSpecificSequencerBlocks(SubscribeRollupSpecificSequencerBlocksRequest) returns (stream RollupSpecificSequencerBlock);
+}
