@@ -159,10 +159,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             .checked_add(amount)
             .context("block fees overflowed u128")?;
 
-        self.nonverifiable_put_raw(
-            block_fees_key(asset).into(),
-            new_amount.to_be_bytes().to_vec(),
-        );
+        self.nonverifiable_put_raw(block_fees_key(asset), new_amount.to_be_bytes().to_vec());
         Ok(())
     }
 
