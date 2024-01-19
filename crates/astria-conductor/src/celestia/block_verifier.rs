@@ -82,13 +82,13 @@ impl Verify {
         )?;
         let block_hash = block.block_id.hash;
         let commit_header = commit.signed_header;
-        Self::new(block_hash, commit_header, validator_set)
+        Self::new(block_hash, commit_header, &validator_set)
     }
 
     fn new(
         block_hash: tendermint::Hash,
         commit_header: tendermint::block::signed_header::SignedHeader,
-        validator_set: tendermint_rpc::endpoint::validators::Response,
+        validator_set: &tendermint_rpc::endpoint::validators::Response,
     ) -> eyre::Result<Self> {
         ensure!(
             block_hash == commit_header.header.hash(),
@@ -96,7 +96,7 @@ impl Verify {
         );
         ensure_commit_has_quorum(
             &commit_header.commit,
-            &validator_set,
+            validator_set,
             &commit_header.header.chain_id,
         )
         .wrap_err("unable to verify that commit had quorum")?;
