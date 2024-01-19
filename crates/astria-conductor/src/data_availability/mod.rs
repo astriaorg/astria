@@ -249,7 +249,7 @@ impl Reader {
                             warn!(
                                 error = &e as &dyn  std::error::Error,
                                 "header subscription returned an error",
-                            )
+                            );
                         }
                     }
                 }
@@ -262,7 +262,7 @@ impl Reader {
                         );
                     }
                 }
-            )
+            );
         }
         Ok(())
     }
@@ -420,7 +420,7 @@ async fn fetch_blocks_at_celestia_height(
             warn!(
                 error = AsRef::<dyn std::error::Error>::as_ref(err),
                 "failed to reconstruct block from celestia blob"
-            )
+            );
         })
         .filter_map(|x| ready(x.ok()));
     tokio::pin!(blocks);
