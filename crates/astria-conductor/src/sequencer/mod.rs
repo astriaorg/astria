@@ -86,10 +86,7 @@ impl Reader {
 
     #[instrument(skip_all)]
     pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
-        use futures::{
-            future::FusedFuture as _,
-            // FutureExt as _,
-        };
+        use futures::future::FusedFuture as _;
         let Self {
             executor_channel,
             start_height,
