@@ -715,7 +715,6 @@ dependencies = [
  "tower-actor",
  "tower-http",
  "tracing",
- "wrapper-derive",
 ]
 
 [[package]]
@@ -1592,7 +1591,7 @@ dependencies = [
 [[package]]
 name = "cnidarium"
 version = "0.64.1"
-source = "git+https://github.com/noot/penumbra.git?rev=752603311c724b6bacbc491f685ea357252b5e80#752603311c724b6bacbc491f685ea357252b5e80"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1b1be7e1373401eaf30d63352ee680991cb42aea#1b1be7e1373401eaf30d63352ee680991cb42aea"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1620,7 +1619,7 @@ dependencies = [
 [[package]]
 name = "cnidarium-component"
 version = "0.64.1"
-source = "git+https://github.com/noot/penumbra.git?rev=752603311c724b6bacbc491f685ea357252b5e80#752603311c724b6bacbc491f685ea357252b5e80"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1b1be7e1373401eaf30d63352ee680991cb42aea#1b1be7e1373401eaf30d63352ee680991cb42aea"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2034,7 +2033,7 @@ dependencies = [
 [[package]]
 name = "decaf377-fmd"
 version = "0.64.1"
-source = "git+https://github.com/noot/penumbra.git?rev=752603311c724b6bacbc491f685ea357252b5e80#752603311c724b6bacbc491f685ea357252b5e80"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1b1be7e1373401eaf30d63352ee680991cb42aea#1b1be7e1373401eaf30d63352ee680991cb42aea"
 dependencies = [
  "ark-ff 0.4.2",
  "ark-serialize 0.4.2",
@@ -2048,7 +2047,7 @@ dependencies = [
 [[package]]
 name = "decaf377-ka"
 version = "0.64.1"
-source = "git+https://github.com/noot/penumbra.git?rev=752603311c724b6bacbc491f685ea357252b5e80#752603311c724b6bacbc491f685ea357252b5e80"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1b1be7e1373401eaf30d63352ee680991cb42aea#1b1be7e1373401eaf30d63352ee680991cb42aea"
 dependencies = [
  "ark-ff 0.4.2",
  "decaf377 0.5.0",
@@ -4957,7 +4956,7 @@ dependencies = [
 [[package]]
 name = "penumbra-asset"
 version = "0.64.1"
-source = "git+https://github.com/noot/penumbra.git?rev=752603311c724b6bacbc491f685ea357252b5e80#752603311c724b6bacbc491f685ea357252b5e80"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1b1be7e1373401eaf30d63352ee680991cb42aea#1b1be7e1373401eaf30d63352ee680991cb42aea"
 dependencies = [
  "aes",
  "anyhow",
@@ -5002,7 +5001,7 @@ dependencies = [
 [[package]]
 name = "penumbra-chain"
 version = "0.64.1"
-source = "git+https://github.com/noot/penumbra.git?rev=752603311c724b6bacbc491f685ea357252b5e80#752603311c724b6bacbc491f685ea357252b5e80"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1b1be7e1373401eaf30d63352ee680991cb42aea#1b1be7e1373401eaf30d63352ee680991cb42aea"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -5033,7 +5032,7 @@ dependencies = [
 [[package]]
 name = "penumbra-ibc"
 version = "0.64.1"
-source = "git+https://github.com/noot/penumbra.git?rev=752603311c724b6bacbc491f685ea357252b5e80#752603311c724b6bacbc491f685ea357252b5e80"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1b1be7e1373401eaf30d63352ee680991cb42aea#1b1be7e1373401eaf30d63352ee680991cb42aea"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -5065,13 +5064,12 @@ dependencies = [
  "tonic",
  "tower",
  "tracing",
- "wrapper-derive",
 ]
 
 [[package]]
 name = "penumbra-keys"
 version = "0.64.1"
-source = "git+https://github.com/noot/penumbra.git?rev=752603311c724b6bacbc491f685ea357252b5e80#752603311c724b6bacbc491f685ea357252b5e80"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1b1be7e1373401eaf30d63352ee680991cb42aea#1b1be7e1373401eaf30d63352ee680991cb42aea"
 dependencies = [
  "aes",
  "anyhow",
@@ -5117,7 +5115,7 @@ dependencies = [
 [[package]]
 name = "penumbra-num"
 version = "0.64.1"
-source = "git+https://github.com/noot/penumbra.git?rev=752603311c724b6bacbc491f685ea357252b5e80#752603311c724b6bacbc491f685ea357252b5e80"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1b1be7e1373401eaf30d63352ee680991cb42aea#1b1be7e1373401eaf30d63352ee680991cb42aea"
 dependencies = [
  "aes",
  "anyhow",
@@ -5161,7 +5159,7 @@ dependencies = [
 [[package]]
 name = "penumbra-proto"
 version = "0.64.1"
-source = "git+https://github.com/noot/penumbra.git?rev=752603311c724b6bacbc491f685ea357252b5e80#752603311c724b6bacbc491f685ea357252b5e80"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1b1be7e1373401eaf30d63352ee680991cb42aea#1b1be7e1373401eaf30d63352ee680991cb42aea"
 dependencies = [
  "anyhow",
  "async-stream 0.2.1",
@@ -5191,7 +5189,7 @@ dependencies = [
 [[package]]
 name = "penumbra-tct"
 version = "0.64.1"
-source = "git+https://github.com/noot/penumbra.git?rev=752603311c724b6bacbc491f685ea357252b5e80#752603311c724b6bacbc491f685ea357252b5e80"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1b1be7e1373401eaf30d63352ee680991cb42aea#1b1be7e1373401eaf30d63352ee680991cb42aea"
 dependencies = [
  "ark-ed-on-bls12-377",
  "ark-ff 0.4.2",
@@ -5219,7 +5217,7 @@ dependencies = [
 [[package]]
 name = "penumbra-tower-trace"
 version = "0.64.1"
-source = "git+https://github.com/noot/penumbra.git?rev=752603311c724b6bacbc491f685ea357252b5e80#752603311c724b6bacbc491f685ea357252b5e80"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1b1be7e1373401eaf30d63352ee680991cb42aea#1b1be7e1373401eaf30d63352ee680991cb42aea"
 dependencies = [
  "futures",
  "hex",
@@ -5241,7 +5239,7 @@ dependencies = [
 [[package]]
 name = "penumbra-txhash"
 version = "0.64.1"
-source = "git+https://github.com/noot/penumbra.git?rev=752603311c724b6bacbc491f685ea357252b5e80#752603311c724b6bacbc491f685ea357252b5e80"
+source = "git+https://github.com/penumbra-zone/penumbra.git?rev=1b1be7e1373401eaf30d63352ee680991cb42aea#1b1be7e1373401eaf30d63352ee680991cb42aea"
 dependencies = [
  "anyhow",
  "blake2b_simd 0.5.11",
@@ -8186,16 +8184,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
-]
-
-[[package]]
-name = "wrapper-derive"
-version = "0.1.0"
-source = "git+https://github.com/noot/penumbra.git?rev=752603311c724b6bacbc491f685ea357252b5e80#752603311c724b6bacbc491f685ea357252b5e80"
-dependencies = [
- "proc-macro2 1.0.70",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]

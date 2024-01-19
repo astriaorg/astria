@@ -30,7 +30,7 @@ use tracing::{
 use crate::{
     app::App,
     config::Config,
-    ibc_storage_wrapper::StorageWrapper,
+    host_interface::AstriaHost,
     service,
     state_ext::StateReadExt as _,
 };
@@ -165,7 +165,7 @@ fn start_ibc_grpc_server(
     use penumbra_tower_trace::remote_addr;
     use tower_http::cors::CorsLayer;
 
-    let ibc = penumbra_ibc::component::rpc::IbcQuery::new(StorageWrapper(storage.clone()));
+    let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
     let cors_layer = CorsLayer::permissive();
 
     // TODO: setup HTTPS?

@@ -57,9 +57,9 @@ use crate::{
             StateWriteExt as _,
         },
     },
-    chain_state_read_ext::ArcStateDeltaWrapper,
     component::Component as _,
     genesis::GenesisState,
+    host_interface::AstriaHost,
     proposal::commitment::{
         generate_sequence_actions_commitment,
         GeneratedCommitments,
@@ -406,8 +406,11 @@ impl App {
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .context("failed to call begin_block on AuthorityComponent")?;
-        let mut wrapper = ArcStateDeltaWrapper(&mut arc_state_tx);
-        IBCComponent::begin_block(&mut wrapper, begin_block).await;
+        IBCComponent::begin_block::<AstriaHost, StateDelta<Arc<StateDelta<cnidarium::Snapshot>>>>(
+            &mut arc_state_tx,
+            begin_block,
+        )
+        .await;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");

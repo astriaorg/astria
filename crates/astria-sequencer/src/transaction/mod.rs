@@ -23,7 +23,7 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
-    chain_state_read_ext::StateDeltaWrapper,
+    host_interface::AstriaHost,
 };
 
 pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
@@ -112,7 +112,8 @@ impl ActionHandler for UnsignedTransaction {
                 Action::Ibc(act) => {
                     let action = act
                         .clone()
-                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer>();
+                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer, AstriaHost>(
+                        );
                     action
                         .check_stateless(())
                         .await
@@ -232,10 +233,10 @@ impl ActionHandler for UnsignedTransaction {
                 Action::Ibc(act) => {
                     let action = act
                         .clone()
-                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer>();
-                    let wrapper = StateDeltaWrapper(&mut *state);
+                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer, AstriaHost>(
+                        );
                     action
-                        .execute(wrapper)
+                        .execute(&mut *state)
                         .await
                         .context("execution failed for IbcAction")?;
                 }
