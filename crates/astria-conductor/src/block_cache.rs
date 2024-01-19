@@ -155,7 +155,7 @@ mod tests {
     #[test]
     fn empty_cache_gives_no_block() {
         let mut cache = make_cache();
-        assert!(cache.pop().is_none())
+        assert!(cache.pop().is_none());
     }
 
     #[test]
