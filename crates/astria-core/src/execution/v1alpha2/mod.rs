@@ -9,7 +9,7 @@ use crate::{
     Protobuf,
 };
 
-// An error when transforming a [`raw::Block`] into a [`Block`].
+// An error when transforming a [`raw::GenesisInfo`] into a [`GenesisInfo`].
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct GenesisInfoError(GenesisInfoErrorKind);
@@ -26,20 +26,21 @@ enum GenesisInfoErrorKind {
     IncorrectRollupIdLength(IncorrectRollupIdLength),
 }
 
-/// An Astria execution block on a rollup.
+/// Genesis Info required from a rollup to start a an execution client.
 ///
-/// Contains information about the block number, its hash,
-/// its parent block's hash, and timestamp.
+/// Contains information about the rollup id, and base heights for both sequencer & celestia. 
 ///
 /// Usually constructed its [`Protobuf`] implementation from a
-/// [`raw::Block`].
-#[derive(Clone, Debug)]
+/// [`raw::GenesisInfo`].
+#[derive(Clone, Copy, Debug)]
 pub struct GenesisInfo {
-    /// The block number
+    /// The rollup id which is used to identify the rollup txs.
     rollup_id: RollupId,
-    /// The hash of the block
-    sequencer_genesis_block_number: u32,
-    celestia_base_block_number: u32,
+    /// The first height of sequencer which is used to identify the first block of the rollup.
+    sequencer_genesis_block_height: u32,
+    /// The first height of celestia which to look for sequencer blocks.
+    celestia_base_block_height: u32,
+    /// The allowed variance in the block height of celestia when looking for sequencer blocks.
     celestia_block_variance: u32,
 }
 
@@ -50,13 +51,13 @@ impl GenesisInfo {
     }
 
     #[must_use]
-    pub fn sequencer_genesis_block_number(&self) -> u32 {
-        self.sequencer_genesis_block_number
+    pub fn sequencer_genesis_block_height(&self) -> u32 {
+        self.sequencer_genesis_block_height
     }
 
     #[must_use]
-    pub fn celestia_base_block_number(&self) -> u32 {
-        self.celestia_base_block_number
+    pub fn celestia_base_block_height(&self) -> u32 {
+        self.celestia_base_block_height
     }
 
     #[must_use]
@@ -72,8 +73,8 @@ impl Protobuf for GenesisInfo {
     fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
         let raw::GenesisInfo {
             rollup_id,
-            sequencer_genesis_block_number,
-            celestia_base_block_number,
+            sequencer_genesis_block_height,
+            celestia_base_block_height,
             celestia_block_variance,
         } = raw;
         let rollup_id =
@@ -81,8 +82,8 @@ impl Protobuf for GenesisInfo {
 
         Ok(Self {
             rollup_id,
-            sequencer_genesis_block_number: *sequencer_genesis_block_number,
-            celestia_base_block_number: *celestia_base_block_number,
+            sequencer_genesis_block_height: *sequencer_genesis_block_height,
+            celestia_base_block_height: *celestia_base_block_height,
             celestia_block_variance: *celestia_block_variance,
         })
     }
@@ -90,14 +91,14 @@ impl Protobuf for GenesisInfo {
     fn to_raw(&self) -> Self::Raw {
         let Self {
             rollup_id,
-            sequencer_genesis_block_number,
-            celestia_base_block_number,
+            sequencer_genesis_block_height,
+            celestia_base_block_height,
             celestia_block_variance,
         } = self;
         Self::Raw {
             rollup_id: rollup_id.to_vec(),
-            sequencer_genesis_block_number: *sequencer_genesis_block_number,
-            celestia_base_block_number: *celestia_base_block_number,
+            sequencer_genesis_block_height: *sequencer_genesis_block_height,
+            celestia_base_block_height: *celestia_base_block_height,
             celestia_block_variance: *celestia_block_variance,
         }
     }

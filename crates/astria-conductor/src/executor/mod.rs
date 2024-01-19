@@ -446,13 +446,13 @@ impl Executor {
         &self,
     ) -> eyre::Result<tendermint::block::Height> {
         let Some(executable_block_height) = calculate_sequencer_block_height(
-            self.genesis.sequencer_genesis_block_number(),
+            self.genesis.sequencer_genesis_block_height(),
             self.commitment_state.soft().number(),
         ) else {
             bail!(
                 "encountered overflow when calculating executable block height; sequencer height \
                  with first rollup block: {}, height recorded in soft commitment state: {}",
-                self.genesis.sequencer_genesis_block_number(),
+                self.genesis.sequencer_genesis_block_height(),
                 self.commitment_state.soft().number(),
             );
         };
@@ -469,13 +469,13 @@ impl Executor {
         &self,
     ) -> eyre::Result<tendermint::block::Height> {
         let Some(finalizable_block_height) = calculate_sequencer_block_height(
-            self.genesis.sequencer_genesis_block_number(),
+            self.genesis.sequencer_genesis_block_height(),
             self.commitment_state.firm().number(),
         ) else {
             bail!(
                 "encountered overflow when calculating finalizable block height; sequencer height \
                  with first rollup block: {}, height recorded in firm commitment state: {}",
-                self.genesis.sequencer_genesis_block_number(),
+                self.genesis.sequencer_genesis_block_height(),
                 self.commitment_state.firm().number(),
             );
         };

@@ -5,12 +5,16 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GenesisInfo {
+    /// The rollup_id is the unique identifier for the rollup chain.
     #[prost(bytes = "vec", tag = "1")]
     pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    /// The first block height of sequencer chain to use for rollup transactions.
     #[prost(uint32, tag = "2")]
-    pub sequencer_genesis_block_number: u32,
+    pub sequencer_genesis_block_height: u32,
+    /// The first block height of celestia chain to use for rollup transactions.
     #[prost(uint32, tag = "3")]
-    pub celestia_base_block_number: u32,
+    pub celestia_base_block_height: u32,
+    /// The allowed variance in celestia for sequencer blocks to have been posted.
     #[prost(uint32, tag = "4")]
     pub celestia_block_variance: u32,
 }

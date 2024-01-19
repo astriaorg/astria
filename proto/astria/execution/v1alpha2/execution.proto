@@ -9,9 +9,13 @@ import "google/protobuf/timestamp.proto";
 // This information is used to determine which sequencer & celestia data to
 // use from the Astria & Celestia networks.
 message GenesisInfo {
+  // The rollup_id is the unique identifier for the rollup chain.
   bytes rollup_id = 1;
-  uint32 sequencer_genesis_block_number = 2;
-  uint32 celestia_base_block_number = 3;
+  // The first block height of sequencer chain to use for rollup transactions.
+  uint32 sequencer_genesis_block_height = 2;
+  // The first block height of celestia chain to use for rollup transactions.
+  uint32 celestia_base_block_height = 3;
+  // The allowed variance in celestia for sequencer blocks to have been posted.
   uint32 celestia_block_variance = 4;
 }
 
