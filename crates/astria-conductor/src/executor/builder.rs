@@ -83,7 +83,7 @@ impl ExecutorBuilder<WithRollupAddress, WithRollupId, WithShutdown> {
         let (celestia_tx, celestia_rx) = mpsc::unbounded_channel();
         let (sequencer_tx, sequencer_rx) = mpsc::unbounded_channel();
 
-        let mut commitment_state = super::TrackCommitmentState::with_state(commitment_state);
+        let mut commitment_state = super::TrackState::with_state(commitment_state);
         commitment_state
             .set_sequencer_height_with_first_rollup_block(sequencer_height_with_first_rollup_block);
 

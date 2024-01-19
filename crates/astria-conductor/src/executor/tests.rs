@@ -22,7 +22,10 @@ use astria_core::{
         GetCommitmentStateRequest,
         UpdateCommitmentStateRequest,
     },
-    sequencer::v1alpha1::test_utils::make_cometbft_block,
+    sequencer::v1alpha1::test_utils::{
+        make_cometbft_block,
+        ConfigureCometBftBlock,
+    },
 };
 use ethers::{
     prelude::*,
@@ -281,16 +284,120 @@ async fn soft_blocks_at_expected_heights_are_executed() {
     let mut block = make_cometbft_block();
     block.header.height = Height::from(101u32);
     let block = SequencerBlock::try_from_cometbft(block).unwrap();
-    assert!(mock.executor.execute_soft(block).await.is_ok());
+    mock.executor.execute_soft(block).await.unwrap();
+    assert_eq!(
+        Height::from(102u32),
+        mock.executor.next_soft_sequencer_height()
+    );
 }
 
 #[tokio::test]
-async fn out_of_order_soft_blocks_are_rejected() {
+async fn first_firm_then_soft_leads_to_soft_being_dropped() {
+    let mut mock = start_mock(None).await;
+
+    let rollup_id = RollupId::new([42u8; 32]);
+    let block = ConfigureCometBftBlock {
+        height: 100,
+        rollup_transactions: vec![(rollup_id, b"hello_world".to_vec())],
+        ..Default::default()
+    }
+    .make();
+    let soft_block = SequencerBlock::try_from_cometbft(block).unwrap();
+
+    let block_hash = soft_block.block_hash();
+
+    let firm_block = ReconstructedBlock {
+        block_hash: soft_block.block_hash(),
+        header: soft_block.header().clone(),
+        transactions: soft_block
+            .rollup_transactions()
+            .get(&rollup_id)
+            .cloned()
+            .unwrap(),
+    };
+    mock.executor.execute_firm(firm_block).await.unwrap();
+    assert_eq!(1, mock.executor.commitment_state.firm().number());
+    assert_eq!(1, mock.executor.commitment_state.soft().number());
+    assert!(
+        !mock
+            .executor
+            .blocks_pending_finalization
+            .contains_key(&block_hash)
+    );
+
+    mock.executor.execute_soft(soft_block).await.unwrap();
+    assert!(
+        !mock
+            .executor
+            .blocks_pending_finalization
+            .contains_key(&block_hash)
+    );
+    assert_eq!(1, mock.executor.commitment_state.firm().number());
+    assert_eq!(1, mock.executor.commitment_state.soft().number());
+}
+
+#[tokio::test]
+async fn first_soft_then_firm_update_state_correctly() {
+    let mut mock = start_mock(None).await;
+
+    let rollup_id = RollupId::new([42u8; 32]);
+    let block = ConfigureCometBftBlock {
+        height: 100,
+        rollup_transactions: vec![(rollup_id, b"hello_world".to_vec())],
+        ..Default::default()
+    }
+    .make();
+    let soft_block = SequencerBlock::try_from_cometbft(block).unwrap();
+
+    let block_hash = soft_block.block_hash();
+
+    let firm_block = ReconstructedBlock {
+        block_hash: soft_block.block_hash(),
+        header: soft_block.header().clone(),
+        transactions: soft_block
+            .rollup_transactions()
+            .get(&rollup_id)
+            .cloned()
+            .unwrap(),
+    };
+    mock.executor.execute_soft(soft_block).await.unwrap();
+    assert!(
+        mock.executor
+            .blocks_pending_finalization
+            .contains_key(&block_hash)
+    );
+    assert_eq!(0, mock.executor.commitment_state.firm().number());
+    assert_eq!(1, mock.executor.commitment_state.soft().number());
+    mock.executor.execute_firm(firm_block).await.unwrap();
+    assert_eq!(1, mock.executor.commitment_state.firm().number());
+    assert_eq!(1, mock.executor.commitment_state.soft().number());
+    assert!(
+        !mock
+            .executor
+            .blocks_pending_finalization
+            .contains_key(&block_hash)
+    );
+}
+
+#[tokio::test]
+async fn old_soft_blocks_are_ignored() {
     let mut mock = start_mock(None).await;
     let mut block = make_cometbft_block();
     block.header.height = Height::from(99u32);
     let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
-    assert!(mock.executor.execute_soft(sequencer_block).await.is_err());
+
+    let firm = mock.executor.commitment_state.firm().clone();
+    let soft = mock.executor.commitment_state.soft().clone();
+
+    mock.executor.execute_soft(sequencer_block).await.unwrap();
+
+    assert_eq!(&firm, mock.executor.commitment_state.firm());
+    assert_eq!(&soft, mock.executor.commitment_state.soft());
+}
+
+#[tokio::test]
+async fn non_sequential_future_soft_blocks_give_error() {
+    let mut mock = start_mock(None).await;
 
     let mut block = make_cometbft_block();
     block.header.height = Height::from(101u32);

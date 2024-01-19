@@ -3,7 +3,10 @@ use std::{
     time::Duration,
 };
 
-use astria_core::sequencer::v1alpha1::test_utils::ConfigureCometBftBlock;
+use astria_core::sequencer::v1alpha1::{
+    test_utils::ConfigureCometBftBlock,
+    RollupId,
+};
 use astria_sequencer_relayer::{
     config::Config,
     telemetry,
@@ -335,10 +338,13 @@ fn create_block_response(
         block,
         Hash,
     };
+    let rollup_id = RollupId::from_unhashed_bytes(b"test_chain_id_1");
+    let data = b"hello_world_id_1".to_vec();
     let block = ConfigureCometBftBlock {
         height,
-        signing_key: signing_key.clone(),
+        signing_key: Some(signing_key.clone()),
         proposer_address: Some(proposer_address),
+        rollup_transactions: vec![(rollup_id, data)],
     }
     .make();
 

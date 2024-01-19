@@ -24,14 +24,15 @@ fn map_rollup_height_to_sequencer_height(
         .into()
 }
 
-pub(super) struct TrackCommitmentState {
+#[derive(Debug)]
+pub(super) struct TrackState {
     // The sequencer height that contains the first block of the executed-upon rollup.
     sequencer_height_with_first_rollup_block: u32,
 
     state: CommitmentState,
 }
 
-impl TrackCommitmentState {
+impl TrackState {
     pub(super) fn with_state(state: CommitmentState) -> Self {
         Self {
             sequencer_height_with_first_rollup_block: 0,
@@ -122,7 +123,7 @@ mod tests {
     #[test]
     fn next_firm_sequencer_height_is_correct() {
         let commitment_state = make_commitment_state();
-        let mut tracker = TrackCommitmentState::with_state(commitment_state);
+        let mut tracker = TrackState::with_state(commitment_state);
         tracker.set_sequencer_height_with_first_rollup_block(10);
         assert_eq!(Height::from(11u32), tracker.next_firm_sequencer_height(),);
     }
@@ -130,7 +131,7 @@ mod tests {
     #[test]
     fn next_soft_sequencer_height_is_correct() {
         let commitment_state = make_commitment_state();
-        let mut tracker = TrackCommitmentState::with_state(commitment_state);
+        let mut tracker = TrackState::with_state(commitment_state);
         tracker.set_sequencer_height_with_first_rollup_block(10);
         assert_eq!(Height::from(12u32), tracker.next_soft_sequencer_height(),);
     }

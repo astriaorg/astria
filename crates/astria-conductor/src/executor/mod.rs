@@ -9,6 +9,7 @@ use astria_core::{
 };
 use color_eyre::eyre::{
     self,
+    bail,
     ensure,
     WrapErr as _,
 };
@@ -39,7 +40,7 @@ mod client;
 #[cfg(test)]
 mod tests;
 mod track_state;
-use track_state::TrackCommitmentState;
+use track_state::TrackState;
 
 pub(crate) struct Executor {
     celestia_rx: mpsc::UnboundedReceiver<ReconstructedBlock>,
@@ -56,7 +57,7 @@ pub(crate) struct Executor {
     rollup_id: RollupId,
 
     /// Tracks SOFT and FIRM on the execution chain
-    commitment_state: TrackCommitmentState,
+    commitment_state: TrackState,
 
     /// Tracks executed blocks as soft commitments.
     ///
@@ -76,9 +77,7 @@ impl Executor {
 
     /// Returns the next sequencer height expected by the executor.
     pub(super) fn next_soft_sequencer_height(&self) -> Height {
-        self.commitment_state
-            .next_soft_sequencer_height()
-            .increment()
+        self.commitment_state.next_soft_sequencer_height()
     }
 
     pub(super) fn celestia_channel(&self) -> mpsc::UnboundedSender<ReconstructedBlock> {
@@ -149,14 +148,34 @@ impl Executor {
         // XXX: shut down the channels here and attempt to drain them before returning.
     }
 
+    #[instrument(skip_all, fields(
+        hash.sequencer_block = %telemetry::display::hex(&block.block_hash()),
+        height.sequencer_block = %block.height(),
+    ))]
     async fn execute_soft(&mut self, block: SequencerBlock) -> eyre::Result<()> {
         // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
         let executable_block = ExecutableBlock::from_sequencer(block, self.rollup_id);
 
-        ensure!(
-            executable_block.height == self.commitment_state.next_soft_sequencer_height(),
-            "block was not at the expected height",
-        );
+        match executable_block
+            .height
+            .cmp(&self.commitment_state.next_soft_sequencer_height())
+        {
+            std::cmp::Ordering::Less => {
+                // XXX: we don't track if older sequencer blocks are sequential, only if they are
+                // newer (`Greater` arm)
+                info!(
+                    expected_height.sequencer_block = %self.commitment_state.next_soft_sequencer_height(),
+                    "block received was at at older height or stale because firm blocks were executed first; dropping",
+                );
+                return Ok(());
+            }
+            std::cmp::Ordering::Greater => bail!(
+                "block received was out-of-order; was a block skipped? expected: {}, actual: {}",
+                self.commitment_state.next_soft_sequencer_height(),
+                executable_block.height
+            ),
+            std::cmp::Ordering::Equal => {}
+        }
 
         let block_hash = executable_block.hash;
 

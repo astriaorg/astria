@@ -43,7 +43,7 @@ enum BlockErrorKind {
 ///
 /// Usually constructed its [`Protobuf`] implementation from a
 /// [`raw::Block`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Block {
     /// The block number
     number: u32,
@@ -242,7 +242,7 @@ impl CommitmentStateBuilder<WithFirm, WithSoft> {
 /// - Block numbers are such that soft >= firm (upheld by this type).
 /// - No blocks ever decrease in block number.
 /// - The chain defined by soft is the head of the canonical chain the firm block must belong to.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CommitmentState {
     /// Soft commitment is the rollup block matching latest sequencer block.
     soft: Block,
