@@ -1230,6 +1230,7 @@ mod test {
         ];
 
         let mut app = initialize_app(None, initial_validator_set).await;
+        app.current_proposer = Some(account::Id::try_from([0u8; 20].to_vec()).unwrap());
 
         let validator_updates = vec![
             validator::Update {
