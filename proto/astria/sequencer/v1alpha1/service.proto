@@ -6,24 +6,24 @@ import "astria/sequencer/v1alpha1/block.proto";
 
 message GetSequencerBlockRequest {
   // The height of the block to retrieve.
-  uint64 height = 1;
+  int64 height = 1;
 }
 
 message GetRollupSpecificSequencerBlockRequest {
   // The height of the block to retrieve.
-  uint64 height = 1;
+  int64 height = 1;
   // The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
   bytes rollup_id = 2;
 }
 
 message SubscribeSequencerBlocksRequest {
   // The height of the block to start the subscription from.
-  uint64 start_height = 1;
+  int64 start_height = 1;
 }
 
 message SubscribeRollupSpecificSequencerBlocksRequest {
   // The height of the block to start the subscription from.
-  uint64 start_height = 1;
+  int64 start_height = 1;
   // The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
   bytes rollup_id = 2;
 }
