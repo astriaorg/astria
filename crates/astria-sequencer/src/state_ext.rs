@@ -144,7 +144,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let current_amount = self
             .nonverifiable_get_raw(&block_fees_key(asset))
             .await
-            .expect("failed to read raw block fees from state")
+            .context("failed to read raw block fees from state")?
             .map(|bytes| {
                 let Ok(bytes): Result<[u8; 16], _> = bytes.try_into() else {
                     // this shouldn't happen
