@@ -525,7 +525,9 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
-        app.init_chain(genesis_state, vec![]).await.unwrap();
+        app.init_chain(genesis_state, vec![], "test".to_string())
+            .await
+            .unwrap();
         app.commit(storage.clone()).await;
 
         let (_tx, rx) = mpsc::channel(1);

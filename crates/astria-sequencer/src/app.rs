@@ -776,7 +776,7 @@ mod test {
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         });
 
-        app.init_chain(genesis_state, genesis_validators)
+        app.init_chain(genesis_state, genesis_validators, "test".to_string())
             .await
             .unwrap();
 
