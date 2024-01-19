@@ -145,6 +145,7 @@ impl App {
         &mut self,
         genesis_state: GenesisState,
         genesis_validators: Vec<tendermint::validator::Update>,
+        chain_id: String,
     ) -> anyhow::Result<()> {
         let mut state_tx = self
             .state
@@ -153,9 +154,7 @@ impl App {
 
         crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
         state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
-
-        // TODO: pass from config
-        state_tx.put_chain_id("astria".to_string());
+        state_tx.put_chain_id(chain_id);
         state_tx.put_block_height(0);
 
         // call init_chain on all components

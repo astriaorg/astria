@@ -142,7 +142,11 @@ impl Consensus {
         let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
             .context("failed to parse app_state in genesis file")?;
         self.app
-            .init_chain(genesis_state, init_chain.validators.clone())
+            .init_chain(
+                genesis_state,
+                init_chain.validators.clone(),
+                init_chain.chain_id,
+            )
             .await
             .context("failed to call init_chain")?;
 
