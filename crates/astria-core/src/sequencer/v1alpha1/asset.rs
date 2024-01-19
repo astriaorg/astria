@@ -1,3 +1,11 @@
+use std::{
+    fmt,
+    fmt::{
+        Display,
+        Formatter,
+    },
+};
+
 /// The default sequencer asset base denomination.
 pub const DEFAULT_NATIVE_ASSET_DENOM: &str = "nria";
 
@@ -90,6 +98,12 @@ impl From<String> for Id {
 impl AsRef<[u8]> for Id {
     fn as_ref(&self) -> &[u8] {
         &self.0
+    }
+}
+
+impl Display for Id {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(&self.0))
     }
 }
 
