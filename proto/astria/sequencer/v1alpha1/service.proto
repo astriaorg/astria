@@ -36,16 +36,16 @@ service SequencerService {
   rpc GetRollupSpecificSequencerBlock(GetRollupSpecificSequencerBlockRequest) returns (RollupSpecificSequencerBlock);
   // Starts a subscription to sequencer blocks starting from the given height.
   // The client will receive a stream of sequencer blocks.
-  // 
+  //
   // If the specified height is in the past will stream to catch up, otherwise will
   // wait till given height met and stream when block is committed.
   rpc SubscribeSequencerBlocks(SubscribeSequencerBlocksRequest) returns (stream SequencerBlock);
   // Starts a subscription to rollup specific sequencer blocks starting from the given height.
   // The client will receive a stream of rollup specific sequencer blocks.
-  // 
+  //
   // If the specified height is in the past will stream to catch up, otherwise will
   // wait until height is met.
-  // 
+  //
   // Blocks will be streamed even if the rollup has no transactions in the block.
   rpc SubscribeRollupSpecificSequencerBlocks(SubscribeRollupSpecificSequencerBlocksRequest) returns (stream RollupSpecificSequencerBlock);
 }
