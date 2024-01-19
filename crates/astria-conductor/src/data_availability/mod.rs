@@ -37,12 +37,9 @@ use futures::{
     StreamExt as _,
 };
 use pin_project_lite::pin_project;
-use sequencer_client::{
-    tendermint::{
-        self,
-        block::Height as SequencerHeight,
-    },
-    // SequencerBlock,
+use sequencer_client::tendermint::{
+    self,
+    block::Height as SequencerHeight,
 };
 use tokio::{
     select,
