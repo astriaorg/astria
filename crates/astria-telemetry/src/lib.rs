@@ -15,6 +15,7 @@ use tracing_subscriber::{
     util::TryInitError,
 };
 
+#[cfg(feature = "display")]
 pub mod display;
 
 /// The errors that can occur when initializing telemtry.
