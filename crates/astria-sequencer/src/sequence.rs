@@ -15,6 +15,7 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
+    state_ext::StateWriteExt as _,
     transaction::action_handler::ActionHandler,
 };
 
@@ -61,6 +62,11 @@ impl ActionHandler for SequenceAction {
         fee_asset_id: asset::Id,
     ) -> Result<()> {
         let fee = calculate_fee(&self.data).context("failed to calculate fee")?;
+        state
+            .get_and_increase_block_fees(fee_asset_id, fee)
+            .await
+            .context("failed to add to block fees")?;
+
         let from_balance = state
             .get_account_balance(from, fee_asset_id)
             .await
