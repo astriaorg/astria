@@ -118,10 +118,10 @@ impl
             .height;
 
         Ok(Reader {
+            executor_channel,
             celestia_http_client,
             celestia_ws_client,
             celestia_start_height,
-            executor_channel,
             block_verifier,
             sequencer_namespace,
             rollup_namespace,
