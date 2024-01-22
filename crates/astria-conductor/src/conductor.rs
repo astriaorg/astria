@@ -112,7 +112,7 @@ impl Conductor {
                 .build()
                 .await
                 .wrap_err("failed to construct executor")?;
-            let genesis = executor.get_genesis();
+            let genesis = executor.genesis();
             let executable_sequencer_block_height = executor
                 .calculate_executable_block_height()
                 .wrap_err("failed calculating the next executable block height")?;

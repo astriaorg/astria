@@ -28,7 +28,7 @@ enum GenesisInfoErrorKind {
 
 /// Genesis Info required from a rollup to start a an execution client.
 ///
-/// Contains information about the rollup id, and base heights for both sequencer & celestia. 
+/// Contains information about the rollup id, and base heights for both sequencer & celestia.
 ///
 /// Usually constructed its [`Protobuf`] implementation from a
 /// [`raw::GenesisInfo`].
@@ -37,9 +37,9 @@ pub struct GenesisInfo {
     /// The rollup id which is used to identify the rollup txs.
     rollup_id: RollupId,
     /// The first height of sequencer which is used to identify the first block of the rollup.
-    sequencer_genesis_block_height: u32,
+    sequencer_genesis_block_height: tendermint::block::Height,
     /// The first height of celestia which to look for sequencer blocks.
-    celestia_base_block_height: u32,
+    celestia_base_block_height: celestia_tendermint::block::Height,
     /// The allowed variance in the block height of celestia when looking for sequencer blocks.
     celestia_block_variance: u32,
 }
@@ -51,12 +51,12 @@ impl GenesisInfo {
     }
 
     #[must_use]
-    pub fn sequencer_genesis_block_height(&self) -> u32 {
+    pub fn sequencer_genesis_block_height(&self) -> tendermint::block::Height {
         self.sequencer_genesis_block_height
     }
 
     #[must_use]
-    pub fn celestia_base_block_height(&self) -> u32 {
+    pub fn celestia_base_block_height(&self) -> celestia_tendermint::block::Height {
         self.celestia_base_block_height
     }
 
@@ -82,8 +82,8 @@ impl Protobuf for GenesisInfo {
 
         Ok(Self {
             rollup_id,
-            sequencer_genesis_block_height: *sequencer_genesis_block_height,
-            celestia_base_block_height: *celestia_base_block_height,
+            sequencer_genesis_block_height: (*sequencer_genesis_block_height).into(),
+            celestia_base_block_height: (*celestia_base_block_height).into(),
             celestia_block_variance: *celestia_block_variance,
         })
     }
@@ -95,10 +95,21 @@ impl Protobuf for GenesisInfo {
             celestia_base_block_height,
             celestia_block_variance,
         } = self;
+
+        let sequencer_genesis_block_height: u32 =
+            (*sequencer_genesis_block_height).value().try_into().expect(
+                "block height overflow, this should not happen since tendermint heights are i64 \
+                 under the hood",
+            );
+        let celestia_base_block_height: u32 =
+            (*celestia_base_block_height).value().try_into().expect(
+                "block height overflow, this should not happen since tendermint heights are i64 \
+                 under the hood",
+            );
         Self::Raw {
             rollup_id: rollup_id.to_vec(),
-            sequencer_genesis_block_height: *sequencer_genesis_block_height,
-            celestia_base_block_height: *celestia_base_block_height,
+            sequencer_genesis_block_height,
+            celestia_base_block_height,
             celestia_block_variance: *celestia_block_variance,
         }
     }

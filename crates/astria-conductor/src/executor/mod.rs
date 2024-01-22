@@ -460,8 +460,8 @@ impl Executor {
         Ok(executable_block_height.into())
     }
 
-    pub(crate) fn get_genesis(&self) -> GenesisInfo {
-        self.genesis.clone()
+    pub(crate) fn genesis(&self) -> GenesisInfo {
+        self.genesis
     }
 
     // Returns the lowest sequencer block height which can finalized on the rollup.
@@ -517,10 +517,14 @@ impl Executor {
 /// `initial_sequencer_height + rollup_height` the corresponding sequencer
 /// height.
 fn calculate_sequencer_block_height(
-    initial_sequencer_height: u32,
+    initial_sequencer_height: tendermint::block::Height,
     rollup_height: u32,
 ) -> Option<u32> {
-    initial_sequencer_height.checked_add(rollup_height)
+    let sequencer_height = initial_sequencer_height.value().try_into().expect(
+        "initial sequencer height is too large to be represented as a u32, this should not happen \
+         since it is derived from a i64 number",
+    );
+    rollup_height.checked_add(sequencer_height)
 }
 
 enum Update {
