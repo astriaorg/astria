@@ -52,7 +52,10 @@ impl
 {
     /// Creates a new Reader instance and returns a command sender.
     pub(crate) async fn build(self) -> eyre::Result<Reader> {
-        use celestia_client::celestia_rpc::HeaderClient as _;
+        use celestia_client::celestia_rpc::{
+            Client,
+            HeaderClient as _,
+        };
         let Self {
             celestia_endpoint: WithCelestiaEndpoint(celestia_endpoint),
             celestia_token: WithCelestiaToken(celestia_token),
@@ -65,8 +68,40 @@ impl
 
         let block_verifier = BlockVerifier::new(sequencer_client_pool);
 
-        let celestia_client::celestia_rpc::Client::Ws(celestia_client) =
-            celestia_client::celestia_rpc::Client::new(&celestia_endpoint, Some(&celestia_token))
+        let uri = celestia_endpoint
+            .parse::<http::Uri>()
+            .wrap_err("failed to parse the provided celestia endpoint as a URL")?;
+
+        let ws_endpoint = match uri.scheme().map(ToString::to_string).as_deref() {
+            Some("ws" | "wss") => Ok(uri.clone()),
+            Some(_) | None => {
+                let mut parts = uri.clone().into_parts();
+                parts.scheme.replace(ws_scheme());
+                http::Uri::from_parts(parts)
+            }
+        }
+        .wrap_err("failed constructing websocket endpoint from provided celestia endpoint URL")?;
+
+        let http_endpoint = match uri.scheme().map(ToString::to_string).as_deref() {
+            Some("http" | "https") => Ok(uri.clone()),
+            Some(_) | None => {
+                let mut parts = uri.clone().into_parts();
+                parts.scheme.replace(http::uri::Scheme::HTTP);
+                http::Uri::from_parts(parts)
+            }
+        }
+        .wrap_err("failed constructing http endpoint from provided celestia endpoint URL")?;
+
+        let Client::Ws(celestia_ws_client) =
+            Client::new(&ws_endpoint.to_string(), Some(&celestia_token))
+                .await
+                .wrap_err("failed constructing celestia http client")?
+        else {
+            bail!("expected a celestia HTTP client but got a websocket client");
+        };
+
+        let Client::Http(celestia_http_client) =
+            Client::new(&http_endpoint.to_string(), Some(&celestia_token))
                 .await
                 .wrap_err("failed constructing celestia http client")?
         else {
@@ -75,7 +110,7 @@ impl
 
         // TODO: we should probably pass in the height we want to start at from some genesis/config
         // file
-        let celestia_start_height = celestia_client
+        let celestia_start_height = celestia_ws_client
             .header_network_head()
             .await
             .wrap_err("failed to get network head from celestia to extract latest head")?
@@ -83,7 +118,8 @@ impl
             .height;
 
         Ok(Reader {
-            celestia_client: celestia_client.into(),
+            celestia_http_client,
+            celestia_ws_client,
             celestia_start_height,
             executor_channel,
             block_verifier,
@@ -366,3 +402,15 @@ pub(crate) struct NoSequencerNamespace;
 pub(crate) struct WithSequencerNamespace(Namespace);
 pub(crate) struct NoShutdown;
 pub(crate) struct WithShutdown(oneshot::Receiver<()>);
+
+fn ws_scheme() -> http::uri::Scheme {
+    "ws".parse::<_>().unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn ws_scheme_utility_works() {
+        assert_eq!(&super::ws_scheme(), "ws");
+    }
+}
