@@ -7,6 +7,10 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use deadpool::managed::Pool;
+use http::{
+    uri::Scheme,
+    Uri,
+};
 use tokio::sync::{
     mpsc,
     oneshot,
@@ -69,26 +73,25 @@ impl
         let block_verifier = BlockVerifier::new(sequencer_client_pool);
 
         let uri = celestia_endpoint
-            .parse::<http::Uri>()
+            .parse::<Uri>()
             .wrap_err("failed to parse the provided celestia endpoint as a URL")?;
+        let is_tls = matches!(uri.scheme().map(Scheme::as_str), Some("https" | "wss"));
 
-        let ws_endpoint = match uri.scheme().map(ToString::to_string).as_deref() {
-            Some("ws" | "wss") => Ok(uri.clone()),
-            Some(_) | None => {
-                let mut parts = uri.clone().into_parts();
-                parts.scheme.replace(ws_scheme());
-                http::Uri::from_parts(parts)
-            }
+        let ws_endpoint = {
+            let mut parts = uri.clone().into_parts();
+            parts
+                .scheme
+                .replace(is_tls.then(wss_scheme).unwrap_or_else(ws_scheme));
+            Uri::from_parts(parts)
         }
         .wrap_err("failed constructing websocket endpoint from provided celestia endpoint URL")?;
 
-        let http_endpoint = match uri.scheme().map(ToString::to_string).as_deref() {
-            Some("http" | "https") => Ok(uri.clone()),
-            Some(_) | None => {
-                let mut parts = uri.clone().into_parts();
-                parts.scheme.replace(http::uri::Scheme::HTTP);
-                http::Uri::from_parts(parts)
-            }
+        let http_endpoint = {
+            let mut parts = uri.clone().into_parts();
+            parts
+                .scheme
+                .replace(if is_tls { Scheme::HTTPS } else { Scheme::HTTP });
+            Uri::from_parts(parts)
         }
         .wrap_err("failed constructing http endpoint from provided celestia endpoint URL")?;
 
@@ -403,8 +406,12 @@ pub(crate) struct WithSequencerNamespace(Namespace);
 pub(crate) struct NoShutdown;
 pub(crate) struct WithShutdown(oneshot::Receiver<()>);
 
-fn ws_scheme() -> http::uri::Scheme {
+fn ws_scheme() -> Scheme {
     "ws".parse::<_>().unwrap()
+}
+
+fn wss_scheme() -> Scheme {
+    "wss".parse::<_>().unwrap()
 }
 
 #[cfg(test)]
@@ -412,5 +419,9 @@ mod tests {
     #[test]
     fn ws_scheme_utility_works() {
         assert_eq!(&super::ws_scheme(), "ws");
+    }
+    #[test]
+    fn wss_scheme_utility_works() {
+        assert_eq!(&super::ws_scheme(), "wss");
     }
 }
