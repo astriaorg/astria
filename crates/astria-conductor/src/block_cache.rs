@@ -51,6 +51,15 @@ impl<T> BlockCache<T> {
         Some(block)
     }
 
+    pub(crate) fn drop_obsolete(&mut self, latest_height: Height) {
+        self.next_height = std::cmp::max(self.next_height, latest_height);
+        // Splitting the btree always involves an allocation, so only do it if necessary
+        if self.inner.first_key_value().map(|(&height, _)| height) < Some(latest_height) {
+            let only_non_obsolete = self.inner.split_off(&latest_height);
+            self.inner = only_non_obsolete;
+        }
+    }
+
     /// Return a handle to the next block in the cache.
     ///
     /// This method exists to make fetching the next block async cancellation safe.

@@ -11,6 +11,7 @@ use color_eyre::eyre::{
 use tokio::sync::{
     mpsc,
     oneshot,
+    watch,
 };
 use tracing::info;
 
@@ -83,9 +84,11 @@ impl ExecutorBuilder<WithRollupAddress, WithRollupId, WithShutdown> {
         let (celestia_tx, celestia_rx) = mpsc::unbounded_channel();
         let (sequencer_tx, sequencer_rx) = mpsc::unbounded_channel();
 
-        let mut commitment_state = super::TrackState::with_state(commitment_state);
-        commitment_state
-            .set_sequencer_height_with_first_rollup_block(sequencer_height_with_first_rollup_block);
+        let state = watch::channel(super::State::new(
+            commitment_state,
+            sequencer_height_with_first_rollup_block,
+        ))
+        .0;
 
         Ok(Executor {
             celestia_rx,
@@ -96,7 +99,7 @@ impl ExecutorBuilder<WithRollupAddress, WithRollupId, WithShutdown> {
             shutdown,
             client,
             rollup_id,
-            commitment_state,
+            state,
             blocks_pending_finalization: HashMap::new(),
             pre_execution_hook,
         })

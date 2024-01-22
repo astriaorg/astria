@@ -116,10 +116,11 @@ impl Conductor {
             // sequencer block that can be executed on top of the rollup state.
             // This value is derived by the Executor.
             let sequencer_reader = sequencer::Reader::new(
-                executor.next_soft_sequencer_height(),
                 sequencer_client_pool.clone(),
                 shutdown_rx,
                 executor.sequencer_channel(),
+                executor.subscribe_to_state(),
+                0,
             );
             tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
             shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
