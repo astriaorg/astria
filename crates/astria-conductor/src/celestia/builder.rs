@@ -422,6 +422,6 @@ mod tests {
     }
     #[test]
     fn wss_scheme_utility_works() {
-        assert_eq!(&super::ws_scheme(), "wss");
+        assert_eq!(&super::wss_scheme(), "wss");
     }
 }
