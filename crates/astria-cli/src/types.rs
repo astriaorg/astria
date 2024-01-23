@@ -182,7 +182,9 @@ impl TryFrom<&ConfigCreateArgs> for RollupDeploymentConfig {
                 name: args.name.clone(),
                 chain_id,
                 network_id: args.network_id.to_string(),
-                genesis_accounts,
+                genesis: GenesisConfig {
+                    alloc: genesis_accounts,
+                },
             },
             sequencer: SequencerConfig {
                 initial_block_height: sequencer_initial_block_height.to_string(),
@@ -200,13 +202,25 @@ pub struct RollupConfig {
     chain_id: String,
     // NOTE - String here because yaml will serialize large ints w/ scientific notation
     network_id: String,
-    genesis_accounts: Vec<GenesisAccount>,
+    genesis: GenesisConfig,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenesisConfig {
+    alloc: Vec<GenesisAccount>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GenesisAccount {
     address: String,
+    value: GenesisAccountValue,
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GenesisAccountValue {
     // NOTE - string because yaml will serialize large ints w/ scientific notation
     balance: String,
 }
@@ -215,7 +229,9 @@ impl From<GenesisAccountArg> for GenesisAccount {
     fn from(arg: GenesisAccountArg) -> Self {
         Self {
             address: arg.address,
-            balance: arg.balance.to_string(),
+            value: GenesisAccountValue {
+                balance: arg.balance.to_string(),
+            },
         }
     }
 }
@@ -274,16 +290,22 @@ mod tests {
                     name: "rollup1".to_string(),
                     chain_id: "chain1".to_string(),
                     network_id: "1".to_string(),
-                    genesis_accounts: vec![
-                        GenesisAccount {
-                            address: "0xA5TR14".to_string(),
-                            balance: "1000000000000000000".to_string(),
-                        },
-                        GenesisAccount {
-                            address: "0x420XYZ69".to_string(),
-                            balance: "420".to_string(),
-                        },
-                    ],
+                    genesis: GenesisConfig {
+                        alloc: vec![
+                            GenesisAccount {
+                                address: "0xA5TR14".to_string(),
+                                value: GenesisAccountValue {
+                                    balance: "1000000000000000000".to_string(),
+                                },
+                            },
+                            GenesisAccount {
+                                address: "0x420XYZ69".to_string(),
+                                value: GenesisAccountValue {
+                                    balance: "420".to_string(),
+                                },
+                            },
+                        ],
+                    },
                 },
                 sequencer: SequencerConfig {
                     initial_block_height: "127689000000".to_string(),
@@ -341,10 +363,14 @@ mod tests {
                     name: "rollup2".to_string(),
                     chain_id: "rollup2-chain".to_string(), // Derived from name
                     network_id: "2211011801".to_string(),
-                    genesis_accounts: vec![GenesisAccount {
-                        address: "0xA5TR14".to_string(),
-                        balance: "10000".to_string(),
-                    }],
+                    genesis: GenesisConfig {
+                        alloc: vec![GenesisAccount {
+                            address: "0xA5TR14".to_string(),
+                            value: GenesisAccountValue {
+                                balance: "10000".to_string(),
+                            },
+                        }],
+                    },
                 },
                 sequencer: SequencerConfig {
                     initial_block_height: "1".to_string(), // Default value
