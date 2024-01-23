@@ -31,6 +31,7 @@ pub struct Config {
     pub private_key: SecretString,
 
     /// Sequencer block time in milliseconds
+    #[serde(alias = "max_submit_interval_ms")]
     pub block_time_ms: u64,
 
     /// Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
