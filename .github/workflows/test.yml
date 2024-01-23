@@ -6,7 +6,7 @@ on:
   pull_request:
   push:
     branches:
-      - "main"
+      - "release/sequencer-v0.8.x"
   workflow_dispatch:
 
 jobs:

@@ -3,7 +3,7 @@ on:
   pull_request:
   push:
     branches:
-      - "main"
+      - "release/sequencer-v0.8.x"
 
 jobs:
   run_checker:
@@ -38,7 +38,7 @@ jobs:
         with:
           # The 'main' branch of the GitHub repository that defines the module.
           input: "proto"
-          against: "buf.build/astria/astria"
+          against: "buf.build/astria/astria:sequencer-v0.8.x"
 
   rust:
     runs-on: ubuntu-22.04

@@ -3,7 +3,7 @@ on:
   pull_request:
   push:
     branches:
-        - main
+        - release/sequencer-v0.8.x
 
 jobs:
   run_checker:
@@ -22,25 +22,9 @@ jobs:
           github_token: ${{ github.token }}
       - uses: bufbuild/buf-push-action@v1
         with:
-          draft:  ${{ github.ref_name != 'main'}}
+          draft:  true
           input: "proto"
           buf_token: ${{ secrets.BUF_TOKEN }}
-
-  conductor:
-    needs: run_checker
-    if: needs.run_checker.outputs.run_release_services == 'true'
-    uses: ./.github/workflows/reusable-cargo-version.yml
-    with:
-      package-name: 'conductor'
-      display-name: 'Conductor'
-
-  composer:
-    needs: run_checker
-    if: needs.run_checker.outputs.run_release_services == 'true'
-    uses: ./.github/workflows/reusable-cargo-version.yml
-    with:
-      package-name: 'composer'
-      display-name: 'Composer'
   
   sequencer:
     needs: run_checker
@@ -50,24 +34,8 @@ jobs:
       package-name: 'sequencer'
       display-name: 'Sequencer'
 
-  sequencer-relayer:
-    needs: run_checker
-    if: needs.run_checker.outputs.run_release_services == 'true'
-    uses: ./.github/workflows/reusable-cargo-version.yml
-    with:
-      package-name: 'sequencer-relayer'
-      display-name: 'Sequencer Relayer'
-
-  cli:
-    needs: run_checker
-    if: needs.run_checker.outputs.run_release_services == 'true'
-    uses: ./.github/workflows/reusable-cargo-version.yml
-    with:
-      package-name: 'cli'
-      display-name: 'CLI'
-
   release:
-    needs: [proto, conductor, composer, sequencer, sequencer-relayer, cli]
+    needs: [proto, sequencer]
     if: ${{ always() && !cancelled() }}
     uses: ./.github/workflows/reusable-success.yml
     with:
