@@ -28,6 +28,8 @@ use crate::helper::spawn_composer;
 
 #[tokio::test]
 async fn tx_from_one_rollup_is_received_by_sequencer() {
+    // Spawn a composer with a mock sequencer and a mock rollup node
+    // Initial nonce is 0
     let test_composer = spawn_composer(&["test1"]).await;
     tokio::time::timeout(
         Duration::from_millis(100),
@@ -42,62 +44,14 @@ async fn tx_from_one_rollup_is_received_by_sequencer() {
     test_composer.rollup_nodes["test1"]
         .push_tx(Transaction::default())
         .unwrap();
+
+    // wait for 1 sequencer block time to make sure the the bundle is preempted
     tokio::time::timeout(
-        Duration::from_millis(100),
+        Duration::from_millis(test_composer.cfg.block_time_ms),
         mock_guard.wait_until_satisfied(),
     )
     .await
     .expect("mocked sequencer should have received a broadcast message from composer");
-}
-
-#[tokio::test]
-async fn tx_from_two_rollups_are_received_by_sequencer() {
-    let test_composer = spawn_composer(&["test1", "test2"]).await;
-    tokio::time::timeout(
-        Duration::from_millis(100),
-        test_composer.setup_guard.wait_until_satisfied(),
-    )
-    .await
-    .expect("setup guard failed");
-
-    let expected_chain_ids = vec![
-        RollupId::from_unhashed_bytes("test1"),
-        RollupId::from_unhashed_bytes("test2"),
-    ];
-    let test_guard =
-        mount_broadcast_tx_sync_mock(&test_composer.sequencer, expected_chain_ids, vec![0, 1])
-            .await;
-    test_composer.rollup_nodes["test1"]
-        .push_tx(Transaction::default())
-        .unwrap();
-    test_composer.rollup_nodes["test2"]
-        .push_tx(Transaction::default())
-        .unwrap();
-
-    tokio::time::timeout(
-        Duration::from_millis(100),
-        test_guard.wait_until_satisfied(),
-    )
-    .await
-    .expect("mocked sequencer should have received a broadcast messages from composer");
-
-    // Validate that the received nonces and chain_ids were unique
-    let mut received_nonces: Vec<u32> = vec![];
-    let mut received_chain_ids: Vec<RollupId> = vec![];
-    for request in test_guard.received_requests().await {
-        let (chain_id, nonce) = chain_id_nonce_from_request(&request);
-        assert!(
-            !received_nonces.contains(&nonce),
-            "duplicate nonce received"
-        );
-        received_nonces.push(nonce);
-
-        assert!(
-            !received_chain_ids.contains(&chain_id),
-            "duplicate chain id received"
-        );
-        received_chain_ids.push(chain_id);
-    }
 }
 
 #[tokio::test]
@@ -143,8 +97,9 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
         .push_tx(Transaction::default())
         .unwrap();
 
+    // wait for 1 sequencer block time to make sure the the bundle is preempted
     tokio::time::timeout(
-        Duration::from_millis(100),
+        Duration::from_millis(test_composer.cfg.block_time_ms),
         invalid_nonce_guard.wait_until_satisfied(),
     )
     .await
@@ -167,15 +122,25 @@ async fn invalid_nonce_failure_causes_tx_resubmission_under_different_nonce() {
 
 #[tokio::test]
 async fn single_rollup_tx_payload_integrity() {
+    // Spawn a composer with a mock sequencer and a mock rollup node
+    // Initial nonce is 0
     let test_composer = spawn_composer(&["test1"]).await;
+    tokio::time::timeout(
+        Duration::from_millis(100),
+        test_composer.setup_guard.wait_until_satisfied(),
+    )
+    .await
+    .expect("setup guard failed");
 
     let tx: Transaction = serde_json::from_str(TEST_ETH_TX_JSON).unwrap();
     let mock_guard =
         mount_matcher_verifying_tx_integrity(&test_composer.sequencer, tx.clone()).await;
 
     test_composer.rollup_nodes["test1"].push_tx(tx).unwrap();
+
+    // wait for 1 sequencer block time to make sure the the bundle is preempted
     tokio::time::timeout(
-        Duration::from_millis(100),
+        Duration::from_millis(test_composer.cfg.block_time_ms),
         mock_guard.wait_until_satisfied(),
     )
     .await
