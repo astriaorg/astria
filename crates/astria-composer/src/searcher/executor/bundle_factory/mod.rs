@@ -1,3 +1,5 @@
+/// ! This module is responsible for bundling sequence actions into bundles that can be
+/// submitted to the sequencer.
 use std::{
     collections::VecDeque,
     mem,
