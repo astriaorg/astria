@@ -163,7 +163,7 @@ async fn refund_tokens_check<S: StateRead>(
     use prost::Message as _;
 
     let packet_data = FungibleTokenPacketData::decode(data)
-        .context("failed to decode packet data into FungibleTokenPacketData")?;
+        .context("failed to decode fungible token packet data json")?;
     let mut asset = packet_data
         .denom
         .parse::<IbcAsset>()
@@ -319,10 +319,8 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
     dest_channel: &ChannelId,
     is_refund: bool,
 ) -> Result<()> {
-    use prost::Message as _;
-
-    let packet_data = FungibleTokenPacketData::decode(data)
-        .context("failed to decode FungibleTokenPacketData")?;
+    let packet_data: FungibleTokenPacketData =
+        serde_json::from_slice(data).context("failed to decode FungibleTokenPacketData")?;
     let packet_amount: u128 = packet_data
         .amount
         .parse()

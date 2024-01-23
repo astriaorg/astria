@@ -38,7 +38,6 @@ cargo build --release
     --log-level DEBUG \
     --rollup.name steezechain \
     --rollup.network-id 42 \
-    --rollup.skip-empty-blocks \
     --rollup.genesis-accounts 0xaC21B97d35Bf75A7dAb16f35b111a50e78A72F30:100000000000000000000
   
 # edit config
