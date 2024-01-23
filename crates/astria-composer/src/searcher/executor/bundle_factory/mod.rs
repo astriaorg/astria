@@ -122,7 +122,7 @@ impl BundleFactory {
                 self.finished.push_back(self.curr_bundle.flush());
                 self.curr_bundle
                     .push(seq_action)
-                    .expect("seq_action should not be larger than max bundle size");
+                    .expect("seq_action should not be larger than max bundle size, this is a bug");
                 Ok(())
             }
             Ok(()) => {
@@ -136,7 +136,10 @@ impl BundleFactory {
         }
     }
 
-    /// Get the next bundle from the `finished` queue.
+    /// Returns a handle to the next finished bundle if it exists.
+    ///
+    /// The bundle is only removed from the factory on calling [`NextFinishedBundle::pop`].
+    /// This method primarily exists to work around async cancellation.
     pub(super) fn next_finished(&mut self) -> Option<NextFinishedBundle> {
         if self.finished.is_empty() {
             None
@@ -147,7 +150,9 @@ impl BundleFactory {
         }
     }
 
-    /// Get the next bundle from the `finished` queue. If the queue is empty, flush `curr_bundle`.
+    /// Immediately the currently aggregating bundle.
+    ///
+    /// Returns an empty bundle if there are no bundled transactions.
     pub(super) fn pop_now(&mut self) -> Vec<Action> {
         self.finished
             .pop_front()

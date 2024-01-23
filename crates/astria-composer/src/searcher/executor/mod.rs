@@ -65,17 +65,17 @@ use tracing::{
     info,
     info_span,
     instrument,
+    instrument::Instrumented,
     warn,
     Instrument,
     Span,
 };
 
-use crate::searcher::executor::bundle_factory::{
-    BundleFactory,
-    BundleFactoryError,
-};
+use crate::searcher::executor::bundle_factory::BundleFactory;
 
 mod bundle_factory;
+
+#[cfg(test)]
 mod tests;
 
 /// The `Executor` interfaces with the sequencer. It handles account nonces, transaction signing,
@@ -97,7 +97,7 @@ pub(super) struct Executor {
     // The sequencer address associated with the private key
     address: Address,
     // Milliseconds for bundle timer to make sure bundles are submitted at least once per block.
-    block_time_ms: u64,
+    block_time: tokio::time::Duration,
     // Max bytes in a sequencer action bundle
     max_bytes_per_bundle: usize,
 }
@@ -154,7 +154,7 @@ impl Executor {
             sequencer_client,
             sequencer_key,
             address: sequencer_address,
-            block_time_ms: block_time,
+            block_time: Duration::from_millis(block_time),
             max_bytes_per_bundle,
         })
     }
@@ -166,7 +166,7 @@ impl Executor {
 
     /// Create a future to submit a bundle to the sequencer.
     #[instrument(skip(self), fields(nonce.initial = %nonce))]
-    fn submit_bundle(&self, nonce: u32, bundle: Vec<Action>) -> Fuse<SubmitFut> {
+    fn submit_bundle(&self, nonce: u32, bundle: Vec<Action>) -> Fuse<Instrumented<SubmitFut>> {
         SubmitFut {
             client: self.sequencer_client.clone(),
             address: self.address,
@@ -175,6 +175,7 @@ impl Executor {
             state: SubmitState::NotStarted,
             bundle,
         }
+        .in_current_span()
         .fuse()
     }
 
@@ -184,13 +185,13 @@ impl Executor {
     /// An error is returned if connecting to the sequencer fails.
     #[instrument(skip_all, fields(address = %self.address))]
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        let mut submission_fut: Fuse<SubmitFut> = Fuse::terminated();
+        let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
         let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address)
             .await
             .wrap_err("failed getting initial nonce from sequencer")?;
         self.status.send_modify(|status| status.is_connected = true);
 
-        let block_timer = time::sleep(Duration::from_millis(self.block_time_ms));
+        let block_timer = time::sleep(self.block_time);
         tokio::pin!(block_timer);
         let mut bundle_factory = BundleFactory::new(self.max_bytes_per_bundle);
 
@@ -209,7 +210,7 @@ impl Executor {
                         }
                     }
 
-                    block_timer.as_mut().reset(Instant::now() + Duration::from_millis(self.block_time_ms));
+                    block_timer.as_mut().reset(Instant::now() + self.block_time);
                 }
 
                 Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
@@ -222,23 +223,21 @@ impl Executor {
                 // receive new seq_action and bundle it
                 Some(seq_action) = self.serialized_rollup_transactions_rx.recv() => {
                     let rollup_id = seq_action.rollup_id;
-                    match bundle_factory.try_push(seq_action) {
-                        Ok(()) => {}
-                        Err(BundleFactoryError::SequenceActionTooLarge{size, max_size}) => {
+                    if let Err(e) = bundle_factory.try_push(seq_action) {
                             warn!(
                                 rollup_id = %rollup_id,
-                                seq_action_size = size,
-                                max_size = max_size,
+                                error = &e as &dyn std::error::Error,
                                 "failed to bundle sequence action: too large. sequence action is dropped."
                             );
-                        }
                     }
                 }
 
                 // try to preempt current bundle if the timer has ticked without submitting the next bundle
                 () = &mut block_timer, if submission_fut.is_terminated() => {
                     let bundle = bundle_factory.pop_now();
-                    if !bundle.is_empty() {
+                    if bundle.is_empty() {
+                        debug!("block timer ticked, but no bundle to submit to sequencer");
+                    } else {
                         debug!(
                             bundle_len=bundle.len(),
                             "forcing bundle submission to sequencer due to block timer"
@@ -296,7 +295,6 @@ async fn get_latest_nonce(
     fields(
         nonce = tx.unsigned_transaction().nonce,
         transaction.hash = hex::encode(sha256(&tx.to_raw().encode_to_vec())),
-        bundle.len = %tx.actions().len()
     )
 )]
 async fn submit_tx(
