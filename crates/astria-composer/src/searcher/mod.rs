@@ -25,7 +25,6 @@ use tracing::{
 
 use crate::Config;
 
-mod bundle_factory;
 mod collector;
 mod executor;
 mod rollup;
