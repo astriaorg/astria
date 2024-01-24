@@ -11,7 +11,10 @@ use std::{
 
 use astria_core::sequencer::v1alpha1::{
     asset::default_native_asset_id,
-    transaction::Action,
+    transaction::{
+        action::SequenceAction,
+        Action,
+    },
     AbciErrorCode,
     SignedTransaction,
     UnsignedTransaction,
@@ -24,6 +27,7 @@ use color_eyre::eyre::{
 use ed25519_consensus::SigningKey;
 use futures::{
     future::{
+        self,
         Fuse,
         FusedFuture as _,
         FutureExt as _,
@@ -43,11 +47,16 @@ use sequencer_client::{
     Address,
     SequencerClientExt as _,
 };
+use tendermint::crypto::Sha256;
 use tokio::{
     select,
     sync::{
         mpsc,
         watch,
+    },
+    time::{
+        self,
+        Instant,
     },
 };
 use tracing::{
@@ -56,10 +65,18 @@ use tracing::{
     info,
     info_span,
     instrument,
+    instrument::Instrumented,
     warn,
     Instrument,
     Span,
 };
+
+use crate::searcher::executor::bundle_factory::BundleFactory;
+
+mod bundle_factory;
+
+#[cfg(test)]
+mod tests;
 
 /// The `Executor` interfaces with the sequencer. It handles account nonces, transaction signing,
 /// and transaction submission.
@@ -70,8 +87,8 @@ use tracing::{
 pub(super) struct Executor {
     // The status of this executor
     status: watch::Sender<Status>,
-    // Channel for receiving action bundles for submission to the sequencer.
-    new_bundles: mpsc::Receiver<Vec<Action>>,
+    // Channel for receiving `SequenceAction`s to be bundled.
+    serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
     // The client for submitting wrapped and signed pending eth transactions to the astria
     // sequencer.
     sequencer_client: sequencer_client::HttpClient,
@@ -79,6 +96,10 @@ pub(super) struct Executor {
     sequencer_key: SigningKey,
     // The sequencer address associated with the private key
     address: Address,
+    // Milliseconds for bundle timer to make sure bundles are submitted at least once per block.
+    block_time: tokio::time::Duration,
+    // Max bytes in a sequencer action bundle
+    max_bytes_per_bundle: usize,
 }
 
 impl Drop for Executor {
@@ -108,7 +129,9 @@ impl Executor {
     pub(super) fn new(
         sequencer_url: &str,
         private_key: &SecretString,
-        new_bundles: mpsc::Receiver<Vec<Action>>,
+        serialized_rollup_transactions_rx: mpsc::Receiver<SequenceAction>,
+        block_time: u64,
+        max_bytes_per_bundle: usize,
     ) -> eyre::Result<Self> {
         let sequencer_client = sequencer_client::HttpClient::new(sequencer_url)
             .wrap_err("failed constructing sequencer client")?;
@@ -127,10 +150,12 @@ impl Executor {
 
         Ok(Self {
             status,
-            new_bundles,
+            serialized_rollup_transactions_rx,
             sequencer_client,
             sequencer_key,
             address: sequencer_address,
+            block_time: Duration::from_millis(block_time),
+            max_bytes_per_bundle,
         })
     }
 
@@ -139,22 +164,42 @@ impl Executor {
         self.status.subscribe()
     }
 
+    /// Create a future to submit a bundle to the sequencer.
+    #[instrument(skip(self), fields(nonce.initial = %nonce))]
+    fn submit_bundle(&self, nonce: u32, bundle: Vec<Action>) -> Fuse<Instrumented<SubmitFut>> {
+        SubmitFut {
+            client: self.sequencer_client.clone(),
+            address: self.address,
+            nonce,
+            signing_key: self.sequencer_key.clone(),
+            state: SubmitState::NotStarted,
+            bundle,
+        }
+        .in_current_span()
+        .fuse()
+    }
+
     /// Run the Executor loop, calling `process_bundle` on each bundle received from the channel.
     ///
     /// # Errors
     /// An error is returned if connecting to the sequencer fails.
     #[instrument(skip_all, fields(address = %self.address))]
     pub(super) async fn run_until_stopped(mut self) -> eyre::Result<()> {
-        use tracing::instrument::Instrumented;
         let mut submission_fut: Fuse<Instrumented<SubmitFut>> = Fuse::terminated();
         let mut nonce = get_latest_nonce(self.sequencer_client.clone(), self.address)
             .await
             .wrap_err("failed getting initial nonce from sequencer")?;
         self.status.send_modify(|status| status.is_connected = true);
+
+        let block_timer = time::sleep(self.block_time);
+        tokio::pin!(block_timer);
+        let mut bundle_factory = BundleFactory::new(self.max_bytes_per_bundle);
+
         loop {
             select! {
                 biased;
 
+                // process submission result and update nonce
                 rsp = &mut submission_fut, if !submission_fut.is_terminated() => {
                     match rsp {
                         Ok(new_nonce) => nonce = new_nonce,
@@ -164,28 +209,41 @@ impl Executor {
                             break Err(e).wrap_err("failed submitting bundle to sequencer");
                         }
                     }
+
+                    block_timer.as_mut().reset(Instant::now() + self.block_time);
                 }
 
-                // receive new bundle for processing
-                Some(bundle) = self.new_bundles.recv(), if submission_fut.is_terminated() => {
-                    // TODO(https://github.com/astriaorg/astria/issues/476): Attach the hash of the
-                    // bundle to the span. Linked GH issue is for agreeing on a hash for `SignedTransaction`,
-                    // but both should be addressed.
-                    let span =  info_span!(
-                        "submit bundle",
-                        nonce.initial = nonce,
-                        bundle.len = bundle.len(),
-                    );
-                    submission_fut = SubmitFut {
-                        client: self.sequencer_client.clone(),
-                        address: self.address,
-                        nonce,
-                        signing_key: self.sequencer_key.clone(),
-                        state: SubmitState::NotStarted,
-                        bundle,
+                Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
+                    let bundle = next_bundle.pop();
+                    if !bundle.is_empty() {
+                        submission_fut = self.submit_bundle(nonce, bundle);
                     }
-                    .instrument(span)
-                    .fuse();
+                }
+
+                // receive new seq_action and bundle it
+                Some(seq_action) = self.serialized_rollup_transactions_rx.recv() => {
+                    let rollup_id = seq_action.rollup_id;
+                    if let Err(e) = bundle_factory.try_push(seq_action) {
+                            warn!(
+                                rollup_id = %rollup_id,
+                                error = &e as &dyn std::error::Error,
+                                "failed to bundle sequence action: too large. sequence action is dropped."
+                            );
+                    }
+                }
+
+                // try to preempt current bundle if the timer has ticked without submitting the next bundle
+                () = &mut block_timer, if submission_fut.is_terminated() => {
+                    let bundle = bundle_factory.pop_now();
+                    if bundle.is_empty() {
+                        debug!("block timer ticked, but no bundle to submit to sequencer");
+                    } else {
+                        debug!(
+                            bundle_len=bundle.len(),
+                            "forcing bundle submission to sequencer due to block timer"
+                        );
+                        submission_fut = self.submit_bundle(nonce, bundle);
+                    }
                 }
             }
         }
@@ -243,6 +301,8 @@ async fn submit_tx(
     client: sequencer_client::HttpClient,
     tx: SignedTransaction,
 ) -> eyre::Result<tx_sync::Response> {
+    // TODO: change to info and log tx hash (to match info log in `SubmitFut`'s response handling
+    // logic)
     debug!("submitting signed transaction to sequencer");
     let span = Span::current();
     let retry_config = tryhard::RetryFutureConfig::new(1024)
@@ -407,11 +467,6 @@ impl Future for SubmitFut {
 }
 
 fn sha256(data: &[u8]) -> [u8; 32] {
-    use sha2::{
-        Digest as _,
-        Sha256,
-    };
-    let mut hasher = Sha256::new();
-    hasher.update(data);
-    hasher.finalize().into()
+    use sha2::Sha256;
+    Sha256::digest(data)
 }

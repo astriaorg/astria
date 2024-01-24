@@ -29,6 +29,14 @@ pub struct Config {
     /// Private key for the sequencer account used for signing transactions
     #[serde(serialize_with = "serialize_private_key")]
     pub private_key: SecretString,
+
+    /// Sequencer block time in milliseconds
+    #[serde(alias = "max_submit_interval_ms")]
+    pub block_time_ms: u64,
+
+    /// Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
+    /// public key, nonce. This is the sum of the sizes of all the `SequenceAction`s
+    pub max_bytes_per_bundle: usize,
 }
 
 impl config::Config for Config {

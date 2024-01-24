@@ -16,6 +16,7 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
+    state_ext::StateWriteExt as _,
     transaction::action_handler::ActionHandler,
 };
 
@@ -83,6 +84,11 @@ impl ActionHandler for TransferAction {
         from: Address,
         fee_asset_id: asset::Id,
     ) -> Result<()> {
+        state
+            .get_and_increase_block_fees(fee_asset_id, TRANSFER_FEE)
+            .await
+            .context("failed to add to block fees")?;
+
         let transfer_asset_id = self.asset_id;
 
         let from_balance = state

@@ -1,4 +1,7 @@
-use astria_core::sequencer::v1alpha1::RollupId;
+use astria_core::sequencer::v1alpha1::{
+    transaction::action::SequenceAction,
+    RollupId,
+};
 use color_eyre::eyre::{
     self,
     WrapErr as _,
@@ -21,14 +24,6 @@ use tracing::{
     warn,
 };
 
-/// A wrapper around an [`ethers::types::Transaction`] that includes the chain ID.
-///
-/// Used to send new transactions to the searcher.
-pub(super) struct Transaction {
-    pub(super) rollup_id: RollupId,
-    pub(super) inner: ethers::types::Transaction,
-}
-
 /// Collects transactions submitted to a rollup node and passes them downstream for further
 /// processing.
 ///
@@ -45,7 +40,7 @@ pub(super) struct Collector {
     // Name of the chain the transactions are read from.
     chain_name: String,
     // The channel on which the collector sends new txs to the searcher.
-    new_bundles: Sender<Transaction>,
+    new_bundles: Sender<SequenceAction>,
     // The status of this collector instance.
     status: watch::Sender<Status>,
     /// Rollup URL
@@ -71,7 +66,11 @@ impl Status {
 
 impl Collector {
     /// Initializes a new collector instance
-    pub(super) fn new(chain_name: String, url: String, new_bundles: Sender<Transaction>) -> Self {
+    pub(super) fn new(
+        chain_name: String,
+        url: String,
+        new_bundles: Sender<SequenceAction>,
+    ) -> Self {
         let (status, _) = watch::channel(Status::new());
         Self {
             rollup_id: RollupId::from_unhashed_bytes(&chain_name),
@@ -142,27 +141,28 @@ impl Collector {
         status.send_modify(|status| status.is_connected = true);
 
         while let Some(tx) = tx_stream.next().await {
-            debug!(transaction.hash = %tx.hash, "collected transaction from rollup");
+            let tx_hash = tx.hash;
+            debug!(transaction.hash = %tx_hash, "collected transaction from rollup");
+            let data = tx.rlp().to_vec();
+            let seq_action = SequenceAction {
+                rollup_id,
+                data,
+            };
+
             match new_bundles
-                .send_timeout(
-                    Transaction {
-                        rollup_id,
-                        inner: tx,
-                    },
-                    Duration::from_millis(500),
-                )
+                .send_timeout(seq_action, Duration::from_millis(500))
                 .await
             {
                 Ok(()) => {}
-                Err(SendTimeoutError::Timeout(tx)) => {
+                Err(SendTimeoutError::Timeout(_seq_action)) => {
                     warn!(
-                        transaction.hash = %tx.inner.hash,
+                        transaction.hash = %tx_hash,
                         "timed out sending new transaction to searcher after 500ms; dropping tx"
                     );
                 }
-                Err(SendTimeoutError::Closed(tx)) => {
+                Err(SendTimeoutError::Closed(_seq_action)) => {
                     warn!(
-                        transaction.hash = %tx.inner.hash,
+                        transaction.hash = %tx_hash,
                         "searcher channel closed while sending transaction; dropping transaction \
                          and exiting event loop"
                     );
