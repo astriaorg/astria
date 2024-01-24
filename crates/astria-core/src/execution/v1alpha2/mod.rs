@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use prost_types::Timestamp;
 
 use crate::{
@@ -130,26 +131,12 @@ impl BlockError {
     fn field_not_set(field: &'static str) -> Self {
         Self(BlockErrorKind::FieldNotSet(field))
     }
-
-    fn incorrect_block_hash_length(wrong_hash: &[u8]) -> Self {
-        Self(BlockErrorKind::IncorrectBlockHashLength(wrong_hash.len()))
-    }
-
-    fn incorrect_parent_block_hash_length(wrong_hash: &[u8]) -> Self {
-        Self(BlockErrorKind::IncorrectParentBlockHashLength(
-            wrong_hash.len(),
-        ))
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum BlockErrorKind {
     #[error("{0} field not set")]
     FieldNotSet(&'static str),
-    #[error(".hash field contained wrong number of bytes; expected 32, got {0}")]
-    IncorrectBlockHashLength(usize),
-    #[error(".parent_block_hash field contained wrong number of bytes; expected 32, got {0}")]
-    IncorrectParentBlockHashLength(usize),
 }
 
 /// An Astria execution block on a rollup.
@@ -166,10 +153,10 @@ pub struct Block {
     number: u32,
     /// The hash of the block
     #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::string::hex"))]
-    hash: [u8; 32],
-    /// The hash from the parent block
+    hash: Bytes,
+    /// The hash of the parent block
     #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::string::hex"))]
-    parent_block_hash: [u8; 32],
+    parent_block_hash: Bytes,
     /// Timestamp on the block, standardized to google protobuf standard.
     #[cfg_attr(
         feature = "serde",
@@ -185,13 +172,13 @@ impl Block {
     }
 
     #[must_use]
-    pub fn hash(&self) -> [u8; 32] {
-        self.hash
+    pub fn hash(&self) -> &Bytes {
+        &self.hash
     }
 
     #[must_use]
-    pub fn parent_block_hash(&self) -> [u8; 32] {
-        self.parent_block_hash
+    pub fn parent_block_hash(&self) -> &Bytes {
+        &self.parent_block_hash
     }
 
     #[must_use]
@@ -213,15 +200,6 @@ impl Protobuf for Block {
             parent_block_hash,
             timestamp,
         } = raw;
-        let hash = hash
-            .as_slice()
-            .try_into()
-            .map_err(|_| Self::Error::incorrect_block_hash_length(hash))?;
-        let parent_block_hash = parent_block_hash
-            .as_slice()
-            .try_into()
-            .map_err(|_| Self::Error::incorrect_parent_block_hash_length(parent_block_hash))?;
-
         // Clone'ing timestamp is effectively a copy because timestamp is just a (i32, i64) tuple
         let timestamp = timestamp
             .clone()
@@ -229,8 +207,8 @@ impl Protobuf for Block {
 
         Ok(Self {
             number: *number,
-            hash,
-            parent_block_hash,
+            hash: hash.clone(),
+            parent_block_hash: parent_block_hash.clone(),
             timestamp,
         })
     }
@@ -244,8 +222,8 @@ impl Protobuf for Block {
         } = self;
         Self::Raw {
             number: *number,
-            hash: hash.to_vec(),
-            parent_block_hash: parent_block_hash.to_vec(),
+            hash: hash.clone(),
+            parent_block_hash: parent_block_hash.clone(),
             // Clone'ing timestamp is effectively a copy because timestamp is just a (i32, i64)
             // tuple
             timestamp: Some(timestamp.clone()),
