@@ -5,7 +5,7 @@ use anyhow::{
 };
 use astria_core::sequencer::v1alpha1::{
     asset,
-    asset::IbcAsset,
+    asset::Denom,
     transaction::action,
     Address,
 };
@@ -134,7 +134,7 @@ impl ActionHandler for action::Ics20Withdrawal {
     }
 }
 
-fn is_source(source_port: &PortId, source_channel: &ChannelId, asset: &IbcAsset) -> bool {
+fn is_source(source_port: &PortId, source_channel: &ChannelId, asset: &Denom) -> bool {
     let prefix = format!("{source_port}/{source_channel}/");
     !asset.prefix_is(&prefix)
 }

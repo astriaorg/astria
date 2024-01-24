@@ -15,7 +15,7 @@ use anyhow::{
     Result,
 };
 use astria_core::sequencer::v1alpha1::{
-    asset::IbcAsset,
+    asset::Denom,
     Address,
 };
 use cnidarium::{
@@ -160,31 +160,26 @@ async fn refund_tokens_check<S: StateRead>(
     source_port: &PortId,
     source_channel: &ChannelId,
 ) -> Result<()> {
-    use prost::Message as _;
-
-    let packet_data = FungibleTokenPacketData::decode(data)
-        .context("failed to decode fungible token packet data json")?;
-    let mut asset = packet_data
-        .denom
-        .parse::<IbcAsset>()
-        .context("failed parsing `denom` field packet data as IbcAsset")?;
+    let packet_data: FungibleTokenPacketData =
+        serde_json::from_slice(data).context("failed to decode fungible token packet data json")?;
+    let mut denom: Denom = packet_data.denom.as_str().into();
 
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
     // so we need to look up the full trace from storage.
     // see https://github.com/cosmos/ibc-go/blob/main/docs/architecture/adr-001-coin-source-tracing.md#decision
-    if asset.prefix_is("ibc") {
-        asset = state
-            .get_ibc_asset(asset.id())
+    if denom.prefix_is("ibc") {
+        denom = state
+            .get_ibc_asset(denom.id())
             .await
             .context("failed to get denom trace from asset id")?;
     }
 
-    if is_source(source_port, source_channel, &asset, true) {
+    if is_source(source_port, source_channel, &denom, true) {
         // sender of packet (us) was the source chain
         //
         // check if escrow account has enough balance to refund user
         let balance = state
-            .get_ibc_channel_balance(source_channel, asset.id())
+            .get_ibc_channel_balance(source_channel, denom.id())
             .await
             .context("failed to get channel balance in refund_tokens_check")?;
 
@@ -203,7 +198,7 @@ async fn refund_tokens_check<S: StateRead>(
 fn is_source(
     source_port: &PortId,
     source_channel: &ChannelId,
-    asset: &IbcAsset,
+    asset: &Denom,
     is_refund: bool,
 ) -> bool {
     let prefix = format!("{source_port}/{source_channel}/");
@@ -329,35 +324,32 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         &hex::decode(packet_data.receiver).context("failed to decode receiver as hex string")?,
     )
     .context("invalid receiver address")?;
-    let mut asset = packet_data
-        .denom
-        .parse::<IbcAsset>()
-        .context("failed parsing `denom` field packet data as IbcAsset")?;
+    let mut denom: Denom = packet_data.denom.as_str().into();
 
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
     // so we need to look up the full trace from storage.
     // see https://github.com/cosmos/ibc-go/blob/main/docs/architecture/adr-001-coin-source-tracing.md#decision
-    if asset.prefix_is("ibc") {
-        asset = state
-            .get_ibc_asset(asset.id())
+    if denom.prefix_is("ibc") {
+        denom = state
+            .get_ibc_asset(denom.id())
             .await
             .context("failed to get denom trace from asset id")?;
     }
 
-    if is_source(source_port, source_channel, &asset, is_refund) {
+    if is_source(source_port, source_channel, &denom, is_refund) {
         // sender of packet (us) was the source chain
         // subtract balance from escrow account and transfer to user
 
         let escrow_balance = state
-            .get_ibc_channel_balance(source_channel, asset.id())
+            .get_ibc_channel_balance(source_channel, denom.id())
             .await
             .context("failed to get IBC channel balance in execute_ics20_transfer")?;
 
-        let user_balance = state.get_account_balance(recipient, asset.id()).await?;
+        let user_balance = state.get_account_balance(recipient, denom.id()).await?;
         state
             .put_ibc_channel_balance(
                 source_channel,
-                asset.id(),
+                denom.id(),
                 escrow_balance
                     .checked_sub(packet_amount)
                     .ok_or(anyhow::anyhow!(
@@ -368,7 +360,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         state
             .put_account_balance(
                 recipient,
-                asset.id(),
+                denom.id(),
                 user_balance
                     .checked_add(packet_amount)
                     .ok_or(anyhow::anyhow!("overflow when adding to user balance"))?,
@@ -384,29 +376,27 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             format!("{dest_port}/{dest_channel}/{}", packet_data.denom)
         };
 
-        let asset: IbcAsset = prefixed_denomination
-            .parse()
-            .context("failed to parse prefixed denomination as IbcAsset")?;
+        let denom: Denom = prefixed_denomination.as_str().into();
 
         // register denomination in global ID -> denom map if it's not already there
         if !state
-            .has_ibc_asset(asset.id())
+            .has_ibc_asset(denom.id())
             .await
             .context("failed to check if ibc asset exists in state")?
         {
             state
-                .put_ibc_asset(asset.id(), &asset)
+                .put_ibc_asset(denom.id(), &denom)
                 .context("failed to put IBC asset in storage")?;
         }
 
         let user_balance = state
-            .get_account_balance(recipient, asset.id())
+            .get_account_balance(recipient, denom.id())
             .await
             .context("failed to get user account balance in execute_ics20_transfer")?;
         state
             .put_account_balance(
                 recipient,
-                asset.id(),
+                denom.id(),
                 user_balance
                     .checked_add(packet_amount)
                     .ok_or(anyhow::anyhow!("overflow when adding to user balance"))?,

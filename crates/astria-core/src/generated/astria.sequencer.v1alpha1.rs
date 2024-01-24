@@ -36,14 +36,22 @@ impl AbciErrorCode {
         }
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AssetBalance {
+    #[prost(string, tag = "1")]
+    pub denom: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub balance: ::core::option::Option<super::super::primitive::v1::Uint128>,
+}
 /// A response containing the balance of an account.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BalanceResponse {
     #[prost(uint64, tag = "2")]
     pub height: u64,
-    #[prost(message, optional, tag = "3")]
-    pub balance: ::core::option::Option<super::super::primitive::v1::Uint128>,
+    #[prost(message, repeated, tag = "3")]
+    pub balances: ::prost::alloc::vec::Vec<AssetBalance>,
 }
 /// A response containing the current nonce for an account.
 #[allow(clippy::derive_partial_eq_without_eq)]
