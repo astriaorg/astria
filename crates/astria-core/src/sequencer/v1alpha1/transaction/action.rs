@@ -13,8 +13,7 @@ use crate::{
     sequencer::v1alpha1::{
         asset::{
             self,
-            IbcAsset,
-            IbcAssetError,
+            Denom,
         },
         Address,
         IncorrectAddressLength,
@@ -521,7 +520,7 @@ enum MintActionErrorKind {
 pub struct Ics20Withdrawal {
     // a transparent value consisting of an amount and a denom.
     amount: u128,
-    denom: IbcAsset,
+    denom: Denom,
     // the address on the destination chain to send the transfer to.
     destination_chain_address: String,
     // an Astria address to use to return funds from this withdrawal
@@ -542,7 +541,7 @@ impl Ics20Withdrawal {
     }
 
     #[must_use]
-    pub fn denom(&self) -> &IbcAsset {
+    pub fn denom(&self) -> &Denom {
         &self.denom
     }
 
@@ -627,10 +626,7 @@ impl Ics20Withdrawal {
 
         Ok(Self {
             amount: amount.into(),
-            denom: proto
-                .denom
-                .parse()
-                .map_err(Ics20WithdrawalError::invalid_denom)?,
+            denom: proto.denom.as_str().into(),
             destination_chain_address: proto.destination_chain_address,
             return_address,
             timeout_height,
@@ -683,11 +679,6 @@ impl Ics20WithdrawalError {
     }
 
     #[must_use]
-    fn invalid_denom(err: IbcAssetError) -> Self {
-        Self(Ics20WithdrawalErrorKind::InvalidDenom(err))
-    }
-
-    #[must_use]
     fn invalid_return_address(err: IncorrectAddressLength) -> Self {
         Self(Ics20WithdrawalErrorKind::InvalidReturnAddress(err))
     }
@@ -707,8 +698,6 @@ impl Ics20WithdrawalError {
 enum Ics20WithdrawalErrorKind {
     #[error("`amount` field was missing")]
     MissingAmount,
-    #[error("`denom` field was invalid")]
-    InvalidDenom(IbcAssetError),
     #[error("`return_address` field was invalid")]
     InvalidReturnAddress(IncorrectAddressLength),
     #[error("`timeout_height` field was missing")]

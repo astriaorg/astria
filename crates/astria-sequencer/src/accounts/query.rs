@@ -18,7 +18,6 @@ use tendermint::{
 
 use crate::{
     accounts::state_ext::StateReadExt as _,
-    asset::get_native_asset,
     state_ext::StateReadExt as _,
 };
 
@@ -33,16 +32,12 @@ pub(crate) async fn balance_request(
         Err(err_rsp) => return err_rsp,
     };
 
-    // TODO: update query to take optional `asset` parameter
-    let balance = match snapshot
-        .get_account_balance(address, get_native_asset().id())
-        .await
-    {
+    let balances = match snapshot.get_account_balances(address).await {
         Ok(balance) => balance,
         Err(err) => {
             return response::Query {
-                code: AbciErrorCode::INVALID_PARAMETER.into(),
-                info: AbciErrorCode::INVALID_PARAMETER.to_string(),
+                code: AbciErrorCode::INTERNAL_ERROR.into(),
+                info: AbciErrorCode::INTERNAL_ERROR.to_string(),
                 log: format!("failed getting balance for provided address: {err:?}"),
                 height,
                 ..response::Query::default()
@@ -51,7 +46,7 @@ pub(crate) async fn balance_request(
     };
     let payload = BalanceResponse {
         height: height.value(),
-        balance,
+        balances,
     }
     .into_raw()
     .encode_to_vec()
