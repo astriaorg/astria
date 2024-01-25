@@ -16,23 +16,31 @@ use color_eyre::eyre::{
 };
 use prost_types::Timestamp;
 use tonic::transport::Channel;
+use tracing::instrument;
 
 /// A newtype wrapper around [`ExecutionServiceClient`] to work with
 /// idiomatic types.
 #[derive(Clone)]
-pub(super) struct Client {
+pub(crate) struct Client {
+    uri: tonic::transport::Uri,
     inner: ExecutionServiceClient<Channel>,
 }
 
 impl Client {
-    pub(super) fn from_execution_service_client(inner: ExecutionServiceClient<Channel>) -> Self {
-        Self {
+    #[instrument(skip_all, fields(rollup_uri = %uri))]
+    pub(crate) async fn connect(uri: tonic::transport::Uri) -> eyre::Result<Self> {
+        let inner = ExecutionServiceClient::connect(uri.clone())
+            .await
+            .wrap_err("failed constructing execution service client")?;
+        Ok(Self {
+            uri,
             inner,
-        }
+        })
     }
 
     /// Calls remote procedure `astria.execution.v1alpha2.GetGenesisInfo`
-    pub(super) async fn get_genesis_info(&mut self) -> eyre::Result<GenesisInfo> {
+    #[instrument(skip_all, fields(uri = %self.uri))]
+    pub(crate) async fn get_genesis_info(&mut self) -> eyre::Result<GenesisInfo> {
         let request = raw::GetGenesisInfoRequest {};
         let response = self
             .inner
@@ -75,7 +83,7 @@ impl Client {
     }
 
     /// Calls remote procedure `astria.execution.v1alpha2.GetCommitmentState`
-    pub(super) async fn get_commitment_state(&mut self) -> eyre::Result<CommitmentState> {
+    pub(crate) async fn get_commitment_state(&mut self) -> eyre::Result<CommitmentState> {
         let request = raw::GetCommitmentStateRequest {};
         let response = self
             .inner

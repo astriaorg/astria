@@ -18,8 +18,10 @@ use astria_core::{
         Block,
         CommitmentState,
         ExecuteBlockRequest,
+        GenesisInfo,
         GetBlockRequest,
         GetCommitmentStateRequest,
+        GetGenesisInfoRequest,
         UpdateCommitmentStateRequest,
     },
     sequencer::v1alpha1::test_utils::{
@@ -28,10 +30,12 @@ use astria_core::{
     },
 };
 use ethers::{
-    prelude::*,
+    prelude::{
+        k256::ecdsa::SigningKey,
+        Middleware as _,
+    },
     utils::AnvilInstance,
 };
-use k256::ecdsa::SigningKey;
 use tokio::{
     sync::oneshot,
     task::JoinHandle,
@@ -84,6 +88,7 @@ fn make_genesis_block() -> Block {
 struct ExecutionServiceImpl {
     hash_to_number: Mutex<HashMap<[u8; 32], u32>>,
     commitment_state: Mutex<CommitmentState>,
+    genesis_info: Mutex<GenesisInfo>,
 }
 
 impl ExecutionServiceImpl {
@@ -98,6 +103,13 @@ impl ExecutionServiceImpl {
                 firm: Some(make_genesis_block()),
             }
             .into(),
+            genesis_info: GenesisInfo {
+                rollup_id: vec![42u8; 32],
+                sequencer_genesis_block_height: 100,
+                celestia_base_block_height: 1,
+                celestia_block_variance: 1,
+            }
+            .into(),
         }
     }
 }
@@ -109,6 +121,15 @@ impl ExecutionService for ExecutionServiceImpl {
         _request: tonic::Request<GetBlockRequest>,
     ) -> std::result::Result<tonic::Response<Block>, tonic::Status> {
         unimplemented!("get_block")
+    }
+
+    async fn get_genesis_info(
+        &self,
+        _request: tonic::Request<GetGenesisInfoRequest>,
+    ) -> std::result::Result<tonic::Response<GenesisInfo>, tonic::Status> {
+        Ok(tonic::Response::new(
+            self.genesis_info.lock().unwrap().clone(),
+        ))
     }
 
     async fn batch_get_blocks(
@@ -189,6 +210,7 @@ struct MockEnvironment {
     _server: MockExecutionServer,
     _shutdown_tx: oneshot::Sender<()>,
     executor: Executor,
+    client: Client,
 }
 
 async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnvironment {
@@ -199,11 +221,17 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
 
     let executor = Executor::builder()
         .rollup_address(&server_url)
-        .rollup_id(RollupId::from_unhashed_bytes(b"test"))
-        .sequencer_height_with_first_rollup_block(100)
+        .unwrap()
         .shutdown(shutdown_rx)
         .set_optimism_hook(pre_execution_hook)
-        .build()
+        .build();
+
+    let client = Client::connect(executor.rollup_address.clone())
+        .await
+        .unwrap();
+
+    executor
+        .set_initial_node_state(client.clone())
         .await
         .unwrap();
 
@@ -211,14 +239,15 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
         _server: server,
         _shutdown_tx: shutdown_tx,
         executor,
+        client,
     }
 }
 
 struct MockEnvironmentWithEthereum {
     environment: MockEnvironment,
-    optimism_portal_address: Address,
-    provider: Arc<Provider<Ws>>,
-    wallet: Wallet<SigningKey>,
+    optimism_portal_address: ethers::prelude::Address,
+    provider: Arc<ethers::prelude::Provider<ethers::prelude::Ws>>,
+    wallet: ethers::prelude::Wallet<SigningKey>,
     anvil: AnvilInstance,
 }
 
@@ -251,7 +280,10 @@ async fn firm_blocks_at_expected_heights_are_executed() {
         &block.transactions,
     );
 
-    mock.executor.execute_firm(block).await.unwrap();
+    mock.executor
+        .execute_firm(mock.client.clone(), block)
+        .await
+        .unwrap();
     assert_eq!(
         expected_exection_hash,
         mock.executor.state.borrow().firm().hash(),
@@ -265,7 +297,10 @@ async fn firm_blocks_at_expected_heights_are_executed() {
         &block.transactions,
     );
 
-    mock.executor.execute_firm(block).await.unwrap();
+    mock.executor
+        .execute_firm(mock.client.clone(), block)
+        .await
+        .unwrap();
     assert_eq!(
         expected_exection_hash,
         mock.executor.state.borrow().firm().hash(),
@@ -279,12 +314,20 @@ async fn soft_blocks_at_expected_heights_are_executed() {
     let mut block = make_cometbft_block();
     block.header.height = Height::from(100u32);
     let block = SequencerBlock::try_from_cometbft(block).unwrap();
-    assert!(mock.executor.execute_soft(block).await.is_ok());
+    assert!(
+        mock.executor
+            .execute_soft(mock.client.clone(), block)
+            .await
+            .is_ok()
+    );
 
     let mut block = make_cometbft_block();
     block.header.height = Height::from(101u32);
     let block = SequencerBlock::try_from_cometbft(block).unwrap();
-    mock.executor.execute_soft(block).await.unwrap();
+    mock.executor
+        .execute_soft(mock.client.clone(), block)
+        .await
+        .unwrap();
     assert_eq!(
         Height::from(102u32),
         mock.executor.state.borrow().next_soft_sequencer_height()
@@ -315,7 +358,10 @@ async fn first_firm_then_soft_leads_to_soft_being_dropped() {
             .cloned()
             .unwrap(),
     };
-    mock.executor.execute_firm(firm_block).await.unwrap();
+    mock.executor
+        .execute_firm(mock.client.clone(), firm_block)
+        .await
+        .unwrap();
     assert_eq!(1, mock.executor.state.borrow().firm().number());
     assert_eq!(1, mock.executor.state.borrow().soft().number());
     assert!(
@@ -325,7 +371,10 @@ async fn first_firm_then_soft_leads_to_soft_being_dropped() {
             .contains_key(&block_hash)
     );
 
-    mock.executor.execute_soft(soft_block).await.unwrap();
+    mock.executor
+        .execute_soft(mock.client.clone(), soft_block)
+        .await
+        .unwrap();
     assert!(
         !mock
             .executor
@@ -360,7 +409,10 @@ async fn first_soft_then_firm_update_state_correctly() {
             .cloned()
             .unwrap(),
     };
-    mock.executor.execute_soft(soft_block).await.unwrap();
+    mock.executor
+        .execute_soft(mock.client.clone(), soft_block)
+        .await
+        .unwrap();
     assert!(
         mock.executor
             .blocks_pending_finalization
@@ -368,7 +420,10 @@ async fn first_soft_then_firm_update_state_correctly() {
     );
     assert_eq!(0, mock.executor.state.borrow().firm().number());
     assert_eq!(1, mock.executor.state.borrow().soft().number());
-    mock.executor.execute_firm(firm_block).await.unwrap();
+    mock.executor
+        .execute_firm(mock.client.clone(), firm_block)
+        .await
+        .unwrap();
     assert_eq!(1, mock.executor.state.borrow().firm().number());
     assert_eq!(1, mock.executor.state.borrow().soft().number());
     assert!(
@@ -389,7 +444,10 @@ async fn old_soft_blocks_are_ignored() {
     let firm = mock.executor.state.borrow().firm().clone();
     let soft = mock.executor.state.borrow().soft().clone();
 
-    mock.executor.execute_soft(sequencer_block).await.unwrap();
+    mock.executor
+        .execute_soft(mock.client.clone(), sequencer_block)
+        .await
+        .unwrap();
 
     assert_eq!(&firm, mock.executor.state.borrow().firm());
     assert_eq!(&soft, mock.executor.state.borrow().soft());
@@ -402,12 +460,22 @@ async fn non_sequential_future_soft_blocks_give_error() {
     let mut block = make_cometbft_block();
     block.header.height = Height::from(101u32);
     let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
-    assert!(mock.executor.execute_soft(sequencer_block).await.is_err());
+    assert!(
+        mock.executor
+            .execute_soft(mock.client.clone(), sequencer_block)
+            .await
+            .is_err()
+    );
 
     let mut block = make_cometbft_block();
     block.header.height = Height::from(100u32);
     let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
-    assert!(mock.executor.execute_soft(sequencer_block).await.is_ok());
+    assert!(
+        mock.executor
+            .execute_soft(mock.client.clone(), sequencer_block)
+            .await
+            .is_ok()
+    );
 }
 
 #[tokio::test]
@@ -416,13 +484,28 @@ async fn out_of_order_firm_blocks_are_rejected() {
     let mut block = make_reconstructed_block();
 
     block.header.height = Height::from(99u32);
-    assert!(mock.executor.execute_firm(block.clone()).await.is_err());
+    assert!(
+        mock.executor
+            .execute_firm(mock.client.clone(), block.clone())
+            .await
+            .is_err()
+    );
 
     block.header.height = Height::from(101u32);
-    assert!(mock.executor.execute_firm(block.clone()).await.is_err());
+    assert!(
+        mock.executor
+            .execute_firm(mock.client.clone(), block.clone())
+            .await
+            .is_err()
+    );
 
     block.header.height = Height::from(100u32);
-    assert!(mock.executor.execute_firm(block.clone()).await.is_ok());
+    assert!(
+        mock.executor
+            .execute_firm(mock.client.clone(), block.clone())
+            .await
+            .is_ok()
+    );
 }
 
 mod optimism_tests {
@@ -442,8 +525,8 @@ mod optimism_tests {
             anvil: _anvil,
         } = start_mock_with_optimism_handler().await;
         let contract = make_optimism_portal_with_signer(provider.clone(), wallet, contract_address);
-        let to = Address::zero();
-        let value = U256::from(100);
+        let to = ethers::prelude::Address::zero();
+        let value = ethers::prelude::U256::from(100);
         let receipt = make_deposit_transaction(&contract, Some(to), value, None)
             .await
             .unwrap()
@@ -467,7 +550,10 @@ mod optimism_tests {
         let expected_exection_hash =
             get_expected_execution_hash(&mock.executor.state.borrow().soft().hash(), &deposit_txs);
         let block = make_reconstructed_block();
-        mock.executor.execute_firm(block).await.unwrap();
+        mock.executor
+            .execute_firm(mock.client.clone(), block)
+            .await
+            .unwrap();
         assert_eq!(
             expected_exection_hash,
             mock.executor.state.borrow().firm().hash(),

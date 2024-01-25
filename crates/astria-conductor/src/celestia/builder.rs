@@ -14,6 +14,7 @@ use http::{
 use tokio::sync::{
     mpsc,
     oneshot,
+    watch,
 };
 
 use super::{
@@ -23,13 +24,14 @@ use super::{
 use crate::{
     celestia::block_verifier::BlockVerifier,
     client_provider::ClientProvider,
+    executor,
 };
 
 pub(crate) struct ReaderBuilder<
     TCelestiaEndpoint = NoCelestiaEndpoint,
     TCelestiaToken = NoCelestiaToken,
     TExecutorChannel = NoExecutorChannel,
-    TRollupNamespace = NoRollupNamespace,
+    TExecutorState = NoExecutorState,
     TSequencerClientPool = NoSequencerClientPool,
     TSequencerNamespace = NoSequencerNamespace,
     TShutdown = NoShutdown,
@@ -37,7 +39,7 @@ pub(crate) struct ReaderBuilder<
     celestia_endpoint: TCelestiaEndpoint,
     celestia_token: TCelestiaToken,
     executor_channel: TExecutorChannel,
-    rollup_namespace: TRollupNamespace,
+    executor_state: TExecutorState,
     sequencer_client_pool: TSequencerClientPool,
     sequencer_namespace: TSequencerNamespace,
     shutdown: TShutdown,
@@ -48,7 +50,7 @@ impl
         WithCelestiaEndpoint,
         WithCelestiaToken,
         WithExecutorChannel,
-        WithRollupNamespace,
+        WithExecutorState,
         WithSequencerClientPool,
         WithSequencerNamespace,
         WithShutdown,
@@ -56,15 +58,12 @@ impl
 {
     /// Creates a new Reader instance and returns a command sender.
     pub(crate) async fn build(self) -> eyre::Result<Reader> {
-        use celestia_client::celestia_rpc::{
-            Client,
-            HeaderClient as _,
-        };
+        use celestia_client::celestia_rpc::Client;
         let Self {
             celestia_endpoint: WithCelestiaEndpoint(celestia_endpoint),
             celestia_token: WithCelestiaToken(celestia_token),
             executor_channel: WithExecutorChannel(executor_channel),
-            rollup_namespace: WithRollupNamespace(rollup_namespace),
+            executor_state: WithExecutorState(executor_state),
             sequencer_client_pool: WithSequencerClientPool(sequencer_client_pool),
             sequencer_namespace: WithSequencerNamespace(sequencer_namespace),
             shutdown: WithShutdown(shutdown),
@@ -111,23 +110,13 @@ impl
             bail!("expected a celestia HTTP client but got a websocket client");
         };
 
-        // TODO: we should probably pass in the height we want to start at from some genesis/config
-        // file
-        let celestia_start_height = celestia_ws_client
-            .header_network_head()
-            .await
-            .wrap_err("failed to get network head from celestia to extract latest head")?
-            .header
-            .height;
-
         Ok(Reader {
             executor_channel,
+            executor_state,
             celestia_http_client,
             celestia_ws_client,
-            celestia_start_height,
             block_verifier,
             sequencer_namespace,
-            rollup_namespace,
             shutdown,
         })
     }
@@ -139,7 +128,7 @@ impl ReaderBuilder {
             celestia_endpoint: NoCelestiaEndpoint,
             celestia_token: NoCelestiaToken,
             executor_channel: NoExecutorChannel,
-            rollup_namespace: NoRollupNamespace,
+            executor_state: NoExecutorState,
             sequencer_client_pool: NoSequencerClientPool,
             sequencer_namespace: NoSequencerNamespace,
             shutdown: NoShutdown,
@@ -151,7 +140,7 @@ impl<
     TCelestiaEndpoint,
     TCelestiaToken,
     TExecutorChannel,
-    TRollupNamespace,
+    TExecutorState,
     TSequencerClientPool,
     TSequencerNamespace,
     TShutdown,
@@ -160,7 +149,7 @@ impl<
         TCelestiaEndpoint,
         TCelestiaToken,
         TExecutorChannel,
-        TRollupNamespace,
+        TExecutorState,
         TSequencerClientPool,
         TSequencerNamespace,
         TShutdown,
@@ -173,7 +162,7 @@ impl<
         WithCelestiaEndpoint,
         TCelestiaToken,
         TExecutorChannel,
-        TRollupNamespace,
+        TExecutorState,
         TSequencerClientPool,
         TSequencerNamespace,
         TShutdown,
@@ -181,7 +170,7 @@ impl<
         let Self {
             celestia_token,
             executor_channel,
-            rollup_namespace,
+            executor_state,
             sequencer_client_pool,
             sequencer_namespace,
             shutdown,
@@ -191,7 +180,7 @@ impl<
             celestia_endpoint: WithCelestiaEndpoint(celestia_endpoint.to_string()),
             celestia_token,
             executor_channel,
-            rollup_namespace,
+            executor_state,
             sequencer_client_pool,
             sequencer_namespace,
             shutdown,
@@ -205,7 +194,7 @@ impl<
         TCelestiaEndpoint,
         WithCelestiaToken,
         TExecutorChannel,
-        TRollupNamespace,
+        TExecutorState,
         TSequencerClientPool,
         TSequencerNamespace,
         TShutdown,
@@ -213,7 +202,7 @@ impl<
         let Self {
             celestia_endpoint,
             executor_channel,
-            rollup_namespace,
+            executor_state,
             sequencer_client_pool,
             sequencer_namespace,
             shutdown,
@@ -223,39 +212,7 @@ impl<
             celestia_endpoint,
             celestia_token: WithCelestiaToken(celestia_token.to_string()),
             executor_channel,
-            rollup_namespace,
-            sequencer_client_pool,
-            sequencer_namespace,
-            shutdown,
-        }
-    }
-
-    pub(crate) fn rollup_namespace(
-        self,
-        rollup_namespace: Namespace,
-    ) -> ReaderBuilder<
-        TCelestiaEndpoint,
-        TCelestiaToken,
-        TExecutorChannel,
-        WithRollupNamespace,
-        TSequencerClientPool,
-        TSequencerNamespace,
-        TShutdown,
-    > {
-        let Self {
-            celestia_endpoint,
-            celestia_token,
-            executor_channel,
-            sequencer_client_pool,
-            sequencer_namespace,
-            shutdown,
-            ..
-        } = self;
-        ReaderBuilder {
-            celestia_endpoint,
-            celestia_token,
-            executor_channel,
-            rollup_namespace: WithRollupNamespace(rollup_namespace),
+            executor_state,
             sequencer_client_pool,
             sequencer_namespace,
             shutdown,
@@ -269,7 +226,7 @@ impl<
         TCelestiaEndpoint,
         TCelestiaToken,
         TExecutorChannel,
-        TRollupNamespace,
+        TExecutorState,
         WithSequencerClientPool,
         TSequencerNamespace,
         TShutdown,
@@ -278,7 +235,7 @@ impl<
             celestia_endpoint,
             celestia_token,
             executor_channel,
-            rollup_namespace,
+            executor_state,
             sequencer_namespace,
             shutdown,
             ..
@@ -287,7 +244,7 @@ impl<
             celestia_endpoint,
             celestia_token,
             executor_channel,
-            rollup_namespace,
+            executor_state,
             sequencer_client_pool: WithSequencerClientPool(sequencer_client_pool),
             sequencer_namespace,
             shutdown,
@@ -301,7 +258,7 @@ impl<
         TCelestiaEndpoint,
         TCelestiaToken,
         TExecutorChannel,
-        TRollupNamespace,
+        TExecutorState,
         TSequencerClientPool,
         WithSequencerNamespace,
         TShutdown,
@@ -310,7 +267,7 @@ impl<
             celestia_endpoint,
             celestia_token,
             executor_channel,
-            rollup_namespace,
+            executor_state,
             sequencer_client_pool,
             shutdown,
             ..
@@ -319,7 +276,7 @@ impl<
             celestia_endpoint,
             celestia_token,
             executor_channel,
-            rollup_namespace,
+            executor_state,
             sequencer_client_pool,
             sequencer_namespace: WithSequencerNamespace(sequencer_namespace),
             shutdown,
@@ -333,7 +290,7 @@ impl<
         TCelestiaEndpoint,
         TCelestiaToken,
         TExecutorChannel,
-        TRollupNamespace,
+        TExecutorState,
         TSequencerClientPool,
         TSequencerNamespace,
         WithShutdown,
@@ -342,7 +299,7 @@ impl<
             celestia_endpoint,
             celestia_token,
             executor_channel,
-            rollup_namespace,
+            executor_state,
             sequencer_client_pool,
             sequencer_namespace,
             ..
@@ -351,7 +308,7 @@ impl<
             celestia_endpoint,
             celestia_token,
             executor_channel,
-            rollup_namespace,
+            executor_state,
             sequencer_client_pool,
             sequencer_namespace,
             shutdown: WithShutdown(shutdown),
@@ -365,7 +322,7 @@ impl<
         TCelestiaEndpoint,
         TCelestiaToken,
         WithExecutorChannel,
-        TRollupNamespace,
+        TExecutorState,
         TSequencerClientPool,
         TSequencerNamespace,
         TShutdown,
@@ -373,7 +330,7 @@ impl<
         let Self {
             celestia_endpoint,
             celestia_token,
-            rollup_namespace,
+            executor_state,
             sequencer_client_pool,
             sequencer_namespace,
             shutdown,
@@ -383,7 +340,39 @@ impl<
             celestia_endpoint,
             celestia_token,
             executor_channel: WithExecutorChannel(executor_channel),
-            rollup_namespace,
+            executor_state,
+            sequencer_client_pool,
+            sequencer_namespace,
+            shutdown,
+        }
+    }
+
+    pub(crate) fn executor_state(
+        self,
+        executor_state: watch::Receiver<executor::State>,
+    ) -> ReaderBuilder<
+        TCelestiaEndpoint,
+        TCelestiaToken,
+        TExecutorChannel,
+        WithExecutorState,
+        TSequencerClientPool,
+        TSequencerNamespace,
+        TShutdown,
+    > {
+        let Self {
+            celestia_endpoint,
+            celestia_token,
+            executor_channel,
+            sequencer_client_pool,
+            sequencer_namespace,
+            shutdown,
+            ..
+        } = self;
+        ReaderBuilder {
+            celestia_endpoint,
+            celestia_token,
+            executor_channel,
+            executor_state: WithExecutorState(executor_state),
             sequencer_client_pool,
             sequencer_namespace,
             shutdown,
@@ -397,8 +386,8 @@ pub(crate) struct NoCelestiaToken;
 pub(crate) struct WithCelestiaToken(String);
 pub(crate) struct NoExecutorChannel;
 pub(crate) struct WithExecutorChannel(mpsc::UnboundedSender<ReconstructedBlock>);
-pub(crate) struct NoRollupNamespace;
-pub(crate) struct WithRollupNamespace(Namespace);
+pub(crate) struct NoExecutorState;
+pub(crate) struct WithExecutorState(watch::Receiver<executor::State>);
 pub(crate) struct NoSequencerClientPool;
 pub(crate) struct WithSequencerClientPool(Pool<ClientProvider>);
 pub(crate) struct NoSequencerNamespace;
