@@ -9,6 +9,24 @@ use astria_core::{
 use celestia_client::celestia_types::Height as CelestiaHeight;
 use sequencer_client::tendermint::block::Height;
 
+/// `State` tracks the genesis info and commitment state of the remote rollup node.
+///
+/// After being created the state must be primed with [`State::init`] before any of
+/// the other methods can be used. Otherwise, they will panic.
+///
+/// The inner state must not be unset after having been set.
+///
+/// # Notes on the implementation
+///
+/// [`State`] is intended to be used inside a [`tokio::sync::watch`] channel. To avoid
+/// blocking tasks that require this information from being constructed, [`Executor`]
+/// starts out with its state being unset (`None`) and is only set after receiving an
+/// initial response from its rollup node.
+///
+/// Using a bare `watch::Receiver<Option<State>>` turns out is very unergonomic and so
+/// this implementation wraps an `Option<StateImpl>`, delegating all methods to the inner
+/// type through an [`Option::expect`]. This relies on the contract that [`State::init`]
+/// being called before any of the other methods.
 #[derive(Debug)]
 pub(crate) struct State {
     inner: Option<StateImpl>,

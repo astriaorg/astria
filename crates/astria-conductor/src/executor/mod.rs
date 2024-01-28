@@ -50,6 +50,12 @@ pub(crate) struct StateNotInit;
 #[derive(Clone, Debug)]
 pub(crate) struct StateIsInit;
 
+/// A handle to the executor.
+///
+/// To be be useful, [`Handle<StateNotInit>::wait_for_init`] must be called in
+/// order to obtain a [`Handle<StateInit>`]. This is to ensure that the executor
+/// state was primed before using its other methods. See [`State`] for more
+/// information.
 #[derive(Debug, Clone)]
 pub(crate) struct Handle<TStateInit = StateNotInit> {
     firm_blocks: mpsc::UnboundedSender<ReconstructedBlock>,
