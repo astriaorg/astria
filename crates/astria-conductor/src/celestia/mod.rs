@@ -114,15 +114,14 @@ impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         use celestia_client::celestia_rpc::HeaderClient as _;
 
+        let mut executor = self
+            .executor
+            .wait_for_init()
+            .await
+            .wrap_err("handle to executor failed while waiting for it being initialized")?;
+
         let (rollup_namespace, celestia_start_height) = {
-            let state = self
-                .executor
-                .state_mut()
-                .wait_for(executor::State::is_init)
-                .await
-                .wrap_err(
-                    "executor state channel terminated before initial state could be observed",
-                )?;
+            let state = executor.state_mut().borrow_and_update();
             let rollup_namespace = celestia_namespace_v0_from_rollup_id(state.rollup_id());
             let celestia_start_height = state.celestia_base_block_height();
             (rollup_namespace, celestia_start_height)
@@ -168,7 +167,7 @@ impl Reader {
                 }
 
                 Some(block) = sequential_blocks.next_block() => {
-                    if let Err(e) = self.executor.firm_blocks().send(block) {
+                    if let Err(e) = executor.firm_blocks().send(block) {
                         error!(
                             error = &e as &dyn std::error::Error,
                             "failed sending block reconstructed from celestia to executor; exiting",

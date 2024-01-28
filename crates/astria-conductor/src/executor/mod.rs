@@ -45,14 +45,41 @@ mod tests;
 pub(super) use client::Client;
 pub(crate) use state::State;
 
+#[derive(Clone, Debug)]
+pub(crate) struct StateNotInit;
+#[derive(Clone, Debug)]
+pub(crate) struct StateIsInit;
+
 #[derive(Debug, Clone)]
-pub(crate) struct Handle {
+pub(crate) struct Handle<TStateInit = StateNotInit> {
     firm_blocks: mpsc::UnboundedSender<ReconstructedBlock>,
     soft_blocks: mpsc::UnboundedSender<SequencerBlock>,
     state: watch::Receiver<State>,
+    _state_init: TStateInit,
 }
 
-impl Handle {
+impl Handle<StateNotInit> {
+    pub(crate) async fn wait_for_init(&mut self) -> eyre::Result<Handle<StateIsInit>> {
+        self.state
+            .wait_for(State::is_init)
+            .await
+            .wrap_err("executor state channel terminated before initial state could be observed")?;
+        let Self {
+            firm_blocks,
+            soft_blocks,
+            state,
+            ..
+        } = self.clone();
+        Ok(Handle {
+            firm_blocks,
+            soft_blocks,
+            state,
+            _state_init: StateIsInit,
+        })
+    }
+}
+
+impl Handle<StateIsInit> {
     pub(crate) fn firm_blocks(&self) -> &mpsc::UnboundedSender<ReconstructedBlock> {
         &self.firm_blocks
     }

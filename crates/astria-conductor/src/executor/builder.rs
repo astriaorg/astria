@@ -13,6 +13,8 @@ use tokio::sync::{
 use super::{
     Executor,
     Handle,
+    State,
+    StateNotInit,
 };
 use crate::executor::optimism;
 
@@ -50,7 +52,7 @@ impl ExecutorBuilder<WithRollupAddress, WithShutdown> {
         let (firm_blocks_tx, firm_blocks_rx) = mpsc::unbounded_channel();
         let (soft_blocks_tx, soft_blocks_rx) = mpsc::unbounded_channel();
 
-        let (state_tx, state_rx) = watch::channel(super::State::new());
+        let (state_tx, state_rx) = watch::channel(State::new());
 
         let executor = Executor {
             firm_blocks: firm_blocks_rx,
@@ -67,6 +69,7 @@ impl ExecutorBuilder<WithRollupAddress, WithShutdown> {
             firm_blocks: firm_blocks_tx,
             soft_blocks: soft_blocks_tx,
             state: state_rx,
+            _state_init: StateNotInit,
         };
         (executor, handle)
     }

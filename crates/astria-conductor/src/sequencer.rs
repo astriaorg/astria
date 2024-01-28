@@ -84,16 +84,14 @@ impl Reader {
             mut shutdown,
         } = self;
 
-        let start_height = {
-            executor
-                .state_mut()
-                .wait_for(executor::State::is_init)
-                .await
-                .wrap_err(
-                    "executor state channel terminated before initial state could be observed",
-                )?
-                .next_soft_sequencer_height()
-        };
+        let mut executor = executor
+            .wait_for_init()
+            .await
+            .wrap_err("handle to executor failed while waiting for it being initialized")?;
+        let start_height = executor
+            .state_mut()
+            .borrow_and_update()
+            .next_soft_sequencer_height();
 
         let mut subscription = resubscribe(pool.clone())
             .await
