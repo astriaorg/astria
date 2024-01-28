@@ -219,7 +219,7 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-    let executor = Executor::builder()
+    let (executor, _) = Executor::builder()
         .rollup_address(&server_url)
         .unwrap()
         .shutdown(shutdown_rx)

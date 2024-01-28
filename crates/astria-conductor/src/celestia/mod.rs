@@ -45,11 +45,7 @@ use sequencer_client::tendermint::{
 };
 use tokio::{
     select,
-    sync::{
-        mpsc,
-        oneshot,
-        watch,
-    },
+    sync::oneshot,
 };
 use tracing::{
     error,
@@ -91,9 +87,7 @@ impl GetSequencerHeight for ReconstructedBlock {
 
 pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
-    executor_channel: mpsc::UnboundedSender<ReconstructedBlock>,
-
-    executor_state: watch::Receiver<executor::State>,
+    executor: executor::Handle,
 
     /// The client used to subscribe to new
     celestia_http_client: HttpClient,
@@ -122,7 +116,8 @@ impl Reader {
 
         let (rollup_namespace, celestia_start_height) = {
             let state = self
-                .executor_state
+                .executor
+                .state_mut()
                 .wait_for(executor::State::is_init)
                 .await
                 .wrap_err(
@@ -173,7 +168,7 @@ impl Reader {
                 }
 
                 Some(block) = sequential_blocks.next_block() => {
-                    if let Err(e) = self.executor_channel.send(block) {
+                    if let Err(e) = self.executor.firm_blocks().send(block) {
                         error!(
                             error = &e as &dyn std::error::Error,
                             "failed sending block reconstructed from celestia to executor; exiting",

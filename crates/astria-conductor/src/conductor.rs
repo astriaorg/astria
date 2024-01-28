@@ -82,14 +82,14 @@ impl Conductor {
         let signals = spawn_signal_handler();
 
         // Spawn the executor task.
-        let executor = {
+        let (executor, executor_handle) = {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
             let hook = make_optimism_hook(&cfg)
                 .await
                 .wrap_err("failed constructing optimism hook")?;
 
-            let executor = Executor::builder()
+            let (executor, handle) = Executor::builder()
                 .rollup_address(&cfg.execution_rpc_url)
                 .wrap_err("failed to assign rollup node address")?
                 .shutdown(shutdown_rx)
@@ -97,7 +97,7 @@ impl Conductor {
                 .build();
 
             shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
-            executor
+            (executor, handle)
         };
 
         let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
@@ -112,8 +112,7 @@ impl Conductor {
             let sequencer_reader = sequencer::Reader::new(
                 sequencer_client_pool.clone(),
                 shutdown_rx,
-                executor.sequencer_channel(),
-                executor.subscribe_to_state(),
+                executor_handle.clone(),
             );
             tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
             shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
@@ -147,8 +146,7 @@ impl Conductor {
             let reader = celestia::Reader::builder()
                 .celestia_endpoint(&cfg.celestia_node_url)
                 .celestia_token(&cfg.celestia_bearer_token)
-                .executor_channel(executor.celestia_channel())
-                .executor_state(executor.subscribe_to_state())
+                .executor(executor_handle.clone())
                 .sequencer_client_pool(sequencer_client_pool.clone())
                 .sequencer_namespace(sequencer_namespace)
                 .shutdown(shutdown_rx)

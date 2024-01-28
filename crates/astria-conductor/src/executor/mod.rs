@@ -45,11 +45,30 @@ mod tests;
 pub(super) use client::Client;
 pub(crate) use state::State;
 
+#[derive(Debug, Clone)]
+pub(crate) struct Handle {
+    firm_blocks: mpsc::UnboundedSender<ReconstructedBlock>,
+    soft_blocks: mpsc::UnboundedSender<SequencerBlock>,
+    state: watch::Receiver<State>,
+}
+
+impl Handle {
+    pub(crate) fn firm_blocks(&self) -> &mpsc::UnboundedSender<ReconstructedBlock> {
+        &self.firm_blocks
+    }
+
+    pub(crate) fn soft_blocks(&self) -> &mpsc::UnboundedSender<SequencerBlock> {
+        &self.soft_blocks
+    }
+
+    pub(crate) fn state_mut(&mut self) -> &mut watch::Receiver<State> {
+        &mut self.state
+    }
+}
+
 pub(crate) struct Executor {
-    celestia_rx: mpsc::UnboundedReceiver<ReconstructedBlock>,
-    celestia_tx: mpsc::WeakUnboundedSender<ReconstructedBlock>,
-    sequencer_rx: mpsc::UnboundedReceiver<SequencerBlock>,
-    sequencer_tx: mpsc::WeakUnboundedSender<SequencerBlock>,
+    firm_blocks: mpsc::UnboundedReceiver<ReconstructedBlock>,
+    soft_blocks: mpsc::UnboundedReceiver<SequencerBlock>,
 
     shutdown: oneshot::Receiver<()>,
 
@@ -72,22 +91,6 @@ pub(crate) struct Executor {
 impl Executor {
     pub(super) fn builder() -> builder::ExecutorBuilder {
         builder::ExecutorBuilder::new()
-    }
-
-    pub(super) fn celestia_channel(&self) -> mpsc::UnboundedSender<ReconstructedBlock> {
-        self.celestia_tx.upgrade().expect(
-            "should work because the channel is held by self, is open, and other senders exist",
-        )
-    }
-
-    pub(super) fn sequencer_channel(&self) -> mpsc::UnboundedSender<SequencerBlock> {
-        self.sequencer_tx.upgrade().expect(
-            "should work because the channel is held by self, is open, and other senders exist",
-        )
-    }
-
-    pub(super) fn subscribe_to_state(&self) -> watch::Receiver<State> {
-        self.state.subscribe()
     }
 
     #[instrument(skip_all)]
@@ -116,7 +119,7 @@ impl Executor {
                     break ret;
                 }
 
-                Some(block) = self.celestia_rx.recv() => {
+                Some(block) = self.firm_blocks.recv() => {
                     debug!(
                         block.height = %block.height(),
                         block.hash = %telemetry::display::hex(&block.block_hash),
@@ -133,7 +136,7 @@ impl Executor {
                     }
                 }
 
-                Some(block) = self.sequencer_rx.recv() => {
+                Some(block) = self.soft_blocks.recv() => {
                     debug!(
                         block.height = %block.height(),
                         block.hash = %telemetry::display::hex(&block.block_hash()),

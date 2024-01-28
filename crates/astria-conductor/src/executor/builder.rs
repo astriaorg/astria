@@ -10,7 +10,10 @@ use tokio::sync::{
     watch,
 };
 
-use super::Executor;
+use super::{
+    Executor,
+    Handle,
+};
 use crate::executor::optimism;
 
 pub(crate) struct NoRollupAddress;
@@ -35,7 +38,7 @@ impl ExecutorBuilder {
 }
 
 impl ExecutorBuilder<WithRollupAddress, WithShutdown> {
-    pub(crate) fn build(self) -> Executor {
+    pub(crate) fn build(self) -> (Executor, Handle) {
         let Self {
             optimism_hook: pre_execution_hook,
             rollup_address,
@@ -44,24 +47,28 @@ impl ExecutorBuilder<WithRollupAddress, WithShutdown> {
         let WithRollupAddress(rollup_address) = rollup_address;
         let WithShutdown(shutdown) = shutdown;
 
-        let (celestia_tx, celestia_rx) = mpsc::unbounded_channel();
-        let (sequencer_tx, sequencer_rx) = mpsc::unbounded_channel();
+        let (firm_blocks_tx, firm_blocks_rx) = mpsc::unbounded_channel();
+        let (soft_blocks_tx, soft_blocks_rx) = mpsc::unbounded_channel();
 
-        let state = watch::channel(super::State::new()).0;
+        let (state_tx, state_rx) = watch::channel(super::State::new());
 
-        Executor {
-            celestia_rx,
-            celestia_tx: celestia_tx.downgrade(),
-            sequencer_rx,
-            sequencer_tx: sequencer_tx.downgrade(),
+        let executor = Executor {
+            firm_blocks: firm_blocks_rx,
+            soft_blocks: soft_blocks_rx,
 
             rollup_address,
 
             shutdown,
-            state,
+            state: state_tx,
             blocks_pending_finalization: HashMap::new(),
             pre_execution_hook,
-        }
+        };
+        let handle = Handle {
+            firm_blocks: firm_blocks_tx,
+            soft_blocks: soft_blocks_tx,
+            state: state_rx,
+        };
+        (executor, handle)
     }
 }
 

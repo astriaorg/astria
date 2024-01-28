@@ -34,11 +34,7 @@ use sequencer_client::{
 };
 use tokio::{
     select,
-    sync::{
-        mpsc,
-        oneshot,
-        watch,
-    },
+    sync::oneshot,
 };
 use tracing::{
     error,
@@ -57,12 +53,7 @@ use crate::{
 };
 
 pub(crate) struct Reader {
-    /// The channel used to send messages to the executor task.
-    executor_channel: mpsc::UnboundedSender<SequencerBlock>,
-
-    /// The state of the executor to receive information about the next
-    /// expected sequencer height.
-    executor_state: watch::Receiver<executor::State>,
+    executor: executor::Handle,
 
     /// The object pool providing clients to the sequencer.
     pool: Pool<ClientProvider>,
@@ -75,12 +66,10 @@ impl Reader {
     pub(crate) fn new(
         pool: Pool<ClientProvider>,
         shutdown: oneshot::Receiver<()>,
-        executor_channel: mpsc::UnboundedSender<SequencerBlock>,
-        executor_state: watch::Receiver<executor::State>,
+        executor: executor::Handle,
     ) -> Self {
         Self {
-            executor_channel,
-            executor_state,
+            executor,
             pool,
             shutdown,
         }
@@ -90,14 +79,14 @@ impl Reader {
     pub(crate) async fn run_until_stopped(self) -> eyre::Result<()> {
         use futures::future::FusedFuture as _;
         let Self {
-            executor_channel,
-            mut executor_state,
+            mut executor,
             pool,
             mut shutdown,
         } = self;
 
         let start_height = {
-            executor_state
+            executor
+                .state_mut()
                 .wait_for(executor::State::is_init)
                 .await
                 .wrap_err(
@@ -157,14 +146,14 @@ impl Reader {
                     }
                 }
 
-                Ok(()) = executor_state.changed() => {
-                    let next_height = executor_state.borrow_and_update().next_soft_sequencer_height();
+                Ok(()) = executor.state_mut().changed() => {
+                    let next_height = executor.state_mut().borrow_and_update().next_soft_sequencer_height();
                     sequential_blocks.drop_obsolete(next_height);
                     blocks_from_height.skip_to_height(next_height);
                 }
 
                 Some(block) = sequential_blocks.next_block() => {
-                    if let Err(e) = executor_channel.send(block) {
+                    if let Err(e) = executor.soft_blocks().send(block) {
                         let reason = "failed sending next sequencer block to executor";
                         error!(
                             error = &e as &dyn std::error::Error,
