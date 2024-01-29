@@ -7,6 +7,7 @@ use astria_core::{
     },
     sequencer::v1alpha1::RollupId,
 };
+use celestia_client::celestia_types::Height as CelestiaHeight;
 use color_eyre::eyre::{
     self,
     bail,
@@ -14,15 +15,21 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use sequencer_client::{
-    tendermint::block::Height,
+    tendermint::block::Height as SequencerHeight,
     SequencerBlock,
 };
 use tokio::{
     select,
     sync::{
-        mpsc,
+        mpsc::{
+            self,
+            error::SendError,
+        },
         oneshot,
-        watch,
+        watch::{
+            self,
+            error::RecvError,
+        },
     },
 };
 use tracing::{
@@ -86,16 +93,36 @@ impl Handle<StateNotInit> {
 }
 
 impl Handle<StateIsInit> {
-    pub(crate) fn firm_blocks(&self) -> &mpsc::UnboundedSender<ReconstructedBlock> {
-        &self.firm_blocks
+    #[allow(clippy::result_large_err)] // because this is just returning tokio's SendError<T>
+    pub(crate) fn send_firm(
+        &self,
+        block: ReconstructedBlock,
+    ) -> Result<(), SendError<ReconstructedBlock>> {
+        self.firm_blocks.send(block)
     }
 
-    pub(crate) fn soft_blocks(&self) -> &mpsc::UnboundedSender<SequencerBlock> {
-        &self.soft_blocks
+    #[allow(clippy::result_large_err)] // because this is just returning tokio's SendError<T>
+    pub(crate) fn send_soft(&self, block: SequencerBlock) -> Result<(), SendError<SequencerBlock>> {
+        self.soft_blocks.send(block)
     }
 
-    pub(crate) fn state_mut(&mut self) -> &mut watch::Receiver<State> {
-        &mut self.state
+    pub(crate) fn next_expected_soft_height(&mut self) -> SequencerHeight {
+        self.state.borrow_and_update().next_soft_sequencer_height()
+    }
+
+    pub(crate) async fn next_expected_soft_height_if_changed(
+        &mut self,
+    ) -> Result<SequencerHeight, RecvError> {
+        self.state.changed().await?;
+        Ok(self.state.borrow_and_update().next_soft_sequencer_height())
+    }
+
+    pub(crate) fn rollup_id(&mut self) -> RollupId {
+        self.state.borrow_and_update().rollup_id()
+    }
+
+    pub(crate) fn celestia_base_block_height(&mut self) -> CelestiaHeight {
+        self.state.borrow_and_update().celestia_base_block_height()
     }
 }
 
@@ -376,7 +403,7 @@ enum Update {
 #[derive(Debug)]
 struct ExecutableBlock {
     hash: [u8; 32],
-    height: Height,
+    height: SequencerHeight,
     timestamp: prost_types::Timestamp,
     transactions: Vec<Vec<u8>>,
 }

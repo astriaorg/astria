@@ -120,12 +120,8 @@ impl Reader {
             .await
             .wrap_err("handle to executor failed while waiting for it being initialized")?;
 
-        let (rollup_namespace, celestia_start_height) = {
-            let state = executor.state_mut().borrow_and_update();
-            let rollup_namespace = celestia_namespace_v0_from_rollup_id(state.rollup_id());
-            let celestia_start_height = state.celestia_base_block_height();
-            (rollup_namespace, celestia_start_height)
-        };
+        let rollup_namespace = celestia_namespace_v0_from_rollup_id(executor.rollup_id());
+        let celestia_start_height = executor.celestia_base_block_height();
 
         // XXX: Add retry
         let mut headers = self
@@ -167,7 +163,7 @@ impl Reader {
                 }
 
                 Some(block) = sequential_blocks.next_block() => {
-                    if let Err(e) = executor.firm_blocks().send(block) {
+                    if let Err(e) = executor.send_firm(block) {
                         error!(
                             error = &e as &dyn std::error::Error,
                             "failed sending block reconstructed from celestia to executor; exiting",

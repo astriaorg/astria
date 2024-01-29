@@ -88,10 +88,7 @@ impl Reader {
             .wait_for_init()
             .await
             .wrap_err("handle to executor failed while waiting for it being initialized")?;
-        let start_height = executor
-            .state_mut()
-            .borrow_and_update()
-            .next_soft_sequencer_height();
+        let start_height = executor.next_expected_soft_height();
 
         let mut subscription = resubscribe(pool.clone())
             .await
@@ -144,14 +141,13 @@ impl Reader {
                     }
                 }
 
-                Ok(()) = executor.state_mut().changed() => {
-                    let next_height = executor.state_mut().borrow_and_update().next_soft_sequencer_height();
+                Ok(next_height) = executor.next_expected_soft_height_if_changed() => {
                     sequential_blocks.drop_obsolete(next_height);
                     blocks_from_height.skip_to_height(next_height);
                 }
 
                 Some(block) = sequential_blocks.next_block() => {
-                    if let Err(e) = executor.soft_blocks().send(block) {
+                    if let Err(e) = executor.send_soft(block) {
                         let reason = "failed sending next sequencer block to executor";
                         error!(
                             error = &e as &dyn std::error::Error,
