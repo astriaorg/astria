@@ -71,7 +71,7 @@ pub(crate) struct Handle<TStateInit = StateNotInit> {
     _state_init: TStateInit,
 }
 
-impl Handle<StateNotInit> {
+impl<T> Handle<T> {
     pub(crate) async fn wait_for_init(&mut self) -> eyre::Result<Handle<StateIsInit>> {
         self.state
             .wait_for(State::is_init)
