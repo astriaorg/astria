@@ -27,6 +27,25 @@ fn block_fees_key(asset: asset::Id) -> Vec<u8> {
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
+    async fn get_chain_id(&self) -> Result<String> {
+        let Some(bytes) = self
+            .get_raw("chain_id")
+            .await
+            .context("failed to read raw chain_id from state")?
+        else {
+            bail!("chain id not found in state");
+        };
+
+        String::from_utf8(bytes).context("failed to parse chain id from raw bytes")
+    }
+
+    #[instrument(skip(self))]
+    async fn get_revision_number(&self) -> Result<u64> {
+        // this is used for chain upgrades, which we do not currently have.
+        Ok(0)
+    }
+
+    #[instrument(skip(self))]
     async fn get_block_height(&self) -> Result<u64> {
         let Some(bytes) = self
             .get_raw("block_height")
@@ -115,6 +134,11 @@ impl<T: StateRead> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
+    #[instrument(skip(self))]
+    fn put_chain_id(&mut self, chain_id: String) {
+        self.put_raw("chain_id".into(), chain_id.into_bytes());
+    }
+
     #[instrument(skip(self))]
     fn put_block_height(&mut self, height: u64) {
         self.put_raw("block_height".into(), height.to_be_bytes().to_vec());

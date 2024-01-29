@@ -142,7 +142,11 @@ impl Consensus {
         let genesis_state: GenesisState = serde_json::from_slice(&init_chain.app_state_bytes)
             .context("failed to parse app_state in genesis file")?;
         self.app
-            .init_chain(genesis_state, init_chain.validators.clone())
+            .init_chain(
+                genesis_state,
+                init_chain.validators.clone(),
+                init_chain.chain_id,
+            )
             .await
             .context("failed to call init_chain")?;
 
@@ -521,7 +525,9 @@ mod test {
         let storage = cnidarium::TempStorage::new().await.unwrap();
         let snapshot = storage.latest_snapshot();
         let mut app = App::new(snapshot);
-        app.init_chain(genesis_state, vec![]).await.unwrap();
+        app.init_chain(genesis_state, vec![], "test".to_string())
+            .await
+            .unwrap();
         app.commit(storage.clone()).await;
 
         let (_tx, rx) = mpsc::channel(1);
