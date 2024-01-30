@@ -165,7 +165,7 @@ impl AsRef<[u8]> for Id {
 
 impl Display for Id {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
+        write!(f, "{:02x?}", self.0)
     }
 }
 
@@ -174,4 +174,15 @@ impl Display for Id {
 #[error("expected 32 bytes, got {received}")]
 pub struct IncorrectAssetIdLength {
     received: usize,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn display_id() {
+        let id = Id::from_denom("nria");
+        println!("{}", id);
+    }
 }
