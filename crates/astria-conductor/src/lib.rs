@@ -17,5 +17,41 @@ pub(crate) mod executor;
 pub(crate) mod sequencer;
 pub(crate) mod utils;
 
+use std::fmt::Write;
+
 pub use conductor::Conductor;
 pub use config::Config;
+
+pub fn install_error_handler() -> Result<(), eyre::InstallError> {
+    eyre::set_hook(Box::new(|_| Box::new(ErrorHandler)))?;
+    Ok(())
+}
+
+struct ErrorHandler;
+
+impl eyre::EyreHandler for ErrorHandler {
+    fn debug(
+        &self,
+        _error: &(dyn std::error::Error + 'static),
+        _f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        unimplemented!("errors must not be printed with their debug formatting");
+    }
+
+    fn display(
+        &self,
+        mut error: &(dyn std::error::Error + 'static),
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
+        f.write_char('{')?;
+        f.write_fmt(format_args!("\"0\": \"{error}\""))?;
+        let mut level: u32 = 1;
+        while let Some(source) = error.source() {
+            f.write_fmt(format_args!(", \"{level}\": \"{source}\""))?;
+            level += 1;
+            error = source;
+        }
+        f.write_char('}')?;
+        Ok(())
+    }
+}

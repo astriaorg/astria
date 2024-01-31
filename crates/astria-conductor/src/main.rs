@@ -1,9 +1,11 @@
 use std::process::ExitCode;
 
 use astria_conductor::{
+    install_error_handler,
     Conductor,
     Config,
 };
+use eyre::WrapErr as _;
 use tracing::{
     error,
     info,
@@ -15,9 +17,11 @@ const EX_CONFIG: u8 = 78;
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    let cfg: Config = match config::get() {
+    install_error_handler().expect("must be able to install error formatter");
+
+    let cfg: Config = match config::get().wrap_err("failed reading config") {
         Err(e) => {
-            eprintln!("failed reading config:\n{e:?}");
+            eprintln!("failed to start conductor:\n{e}");
             // FIXME (https://github.com/astriaorg/astria/issues/368): might have to bubble up exit codes, since we might need
             //        to exit with other exit codes if something else fails
             return ExitCode::from(EX_CONFIG);
