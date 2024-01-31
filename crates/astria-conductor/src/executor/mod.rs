@@ -8,7 +8,7 @@ use astria_core::{
     sequencer::v1alpha1::RollupId,
 };
 use celestia_client::celestia_types::Height as CelestiaHeight;
-use color_eyre::eyre::{
+use eyre::{
     self,
     bail,
     ensure,

@@ -9,7 +9,7 @@ async-trait = "0.1.73"
 pin-project-lite = "0.2"
 
 base64 = { workspace = true }
-color-eyre = { workspace = true }
+eyre = { workspace = true }
 deadpool = { version = "0.10.0", default-features = false, features = [
   "managed",
 ] }

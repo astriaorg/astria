@@ -24,7 +24,7 @@ use celestia_client::{
     CelestiaClientExt as _,
     CelestiaSequencerBlob,
 };
-use color_eyre::eyre::{
+use eyre::{
     self,
     bail,
     ensure,
@@ -282,8 +282,6 @@ impl Stream for ReconstructedBlockStream {
         if let Some(val) = ready!(res) {
             match val {
                 Ok(val) => return Poll::Ready(Some(val)),
-                // XXX: Consider what to about the height here - push it back into the vecdeque?
-                // XXX: Also - in spans is f*cked right now, fix that.
                 Err(e) => warn!(
                     error = AsRef::<dyn std::error::Error>::as_ref(&e),
                     "failed fetching celestia blobs for height, dropping height"
@@ -314,11 +312,15 @@ impl Stream for ReconstructedBlockStream {
 /// 2. verifies the sequencer blobs against sequencer, dropping all blobs that failed verification;
 /// 3. retrieves all rollup blobs at `height` matching `rollup_namespace` and the block hash stored
 ///    in the sequencer blob.
-#[instrument(skip_all, fields(
-    height.celestia = %height,
-    namespace.sequencer = %telemetry::display::base64(&sequencer_namespace.as_bytes()),
-    namespace.rollup = %telemetry::display::base64(&rollup_namespace.as_bytes()),
-))]
+#[instrument(
+    skip_all,
+    fields(
+        height.celestia = %height,
+        namespace.sequencer = %telemetry::display::base64(&sequencer_namespace.as_bytes()),
+        namespace.rollup = %telemetry::display::base64(&rollup_namespace.as_bytes()),
+    ),
+    err
+)]
 async fn fetch_blocks_at_celestia_height(
     client: HttpClient,
     verifier: BlockVerifier,

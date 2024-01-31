@@ -7,14 +7,14 @@ use std::{
     task::Poll,
 };
 
-use color_eyre::eyre::{
-    self,
-    bail,
-    WrapErr as _,
-};
 use deadpool::managed::{
     Pool,
     PoolError,
+};
+use eyre::{
+    self,
+    bail,
+    WrapErr as _,
 };
 use futures::{
     future::{

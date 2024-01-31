@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 
 use celestia_client::CelestiaSequencerBlob;
-use color_eyre::eyre::{
+use ed25519_consensus::{
+    Signature,
+    VerificationKey,
+};
+use eyre::{
     self,
     bail,
     ensure,
     WrapErr as _,
-};
-use ed25519_consensus::{
-    Signature,
-    VerificationKey,
 };
 use prost::Message;
 use sequencer_client::{

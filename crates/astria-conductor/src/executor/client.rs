@@ -10,7 +10,7 @@ use astria_core::{
     },
     Protobuf as _,
 };
-use color_eyre::eyre::{
+use eyre::{
     self,
     WrapErr as _,
 };

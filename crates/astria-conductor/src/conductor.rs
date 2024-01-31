@@ -7,14 +7,14 @@ use std::{
 };
 
 use celestia_client::celestia_types::nmt::Namespace;
-use color_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
 use ethers::prelude::{
     Address,
     Provider,
     Ws,
+};
+use eyre::{
+    self,
+    WrapErr as _,
 };
 use tokio::{
     select,
