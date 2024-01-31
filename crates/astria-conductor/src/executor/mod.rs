@@ -106,6 +106,10 @@ impl Handle<StateIsInit> {
         self.soft_blocks.send(block)
     }
 
+    pub(crate) fn next_expected_firm_height(&mut self) -> SequencerHeight {
+        self.state.borrow_and_update().next_firm_sequencer_height()
+    }
+
     pub(crate) fn next_expected_soft_height(&mut self) -> SequencerHeight {
         self.state.borrow_and_update().next_soft_sequencer_height()
     }

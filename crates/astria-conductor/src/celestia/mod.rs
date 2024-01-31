@@ -135,7 +135,8 @@ impl Reader {
         };
 
         // XXX: This block cache always starts at height 1, the default value for `Height`.
-        let mut sequential_blocks = BlockCache::new();
+        let mut sequential_blocks =
+            BlockCache::with_next_height(executor.next_expected_firm_height());
 
         let mut reconstructed_blocks = ReconstructedBlocksStream::new(
             celestia_start_height,
