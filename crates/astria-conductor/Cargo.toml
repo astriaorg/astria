@@ -46,6 +46,7 @@ telemetry = { package = "astria-telemetry", path = "../astria-telemetry", featur
   "display",
 ] }
 http = "1.0.0"
+tracing-futures = { version = "0.2.5", features = ["futures-03"] }
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["server"] }
