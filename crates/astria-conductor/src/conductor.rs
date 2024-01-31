@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    error::Error as StdError,
     rc::Rc,
     sync::Arc,
     time::Duration,
@@ -21,10 +22,7 @@ use tokio::{
         signal,
         SignalKind,
     },
-    sync::{
-        oneshot,
-        watch,
-    },
+    sync::oneshot,
     task::{
         spawn_local,
         LocalSet,
@@ -57,9 +55,6 @@ pub struct Conductor {
     /// Channels to the long-running tasks to shut them down gracefully
     shutdown_channels: HashMap<&'static str, oneshot::Sender<()>>,
 
-    /// Listens for several unix signals and notifies its subscribers.
-    signals: SignalReceiver,
-
     /// The different long-running tasks that make up the conductor;
     tasks: JoinMap<&'static str, eyre::Result<()>>,
 }
@@ -79,10 +74,8 @@ impl Conductor {
         let mut tasks = JoinMap::new();
         let mut shutdown_channels = HashMap::new();
 
-        let signals = spawn_signal_handler();
-
         // Spawn the executor task.
-        let (executor, executor_handle) = {
+        let executor_handle = {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
             let hook = make_optimism_hook(&cfg)
@@ -96,8 +89,9 @@ impl Conductor {
                 .set_optimism_hook(hook)
                 .build();
 
+            tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
             shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
-            (executor, handle)
+            handle
         };
 
         let sequencer_client_pool = client_provider::start_pool(&cfg.sequencer_url)
@@ -157,48 +151,75 @@ impl Conductor {
             tasks.spawn(Self::CELESTIA, reader.run_until_stopped());
         };
 
-        tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
-
         Ok(Self {
             sequencer_client_pool,
             shutdown_channels,
-            signals,
             tasks,
         })
     }
 
     pub async fn run_until_stopped(mut self) {
-        loop {
-            select! {
-                // FIXME: The bias should only be on the signal channels. The two handlers should have the same bias.
-                biased;
+        enum ExitReason {
+            Sigterm,
+            TaskExited {
+                name: &'static str,
+            },
+            TaskErrored {
+                name: &'static str,
+                error: eyre::Report,
+            },
+            TaskPanicked {
+                name: &'static str,
+                error: tokio::task::JoinError,
+            },
+        }
+        use ExitReason::*;
+        let mut sigterm = signal(SignalKind::terminate()).expect(
+            "setting a SIGTERM listener should always work on unix; is this running on unix?",
+        );
 
-                _ = self.signals.stop_rx.changed() => {
-                    info!("shutting down conductor");
-                    break;
-                }
+        let exit_reason = select! {
+            biased;
 
-                _ = self.signals.reload_rx.changed() => {
-                    info!("reloading is currently not implemented");
-                }
+            _ = sigterm.recv() => Sigterm,
 
-                Some((name, res)) = self.tasks.join_next() => {
-                    match res {
-                        Ok(Ok(())) => error!(task.name = name, "task exited unexpectedly, shutting down"),
-                        Ok(Err(e)) => {
-                            let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                            error!(task.name = name, error, "task exited with error; shutting down");
-                        }
-                        Err(e) => {
-                            let error = &e as &(dyn std::error::Error + 'static);
-                            error!(task.name = name, error, "task failed; shutting down");
-                        }
-                    }
+            Some((name, res)) = self.tasks.join_next() => {
+                match res {
+                    Ok(Ok(())) => TaskExited { name, },
+                    Ok(Err(error)) => TaskErrored { name, error},
+                    Err(error) => TaskPanicked { name, error },
                 }
             }
-        }
+        };
 
-        info!("shutting down conductor");
+        match exit_reason {
+            Sigterm => info!(reason = "received SIGTERM", "shutting down"),
+            TaskExited {
+                name,
+            } => error!(
+                task.name = name,
+                reason = "task exited unexpectedly",
+                "shutting down"
+            ),
+            TaskErrored {
+                name,
+                error,
+            } => error!(
+                task.name = name,
+                reason = "task exited with error",
+                error = AsRef::<dyn StdError>::as_ref(&error),
+                "shutting down"
+            ),
+            TaskPanicked {
+                name,
+                error,
+            } => error!(
+                task.name = name,
+                reason = "task panicked",
+                error = &error as &dyn StdError,
+                "shutting down",
+            ),
+        }
         self.shutdown().await;
     }
 
@@ -283,48 +304,6 @@ async fn make_optimism_hook(
         contract_address,
         cfg.initial_ethereum_l1_block_height,
     )))
-}
-
-struct SignalReceiver {
-    reload_rx: watch::Receiver<()>,
-    stop_rx: watch::Receiver<()>,
-}
-
-fn spawn_signal_handler() -> SignalReceiver {
-    let (stop_tx, stop_rx) = watch::channel(());
-    let (reload_tx, reload_rx) = watch::channel(());
-    tokio::spawn(async move {
-        let mut sighup = signal(SignalKind::hangup()).expect(
-            "setting a SIGHUP listener should always work on unix; is this running on unix?",
-        );
-        let mut sigint = signal(SignalKind::interrupt()).expect(
-            "setting a SIGINT listener should always work on unix; is this running on unix?",
-        );
-        let mut sigterm = signal(SignalKind::terminate()).expect(
-            "setting a SIGTERM listener should always work on unix; is this running on unix?",
-        );
-        loop {
-            select! {
-                _ = sighup.recv() => {
-                    info!("received SIGHUP");
-                    let _ = reload_tx.send(());
-                }
-                _ = sigint.recv() => {
-                    info!("received SIGINT");
-                    let _ = stop_tx.send(());
-                }
-                _ = sigterm.recv() => {
-                    info!("received SIGTERM");
-                    let _ = stop_tx.send(());
-                }
-            }
-        }
-    });
-
-    SignalReceiver {
-        reload_rx,
-        stop_rx,
-    }
 }
 
 /// Get the sequencer namespace from the latest sequencer block.
