@@ -14,6 +14,8 @@ pub struct Config {
     pub validator_key_file: Option<String>,
     pub rpc_port: u16,
     pub log: String,
+    pub metrics_enabled: bool,
+    pub prometheus_http_listener_addr: String,
 }
 
 impl config::Config for Config {

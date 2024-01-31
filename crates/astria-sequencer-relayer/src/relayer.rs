@@ -5,6 +5,7 @@ use eyre::{
     WrapErr as _,
 };
 use humantime::format_duration;
+use metrics::{gauge, counter};
 use sequencer_client::{
     HttpClient,
     SequencerBlock,
@@ -164,6 +165,7 @@ impl Relayer {
         // Then report update the internal state or report if submission failed
         match submission_result {
             Ok(height) => self.state_tx.send_modify(|state| {
+                counter!("successful_submission_celestia_height", height);
                 debug!(
                     celestia_height=%height,
                     "successfully submitted blocks to data availability layer"
@@ -390,6 +392,7 @@ async fn submit_blocks_to_celestia(
         CelestiaClientExt as _,
     };
 
+    gauge!("blocks_per_celestia_tx", sequencer_blocks.len() as f64);
     info!(
         num_blocks = sequencer_blocks.len(),
         "submitting collected sequencer blocks to data availability layer",

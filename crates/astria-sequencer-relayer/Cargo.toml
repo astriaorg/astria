@@ -8,6 +8,8 @@ rust-version = "1.73"
 [dependencies]
 dirs = "5.0"
 http = "0.2.9"
+metrics = "0.21.0"
+metrics-exporter-prometheus = "0.12.2"
 serde_path_to_error = "0.1.13"
 zeroize = { version = "1.6.0", features = ["zeroize_derive"] }
 
