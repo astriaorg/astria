@@ -178,7 +178,7 @@ impl App {
         AuthorityComponent::init_chain(
             &mut state_tx,
             &AuthorityComponentAppState {
-                authority_sudo_key: genesis_state.authority_sudo_key,
+                authority_sudo_address: genesis_state.authority_sudo_address,
                 genesis_validators,
             },
         )
@@ -772,7 +772,8 @@ mod test {
 
         let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: Address::from([0; 20]),
+            authority_sudo_address: Address::from([0; 20]),
+            ibc_sudo_address: Address::from([0; 20]),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         });
 
@@ -1096,7 +1097,8 @@ mod test {
 
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: alice_address,
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1128,7 +1130,8 @@ mod test {
 
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: alice_address,
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1158,7 +1161,8 @@ mod test {
 
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: sudo_address,
+            authority_sudo_address: sudo_address,
+            ibc_sudo_address: [0u8; 20].into(),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1188,7 +1192,8 @@ mod test {
 
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: alice_address,
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: [0u8; 20].into(),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1335,7 +1340,8 @@ mod test {
     async fn app_commit() {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: Address::from([0; 20]),
+            authority_sudo_address: Address::from([0; 20]),
+            ibc_sudo_address: Address::from([0; 20]),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
 

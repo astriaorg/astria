@@ -32,6 +32,9 @@ impl Component for AccountsComponent {
                 .put_account_balance(account.address, native_asset.id(), account.balance)
                 .context("failed writing account balance to state")?;
         }
+        state
+            .put_ibc_sudo_address(app_state.ibc_sudo_address)
+            .context("failed to set IBC sudo key")?;
         Ok(())
     }
 

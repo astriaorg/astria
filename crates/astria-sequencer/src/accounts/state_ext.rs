@@ -6,6 +6,7 @@ use astria_core::sequencer::v1alpha1::{
     account::AssetBalance,
     asset,
     Address,
+    ADDRESS_LEN,
 };
 use async_trait::async_trait;
 use borsh::{
@@ -32,7 +33,13 @@ struct Nonce(u32);
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Balance(u128);
 
+/// Newtype wrapper to read and write an address from rocksdb.
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+struct SudoAddress([u8; ADDRESS_LEN]);
+
 const ACCOUNTS_PREFIX: &str = "accounts";
+
+const IBC_SUDO_STORAGE_KEY: &str = "ibcsudo";
 
 fn storage_key(address: &str) -> String {
     format!("{ACCOUNTS_PREFIX}/{address}")
@@ -151,6 +158,21 @@ pub(crate) trait StateReadExt: StateRead {
         let Balance(balance) = Balance::try_from_slice(&bytes).context("invalid balance bytes")?;
         Ok(balance)
     }
+
+    #[instrument(skip(self))]
+    async fn get_ibc_sudo_address(&self) -> Result<Address> {
+        let Some(bytes) = self
+            .get_raw(IBC_SUDO_STORAGE_KEY)
+            .await
+            .context("failed reading raw ibc sudo key from state")?
+        else {
+            // ibc sudo key must be set
+            return Err(anyhow::anyhow!("ibc sudo key not found"));
+        };
+        let SudoAddress(address) =
+            SudoAddress::try_from_slice(&bytes).context("invalid ibc sudo key bytes")?;
+        Ok(Address(address))
+    }
 }
 
 impl<T: StateRead> StateReadExt for T {}
@@ -191,6 +213,17 @@ pub(crate) trait StateWriteExt: StateWrite {
             .try_to_vec()
             .context("failed to serialize balance")?;
         self.put_raw(channel_balance_storage_key(channel, asset), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    fn put_ibc_sudo_address(&mut self, address: Address) -> Result<()> {
+        self.put_raw(
+            IBC_SUDO_STORAGE_KEY.to_string(),
+            SudoAddress(address.0)
+                .try_to_vec()
+                .context("failed to convert sudo address to vec")?,
+        );
         Ok(())
     }
 }

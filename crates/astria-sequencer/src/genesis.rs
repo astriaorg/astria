@@ -9,7 +9,9 @@ use serde::{
 pub(crate) struct GenesisState {
     pub(crate) accounts: Vec<Account>,
     #[serde(deserialize_with = "deserialize_address")]
-    pub(crate) authority_sudo_key: Address,
+    pub(crate) authority_sudo_address: Address,
+    #[serde(deserialize_with = "deserialize_address")]
+    pub(crate) ibc_sudo_address: Address,
     pub(crate) native_asset_base_denomination: String,
 }
 
