@@ -73,10 +73,10 @@ impl ConfigureCometBftBlock {
                 SequenceAction {
                     rollup_id,
                     data: [b"hello_world_id_", &*suffix].concat(),
+                    fee_asset_id: default_native_asset_id(),
                 }
                 .into(),
             ],
-            fee_asset_id: default_native_asset_id(),
         };
 
         let signed_transaction = unsigned_transaction.into_signed(&signing_key);

@@ -181,8 +181,6 @@ impl SignedTransaction {
 pub struct UnsignedTransaction {
     pub nonce: u32,
     pub actions: Vec<Action>,
-    /// asset to use for fee payment.
-    pub fee_asset_id: super::asset::Id,
 }
 
 impl UnsignedTransaction {
@@ -202,13 +200,11 @@ impl UnsignedTransaction {
         let Self {
             nonce,
             actions,
-            fee_asset_id,
         } = self;
         let actions = actions.into_iter().map(Action::into_raw).collect();
         raw::UnsignedTransaction {
             nonce,
             actions,
-            fee_asset_id: fee_asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -216,13 +212,11 @@ impl UnsignedTransaction {
         let Self {
             nonce,
             actions,
-            fee_asset_id,
         } = self;
         let actions = actions.iter().map(Action::to_raw).collect();
         raw::UnsignedTransaction {
             nonce: *nonce,
             actions,
-            fee_asset_id: fee_asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -236,20 +230,16 @@ impl UnsignedTransaction {
         let raw::UnsignedTransaction {
             nonce,
             actions,
-            fee_asset_id,
         } = proto;
         let actions: Vec<_> = actions
             .into_iter()
             .map(Action::try_from_raw)
             .collect::<Result<_, _>>()
             .map_err(UnsignedTransactionError::action)?;
-        let fee_asset_id = super::asset::Id::try_from_slice(&fee_asset_id)
-            .map_err(UnsignedTransactionError::fee_asset_id)?;
 
         Ok(Self {
             nonce,
             actions,
-            fee_asset_id,
         })
     }
 }
@@ -262,18 +252,12 @@ impl UnsignedTransactionError {
     fn action(inner: action::ActionError) -> Self {
         Self(UnsignedTransactionErrorKind::Action(inner))
     }
-
-    fn fee_asset_id(inner: super::IncorrectAssetIdLength) -> Self {
-        Self(UnsignedTransactionErrorKind::FeeAsset(inner))
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum UnsignedTransactionErrorKind {
     #[error("`actions` field is invalid")]
     Action(#[source] action::ActionError),
-    #[error("`fee_asset_id` field is invalid")]
-    FeeAsset(#[source] super::IncorrectAssetIdLength),
 }
 
 #[cfg(test)]
@@ -300,20 +284,20 @@ mod test {
         ])
         .unwrap();
         let expected_hash: [u8; 32] = [
-            83, 12, 185, 239, 139, 236, 107, 26, 116, 237, 242, 144, 144, 37, 188, 82, 115, 228,
-            59, 229, 164, 251, 142, 181, 82, 188, 68, 99, 165, 61, 83, 135,
+            208, 68, 247, 226, 65, 50, 227, 180, 178, 51, 28, 119, 212, 205, 148, 83, 27, 229, 238,
+            45, 192, 139, 169, 239, 16, 3, 103, 132, 220, 87, 150, 229,
         ];
 
         let transfer = TransferAction {
             to: Address::from([0; 20]),
             amount: 0,
             asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset_id(),
         };
 
         let unsigned = UnsignedTransaction {
             nonce: 0,
             actions: vec![transfer.into()],
-            fee_asset_id: default_native_asset_id(),
         };
 
         let tx = SignedTransaction {
