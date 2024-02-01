@@ -81,11 +81,7 @@ impl ActionHandler for action::Ics20Withdrawal {
     }
 
     #[instrument(skip(self, state))]
-    async fn execute<S: StateWriteExt>(
-        &self,
-        state: &mut S,
-        from: Address,
-    ) -> Result<()> {
+    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         let checked_packet = withdrawal_to_unchecked_ibc_packet(self).assume_checked();
 
         let from_transfer_balance = state

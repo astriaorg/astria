@@ -34,11 +34,7 @@ impl ActionHandler for tendermint::validator::Update {
     }
 
     #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(
-        &self,
-        state: &mut S,
-        _: Address,
-    ) -> Result<()> {
+    async fn execute<S: StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
         // add validator update in non-consensus state to be used in end_block
         let mut validator_updates = state
             .get_validator_updates()
@@ -71,11 +67,7 @@ impl ActionHandler for SudoAddressChangeAction {
     }
 
     #[instrument(skip_all)]
-    async fn execute<S: StateWriteExt>(
-        &self,
-        state: &mut S,
-        _: Address,
-    ) -> Result<()> {
+    async fn execute<S: StateWriteExt>(&self, state: &mut S, _: Address) -> Result<()> {
         state
             .put_sudo_address(self.new_address)
             .context("failed to put sudo address in state")?;

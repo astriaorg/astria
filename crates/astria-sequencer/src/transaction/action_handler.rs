@@ -1,7 +1,5 @@
 use anyhow::Result;
-use astria_core::sequencer::v1alpha1::{
-    Address,
-};
+use astria_core::sequencer::v1alpha1::Address;
 use async_trait::async_trait;
 use cnidarium::{
     StateRead,
@@ -20,11 +18,7 @@ pub(crate) trait ActionHandler {
     ) -> Result<()> {
         Ok(())
     }
-    async fn execute<S: StateWrite>(
-        &self,
-        _state: &mut S,
-        _from: Address,
-    ) -> Result<()> {
+    async fn execute<S: StateWrite>(&self, _state: &mut S, _from: Address) -> Result<()> {
         Ok(())
     }
 }

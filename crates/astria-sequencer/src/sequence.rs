@@ -53,11 +53,7 @@ impl ActionHandler for SequenceAction {
             from = from.to_string(),
         )
     )]
-    async fn execute<S: StateWriteExt>(
-        &self,
-        state: &mut S,
-        from: Address,
-    ) -> Result<()> {
+    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         let fee = calculate_fee(&self.data).context("failed to calculate fee")?;
         state
             .get_and_increase_block_fees(self.fee_asset_id, fee)

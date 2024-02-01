@@ -128,13 +128,13 @@ fn create_signed_transaction() -> SignedTransaction {
             to: BOB_ADDRESS,
             amount: 333_333,
             asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset_id(),
         }
         .into(),
     ];
     UnsignedTransaction {
         nonce: 1,
         actions,
-        fee_asset_id: default_native_asset_id(),
     }
     .into_signed(&alice_key)
 }

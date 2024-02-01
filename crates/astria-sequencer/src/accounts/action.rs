@@ -76,11 +76,7 @@ impl ActionHandler for TransferAction {
             amount = self.amount,
         )
     )]
-    async fn execute<S: StateWriteExt>(
-        &self,
-        state: &mut S,
-        from: Address,
-    ) -> Result<()> {
+    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         state
             .get_and_increase_block_fees(self.fee_asset_id, TRANSFER_FEE)
             .await
