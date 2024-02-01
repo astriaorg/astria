@@ -24,6 +24,7 @@ pub(crate) struct NoShutdown;
 pub(crate) struct WithShutdown(oneshot::Receiver<()>);
 
 pub(crate) struct ExecutorBuilder<TRollupAddress = NoRollupAddress, TShutdown = NoShutdown> {
+    consider_commitment_spread: bool,
     optimism_hook: Option<optimism::Handler>,
     rollup_address: TRollupAddress,
     shutdown: TShutdown,
@@ -32,6 +33,7 @@ pub(crate) struct ExecutorBuilder<TRollupAddress = NoRollupAddress, TShutdown = 
 impl ExecutorBuilder {
     pub(super) fn new() -> Self {
         Self {
+            consider_commitment_spread: true,
             optimism_hook: None,
             rollup_address: NoRollupAddress,
             shutdown: NoShutdown,
@@ -42,6 +44,7 @@ impl ExecutorBuilder {
 impl ExecutorBuilder<WithRollupAddress, WithShutdown> {
     pub(crate) fn build(self) -> (Executor, Handle) {
         let Self {
+            consider_commitment_spread,
             optimism_hook: pre_execution_hook,
             rollup_address,
             shutdown,
@@ -49,8 +52,8 @@ impl ExecutorBuilder<WithRollupAddress, WithShutdown> {
         let WithRollupAddress(rollup_address) = rollup_address;
         let WithShutdown(shutdown) = shutdown;
 
-        let (firm_blocks_tx, firm_blocks_rx) = mpsc::unbounded_channel();
-        let (soft_blocks_tx, soft_blocks_rx) = mpsc::unbounded_channel();
+        let (firm_blocks_tx, firm_blocks_rx) = mpsc::channel(16);
+        let (soft_blocks_tx, soft_blocks_rx) = mpsc::channel(16);
 
         let (state_tx, state_rx) = watch::channel(State::new());
 
@@ -58,6 +61,7 @@ impl ExecutorBuilder<WithRollupAddress, WithShutdown> {
             firm_blocks: firm_blocks_rx,
             soft_blocks: soft_blocks_rx,
 
+            consider_commitment_spread,
             rollup_address,
 
             shutdown,
@@ -76,6 +80,14 @@ impl ExecutorBuilder<WithRollupAddress, WithShutdown> {
 }
 
 impl<TRollupAddress, TShutdown> ExecutorBuilder<TRollupAddress, TShutdown> {
+    pub(crate) fn set_consider_commitment_spread(
+        mut self,
+        consider_commitment_spread: bool,
+    ) -> Self {
+        self.consider_commitment_spread = consider_commitment_spread;
+        self
+    }
+
     pub(crate) fn set_optimism_hook(mut self, handler: Option<optimism::Handler>) -> Self {
         self.optimism_hook = handler;
         self
@@ -86,6 +98,7 @@ impl<TRollupAddress, TShutdown> ExecutorBuilder<TRollupAddress, TShutdown> {
         rollup_address: &str,
     ) -> eyre::Result<ExecutorBuilder<WithRollupAddress, TShutdown>> {
         let Self {
+            consider_commitment_spread,
             optimism_hook,
             shutdown,
             ..
@@ -96,6 +109,7 @@ impl<TRollupAddress, TShutdown> ExecutorBuilder<TRollupAddress, TShutdown> {
                 .wrap_err("failed to parse rollup address as URI")?,
         );
         Ok(ExecutorBuilder {
+            consider_commitment_spread,
             optimism_hook,
             rollup_address,
             shutdown,
@@ -107,11 +121,13 @@ impl<TRollupAddress, TShutdown> ExecutorBuilder<TRollupAddress, TShutdown> {
         shutdown: oneshot::Receiver<()>,
     ) -> ExecutorBuilder<TRollupAddress, WithShutdown> {
         let Self {
+            consider_commitment_spread,
             optimism_hook,
             rollup_address,
             ..
         } = self;
         ExecutorBuilder {
+            consider_commitment_spread,
             optimism_hook,
             rollup_address,
             shutdown: WithShutdown(shutdown),

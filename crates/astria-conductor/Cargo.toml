@@ -6,13 +6,16 @@ rust-version = "1.73"
 
 [dependencies]
 async-trait = "0.1.73"
-pin-project-lite = "0.2"
-
-base64 = { workspace = true }
-eyre = { workspace = true }
+futures-bounded = "0.2.3"
 deadpool = { version = "0.10.0", default-features = false, features = [
   "managed",
 ] }
+eyre = { workspace = true }
+http = "1.0.0"
+pin-project-lite = "0.2"
+tracing-futures = { version = "0.2.5", features = ["futures-03"] }
+
+base64 = { workspace = true }
 ed25519-consensus = { workspace = true }
 ethers = { workspace = true, features = ["optimism", "ws"] }
 futures = { workspace = true }
@@ -45,8 +48,6 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }
-http = "1.0.0"
-tracing-futures = { version = "0.2.5", features = ["futures-03"] }
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["server"] }

@@ -83,6 +83,7 @@ impl Conductor {
                 .wrap_err("failed constructing optimism hook")?;
 
             let (executor, handle) = Executor::builder()
+                .set_consider_commitment_spread(!cfg.execution_commit_level.is_soft_only())
                 .rollup_address(&cfg.execution_rpc_url)
                 .wrap_err("failed to assign rollup node address")?
                 .shutdown(shutdown_rx)
@@ -127,16 +128,7 @@ impl Conductor {
                     .await
                     .wrap_err("failed to get sequencer namespace")?
             };
-            // XXX: This log is very misleading. The field called `sequencer_chain_id` is actually
-            // the rollup ID.
-            //
-            // info!(
-            //     celestia_namespace = %Base64Display::new(sequencer_namespace.as_bytes(),
-            // &STANDARD),     sequencer_chain_id = %cfg.chain_id,
-            //     "celestia namespace derived from sequencer chain id",
-            // );
 
-            // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
             let reader = celestia::Reader::builder()
                 .celestia_endpoint(&cfg.celestia_node_url)
                 .celestia_token(&cfg.celestia_bearer_token)

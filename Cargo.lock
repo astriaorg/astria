@@ -600,6 +600,7 @@ dependencies = [
  "ethers",
  "eyre",
  "futures",
+ "futures-bounded",
  "hex",
  "http 1.0.0",
  "humantime",
@@ -2932,6 +2933,16 @@ dependencies = [
  "futures-io",
  "futures-sink",
  "futures-task",
+ "futures-util",
+]
+
+[[package]]
+name = "futures-bounded"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1e2774cc104e198ef3d3e1ff4ab40f86fa3245d6cb6a3a46174f21463cee173"
+dependencies = [
+ "futures-timer",
  "futures-util",
 ]
 

@@ -1,5 +1,6 @@
 use std::{
     collections::VecDeque,
+    error::Error as StdError,
     future::ready,
     pin::Pin,
     task::{
@@ -28,13 +29,17 @@ use eyre::{
     WrapErr as _,
 };
 use futures::{
-    future::BoxFuture,
-    stream::{
-        FuturesUnordered,
-        Stream,
+    future::{
+        self,
+        BoxFuture,
+        Fuse,
+        FusedFuture as _,
     },
+    stream::Stream,
+    FutureExt as _,
     StreamExt as _,
 };
+use futures_bounded::FuturesMap;
 use pin_project_lite::pin_project;
 use sequencer_client::tendermint::{
     self,
@@ -45,7 +50,6 @@ use tokio::{
     sync::oneshot,
 };
 use tracing::{
-    error,
     info,
     instrument,
     warn,
@@ -136,7 +140,8 @@ impl Reader {
 
         // XXX: This block cache always starts at height 1, the default value for `Height`.
         let mut sequential_blocks =
-            BlockCache::with_next_height(executor.next_expected_firm_height());
+            BlockCache::with_next_height(executor.next_expected_firm_height())
+                .wrap_err("failed constructing sequential block cache")?;
 
         let mut reconstructed_blocks = ReconstructedBlocksStream::new(
             celestia_start_height,
@@ -147,6 +152,7 @@ impl Reader {
             self.sequencer_namespace,
             rollup_namespace,
         );
+        let mut executor_full: Fuse<BoxFuture<Result<_, _>>> = future::Fuse::terminated();
         loop {
             select!(
                 shutdown_res = &mut self.shutdown => {
@@ -160,13 +166,31 @@ impl Reader {
                     break;
                 }
 
+                res = &mut executor_full, if !executor_full.is_terminated() => {
+                    if res.is_err() {
+                        bail!("executor channel closed while waiting for it to free up");
+                    }
+                    // we just check the error here and drop the permit without using it.
+                    // because the future is now fused the branch fetching the next block will trigger.
+                    reconstructed_blocks.unpause();
+                }
+
                 Some(block) = sequential_blocks.next_block() => {
-                    if let Err(e) = executor.send_firm(block) {
-                        error!(
-                            error = &e as &dyn std::error::Error,
-                            "failed sending block reconstructed from celestia to executor; exiting",
-                        );
-                        break;
+                    if let Err(err) = executor.firm_blocks().try_send(block) {
+                        match err {
+                            tokio::sync::mpsc::error::TrySendError::Full(block) => {
+                                info!("executor channel is full; stopping block fetch until a slot opens up");
+                                assert!(
+                                    sequential_blocks.reschedule_block(block).is_ok(),
+                                    "rescheduling the just obtained block must always work",
+                                );
+                                executor_full = executor.soft_blocks().clone().reserve_owned().boxed().fuse();
+                                reconstructed_blocks.pause();
+                            }
+                            tokio::sync::mpsc::error::TrySendError::Closed(_) => {
+                                bail!("exiting because executor channel is closed");
+                            }
+                        }
                     }
                 }
 
@@ -175,7 +199,6 @@ impl Reader {
                 Some(header) = headers.next() => {
                     match header {
                         Ok(header) => reconstructed_blocks.extend_to_height(header.height()),
-                        // XXX: handle header returning an error - respawn subscription? keep going?
                         Err(e) => {
                             warn!(
                                 error = &e as &dyn  std::error::Error,
@@ -205,12 +228,12 @@ pin_project! {
     struct ReconstructedBlocksStream {
         heights: VecDeque<CelestiaHeight>,
         greatest_seen_height: CelestiaHeight,
-        in_progress_queue: FuturesUnordered<BoxFuture<'static, eyre::Result<Vec<ReconstructedBlock>>>>,
+        in_progress: FuturesMap<CelestiaHeight, eyre::Result<Vec<ReconstructedBlock>>>,
         client: HttpClient,
-        max: usize,
         verifier: BlockVerifier,
         sequencer_namespace: Namespace,
         rollup_namespace: Namespace,
+        paused: bool,
     }
 }
 
@@ -239,13 +262,21 @@ impl ReconstructedBlocksStream {
         Self {
             heights,
             greatest_seen_height,
-            in_progress_queue: FuturesUnordered::new(),
+            in_progress: FuturesMap::new(std::time::Duration::from_secs(10), max),
             client,
-            max,
             verifier,
             sequencer_namespace,
             rollup_namespace,
+            paused: false,
         }
+    }
+
+    fn pause(&mut self) {
+        self.paused = true;
+    }
+
+    fn unpause(&mut self) {
+        self.paused = false;
     }
 }
 
@@ -253,40 +284,54 @@ impl Stream for ReconstructedBlocksStream {
     type Item = Vec<ReconstructedBlock>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        use futures::{
-            ready,
-            FutureExt as _,
-        };
         let this = self.project();
 
         // First up, try to spawn off as many futures as possible by filling up
         // our queue of futures.
-        while this.in_progress_queue.len() < *this.max {
-            match this.heights.pop_front() {
-                Some(height) => this.in_progress_queue.push(
-                    fetch_blocks_at_celestia_height(
-                        this.client.clone(),
-                        this.verifier.clone(),
+        if !*this.paused {
+            loop {
+                if let Poll::Ready(()) = this.in_progress.poll_ready_unpin(cx) {
+                    let Some(height) = this.heights.pop_front() else {
+                        break;
+                    };
+                    let res = this.in_progress.try_push(
                         height,
-                        *this.sequencer_namespace,
-                        *this.rollup_namespace,
-                    )
-                    .boxed(),
-                ),
-                None => break,
+                        fetch_blocks_at_celestia_height(
+                            this.client.clone(),
+                            this.verifier.clone(),
+                            height,
+                            *this.sequencer_namespace,
+                            *this.rollup_namespace,
+                        ),
+                    );
+                    assert!(res.is_ok(), "we polled for readiness");
+                }
             }
         }
 
-        // Attempt to pull the next value from the in_progress_queue
-        let res = this.in_progress_queue.poll_next_unpin(cx);
-        // XXX: This relies on fetch_blocks_at_celestia_height emitting error events, so the `Err`
-        //      case is silently dropped here.
-        if let Some(Ok(blocks)) = ready!(res) {
-            return Poll::Ready(Some(blocks));
+        let (height, res) = futures::ready!(this.in_progress.poll_unpin(cx));
+
+        // Ok branch (contains the block or a fetch error): propagate the error up
+        //
+        // Err branch (timeout): a fetch timing out is not a problem: we can just reschedule it.
+        match res {
+            Ok(Ok(blocks)) => return Poll::Ready(Some(blocks)),
+            // XXX: The error is silently dropped as this relies on fetch_blocks_at_celestia_height
+            //      as part of its instrumentation emitting error event.
+            Ok(Err(_)) => {}
+            Err(timed_out) => {
+                warn!(
+                    %height,
+                    error = &timed_out as &dyn StdError,
+                    "request for height timed out, rescheduling",
+                );
+                this.heights.push_front(height);
+            }
         }
 
-        // If more values are still coming from the stream, we're not done yet
-        if this.heights.is_empty() {
+        // We only reach this part if the `futures::ready!` didn't short circuit, or
+        // if no result was ready.
+        if this.heights.is_empty() || *this.paused {
             Poll::Ready(None)
         } else {
             Poll::Pending
@@ -294,7 +339,7 @@ impl Stream for ReconstructedBlocksStream {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let queue_len = self.in_progress_queue.len();
+        let queue_len = self.in_progress.len();
         let n_heights = self.heights.len();
         let len = n_heights.saturating_add(queue_len);
         (len, Some(len))

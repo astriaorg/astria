@@ -21,10 +21,7 @@ use sequencer_client::{
 use tokio::{
     select,
     sync::{
-        mpsc::{
-            self,
-            error::SendError,
-        },
+        mpsc,
         oneshot,
         watch::{
             self,
@@ -65,8 +62,8 @@ pub(crate) struct StateIsInit;
 /// information.
 #[derive(Debug, Clone)]
 pub(crate) struct Handle<TStateInit = StateNotInit> {
-    firm_blocks: mpsc::UnboundedSender<ReconstructedBlock>,
-    soft_blocks: mpsc::UnboundedSender<SequencerBlock>,
+    firm_blocks: mpsc::Sender<ReconstructedBlock>,
+    soft_blocks: mpsc::Sender<SequencerBlock>,
     state: watch::Receiver<State>,
     _state_init: TStateInit,
 }
@@ -93,17 +90,12 @@ impl<T: Clone> Handle<T> {
 }
 
 impl Handle<StateIsInit> {
-    #[allow(clippy::result_large_err)] // because this is just returning tokio's SendError<T>
-    pub(crate) fn send_firm(
-        &self,
-        block: ReconstructedBlock,
-    ) -> Result<(), SendError<ReconstructedBlock>> {
-        self.firm_blocks.send(block)
+    pub(crate) fn firm_blocks(&self) -> &mpsc::Sender<ReconstructedBlock> {
+        &self.firm_blocks
     }
 
-    #[allow(clippy::result_large_err)] // because this is just returning tokio's SendError<T>
-    pub(crate) fn send_soft(&self, block: SequencerBlock) -> Result<(), SendError<SequencerBlock>> {
-        self.soft_blocks.send(block)
+    pub(crate) fn soft_blocks(&self) -> &mpsc::Sender<SequencerBlock> {
+        &self.soft_blocks
     }
 
     pub(crate) fn next_expected_firm_height(&mut self) -> SequencerHeight {
@@ -131,8 +123,8 @@ impl Handle<StateIsInit> {
 }
 
 pub(crate) struct Executor {
-    firm_blocks: mpsc::UnboundedReceiver<ReconstructedBlock>,
-    soft_blocks: mpsc::UnboundedReceiver<SequencerBlock>,
+    firm_blocks: mpsc::Receiver<ReconstructedBlock>,
+    soft_blocks: mpsc::Receiver<SequencerBlock>,
 
     shutdown: oneshot::Receiver<()>,
 
@@ -140,6 +132,10 @@ pub(crate) struct Executor {
 
     /// Tracks SOFT and FIRM on the execution chain
     state: watch::Sender<State>,
+
+    // If set, the executor will take into account the spread between firm
+    // and soft commitments when executing blocks.
+    consider_commitment_spread: bool,
 
     /// Tracks executed blocks as soft commitments.
     ///
@@ -168,6 +164,14 @@ impl Executor {
             .wrap_err("failed setting initial rollup node state")?;
 
         loop {
+            let too_far_ahead =
+                self.consider_commitment_spread && self.is_commitment_spread_too_large();
+            if too_far_ahead {
+                debug!(
+                    "soft commitments are too far ahead of firm commitments; letting firm \
+                     commitments catch up"
+                );
+            }
             select!(
                 biased;
 
@@ -200,7 +204,7 @@ impl Executor {
                     }
                 }
 
-                Some(block) = self.soft_blocks.recv() => {
+                Some(block) = self.soft_blocks.recv(), if !too_far_ahead => {
                     debug!(
                         block.height = %block.height(),
                         block.hash = %telemetry::display::hex(&block.block_hash()),
@@ -219,6 +223,12 @@ impl Executor {
             );
         }
         // XXX: shut down the channels here and attempt to drain them before returning.
+    }
+
+    fn is_commitment_spread_too_large(&self) -> bool {
+        let next_firm = self.state.borrow().next_firm_sequencer_height().value();
+        let next_soft = self.state.borrow().next_soft_sequencer_height().value();
+        next_soft.saturating_sub(next_firm) <= 16
     }
 
     #[instrument(skip_all, fields(
