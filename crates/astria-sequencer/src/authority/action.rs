@@ -4,7 +4,6 @@ use anyhow::{
     Result,
 };
 use astria_core::sequencer::v1alpha1::{
-    asset,
     transaction::action::SudoAddressChangeAction,
     Address,
 };
@@ -24,7 +23,6 @@ impl ActionHandler for tendermint::validator::Update {
         &self,
         state: &S,
         from: Address,
-        _fee_asset_id: asset::Id,
     ) -> Result<()> {
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
@@ -40,7 +38,6 @@ impl ActionHandler for tendermint::validator::Update {
         &self,
         state: &mut S,
         _: Address,
-        _: asset::Id,
     ) -> Result<()> {
         // add validator update in non-consensus state to be used in end_block
         let mut validator_updates = state
@@ -63,7 +60,6 @@ impl ActionHandler for SudoAddressChangeAction {
         &self,
         state: &S,
         from: Address,
-        _fee_asset_id: asset::Id,
     ) -> Result<()> {
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
@@ -79,7 +75,6 @@ impl ActionHandler for SudoAddressChangeAction {
         &self,
         state: &mut S,
         _: Address,
-        _: asset::Id,
     ) -> Result<()> {
         state
             .put_sudo_address(self.new_address)

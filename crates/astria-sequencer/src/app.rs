@@ -927,10 +927,10 @@ mod test {
                     to: bob_address,
                     amount: value,
                     asset_id: get_native_asset().id(),
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -980,10 +980,10 @@ mod test {
                     to: bob_address,
                     amount: value,
                     asset_id: asset,
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1042,11 +1042,12 @@ mod test {
                     to: bob,
                     amount: 0,
                     asset_id: get_native_asset().id(),
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
+
         let signed_tx = tx.into_signed(&keypair);
         let res = app
             .deliver_tx(signed_tx)
@@ -1071,10 +1072,10 @@ mod test {
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data,
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1110,7 +1111,6 @@ mod test {
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![Action::ValidatorUpdate(update.clone())],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1140,7 +1140,6 @@ mod test {
             actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
                 new_address,
             })],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1168,7 +1167,6 @@ mod test {
             actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
                 new_address: alice_address,
             })],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1204,7 +1202,6 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1302,10 +1299,10 @@ mod test {
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data,
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1417,10 +1414,10 @@ mod test {
                     to: bob_address,
                     amount,
                     asset_id: native_asset,
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: native_asset,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);

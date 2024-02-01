@@ -1,6 +1,5 @@
 use anyhow::Result;
 use astria_core::sequencer::v1alpha1::{
-    asset,
     Address,
 };
 use async_trait::async_trait;
@@ -18,7 +17,6 @@ pub(crate) trait ActionHandler {
         &self,
         _state: &S,
         _from: Address,
-        _fee_asset_id: asset::Id,
     ) -> Result<()> {
         Ok(())
     }
@@ -26,7 +24,6 @@ pub(crate) trait ActionHandler {
         &self,
         _state: &mut S,
         _from: Address,
-        _fee_asset_id: asset::Id,
     ) -> Result<()> {
         Ok(())
     }

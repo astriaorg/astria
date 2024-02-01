@@ -4,7 +4,6 @@ use anyhow::{
     Result,
 };
 use astria_core::sequencer::v1alpha1::{
-    asset,
     asset::Denom,
     transaction::action,
     Address,
@@ -62,7 +61,6 @@ impl ActionHandler for action::Ics20Withdrawal {
         &self,
         state: &S,
         from: Address,
-        _fee_asset_id: asset::Id,
     ) -> Result<()> {
         let packet: IBCPacket<Unchecked> = withdrawal_to_unchecked_ibc_packet(self);
         state
@@ -87,7 +85,6 @@ impl ActionHandler for action::Ics20Withdrawal {
         &self,
         state: &mut S,
         from: Address,
-        _fee_asset_id: asset::Id,
     ) -> Result<()> {
         let checked_packet = withdrawal_to_unchecked_ibc_packet(self).assume_checked();
 
