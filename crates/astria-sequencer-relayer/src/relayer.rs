@@ -24,14 +24,7 @@ use tracing::{
 };
 
 use crate::{
-    metrics::{
-        counter,
-        gauge,
-        histogram,
-        BLOCKS_PER_CELESTIA_TX,
-        CELESTIA_SUBMISSION_HEIGHT,
-        CELESTIA_SUBMISSION_LATENCY,
-    },
+    metrics,
     validator::Validator,
 };
 
@@ -174,7 +167,7 @@ impl Relayer {
         // Then report update the internal state or report if submission failed
         match submission_result {
             Ok(height) => self.state_tx.send_modify(|state| {
-                counter!(CELESTIA_SUBMISSION_HEIGHT, height);
+                metrics::counter!(metrics::CELESTIA_SUBMISSION_HEIGHT, height);
                 debug!(
                     celestia_height=%height,
                     "successfully submitted blocks to data availability layer"
@@ -400,12 +393,12 @@ async fn submit_blocks_to_celestia(
         celestia_types::blob::SubmitOptions,
         CelestiaClientExt as _,
     };
-    let _start = std::time::Instant::now();
+    let start = std::time::Instant::now();
 
     // the number of blocks should always be low enough to not cause precision loss
-    #[allow(clippy::clippy::cast_precision_loss)] 
+    #[allow(clippy::cast_precision_loss)]
     let blocks_per_celestia_tx = sequencer_blocks.len() as f64;
-    gauge!(BLOCKS_PER_CELESTIA_TX, blocks_per_celestia_tx);
+    metrics::gauge!(metrics::BLOCKS_PER_CELESTIA_TX, blocks_per_celestia_tx);
     info!(
         num_blocks = sequencer_blocks.len(),
         "submitting collected sequencer blocks to data availability layer",
@@ -421,6 +414,6 @@ async fn submit_blocks_to_celestia(
         )
         .await
         .wrap_err("failed submitting sequencer blocks to celestia")?;
-    histogram!(CELESTIA_SUBMISSION_LATENCY, _start.elapsed());
+    metrics::histogram!(metrics::CELESTIA_SUBMISSION_LATENCY, start.elapsed());
     Ok(height)
 }

@@ -8,5 +8,3 @@ pub(crate) mod validator;
 pub use config::Config;
 pub use sequencer_relayer::SequencerRelayer;
 pub use telemetry;
-
-pub use self::metrics::register_metrics;

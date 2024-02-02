@@ -14,7 +14,7 @@
 pub use metrics::*;
 
 /// Registers all metrics used by this crate.
-pub fn register_metrics() {
+pub fn register() {
     register_counter!(CELESTIA_SUBMISSION_HEIGHT);
     describe_counter!(
         CELESTIA_SUBMISSION_HEIGHT,

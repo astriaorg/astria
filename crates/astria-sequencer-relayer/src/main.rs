@@ -1,8 +1,5 @@
 use astria_sequencer_relayer::{
-    metrics::{
-        register_metrics,
-        HISTOGRAM_BUCKETS,
-    },
+    metrics,
     telemetry,
     Config,
     SequencerRelayer,
@@ -17,14 +14,13 @@ async fn main() {
         Some(telemetry::MetricsConfig {
             addr: cfg.prometheus_http_listener_addr,
             labels: Some(vec![("service".into(), "astria-sequencer-relayer".into())]),
-            buckets: Some(HISTOGRAM_BUCKETS.to_vec()),
+            buckets: Some(metrics::HISTOGRAM_BUCKETS.to_vec()),
         })
     } else {
         None
     };
-
+    metrics::register();
     telemetry::init(std::io::stdout, &cfg.log, metrics_conf).expect("failed to setup telemetry");
-    register_metrics();
     info!(
         config = serde_json::to_string(&cfg).expect("serializing to a string cannot fail"),
         "initializing sequencer relayer"
