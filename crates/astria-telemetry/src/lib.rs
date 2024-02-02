@@ -77,6 +77,11 @@ impl std::error::Error for Error {
 ///
 /// Returns an error if `filter_directives` could not be parsed, or if the
 /// global registry could not be installed.
+/// 
+/// # Panics
+/// 
+/// If a metrics url is provided and the prometheus metrics exporter fails to
+/// install, this function will panic.
 ///
 /// # Examples
 ///
@@ -86,7 +91,7 @@ impl std::error::Error for Error {
 ///     debug,
 ///     info,
 /// };
-/// astria_telemetry::init(std::io::stdout, "info").unwrap();
+/// astria_telemetry::init(std::io::stdout, "info", None).unwrap();
 /// info!("info events will be recorded");
 /// debug!("but debug events will not");
 /// ```
@@ -96,7 +101,7 @@ impl std::error::Error for Error {
 /// stdout/stderr.
 /// ```
 /// use tracing::info;
-/// astria_telemetry::init(std::io::sink, "info").unwrap();
+/// astria_telemetry::init(std::io::sink, "info", None).unwrap();
 /// info!("this will not be logged because of `std::io::sink`");
 /// ```
 pub fn init<S>(
@@ -139,7 +144,7 @@ where
         metrics_builder
             .with_http_listener(metrics_addr)
             .install()
-            .unwrap();
+            .expect("failed to install prometheus metrics exporter");
     }
 
     Ok(registry()
