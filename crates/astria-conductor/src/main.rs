@@ -24,12 +24,16 @@ async fn main() -> ExitCode {
         }
         Ok(cfg) => cfg,
     };
-    let metrics_addr = if cfg.metrics_enabled {
-        Some(cfg.prometheus_http_listener_addr)
+    let metrics_conf = if cfg.metrics_enabled {
+        Some(telemetry::MetricsConfig {
+            addr: cfg.prometheus_http_listener_addr,
+            labels: Some(vec![("service".into(), "astria-conductor".into())]),
+            buckets: None,
+        })
     } else {
         None
     };
-    if let Err(err) = telemetry::init(std::io::stdout, &cfg.log, metrics_addr) {
+    if let Err(err) = telemetry::init(std::io::stdout, &cfg.log, metrics_conf) {
         eprintln!(
             "failed initializing config with filter directive `{log}`\n{err:?}",
             log = cfg.log,

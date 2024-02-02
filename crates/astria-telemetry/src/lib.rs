@@ -58,12 +58,21 @@ impl std::error::Error for Error {
     }
 }
 
-/// Register a global tracing subscriber.
+pub struct MetricsConfig {
+    pub addr: SocketAddr,
+    pub labels: Option<Vec<(String, String)>>,
+    pub buckets: Option<Vec<f64>>,
+}
+
+/// Initializes telemtry, registering a global tracing subscriber, and metrics exporter.
 ///
 /// This function installs a global [`tracing_subscriber::Registry`] to
 /// record tracing spans and events. It detects if `stdout` of the executing
 /// binary is a tty. If it is, a human readable output will be written to `sink`.
 /// If `stdout` is not a tty, then json will be written to `sink.`
+///
+/// If `metrics_addr` is provided, a global prometheus metrics exporter will be
+/// generated.
 ///
 /// `sink` can be functions like `std::io::sink` or `std::io::stdout`.
 /// `filter_directives` has to be a string like
@@ -77,9 +86,9 @@ impl std::error::Error for Error {
 ///
 /// Returns an error if `filter_directives` could not be parsed, or if the
 /// global registry could not be installed.
-/// 
+///
 /// # Panics
-/// 
+///
 /// If a metrics url is provided and the prometheus metrics exporter fails to
 /// install, this function will panic.
 ///
@@ -107,7 +116,7 @@ impl std::error::Error for Error {
 pub fn init<S>(
     sink: S,
     filter_directives: &str,
-    metrics_addr: Option<SocketAddr>,
+    metrics_conf: Option<MetricsConfig>,
 ) -> Result<(), Error>
 where
     S: for<'a> MakeWriter<'a> + Send + Sync + 'static,
@@ -138,11 +147,23 @@ where
         )
     };
 
-    if let Some(metrics_addr) = metrics_addr {
-        let metrics_builder = PrometheusBuilder::new();
+    if let Some(metrics_conf) = metrics_conf {
+        let mut metrics_builder = PrometheusBuilder::new();
+
+        if let Some(labels) = metrics_conf.labels {
+            for (key, value) in labels {
+                metrics_builder = metrics_builder.add_global_label(key, value);
+            }
+        }
+
+        if let Some(buckets) = metrics_conf.buckets {
+            metrics_builder = metrics_builder
+                .set_buckets(&buckets)
+                .expect("failed to set prometheus buckets");
+        }
 
         metrics_builder
-            .with_http_listener(metrics_addr)
+            .with_http_listener(metrics_conf.addr)
             .install()
             .expect("failed to install prometheus metrics exporter");
     }

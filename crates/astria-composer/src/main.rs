@@ -18,13 +18,17 @@ async fn main() {
         .expect("the json serializer should never fail when serializing to a string");
     eprintln!("config:\n{cfg_ser}");
 
-    let metrics_addr = if cfg.metrics_enabled {
-        Some(cfg.prometheus_http_listener_addr)
+    let metrics_conf = if cfg.metrics_enabled {
+        Some(telemetry::MetricsConfig {
+            addr: cfg.prometheus_http_listener_addr,
+            labels: Some(vec![("service".into(), "astria-composer".into())]),
+            buckets: None,
+        })
     } else {
         None
     };
 
-    telemetry::init(std::io::stdout, &cfg.log, metrics_addr).expect("failed to initialize tracing");
+    telemetry::init(std::io::stdout, &cfg.log, metrics_conf).expect("failed to initialize tracing");
 
     info!(config = cfg_ser, "initializing composer",);
 

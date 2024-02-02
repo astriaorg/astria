@@ -8,13 +8,18 @@ use tracing::info;
 #[tokio::main]
 async fn main() {
     let cfg: Config = config::get().expect("failed to read configuration");
-    let metrics_addr = if cfg.metrics_enabled {
-        Some(cfg.prometheus_http_listener_addr)
+
+    let metrics_conf = if cfg.metrics_enabled {
+        Some(telemetry::MetricsConfig {
+            addr: cfg.prometheus_http_listener_addr,
+            labels: Some(vec![("service".into(), "astria-sequencer-relayer".into())]),
+            buckets: None,
+        })
     } else {
         None
     };
 
-    telemetry::init(std::io::stdout, &cfg.log, metrics_addr).expect("failed to setup telemetry");
+    telemetry::init(std::io::stdout, &cfg.log, metrics_conf).expect("failed to setup telemetry");
     info!(
         config = serde_json::to_string(&cfg).expect("serializing to a string cannot fail"),
         "initializing sequencer relayer"
