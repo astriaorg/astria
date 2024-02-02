@@ -401,7 +401,11 @@ async fn submit_blocks_to_celestia(
         CelestiaClientExt as _,
     };
     let _start = std::time::Instant::now();
-    gauge!(BLOCKS_PER_CELESTIA_TX, sequencer_blocks.len() as f64);
+
+    // the number of blocks should always be low enough to not cause precision loss
+    #[allow(clippy::clippy::cast_precision_loss)] 
+    let blocks_per_celestia_tx = sequencer_blocks.len() as f64;
+    gauge!(BLOCKS_PER_CELESTIA_TX, blocks_per_celestia_tx);
     info!(
         num_blocks = sequencer_blocks.len(),
         "submitting collected sequencer blocks to data availability layer",
