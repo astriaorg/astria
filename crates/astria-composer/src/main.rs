@@ -21,7 +21,7 @@ async fn main() {
     let metrics_conf = if cfg.metrics_enabled {
         Some(telemetry::MetricsConfig {
             addr: cfg.prometheus_http_listener_addr,
-            labels: Some(vec![("service".into(), "astria-composer".into())]),
+            labels: vec![("service", "astria-composer")],
             buckets: None,
         })
     } else {

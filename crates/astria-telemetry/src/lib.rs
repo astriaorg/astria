@@ -2,7 +2,7 @@
 //!
 //! # Examples
 //! ```
-//! if let Err(err) = astria_telemetry::init(std::io::stdout, "info") {
+//! if let Err(err) = astria_telemetry::init(std::io::stdout, "info", None) {
 //!     eprintln!("failed to initialize telemetry: {err:?}");
 //!     std::process::exit(1);
 //! }
@@ -58,9 +58,22 @@ impl std::error::Error for Error {
     }
 }
 
+/// Configuration used for prometheus metrics.
 pub struct MetricsConfig {
+    /// Address to serve prometheus metrics on
+    ///
+    /// The HTTP listener that is spawned will respond to GET requests on any request path.
     pub addr: SocketAddr,
-    pub labels: Option<Vec<(String, String)>>,
+    /// List of labels to use as default globals for prometheus metrics.
+    ///
+    /// Labels specified on individual metrics will override these.
+    pub labels: Vec<(&'static str, &'static str)>,
+    /// Optionally sets the buckets to use when rendering histograms.
+    ///
+    /// If None, histograms will be rendered as summaries.
+    ///
+    /// Buckets values represent the higher bound of each buckets. If buckets are set, then all
+    /// histograms will be rendered as true Prometheus histograms, instead of summaries.
     pub buckets: Option<Vec<f64>>,
 }
 
@@ -150,10 +163,8 @@ where
     if let Some(metrics_conf) = metrics_conf {
         let mut metrics_builder = PrometheusBuilder::new();
 
-        if let Some(labels) = metrics_conf.labels {
-            for (key, value) in labels {
-                metrics_builder = metrics_builder.add_global_label(key, value);
-            }
+        for (key, value) in metrics_conf.labels {
+            metrics_builder = metrics_builder.add_global_label(key, value);
         }
 
         if let Some(buckets) = metrics_conf.buckets {

@@ -13,7 +13,7 @@ async fn main() {
     let metrics_conf = if cfg.metrics_enabled {
         Some(telemetry::MetricsConfig {
             addr: cfg.prometheus_http_listener_addr,
-            labels: Some(vec![("service".into(), "astria-sequencer-relayer".into())]),
+            labels: vec![("service", "astria-sequencer-relayer")],
             buckets: Some(metrics::HISTOGRAM_BUCKETS.to_vec()),
         })
     } else {
