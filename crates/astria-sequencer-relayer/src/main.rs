@@ -1,5 +1,3 @@
-use std::net::SocketAddr;
-
 use astria_sequencer_relayer::{
     telemetry,
     Config,
