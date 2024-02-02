@@ -5,10 +5,6 @@ use eyre::{
     WrapErr as _,
 };
 use humantime::format_duration;
-use metrics::{
-    counter,
-    gauge,
-};
 use sequencer_client::{
     HttpClient,
     SequencerBlock,
@@ -27,7 +23,17 @@ use tracing::{
     warn,
 };
 
-use crate::validator::Validator;
+use crate::{
+    metrics::{
+        counter,
+        gauge,
+        histogram,
+        BLOCKS_PER_CELESTIA_TX,
+        CELESTIA_SUBMISSION_HEIGHT,
+        CELESTIA_SUBMISSION_LATENCY,
+    },
+    validator::Validator,
+};
 
 pub(crate) struct Relayer {
     /// The actual client used to poll the sequencer.
@@ -168,7 +174,7 @@ impl Relayer {
         // Then report update the internal state or report if submission failed
         match submission_result {
             Ok(height) => self.state_tx.send_modify(|state| {
-                counter!("successful_submission_celestia_height", height);
+                counter!(CELESTIA_SUBMISSION_HEIGHT, height);
                 debug!(
                     celestia_height=%height,
                     "successfully submitted blocks to data availability layer"
@@ -394,8 +400,8 @@ async fn submit_blocks_to_celestia(
         celestia_types::blob::SubmitOptions,
         CelestiaClientExt as _,
     };
-
-    gauge!("blocks_per_celestia_tx", sequencer_blocks.len() as f64);
+    let _start = std::time::Instant::now();
+    gauge!(BLOCKS_PER_CELESTIA_TX, sequencer_blocks.len() as f64);
     info!(
         num_blocks = sequencer_blocks.len(),
         "submitting collected sequencer blocks to data availability layer",
@@ -411,5 +417,6 @@ async fn submit_blocks_to_celestia(
         )
         .await
         .wrap_err("failed submitting sequencer blocks to celestia")?;
+    histogram!(CELESTIA_SUBMISSION_LATENCY, _start.elapsed());
     Ok(height)
 }
