@@ -43,9 +43,9 @@ use wiremock::{
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
-        telemetry::init(std::io::stdout, &filter_directives).unwrap();
+        telemetry::init(std::io::stdout, &filter_directives, None).unwrap();
     } else {
-        telemetry::init(std::io::sink, "").unwrap();
+        telemetry::init(std::io::sink, "", None).unwrap();
     }
 });
 
@@ -185,6 +185,8 @@ pub async fn spawn_sequencer_relayer(
         validator_key_file: Some(keyfile.path().to_string_lossy().to_string()),
         rpc_port: 0,
         log: String::new(),
+        metrics_enabled: false,
+        prometheus_http_listener_addr: "127.0.0.1:9000".parse().unwrap(),
     };
 
     info!(config = serde_json::to_string(&config).unwrap());

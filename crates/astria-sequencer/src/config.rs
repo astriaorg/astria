@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    net::SocketAddr,
+    path::PathBuf,
+};
 
 use serde::{
     Deserialize,
@@ -18,6 +21,10 @@ pub struct Config {
     pub enable_mint: bool,
     /// The gRPC endpoint
     pub grpc_addr: String,
+    /// Set to true to enable the metrics server
+    pub metrics_enabled: bool,
+    /// The endpoint which will be listened on for serving prometheus metrics
+    pub prometheus_http_listener_addr: SocketAddr,
 }
 
 impl config::Config for Config {

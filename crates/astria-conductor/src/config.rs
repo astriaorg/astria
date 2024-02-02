@@ -1,5 +1,7 @@
 //! The conductor configuration.
 
+use std::net::SocketAddr;
+
 use serde::{
     Deserialize,
     Serialize,
@@ -64,6 +66,12 @@ pub struct Config {
     /// OptimismPortal contract was deployed at.
     /// Only used if `enable_optimism` is true.
     pub initial_ethereum_l1_block_height: u64,
+
+    /// Set to true to enable the metrics server
+    pub metrics_enabled: bool,
+
+    /// The endpoint which will be listened on for serving prometheus metrics
+    pub prometheus_http_listener_addr: SocketAddr,
 }
 
 impl config::Config for Config {

@@ -12,6 +12,7 @@ tracing-subscriber = { version = "0.3.17", features = [
   "env-filter",
   "json",
 ] }
+metrics-exporter-prometheus = "0.10.0"
 
 [dev-dependencies]
 tracing = { workspace = true }

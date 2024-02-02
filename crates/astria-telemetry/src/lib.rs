@@ -8,6 +8,9 @@
 //! }
 //! tracing::info!("telemetry initialized");
 //! ```
+use std::net::SocketAddr;
+
+use metrics_exporter_prometheus::PrometheusBuilder;
 use tracing_subscriber::{
     filter::ParseError,
     fmt::MakeWriter,
@@ -96,7 +99,11 @@ impl std::error::Error for Error {
 /// astria_telemetry::init(std::io::sink, "info").unwrap();
 /// info!("this will not be logged because of `std::io::sink`");
 /// ```
-pub fn init<S>(sink: S, filter_directives: &str) -> Result<(), Error>
+pub fn init<S>(
+    sink: S,
+    filter_directives: &str,
+    metrics_addr: Option<SocketAddr>,
+) -> Result<(), Error>
 where
     S: for<'a> MakeWriter<'a> + Send + Sync + 'static,
 {
@@ -125,6 +132,15 @@ where
             None,
         )
     };
+
+    if let Some(metrics_addr) = metrics_addr {
+        let metrics_builder = PrometheusBuilder::new();
+
+        metrics_builder
+            .with_http_listener(metrics_addr)
+            .install()
+            .unwrap();
+    }
 
     Ok(registry()
         .with(stdout_log)

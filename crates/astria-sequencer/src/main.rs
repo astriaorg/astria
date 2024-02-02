@@ -19,7 +19,13 @@ async fn main() -> ExitCode {
             return ExitCode::from(EX_CONFIG);
         }
     };
-    telemetry::init(std::io::stdout, &config.log).expect("failed to initialize telemetry");
+    let metrics_addr = if config.metrics_enabled {
+        Some(config.prometheus_http_listener_addr)
+    } else {
+        None
+    };
+    telemetry::init(std::io::stdout, &config.log, metrics_addr)
+        .expect("failed to initialize telemetry");
     info!(
         config = serde_json::to_string(&config).expect("serializing to a string cannot fail"),
         "initializing sequencer"

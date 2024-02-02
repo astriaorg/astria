@@ -47,9 +47,9 @@ use crate::{
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
-        telemetry::init(std::io::stdout, &filter_directives).unwrap();
+        telemetry::init(std::io::stdout, &filter_directives, None).unwrap();
     } else {
-        telemetry::init(std::io::sink, "").unwrap();
+        telemetry::init(std::io::sink, "", None).unwrap();
     }
 });
 
@@ -78,6 +78,8 @@ async fn setup() -> (MockServer, MockGuard, Config) {
             .into(),
         block_time_ms: 2000,
         max_bytes_per_bundle: 1000,
+        metrics_enabled: false,
+        prometheus_http_listener_addr: "127.0.0.1:9000".parse().unwrap(),
     };
     (server, startup_guard, cfg)
 }

@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use serde::{
     Deserialize,
     Serialize,
@@ -15,7 +17,7 @@ pub struct Config {
     pub rpc_port: u16,
     pub log: String,
     pub metrics_enabled: bool,
-    pub prometheus_http_listener_addr: String,
+    pub prometheus_http_listener_addr: SocketAddr,
 }
 
 impl config::Config for Config {

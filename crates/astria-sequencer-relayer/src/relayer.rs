@@ -5,7 +5,10 @@ use eyre::{
     WrapErr as _,
 };
 use humantime::format_duration;
-use metrics::{gauge, counter};
+use metrics::{
+    counter,
+    gauge,
+};
 use sequencer_client::{
     HttpClient,
     SequencerBlock,

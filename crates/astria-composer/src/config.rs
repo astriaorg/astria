@@ -37,6 +37,12 @@ pub struct Config {
     /// Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
     /// public key, nonce. This is the sum of the sizes of all the `SequenceAction`s
     pub max_bytes_per_bundle: usize,
+
+    /// Set to true to enable the metrics server
+    pub metrics_enabled: bool,
+
+    /// The endpoint which will be listened on for serving prometheus metrics
+    pub prometheus_http_listener_addr: SocketAddr,
 }
 
 impl config::Config for Config {
