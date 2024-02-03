@@ -2,7 +2,12 @@
 //!
 //! Registers metrics & lists constants to be used as metric names throughout crate.
 
-use metrics::*;
+use metrics::{
+    describe_gauge,
+    register_gauge,
+    Recorder,
+    Unit,
+};
 
 /// Registers all metrics used by this crate.
 pub fn register() {
