@@ -26,9 +26,9 @@ use tracing::{
 };
 
 use crate::{
-    metrics,
     celestia_namespace_v0_from_cometbft_header,
     celestia_namespace_v0_from_rollup_id,
+    metrics,
 };
 
 impl CelestiaClientExt for jsonrpsee::http_client::HttpClient {}
@@ -195,7 +195,7 @@ pub trait CelestiaClientExt: BlobClient {
 
         // the number of blobs should always be low enough to not cause precision loss
         #[allow(clippy::cast_precision_loss)]
-        let number_rollup_blobs = (num_expected_blobs - blocks.len()) as f64 ;
+        let number_rollup_blobs = (num_expected_blobs - blocks.len()) as f64;
         metrics::gauge!(metrics::ROLLUP_BLOBS_PER_CELESTIA_TX, number_rollup_blobs);
 
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
