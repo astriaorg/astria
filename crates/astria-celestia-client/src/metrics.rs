@@ -10,31 +10,23 @@
 //!
 //! This trick is probably good to avoid in general, because it could be
 //! confusing, but in this limited case, it seems like a clean option.
+
 pub use metrics::*;
 
 /// Registers all metrics used by this crate.
 pub fn register() {
-    celestia_client::metrics::register();
-
-    register_counter!(CELESTIA_SUBMISSION_HEIGHT);
-    describe_counter!(
-        CELESTIA_SUBMISSION_HEIGHT,
-        Unit::Count,
-        "The height of the last blob submitted to Celestia"
-    );
-
-    register_gauge!(BLOCKS_PER_CELESTIA_TX);
+    register_gauge!(ROLLUP_BLOBS_PER_ASTRIA_BLOCK, "library" => "astria_celestia_client");
     describe_gauge!(
-        BLOCKS_PER_CELESTIA_TX,
-        Unit::Count,
-        "The number of astria blocks included in the last Celestia submission"
+      ROLLUP_BLOBS_PER_ASTRIA_BLOCK,
+      Unit::Count,
+      "The number of rollup blobs generated from a single astria sequencer block"
     );
 
-    register_histogram!(CELESTIA_SUBMISSION_LATENCY);
-    describe_histogram!(
-        CELESTIA_SUBMISSION_LATENCY,
-        Unit::Seconds,
-        "The time it takes to submit a blob to Celestia"
+    register_gauge!(ROLLUP_BLOBS_PER_CELESTIA_TX, "library" => "astria_celestia_client");
+    describe_gauge!(
+      ROLLUP_BLOBS_PER_CELESTIA_TX,
+      Unit::Count,
+      "The total number of rollup blobs included in the last Celestia submission"
     );
 }
 
@@ -43,6 +35,5 @@ pub fn register() {
 // output, and may need to be updated over time.
 pub const HISTOGRAM_BUCKETS: &[f64; 5] = &[0.00001, 0.0001, 0.001, 0.01, 0.1];
 
-pub const CELESTIA_SUBMISSION_HEIGHT: &str = "astria_relayer_celestia_submission_height";
-pub const BLOCKS_PER_CELESTIA_TX: &str = "astria_relayer_blocks_per_celestia_tx";
-pub const CELESTIA_SUBMISSION_LATENCY: &str = "astria_relayer_celestia_submission_latency";
+pub const ROLLUP_BLOBS_PER_ASTRIA_BLOCK: &str = "astria_celestia_client_rollups_blobs_per_astria_block";
+pub const ROLLUP_BLOBS_PER_CELESTIA_TX: &str = "astria_celestia_client_rollup_blobs_per_celestia_tx";

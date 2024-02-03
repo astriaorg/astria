@@ -26,6 +26,7 @@ use tracing::{
 };
 
 use crate::{
+    metrics,
     celestia_namespace_v0_from_cometbft_header,
     celestia_namespace_v0_from_rollup_id,
 };
@@ -192,6 +193,11 @@ pub trait CelestiaClientExt: BlobClient {
             .iter()
             .fold(0, |acc, block| acc + block.rollup_transactions().len() + 1);
 
+        // the number of blobs should always be low enough to not cause precision loss
+        #[allow(clippy::cast_precision_loss)]
+        let number_rollup_blobs = (num_expected_blobs - blocks.len()) as f64 ;
+        metrics::gauge!(metrics::ROLLUP_BLOBS_PER_CELESTIA_TX, number_rollup_blobs);
+
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
         for (i, block) in blocks.into_iter().enumerate() {
             let mut blobs = assemble_blobs_from_sequencer_block(block).map_err(|source| {
@@ -237,6 +243,11 @@ fn assemble_blobs_from_sequencer_block(
     block: SequencerBlock,
 ) -> Result<Vec<Blob>, BlobAssemblyError> {
     let (sequencer_blob, rollup_blobs) = block.into_celestia_blobs();
+
+    // the number of blobs should always be low enough to not cause precision loss
+    #[allow(clippy::cast_precision_loss)]
+    let rollup_blobs_count = rollup_blobs.len() as f64;
+    metrics::gauge!(metrics::ROLLUP_BLOBS_PER_ASTRIA_BLOCK, rollup_blobs_count);
 
     let mut blobs = Vec::with_capacity(rollup_blobs.len() + 1);
 

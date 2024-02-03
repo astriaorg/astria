@@ -1,4 +1,5 @@
 pub mod client;
+pub mod metrics;
 
 pub use astria_core::sequencer::v1alpha1::{
     CelestiaRollupBlob,

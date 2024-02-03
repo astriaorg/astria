@@ -503,6 +503,7 @@ dependencies = [
  "celestia-types",
  "hex",
  "jsonrpsee",
+ "metrics",
  "prost",
  "serde",
  "serde_json",
