@@ -38,6 +38,11 @@ pub fn register() {
     );
 }
 
+// We configure buckets for manually, in order to ensure Prometheus metrics are structured as a
+// Histogram, rather than as a Summary. These values are loosely based on the initial Summary
+// output, and may need to be updated over time.
+pub const HISTOGRAM_BUCKETS: &[f64; 5] = &[0.00001, 0.0001, 0.001, 0.01, 0.1];
+
 pub const CELESTIA_SUBMISSION_HEIGHT: &str = "astria_relayer_celestia_submission_height";
 pub const BLOCKS_PER_CELESTIA_TX: &str = "astria_relayer_blocks_per_celestia_tx";
 pub const CELESTIA_SUBMISSION_LATENCY: &str = "astria_relayer_celestia_submission_latency";
