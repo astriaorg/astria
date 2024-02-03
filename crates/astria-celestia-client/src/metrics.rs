@@ -5,7 +5,6 @@
 use metrics::{
     describe_gauge,
     register_gauge,
-    Recorder,
     Unit,
 };
 
