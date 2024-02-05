@@ -155,9 +155,10 @@ impl Reader {
         let mut sequencer_height_to_celestia_height =
             SequencerHeightToCelestiaHeight::new(executor.next_expected_firm_height());
 
+        let greatest_permissible_celestia_height = executor.celestia_base_block_height().value()
+            + u64::from(executor.celestia_block_variance());
         let mut block_stream = ReconstructedBlocksStream {
-            greatest_permissible_celestia_height: executor.celestia_base_block_height().value()
-                + executor.celestia_block_variance() as u64,
+            greatest_permissible_celestia_height,
             latest_observed_celestia_height: latest_celestia_height,
             next_height: executor.celestia_base_block_height(),
             in_progress: FuturesMap::new(std::time::Duration::from_secs(10), 10),
@@ -200,7 +201,7 @@ impl Reader {
                             let (sequencer_height, celestia_height)
                                 = sequencer_height_to_celestia_height.increment_next_height();
                             assert_eq!(height_in_block, sequencer_height);
-                            let new_permissible_height = celestia_height.value() + executor.celestia_block_variance() as u64;
+                            let new_permissible_height = celestia_height.value() + u64::from(executor.celestia_block_variance());
                             block_stream.inner_mut().set_permissible_height(new_permissible_height);
                         }
                         Err(TrySendError::Full(block)) => {
