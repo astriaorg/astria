@@ -142,13 +142,13 @@ where
     init_logging(sink, filter_directives)?;
 
     if let Some(metrics_conf) = metrics_conf {
-        init_metrics(metrics_conf)?;
+        init_metrics(metrics_conf);
     }
 
     Ok(())
 }
 
-fn init_metrics(conf: MetricsConfig) -> Result<(), Error> {
+fn init_metrics(conf: MetricsConfig) {
     let mut metrics_builder = PrometheusBuilder::new();
 
     for (key, value) in conf.labels {
@@ -164,9 +164,7 @@ fn init_metrics(conf: MetricsConfig) -> Result<(), Error> {
     metrics_builder
         .with_http_listener(conf.addr)
         .install()
-        .expect("failed to install prometheus metrics exporter");
-
-    Ok(())
+        .expect("failed to install prometheus metrics exporter")
 }
 
 fn init_logging<S>(sink: S, filter_directives: &str) -> Result<(), Error>
