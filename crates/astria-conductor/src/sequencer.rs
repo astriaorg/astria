@@ -458,26 +458,26 @@ mod tests {
         let mut stream = make_stream().await;
         assert_eq!(
             Some(stream.next_expected_height),
-            stream.get_next_height_to_fetch(),
+            stream.next_height_to_fetch(),
             "an unset greatest requested height should lead to the next expected height",
         );
 
         stream.greatest_requested_height = Some(Height::from(1u32));
         assert_eq!(
             Some(stream.latest_sequencer_height),
-            stream.get_next_height_to_fetch(),
+            stream.next_height_to_fetch(),
             "the greated requested height is right before the latest observed height, which \
              should give the observed height",
         );
         stream.greatest_requested_height = Some(Height::from(2u32));
         assert!(
-            stream.get_next_height_to_fetch().is_none(),
+            stream.next_height_to_fetch().is_none(),
             "the greatest requested height being the latest observed height should give nothing",
         );
         stream.greatest_requested_height = Some(Height::from(4u32));
         stream.latest_sequencer_height = Height::from(5u32);
         assert!(
-            stream.get_next_height_to_fetch().is_none(),
+            stream.next_height_to_fetch().is_none(),
             "a greatest height before the latest observed height but too far ahead of the next \
              expected height should give nothing",
         );
