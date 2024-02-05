@@ -22,6 +22,11 @@ use std::fmt::Write;
 pub use conductor::Conductor;
 pub use config::Config;
 
+/// Installs an eyre error handler to print display-formatted errors.
+///
+/// # Errors
+/// Returns an error if the error handler could not be installed.
+/// See [`eyre::set_hook`] for more information.
 pub fn install_error_handler() -> Result<(), eyre::InstallError> {
     eyre::set_hook(Box::new(|_| Box::new(ErrorHandler)))?;
     Ok(())

@@ -158,6 +158,10 @@ impl Conductor {
         })
     }
 
+    /// Runs [`Conductor`] until it receives an exit signal.
+    ///
+    /// # Panics
+    /// Panics if it could not install a signal handler.
     pub async fn run_until_stopped(mut self) {
         enum ExitReason {
             Sigterm,
@@ -173,7 +177,12 @@ impl Conductor {
                 error: tokio::task::JoinError,
             },
         }
-        use ExitReason::*;
+        use ExitReason::{
+            Sigterm,
+            TaskErrored,
+            TaskExited,
+            TaskPanicked,
+        };
         let mut sigterm = signal(SignalKind::terminate()).expect(
             "setting a SIGTERM listener should always work on unix; is this running on unix?",
         );
