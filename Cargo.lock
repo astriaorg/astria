@@ -650,6 +650,7 @@ dependencies = [
  "prost",
  "prost-types",
  "rand 0.8.5",
+ "serde",
  "sha2 0.10.8",
  "tempfile",
  "tendermint 0.32.0",

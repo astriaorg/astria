@@ -69,6 +69,7 @@ pub(crate) struct Handle<TStateInit = StateNotInit> {
 }
 
 impl<T: Clone> Handle<T> {
+    #[instrument(skip_all, err)]
     pub(crate) async fn wait_for_init(&mut self) -> eyre::Result<Handle<StateIsInit>> {
         self.state
             .wait_for(State::is_init)
@@ -120,6 +121,10 @@ impl Handle<StateIsInit> {
     pub(crate) fn celestia_base_block_height(&mut self) -> CelestiaHeight {
         self.state.borrow_and_update().celestia_base_block_height()
     }
+
+    pub(crate) fn celestia_block_variance(&mut self) -> u32 {
+        self.state.borrow_and_update().celestia_block_variance()
+    }
 }
 
 pub(crate) struct Executor {
@@ -164,14 +169,6 @@ impl Executor {
             .wrap_err("failed setting initial rollup node state")?;
 
         loop {
-            let too_far_ahead =
-                self.consider_commitment_spread && self.is_commitment_spread_too_large();
-            if too_far_ahead {
-                debug!(
-                    "soft commitments are too far ahead of firm commitments; letting firm \
-                     commitments catch up"
-                );
-            }
             select!(
                 biased;
 
@@ -204,7 +201,7 @@ impl Executor {
                     }
                 }
 
-                Some(block) = self.soft_blocks.recv(), if !too_far_ahead => {
+                Some(block) = self.soft_blocks.recv(), if !self.is_spread_too_large() => {
                     debug!(
                         block.height = %block.height(),
                         block.hash = %telemetry::display::hex(&block.block_hash()),
@@ -225,15 +222,22 @@ impl Executor {
         // XXX: shut down the channels here and attempt to drain them before returning.
     }
 
-    fn is_commitment_spread_too_large(&self) -> bool {
+    fn is_spread_too_large(&self) -> bool {
+        if !self.consider_commitment_spread {
+            return false;
+        }
         let next_firm = self.state.borrow().next_firm_sequencer_height().value();
         let next_soft = self.state.borrow().next_soft_sequencer_height().value();
-        next_soft.saturating_sub(next_firm) <= 16
+        let is_too_far_ahead = next_soft.saturating_sub(next_firm) >= 16;
+        if is_too_far_ahead {
+            debug!("soft blocks are too far ahead of firm; skipping soft blocks");
+        }
+        is_too_far_ahead
     }
 
     #[instrument(skip_all, fields(
-        hash.sequencer_block = %telemetry::display::hex(&block.block_hash()),
-        height.sequencer_block = %block.height(),
+        block.hash = %telemetry::display::hex(&block.block_hash()),
+        block.height = block.height().value(),
     ))]
     async fn execute_soft(&mut self, client: Client, block: SequencerBlock) -> eyre::Result<()> {
         // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
@@ -243,11 +247,9 @@ impl Executor {
         let expected_height = self.state.borrow().next_soft_sequencer_height();
         match executable_block.height.cmp(&expected_height) {
             std::cmp::Ordering::Less => {
-                // XXX: we don't track if older sequencer blocks are sequential, only if they are
-                // newer (`Greater` arm)
                 info!(
                     expected_height.sequencer_block = %expected_height,
-                    "block received was at at older height or stale because firm blocks were executed first; dropping",
+                    "block received was stale because firm blocks were executed first; dropping",
                 );
                 return Ok(());
             }
@@ -277,6 +279,10 @@ impl Executor {
         Ok(())
     }
 
+    #[instrument(skip_all, fields(
+        block.hash = %telemetry::display::hex(&block.block_hash),
+        block.height = block.height().value(),
+    ))]
     async fn execute_firm(
         &mut self,
         client: Client,
@@ -314,9 +320,9 @@ impl Executor {
     /// This function is called via [`Executor::execute_firm`] or [`Executor::execute_soft`],
     /// and should not be called directly.
     #[instrument(skip_all, fields(
-        hash.sequencer_block = %telemetry::display::hex(&block.hash),
-        height.sequencer_block = %block.height,
-        hash.parent_block = %telemetry::display::hex(&parent_block_hash),
+        block.hash = %telemetry::display::hex(&block.hash),
+        block.height = block.height.value(),
+        rollup.parent_hash = %telemetry::display::hex(&parent_block_hash),
     ))]
     async fn execute_block(
         &mut self,
@@ -342,9 +348,9 @@ impl Executor {
             .await
             .wrap_err("failed to run execute_block RPC")?;
 
-        debug!(
-            hash.executed_block = %telemetry::display::hex(&executed_block.hash()),
-            height.executed_block = executed_block.number(),
+        info!(
+            executed_block.hash = %telemetry::display::hex(&executed_block.hash()),
+            executed_block.number = executed_block.number(),
             "executed block",
         );
 
@@ -372,12 +378,17 @@ impl Executor {
             }
         };
         let (genesis_info, commitment_state) = tokio::try_join!(genesis_info, commitment_state)?;
-        // XXX: emit an event with the json-formatted genesis info here.
         self.state
             .send_modify(move |state| state.init(genesis_info, commitment_state));
+        info!(
+            initial_state = serde_json::to_string(&*self.state.borrow())
+                .expect("writing json to a string should not fail"),
+            "received genesis info from rollup",
+        );
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn update_commitment_state(
         &mut self,
         mut client: Client,
@@ -402,6 +413,13 @@ impl Executor {
             .update_commitment_state(commitment_state)
             .await
             .wrap_err("failed updating remote commitment state")?;
+        info!(
+            soft.number = new_state.soft().number(),
+            soft.hash = %telemetry::display::hex(&new_state.soft().hash()),
+            firm.number = new_state.firm().number(),
+            firm.hash = %telemetry::display::hex(&new_state.firm().hash()),
+            "updated commitment state",
+        );
         self.state
             .send_if_modified(move |state| state.update_if_modified(new_state));
         Ok(())

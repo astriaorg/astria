@@ -27,12 +27,12 @@ use sequencer_client::tendermint::block::Height;
 /// this implementation wraps an `Option<StateImpl>`, delegating all methods to the inner
 /// type through an [`Option::expect`]. This relies on the contract that [`State::init`]
 /// being called before any of the other methods.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub(crate) struct State {
     inner: Option<StateImpl>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 struct StateImpl {
     genesis_info: GenesisInfo,
     commitment_state: CommitmentState,
@@ -87,6 +87,7 @@ forward_impls!(
     [firm_parent_hash -> [u8; 32]],
     [soft_parent_hash -> [u8; 32]],
     [celestia_base_block_height -> CelestiaHeight],
+    [celestia_block_variance -> u32],
     [rollup_id -> RollupId],
     [next_firm_sequencer_height -> Height],
     [next_soft_sequencer_height -> Height],
@@ -146,6 +147,10 @@ impl StateImpl {
 
     pub(super) fn celestia_base_block_height(&self) -> CelestiaHeight {
         self.genesis_info.celestia_base_block_height()
+    }
+
+    pub(super) fn celestia_block_variance(&self) -> u32 {
+        self.genesis_info.celestia_block_variance()
     }
 
     pub(super) fn rollup_id(&self) -> RollupId {

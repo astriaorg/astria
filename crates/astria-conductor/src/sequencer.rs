@@ -296,7 +296,7 @@ impl BlocksFromHeightStream {
 
     /// The stream can yield more if the greatest requested height isn't too far
     /// ahead of the next expected height and not ahead of the latest observed sequencer height.
-    fn get_next_height_to_fetch(&self) -> Option<Height> {
+    fn next_height_to_fetch(&self) -> Option<Height> {
         let potential_height = match self.greatest_requested_height {
             None => self.next_expected_height,
             Some(greatest_requested_height) => greatest_requested_height.increment(),
@@ -342,23 +342,26 @@ impl Stream for BlocksFromHeightStream {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        // let this = self.project();
+        use futures_bounded::PushError;
 
-        // First up, try to spawn off as many futures as possible by filling up
+        // Try to spawn off as many futures as possible by filling up
         // our queue of futures.
-        loop {
-            if let Poll::Ready(()) = self.as_mut().project().in_progress.poll_ready_unpin(cx) {
-                let Some(next_height) = self.as_ref().get_ref().get_next_height_to_fetch() else {
-                    break;
-                };
-                let this = self.as_mut().project();
-                let res = this.in_progress.try_push(
-                    next_height,
-                    fetch_client_then_block(this.pool.clone(), next_height),
-                );
-                assert!(res.is_ok(), "we polled for readiness");
-                this.greatest_requested_height.replace(next_height);
+        while let Some(next_height) = self.as_ref().get_ref().next_height_to_fetch() {
+            let this = self.as_mut().project();
+            match this.in_progress.try_push(
+                next_height,
+                fetch_client_then_block(this.pool.clone(), next_height),
+            ) {
+                Err(PushError::BeyondCapacity(_)) => break,
+                Err(PushError::Replaced(_)) => {
+                    error!(
+                        height = %next_height,
+                        "scheduled to fetch block, but a fetch for the same height was already in-flight",
+                    );
+                }
+                Ok(()) => {}
             }
+            this.greatest_requested_height.replace(next_height);
         }
 
         // Attempt to pull the next value from the in_progress_queue
@@ -382,12 +385,21 @@ impl Stream for BlocksFromHeightStream {
                     error = &timed_out as &dyn StdError,
                     "request for height timed out, rescheduling",
                 );
+                let res = {
+                    let this = self.as_mut().project();
+                    this.in_progress
+                        .try_push(height, fetch_client_then_block(this.pool.clone(), height))
+                };
+                assert!(
+                    res.is_ok(),
+                    "there must be space in the map after a future timed out"
+                );
             }
         }
 
-        // We only reach this part if the `futures::ready!` didn't short circuit, or
+        // We only reach this part if the `futures::ready!` didn't short circuit,
         // if no result was ready.
-        if self.as_ref().get_ref().get_next_height_to_fetch().is_none() {
+        if self.as_ref().get_ref().next_height_to_fetch().is_none() {
             Poll::Ready(None)
         } else {
             Poll::Pending
