@@ -2,7 +2,12 @@
 //!
 //! # Examples
 //! ```
-//! if let Err(err) = astria_telemetry::init(std::io::stdout, "info", None) {
+//! metrics_conf = MetricsConfig {
+//!     addr: "127.0.0.1:9000".parse().unwrap()
+//!     labels: vec![("label", "value")],
+//!     buckets: None,
+//! };
+//! if let Err(err) = astria_telemetry::init(std::io::stdout, "info", Some(metrics_conf)) {
 //!     eprintln!("failed to initialize telemetry: {err:?}");
 //!     std::process::exit(1);
 //! }
@@ -134,6 +139,40 @@ pub fn init<S>(
 where
     S: for<'a> MakeWriter<'a> + Send + Sync + 'static,
 {
+    init_logging(sink, filter_directives)?;
+
+    if let Some(metrics_conf) = metrics_conf {
+        init_metrics(metrics_conf)?;
+    }
+
+    Ok(())
+}
+
+fn init_metrics(conf: MetricsConfig) -> Result<(), Error> {
+    let mut metrics_builder = PrometheusBuilder::new();
+
+    for (key, value) in conf.labels {
+        metrics_builder = metrics_builder.add_global_label(key, value);
+    }
+
+    if let Some(buckets) = conf.buckets {
+        metrics_builder = metrics_builder
+            .set_buckets(&buckets)
+            .expect("failed to set prometheus buckets");
+    }
+
+    metrics_builder
+        .with_http_listener(conf.addr)
+        .install()
+        .expect("failed to install prometheus metrics exporter");
+
+    Ok(())
+}
+
+fn init_logging<S>(sink: S, filter_directives: &str) -> Result<(), Error>
+where
+    S: for<'a> MakeWriter<'a> + Send + Sync + 'static,
+{
     use std::io::IsTerminal as _;
 
     use tracing_subscriber::{
@@ -159,25 +198,6 @@ where
             None,
         )
     };
-
-    if let Some(metrics_conf) = metrics_conf {
-        let mut metrics_builder = PrometheusBuilder::new();
-
-        for (key, value) in metrics_conf.labels {
-            metrics_builder = metrics_builder.add_global_label(key, value);
-        }
-
-        if let Some(buckets) = metrics_conf.buckets {
-            metrics_builder = metrics_builder
-                .set_buckets(&buckets)
-                .expect("failed to set prometheus buckets");
-        }
-
-        metrics_builder
-            .with_http_listener(metrics_conf.addr)
-            .install()
-            .expect("failed to install prometheus metrics exporter");
-    }
 
     Ok(registry()
         .with(stdout_log)
