@@ -164,7 +164,7 @@ fn init_metrics(conf: MetricsConfig) {
     metrics_builder
         .with_http_listener(conf.addr)
         .install()
-        .expect("failed to install prometheus metrics exporter")
+        .expect("failed to install prometheus metrics exporter");
 }
 
 fn init_logging<S>(sink: S, filter_directives: &str) -> Result<(), Error>
