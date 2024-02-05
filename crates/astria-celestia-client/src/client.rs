@@ -21,8 +21,8 @@ use prost::{
     Message as _,
 };
 use tracing::{
+    debug,
     instrument,
-    warn,
 };
 
 use crate::{
@@ -132,7 +132,11 @@ pub trait CelestiaClientExt: BlobClient {
     /// Returns an error if:
     /// + the verification key could not be constructed from the data stored in `namespace_data`;
     /// + the RPC to fetch the blobs failed.
-    #[instrument(skip(self, height), fields(height = height.into()))]
+    #[instrument(skip_all, fields(
+        height = height.into(),
+        namespace = %telemetry::display::base64(&namespace.as_bytes()),
+        block_hash = %telemetry::display::hex(&sequencer_blob.block_hash()),
+    ))]
     async fn get_rollup_blobs_matching_sequencer_blob<T>(
         &self,
         height: T,
@@ -280,7 +284,7 @@ fn convert_and_filter_rollup_blobs(
     let mut rollups = Vec::with_capacity(blobs.len());
     for blob in blobs {
         if blob.namespace != namespace {
-            warn!("blob does not belong to expected namespace; skipping");
+            debug!("blob does not belong to expected namespace; skipping");
             continue;
         }
         let proto_blob =
@@ -288,7 +292,7 @@ fn convert_and_filter_rollup_blobs(
                 &*blob.data,
             ) {
                 Err(e) => {
-                    warn!(
+                    debug!(
                         error = &e as &dyn std::error::Error,
                         target = "astria.sequencer.v1alpha.CelestiaRollupBlob",
                         blob.commitment = %Base64Display::new(&blob.commitment.0, &STANDARD),
@@ -300,7 +304,7 @@ fn convert_and_filter_rollup_blobs(
             };
         let rollup_blob = match CelestiaRollupBlob::try_from_raw(proto_blob) {
             Err(e) => {
-                warn!(
+                debug!(
                     error = &e as &dyn std::error::Error,
                     blob.commitment = %Base64Display::new(&blob.commitment.0, &STANDARD),
                     "failed converting raw protobuf blob to native type; skipping"
@@ -310,7 +314,7 @@ fn convert_and_filter_rollup_blobs(
             Ok(rollup_blob) => rollup_blob,
         };
         if rollup_blob.sequencer_block_hash() != sequencer_blob.block_hash() {
-            warn!(
+            debug!(
                 block_hash.rollup = hex::encode(rollup_blob.sequencer_block_hash()),
                 block_hash.sequencer = hex::encode(sequencer_blob.block_hash()),
                 "block hash in rollup blob does not match block hash in sequencer blob; dropping \
@@ -319,7 +323,7 @@ fn convert_and_filter_rollup_blobs(
             continue;
         }
         if !does_rollup_blob_verify_against_sequencer_blob(&rollup_blob, sequencer_blob) {
-            warn!(
+            debug!(
                 "the rollup blob proof applied to its chain ID and transactions did not match the \
                  rollup transactions root in the sequencer blob; dropping the blob"
             );

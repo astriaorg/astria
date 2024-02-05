@@ -58,6 +58,7 @@ use tracing::{
     info,
     info_span,
     instrument,
+    trace,
     warn,
 };
 
@@ -128,7 +129,19 @@ impl Reader {
             .await
             .wrap_err("handle to executor failed while waiting for it being initialized")?;
 
-        let rollup_namespace = celestia_namespace_v0_from_rollup_id(executor.rollup_id());
+        let rollup_id = executor.rollup_id();
+        let initial_expected_sequencer_height = executor.next_expected_firm_height();
+        let initial_celestia_height = executor.celestia_base_block_height();
+        let celestia_variance = executor.celestia_block_variance();
+        let rollup_namespace = celestia_namespace_v0_from_rollup_id(rollup_id);
+
+        debug!(
+            %rollup_id,
+            %initial_expected_sequencer_height,
+            %initial_celestia_height,
+            celestia_variance,
+            "setting up celestia reader",
+        );
 
         // XXX: Add retry
         let mut headers = self
@@ -147,20 +160,19 @@ impl Reader {
         debug!(height = %latest_celestia_height, "received latest height from celestia");
 
         // XXX: This block cache always starts at height 1, the default value for `Height`.
-        let mut sequential_blocks = BlockCache::<ReconstructedBlock>::with_next_height(
-            executor.next_expected_firm_height(),
-        )
-        .wrap_err("failed constructing sequential block cache")?;
+        let mut sequential_blocks =
+            BlockCache::<ReconstructedBlock>::with_next_height(initial_expected_sequencer_height)
+                .wrap_err("failed constructing sequential block cache")?;
 
         let mut sequencer_height_to_celestia_height =
-            SequencerHeightToCelestiaHeight::new(executor.next_expected_firm_height());
+            SequencerHeightToCelestiaHeight::new(initial_expected_sequencer_height);
 
-        let greatest_permissible_celestia_height = executor.celestia_base_block_height().value()
-            + u64::from(executor.celestia_block_variance());
+        let greatest_permissible_height =
+            initial_celestia_height.value() + u64::from(celestia_variance);
         let mut block_stream = ReconstructedBlocksStream {
-            greatest_permissible_celestia_height,
-            latest_observed_celestia_height: latest_celestia_height,
-            next_height: executor.celestia_base_block_height(),
+            greatest_permissible_height,
+            latest_observed_height: latest_celestia_height,
+            next_height: initial_celestia_height,
             in_progress: FuturesMap::new(std::time::Duration::from_secs(10), 10),
             client: self.celestia_http_client.clone(),
             verifier: self.block_verifier.clone(),
@@ -201,11 +213,11 @@ impl Reader {
                             let (sequencer_height, celestia_height)
                                 = sequencer_height_to_celestia_height.increment_next_height();
                             assert_eq!(height_in_block, sequencer_height);
-                            let new_permissible_height = celestia_height.value() + u64::from(executor.celestia_block_variance());
+                            let new_permissible_height = celestia_height.value() + u64::from(celestia_variance);
                             block_stream.inner_mut().set_permissible_height(new_permissible_height);
                         }
                         Err(TrySendError::Full(block)) => {
-                            info!("executor channel is full; rescheduling block fetch until the channel opens up");
+                            trace!("executor channel is full; rescheduling block fetch until the channel opens up");
                             assert!(
                                 sequential_blocks.reschedule_block(block).is_ok(),
                                 "rescheduling the just obtained block must always work",
@@ -258,8 +270,8 @@ impl Reader {
 
 pin_project! {
     struct ReconstructedBlocksStream {
-        greatest_permissible_celestia_height: u64,
-        latest_observed_celestia_height: CelestiaHeight,
+        greatest_permissible_height: u64,
+        latest_observed_height: CelestiaHeight,
         next_height: CelestiaHeight,
 
         in_progress: FuturesMap<CelestiaHeight, eyre::Result<Vec<ReconstructedBlock>>>,
@@ -273,8 +285,8 @@ pin_project! {
 
 impl ReconstructedBlocksStream {
     fn next_height_to_fetch(&self) -> Option<CelestiaHeight> {
-        if self.next_height.value() > self.greatest_permissible_celestia_height
-            || self.next_height > self.latest_observed_celestia_height
+        if self.next_height.value() > self.greatest_permissible_height
+            || self.next_height > self.latest_observed_height
         {
             return None;
         }
@@ -282,17 +294,17 @@ impl ReconstructedBlocksStream {
     }
 
     fn set_permissible_height(&mut self, height: u64) {
-        if height < self.greatest_permissible_celestia_height {
+        if height < self.greatest_permissible_height {
             info!("provided permissible celestia height older than previous; ignoring it",);
         }
-        self.greatest_permissible_celestia_height = height;
+        self.greatest_permissible_height = height;
     }
 
     fn record_latest_height(&mut self, height: CelestiaHeight) {
-        if height < self.latest_observed_celestia_height {
+        if height < self.latest_observed_height {
             info!("observed latest celestia height older than previous; ignoring it",);
         }
-        self.latest_observed_celestia_height = height;
+        self.latest_observed_height = height;
     }
 }
 
@@ -449,7 +461,7 @@ async fn fetch_blocks_at_celestia_height(
 #[instrument(
     skip_all,
     fields(
-        blob.sequencer_height = %sequencer_blob.height(),
+        blob.sequencer_height = sequencer_blob.height().value(),
         blob.block_hash = %telemetry::display::hex(&sequencer_blob.block_hash()),
     ),
     err,

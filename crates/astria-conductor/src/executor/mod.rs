@@ -322,6 +322,7 @@ impl Executor {
     #[instrument(skip_all, fields(
         block.hash = %telemetry::display::hex(&block.hash),
         block.height = block.height.value(),
+        block.num_of_transactions = block.transactions.len(),
         rollup.parent_hash = %telemetry::display::hex(&parent_block_hash),
     ))]
     async fn execute_block(

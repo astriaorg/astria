@@ -40,6 +40,7 @@ use tracing::{
     error,
     info,
     instrument,
+    trace,
     warn,
 };
 
@@ -152,7 +153,7 @@ impl Reader {
                     if let Err(err) = executor.soft_blocks().try_send(block) {
                         match err {
                             tokio::sync::mpsc::error::TrySendError::Full(block) => {
-                                info!("executor channel is full; stopping block fetch until a slot opens up");
+                                trace!("executor channel is full; stopping block fetch until a slot opens up");
                                 assert!(
                                     sequential_blocks.reschedule_block(block).is_ok(),
                                     "rescheduling the just obtained block must always work",
