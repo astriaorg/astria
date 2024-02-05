@@ -2,8 +2,8 @@
 //!
 //! # Examples
 //! ```
-//! metrics_conf = MetricsConfig {
-//!     addr: "127.0.0.1:9000".parse().unwrap()
+//! let metrics_conf = astria_telemetry::MetricsConfig {
+//!     addr: "127.0.0.1:9000".parse().unwrap(),
 //!     labels: vec![("label", "value")],
 //!     buckets: None,
 //! };
