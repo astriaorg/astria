@@ -7,18 +7,7 @@ on:
 
 jobs:
   run_checker:
-    uses: ./.github/workflows/reusable-run-checker.yml
-
-  pr_title:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v3
-      - uses: CondeNast/conventional-pull-request-action@v0.2.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          ignoreCommits: "true"
+    uses: ./.github/reusable/run-checker.yml
 
   proto:
     runs-on: ubuntu-latest
@@ -82,8 +71,8 @@ jobs:
             #.github
 
   lint:
-    needs: [proto, rust, toml, markdown, pr_title]
+    needs: [proto, rust, toml, markdown]
     if: ${{ always() && !cancelled() }}
-    uses: ./.github/workflows/reusable-success.yml
+    uses: ./.github/reusable/success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}
