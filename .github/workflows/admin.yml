@@ -30,6 +30,6 @@ jobs:
   admin:
     if: ${{ always() && !cancelled() }}
     needs: [pr_title]
-    uses: ./.github/reusable/success.yml
+    uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}

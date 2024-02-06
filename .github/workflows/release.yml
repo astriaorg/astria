@@ -7,7 +7,7 @@ on:
 
 jobs:
   run_checker:
-    uses: ./.github/reusable/run-checker.yml
+    uses: ./.github/workflows/reusable-run-checker.yml
 
   proto:
     runs-on: ubuntu-latest
@@ -29,7 +29,7 @@ jobs:
   conductor:
     needs: run_checker
     if: needs.run_checker.outputs.run_release_services == 'true'
-    uses: ./.github/reusable/release-cargo.yml
+    uses: ./.github/workflows/reusable-release-cargo.yml
     with:
       package-name: 'conductor'
       display-name: 'Conductor'
@@ -37,7 +37,7 @@ jobs:
   composer:
     needs: run_checker
     if: needs.run_checker.outputs.run_release_services == 'true'
-    uses: ./.github/reusable/release-cargo.yml
+    uses: ./.github/workflows/reusable-release-cargo.yml
     with:
       package-name: 'composer'
       display-name: 'Composer'
@@ -45,7 +45,7 @@ jobs:
   sequencer:
     needs: run_checker
     if: needs.run_checker.outputs.run_release_services == 'true'
-    uses: ./.github/reusable/release-cargo.yml
+    uses: ./.github/workflows/reusable-release-cargo.yml
     with:
       package-name: 'sequencer'
       display-name: 'Sequencer'
@@ -53,7 +53,7 @@ jobs:
   sequencer-relayer:
     needs: run_checker
     if: needs.run_checker.outputs.run_release_services == 'true'
-    uses: ./.github/reusable/release-cargo.yml
+    uses: ./.github/workflows/reusable-release-cargo.yml
     with:
       package-name: 'sequencer-relayer'
       display-name: 'Sequencer Relayer'
@@ -61,7 +61,7 @@ jobs:
   cli:
     needs: run_checker
     if: needs.run_checker.outputs.run_release_services == 'true'
-    uses: ./.github/reusable/release-cargo.yml
+    uses: ./.github/workflows/reusable-release-cargo.yml
     with:
       package-name: 'cli'
       display-name: 'CLI'
@@ -69,6 +69,6 @@ jobs:
   release:
     needs: [proto, conductor, composer, sequencer, sequencer-relayer, cli]
     if: ${{ always() && !cancelled() }}
-    uses: ./.github/reusable/success.yml
+    uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}

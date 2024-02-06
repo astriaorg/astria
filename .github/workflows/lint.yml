@@ -7,7 +7,7 @@ on:
 
 jobs:
   run_checker:
-    uses: ./.github/reusable/run-checker.yml
+    uses: ./.github/workflows/reusable-run-checker.yml
 
   proto:
     runs-on: ubuntu-latest
@@ -73,6 +73,6 @@ jobs:
   lint:
     needs: [proto, rust, toml, markdown]
     if: ${{ always() && !cancelled() }}
-    uses: ./.github/reusable/success.yml
+    uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}

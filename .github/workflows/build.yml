@@ -12,33 +12,33 @@ on:
 jobs:
   # TODO: Make generic and run on any tagged release
   cli:
-    uses: './.github/reusable/build.yml'
+    uses: './.github/workflows/reusable-build.yml'
     with:
       package-name: 'cli'
 
   conductor:
-    uses: './.github/reusable/build.yml'
+    uses: './.github/workflows/reusable-build.yml'
     with:
       package-name: 'conductor'
   
   composer:
-    uses: './.github/reusable/build.yml'
+    uses: './.github/workflows/reusable-build.yml'
     with:
       package-name: 'conductor'
 
   sequencer:
-    uses: './.github/reusable/build.yml'
+    uses: './.github/workflows/reusable-build.yml'
     with:
       package-name: 'sequencer'
 
   relayer:
-    uses: './.github/reusable/build.yml'
+    uses: './.github/workflows/reusable-build.yml'
     with:
       package-name: 'sequencer-relayer'
 
   build:
     if: ${{ always() && !cancelled() }}
     needs: [cli, composer, conductor, sequencer, relayer]
-    uses: ./.github/reusable/success.yml
+    uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}
