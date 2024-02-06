@@ -20,7 +20,9 @@ tracing = { workspace = true }
 
 astria-core = { path = "../astria-core" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
-telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = ["display"] }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
+  "display",
+] }
 
 ### Celestia specific imports
 #
