@@ -31,6 +31,7 @@ use crate::{
 };
 
 impl CelestiaClientExt for jsonrpsee::http_client::HttpClient {}
+impl CelestiaClientExt for jsonrpsee::ws_client::WsClient {}
 
 #[derive(Debug, thiserror::Error)]
 pub enum SubmitSequencerBlocksError {

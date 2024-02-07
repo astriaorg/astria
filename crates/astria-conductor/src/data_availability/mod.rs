@@ -1,23 +1,45 @@
-use std::time::Duration;
+use std::{
+    collections::{
+        BTreeMap,
+        HashMap,
+        VecDeque,
+    },
+    future::ready,
+    pin::Pin,
+    sync::Arc,
+    task::{
+        Context,
+        Poll,
+    },
+};
 
-use astria_core::sequencer::v1alpha1::RollupId;
 use celestia_client::{
     celestia_types::{
         nmt::Namespace,
-        Height,
+        Height as CelestiaHeight,
     },
-    jsonrpsee::http_client::HttpClient,
+    jsonrpsee::ws_client::WsClient,
     CelestiaClientExt as _,
     CelestiaSequencerBlob,
 };
 use color_eyre::eyre::{
     self,
+    bail,
+    ensure,
     WrapErr as _,
 };
-use sequencer_client::SequencerBlock;
-use tendermint::{
-    block::Header,
-    Hash,
+use futures::{
+    future::BoxFuture,
+    stream::{
+        FuturesUnordered,
+        Stream,
+    },
+    StreamExt as _,
+};
+use pin_project_lite::pin_project;
+use sequencer_client::tendermint::{
+    self,
+    block::Height as SequencerHeight,
 };
 use tokio::{
     select,
@@ -25,83 +47,134 @@ use tokio::{
         mpsc,
         oneshot,
     },
-    task::{
-        self,
-        JoinError,
-        JoinHandle,
-        JoinSet,
-    },
 };
-use tokio_util::task::JoinMap;
 use tracing::{
     error,
     info,
     instrument,
     warn,
-    Instrument,
 };
 
 mod block_verifier;
 use block_verifier::BlockVerifier;
 mod builder;
 
-/// `SequencerBlockSubset` is a subset of a `SequencerBlock` that contains
-/// information required for transaction data verification, and the transactions
-/// for one specific rollup.
 #[derive(Clone, Debug)]
-pub(crate) struct SequencerBlockSubset {
-    pub(crate) block_hash: Hash,
-    pub(crate) header: Header,
+pub(crate) struct ReconstructedBlock {
+    pub(crate) block_hash: [u8; 32],
+    pub(crate) header: tendermint::block::Header,
     pub(crate) transactions: Vec<Vec<u8>>,
 }
 
-impl SequencerBlockSubset {
-    pub(crate) fn from_sequencer_block(block: SequencerBlock, chain_id: RollupId) -> Self {
-        let mut block = block.into_unchecked();
-        let header = block.header;
-        let block_hash = header.hash();
-        let transactions = block
-            .rollup_transactions
-            .remove(&chain_id)
-            .unwrap_or_default();
+impl ReconstructedBlock {
+    pub(crate) fn height(&self) -> SequencerHeight {
+        self.header.height
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum CacheError {
+    #[error("block at sequencer height {height} already in cache")]
+    Occupied { height: SequencerHeight },
+    #[error(
+        "block too old: expect sequencer height {current_height} or newer, got {block_height}"
+    )]
+    Old {
+        block_height: SequencerHeight,
+        current_height: SequencerHeight,
+    },
+}
+
+struct NextBlock<'a> {
+    cache: &'a mut BlockCache,
+}
+
+impl<'a> NextBlock<'a> {
+    fn pop(self) -> ReconstructedBlock {
+        let Self {
+            cache,
+        } = self;
+        let block = cache
+            .inner
+            .remove(&cache.next_height)
+            .expect("the block exists; this is a bug");
+        cache.next_height.increment();
+        block
+    }
+}
+
+struct BlockCache {
+    inner: BTreeMap<SequencerHeight, ReconstructedBlock>,
+    next_height: SequencerHeight,
+}
+
+impl BlockCache {
+    fn new() -> Self {
         Self {
-            block_hash,
-            header,
-            transactions,
+            inner: BTreeMap::new(),
+            next_height: SequencerHeight::from(0u32),
+        }
+    }
+}
+
+impl BlockCache {
+    /// Inserts a block using the height recorded in its header.
+    ///
+    /// Return an error if a block already exists at that height.
+    fn insert(&mut self, block: ReconstructedBlock) -> Result<(), CacheError> {
+        use std::collections::btree_map::Entry;
+        if block.height() < self.next_height {
+            return Err(CacheError::Old {
+                block_height: block.height(),
+                current_height: self.next_height,
+            });
+        }
+        match self.inner.entry(block.height()) {
+            Entry::Vacant(entry) => {
+                entry.insert(block);
+                Ok(())
+            }
+            Entry::Occupied(_) => Err(CacheError::Occupied {
+                height: block.height(),
+            }),
+        }
+    }
+
+    /// Return a handle to the next block in the cache.
+    ///
+    /// This method exists to make removing the block from
+    /// the cache cancellation safe in an async context.
+    fn next_block(&mut self) -> Option<NextBlock<'_>> {
+        if self.inner.contains_key(&self.next_height) {
+            Some(NextBlock {
+                cache: self,
+            })
+        } else {
+            None
         }
     }
 }
 
 pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
-    executor_channel: mpsc::UnboundedSender<Vec<SequencerBlockSubset>>,
+    executor_channel: mpsc::UnboundedSender<ReconstructedBlock>,
 
     /// The client used to communicate with Celestia.
-    celestia_client: HttpClient,
+    celestia_client: Arc<WsClient>,
 
-    /// The between the reader waits until it queries celestia for new blocks
-    celestia_poll_interval: Duration,
+    /// the first block to be fetched from celestia
+    celestia_start_height: CelestiaHeight,
 
-    /// the last block height fetched from Celestia
-    current_block_height: Height,
-
+    /// Validates sequencer blobs read from celestia against sequencer.
     block_verifier: BlockVerifier,
 
-    /// Sequencer Namespace ID
+    /// The celestia namespace sequencer blobs will be read from.
     sequencer_namespace: Namespace,
-    /// Rollup Namespace ID
+
+    /// The celestia namespace rollup blobs will be read from.
     rollup_namespace: Namespace,
 
-    get_latest_height: Option<JoinHandle<eyre::Result<Height>>>,
-
-    /// A map of in-flight queries to celestia for new sequencer blobs at a given height
-    fetch_sequencer_blobs_at_height: JoinMap<Height, eyre::Result<Vec<CelestiaSequencerBlob>>>,
-
-    /// A map of futures verifying that sequencer blobs read off celestia stem from sequencer
-    /// before collecting their constituent rollup blobs. One task per celestia height.
-    verify_sequencer_blobs_and_assemble_rollups:
-        JoinMap<Height, eyre::Result<Vec<SequencerBlockSubset>>>,
-
+    /// The channel to listen for shutdown signals.
     shutdown: oneshot::Receiver<()>,
 }
 
@@ -112,11 +185,36 @@ impl Reader {
 
     #[instrument(skip(self))]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+        use celestia_client::celestia_rpc::HeaderClient as _;
         info!("Starting reader event loop.");
 
         // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
 
-        let mut interval = tokio::time::interval(self.celestia_poll_interval);
+        // XXX: Add retry
+        let mut headers = self
+            .celestia_client
+            .header_subscribe()
+            .await
+            .wrap_err("failed to subscribe to recent celestia header")?;
+        let latest_celestia_height = match headers.next().await {
+            Some(Ok(header)) => header.height(),
+            Some(Err(e)) => {
+                return Err(e).wrap_err("subscription to celestia header returned an error");
+            }
+            None => bail!("celestia header subscription was terminated unexpectedly"),
+        };
+
+        let mut cached_blocks = BlockCache::new();
+
+        let mut reconstructed_blocks = ReconstructedBlockStream::new(
+            self.celestia_start_height,
+            latest_celestia_height,
+            self.celestia_client.clone(),
+            10,
+            self.block_verifier.clone(),
+            self.sequencer_namespace,
+            self.rollup_namespace,
+        );
         loop {
             select!(
                 shutdown_res = &mut self.shutdown => {
@@ -130,337 +228,252 @@ impl Reader {
                     break;
                 }
 
-                _ = interval.tick() => self.get_latest_height(),
-
-                res = async { self.get_latest_height.as_mut().unwrap().await }, if self.get_latest_height.is_some() => {
-                    self.get_latest_height = None;
-                    self.fetch_sequencer_blobs_up_to_latest_height(res);
+                Some(next_block) = ready(cached_blocks.next_block()) => {
+                    let block = next_block.pop();
+                    if let Err(e) = self.executor_channel.send(block) {
+                        error!(
+                            error = &e as &dyn std::error::Error,
+                            "failed sending block reconstructed from celestia to executor; extigin",
+                        );
+                        break;
+                    }
                 }
 
-                Some((height, res)) = self.fetch_sequencer_blobs_at_height.join_next(), if !self.fetch_sequencer_blobs_at_height.is_empty() => {
-                    self.process_sequencer_blobs(height, res);
+                // XXX: handle subscription returning None - resubscribe? what does it mean if
+                // the underlying channel is full?
+                Some(header) = headers.next() => {
+                    match header {
+                        Ok(header) => reconstructed_blocks.extend_to_height(header.height()),
+                        // XXX: handle header returning an error - respawn subscription? keep going?
+                        Err(e) => {
+                            warn!(
+                                error = &e as &dyn  std::error::Error,
+                                "header subscription returned an error",
+                            );
+                        }
+                    }
                 }
 
-                Some((height, res)) = self.verify_sequencer_blobs_and_assemble_rollups.join_next(), if !self.verify_sequencer_blobs_and_assemble_rollups.is_empty() => {
-                    let span = tracing::info_span!("send_sequencer_subsets", %height);
-                    span.in_scope(|| self.send_sequencer_subsets(res))
-                        .wrap_err("failed sending sequencer subsets to executor")?;
+                Some(block) = reconstructed_blocks.next() => {
+                    if let Err(e) = cached_blocks.insert(block) {
+                        warn!(
+                            error = &e as &dyn std::error::Error,
+                            "failed pushing block into cache; dropping",
+                        );
+                    }
                 }
             );
         }
         Ok(())
     }
+}
 
-    fn get_latest_height(&mut self) {
-        use celestia_client::celestia_rpc::HeaderClient;
-        let client = self.celestia_client.clone();
-        self.get_latest_height = Some(tokio::spawn(async move {
-            Ok(client.header_network_head().await?.header.height)
-        }));
-    }
-
-    /// Starts fetching sequencer blobs for each height between `self.current_height`
-    /// and `latest_height` returned by celestia, populating `fetch_sequencer_blobs_at_height`.
-    ///
-    /// Note that this method evaluates the return value of the `fetch_latest_height` task. If it
-    /// failed no heights are fetched.
-    fn fetch_sequencer_blobs_up_to_latest_height(
-        &mut self,
-        latest_height_res: Result<eyre::Result<Height>, JoinError>,
-    ) {
-        let latest_height = match latest_height_res {
-            Err(e) => {
-                let error = &e as &(dyn std::error::Error + 'static);
-                warn!(error, "task querying celestia for latest height failed");
-                return;
-            }
-
-            Ok(Err(e)) => {
-                let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                warn!(
-                    error,
-                    "task querying celestia for latest height returned with an error"
-                );
-                return;
-            }
-
-            Ok(Ok(height)) => height,
-        };
-
-        if latest_height <= self.current_block_height {
-            info!(
-                height.celestia = %latest_height,
-                height.previous = %self.current_block_height,
-                "no new celestia height; not spawning tasks to fetch sequencer blocks"
-            );
-            return;
-        }
-        let first_new_height = self.current_block_height.increment();
-        info!(
-            height.start = %first_new_height,
-            height.end = %self.current_block_height,
-            "spawning tasks to fetch sequencer blocks for different celestia heights",
-        );
-        for height in first_new_height.value()..=latest_height.value() {
-            let height = height.try_into().expect(
-                "should be able to convert the u64 back to Height because it was obtained from \
-                 Height::value",
-            );
-            let client = self.celestia_client.clone();
-            if self.fetch_sequencer_blobs_at_height.contains_key(&height) {
-                warn!(
-                    %height,
-                    "getting sequencer data from celestia already in flight, not spawning"
-                );
-            } else {
-                let sequencer_namespace = self.sequencer_namespace;
-                self.fetch_sequencer_blobs_at_height
-                    .spawn(height, async move {
-                        client
-                            .get_sequencer_blobs(height, sequencer_namespace)
-                            .await
-                            .wrap_err("failed to fetch sequencer data from celestia")
-                            .map(|rsp| rsp.sequencer_blobs)
-                    });
-            }
-        }
-    }
-
-    #[instrument(skip_all, fields(height))]
-    fn process_sequencer_blobs(
-        &mut self,
-        height: Height,
-        sequencer_blob_res: Result<eyre::Result<Vec<CelestiaSequencerBlob>>, JoinError>,
-    ) {
-        let sequencer_data = match sequencer_blob_res {
-            Err(e) => {
-                let error = &e as &(dyn std::error::Error + 'static);
-                warn!(error, "task querying celestia for sequencer data failed");
-                return;
-            }
-
-            Ok(Err(e)) => {
-                let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                warn!(
-                    error,
-                    "task querying celestia for sequencer data returned with an error"
-                );
-                return;
-            }
-
-            Ok(Ok(sequencer_data)) => sequencer_data,
-        };
-
-        // Set the current block height to the maximum height seen. Having reached this
-        // handler means that we have successfully received valid (but unverified) sequencer
-        // data at celestia `height`. If the next steps fail that is fine: re-requesting
-        // the data will not change the verification failure.
-        // If there are other tasks querying celestia for lower heights are still in
-        // flight they are unaffected and will still be processed here.
-        self.current_block_height = std::cmp::max(self.current_block_height, height);
-        if self
-            .verify_sequencer_blobs_and_assemble_rollups
-            .contains_key(&height)
-        {
-            error!(
-                "sequencer data is already being processed; no two sequencer data responses \
-                 should have been received; this is a bug"
-            );
-            return;
-        }
-        self.verify_sequencer_blobs_and_assemble_rollups.spawn(
-            height,
-            verify_sequencer_blobs_and_assemble_rollups(
-                height,
-                sequencer_data,
-                self.celestia_client.clone(),
-                self.block_verifier.clone(),
-                self.rollup_namespace,
-            )
-            .in_current_span(),
-        );
-    }
-
-    #[instrument(skip_all, fields(height))]
-    fn send_sequencer_subsets(
-        &self,
-        sequencer_subsets_res: Result<eyre::Result<Vec<SequencerBlockSubset>>, JoinError>,
-    ) -> eyre::Result<()> {
-        let subsets = match sequencer_subsets_res {
-            Err(e) => {
-                let error = &e as &(dyn std::error::Error + 'static);
-                warn!(error, "task processing sequencer data failed");
-                return Ok(());
-            }
-            Ok(Err(e)) => {
-                let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                warn!(
-                    error,
-                    "task processing sequencer data returned with an error"
-                );
-                return Ok(());
-            }
-            Ok(Ok(subsets)) => subsets,
-        };
-        self.executor_channel
-            .send(subsets)
-            .wrap_err("failed sending processed sequencer subsets: executor channel is closed")
+pin_project! {
+    struct ReconstructedBlockStream {
+        heights: VecDeque<CelestiaHeight>,
+        greatest_seen_height: CelestiaHeight,
+        in_progress_queue: FuturesUnordered<BoxFuture<'static, eyre::Result<ReconstructedBlock>>>,
+        client: Arc<WsClient>,
+        max: usize,
+        verifier: BlockVerifier,
+        sequencer_namespace: Namespace,
+        rollup_namespace: Namespace,
     }
 }
 
-/// Verifies that each sequencer blob is genuinely derived from a sequencer block.
-/// If it is, fetches its constituent rollup blobs from celestia and assembles
-/// into a collection.
-async fn verify_sequencer_blobs_and_assemble_rollups(
-    height: Height,
-    sequencer_blobs: Vec<CelestiaSequencerBlob>,
-    client: HttpClient,
-    block_verifier: BlockVerifier,
-    rollup_namespace: Namespace,
-) -> eyre::Result<Vec<SequencerBlockSubset>> {
-    // spawn the verification tasks
-    let mut verification_tasks = verify_all_blobs(sequencer_blobs, &block_verifier);
+impl ReconstructedBlockStream {
+    fn extend_to_height(&mut self, height: CelestiaHeight) {
+        while self.greatest_seen_height < height {
+            self.greatest_seen_height.increment();
+            self.heights.push_back(self.greatest_seen_height);
+        }
+    }
 
-    let (assembly_tx, assembly_rx) = mpsc::channel(256);
-    let block_assembler = task::spawn(assemble_blocks(assembly_rx));
+    fn new(
+        start: CelestiaHeight,
+        end: CelestiaHeight,
+        client: Arc<WsClient>,
+        max: usize,
+        verifier: BlockVerifier,
+        sequencer_namespace: Namespace,
+        rollup_namespace: Namespace,
+    ) -> Self {
+        let heights: VecDeque<_> = height_range_inclusive(start, end).collect();
+        let greatest_seen_height = heights
+            .back()
+            .copied()
+            .expect("height range returns at least one element; this is a bug");
+        Self {
+            heights,
+            greatest_seen_height,
+            in_progress_queue: FuturesUnordered::new(),
+            client,
+            max,
+            verifier,
+            sequencer_namespace,
+            rollup_namespace,
+        }
+    }
+}
 
-    let mut fetch_and_verify_rollups = JoinSet::new();
-    while let Some((block_hash, verification_result)) = verification_tasks.join_next().await {
-        match verification_result {
-            Err(e) => {
-                let error = &e as &(dyn std::error::Error + 'static);
-                warn!(
-                    block_hash = %telemetry::display::hex(&block_hash),
-                    error,
-                    "task verifying sequencer data retrieved from celestia failed; dropping block",
-                );
-            }
-            Ok(Err(e)) => {
-                let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                warn!(
-                    block_hash = %telemetry::display::hex(&block_hash),
-                    error,
-                    "task verifying sequencer data retrieved from celestia returned with an \
-                     error; dropping block"
-                );
-            }
-            Ok(Ok(data)) => {
-                fetch_and_verify_rollups.spawn(
-                    fetch_rollup_blob_and_forward_to_assembly(
-                        client.clone(),
+impl Stream for ReconstructedBlockStream {
+    type Item = ReconstructedBlock;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        use futures::{
+            ready,
+            FutureExt as _,
+        };
+        let this = self.project();
+
+        // First up, try to spawn off as many futures as possible by filling up
+        // our queue of futures.
+        while this.in_progress_queue.len() < *this.max {
+            match this.heights.pop_front() {
+                Some(height) => this.in_progress_queue.push(
+                    fetch_blocks_at_celestia_height(
+                        this.client.clone(),
+                        this.verifier.clone(),
                         height,
-                        data,
-                        rollup_namespace,
-                        assembly_tx.clone(),
+                        *this.sequencer_namespace,
+                        *this.rollup_namespace,
                     )
-                    .in_current_span(),
-                );
+                    .boxed(),
+                ),
+                None => break,
             }
         }
-    }
 
-    // ensure that the last sender goes out of scope so that block assembler's exit condition fires
-    std::mem::drop(assembly_tx);
-
-    block_assembler
-        .await
-        .wrap_err("failed assembling sequencer block subsets")
-}
-
-/// Fetches a rollup blob for given height and namespace, and fowards it to the assembler.
-///
-/// If more than one rollup blob is received and pass verification, they are all dropped.
-/// It is assumed that sequencer-relayer submits at most one rollup blob to celestia per
-/// celestia height.
-#[instrument(
-    skip_all,
-    fields(
-        celestia_height = %height,
-        block_hash = %telemetry::display::hex(&blob.block_hash()),
-    )
-)]
-async fn fetch_rollup_blob_and_forward_to_assembly(
-    client: HttpClient,
-    height: Height,
-    blob: CelestiaSequencerBlob,
-    rollup_namespace: Namespace,
-    block_tx: mpsc::Sender<SequencerBlockSubset>,
-) {
-    let mut rollups = match client
-        .get_rollup_blobs_matching_sequencer_blob(height, rollup_namespace, &blob)
-        .await
-    {
-        Err(e) => {
-            let error = &e as &(dyn std::error::Error + 'static);
-            warn!(error, "failed to get rollup data from celestia");
-            return;
-        }
-        Ok(rollups) => rollups,
-    };
-
-    match rollups.len() {
-        0 | 1 => {
-            info!(
-                n_rollups = rollups.len(),
-                "forwarding rollup blobs to assembler"
-            );
-            let subset = SequencerBlockSubset {
-                block_hash: blob.header().hash(),
-                header: blob.header().clone(),
-                transactions: rollups.pop().map_or(vec![], |rollup_blob| {
-                    rollup_blob.into_unchecked().transactions
-                }),
-            };
-            if block_tx.send(subset).await.is_err() {
-                warn!("failed sending validated rollup data to block assembler; receiver dropped");
+        // Attempt to pull the next value from the in_progress_queue
+        let res = this.in_progress_queue.poll_next_unpin(cx);
+        if let Some(val) = ready!(res) {
+            match val {
+                Ok(val) => return Poll::Ready(Some(val)),
+                // XXX: Consider what to about the height here - push it back into the vecdeque?
+                // XXX: Also - in spans is f*cked right now, fix that.
+                Err(e) => warn!(
+                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                    "failed fetching celestia blobs for height, dropping height"
+                ),
             }
         }
-        n_rollups => warn!(
-            n_rollups,
-            "received more than one rollup blob for the given namespace, height, and sequencer \
-             blob, which should not happen; dropping all blobs",
-        ),
-    }
-}
 
-async fn assemble_blocks(
-    mut assembly_rx: mpsc::Receiver<SequencerBlockSubset>,
-) -> Vec<SequencerBlockSubset> {
-    let mut blocks = Vec::new();
-    while let Some(subset) = assembly_rx.recv().await {
-        blocks.push(subset);
-    }
-    blocks.sort_unstable_by(|a, b| a.header.height.cmp(&b.header.height));
-    blocks
-}
-
-fn verify_all_blobs(
-    blobs: Vec<CelestiaSequencerBlob>,
-    block_verifier: &BlockVerifier,
-) -> JoinMap<[u8; 32], eyre::Result<CelestiaSequencerBlob>> {
-    let mut verification_tasks = JoinMap::new();
-    for blob in blobs {
-        let blob_hash = blob.block_hash();
-        if verification_tasks.contains_key(&blob_hash) {
-            warn!(
-                block_hash = %telemetry::display::hex(&blob_hash),
-                "more than one sequencer data with the same block hash retrieved from celestia; \
-                 only keeping the first"
-            );
+        // If more values are still coming from the stream, we're not done yet
+        if this.heights.is_empty() {
+            Poll::Ready(None)
         } else {
-            let verifier = block_verifier.clone();
-            verification_tasks.spawn(
-                blob_hash,
-                async move {
-                    verifier
-                        .validate_sequencer_blob(&blob)
-                        .await
-                        .wrap_err("failed validating blob")?;
-                    Ok(blob)
-                }
-                .in_current_span(),
-            );
+            Poll::Pending
         }
     }
-    verification_tasks
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let queue_len = self.in_progress_queue.len();
+        let n_heights = self.heights.len();
+        let len = n_heights.saturating_add(queue_len);
+        (len, Some(len))
+    }
+}
+
+/// Fetches all blob data for the desired rollup at celestia `height`.
+///
+/// Performs the following operations:
+/// 1. retrieves sequencer blobs at `height` matching `sequencer_namespace`;
+/// 2. verifies the sequencer blobs against sequencer, dropping all blobs that failed verification;
+/// 3. retrieves all rollup blobs at `height` matching `rollup_namespace` and the block hash stored
+///    in the sequencer blob.
+#[instrument(skip_all, fields(
+    height.celestia = %height,
+    namespace.sequencer = %telemetry::display::base64(&sequencer_namespace.as_bytes()),
+    namespace.rollup = %telemetry::display::base64(&rollup_namespace.as_bytes()),
+))]
+async fn fetch_blocks_at_celestia_height(
+    client: Arc<WsClient>,
+    verifier: BlockVerifier,
+    height: CelestiaHeight,
+    sequencer_namespace: Namespace,
+    rollup_namespace: Namespace,
+) -> eyre::Result<ReconstructedBlock> {
+    use futures::TryStreamExt as _;
+    // XXX: This object contains information about bad blobs that belonged to the
+    // wrong namespace or had other issues. Consider reporting them.
+    let sequencer_blobs = client
+        .get_sequencer_blobs(height, sequencer_namespace)
+        .await
+        .wrap_err("failed to fetch sequencer data from celestia")?
+        .sequencer_blobs;
+
+    // Deduplicate blobs by the recorded block hash.
+    // XXX: This assumes no two sequencer blobs with the same block hash will be written
+    // to Celestia. Warn if two sequencer blobs with the same block hash are found?
+    let sequencer_blobs = sequencer_blobs
+        .into_iter()
+        .map(|blob| (blob.block_hash(), blob))
+        .collect::<HashMap<_, _>>();
+
+    let blocks = futures::stream::iter(sequencer_blobs.into_values())
+        .then(move |blob| {
+            let client = client.clone();
+            let verifier = verifier.clone();
+            process_sequencer_blob(client, verifier, height, rollup_namespace, blob)
+        })
+        .inspect_err(|err| {
+            warn!(
+                error = AsRef::<dyn std::error::Error>::as_ref(err),
+                "failed to reconstruct block from celestia blob"
+            );
+        })
+        .filter_map(|x| ready(x.ok()));
+    tokio::pin!(blocks);
+    let Some(block) = blocks.next().await else {
+        bail!("no valid blobs found at height");
+    };
+    if blocks.next().await.is_some() {
+        bail!("more than one valid sequencer blob found on for the given height");
+    }
+    Ok(block)
+}
+
+// FIXME: Validation performs a lookup for every sequencer blob. That seems
+// unnecessary. Just fetch the info once, validate all blobs in one
+// go.
+async fn process_sequencer_blob(
+    client: Arc<WsClient>,
+    verifier: BlockVerifier,
+    height: CelestiaHeight,
+    rollup_namespace: Namespace,
+    sequencer_blob: CelestiaSequencerBlob,
+) -> eyre::Result<ReconstructedBlock> {
+    let sequencer_blob = verifier
+        .validate_sequencer_blob(sequencer_blob)
+        .await
+        .wrap_err("failed validating sequencer blob retrieved from celestia")?;
+    let mut rollup_blobs = client
+        .get_rollup_blobs_matching_sequencer_blob(height, rollup_namespace, &sequencer_blob)
+        .await
+        .wrap_err("failed fetching rollup blobs from celestia")?;
+    ensure!(
+        rollup_blobs.len() <= 1,
+        "received more than one celestia rollup blob for the given namespace and height"
+    );
+    let transactions = rollup_blobs
+        .pop()
+        .map(|blob| blob.into_unchecked().transactions)
+        .unwrap_or_default();
+    Ok(ReconstructedBlock {
+        block_hash: sequencer_blob.block_hash(),
+        header: sequencer_blob.header().clone(),
+        transactions,
+    })
+}
+
+/// A poor man's inclusive range because we want to avoid turning converting the Celestia
+/// newtype Height from/to u32/u64.
+fn height_range_inclusive(
+    start: CelestiaHeight,
+    end: CelestiaHeight,
+) -> impl Iterator<Item = CelestiaHeight> {
+    std::iter::successors(Some(start), move |&height| {
+        let next_height = height.increment();
+        (next_height <= end).then_some(next_height)
+    })
 }

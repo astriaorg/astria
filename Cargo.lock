@@ -603,6 +603,7 @@ dependencies = [
  "hex",
  "humantime",
  "jsonrpsee",
+ "pin-project-lite",
  "prost",
  "prost-types",
  "rand 0.8.5",
@@ -796,6 +797,7 @@ dependencies = [
 name = "astria-telemetry"
 version = "0.1.0"
 dependencies = [
+ "base64 0.21.5",
  "tracing",
  "tracing-subscriber 0.3.18",
 ]

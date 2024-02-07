@@ -45,9 +45,9 @@ impl BlockVerifier {
     }
 
     pub(super) async fn validate_sequencer_blob(
-        &self,
-        blob: &CelestiaSequencerBlob,
-    ) -> eyre::Result<()> {
+        self,
+        blob: CelestiaSequencerBlob,
+    ) -> eyre::Result<CelestiaSequencerBlob> {
         let height: u32 = blob.height().value().try_into().expect(
             "a tendermint height (currently non-negative i32) should always fit into a u32",
         );
@@ -100,8 +100,9 @@ impl BlockVerifier {
             "commit is not for the expected block",
         );
 
-        validate_sequencer_blob(&validator_set, &commit.signed_header.commit, blob)
-            .wrap_err("failed validating sequencer data inside signed namespace data")
+        validate_sequencer_blob(&validator_set, &commit.signed_header.commit, &blob)
+            .wrap_err("failed validating sequencer data inside signed namespace data")?;
+        Ok(blob)
     }
 }
 

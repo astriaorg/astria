@@ -138,8 +138,8 @@ fn hash(s: &[u8]) -> Vec<u8> {
     hasher.finalize().to_vec()
 }
 
-fn get_test_block_subset() -> SequencerBlockSubset {
-    SequencerBlockSubset {
+fn get_test_block_subset() -> ReconstructedBlock {
+    ReconstructedBlock {
         block_hash: hash(b"block1").try_into().unwrap(),
         header: make_cometbft_block().header,
         transactions: vec![],
@@ -241,10 +241,7 @@ async fn execute_unexecuted_da_block_with_transactions() {
         &block.transactions,
     );
 
-    mock.executor
-        .execute_firm_blocks(vec![block])
-        .await
-        .unwrap();
+    mock.executor.execute_firm_block(block).await.unwrap();
 
     assert_eq!(
         expected_exection_hash,
@@ -262,10 +259,7 @@ async fn execute_unexecuted_da_block_with_no_transactions() {
     // using firm hash here as da blocks are executed on top of the firm commitment
     let expected_execution_state = hash(&mock.executor.commitment_state.firm().hash());
 
-    mock.executor
-        .execute_firm_blocks(vec![block])
-        .await
-        .unwrap();
+    mock.executor.execute_firm_block(block).await.unwrap();
 
     assert_eq!(
         expected_execution_state,
@@ -273,21 +267,6 @@ async fn execute_unexecuted_da_block_with_no_transactions() {
     );
     // should be empty because block was executed and finalized, which
     // deletes it from the map
-    assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
-}
-
-#[tokio::test]
-async fn empty_message_from_data_availability_is_dropped() {
-    let mut mock = start_mock(None).await;
-    // using firm hash here as da blocks are executed on top of the firm commitment
-    let expected_execution_state = mock.executor.commitment_state.firm().hash();
-
-    mock.executor.execute_firm_blocks(vec![]).await.unwrap();
-
-    assert_eq!(
-        expected_execution_state,
-        mock.executor.commitment_state.firm().hash(),
-    );
     assert!(mock.executor.sequencer_hash_to_execution_block.is_empty());
 }
 
@@ -315,13 +294,13 @@ async fn try_execute_out_of_order_block_from_celestia() {
 
     // We skip blocks which have already been finalized, so even genesis should succeed
     block.header.height = 0_u32.into();
-    let execution_result = mock.executor.execute_firm_blocks(vec![block.clone()]).await;
+    let execution_result = mock.executor.execute_firm_block(block.clone()).await;
     assert!(execution_result.is_ok());
 
     // the first block to execute should always be 1, this should fail as it is
     // in the future
     block.header.height = 2_u32.into();
-    let execution_result = mock.executor.execute_firm_blocks(vec![block]).await;
+    let execution_result = mock.executor.execute_firm_block(block).await;
     assert!(execution_result.is_err());
 }
 

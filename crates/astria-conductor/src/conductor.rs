@@ -156,7 +156,6 @@ impl Conductor {
             let rollup_namespace = celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id);
             let reader = data_availability::Reader::builder()
                 .celestia_endpoint(&cfg.celestia_node_url)
-                .celestia_poll_interval(Duration::from_secs(3))
                 .celestia_token(&cfg.celestia_bearer_token)
                 .executor_channel(executor.celestia_channel())
                 .rollup_namespace(rollup_namespace)
