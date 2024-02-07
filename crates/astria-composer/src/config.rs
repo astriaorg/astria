@@ -42,7 +42,7 @@ pub struct Config {
     pub metrics_enabled: bool,
 
     /// The endpoint which will be listened on for serving prometheus metrics
-    pub prometheus_http_listener_addr: SocketAddr,
+    pub prometheus_http_listener_addr: String,
 }
 
 impl config::Config for Config {

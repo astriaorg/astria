@@ -1,6 +1,6 @@
 pub(crate) mod api;
 pub mod config;
-pub mod metrics;
+pub mod metrics_init;
 pub(crate) mod relayer;
 pub mod sequencer_relayer;
 pub(crate) mod validator;

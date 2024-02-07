@@ -13,9 +13,15 @@
 //! }
 //! tracing::info!("telemetry initialized");
 //! ```
-use std::net::SocketAddr;
+use std::net::{
+    AddrParseError,
+    SocketAddr,
+};
 
-use metrics_exporter_prometheus::PrometheusBuilder;
+use metrics_exporter_prometheus::{
+    BuildError,
+    PrometheusBuilder,
+};
 use tracing_subscriber::{
     filter::ParseError,
     fmt::MakeWriter,
@@ -28,8 +34,26 @@ pub mod display;
 /// The errors that can occur when initializing telemtry.
 #[derive(Debug)]
 pub enum Error {
+    MetricsAddr(AddrParseError),
+    BucketError(BuildError),
+    ExporterInstall(BuildError),
     FilterDirectives(ParseError),
     SubscriberInit(TryInitError),
+}
+
+impl From<AddrParseError> for Error {
+    fn from(err: AddrParseError) -> Self {
+        Self::MetricsAddr(err)
+    }
+}
+
+impl From<BuildError> for Error {
+    fn from(err: BuildError) -> Self {
+        match err {
+            BuildError::EmptyBucketsOrQuantiles => Self::BucketError(err),
+            _ => Self::ExporterInstall(err),
+        }
+    }
 }
 
 impl From<TryInitError> for Error {
@@ -47,6 +71,9 @@ impl From<ParseError> for Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg = match self {
+            Error::MetricsAddr(_) => "could not parse metrics address",
+            Error::BucketError(_) => "could not set prometheus buckets",
+            Error::ExporterInstall(_) => "could not install prometheus metrics exporter",
             Error::FilterDirectives(_) => "could not parse provided filter directives",
             Error::SubscriberInit(_) => "could not install global tracing subscriber",
         };
@@ -57,6 +84,9 @@ impl std::fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::MetricsAddr(e) => Some(e),
+            Self::BucketError(e) => Some(e),
+            Self::ExporterInstall(e) => Some(e),
             Self::FilterDirectives(e) => Some(e),
             Self::SubscriberInit(e) => Some(e),
         }
@@ -68,11 +98,11 @@ pub struct MetricsConfig {
     /// Address to serve prometheus metrics on
     ///
     /// The HTTP listener that is spawned will respond to GET requests on any request path.
-    pub addr: SocketAddr,
+    pub addr: String,
     /// List of labels to use as default globals for prometheus metrics.
     ///
     /// Labels specified on individual metrics will override these.
-    pub labels: Vec<(&'static str, &'static str)>,
+    pub service: &'static str,
     /// Optionally sets the buckets to use when rendering histograms.
     ///
     /// If None, histograms will be rendered as summaries.
@@ -142,29 +172,26 @@ where
     init_logging(sink, filter_directives)?;
 
     if let Some(metrics_conf) = metrics_conf {
-        init_metrics(metrics_conf);
+        init_metrics(metrics_conf)?;
     }
 
     Ok(())
 }
 
-fn init_metrics(conf: MetricsConfig) {
-    let mut metrics_builder = PrometheusBuilder::new();
+fn init_metrics(conf: MetricsConfig) -> Result<(), Error> {
+    let addr: SocketAddr = conf.addr.parse()?;
 
-    for (key, value) in conf.labels {
-        metrics_builder = metrics_builder.add_global_label(key, value);
-    }
+    let mut metrics_builder = PrometheusBuilder::new()
+        .with_http_listener(addr)
+        .add_global_label("service", conf.service);
 
     if let Some(buckets) = conf.buckets {
-        metrics_builder = metrics_builder
-            .set_buckets(&buckets)
-            .expect("failed to set prometheus buckets");
+        metrics_builder = metrics_builder.set_buckets(&buckets)?;
     }
 
-    metrics_builder
-        .with_http_listener(conf.addr)
-        .install()
-        .expect("failed to install prometheus metrics exporter");
+    metrics_builder.install()?;
+
+    Ok(())
 }
 
 fn init_logging<S>(sink: S, filter_directives: &str) -> Result<(), Error>

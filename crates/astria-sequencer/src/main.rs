@@ -21,8 +21,8 @@ async fn main() -> ExitCode {
     };
     let metrics_conf = if config.metrics_enabled {
         Some(telemetry::MetricsConfig {
-            addr: config.prometheus_http_listener_addr,
-            labels: vec![("service", "astria-sequencer")],
+            addr: config.prometheus_http_listener_addr.clone(),
+            service: "astria-sequencer",
             buckets: None,
         })
     } else {

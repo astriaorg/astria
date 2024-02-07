@@ -29,7 +29,7 @@ use tracing::{
 use crate::{
     celestia_namespace_v0_from_cometbft_header,
     celestia_namespace_v0_from_rollup_id,
-    metrics as metric_labels,
+    metrics_init,
 };
 
 impl CelestiaClientExt for jsonrpsee::http_client::HttpClient {}
@@ -190,16 +190,18 @@ pub trait CelestiaClientExt: BlobClient {
         // + the sum of all rollup transactions in all blocks (each converted to a rollup namespaced
         //   data), and
         // + one sequencer namespaced data blob per block.
-        let num_expected_blobs = blocks
+        let num_of_rollup_blobs = blocks
             .iter()
-            .fold(0, |acc, block| acc + block.rollup_transactions().len() + 1);
+            .fold(0, |acc, block| acc + block.rollup_transactions().len());
+        let num_of_sequencer_blobs = blocks.len();
+        let num_expected_blobs = num_of_rollup_blobs + num_of_sequencer_blobs;
 
         // the number of blobs should always be low enough to not cause precision loss
         #[allow(clippy::cast_precision_loss)]
-        let number_rollup_blobs = (num_expected_blobs - blocks.len()) as f64;
+        let metric_rollup_count = num_of_rollup_blobs as f64;
         metrics::gauge!(
-            metric_labels::ROLLUP_BLOBS_PER_CELESTIA_TX,
-            number_rollup_blobs
+            metrics_init::ROLLUP_BLOBS_PER_CELESTIA_TX,
+            metric_rollup_count
         );
 
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
@@ -252,7 +254,7 @@ fn assemble_blobs_from_sequencer_block(
     #[allow(clippy::cast_precision_loss)]
     let rollup_blobs_count = rollup_blobs.len() as f64;
     metrics::gauge!(
-        metric_labels::ROLLUP_BLOBS_PER_ASTRIA_BLOCK,
+        metrics_init::ROLLUP_BLOBS_PER_ASTRIA_BLOCK,
         rollup_blobs_count
     );
 
