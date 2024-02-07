@@ -3,8 +3,8 @@
 //! # Examples
 //! ```
 //! let metrics_conf = astria_telemetry::MetricsConfig {
-//!     addr: "127.0.0.1:9000".parse().unwrap(),
-//!     labels: vec![("label", "value")],
+//!     addr: "127.0.0.1:9000".to_string(),
+//!     service: "test",
 //!     buckets: None,
 //! };
 //! if let Err(err) = astria_telemetry::init(std::io::stdout, "info", Some(metrics_conf)) {
@@ -85,8 +85,7 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::MetricsAddr(e) => Some(e),
-            Self::BucketError(e) => Some(e),
-            Self::ExporterInstall(e) => Some(e),
+            Self::BucketError(e) | Self::ExporterInstall(e) => Some(e),
             Self::FilterDirectives(e) => Some(e),
             Self::SubscriberInit(e) => Some(e),
         }
