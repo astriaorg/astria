@@ -1,6 +1,5 @@
 use std::{
     collections::{
-        BTreeMap,
         HashMap,
         VecDeque,
     },
@@ -57,6 +56,11 @@ use tracing::{
 
 mod block_verifier;
 use block_verifier::BlockVerifier;
+
+use crate::block_cache::{
+    BlockCache,
+    GetSequencerHeight,
+};
 mod builder;
 
 #[derive(Clone, Debug)]
@@ -72,86 +76,9 @@ impl ReconstructedBlock {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-enum CacheError {
-    #[error("block at sequencer height {height} already in cache")]
-    Occupied { height: SequencerHeight },
-    #[error(
-        "block too old: expect sequencer height {current_height} or newer, got {block_height}"
-    )]
-    Old {
-        block_height: SequencerHeight,
-        current_height: SequencerHeight,
-    },
-}
-
-struct NextBlock<'a> {
-    cache: &'a mut BlockCache,
-}
-
-impl<'a> NextBlock<'a> {
-    fn pop(self) -> ReconstructedBlock {
-        let Self {
-            cache,
-        } = self;
-        let block = cache
-            .inner
-            .remove(&cache.next_height)
-            .expect("the block exists; this is a bug");
-        cache.next_height.increment();
-        block
-    }
-}
-
-struct BlockCache {
-    inner: BTreeMap<SequencerHeight, ReconstructedBlock>,
-    next_height: SequencerHeight,
-}
-
-impl BlockCache {
-    fn new() -> Self {
-        Self {
-            inner: BTreeMap::new(),
-            next_height: SequencerHeight::from(0u32),
-        }
-    }
-}
-
-impl BlockCache {
-    /// Inserts a block using the height recorded in its header.
-    ///
-    /// Return an error if a block already exists at that height.
-    fn insert(&mut self, block: ReconstructedBlock) -> Result<(), CacheError> {
-        use std::collections::btree_map::Entry;
-        if block.height() < self.next_height {
-            return Err(CacheError::Old {
-                block_height: block.height(),
-                current_height: self.next_height,
-            });
-        }
-        match self.inner.entry(block.height()) {
-            Entry::Vacant(entry) => {
-                entry.insert(block);
-                Ok(())
-            }
-            Entry::Occupied(_) => Err(CacheError::Occupied {
-                height: block.height(),
-            }),
-        }
-    }
-
-    /// Return a handle to the next block in the cache.
-    ///
-    /// This method exists to make removing the block from
-    /// the cache cancellation safe in an async context.
-    fn next_block(&mut self) -> Option<NextBlock<'_>> {
-        if self.inner.contains_key(&self.next_height) {
-            Some(NextBlock {
-                cache: self,
-            })
-        } else {
-            None
-        }
+impl GetSequencerHeight for ReconstructedBlock {
+    fn get_height(&self) -> SequencerHeight {
+        self.height()
     }
 }
 
@@ -228,12 +155,11 @@ impl Reader {
                     break;
                 }
 
-                Some(next_block) = ready(cached_blocks.next_block()) => {
-                    let block = next_block.pop();
+                Some(block) = cached_blocks.next_block() => {
                     if let Err(e) = self.executor_channel.send(block) {
                         error!(
                             error = &e as &dyn std::error::Error,
-                            "failed sending block reconstructed from celestia to executor; extigin",
+                            "failed sending block reconstructed from celestia to executor; exiting",
                         );
                         break;
                     }
@@ -298,7 +224,7 @@ impl ReconstructedBlockStream {
         sequencer_namespace: Namespace,
         rollup_namespace: Namespace,
     ) -> Self {
-        let heights: VecDeque<_> = height_range_inclusive(start, end).collect();
+        let heights: VecDeque<_> = crate::utils::height_range_inclusive(start, end).collect();
         let greatest_seen_height = heights
             .back()
             .copied()
@@ -463,17 +389,5 @@ async fn process_sequencer_blob(
         block_hash: sequencer_blob.block_hash(),
         header: sequencer_blob.header().clone(),
         transactions,
-    })
-}
-
-/// A poor man's inclusive range because we want to avoid turning converting the Celestia
-/// newtype Height from/to u32/u64.
-fn height_range_inclusive(
-    start: CelestiaHeight,
-    end: CelestiaHeight,
-) -> impl Iterator<Item = CelestiaHeight> {
-    std::iter::successors(Some(start), move |&height| {
-        let next_height = height.increment();
-        (next_height <= end).then_some(next_height)
     })
 }
