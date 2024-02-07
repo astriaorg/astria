@@ -93,3 +93,8 @@ tracing = "0.1"
 tryhard = "0.5.1"
 which = "4.4.0"
 wiremock = "0.5"
+
+[workspace.dependencies.celestia-tendermint]
+package = "tendermint"
+git = "https://github.com/eigerco/celestia-tendermint-rs"
+rev = "bbe7de8"

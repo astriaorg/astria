@@ -33,17 +33,11 @@ pub struct Config {
     /// URL of the sequencer cometbft websocket
     pub sequencer_url: String,
 
-    /// Chain ID that we want to work in
-    pub chain_id: String,
-
     /// Address of the RPC server for execution
     pub execution_rpc_url: String,
 
     /// log directive to use for telemetry.
     pub log: String,
-
-    /// The Sequencer block height that the rollup genesis block was in
-    pub initial_sequencer_block_height: u32,
 
     /// The execution commit level used for controlling how blocks are sent to
     /// the execution layer.

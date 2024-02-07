@@ -14,6 +14,23 @@ use celestia_types::nmt::{
 pub use client::CelestiaClientExt;
 pub use jsonrpsee;
 
+pub fn is_blob_not_found<T: IsBlobNotFound>(err: &T) -> bool {
+    err.is_blob_not_found()
+}
+
+pub trait IsBlobNotFound {
+    fn is_blob_not_found(&self) -> bool;
+}
+
+impl IsBlobNotFound for jsonrpsee::core::Error {
+    fn is_blob_not_found(&self) -> bool {
+        let jsonrpsee::core::Error::Call(error) = self else {
+            return false;
+        };
+        error.code() == 1 && error.message().contains("blob: not found")
+    }
+}
+
 #[must_use = "a celestia namespace must be used in order to be useful"]
 pub const fn celestia_namespace_v0_from_array<const N: usize>(bytes: [u8; N]) -> Namespace {
     #[allow(clippy::assertions_on_constants)]

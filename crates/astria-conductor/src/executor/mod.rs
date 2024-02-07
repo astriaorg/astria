@@ -5,29 +5,31 @@ use astria_core::{
         Block,
         CommitmentState,
     },
-    generated::execution::v1alpha2::execution_service_client::ExecutionServiceClient,
     sequencer::v1alpha1::RollupId,
 };
-use color_eyre::eyre::{
+use celestia_client::celestia_types::Height as CelestiaHeight;
+use eyre::{
     self,
     bail,
     ensure,
     WrapErr as _,
 };
-use prost_types::Timestamp as ProstTimestamp;
-use sequencer_client::SequencerBlock;
-use tendermint::{
-    Hash,
-    Time,
+use sequencer_client::{
+    tendermint::{
+        block::Height as SequencerHeight,
+        Time,
+    },
+    SequencerBlock,
 };
 use tokio::{
     select,
     sync::{
-        mpsc::{
-            UnboundedReceiver,
-            UnboundedSender,
-        },
+        mpsc,
         oneshot,
+        watch::{
+            self,
+            error::RecvError,
+        },
     },
 };
 use tracing::{
@@ -37,263 +39,117 @@ use tracing::{
     instrument,
 };
 
-use crate::data_availability::SequencerBlockSubset;
+use crate::celestia::ReconstructedBlock;
 
+mod builder;
 pub(crate) mod optimism;
 
 mod client;
+mod state;
 #[cfg(test)]
 mod tests;
 
-/// The channel for sending commands to the executor task.
-pub(crate) type Sender = UnboundedSender<ExecutorCommand>;
-/// The channel the executor task uses to listen for commands.
-pub(crate) type Receiver = UnboundedReceiver<ExecutorCommand>;
+pub(super) use client::Client;
+pub(crate) use state::State;
 
-// Given `Time`, convert to protobuf timestamp
-fn convert_tendermint_to_prost_timestamp(value: Time) -> ProstTimestamp {
-    use tendermint_proto::google::protobuf::Timestamp as TendermintTimestamp;
-    let TendermintTimestamp {
-        seconds,
-        nanos,
-    } = value.into();
-    ProstTimestamp {
-        seconds,
-        nanos,
-    }
+#[derive(Clone, Debug)]
+pub(crate) struct StateNotInit;
+#[derive(Clone, Debug)]
+pub(crate) struct StateIsInit;
+
+/// A handle to the executor.
+///
+/// To be be useful, [`Handle<StateNotInit>::wait_for_init`] must be called in
+/// order to obtain a [`Handle<StateInit>`]. This is to ensure that the executor
+/// state was primed before using its other methods. See [`State`] for more
+/// information.
+#[derive(Debug, Clone)]
+pub(crate) struct Handle<TStateInit = StateNotInit> {
+    firm_blocks: mpsc::Sender<ReconstructedBlock>,
+    soft_blocks: mpsc::Sender<SequencerBlock>,
+    state: watch::Receiver<State>,
+    _state_init: TStateInit,
 }
 
-#[derive(Debug)]
-pub(crate) enum ExecutorCommand {
-    /// used when a block is received from the subscription stream to sequencer
-    FromSequencer { block: Box<SequencerBlock> },
-    /// used when a block is received from the reader (Celestia)
-    FromCelestia(Vec<SequencerBlockSubset>),
-}
-
-impl From<SequencerBlock> for ExecutorCommand {
-    fn from(block: SequencerBlock) -> Self {
-        Self::FromSequencer {
-            block: Box::new(block),
-        }
-    }
-}
-
-pub(crate) struct NoRollupAddress;
-pub(crate) struct WithRollupAddress(String);
-pub(crate) struct NoRollupId;
-pub(crate) struct WithRollupId(RollupId);
-pub(crate) struct NoBlockChannel;
-pub(crate) struct WithBlockChannel(Receiver);
-pub(crate) struct NoShutdown;
-pub(crate) struct WithShutdown(oneshot::Receiver<()>);
-
-pub(crate) struct ExecutorBuilder<
-    TBlockChannel = NoBlockChannel,
-    TRollupAddress = NoRollupAddress,
-    TRollupId = NoRollupId,
-    TShutdown = NoShutdown,
-> {
-    block_channel: TBlockChannel,
-    optimism_hook: Option<optimism::Handler>,
-    rollup_address: TRollupAddress,
-    rollup_id: TRollupId,
-    sequencer_height_with_first_rollup_block: u32,
-    shutdown: TShutdown,
-}
-
-impl ExecutorBuilder {
-    fn new() -> Self {
-        Self {
-            block_channel: NoBlockChannel,
-            optimism_hook: None,
-            rollup_address: NoRollupAddress,
-            rollup_id: NoRollupId,
-            sequencer_height_with_first_rollup_block: 0,
-            shutdown: NoShutdown,
-        }
-    }
-}
-
-impl ExecutorBuilder<WithBlockChannel, WithRollupAddress, WithRollupId, WithShutdown> {
-    pub(crate) async fn build(self) -> eyre::Result<Executor> {
-        let Self {
-            rollup_id,
-            block_channel,
-            optimism_hook: pre_execution_hook,
-            rollup_address,
-            sequencer_height_with_first_rollup_block,
-            shutdown,
-        } = self;
-        let WithRollupAddress(rollup_address) = rollup_address;
-        let WithRollupId(rollup_id) = rollup_id;
-        let WithBlockChannel(block_channel) = block_channel;
-        let WithShutdown(shutdown) = shutdown;
-
-        let mut client = client::Client::from_execution_service_client(
-            ExecutionServiceClient::connect(rollup_address)
-                .await
-                .wrap_err("failed to create execution rpc client")?,
-        );
-        let commitment_state = client
-            .get_commitment_state()
+impl<T: Clone> Handle<T> {
+    #[instrument(skip_all, err)]
+    pub(crate) async fn wait_for_init(&mut self) -> eyre::Result<Handle<StateIsInit>> {
+        self.state
+            .wait_for(State::is_init)
             .await
-            .wrap_err("to get initial commitment state")?;
-
-        info!(
-            soft_block_hash = %telemetry::display::hex(&commitment_state.soft().hash()),
-            firm_block_hash = %telemetry::display::hex(&commitment_state.firm().hash()),
-            "initial execution commitment state",
-        );
-
-        Ok(Executor {
-            block_channel,
-            shutdown,
-            client,
-            rollup_id,
-            commitment_state,
-            sequencer_height_with_first_rollup_block,
-            sequencer_hash_to_execution_block: HashMap::new(),
-            pre_execution_hook,
+            .wrap_err("executor state channel terminated before initial state could be observed")?;
+        let Self {
+            firm_blocks,
+            soft_blocks,
+            state,
+            ..
+        } = self.clone();
+        Ok(Handle {
+            firm_blocks,
+            soft_blocks,
+            state,
+            _state_init: StateIsInit,
         })
     }
 }
 
-impl<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
-    ExecutorBuilder<TBlockChannel, TRollupAddress, TRollupId, TShutdown>
-{
-    pub(crate) fn rollup_id(
-        self,
-        rollup_id: RollupId,
-    ) -> ExecutorBuilder<TBlockChannel, TRollupAddress, WithRollupId, TShutdown> {
-        let Self {
-            block_channel,
-            optimism_hook,
-            rollup_address,
-            sequencer_height_with_first_rollup_block,
-            shutdown,
-            ..
-        } = self;
-        ExecutorBuilder {
-            block_channel,
-            optimism_hook,
-            rollup_address,
-            rollup_id: WithRollupId(rollup_id),
-            sequencer_height_with_first_rollup_block,
-            shutdown,
-        }
+impl Handle<StateIsInit> {
+    pub(crate) fn firm_blocks(&self) -> &mpsc::Sender<ReconstructedBlock> {
+        &self.firm_blocks
     }
 
-    pub(crate) fn block_channel(
-        self,
-        block_channel: Receiver,
-    ) -> ExecutorBuilder<WithBlockChannel, TRollupAddress, TRollupId, TShutdown> {
-        let Self {
-            optimism_hook,
-            rollup_address,
-            rollup_id,
-            sequencer_height_with_first_rollup_block,
-            shutdown,
-            ..
-        } = self;
-        ExecutorBuilder {
-            block_channel: WithBlockChannel(block_channel),
-            optimism_hook,
-            rollup_address,
-            rollup_id,
-            sequencer_height_with_first_rollup_block,
-            shutdown,
-        }
+    pub(crate) fn soft_blocks(&self) -> &mpsc::Sender<SequencerBlock> {
+        &self.soft_blocks
     }
 
-    pub(crate) fn sequencer_height_with_first_rollup_block(
-        mut self,
-        sequencer_height_with_first_rollup_block: u32,
-    ) -> Self {
-        self.sequencer_height_with_first_rollup_block = sequencer_height_with_first_rollup_block;
-        self
+    pub(crate) fn next_expected_firm_height(&mut self) -> SequencerHeight {
+        self.state.borrow_and_update().next_firm_sequencer_height()
     }
 
-    pub(crate) fn set_optimism_hook(mut self, handler: Option<optimism::Handler>) -> Self {
-        self.optimism_hook = handler;
-        self
+    pub(crate) fn next_expected_soft_height(&mut self) -> SequencerHeight {
+        self.state.borrow_and_update().next_soft_sequencer_height()
     }
 
-    pub(crate) fn rollup_address(
-        self,
-        rollup_address: &str,
-    ) -> ExecutorBuilder<TBlockChannel, WithRollupAddress, TRollupId, TShutdown> {
-        let Self {
-            rollup_id,
-            block_channel,
-            optimism_hook,
-            sequencer_height_with_first_rollup_block,
-            shutdown,
-            ..
-        } = self;
-        ExecutorBuilder {
-            block_channel,
-            optimism_hook,
-            rollup_address: WithRollupAddress(rollup_address.to_string()),
-            rollup_id,
-            sequencer_height_with_first_rollup_block,
-            shutdown,
-        }
+    pub(crate) async fn next_expected_soft_height_if_changed(
+        &mut self,
+    ) -> Result<SequencerHeight, RecvError> {
+        self.state.changed().await?;
+        Ok(self.state.borrow_and_update().next_soft_sequencer_height())
     }
 
-    pub(crate) fn shutdown(
-        self,
-        shutdown: oneshot::Receiver<()>,
-    ) -> ExecutorBuilder<TBlockChannel, TRollupAddress, TRollupId, WithShutdown> {
-        let Self {
-            block_channel,
-            optimism_hook,
-            sequencer_height_with_first_rollup_block,
-            rollup_address,
-            rollup_id,
-            ..
-        } = self;
-        ExecutorBuilder {
-            block_channel,
-            optimism_hook,
-            sequencer_height_with_first_rollup_block,
-            rollup_address,
-            rollup_id,
-            shutdown: WithShutdown(shutdown),
-        }
+    pub(crate) fn rollup_id(&mut self) -> RollupId {
+        self.state.borrow_and_update().rollup_id()
+    }
+
+    pub(crate) fn celestia_base_block_height(&mut self) -> CelestiaHeight {
+        self.state.borrow_and_update().celestia_base_block_height()
+    }
+
+    pub(crate) fn celestia_block_variance(&mut self) -> u32 {
+        self.state.borrow_and_update().celestia_block_variance()
     }
 }
 
 pub(crate) struct Executor {
-    /// Channel on which executor commands are received.
-    block_channel: Receiver,
+    firm_blocks: mpsc::Receiver<ReconstructedBlock>,
+    soft_blocks: mpsc::Receiver<SequencerBlock>,
 
     shutdown: oneshot::Receiver<()>,
 
-    /// The execution rpc client that we use to send messages to the execution service
-    client: client::Client,
-
-    /// Chain ID
-    rollup_id: RollupId,
+    rollup_address: tonic::transport::Uri,
 
     /// Tracks SOFT and FIRM on the execution chain
-    commitment_state: CommitmentState,
+    state: watch::Sender<State>,
 
-    /// The first block height from sequencer used for a rollup block,
-    /// executable block height & finalizable block height can be calcuated from
-    /// this plus the commitment_state
-    sequencer_height_with_first_rollup_block: u32,
+    // If set, the executor will take into account the spread between firm
+    // and soft commitments when executing blocks.
+    consider_commitment_spread: bool,
 
-    /// map of sequencer block hash to execution block
+    /// Tracks executed blocks as soft commitments.
     ///
-    /// this is required because when we receive sequencer blocks (from network or DA),
-    /// we only know the sequencer block hash, but not the execution block hash,
-    /// as the execution block hash is created by executing the block.
-    /// as well, the execution layer is not aware of the sequencer block hash.
-    /// we need to track the mapping of sequencer block hash -> execution block
-    /// so that we can mark the block as final on the execution layer when
-    /// we receive a finalized sequencer block.
-    sequencer_hash_to_execution_block: HashMap<Hash, Block>,
+    /// Required to mark firm blocks received from celestia as executed
+    /// without re-executing on top of the rollup node on top of the rollup node..
+    blocks_pending_finalization: HashMap<[u8; 32], Block>,
 
     /// optional hook which is called to modify the rollup transaction list
     /// right before it's sent to the execution layer via `ExecuteBlock`.
@@ -301,248 +157,255 @@ pub(crate) struct Executor {
 }
 
 impl Executor {
-    pub(super) fn builder() -> ExecutorBuilder {
-        ExecutorBuilder::new()
+    pub(super) fn builder() -> builder::ExecutorBuilder {
+        builder::ExecutorBuilder::new()
     }
 
     #[instrument(skip_all)]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
+        let client = Client::connect(self.rollup_address.clone())
+            .await
+            .wrap_err("failed connecting to rollup node")?;
+
+        self.set_initial_node_state(client.clone())
+            .await
+            .wrap_err("failed setting initial rollup node state")?;
+
         loop {
             select!(
                 biased;
 
                 shutdown = &mut self.shutdown => {
                     let ret = if let Err(e) = shutdown {
-                        let message = "shutdown channel closed unexpectedly";
-                        error!(error = &e as &dyn std::error::Error, "{message}, shutting down");
-                        Err(e).wrap_err(message)
+                        let reason = "shutdown channel closed unexpectedly";
+                        error!(error = &e as &dyn std::error::Error, reason, "shutting down");
+                        Err(e).wrap_err(reason)
                     } else {
-                        info!("received_shutdown_signal, shutting down");
+                        info!(reason = "received shutdown signal", "shutting down");
                         Ok(())
                     };
                     break ret;
                 }
 
-                cmd = self.block_channel.recv() => {
-                    if let Err(e) = self.handle_executor_command(cmd).await {
-                        let message = "failed handling executor command";
-                        let error: &dyn std::error::Error = e.as_ref();
-                        error!(error, "{message}, shutting down");
-                        break Err(e).wrap_err(message);
+                Some(block) = self.firm_blocks.recv() => {
+                    debug!(
+                        block.height = %block.height(),
+                        block.hash = %telemetry::display::hex(&block.block_hash),
+                        "received block from celestia reader",
+                    );
+                    if let Err(e) = self.execute_firm(client.clone(), block).await {
+                        let reason = "failed executing firm block";
+                        error!(
+                            error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                            reason,
+                            "shutting down",
+                        );
+                        break Err(e).wrap_err(reason);
+                    }
+                }
+
+                Some(block) = self.soft_blocks.recv(), if !self.is_spread_too_large() => {
+                    debug!(
+                        block.height = %block.height(),
+                        block.hash = %telemetry::display::hex(&block.block_hash()),
+                        "received block from sequencer reader",
+                    );
+                    if let Err(e) = self.execute_soft(client.clone(), block).await {
+                        let reason = "failed executing soft block";
+                        error!(
+                            error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                            reason,
+                            "shutting down",
+                        );
+                        break Err(e).wrap_err(reason);
                     }
                 }
             );
         }
+        // XXX: shut down the channels here and attempt to drain them before returning.
     }
 
-    /// Handle a command received on the command channel.
-    ///
-    /// If this function returns an error, the executor will shut down.
-    ///
-    /// # Errors
-    ///
-    /// - if the command channel is closed unexpectedly
-    /// - if execution or finalization of a block from celestia fails
-    async fn handle_executor_command(&mut self, cmd: Option<ExecutorCommand>) -> eyre::Result<()> {
-        let Some(cmd) = cmd else {
-            bail!("cmd channel closed unexpectedly");
-        };
-
-        // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
-        match cmd {
-            ExecutorCommand::FromSequencer {
-                block,
-            } => {
-                let block_subset =
-                    SequencerBlockSubset::from_sequencer_block(*block, self.rollup_id);
-
-                let executed_block = self
-                    .execute_block(block_subset)
-                    .await
-                    .wrap_err("failed to execute block")?;
-                self.update_commitment_state(Update::OnlySoft(executed_block))
-                    .await
-                    .wrap_err("failed to update soft commitment state")?;
-            }
-
-            ExecutorCommand::FromCelestia(blocks) => self
-                .execute_and_finalize_blocks_from_celestia(blocks)
-                .await
-                .wrap_err("failed to finalize block")?,
+    fn is_spread_too_large(&self) -> bool {
+        if !self.consider_commitment_spread {
+            return false;
         }
+        let next_firm = self.state.borrow().next_firm_sequencer_height().value();
+        let next_soft = self.state.borrow().next_soft_sequencer_height().value();
+        let is_too_far_ahead = next_soft.saturating_sub(next_firm) >= 16;
+        if is_too_far_ahead {
+            debug!("soft blocks are too far ahead of firm; skipping soft blocks");
+        }
+        is_too_far_ahead
+    }
+
+    #[instrument(skip_all, fields(
+        block.hash = %telemetry::display::hex(&block.block_hash()),
+        block.height = block.height().value(),
+    ))]
+    async fn execute_soft(&mut self, client: Client, block: SequencerBlock) -> eyre::Result<()> {
+        // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
+        let executable_block =
+            ExecutableBlock::from_sequencer(block, self.state.borrow().rollup_id());
+
+        let expected_height = self.state.borrow().next_soft_sequencer_height();
+        match executable_block.height.cmp(&expected_height) {
+            std::cmp::Ordering::Less => {
+                info!(
+                    expected_height.sequencer_block = %expected_height,
+                    "block received was stale because firm blocks were executed first; dropping",
+                );
+                return Ok(());
+            }
+            std::cmp::Ordering::Greater => bail!(
+                "block received was out-of-order; was a block skipped? expected: \
+                 {expected_height}, actual: {}",
+                executable_block.height
+            ),
+            std::cmp::Ordering::Equal => {}
+        }
+
+        let block_hash = executable_block.hash;
+
+        let parent_block_hash = self.state.borrow().soft_parent_hash();
+        let executed_block = self
+            .execute_block(client.clone(), parent_block_hash, executable_block)
+            .await
+            .wrap_err("failed to execute block")?;
+
+        self.update_commitment_state(client.clone(), Update::OnlySoft(executed_block.clone()))
+            .await
+            .wrap_err("failed to update soft commitment state")?;
+
+        self.blocks_pending_finalization
+            .insert(block_hash, executed_block);
+
         Ok(())
     }
 
-    /// Execute the sequencer block on the execution layer, returning the
-    /// resulting execution block. If the block has already been executed, it
-    /// returns the previously-computed execution block hash.
-    #[instrument(skip(self), fields(sequencer_block_hash = ?block.block_hash, sequencer_block_height = block.header.height.value()))]
-    async fn execute_block(&mut self, block: SequencerBlockSubset) -> eyre::Result<Block> {
-        let executable_block_height = self
-            .calculate_executable_block_height()
-            .wrap_err("failed calculating the next executable block height")?;
-        let actual_block_height = block.header.height;
+    #[instrument(skip_all, fields(
+        block.hash = %telemetry::display::hex(&block.block_hash),
+        block.height = block.height().value(),
+    ))]
+    async fn execute_firm(
+        &mut self,
+        client: Client,
+        block: ReconstructedBlock,
+    ) -> eyre::Result<()> {
+        let executable_block = ExecutableBlock::from_reconstructed(block);
+        let expected_height = self.state.borrow().next_firm_sequencer_height();
         ensure!(
-            executable_block_height == actual_block_height,
-            "received out-of-order block; expected `{executable_block_height}`, got \
-             `{actual_block_height}`",
+            executable_block.height == expected_height,
+            "expected block at sequencer height {expected_height}, but got {}",
+            executable_block.height,
         );
 
-        if let Some(execution_block) = self
-            .sequencer_hash_to_execution_block
-            .get(&block.block_hash)
+        let update_type = if let Some(block) = self
+            .blocks_pending_finalization
+            .remove(&executable_block.hash)
         {
-            debug!(
-                sequencer_block_height = block.header.height.value(),
-                execution_hash = hex::encode(execution_block.hash()),
-                "block already executed"
-            );
-            return Ok(execution_block.clone());
+            Update::OnlyFirm(block)
+        } else {
+            let parent_block_hash = self.state.borrow().firm_parent_hash();
+            let executed_block = self
+                .execute_block(client.clone(), parent_block_hash, executable_block)
+                .await
+                .wrap_err("failed to execute block")?;
+            Update::ToSame(executed_block)
+        };
+        self.update_commitment_state(client.clone(), update_type)
+            .await
+            .wrap_err("failed to setting both commitment states to executed block")?;
+        Ok(())
+    }
+
+    /// Executes `block` on top of its `parent_block_hash`.
+    ///
+    /// This function is called via [`Executor::execute_firm`] or [`Executor::execute_soft`],
+    /// and should not be called directly.
+    #[instrument(skip_all, fields(
+        block.hash = %telemetry::display::hex(&block.hash),
+        block.height = block.height.value(),
+        block.num_of_transactions = block.transactions.len(),
+        rollup.parent_hash = %telemetry::display::hex(&parent_block_hash),
+    ))]
+    async fn execute_block(
+        &mut self,
+        mut client: Client,
+        parent_block_hash: [u8; 32],
+        block: ExecutableBlock,
+    ) -> eyre::Result<Block> {
+        let ExecutableBlock {
+            mut transactions,
+            timestamp,
+            ..
+        } = block;
+
+        if let Some(hook) = self.pre_execution_hook.as_mut() {
+            transactions = hook
+                .populate_rollup_transactions(transactions)
+                .await
+                .wrap_err("failed to populate rollup transactions with pre execution hook")?;
         }
 
-        let prev_block_hash = self.commitment_state.soft().hash();
-        info!(
-            sequencer_block_height = block.header.height.value(),
-            parent_block_hash = hex::encode(prev_block_hash),
-            "executing block with given parent block",
-        );
-
-        let timestamp = convert_tendermint_to_prost_timestamp(block.header.time);
-
-        let rollup_transactions = if let Some(hook) = self.pre_execution_hook.as_mut() {
-            hook.populate_rollup_transactions(block.transactions)
-                .await
-                .wrap_err("failed to populate rollup transactions before execution")?
-        } else {
-            block.transactions
-        };
-
-        let tx_count = rollup_transactions.len();
-        let executed_block = self
-            .client
-            .execute_block(prev_block_hash, rollup_transactions, timestamp)
+        let executed_block = client
+            .execute_block(parent_block_hash, transactions, timestamp)
             .await
-            .wrap_err("failed to call execute_block")?;
+            .wrap_err("failed to run execute_block RPC")?;
 
-        // store block hash returned by execution client, as we need it to finalize the block later
         info!(
-            execution_block_hash = %telemetry::display::hex(&executed_block.hash()),
-            tx_count,
-            "executed sequencer block",
+            executed_block.hash = %telemetry::display::hex(&executed_block.hash()),
+            executed_block.number = executed_block.number(),
+            "executed block",
         );
-
-        // store block returned by execution client, as we need it to finalize the block later
-        self.sequencer_hash_to_execution_block
-            .insert(block.block_hash, executed_block.clone());
 
         Ok(executed_block)
     }
 
-    async fn execute_and_finalize_blocks_from_celestia(
-        &mut self,
-        blocks: Vec<SequencerBlockSubset>,
-    ) -> eyre::Result<()> {
-        if blocks.is_empty() {
-            info!("received a message from data availability without blocks; skipping execution");
-            return Ok(());
-        }
-        for block in blocks {
-            let finalizable_block_height = self
-                .calculate_finalizable_block_height()
-                .wrap_err("failed calculating next finalizable block height")?;
-            if block.header.height < finalizable_block_height {
-                info!(
-                    sequencer_block_height = %block.header.height,
-                    finalized_block_height = %finalizable_block_height,
-                    "received block which is already finalized; skipping finalization"
-                );
-                continue;
+    #[instrument(skip_all)]
+    async fn set_initial_node_state(&self, client: Client) -> eyre::Result<()> {
+        let genesis_info = {
+            let mut client = client.clone();
+            async move {
+                client
+                    .get_genesis_info()
+                    .await
+                    .wrap_err("failed getting genesis info")
             }
-
-            let sequencer_block_hash = block.block_hash;
-            let maybe_executed_block = self
-                .sequencer_hash_to_execution_block
-                .get(&sequencer_block_hash)
-                .cloned();
-            if let Some(block) = maybe_executed_block {
-                // this case means block has already been executed.
-                self.update_commitment_state(Update::OnlyFirm(block))
+        };
+        let commitment_state = {
+            let mut client = client.clone();
+            async move {
+                client
+                    .get_commitment_state()
                     .await
-                    .wrap_err("failed to update firm commitment state")?;
-                // remove the sequencer block hash from the map, as it's been firmly committed
-                self.sequencer_hash_to_execution_block
-                    .remove(&sequencer_block_hash);
-            } else {
-                // this means either we didn't receive the block from the sequencer stream
-
-                // try executing the block as it hasn't been executed before
-                // execute_block will check if our namespace has txs; if so, it'll return the
-                // resulting execution block hash, otherwise None
-                let executed_block = self
-                    .execute_block(block)
-                    .await
-                    .wrap_err("failed to execute block")?;
-
-                // when we execute a block received from da, nothing else has been executed on
-                // top of it, so we set FIRM and SOFT to this executed block
-                self.update_commitment_state(Update::ToSame(executed_block))
-                    .await
-                    .wrap_err("failed to setting both commitment states to executed block")?;
-                // remove the sequencer block hash from the map, as it's been firmly committed
-                self.sequencer_hash_to_execution_block
-                    .remove(&sequencer_block_hash);
-            };
-        }
+                    .wrap_err("failed getting commitment state")
+            }
+        };
+        let (genesis_info, commitment_state) = tokio::try_join!(genesis_info, commitment_state)?;
+        self.state
+            .send_modify(move |state| state.init(genesis_info, commitment_state));
+        info!(
+            initial_state = serde_json::to_string(&*self.state.borrow())
+                .expect("writing json to a string should not fail"),
+            "received genesis info from rollup",
+        );
         Ok(())
     }
 
-    // Returns the next sequencer block height which can be executed on the rollup
-    pub(crate) fn calculate_executable_block_height(
-        &self,
-    ) -> eyre::Result<tendermint::block::Height> {
-        let Some(executable_block_height) = calculate_sequencer_block_height(
-            self.sequencer_height_with_first_rollup_block,
-            self.commitment_state.soft().number(),
-        ) else {
-            bail!(
-                "encountered overflow when calculating executable block height; sequencer height \
-                 with first rollup block: {}, height recorded in soft commitment state: {}",
-                self.sequencer_height_with_first_rollup_block,
-                self.commitment_state.soft().number(),
-            );
-        };
-
-        Ok(executable_block_height.into())
-    }
-
-    // Returns the lowest sequencer block height which can finalized on the rollup.
-    pub(crate) fn calculate_finalizable_block_height(
-        &self,
-    ) -> eyre::Result<tendermint::block::Height> {
-        let Some(finalizable_block_height) = calculate_sequencer_block_height(
-            self.sequencer_height_with_first_rollup_block,
-            self.commitment_state.firm().number(),
-        ) else {
-            bail!(
-                "encountered overflow when calculating finalizable block height; sequencer height \
-                 with first rollup block: {}, height recorded in firm commitment state: {}",
-                self.sequencer_height_with_first_rollup_block,
-                self.commitment_state.firm().number(),
-            );
-        };
-
-        Ok(finalizable_block_height.into())
-    }
-
-    async fn update_commitment_state(&mut self, update: Update) -> eyre::Result<()> {
+    #[instrument(skip_all)]
+    async fn update_commitment_state(
+        &mut self,
+        mut client: Client,
+        update: Update,
+    ) -> eyre::Result<()> {
         use Update::{
             OnlyFirm,
             OnlySoft,
             ToSame,
         };
         let (firm, soft) = match update {
-            OnlyFirm(firm) => (firm, self.commitment_state.soft().clone()),
-            OnlySoft(soft) => (self.commitment_state.firm().clone(), soft),
+            OnlyFirm(firm) => (firm, self.state.borrow().soft().clone()),
+            OnlySoft(soft) => (self.state.borrow().firm().clone(), soft),
             ToSame(block) => (block.clone(), block),
         };
         let commitment_state = CommitmentState::builder()
@@ -550,32 +413,78 @@ impl Executor {
             .soft(soft)
             .build()
             .wrap_err("failed constructing commitment state")?;
-        let new_state = self
-            .client
+        let new_state = client
             .update_commitment_state(commitment_state)
             .await
             .wrap_err("failed updating remote commitment state")?;
-        self.commitment_state = new_state;
+        info!(
+            soft.number = new_state.soft().number(),
+            soft.hash = %telemetry::display::hex(&new_state.soft().hash()),
+            firm.number = new_state.firm().number(),
+            firm.hash = %telemetry::display::hex(&new_state.firm().hash()),
+            "updated commitment state",
+        );
+        self.state
+            .send_if_modified(move |state| state.update_if_modified(new_state));
         Ok(())
     }
-}
-
-/// Calculates the sequencer block height for a given rollup height.
-///
-/// This function assumes that sequencer heights and rollup heights increment in
-/// lockstep. `initial_sequencer_height` contains the first rollup height, while
-/// `rollup_height` is the height of a rollup block. That makes
-/// `initial_sequencer_height + rollup_height` the corresponding sequencer
-/// height.
-fn calculate_sequencer_block_height(
-    initial_sequencer_height: u32,
-    rollup_height: u32,
-) -> Option<u32> {
-    initial_sequencer_height.checked_add(rollup_height)
 }
 
 enum Update {
     OnlyFirm(Block),
     OnlySoft(Block),
     ToSame(Block),
+}
+
+#[derive(Debug)]
+struct ExecutableBlock {
+    hash: [u8; 32],
+    height: SequencerHeight,
+    timestamp: prost_types::Timestamp,
+    transactions: Vec<Vec<u8>>,
+}
+
+impl ExecutableBlock {
+    fn from_reconstructed(block: ReconstructedBlock) -> Self {
+        let ReconstructedBlock {
+            block_hash,
+            header,
+            transactions,
+        } = block;
+        let timestamp = convert_tendermint_to_prost_timestamp(header.time);
+        Self {
+            hash: block_hash,
+            height: header.height,
+            timestamp,
+            transactions,
+        }
+    }
+
+    fn from_sequencer(block: SequencerBlock, id: RollupId) -> Self {
+        let hash = block.block_hash();
+        let height = block.height();
+        let timestamp = convert_tendermint_to_prost_timestamp(block.header().time);
+        let transactions = block
+            .into_rollup_transactions()
+            .remove(&id)
+            .unwrap_or_default();
+        Self {
+            hash,
+            height,
+            timestamp,
+            transactions,
+        }
+    }
+}
+
+/// Converts a [`tendermint::Time`] to a [`prost_types::Timestamp`].
+fn convert_tendermint_to_prost_timestamp(value: Time) -> prost_types::Timestamp {
+    let sequencer_client::tendermint_proto::google::protobuf::Timestamp {
+        seconds,
+        nanos,
+    } = value.into();
+    prost_types::Timestamp {
+        seconds,
+        nanos,
+    }
 }
