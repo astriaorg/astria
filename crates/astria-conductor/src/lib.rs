@@ -8,10 +8,10 @@
 //! blockchain. It's marked as a soft commitment; the block is not regarded as finalized on the
 //! execution layer until it's received from the data availability layer. In the second case, the
 //! execution layer is notified to mark the block as finalized.
+pub(crate) mod celestia;
 pub(crate) mod client_provider;
 pub mod conductor;
 pub mod config;
-pub(crate) mod data_availability;
 pub(crate) mod executor;
 pub(crate) mod sequencer;
 

@@ -40,11 +40,11 @@ use tracing::{
 };
 
 use crate::{
+    celestia,
     client_provider::{
         self,
         ClientProvider,
     },
-    data_availability,
     executor::Executor,
     sequencer,
     Config,
@@ -66,7 +66,7 @@ pub struct Conductor {
 }
 
 impl Conductor {
-    const DATA_AVAILABILITY: &'static str = "data_availability";
+    const CELESTIA: &'static str = "celestia";
     const EXECUTOR: &'static str = "executor";
     const SEQUENCER: &'static str = "sequencer";
 
@@ -127,10 +127,10 @@ impl Conductor {
             tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
             shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
         }
-        // Only spawn the data_availability::Reader if CommitLevel is not SoftOnly
+
         if !cfg.execution_commit_level.is_soft_only() {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
-            shutdown_channels.insert(Self::DATA_AVAILABILITY, shutdown_tx);
+            shutdown_channels.insert(Self::CELESTIA, shutdown_tx);
 
             // Sequencer namespace is defined by the chain id of attached sequencer node
             // which can be fetched from any block header.
@@ -154,7 +154,7 @@ impl Conductor {
 
             // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
             let rollup_namespace = celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id);
-            let reader = data_availability::Reader::builder()
+            let reader = celestia::Reader::builder()
                 .celestia_endpoint(&cfg.celestia_node_url)
                 .celestia_token(&cfg.celestia_bearer_token)
                 .executor_channel(executor.celestia_channel())
@@ -166,7 +166,7 @@ impl Conductor {
                 .await
                 .wrap_err("failed constructing data availability reader")?;
 
-            tasks.spawn(Self::DATA_AVAILABILITY, reader.run_until_stopped());
+            tasks.spawn(Self::CELESTIA, reader.run_until_stopped());
         };
 
         tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());

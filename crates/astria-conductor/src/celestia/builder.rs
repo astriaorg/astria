@@ -17,8 +17,8 @@ use super::{
     ReconstructedBlock,
 };
 use crate::{
+    celestia::block_verifier::BlockVerifier,
     client_provider::ClientProvider,
-    data_availability::block_verifier::BlockVerifier,
 };
 
 pub(crate) struct ReaderBuilder<
