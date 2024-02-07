@@ -45,11 +45,7 @@ use sequencer_client::tendermint::{
 };
 use tokio::{
     select,
-    sync::{
-        mpsc,
-        oneshot,
-        watch,
-    },
+    sync::oneshot,
 };
 use tracing::{
     error,
@@ -91,9 +87,7 @@ impl GetSequencerHeight for ReconstructedBlock {
 
 pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
-    executor_channel: mpsc::UnboundedSender<ReconstructedBlock>,
-
-    executor_state: watch::Receiver<executor::State>,
+    executor: executor::Handle,
 
     /// The client used to subscribe to new
     celestia_http_client: HttpClient,
@@ -120,18 +114,14 @@ impl Reader {
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         use celestia_client::celestia_rpc::HeaderClient as _;
 
-        let (rollup_namespace, celestia_start_height) = {
-            let state = self
-                .executor_state
-                .wait_for(executor::State::is_init)
-                .await
-                .wrap_err(
-                    "executor state channel terminated before initial state could be observed",
-                )?;
-            let rollup_namespace = celestia_namespace_v0_from_rollup_id(state.rollup_id());
-            let celestia_start_height = state.celestia_base_block_height();
-            (rollup_namespace, celestia_start_height)
-        };
+        let mut executor = self
+            .executor
+            .wait_for_init()
+            .await
+            .wrap_err("handle to executor failed while waiting for it being initialized")?;
+
+        let rollup_namespace = celestia_namespace_v0_from_rollup_id(executor.rollup_id());
+        let celestia_start_height = executor.celestia_base_block_height();
 
         // XXX: Add retry
         let mut headers = self
@@ -173,7 +163,7 @@ impl Reader {
                 }
 
                 Some(block) = sequential_blocks.next_block() => {
-                    if let Err(e) = self.executor_channel.send(block) {
+                    if let Err(e) = executor.send_firm(block) {
                         error!(
                             error = &e as &dyn std::error::Error,
                             "failed sending block reconstructed from celestia to executor; exiting",

@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     net::SocketAddr,
     sync::{
         Arc,
@@ -42,7 +43,15 @@ use tokio::{
 };
 use tonic::transport::Server;
 
-use super::*;
+use super::{
+    optimism,
+    Client,
+    Executor,
+    ReconstructedBlock,
+    RollupId,
+    SequencerBlock,
+    SequencerHeight,
+};
 
 const GENESIS_HASH: [u8; 32] = [0u8; 32];
 
@@ -198,7 +207,7 @@ fn hash(s: &[u8]) -> [u8; 32] {
 
 fn make_reconstructed_block() -> ReconstructedBlock {
     let mut block = make_cometbft_block();
-    block.header.height = Height::from(100u32);
+    block.header.height = SequencerHeight::from(100u32);
     ReconstructedBlock {
         block_hash: hash(b"block1"),
         header: block.header,
@@ -219,7 +228,7 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-    let executor = Executor::builder()
+    let (executor, _) = Executor::builder()
         .rollup_address(&server_url)
         .unwrap()
         .shutdown(shutdown_rx)
@@ -254,7 +263,7 @@ struct MockEnvironmentWithEthereum {
 async fn start_mock_with_optimism_handler() -> MockEnvironmentWithEthereum {
     let (contract_address, provider, wallet, anvil) = deploy_mock_optimism_portal().await;
 
-    let pre_execution_hook = Some(crate::executor::optimism::Handler::new(
+    let pre_execution_hook = Some(optimism::Handler::new(
         provider.clone(),
         contract_address,
         1,
@@ -312,7 +321,7 @@ async fn soft_blocks_at_expected_heights_are_executed() {
     let mut mock = start_mock(None).await;
 
     let mut block = make_cometbft_block();
-    block.header.height = Height::from(100u32);
+    block.header.height = SequencerHeight::from(100u32);
     let block = SequencerBlock::try_from_cometbft(block).unwrap();
     assert!(
         mock.executor
@@ -322,14 +331,14 @@ async fn soft_blocks_at_expected_heights_are_executed() {
     );
 
     let mut block = make_cometbft_block();
-    block.header.height = Height::from(101u32);
+    block.header.height = SequencerHeight::from(101u32);
     let block = SequencerBlock::try_from_cometbft(block).unwrap();
     mock.executor
         .execute_soft(mock.client.clone(), block)
         .await
         .unwrap();
     assert_eq!(
-        Height::from(102u32),
+        SequencerHeight::from(102u32),
         mock.executor.state.borrow().next_soft_sequencer_height()
     );
 }
@@ -438,7 +447,7 @@ async fn first_soft_then_firm_update_state_correctly() {
 async fn old_soft_blocks_are_ignored() {
     let mut mock = start_mock(None).await;
     let mut block = make_cometbft_block();
-    block.header.height = Height::from(99u32);
+    block.header.height = SequencerHeight::from(99u32);
     let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
 
     let firm = mock.executor.state.borrow().firm().clone();
@@ -458,7 +467,7 @@ async fn non_sequential_future_soft_blocks_give_error() {
     let mut mock = start_mock(None).await;
 
     let mut block = make_cometbft_block();
-    block.header.height = Height::from(101u32);
+    block.header.height = SequencerHeight::from(101u32);
     let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
     assert!(
         mock.executor
@@ -468,7 +477,7 @@ async fn non_sequential_future_soft_blocks_give_error() {
     );
 
     let mut block = make_cometbft_block();
-    block.header.height = Height::from(100u32);
+    block.header.height = SequencerHeight::from(100u32);
     let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
     assert!(
         mock.executor
@@ -483,7 +492,7 @@ async fn out_of_order_firm_blocks_are_rejected() {
     let mut mock = start_mock(None).await;
     let mut block = make_reconstructed_block();
 
-    block.header.height = Height::from(99u32);
+    block.header.height = SequencerHeight::from(99u32);
     assert!(
         mock.executor
             .execute_firm(mock.client.clone(), block.clone())
@@ -491,7 +500,7 @@ async fn out_of_order_firm_blocks_are_rejected() {
             .is_err()
     );
 
-    block.header.height = Height::from(101u32);
+    block.header.height = SequencerHeight::from(101u32);
     assert!(
         mock.executor
             .execute_firm(mock.client.clone(), block.clone())
@@ -499,7 +508,7 @@ async fn out_of_order_firm_blocks_are_rejected() {
             .is_err()
     );
 
-    block.header.height = Height::from(100u32);
+    block.header.height = SequencerHeight::from(100u32);
     assert!(
         mock.executor
             .execute_firm(mock.client.clone(), block.clone())

@@ -7,6 +7,7 @@ use astria_core::{
     },
     sequencer::v1alpha1::RollupId,
 };
+use celestia_client::celestia_types::Height as CelestiaHeight;
 use color_eyre::eyre::{
     self,
     bail,
@@ -14,15 +15,21 @@ use color_eyre::eyre::{
     WrapErr as _,
 };
 use sequencer_client::{
-    tendermint::block::Height,
+    tendermint::block::Height as SequencerHeight,
     SequencerBlock,
 };
 use tokio::{
     select,
     sync::{
-        mpsc,
+        mpsc::{
+            self,
+            error::SendError,
+        },
         oneshot,
-        watch,
+        watch::{
+            self,
+            error::RecvError,
+        },
     },
 };
 use tracing::{
@@ -45,11 +52,83 @@ mod tests;
 pub(super) use client::Client;
 pub(crate) use state::State;
 
+#[derive(Clone, Debug)]
+pub(crate) struct StateNotInit;
+#[derive(Clone, Debug)]
+pub(crate) struct StateIsInit;
+
+/// A handle to the executor.
+///
+/// To be be useful, [`Handle<StateNotInit>::wait_for_init`] must be called in
+/// order to obtain a [`Handle<StateInit>`]. This is to ensure that the executor
+/// state was primed before using its other methods. See [`State`] for more
+/// information.
+#[derive(Debug, Clone)]
+pub(crate) struct Handle<TStateInit = StateNotInit> {
+    firm_blocks: mpsc::UnboundedSender<ReconstructedBlock>,
+    soft_blocks: mpsc::UnboundedSender<SequencerBlock>,
+    state: watch::Receiver<State>,
+    _state_init: TStateInit,
+}
+
+impl<T: Clone> Handle<T> {
+    pub(crate) async fn wait_for_init(&mut self) -> eyre::Result<Handle<StateIsInit>> {
+        self.state
+            .wait_for(State::is_init)
+            .await
+            .wrap_err("executor state channel terminated before initial state could be observed")?;
+        let Self {
+            firm_blocks,
+            soft_blocks,
+            state,
+            ..
+        } = self.clone();
+        Ok(Handle {
+            firm_blocks,
+            soft_blocks,
+            state,
+            _state_init: StateIsInit,
+        })
+    }
+}
+
+impl Handle<StateIsInit> {
+    #[allow(clippy::result_large_err)] // because this is just returning tokio's SendError<T>
+    pub(crate) fn send_firm(
+        &self,
+        block: ReconstructedBlock,
+    ) -> Result<(), SendError<ReconstructedBlock>> {
+        self.firm_blocks.send(block)
+    }
+
+    #[allow(clippy::result_large_err)] // because this is just returning tokio's SendError<T>
+    pub(crate) fn send_soft(&self, block: SequencerBlock) -> Result<(), SendError<SequencerBlock>> {
+        self.soft_blocks.send(block)
+    }
+
+    pub(crate) fn next_expected_soft_height(&mut self) -> SequencerHeight {
+        self.state.borrow_and_update().next_soft_sequencer_height()
+    }
+
+    pub(crate) async fn next_expected_soft_height_if_changed(
+        &mut self,
+    ) -> Result<SequencerHeight, RecvError> {
+        self.state.changed().await?;
+        Ok(self.state.borrow_and_update().next_soft_sequencer_height())
+    }
+
+    pub(crate) fn rollup_id(&mut self) -> RollupId {
+        self.state.borrow_and_update().rollup_id()
+    }
+
+    pub(crate) fn celestia_base_block_height(&mut self) -> CelestiaHeight {
+        self.state.borrow_and_update().celestia_base_block_height()
+    }
+}
+
 pub(crate) struct Executor {
-    celestia_rx: mpsc::UnboundedReceiver<ReconstructedBlock>,
-    celestia_tx: mpsc::WeakUnboundedSender<ReconstructedBlock>,
-    sequencer_rx: mpsc::UnboundedReceiver<SequencerBlock>,
-    sequencer_tx: mpsc::WeakUnboundedSender<SequencerBlock>,
+    firm_blocks: mpsc::UnboundedReceiver<ReconstructedBlock>,
+    soft_blocks: mpsc::UnboundedReceiver<SequencerBlock>,
 
     shutdown: oneshot::Receiver<()>,
 
@@ -72,22 +151,6 @@ pub(crate) struct Executor {
 impl Executor {
     pub(super) fn builder() -> builder::ExecutorBuilder {
         builder::ExecutorBuilder::new()
-    }
-
-    pub(super) fn celestia_channel(&self) -> mpsc::UnboundedSender<ReconstructedBlock> {
-        self.celestia_tx.upgrade().expect(
-            "should work because the channel is held by self, is open, and other senders exist",
-        )
-    }
-
-    pub(super) fn sequencer_channel(&self) -> mpsc::UnboundedSender<SequencerBlock> {
-        self.sequencer_tx.upgrade().expect(
-            "should work because the channel is held by self, is open, and other senders exist",
-        )
-    }
-
-    pub(super) fn subscribe_to_state(&self) -> watch::Receiver<State> {
-        self.state.subscribe()
     }
 
     #[instrument(skip_all)]
@@ -116,7 +179,7 @@ impl Executor {
                     break ret;
                 }
 
-                Some(block) = self.celestia_rx.recv() => {
+                Some(block) = self.firm_blocks.recv() => {
                     debug!(
                         block.height = %block.height(),
                         block.hash = %telemetry::display::hex(&block.block_hash),
@@ -133,7 +196,7 @@ impl Executor {
                     }
                 }
 
-                Some(block) = self.sequencer_rx.recv() => {
+                Some(block) = self.soft_blocks.recv() => {
                     debug!(
                         block.height = %block.height(),
                         block.hash = %telemetry::display::hex(&block.block_hash()),
@@ -340,7 +403,7 @@ enum Update {
 #[derive(Debug)]
 struct ExecutableBlock {
     hash: [u8; 32],
-    height: Height,
+    height: SequencerHeight,
     timestamp: prost_types::Timestamp,
     transactions: Vec<Vec<u8>>,
 }
