@@ -69,6 +69,7 @@ _fmt-proto:
 
 [no-exit-message]
 _lint-proto:
-  buf lint proto
-  buf format proto -d --exit-code
-  buf breaking proto --against 'buf.build/astria/astria'
+  buf lint
+  buf format -d --exit-code
+  buf breaking proto/executionapis --against 'buf.build/astria/execution-apis'
+  buf breaking proto/sequencerapis --against 'buf.build/astria/astria'
