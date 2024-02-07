@@ -171,6 +171,10 @@ impl App {
         state_tx.put_chain_id(chain_id);
         state_tx.put_block_height(0);
 
+        for fee_asset in &genesis_state.allowed_fee_assets {
+            state_tx.put_allowed_fee_asset(fee_asset.id());
+        }
+
         // call init_chain on all components
         AccountsComponent::init_chain(&mut state_tx, &genesis_state)
             .await
@@ -775,6 +779,7 @@ mod test {
             authority_sudo_address: Address::from([0; 20]),
             ibc_sudo_address: Address::from([0; 20]),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         });
 
         app.init_chain(genesis_state, genesis_validators, "test".to_string())
@@ -1101,6 +1106,7 @@ mod test {
             authority_sudo_address: alice_address,
             ibc_sudo_address: alice_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1133,6 +1139,7 @@ mod test {
             authority_sudo_address: alice_address,
             ibc_sudo_address: alice_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1163,6 +1170,7 @@ mod test {
             authority_sudo_address: sudo_address,
             ibc_sudo_address: [0u8; 20].into(),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1193,6 +1201,7 @@ mod test {
             authority_sudo_address: alice_address,
             ibc_sudo_address: [0u8; 20].into(),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1340,6 +1349,7 @@ mod test {
             authority_sudo_address: Address::from([0; 20]),
             ibc_sudo_address: Address::from([0; 20]),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         };
 
         let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;

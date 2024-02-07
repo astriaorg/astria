@@ -15,6 +15,7 @@ use tracing::instrument;
 
 const NATIVE_ASSET_KEY: &[u8] = b"nativeasset";
 const BLOCK_FEES_PREFIX: &str = "block_fees/";
+const FEE_ASSET_PREFIX: &str = "fee_asset/";
 
 fn storage_version_by_height_key(height: u64) -> Vec<u8> {
     format!("storage_version/{height}").into()
@@ -22,6 +23,10 @@ fn storage_version_by_height_key(height: u64) -> Vec<u8> {
 
 fn block_fees_key(asset: asset::Id) -> Vec<u8> {
     format!("{BLOCK_FEES_PREFIX}{asset}").into()
+}
+
+fn fee_asset_key(asset: asset::Id) -> Vec<u8> {
+    format!("{FEE_ASSET_PREFIX}{asset}").into()
 }
 
 #[async_trait]
@@ -128,6 +133,15 @@ pub(crate) trait StateReadExt: StateRead {
 
         Ok(fees)
     }
+
+    #[instrument(skip(self))]
+    async fn is_allowed_fee_asset(&self, asset: asset::Id) -> Result<bool> {
+        Ok(self
+            .nonverifiable_get_raw(&fee_asset_key(asset))
+            .await
+            .context("failed to read raw fee asset from state")?
+            .is_some())
+    }
 }
 
 impl<T: StateRead> StateReadExt for T {}
@@ -194,6 +208,11 @@ pub(crate) trait StateWriteExt: StateWrite {
         while let Some(Ok((key, _))) = stream.next().await {
             self.nonverifiable_delete(key);
         }
+    }
+
+    #[instrument(skip(self))]
+    fn put_allowed_fee_asset(&mut self, asset: asset::Id) {
+        self.nonverifiable_put_raw(fee_asset_key(asset), vec![]);
     }
 }
 
