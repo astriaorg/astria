@@ -6,8 +6,6 @@ rust-version = "1.73.0"
 
 [[bin]]
 name = "astria-sequencer"
-test = false
-bench = false
 
 [dependencies]
 "astria-core" = { path = "../astria-core" }

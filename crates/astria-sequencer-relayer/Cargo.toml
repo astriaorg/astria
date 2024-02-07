@@ -7,8 +7,6 @@ rust-version = "1.73"
 
 [[bin]]
 name = "astria-sequencer-relayer"
-test = false
-bench = false
 
 [dependencies]
 dirs = "5.0"

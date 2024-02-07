@@ -6,8 +6,6 @@ rust-version = "1.73"
 
 [[bin]]
 name = "astria-conductor"
-test = false
-bench = false
 
 [dependencies]
 async-trait = "0.1.73"
