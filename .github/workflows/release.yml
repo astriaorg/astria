@@ -23,6 +23,12 @@ jobs:
       - uses: bufbuild/buf-push-action@v1
         with:
           draft:  ${{ github.ref_name != 'main'}}
+          input: "proto/executionapis"
+          buf_token: ${{ secrets.BUF_TOKEN }}
+      - uses: bufbuild/buf-push-action@v1
+        with:
+          draft:  ${{ github.ref_name != 'main'}}
+          input: "proto/sequencerapis"
           buf_token: ${{ secrets.BUF_TOKEN }}
 
   conductor:

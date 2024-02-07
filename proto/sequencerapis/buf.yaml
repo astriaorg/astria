@@ -1,7 +1,6 @@
 version: v1
 name: buf.build/astria/astria
 deps:
-  - buf.build/astria/primitives
   - buf.build/penumbra-zone/penumbra:bc443669626d4a7b823f588d95c9a528
   # Provides tendermint/types/types.proto, tendermint/abci/types.proto.
   # Ensure that this commit matches that used by penumbra-zone/penumbra
