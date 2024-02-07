@@ -242,7 +242,7 @@ mod tests {
 
     fn make_genesis_info() -> GenesisInfo {
         GenesisInfo::try_from_raw(raw::GenesisInfo {
-            rollup_id: vec![24; 32],
+            rollup_id: vec![24; 32].into(),
             sequencer_genesis_block_height: 10,
             celestia_base_block_height: 1,
             celestia_block_variance: 0,

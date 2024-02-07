@@ -54,6 +54,9 @@ use super::{
     SequencerHeight,
 };
 
+// Bytes provides an escape hatch for interior mutability.
+// That's not good in general but acceptable in these tests.
+#[allow(clippy::declare_interior_mutable_const)]
 const GENESIS_HASH: Bytes = Bytes::from_static(&[0u8; 32]);
 
 #[derive(Debug)]
@@ -114,7 +117,7 @@ impl ExecutionServiceImpl {
             }
             .into(),
             genesis_info: GenesisInfo {
-                rollup_id: vec![42u8; 32],
+                rollup_id: vec![42u8; 32].into(),
                 sequencer_genesis_block_height: 100,
                 celestia_base_block_height: 1,
                 celestia_block_variance: 1,
@@ -295,7 +298,7 @@ async fn firm_blocks_at_expected_heights_are_executed() {
     block.transactions.push(b"test_transaction".to_vec());
 
     let expected_exection_hash = get_expected_execution_hash(
-        &mock.executor.state.borrow().firm().hash(),
+        mock.executor.state.borrow().firm().hash(),
         &block.transactions,
     );
 
@@ -312,7 +315,7 @@ async fn firm_blocks_at_expected_heights_are_executed() {
     block.header.height = block.header.height.increment();
     block.transactions.push(b"a new transaction".to_vec());
     let expected_exection_hash = get_expected_execution_hash(
-        &mock.executor.state.borrow().firm().hash(),
+        mock.executor.state.borrow().firm().hash(),
         &block.transactions,
     );
 
@@ -575,7 +578,7 @@ mod optimism_tests {
         // calculate the expected mock execution hash, which includes the block txs,
         // thus confirming the deposit tx was executed
         let expected_exection_hash =
-            get_expected_execution_hash(&mock.executor.state.borrow().soft().hash(), &deposit_txs);
+            get_expected_execution_hash(mock.executor.state.borrow().soft().hash(), &deposit_txs);
         let block = make_reconstructed_block();
         mock.executor
             .execute_firm(mock.client.clone(), block)

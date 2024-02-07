@@ -114,7 +114,7 @@ impl Protobuf for GenesisInfo {
                  under the hood",
             );
         Self::Raw {
-            rollup_id: rollup_id.to_vec(),
+            rollup_id: Bytes::copy_from_slice(rollup_id.as_ref()),
             sequencer_genesis_block_height,
             celestia_base_block_height,
             celestia_block_variance: *celestia_block_variance,
