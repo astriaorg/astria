@@ -161,7 +161,14 @@ impl ActionHandler for UnsignedTransaction {
                     .await
                     .context("stateful check failed for SudoAddressChangeAction")?,
                 Action::Ibc(_) => {
-                    // no-op; IBC actions merge check_stateful and execute.
+                    let ibc_sudo_address = state
+                        .get_ibc_sudo_address()
+                        .await
+                        .context("failed to get IBC sudo address")?;
+                    ensure!(
+                        from == ibc_sudo_address,
+                        "only IBC sudo address can execute IBC actions"
+                    );
                 }
                 Action::Ics20Withdrawal(act) => act
                     .check_stateful(state, from)
