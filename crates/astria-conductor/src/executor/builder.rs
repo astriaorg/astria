@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use color_eyre::eyre::{
+use eyre::{
     self,
     WrapErr as _,
 };

@@ -1,8 +1,5 @@
 use std::{
-    collections::{
-        HashMap,
-        VecDeque,
-    },
+    collections::VecDeque,
     future::ready,
     pin::Pin,
     task::{
@@ -24,7 +21,7 @@ use celestia_client::{
     CelestiaClientExt as _,
     CelestiaSequencerBlob,
 };
-use color_eyre::eyre::{
+use eyre::{
     self,
     bail,
     ensure,
@@ -138,9 +135,10 @@ impl Reader {
         };
 
         // XXX: This block cache always starts at height 1, the default value for `Height`.
-        let mut sequential_blocks = BlockCache::new();
+        let mut sequential_blocks =
+            BlockCache::with_next_height(executor.next_expected_firm_height());
 
-        let mut reconstructed_blocks = ReconstructedBlockStream::new(
+        let mut reconstructed_blocks = ReconstructedBlocksStream::new(
             celestia_start_height,
             latest_celestia_height,
             self.celestia_http_client.clone(),
@@ -187,12 +185,14 @@ impl Reader {
                     }
                 }
 
-                Some(block) = reconstructed_blocks.next() => {
-                    if let Err(e) = sequential_blocks.insert(block) {
-                        warn!(
-                            error = &e as &dyn std::error::Error,
-                            "failed pushing block into cache; dropping",
-                        );
+                Some(blocks) = reconstructed_blocks.next() => {
+                    for block in blocks {
+                        if let Err(e) = sequential_blocks.insert(block) {
+                            warn!(
+                                error = &e as &dyn std::error::Error,
+                                "failed pushing block into cache; dropping",
+                            );
+                        }
                     }
                 }
             );
@@ -202,10 +202,10 @@ impl Reader {
 }
 
 pin_project! {
-    struct ReconstructedBlockStream {
+    struct ReconstructedBlocksStream {
         heights: VecDeque<CelestiaHeight>,
         greatest_seen_height: CelestiaHeight,
-        in_progress_queue: FuturesUnordered<BoxFuture<'static, eyre::Result<ReconstructedBlock>>>,
+        in_progress_queue: FuturesUnordered<BoxFuture<'static, eyre::Result<Vec<ReconstructedBlock>>>>,
         client: HttpClient,
         max: usize,
         verifier: BlockVerifier,
@@ -214,7 +214,7 @@ pin_project! {
     }
 }
 
-impl ReconstructedBlockStream {
+impl ReconstructedBlocksStream {
     fn extend_to_height(&mut self, height: CelestiaHeight) {
         while self.greatest_seen_height < height {
             self.greatest_seen_height.increment();
@@ -249,8 +249,8 @@ impl ReconstructedBlockStream {
     }
 }
 
-impl Stream for ReconstructedBlockStream {
-    type Item = ReconstructedBlock;
+impl Stream for ReconstructedBlocksStream {
+    type Item = Vec<ReconstructedBlock>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         use futures::{
@@ -279,16 +279,10 @@ impl Stream for ReconstructedBlockStream {
 
         // Attempt to pull the next value from the in_progress_queue
         let res = this.in_progress_queue.poll_next_unpin(cx);
-        if let Some(val) = ready!(res) {
-            match val {
-                Ok(val) => return Poll::Ready(Some(val)),
-                // XXX: Consider what to about the height here - push it back into the vecdeque?
-                // XXX: Also - in spans is f*cked right now, fix that.
-                Err(e) => warn!(
-                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                    "failed fetching celestia blobs for height, dropping height"
-                ),
-            }
+        // XXX: This relies on fetch_blocks_at_celestia_height emitting error events, so the `Err`
+        //      case is silently dropped here.
+        if let Some(Ok(blocks)) = ready!(res) {
+            return Poll::Ready(Some(blocks));
         }
 
         // If more values are still coming from the stream, we're not done yet
@@ -314,19 +308,25 @@ impl Stream for ReconstructedBlockStream {
 /// 2. verifies the sequencer blobs against sequencer, dropping all blobs that failed verification;
 /// 3. retrieves all rollup blobs at `height` matching `rollup_namespace` and the block hash stored
 ///    in the sequencer blob.
-#[instrument(skip_all, fields(
-    height.celestia = %height,
-    namespace.sequencer = %telemetry::display::base64(&sequencer_namespace.as_bytes()),
-    namespace.rollup = %telemetry::display::base64(&rollup_namespace.as_bytes()),
-))]
+#[instrument(
+    skip_all,
+    fields(
+        height.celestia = %height,
+        namespace.sequencer = %telemetry::display::base64(&sequencer_namespace.as_bytes()),
+        namespace.rollup = %telemetry::display::base64(&rollup_namespace.as_bytes()),
+    ),
+    err
+)]
 async fn fetch_blocks_at_celestia_height(
     client: HttpClient,
     verifier: BlockVerifier,
     height: CelestiaHeight,
     sequencer_namespace: Namespace,
     rollup_namespace: Namespace,
-) -> eyre::Result<ReconstructedBlock> {
+) -> eyre::Result<Vec<ReconstructedBlock>> {
     use futures::TryStreamExt as _;
+    use tracing_futures::Instrument as _;
+    // XXX: Define the error conditions for which fetching the blob should be rescheduled.
     // XXX: This object contains information about bad blobs that belonged to the
     // wrong namespace or had other issues. Consider reporting them.
     let sequencer_blobs = client
@@ -335,15 +335,9 @@ async fn fetch_blocks_at_celestia_height(
         .wrap_err("failed to fetch sequencer data from celestia")?
         .sequencer_blobs;
 
-    // Deduplicate blobs by the recorded block hash.
-    // XXX: This assumes no two sequencer blobs with the same block hash will be written
-    // to Celestia. Warn if two sequencer blobs with the same block hash are found?
-    let sequencer_blobs = sequencer_blobs
-        .into_iter()
-        .map(|blob| (blob.block_hash(), blob))
-        .collect::<HashMap<_, _>>();
-
-    let blocks = futures::stream::iter(sequencer_blobs.into_values())
+    // XXX: Sequencer blobs can have duplicate block hashes. We ignore this here and simply fetch
+    //      process them all. We will deal with that after processing is done.
+    let blocks = futures::stream::iter(sequencer_blobs)
         .then(move |blob| {
             let client = client.clone();
             let verifier = verifier.clone();
@@ -355,20 +349,24 @@ async fn fetch_blocks_at_celestia_height(
                 "failed to reconstruct block from celestia blob"
             );
         })
-        .filter_map(|x| ready(x.ok()));
-    tokio::pin!(blocks);
-    let Some(block) = blocks.next().await else {
-        bail!("no valid blobs found at height");
-    };
-    if blocks.next().await.is_some() {
-        bail!("more than one valid sequencer blob found on for the given height");
-    }
-    Ok(block)
+        .filter_map(|x| ready(x.ok()))
+        .in_current_span()
+        .collect()
+        .await;
+    Ok(blocks)
 }
 
-// FIXME: Validation performs a lookup for every sequencer blob. That seems
-// unnecessary. Just fetch the info once, validate all blobs in one
-// go.
+// FIXME: Validation performs a lookup for every sequencer blob at the same height.
+//        That's unnecessary: just get the validation info once for each height and
+//        validate all blocks at the same height in one go.
+#[instrument(
+    skip_all,
+    fields(
+        blob.sequencer_height = %sequencer_blob.height(),
+        blob.block_hash = %telemetry::display::hex(&sequencer_blob.block_hash()),
+    ),
+    err,
+)]
 async fn process_sequencer_blob(
     client: HttpClient,
     verifier: BlockVerifier,

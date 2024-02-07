@@ -8,7 +8,7 @@ use astria_core::{
     sequencer::v1alpha1::RollupId,
 };
 use celestia_client::celestia_types::Height as CelestiaHeight;
-use color_eyre::eyre::{
+use eyre::{
     self,
     bail,
     ensure,
@@ -104,6 +104,10 @@ impl Handle<StateIsInit> {
     #[allow(clippy::result_large_err)] // because this is just returning tokio's SendError<T>
     pub(crate) fn send_soft(&self, block: SequencerBlock) -> Result<(), SendError<SequencerBlock>> {
         self.soft_blocks.send(block)
+    }
+
+    pub(crate) fn next_expected_firm_height(&mut self) -> SequencerHeight {
+        self.state.borrow_and_update().next_firm_sequencer_height()
     }
 
     pub(crate) fn next_expected_soft_height(&mut self) -> SequencerHeight {

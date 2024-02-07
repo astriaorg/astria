@@ -27,13 +27,6 @@ pub(crate) struct BlockCache<T> {
 }
 
 impl<T> BlockCache<T> {
-    /// Creates a new block cache.
-    ///
-    /// The default first block is at height 1.
-    pub(crate) fn new() -> Self {
-        Self::with_next_height(Height::default())
-    }
-
     /// Creates a new block cache that starts at `next_height`.
     pub(crate) fn with_next_height(next_height: Height) -> Self {
         Self {
@@ -158,7 +151,7 @@ mod tests {
     }
 
     fn make_cache() -> BlockCache<DummyBlock> {
-        BlockCache::<DummyBlock>::new()
+        BlockCache::<DummyBlock>::with_next_height(Height::from(1u32))
     }
 
     #[test]

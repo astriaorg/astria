@@ -595,10 +595,10 @@ dependencies = [
  "astria-telemetry",
  "async-trait",
  "base64 0.21.5",
- "color-eyre",
  "deadpool 0.10.0",
  "ed25519-consensus",
  "ethers",
+ "eyre",
  "futures",
  "hex",
  "http 1.0.0",
@@ -620,6 +620,7 @@ dependencies = [
  "tokio-util 0.7.10",
  "tonic",
  "tracing",
+ "tracing-futures",
  "tryhard",
 ]
 
@@ -7530,6 +7531,8 @@ version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97d095ae15e245a057c8e8451bab9b3ee1e1f68e9ba2b4fbc18d0ac5237835f2"
 dependencies = [
+ "futures",
+ "futures-task",
  "pin-project",
  "tracing",
 ]
