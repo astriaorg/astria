@@ -22,6 +22,7 @@ use tokio::{
     sync::{
         mpsc,
         oneshot,
+        watch,
     },
 };
 use tracing::{
@@ -37,10 +38,11 @@ mod builder;
 pub(crate) mod optimism;
 
 mod client;
+mod state;
 #[cfg(test)]
 mod tests;
-mod track_state;
-use track_state::TrackState;
+
+pub(crate) use state::State;
 
 pub(crate) struct Executor {
     celestia_rx: mpsc::UnboundedReceiver<ReconstructedBlock>,
@@ -57,7 +59,7 @@ pub(crate) struct Executor {
     rollup_id: RollupId,
 
     /// Tracks SOFT and FIRM on the execution chain
-    commitment_state: TrackState,
+    state: watch::Sender<state::State>,
 
     /// Tracks executed blocks as soft commitments.
     ///
@@ -75,11 +77,6 @@ impl Executor {
         builder::ExecutorBuilder::new()
     }
 
-    /// Returns the next sequencer height expected by the executor.
-    pub(super) fn next_soft_sequencer_height(&self) -> Height {
-        self.commitment_state.next_soft_sequencer_height()
-    }
-
     pub(super) fn celestia_channel(&self) -> mpsc::UnboundedSender<ReconstructedBlock> {
         self.celestia_tx.upgrade().expect(
             "should work because the channel is held by self, is open, and other senders exist",
@@ -90,6 +87,10 @@ impl Executor {
         self.sequencer_tx.upgrade().expect(
             "should work because the channel is held by self, is open, and other senders exist",
         )
+    }
+
+    pub(super) fn subscribe_to_state(&self) -> watch::Receiver<State> {
+        self.state.subscribe()
     }
 
     #[instrument(skip_all)]
@@ -156,22 +157,20 @@ impl Executor {
         // TODO(https://github.com/astriaorg/astria/issues/624): add retry logic before failing hard.
         let executable_block = ExecutableBlock::from_sequencer(block, self.rollup_id);
 
-        match executable_block
-            .height
-            .cmp(&self.commitment_state.next_soft_sequencer_height())
-        {
+        let expected_height = self.state.borrow().next_soft_sequencer_height();
+        match executable_block.height.cmp(&expected_height) {
             std::cmp::Ordering::Less => {
                 // XXX: we don't track if older sequencer blocks are sequential, only if they are
                 // newer (`Greater` arm)
                 info!(
-                    expected_height.sequencer_block = %self.commitment_state.next_soft_sequencer_height(),
+                    expected_height.sequencer_block = %expected_height,
                     "block received was at at older height or stale because firm blocks were executed first; dropping",
                 );
                 return Ok(());
             }
             std::cmp::Ordering::Greater => bail!(
-                "block received was out-of-order; was a block skipped? expected: {}, actual: {}",
-                self.commitment_state.next_soft_sequencer_height(),
+                "block received was out-of-order; was a block skipped? expected: \
+                 {expected_height}, actual: {}",
                 executable_block.height
             ),
             std::cmp::Ordering::Equal => {}
@@ -179,7 +178,7 @@ impl Executor {
 
         let block_hash = executable_block.hash;
 
-        let parent_block_hash = self.commitment_state.soft_parent_hash();
+        let parent_block_hash = self.state.borrow().soft_parent_hash();
         let executed_block = self
             .execute_block(parent_block_hash, executable_block)
             .await
@@ -197,10 +196,10 @@ impl Executor {
 
     async fn execute_firm(&mut self, block: ReconstructedBlock) -> eyre::Result<()> {
         let executable_block = ExecutableBlock::from_reconstructed(block);
+        let expected_height = self.state.borrow().next_firm_sequencer_height();
         ensure!(
-            executable_block.height == self.commitment_state.next_firm_sequencer_height(),
-            "expected block at sequencer height {}, but got {}",
-            self.commitment_state.next_firm_sequencer_height(),
+            executable_block.height == expected_height,
+            "expected block at sequencer height {expected_height}, but got {}",
             executable_block.height,
         );
 
@@ -212,7 +211,7 @@ impl Executor {
                 .await
                 .wrap_err("failed to update firm commitment state")?;
         } else {
-            let parent_block_hash = self.commitment_state.firm_parent_hash();
+            let parent_block_hash = self.state.borrow().firm_parent_hash();
             let executed_block = self
                 .execute_block(parent_block_hash, executable_block)
                 .await
@@ -274,8 +273,8 @@ impl Executor {
             ToSame,
         };
         let (firm, soft) = match update {
-            OnlyFirm(firm) => (firm, self.commitment_state.soft().clone()),
-            OnlySoft(soft) => (self.commitment_state.firm().clone(), soft),
+            OnlyFirm(firm) => (firm, self.state.borrow().soft().clone()),
+            OnlySoft(soft) => (self.state.borrow().firm().clone(), soft),
             ToSame(block) => (block.clone(), block),
         };
         let commitment_state = CommitmentState::builder()
@@ -288,7 +287,8 @@ impl Executor {
             .update_commitment_state(commitment_state)
             .await
             .wrap_err("failed updating remote commitment state")?;
-        self.commitment_state.set_state(new_state);
+        self.state
+            .send_if_modified(move |state| state.update_if_modified(new_state));
         Ok(())
     }
 }

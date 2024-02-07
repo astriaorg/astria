@@ -247,28 +247,28 @@ async fn firm_blocks_at_expected_heights_are_executed() {
     block.transactions.push(b"test_transaction".to_vec());
 
     let expected_exection_hash = get_expected_execution_hash(
-        &mock.executor.commitment_state.firm().hash(),
+        &mock.executor.state.borrow().firm().hash(),
         &block.transactions,
     );
 
     mock.executor.execute_firm(block).await.unwrap();
     assert_eq!(
         expected_exection_hash,
-        mock.executor.commitment_state.firm().hash(),
+        mock.executor.state.borrow().firm().hash(),
     );
 
     let mut block = make_reconstructed_block();
     block.header.height = block.header.height.increment();
     block.transactions.push(b"a new transaction".to_vec());
     let expected_exection_hash = get_expected_execution_hash(
-        &mock.executor.commitment_state.firm().hash(),
+        &mock.executor.state.borrow().firm().hash(),
         &block.transactions,
     );
 
     mock.executor.execute_firm(block).await.unwrap();
     assert_eq!(
         expected_exection_hash,
-        mock.executor.commitment_state.firm().hash(),
+        mock.executor.state.borrow().firm().hash(),
     );
 }
 
@@ -287,7 +287,7 @@ async fn soft_blocks_at_expected_heights_are_executed() {
     mock.executor.execute_soft(block).await.unwrap();
     assert_eq!(
         Height::from(102u32),
-        mock.executor.next_soft_sequencer_height()
+        mock.executor.state.borrow().next_soft_sequencer_height()
     );
 }
 
@@ -316,8 +316,8 @@ async fn first_firm_then_soft_leads_to_soft_being_dropped() {
             .unwrap(),
     };
     mock.executor.execute_firm(firm_block).await.unwrap();
-    assert_eq!(1, mock.executor.commitment_state.firm().number());
-    assert_eq!(1, mock.executor.commitment_state.soft().number());
+    assert_eq!(1, mock.executor.state.borrow().firm().number());
+    assert_eq!(1, mock.executor.state.borrow().soft().number());
     assert!(
         !mock
             .executor
@@ -332,8 +332,8 @@ async fn first_firm_then_soft_leads_to_soft_being_dropped() {
             .blocks_pending_finalization
             .contains_key(&block_hash)
     );
-    assert_eq!(1, mock.executor.commitment_state.firm().number());
-    assert_eq!(1, mock.executor.commitment_state.soft().number());
+    assert_eq!(1, mock.executor.state.borrow().firm().number());
+    assert_eq!(1, mock.executor.state.borrow().soft().number());
 }
 
 #[tokio::test]
@@ -366,11 +366,11 @@ async fn first_soft_then_firm_update_state_correctly() {
             .blocks_pending_finalization
             .contains_key(&block_hash)
     );
-    assert_eq!(0, mock.executor.commitment_state.firm().number());
-    assert_eq!(1, mock.executor.commitment_state.soft().number());
+    assert_eq!(0, mock.executor.state.borrow().firm().number());
+    assert_eq!(1, mock.executor.state.borrow().soft().number());
     mock.executor.execute_firm(firm_block).await.unwrap();
-    assert_eq!(1, mock.executor.commitment_state.firm().number());
-    assert_eq!(1, mock.executor.commitment_state.soft().number());
+    assert_eq!(1, mock.executor.state.borrow().firm().number());
+    assert_eq!(1, mock.executor.state.borrow().soft().number());
     assert!(
         !mock
             .executor
@@ -386,13 +386,13 @@ async fn old_soft_blocks_are_ignored() {
     block.header.height = Height::from(99u32);
     let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
 
-    let firm = mock.executor.commitment_state.firm().clone();
-    let soft = mock.executor.commitment_state.soft().clone();
+    let firm = mock.executor.state.borrow().firm().clone();
+    let soft = mock.executor.state.borrow().soft().clone();
 
     mock.executor.execute_soft(sequencer_block).await.unwrap();
 
-    assert_eq!(&firm, mock.executor.commitment_state.firm());
-    assert_eq!(&soft, mock.executor.commitment_state.soft());
+    assert_eq!(&firm, mock.executor.state.borrow().firm());
+    assert_eq!(&soft, mock.executor.state.borrow().soft());
 }
 
 #[tokio::test]
@@ -464,15 +464,13 @@ mod optimism_tests {
 
         // calculate the expected mock execution hash, which includes the block txs,
         // thus confirming the deposit tx was executed
-        let expected_exection_hash = get_expected_execution_hash(
-            &mock.executor.commitment_state.soft().hash(),
-            &deposit_txs,
-        );
+        let expected_exection_hash =
+            get_expected_execution_hash(&mock.executor.state.borrow().soft().hash(), &deposit_txs);
         let block = make_reconstructed_block();
         mock.executor.execute_firm(block).await.unwrap();
         assert_eq!(
             expected_exection_hash,
-            mock.executor.commitment_state.firm().hash(),
+            mock.executor.state.borrow().firm().hash(),
         );
     }
 }

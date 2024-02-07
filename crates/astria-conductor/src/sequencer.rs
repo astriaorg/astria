@@ -1,6 +1,7 @@
 //! [`Reader`] reads reads blocks from sequencer and forwards them to [`crate::executor::Executor`].
 
 use std::{
+    cmp,
     collections::VecDeque,
     error::Error as StdError,
     pin::Pin,
@@ -37,9 +38,11 @@ use tokio::{
     sync::{
         mpsc,
         oneshot,
+        watch,
     },
 };
 use tracing::{
+    debug,
     error,
     info,
     instrument,
@@ -52,34 +55,42 @@ use crate::{
         self,
         ClientProvider,
     },
+    executor,
 };
 
 pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
     executor_channel: mpsc::UnboundedSender<SequencerBlock>,
 
+    /// The state of the executor to receive information about the next
+    /// expected sequencer height.
+    executor_state: watch::Receiver<executor::State>,
+
+    /// The minimum height the executor must reach before this reader will forward
+    /// blocks to it.
+    not_before_height: Height,
+
     /// The object pool providing clients to the sequencer.
     pool: Pool<ClientProvider>,
 
     /// The shutdown channel to notify `Reader` to shut down.
     shutdown: oneshot::Receiver<()>,
-
-    /// The start height from which to start syncing sequencer blocks.
-    start_height: Height,
 }
 
 impl Reader {
     pub(crate) fn new(
-        start_height: Height,
         pool: Pool<ClientProvider>,
         shutdown: oneshot::Receiver<()>,
         executor_channel: mpsc::UnboundedSender<SequencerBlock>,
+        executor_state: watch::Receiver<executor::State>,
+        not_before_height: u32,
     ) -> Self {
         Self {
             executor_channel,
+            executor_state,
+            not_before_height: not_before_height.into(),
             pool,
             shutdown,
-            start_height,
         }
     }
 
@@ -88,7 +99,8 @@ impl Reader {
         use futures::future::FusedFuture as _;
         let Self {
             executor_channel,
-            start_height,
+            mut executor_state,
+            not_before_height,
             pool,
             mut shutdown,
         } = self;
@@ -98,8 +110,11 @@ impl Reader {
             .wrap_err("failed to start initial new-blocks subscription")?
             .fuse();
 
-        let mut sequential_blocks = BlockCache::with_next_height(start_height);
+        let current_executor_height = executor_state.borrow().next_soft_sequencer_height();
+        let start_height = cmp::max(current_executor_height, not_before_height);
+        let mut height_reached = start_height <= current_executor_height;
 
+        let mut sequential_blocks = BlockCache::with_next_height(start_height);
         let latest_height = match subscription.next().await {
             None => bail!("subscription to sequencer for new blocks failed immediately; bailing"),
             Some(Err(e)) => {
@@ -145,8 +160,15 @@ impl Reader {
                     }
                 }
 
+                Ok(()) = executor_state.changed() => {
+                    let next_height = executor_state.borrow_and_update().next_soft_sequencer_height();
+                    sequential_blocks.drop_obsolete(next_height);
+                    blocks_from_height.skip_to_height(next_height);
+                    height_reached = start_height <= next_height;
+                    debug!(send_height_reached = height_reached, "received state update from executor");
+                }
 
-                Some(block) = sequential_blocks.next_block() => {
+                Some(block) = sequential_blocks.next_block(), if height_reached => {
                     if let Err(e) = executor_channel.send(block) {
                         let reason = "failed sending next sequencer block to executor";
                         error!(
@@ -275,6 +297,16 @@ impl BlocksFromHeightStream {
 
                 std::cmp::Ordering::Greater => break,
             }
+        }
+    }
+
+    /// Drops all heights lower than the given height.
+    ///
+    /// NOTE: This requires that `self.heights` are always ordered!
+    fn skip_to_height(&mut self, height: Height) {
+        let i = self.heights.partition_point(|&in_deque| in_deque < height);
+        for _ in 0..i {
+            self.heights.pop_front();
         }
     }
 
