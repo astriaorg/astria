@@ -12,7 +12,6 @@ use celestia_client::{
 };
 use color_eyre::eyre::{
     self,
-    bail,
     WrapErr as _,
 };
 use sequencer_client::SequencerBlock;
@@ -46,6 +45,7 @@ use crate::executor;
 
 mod block_verifier;
 use block_verifier::BlockVerifier;
+mod builder;
 
 /// `SequencerBlockSubset` is a subset of a `SequencerBlock` that contains
 /// information required for transaction data verification, and the transactions
@@ -76,7 +76,7 @@ impl SequencerBlockSubset {
 
 pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
-    executor_tx: executor::Sender,
+    executor_channel: executor::Sender,
 
     /// The client used to communicate with Celestia.
     celestia_client: HttpClient,
@@ -107,61 +107,9 @@ pub(crate) struct Reader {
     shutdown: oneshot::Receiver<()>,
 }
 
-pub(crate) struct CelestiaReaderConfig {
-    pub(crate) node_url: String,
-    pub(crate) bearer_token: Option<String>,
-    pub(crate) poll_interval: Duration,
-}
-
 impl Reader {
-    /// Creates a new Reader instance and returns a command sender.
-    pub(crate) async fn new(
-        celestia_config: CelestiaReaderConfig,
-        executor_tx: executor::Sender,
-        sequencer_client_pool: deadpool::managed::Pool<crate::client_provider::ClientProvider>,
-        sequencer_namespace: Namespace,
-        rollup_namespace: Namespace,
-        shutdown: oneshot::Receiver<()>,
-    ) -> eyre::Result<Self> {
-        use celestia_client::celestia_rpc::HeaderClient;
-
-        let block_verifier = BlockVerifier::new(sequencer_client_pool);
-
-        let celestia_client::celestia_rpc::Client::Http(celestia_client) =
-            celestia_client::celestia_rpc::Client::new(
-                &celestia_config.node_url,
-                celestia_config.bearer_token.as_deref(),
-            )
-            .await
-            .wrap_err("failed constructing celestia http client")?
-        else {
-            bail!("expected a celestia HTTP client but got a websocket client");
-        };
-
-        // TODO: we should probably pass in the height we want to start at from some genesis/config
-        // file
-        let current_block_height = celestia_client
-            .header_network_head()
-            .await
-            .wrap_err("failed to get network head from celestia to extract latest head")?
-            .header
-            .height;
-
-        info!(da_height = %current_block_height, "creating Reader");
-
-        Ok(Self {
-            executor_tx,
-            celestia_client,
-            celestia_poll_interval: celestia_config.poll_interval,
-            current_block_height,
-            get_latest_height: None,
-            fetch_sequencer_blobs_at_height: JoinMap::new(),
-            verify_sequencer_blobs_and_assemble_rollups: JoinMap::new(),
-            block_verifier,
-            sequencer_namespace,
-            rollup_namespace,
-            shutdown,
-        })
+    pub(super) fn builder() -> builder::ReaderBuilder {
+        builder::ReaderBuilder::new()
     }
 
     #[instrument(skip(self))]
@@ -356,7 +304,7 @@ impl Reader {
             }
             Ok(Ok(subsets)) => subsets,
         };
-        self.executor_tx
+        self.executor_channel
             .send(executor::ExecutorCommand::FromCelestia(subsets))
             .wrap_err("failed sending processed sequencer subsets: executor channel is closed")
     }
