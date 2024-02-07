@@ -11,7 +11,10 @@ use sequencer_client::{
     tendermint::block::Height,
     SequencerBlock,
 };
-use tokio::select;
+use tokio::{
+    select,
+    sync::mpsc,
+};
 use tracing::{
     error,
     info,
@@ -37,7 +40,7 @@ pub(super) async fn run(
     start: Height,
     end: Height,
     client_pool: Pool<ClientProvider>,
-    executor: crate::executor::Sender,
+    executor: mpsc::UnboundedSender<Box<SequencerBlock>>,
 ) -> eyre::Result<()> {
     use futures::{
         FutureExt as _,
@@ -86,8 +89,7 @@ pub(super) async fn run(
                     }
 
                     Ok(block) => {
-                        let block = Box::new(block);
-                        if let Err(e) = executor.send(crate::executor::ExecutorCommand::FromSequencer { block }) {
+                        if let Err(e) = executor.send(block.into()) {
                             let error = &e as &(dyn std::error::Error + 'static);
                             error!(height, error, "failed forwarding block to executor; aborting async");
                             break 'sync Err(e).wrap_err("failed forwarding block to executor");

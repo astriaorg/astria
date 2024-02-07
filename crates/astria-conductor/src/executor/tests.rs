@@ -28,10 +28,7 @@ use ethers::{
 use k256::ecdsa::SigningKey;
 use sha2::Digest as _;
 use tokio::{
-    sync::{
-        mpsc,
-        oneshot,
-    },
+    sync::oneshot,
     task::JoinHandle,
 };
 use tonic::transport::Server;
@@ -151,7 +148,6 @@ fn get_test_block_subset() -> SequencerBlockSubset {
 
 struct MockEnvironment {
     _server: MockExecutionServer,
-    _block_tx: super::Sender,
     _shutdown_tx: oneshot::Sender<()>,
     executor: Executor,
 }
@@ -160,14 +156,12 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
     let server = MockExecutionServer::spawn().await;
     let server_url = format!("http://{}", server.local_addr());
 
-    let (block_tx, block_rx) = mpsc::unbounded_channel();
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
     let executor = Executor::builder()
         .rollup_address(&server_url)
         .rollup_id(RollupId::from_unhashed_bytes(b"test"))
         .sequencer_height_with_first_rollup_block(1)
-        .block_channel(block_rx)
         .shutdown(shutdown_rx)
         .set_optimism_hook(pre_execution_hook)
         .build()
@@ -176,7 +170,6 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
 
     MockEnvironment {
         _server: server,
-        _block_tx: block_tx,
         _shutdown_tx: shutdown_tx,
         executor,
     }
@@ -249,7 +242,7 @@ async fn execute_unexecuted_da_block_with_transactions() {
     );
 
     mock.executor
-        .execute_and_finalize_blocks_from_celestia(vec![block])
+        .execute_firm_blocks(vec![block])
         .await
         .unwrap();
 
@@ -270,7 +263,7 @@ async fn execute_unexecuted_da_block_with_no_transactions() {
     let expected_execution_state = hash(&mock.executor.commitment_state.firm().hash());
 
     mock.executor
-        .execute_and_finalize_blocks_from_celestia(vec![block])
+        .execute_firm_blocks(vec![block])
         .await
         .unwrap();
 
@@ -289,10 +282,7 @@ async fn empty_message_from_data_availability_is_dropped() {
     // using firm hash here as da blocks are executed on top of the firm commitment
     let expected_execution_state = mock.executor.commitment_state.firm().hash();
 
-    mock.executor
-        .execute_and_finalize_blocks_from_celestia(vec![])
-        .await
-        .unwrap();
+    mock.executor.execute_firm_blocks(vec![]).await.unwrap();
 
     assert_eq!(
         expected_execution_state,
@@ -325,19 +315,13 @@ async fn try_execute_out_of_order_block_from_celestia() {
 
     // We skip blocks which have already been finalized, so even genesis should succeed
     block.header.height = 0_u32.into();
-    let execution_result = mock
-        .executor
-        .execute_and_finalize_blocks_from_celestia(vec![block.clone()])
-        .await;
+    let execution_result = mock.executor.execute_firm_blocks(vec![block.clone()]).await;
     assert!(execution_result.is_ok());
 
     // the first block to execute should always be 1, this should fail as it is
     // in the future
     block.header.height = 2_u32.into();
-    let execution_result = mock
-        .executor
-        .execute_and_finalize_blocks_from_celestia(vec![block])
-        .await;
+    let execution_result = mock.executor.execute_firm_blocks(vec![block]).await;
     assert!(execution_result.is_err());
 }
 
