@@ -6,7 +6,6 @@ use sha2::{
 
 use crate::{
     generated::sequencer::v1alpha1 as raw,
-    sequencer::v1alpha1::asset::IncorrectAssetIdLength,
     Protobuf,
 };
 

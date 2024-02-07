@@ -415,6 +415,7 @@ impl SequencerBlock {
                 if let action::Action::Sequence(action::SequenceAction {
                     rollup_id,
                     data,
+                    fee_asset_id: _,
                 }) = action
                 {
                     let elem = rollup_transactions.entry(rollup_id).or_insert(vec![]);

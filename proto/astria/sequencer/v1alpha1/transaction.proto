@@ -22,8 +22,6 @@ message SignedTransaction {
 message UnsignedTransaction {
   uint32 nonce = 1;
   repeated Action actions = 2;
-  // the asset used to pay the transaction fee
-  bytes fee_asset_id = 3;
 }
 
 message Action {
@@ -47,6 +45,8 @@ message TransferAction {
   astria.primitive.v1.Uint128 amount = 2;
   // the asset to be transferred
   bytes asset_id = 3;
+  // the asset used to pay the transaction fee
+  bytes fee_asset_id = 4;
 }
 
 // `SequenceAction` represents a transaction destined for another
@@ -57,6 +57,8 @@ message TransferAction {
 message SequenceAction {
   bytes rollup_id = 1;
   bytes data = 2;
+  // the asset used to pay the transaction fee
+  bytes fee_asset_id = 3;
 }
 
 /// `SudoAddressChangeAction` represents a transaction that changes

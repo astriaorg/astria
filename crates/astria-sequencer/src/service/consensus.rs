@@ -305,10 +305,10 @@ mod test {
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: b"helloworld".to_vec(),
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         }
     }
 
