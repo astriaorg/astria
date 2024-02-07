@@ -1,7 +1,6 @@
 //! [`Reader`] reads reads blocks from sequencer and forwards them to [`crate::executor::Executor`].
 
 use std::{
-    cmp,
     collections::VecDeque,
     error::Error as StdError,
     pin::Pin,
@@ -42,7 +41,6 @@ use tokio::{
     },
 };
 use tracing::{
-    debug,
     error,
     info,
     instrument,
@@ -66,10 +64,6 @@ pub(crate) struct Reader {
     /// expected sequencer height.
     executor_state: watch::Receiver<executor::State>,
 
-    /// The minimum height the executor must reach before this reader will forward
-    /// blocks to it.
-    not_before_height: Height,
-
     /// The object pool providing clients to the sequencer.
     pool: Pool<ClientProvider>,
 
@@ -83,12 +77,10 @@ impl Reader {
         shutdown: oneshot::Receiver<()>,
         executor_channel: mpsc::UnboundedSender<SequencerBlock>,
         executor_state: watch::Receiver<executor::State>,
-        not_before_height: u32,
     ) -> Self {
         Self {
             executor_channel,
             executor_state,
-            not_before_height: not_before_height.into(),
             pool,
             shutdown,
         }
@@ -100,19 +92,24 @@ impl Reader {
         let Self {
             executor_channel,
             mut executor_state,
-            not_before_height,
             pool,
             mut shutdown,
         } = self;
+
+        let start_height = {
+            executor_state
+                .wait_for(executor::State::is_init)
+                .await
+                .wrap_err(
+                    "executor state channel terminated before initial state could be observed",
+                )?
+                .next_soft_sequencer_height()
+        };
 
         let mut subscription = resubscribe(pool.clone())
             .await
             .wrap_err("failed to start initial new-blocks subscription")?
             .fuse();
-
-        let current_executor_height = executor_state.borrow().next_soft_sequencer_height();
-        let start_height = cmp::max(current_executor_height, not_before_height);
-        let mut height_reached = start_height <= current_executor_height;
 
         let mut sequential_blocks = BlockCache::with_next_height(start_height);
         let latest_height = match subscription.next().await {
@@ -164,11 +161,9 @@ impl Reader {
                     let next_height = executor_state.borrow_and_update().next_soft_sequencer_height();
                     sequential_blocks.drop_obsolete(next_height);
                     blocks_from_height.skip_to_height(next_height);
-                    height_reached = start_height <= next_height;
-                    debug!(send_height_reached = height_reached, "received state update from executor");
                 }
 
-                Some(block) = sequential_blocks.next_block(), if height_reached => {
+                Some(block) = sequential_blocks.next_block() => {
                     if let Err(e) = executor_channel.send(block) {
                         let reason = "failed sending next sequencer block to executor";
                         error!(

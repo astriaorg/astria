@@ -5,7 +5,6 @@ use std::{
     time::Duration,
 };
 
-use astria_core::sequencer::v1alpha1::RollupId;
 use celestia_client::celestia_types::nmt::Namespace;
 use color_eyre::eyre::{
     self,
@@ -82,8 +81,6 @@ impl Conductor {
 
         let signals = spawn_signal_handler();
 
-        let rollup_id = RollupId::from_unhashed_bytes(&cfg.chain_id);
-
         // Spawn the executor task.
         let executor = {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
@@ -94,13 +91,10 @@ impl Conductor {
 
             let executor = Executor::builder()
                 .rollup_address(&cfg.execution_rpc_url)
-                .rollup_id(rollup_id)
-                .sequencer_height_with_first_rollup_block(cfg.initial_sequencer_block_height)
+                .wrap_err("failed to assign rollup node address")?
                 .shutdown(shutdown_rx)
                 .set_optimism_hook(hook)
-                .build()
-                .await
-                .wrap_err("failed to construct executor")?;
+                .build();
 
             shutdown_channels.insert(Self::EXECUTOR, shutdown_tx);
             executor
@@ -120,7 +114,6 @@ impl Conductor {
                 shutdown_rx,
                 executor.sequencer_channel(),
                 executor.subscribe_to_state(),
-                0,
             );
             tasks.spawn(Self::SEQUENCER, sequencer_reader.run_until_stopped());
             shutdown_channels.insert(Self::SEQUENCER, shutdown_tx);
@@ -151,12 +144,11 @@ impl Conductor {
             // );
 
             // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
-            let rollup_namespace = celestia_client::celestia_namespace_v0_from_rollup_id(rollup_id);
             let reader = celestia::Reader::builder()
                 .celestia_endpoint(&cfg.celestia_node_url)
                 .celestia_token(&cfg.celestia_bearer_token)
                 .executor_channel(executor.celestia_channel())
-                .rollup_namespace(rollup_namespace)
+                .executor_state(executor.subscribe_to_state())
                 .sequencer_client_pool(sequencer_client_pool.clone())
                 .sequencer_namespace(sequencer_namespace)
                 .shutdown(shutdown_rx)

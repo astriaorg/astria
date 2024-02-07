@@ -17,6 +17,7 @@ keywords = ["astria", "grpc", "rpc", "blockchain", "execution", "protobuf"]
 [dependencies]
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
 
+celestia-tendermint = { workspace = true }
 ed25519-consensus = { workspace = true }
 hex = { workspace = true }
 ibc-types = { workspace = true }

@@ -12,6 +12,7 @@ use std::{
 };
 
 use celestia_client::{
+    celestia_namespace_v0_from_rollup_id,
     celestia_types::{
         nmt::Namespace,
         Height as CelestiaHeight,
@@ -47,6 +48,7 @@ use tokio::{
     sync::{
         mpsc,
         oneshot,
+        watch,
     },
 };
 use tracing::{
@@ -59,9 +61,12 @@ use tracing::{
 mod block_verifier;
 use block_verifier::BlockVerifier;
 
-use crate::block_cache::{
-    BlockCache,
-    GetSequencerHeight,
+use crate::{
+    block_cache::{
+        BlockCache,
+        GetSequencerHeight,
+    },
+    executor,
 };
 mod builder;
 
@@ -88,23 +93,19 @@ pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
     executor_channel: mpsc::UnboundedSender<ReconstructedBlock>,
 
+    executor_state: watch::Receiver<executor::State>,
+
     /// The client used to subscribe to new
     celestia_http_client: HttpClient,
 
     /// The client used to subscribe to new
     celestia_ws_client: WsClient,
 
-    /// the first block to be fetched from celestia
-    celestia_start_height: CelestiaHeight,
-
     /// Validates sequencer blobs read from celestia against sequencer.
     block_verifier: BlockVerifier,
 
     /// The celestia namespace sequencer blobs will be read from.
     sequencer_namespace: Namespace,
-
-    /// The celestia namespace rollup blobs will be read from.
-    rollup_namespace: Namespace,
 
     /// The channel to listen for shutdown signals.
     shutdown: oneshot::Receiver<()>,
@@ -118,9 +119,19 @@ impl Reader {
     #[instrument(skip(self))]
     pub(crate) async fn run_until_stopped(mut self) -> eyre::Result<()> {
         use celestia_client::celestia_rpc::HeaderClient as _;
-        info!("Starting reader event loop.");
 
-        // TODO ghi(https://github.com/astriaorg/astria/issues/470): add sync functionality to data availability reader
+        let (rollup_namespace, celestia_start_height) = {
+            let state = self
+                .executor_state
+                .wait_for(executor::State::is_init)
+                .await
+                .wrap_err(
+                    "executor state channel terminated before initial state could be observed",
+                )?;
+            let rollup_namespace = celestia_namespace_v0_from_rollup_id(state.rollup_id());
+            let celestia_start_height = state.celestia_base_block_height();
+            (rollup_namespace, celestia_start_height)
+        };
 
         // XXX: Add retry
         let mut headers = self
@@ -140,13 +151,13 @@ impl Reader {
         let mut sequential_blocks = BlockCache::new();
 
         let mut reconstructed_blocks = ReconstructedBlockStream::new(
-            self.celestia_start_height,
+            celestia_start_height,
             latest_celestia_height,
             self.celestia_http_client.clone(),
             10,
             self.block_verifier.clone(),
             self.sequencer_namespace,
-            self.rollup_namespace,
+            rollup_namespace,
         );
         loop {
             select!(

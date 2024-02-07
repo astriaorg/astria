@@ -61,6 +61,11 @@ tryhard = '0.5.1'
 which = '4.4.0'
 wiremock = '0.5'
 
+[workspace.dependencies.celestia-tendermint]
+git = 'https://github.com/eigerco/celestia-tendermint-rs'
+package = 'tendermint'
+rev = 'bbe7de8'
+
 [workspace.dependencies.jsonrpsee]
 version = '0.20'
 
