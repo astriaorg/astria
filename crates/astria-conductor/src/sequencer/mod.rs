@@ -61,9 +61,6 @@ pub(crate) struct Reader {
 
     /// The start height from which to start syncing sequencer blocks.
     start_sync_height: Height,
-
-    /// The sync-done channel to notify `Conductor` that `Reader` has finished syncing.
-    sync_done: oneshot::Sender<()>,
 }
 
 impl Reader {
@@ -72,14 +69,12 @@ impl Reader {
         pool: Pool<ClientProvider>,
         shutdown: oneshot::Receiver<()>,
         executor_tx: executor::Sender,
-        sync_done: oneshot::Sender<()>,
     ) -> Self {
         Self {
             executor_tx,
             pool,
             shutdown,
             start_sync_height,
-            sync_done,
         }
     }
 
@@ -96,7 +91,6 @@ impl Reader {
             start_sync_height,
             pool,
             mut shutdown,
-            sync_done,
         } = self;
 
         let mut new_blocks: stream::Fuse<NewBlocksStream> = subscribe_new_blocks(pool.clone())
@@ -134,7 +128,6 @@ impl Reader {
         .boxed()
         .fuse();
 
-        let mut sync_done = Some(sync_done);
         let mut resubscribe = future::Fuse::terminated();
         'reader_loop: loop {
             select! {
@@ -156,11 +149,6 @@ impl Reader {
                         warn!(error, "sync failed; continuing with normal operation");
                     } else {
                         info!("sync finished successfully");
-                    }
-                    // First sync at startup: notify conductor that sync is done.
-                    // Every resync after: don't.
-                    if let Some(sync_done) = sync_done.take() {
-                        let _ = sync_done.send(());
                     }
                 }
 
