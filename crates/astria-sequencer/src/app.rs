@@ -1098,6 +1098,31 @@ mod test {
     }
 
     #[tokio::test]
+    async fn app_deliver_tx_invalid_fee_asset() {
+        let mut app = initialize_app(None, vec![]).await;
+
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let data = b"hello world".to_vec();
+
+        let fee_asset_id = asset::Id::from_denom("test");
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                    data,
+                    fee_asset_id,
+                }
+                .into(),
+            ],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        assert!(app.deliver_tx(signed_tx).await.is_err());
+    }
+
+    #[tokio::test]
     async fn app_deliver_tx_validator_update() {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
