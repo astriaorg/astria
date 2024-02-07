@@ -30,7 +30,6 @@ use pin_project_lite::pin_project;
 use sequencer_client::{
     extension_trait::NewBlocksStream,
     tendermint::block::Height,
-    // NewBlockStreamError,
     SequencerBlock,
 };
 use tokio::{
@@ -57,7 +56,7 @@ use crate::{
 
 pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
-    executor_channel: mpsc::UnboundedSender<Box<SequencerBlock>>,
+    executor_channel: mpsc::UnboundedSender<SequencerBlock>,
 
     /// The object pool providing clients to the sequencer.
     pool: Pool<ClientProvider>,
@@ -74,7 +73,7 @@ impl Reader {
         start_height: Height,
         pool: Pool<ClientProvider>,
         shutdown: oneshot::Receiver<()>,
-        executor_channel: mpsc::UnboundedSender<Box<SequencerBlock>>,
+        executor_channel: mpsc::UnboundedSender<SequencerBlock>,
     ) -> Self {
         Self {
             executor_channel,
@@ -148,7 +147,7 @@ impl Reader {
 
 
                 Some(block) = sequential_blocks.next_block() => {
-                    if let Err(e) = executor_channel.send(block.into()) {
+                    if let Err(e) = executor_channel.send(block) {
                         let reason = "failed sending next sequencer block to executor";
                         error!(
                             error = &e as &dyn std::error::Error,
