@@ -29,6 +29,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.73.0
+      - uses: arduino/setup-protoc@v2
+        with:
+          version: "24.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: astria-${{ inputs.package-name }}
