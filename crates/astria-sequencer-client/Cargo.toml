@@ -10,6 +10,7 @@ async-trait = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 tendermint = { workspace = true }
+tendermint-proto = { workspace = true }
 tendermint-rpc = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }

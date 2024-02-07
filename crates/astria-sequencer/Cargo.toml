@@ -11,7 +11,9 @@ name = "astria-sequencer"
 "astria-core" = { path = "../astria-core" }
 config = { package = "astria-config", path = "../astria-config" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
-telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
+  "display",
+] }
 
 anyhow = "1"
 borsh = "0.10.3"

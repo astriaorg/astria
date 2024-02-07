@@ -14,6 +14,7 @@ pub use astria_core::sequencer::v1alpha1::{
     SignedTransaction,
 };
 pub use tendermint;
+pub use tendermint_proto;
 pub use tendermint_rpc;
 #[cfg(feature = "http")]
 pub use tendermint_rpc::HttpClient;

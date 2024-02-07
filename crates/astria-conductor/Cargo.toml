@@ -9,12 +9,16 @@ name = "astria-conductor"
 
 [dependencies]
 async-trait = "0.1.73"
-
-base64 = { workspace = true }
-color-eyre = { workspace = true }
+futures-bounded = "0.2.3"
 deadpool = { version = "0.10.0", default-features = false, features = [
   "managed",
 ] }
+eyre = { workspace = true }
+http = "1.0.0"
+pin-project-lite = "0.2"
+tracing-futures = { version = "0.2.5", features = ["futures-03"] }
+
+base64 = { workspace = true }
 ed25519-consensus = { workspace = true }
 ethers = { workspace = true, features = ["optimism", "ws"] }
 futures = { workspace = true }
@@ -24,19 +28,19 @@ prost = { workspace = true }
 prost-types = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
-serde = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
-tendermint = { workspace = true }
-tendermint-proto = { workspace = true }
+# tendermint = { workspace = true }
+# tendermint-proto = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tokio-util = { workspace = true, features = ["rt"] }
 tonic = { workspace = true }
-tracing = { workspace = true }
+tracing = { workspace = true, features = ["valuable"] }
 tryhard = { workspace = true }
 
-astria-core = { path = "../astria-core", features = ["client"] }
+astria-core = { path = "../astria-core", features = ["client", "serde"] }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 optimism = { package = "astria-optimism", path = "../astria-optimism" }
 config = { package = "astria-config", path = "../astria-config" }
@@ -44,7 +48,9 @@ merkle = { package = "astria-merkle", path = "../astria-merkle" }
 sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
   "websocket",
 ] }
-telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
+  "display",
+] }
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["server"] }
