@@ -1,5 +1,6 @@
 use std::{
-    collections::VecDeque,
+    collections::BTreeMap,
+    error::Error as StdError,
     future::ready,
     pin::Pin,
     task::{
@@ -28,13 +29,17 @@ use eyre::{
     WrapErr as _,
 };
 use futures::{
-    future::BoxFuture,
-    stream::{
-        FuturesUnordered,
-        Stream,
+    future::{
+        self,
+        BoxFuture,
+        Fuse,
+        FusedFuture as _,
     },
+    stream::Stream,
+    FutureExt as _,
     StreamExt as _,
 };
+use futures_bounded::FuturesMap;
 use pin_project_lite::pin_project;
 use sequencer_client::tendermint::{
     self,
@@ -42,17 +47,23 @@ use sequencer_client::tendermint::{
 };
 use tokio::{
     select,
-    sync::oneshot,
+    sync::{
+        mpsc::error::TrySendError,
+        oneshot,
+    },
 };
 use tracing::{
+    debug,
     error,
     info,
+    info_span,
     instrument,
     warn,
 };
 
 mod block_verifier;
 use block_verifier::BlockVerifier;
+use tracing_futures::Instrument;
 
 use crate::{
     block_cache::{
@@ -118,7 +129,6 @@ impl Reader {
             .wrap_err("handle to executor failed while waiting for it being initialized")?;
 
         let rollup_namespace = celestia_namespace_v0_from_rollup_id(executor.rollup_id());
-        let celestia_start_height = executor.celestia_base_block_height();
 
         // XXX: Add retry
         let mut headers = self
@@ -134,19 +144,35 @@ impl Reader {
             None => bail!("celestia header subscription was terminated unexpectedly"),
         };
 
-        // XXX: This block cache always starts at height 1, the default value for `Height`.
-        let mut sequential_blocks =
-            BlockCache::with_next_height(executor.next_expected_firm_height());
+        debug!(height = %latest_celestia_height, "received latest height from celestia");
 
-        let mut reconstructed_blocks = ReconstructedBlocksStream::new(
-            celestia_start_height,
-            latest_celestia_height,
-            self.celestia_http_client.clone(),
-            10,
-            self.block_verifier.clone(),
-            self.sequencer_namespace,
+        // XXX: This block cache always starts at height 1, the default value for `Height`.
+        let mut sequential_blocks = BlockCache::<ReconstructedBlock>::with_next_height(
+            executor.next_expected_firm_height(),
+        )
+        .wrap_err("failed constructing sequential block cache")?;
+
+        let mut sequencer_height_to_celestia_height =
+            SequencerHeightToCelestiaHeight::new(executor.next_expected_firm_height());
+
+        let greatest_permissible_celestia_height = executor.celestia_base_block_height().value()
+            + u64::from(executor.celestia_block_variance());
+        let mut block_stream = ReconstructedBlocksStream {
+            greatest_permissible_celestia_height,
+            latest_observed_celestia_height: latest_celestia_height,
+            next_height: executor.celestia_base_block_height(),
+            in_progress: FuturesMap::new(std::time::Duration::from_secs(10), 10),
+            client: self.celestia_http_client.clone(),
+            verifier: self.block_verifier.clone(),
+            sequencer_namespace: self.sequencer_namespace,
             rollup_namespace,
-        );
+        }
+        .instrument(info_span!(
+            "celestia_block_stream",
+            namespace.rollup = %telemetry::display::base64(&rollup_namespace.as_bytes()),
+            namespace.sequencer = %telemetry::display::base64(&self.sequencer_namespace.as_bytes()),
+        ));
+        let mut executor_full: Fuse<BoxFuture<Result<_, _>>> = future::Fuse::terminated();
         loop {
             select!(
                 shutdown_res = &mut self.shutdown => {
@@ -160,13 +186,35 @@ impl Reader {
                     break;
                 }
 
-                Some(block) = sequential_blocks.next_block() => {
-                    if let Err(e) = executor.send_firm(block) {
-                        error!(
-                            error = &e as &dyn std::error::Error,
-                            "failed sending block reconstructed from celestia to executor; exiting",
-                        );
-                        break;
+                res = &mut executor_full, if !executor_full.is_terminated() => {
+                    // we just check the error here and drop the permit without using it.
+                    // because the future is now fused the branch fetching the next block will trigger.
+                    if res.is_err() {
+                        bail!("executor channel closed while waiting for it to free up");
+                    }
+                }
+
+                Some(block) = sequential_blocks.next_block(), if executor_full.is_terminated() => {
+                    let height_in_block = block.height();
+                    match executor.firm_blocks().try_send(block) {
+                        Ok(()) => {
+                            let (sequencer_height, celestia_height)
+                                = sequencer_height_to_celestia_height.increment_next_height();
+                            assert_eq!(height_in_block, sequencer_height);
+                            let new_permissible_height = celestia_height.value() + u64::from(executor.celestia_block_variance());
+                            block_stream.inner_mut().set_permissible_height(new_permissible_height);
+                        }
+                        Err(TrySendError::Full(block)) => {
+                            info!("executor channel is full; rescheduling block fetch until the channel opens up");
+                            assert!(
+                                sequential_blocks.reschedule_block(block).is_ok(),
+                                "rescheduling the just obtained block must always work",
+                            );
+                            executor_full = executor.firm_blocks().clone().reserve_owned().boxed().fuse();
+                        }
+
+                        Err(TrySendError::Closed(_)) =>
+                                bail!("exiting because executor channel is closed"),
                     }
                 }
 
@@ -174,8 +222,9 @@ impl Reader {
                 // the underlying channel is full?
                 Some(header) = headers.next() => {
                     match header {
-                        Ok(header) => reconstructed_blocks.extend_to_height(header.height()),
-                        // XXX: handle header returning an error - respawn subscription? keep going?
+                        Ok(header) =>
+                            block_stream.inner_mut().record_latest_height(header.height()),
+
                         Err(e) => {
                             warn!(
                                 error = &e as &dyn  std::error::Error,
@@ -185,8 +234,14 @@ impl Reader {
                     }
                 }
 
-                Some(blocks) = reconstructed_blocks.next() => {
+                Some((celestia_height, blocks)) = block_stream.next() => {
+                    debug!(
+                        height.celestia = %celestia_height,
+                        num_sequencer_blocks = blocks.len(),
+                        "read sequencer blocks from celestia",
+                    );
                     for block in blocks {
+                        sequencer_height_to_celestia_height.insert(block.height(), celestia_height);
                         if let Err(e) = sequential_blocks.insert(block) {
                             warn!(
                                 error = &e as &dyn std::error::Error,
@@ -203,11 +258,13 @@ impl Reader {
 
 pin_project! {
     struct ReconstructedBlocksStream {
-        heights: VecDeque<CelestiaHeight>,
-        greatest_seen_height: CelestiaHeight,
-        in_progress_queue: FuturesUnordered<BoxFuture<'static, eyre::Result<Vec<ReconstructedBlock>>>>,
+        greatest_permissible_celestia_height: u64,
+        latest_observed_celestia_height: CelestiaHeight,
+        next_height: CelestiaHeight,
+
+        in_progress: FuturesMap<CelestiaHeight, eyre::Result<Vec<ReconstructedBlock>>>,
+
         client: HttpClient,
-        max: usize,
         verifier: BlockVerifier,
         sequencer_namespace: Namespace,
         rollup_namespace: Namespace,
@@ -215,78 +272,105 @@ pin_project! {
 }
 
 impl ReconstructedBlocksStream {
-    fn extend_to_height(&mut self, height: CelestiaHeight) {
-        while self.greatest_seen_height < height {
-            self.greatest_seen_height.increment();
-            self.heights.push_back(self.greatest_seen_height);
+    fn next_height_to_fetch(&self) -> Option<CelestiaHeight> {
+        if self.next_height.value() > self.greatest_permissible_celestia_height
+            || self.next_height > self.latest_observed_celestia_height
+        {
+            return None;
         }
+        Some(self.next_height)
     }
 
-    fn new(
-        start: CelestiaHeight,
-        end: CelestiaHeight,
-        client: HttpClient,
-        max: usize,
-        verifier: BlockVerifier,
-        sequencer_namespace: Namespace,
-        rollup_namespace: Namespace,
-    ) -> Self {
-        let heights: VecDeque<_> = crate::utils::height_range_inclusive(start, end).collect();
-        let greatest_seen_height = heights
-            .back()
-            .copied()
-            .expect("height range returns at least one element; this is a bug");
-        Self {
-            heights,
-            greatest_seen_height,
-            in_progress_queue: FuturesUnordered::new(),
-            client,
-            max,
-            verifier,
-            sequencer_namespace,
-            rollup_namespace,
+    fn set_permissible_height(&mut self, height: u64) {
+        if height < self.greatest_permissible_celestia_height {
+            info!("provided permissible celestia height older than previous; ignoring it",);
         }
+        self.greatest_permissible_celestia_height = height;
+    }
+
+    fn record_latest_height(&mut self, height: CelestiaHeight) {
+        if height < self.latest_observed_celestia_height {
+            info!("observed latest celestia height older than previous; ignoring it",);
+        }
+        self.latest_observed_celestia_height = height;
     }
 }
 
 impl Stream for ReconstructedBlocksStream {
-    type Item = Vec<ReconstructedBlock>;
+    type Item = (CelestiaHeight, Vec<ReconstructedBlock>);
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        use futures::{
-            ready,
-            FutureExt as _,
-        };
-        let this = self.project();
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        use futures_bounded::PushError;
 
-        // First up, try to spawn off as many futures as possible by filling up
+        // Try to spawn off as many futures as possible by filling up
         // our queue of futures.
-        while this.in_progress_queue.len() < *this.max {
-            match this.heights.pop_front() {
-                Some(height) => this.in_progress_queue.push(
-                    fetch_blocks_at_celestia_height(
-                        this.client.clone(),
-                        this.verifier.clone(),
-                        height,
-                        *this.sequencer_namespace,
-                        *this.rollup_namespace,
-                    )
-                    .boxed(),
+        while let Some(height) = self.as_ref().get_ref().next_height_to_fetch() {
+            let this = self.as_mut().project();
+            match this.in_progress.try_push(
+                height,
+                fetch_blocks_at_celestia_height(
+                    this.client.clone(),
+                    this.verifier.clone(),
+                    height,
+                    *this.sequencer_namespace,
+                    *this.rollup_namespace,
                 ),
-                None => break,
+            ) {
+                Err(PushError::BeyondCapacity(_)) => {
+                    break;
+                }
+                Err(PushError::Replaced(_)) => {
+                    error!(
+                        %height,
+                        "scheduled to fetch blocks, but a fetch for the same height was already in-flight",
+                    );
+                }
+                Ok(()) => {
+                    debug!(height = %height, "scheduled fetch of blocks");
+                    *this.next_height = this.next_height.increment();
+                }
             }
         }
 
-        // Attempt to pull the next value from the in_progress_queue
-        let res = this.in_progress_queue.poll_next_unpin(cx);
-        // XXX: This relies on fetch_blocks_at_celestia_height emitting error events, so the `Err`
-        //      case is silently dropped here.
-        if let Some(Ok(blocks)) = ready!(res) {
-            return Poll::Ready(Some(blocks));
+        let this = self.as_mut().project();
+        let (height, res) = futures::ready!(this.in_progress.poll_unpin(cx));
+
+        // Ok branch (contains the block or a fetch error): propagate the error up
+        //
+        // Err branch (timeout): a fetch timing out is not a problem: we can just reschedule it.
+        match res {
+            Ok(Ok(blocks)) => return Poll::Ready(Some((height, blocks))),
+            // XXX: The error is silently dropped as this relies on fetch_blocks_at_celestia_height
+            //      emitting an error event as part of its as part of its instrumentation.
+            Ok(Err(_)) => {}
+            Err(timed_out) => {
+                warn!(
+                    %height,
+                    error = &timed_out as &dyn StdError,
+                    "request for height timed out, rescheduling",
+                );
+                let res = {
+                    this.in_progress.try_push(
+                        height,
+                        fetch_blocks_at_celestia_height(
+                            this.client.clone(),
+                            this.verifier.clone(),
+                            height,
+                            *this.sequencer_namespace,
+                            *this.rollup_namespace,
+                        ),
+                    )
+                };
+                assert!(
+                    res.is_ok(),
+                    "there must be space in the map after a future timed out"
+                );
+            }
         }
 
-        // If more values are still coming from the stream, we're not done yet
-        if this.heights.is_empty() {
+        // We only reach this part if `futures::ready!` above didn't short circuit and
+        // if no result was ready.
+        if self.as_ref().get_ref().next_height_to_fetch().is_none() {
             Poll::Ready(None)
         } else {
             Poll::Pending
@@ -294,10 +378,7 @@ impl Stream for ReconstructedBlocksStream {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let queue_len = self.in_progress_queue.len();
-        let n_heights = self.heights.len();
-        let len = n_heights.saturating_add(queue_len);
-        (len, Some(len))
+        (self.in_progress.len(), None)
     }
 }
 
@@ -329,11 +410,17 @@ async fn fetch_blocks_at_celestia_height(
     // XXX: Define the error conditions for which fetching the blob should be rescheduled.
     // XXX: This object contains information about bad blobs that belonged to the
     // wrong namespace or had other issues. Consider reporting them.
-    let sequencer_blobs = client
+    let sequencer_blobs = match client
         .get_sequencer_blobs(height, sequencer_namespace)
         .await
-        .wrap_err("failed to fetch sequencer data from celestia")?
-        .sequencer_blobs;
+    {
+        Err(e) if celestia_client::is_blob_not_found(&e) => {
+            info!("no sequencer blobs found");
+            return Ok(vec![]);
+        }
+        Err(e) => return Err(e).wrap_err("failed to fetch sequencer data from celestia"),
+        Ok(response) => response.sequencer_blobs,
+    };
 
     // XXX: Sequencer blobs can have duplicate block hashes. We ignore this here and simply fetch
     //      process them all. We will deal with that after processing is done.
@@ -395,4 +482,40 @@ async fn process_sequencer_blob(
         header: sequencer_blob.header().clone(),
         transactions,
     })
+}
+
+struct SequencerHeightToCelestiaHeight {
+    next_height: SequencerHeight,
+    inner: BTreeMap<SequencerHeight, CelestiaHeight>,
+}
+
+impl SequencerHeightToCelestiaHeight {
+    fn new(next_height: SequencerHeight) -> Self {
+        Self {
+            next_height,
+            inner: BTreeMap::new(),
+        }
+    }
+
+    fn increment_next_height(&mut self) -> (SequencerHeight, CelestiaHeight) {
+        let old_height = self.next_height;
+        self.next_height = self.next_height.increment();
+        self.inner
+            .remove_entry(&old_height)
+            .expect("the sequencer height must have been recorded")
+    }
+
+    fn insert(&mut self, sequencer_height: SequencerHeight, celestia_height: CelestiaHeight) {
+        if sequencer_height < self.next_height {
+            return;
+        }
+        if let Some(prev_celestia_height) = self.inner.insert(sequencer_height, celestia_height) {
+            warn!(
+                height.sequencer = %sequencer_height,
+                height.celestia.new = %celestia_height,
+                height.celestia.old = %prev_celestia_height,
+                "sequencer height was already mapped to another celestia height; dropping old",
+            );
+        }
+    }
 }

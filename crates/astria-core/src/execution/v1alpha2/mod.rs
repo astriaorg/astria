@@ -33,8 +33,13 @@ enum GenesisInfoErrorKind {
 /// Usually constructed its [`Protobuf`] implementation from a
 /// [`raw::GenesisInfo`].
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct GenesisInfo {
     /// The rollup id which is used to identify the rollup txs.
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "crate::serde::string::display")
+    )]
     rollup_id: RollupId,
     /// The first height of sequencer which is used to identify the first block of the rollup.
     sequencer_genesis_block_height: tendermint::block::Height,
@@ -154,14 +159,21 @@ enum BlockErrorKind {
 /// Usually constructed its [`Protobuf`] implementation from a
 /// [`raw::Block`].
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct Block {
     /// The block number
     number: u32,
     /// The hash of the block
+    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::string::hex"))]
     hash: [u8; 32],
     /// The hash from the parent block
+    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::string::hex"))]
     parent_block_hash: [u8; 32],
     /// Timestamp on the block, standardized to google protobuf standard.
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "crate::serde::string::display")
+    )]
     timestamp: Timestamp,
 }
 
@@ -353,6 +365,7 @@ impl CommitmentStateBuilder<WithFirm, WithSoft> {
 /// - No blocks ever decrease in block number.
 /// - The chain defined by soft is the head of the canonical chain the firm block must belong to.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct CommitmentState {
     /// Soft commitment is the rollup block matching latest sequencer block.
     soft: Block,

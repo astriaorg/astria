@@ -134,7 +134,6 @@ impl Verify {
 /// # Errors
 ///
 /// If any of the above conditions are not satisfied, an error is returned.
-#[instrument]
 fn ensure_commit_has_quorum(
     commit: &tendermint::block::Commit,
     validator_set: &tendermint_rpc::endpoint::validators::Response,

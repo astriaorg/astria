@@ -26,6 +26,7 @@ penumbra-proto = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
 rand = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"], optional = true }
 sha2 = { workspace = true }
 tendermint = { workspace = true }
 tendermint-proto = { workspace = true }
@@ -37,6 +38,7 @@ indexmap = "2.1.0"
 
 [features]
 client = ["dep:tonic"]
+serde = ["dep:serde"]
 server = ["dep:tonic"]
 test-utils = ["dep:rand"]
 

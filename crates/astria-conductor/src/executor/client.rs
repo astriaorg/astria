@@ -60,6 +60,7 @@ impl Client {
     /// * `prev_block_hash` - Block hash of the parent block
     /// * `transactions` - List of transactions extracted from the sequencer block
     /// * `timestamp` - Optional timestamp of the sequencer block
+    #[instrument(skip_all, fields(uri = %self.uri))]
     pub(super) async fn execute_block(
         &mut self,
         prev_block_hash: [u8; 32],
@@ -83,6 +84,7 @@ impl Client {
     }
 
     /// Calls remote procedure `astria.execution.v1alpha2.GetCommitmentState`
+    #[instrument(skip_all, fields(uri = %self.uri))]
     pub(crate) async fn get_commitment_state(&mut self) -> eyre::Result<CommitmentState> {
         let request = raw::GetCommitmentStateRequest {};
         let response = self
@@ -102,6 +104,7 @@ impl Client {
     ///
     /// * `firm` - The firm block
     /// * `soft` - The soft block
+    #[instrument(skip_all, fields(uri = %self.uri))]
     pub(super) async fn update_commitment_state(
         &mut self,
         commitment_state: CommitmentState,

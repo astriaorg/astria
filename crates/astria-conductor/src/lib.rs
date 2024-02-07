@@ -37,10 +37,19 @@ struct ErrorHandler;
 impl eyre::EyreHandler for ErrorHandler {
     fn debug(
         &self,
-        _error: &(dyn std::error::Error + 'static),
-        _f: &mut core::fmt::Formatter<'_>,
+        mut error: &(dyn std::error::Error + 'static),
+        f: &mut core::fmt::Formatter<'_>,
     ) -> core::fmt::Result {
-        unimplemented!("errors must not be printed with their debug formatting");
+        f.write_char('{')?;
+        f.write_fmt(format_args!("\"0\": \"{error}\""))?;
+        let mut level: u32 = 1;
+        while let Some(source) = error.source() {
+            f.write_fmt(format_args!(", \"{level}\": \"{source}\""))?;
+            level += 1;
+            error = source;
+        }
+        f.write_char('}')?;
+        Ok(())
     }
 
     fn display(
