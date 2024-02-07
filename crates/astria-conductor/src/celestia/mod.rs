@@ -5,7 +5,6 @@ use std::{
     },
     future::ready,
     pin::Pin,
-    sync::Arc,
     task::{
         Context,
         Poll,
@@ -17,7 +16,10 @@ use celestia_client::{
         nmt::Namespace,
         Height as CelestiaHeight,
     },
-    jsonrpsee::ws_client::WsClient,
+    jsonrpsee::{
+        http_client::HttpClient,
+        ws_client::WsClient,
+    },
     CelestiaClientExt as _,
     CelestiaSequencerBlob,
 };
@@ -86,8 +88,11 @@ pub(crate) struct Reader {
     /// The channel used to send messages to the executor task.
     executor_channel: mpsc::UnboundedSender<ReconstructedBlock>,
 
-    /// The client used to communicate with Celestia.
-    celestia_client: Arc<WsClient>,
+    /// The client used to subscribe to new
+    celestia_http_client: HttpClient,
+
+    /// The client used to subscribe to new
+    celestia_ws_client: WsClient,
 
     /// the first block to be fetched from celestia
     celestia_start_height: CelestiaHeight,
@@ -119,7 +124,7 @@ impl Reader {
 
         // XXX: Add retry
         let mut headers = self
-            .celestia_client
+            .celestia_ws_client
             .header_subscribe()
             .await
             .wrap_err("failed to subscribe to recent celestia header")?;
@@ -137,7 +142,7 @@ impl Reader {
         let mut reconstructed_blocks = ReconstructedBlockStream::new(
             self.celestia_start_height,
             latest_celestia_height,
-            self.celestia_client.clone(),
+            self.celestia_http_client.clone(),
             10,
             self.block_verifier.clone(),
             self.sequencer_namespace,
@@ -200,7 +205,7 @@ pin_project! {
         heights: VecDeque<CelestiaHeight>,
         greatest_seen_height: CelestiaHeight,
         in_progress_queue: FuturesUnordered<BoxFuture<'static, eyre::Result<ReconstructedBlock>>>,
-        client: Arc<WsClient>,
+        client: HttpClient,
         max: usize,
         verifier: BlockVerifier,
         sequencer_namespace: Namespace,
@@ -219,7 +224,7 @@ impl ReconstructedBlockStream {
     fn new(
         start: CelestiaHeight,
         end: CelestiaHeight,
-        client: Arc<WsClient>,
+        client: HttpClient,
         max: usize,
         verifier: BlockVerifier,
         sequencer_namespace: Namespace,
@@ -314,7 +319,7 @@ impl Stream for ReconstructedBlockStream {
     namespace.rollup = %telemetry::display::base64(&rollup_namespace.as_bytes()),
 ))]
 async fn fetch_blocks_at_celestia_height(
-    client: Arc<WsClient>,
+    client: HttpClient,
     verifier: BlockVerifier,
     height: CelestiaHeight,
     sequencer_namespace: Namespace,
@@ -364,7 +369,7 @@ async fn fetch_blocks_at_celestia_height(
 // unnecessary. Just fetch the info once, validate all blobs in one
 // go.
 async fn process_sequencer_blob(
-    client: Arc<WsClient>,
+    client: HttpClient,
     verifier: BlockVerifier,
     height: CelestiaHeight,
     rollup_namespace: Namespace,

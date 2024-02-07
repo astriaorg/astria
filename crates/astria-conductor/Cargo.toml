@@ -45,6 +45,7 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
   "display",
 ] }
+http = "1.0.0"
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["server"] }
