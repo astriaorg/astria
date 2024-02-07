@@ -37,8 +37,7 @@ fn main() {
     cmd.arg("build")
         .arg("--output")
         .arg(buf_img.path())
-        .arg("--as-file-descriptor-set")
-        .arg(&src_dir);
+        .arg("--as-file-descriptor-set");
 
     let buf_output = match cmd.output() {
         Err(e) => {

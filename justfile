@@ -65,7 +65,7 @@ _lint-md:
 
 [no-exit-message]
 _fmt-proto:
-  buf format proto -w
+  buf format -w
 
 [no-exit-message]
 _lint-proto:
