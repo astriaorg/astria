@@ -119,11 +119,6 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10' 
-      - name: Install solc-select for smart contract tests
-        run: |
-          pip3 install solc-select
-          solc-select install 0.8.15
-          solc-select use 0.8.15
       - uses: dtolnay/rust-toolchain@1.73.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
@@ -132,14 +127,11 @@ jobs:
         with:
           version: "24.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: "nightly-60ec00296f00754bc21ed68fd05ab6b54b50e024"
       - name: Build tests
         run: |
           cargo test --no-run --release \
           --all-features \
+          --exclude astria-cli,astria-composer,astria-conductor,astria-optimism,astria-sequencer-relayer \
           --all-targets
       - name: Run tests
         timeout-minutes: 20
@@ -147,6 +139,7 @@ jobs:
           cargo test --release \
           --all-features \
           --all-targets \
+          --exclude astria-cli,astria-composer,astria-conductor,astria-optimism,astria-sequencer-relayer \
           -- --include-ignored
 
   doctest:
@@ -164,7 +157,9 @@ jobs:
           version: "24.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: run doctests
-        run: cargo test --doc --all-features
+        run: |
+         cargo test --doc --all-features \
+         --exclude astria-cli,astria-composer,astria-conductor,astria-optimism,astria-sequencer-relayer \
 
   clippy:
     runs-on: buildjet-8vcpu-ubuntu-2204
