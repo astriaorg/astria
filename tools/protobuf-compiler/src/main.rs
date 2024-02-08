@@ -63,6 +63,7 @@ fn main() {
         .build_client(true)
         .build_server(true)
         .emit_rerun_if_changed(false)
+        .bytes([".astria.execution.v1alpha2"])
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
         .extern_path(".astria_vendored.tendermint.abci", "::tendermint-proto::abci")

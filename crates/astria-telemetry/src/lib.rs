@@ -1,135 +1,224 @@
 //! Initialize telemetry in all astria services.
 //!
 //! # Examples
-//! ```
-//! if let Err(err) = astria_telemetry::init(std::io::stdout, "info") {
-//!     eprintln!("failed to initialize telemetry: {err:?}");
-//!     std::process::exit(1);
-//! }
+//! ```no_run
+//! astria_telemetry::configure()
+//!     .filter_directives("info")
+//!     .try_init()
+//!     .expect("must be able to initialize telemetry");
 //! tracing::info!("telemetry initialized");
 //! ```
+use std::io::IsTerminal as _;
+
+use opentelemetry::{
+    global,
+    trace::TracerProvider as _,
+};
+use opentelemetry_sdk::{
+    runtime::Tokio,
+    trace::TracerProvider,
+};
+use opentelemetry_stdout::SpanExporter;
 use tracing_subscriber::{
-    filter::ParseError,
-    fmt::MakeWriter,
+    filter::{
+        LevelFilter,
+        ParseError,
+    },
     layer::SubscriberExt as _,
-    util::TryInitError,
+    util::{
+        SubscriberInitExt as _,
+        TryInitError,
+    },
+    EnvFilter,
 };
 
 #[cfg(feature = "display")]
 pub mod display;
 
 /// The errors that can occur when initializing telemtry.
-#[derive(Debug)]
-pub enum Error {
-    FilterDirectives(ParseError),
-    SubscriberInit(TryInitError),
-}
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct Error(ErrorKind);
 
-impl From<TryInitError> for Error {
-    fn from(err: TryInitError) -> Self {
-        Self::SubscriberInit(err)
+impl Error {
+    fn otlp(source: opentelemetry::trace::TraceError) -> Self {
+        Self(ErrorKind::Otlp(source))
+    }
+
+    fn filter_directives(source: ParseError) -> Self {
+        Self(ErrorKind::FilterDirectives(source))
+    }
+
+    fn init_subscriber(source: TryInitError) -> Self {
+        Self(ErrorKind::InitSubscriber(source))
     }
 }
 
-impl From<ParseError> for Error {
-    fn from(err: ParseError) -> Error {
-        Self::FilterDirectives(err)
+#[derive(Debug, thiserror::Error)]
+enum ErrorKind {
+    #[error("failed constructing opentelemetry otlp exporter")]
+    Otlp(#[source] opentelemetry::trace::TraceError),
+    #[error("failed to parse filter directives")]
+    FilterDirectives(#[source] ParseError),
+    #[error("failed installing global tracing subscriber")]
+    InitSubscriber(#[source] TryInitError),
+}
+
+#[must_use = "the otel config must be initialized to be useful"]
+pub fn configure() -> Config {
+    Config::new()
+}
+struct BoxedMakeWriter(Box<dyn MakeWriter + Send + Sync + 'static>);
+
+impl BoxedMakeWriter {
+    fn new<M>(make_writer: M) -> Self
+    where
+        M: MakeWriter + Send + Sync + 'static,
+    {
+        Self(Box::new(make_writer))
     }
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let msg = match self {
-            Error::FilterDirectives(_) => "could not parse provided filter directives",
-            Error::SubscriberInit(_) => "could not install global tracing subscriber",
-        };
-        f.write_str(msg)
+pub trait MakeWriter {
+    fn make_writer(&self) -> Box<dyn std::io::Write + Send + Sync + 'static>;
+}
+
+impl<F, W> MakeWriter for F
+where
+    F: Fn() -> W,
+    W: std::io::Write + Send + Sync + 'static,
+{
+    fn make_writer(&self) -> Box<dyn std::io::Write + Send + Sync + 'static> {
+        Box::new((self)())
     }
 }
 
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::FilterDirectives(e) => Some(e),
-            Self::SubscriberInit(e) => Some(e),
+impl MakeWriter for BoxedMakeWriter {
+    fn make_writer(&self) -> Box<dyn std::io::Write + Send + Sync + 'static> {
+        self.0.make_writer()
+    }
+}
+
+pub struct Config {
+    filter_directives: String,
+    force_stdout: bool,
+    no_otel: bool,
+    stdout_writer: BoxedMakeWriter,
+}
+
+impl Config {
+    #[must_use = "telemetry must be initialized to be useful"]
+    fn new() -> Self {
+        Self {
+            filter_directives: String::new(),
+            force_stdout: false,
+            no_otel: false,
+            stdout_writer: BoxedMakeWriter::new(std::io::stdout),
         }
     }
 }
 
-/// Register a global tracing subscriber.
-///
-/// This function installs a global [`tracing_subscriber::Registry`] to
-/// record tracing spans and events. It detects if `stdout` of the executing
-/// binary is a tty. If it is, a human readable output will be written to `sink`.
-/// If `stdout` is not a tty, then json will be written to `sink.`
-///
-/// `sink` can be functions like `std::io::sink` or `std::io::stdout`.
-/// `filter_directives` has to be a string like
-/// `my_crate::module=debug,my_dependency=error`.
-/// This will emit events in `my_crate::module` at debug level or higher, but
-/// only error events in the entire `my_dependency` crate.
-/// See [`tracing_subscriber::filter::EnvFilter::add_directive`] for more
-/// information.
-///
-/// # Errors
-///
-/// Returns an error if `filter_directives` could not be parsed, or if the
-/// global registry could not be installed.
-///
-/// # Examples
-///
-/// Start telemetry with a global log level of `debug` writing to stdout.
-/// ```
-/// use tracing::{
-///     debug,
-///     info,
-/// };
-/// astria_telemetry::init(std::io::stdout, "info").unwrap();
-/// info!("info events will be recorded");
-/// debug!("but debug events will not");
-/// ```
-///
-/// Don't write any events by sending them to `std::io::sink`. This is mainly
-/// useful in tests because `tracing` circumvents rust's mechanism to capture
-/// stdout/stderr.
-/// ```
-/// use tracing::info;
-/// astria_telemetry::init(std::io::sink, "info").unwrap();
-/// info!("this will not be logged because of `std::io::sink`");
-/// ```
-pub fn init<S>(sink: S, filter_directives: &str) -> Result<(), Error>
-where
-    S: for<'a> MakeWriter<'a> + Send + Sync + 'static,
-{
-    use std::io::IsTerminal as _;
+impl Config {
+    #[must_use = "telemetry must be initialized to be useful"]
+    pub fn filter_directives(self, filter_directives: &str) -> Self {
+        Self {
+            filter_directives: filter_directives.to_string(),
+            ..self
+        }
+    }
 
-    use tracing_subscriber::{
-        filter::{
-            EnvFilter,
-            LevelFilter,
-        },
-        fmt,
-        registry,
-        util::SubscriberInitExt as _,
-    };
-    let env_filter = {
-        let builder = EnvFilter::builder().with_default_directive(LevelFilter::INFO.into());
-        builder.parse(filter_directives)?
-    };
-    let (json_log, stdout_log) = if std::io::stdout().is_terminal() {
-        eprintln!("service is attached to tty; using human readable formatting");
-        (None, Some(fmt::layer().with_writer(sink)))
-    } else {
-        eprintln!("service is not attached to tty; using json formatting");
-        (
-            Some(fmt::layer().json().flatten_event(true).with_writer(sink)),
+    #[must_use = "telemetry must be initialized to be useful"]
+    pub fn force_stdout(self) -> Self {
+        self.set_force_stdout(true)
+    }
+
+    #[must_use = "telemetry must be initialized to be useful"]
+    pub fn set_force_stdout(self, force_stdout: bool) -> Self {
+        Self {
+            force_stdout,
+            ..self
+        }
+    }
+
+    #[must_use = "telemetry must be initialized to be useful"]
+    pub fn no_otel(self) -> Self {
+        self.set_no_otel(true)
+    }
+
+    #[must_use = "telemetry must be initialized to be useful"]
+    pub fn set_no_otel(self, no_otel: bool) -> Self {
+        Self {
+            no_otel,
+            ..self
+        }
+    }
+
+    #[must_use = "telemetry must be initialized to be useful"]
+    pub fn stdout_writer<M>(self, stdout_writer: M) -> Self
+    where
+        M: MakeWriter + Send + Sync + 'static,
+    {
+        Self {
+            stdout_writer: BoxedMakeWriter::new(stdout_writer),
+            ..self
+        }
+    }
+
+    /// Initialize telemetry, consuming the config.
+    ///
+    /// # Errors
+    /// Fails if the filter directives could not be parsed, if communication with the OTLP
+    /// endpoint failed, or if the global tracing subscriber could not be installed.
+    pub fn try_init(self) -> Result<(), Error> {
+        let Self {
+            filter_directives,
+            force_stdout,
+            no_otel,
+            stdout_writer,
+        } = self;
+
+        let env_filter = {
+            let builder = EnvFilter::builder().with_default_directive(LevelFilter::INFO.into());
+            builder
+                .parse(filter_directives)
+                .map_err(Error::filter_directives)?
+        };
+
+        let mut tracer_provider = TracerProvider::builder();
+        if !no_otel {
+            // XXX: the endpoint is set by the env var OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
+            //      this is hardcoded in OTEL.
+            let otel_exporter = opentelemetry_otlp::new_exporter()
+                .tonic()
+                .build_span_exporter()
+                .map_err(Error::otlp)?;
+            tracer_provider = tracer_provider.with_batch_exporter(otel_exporter, Tokio);
+        }
+
+        if force_stdout || std::io::stdout().is_terminal() {
+            tracer_provider = tracer_provider.with_simple_exporter(
+                SpanExporter::builder()
+                    .with_writer(stdout_writer.make_writer())
+                    .build(),
+            );
+        }
+        let tracer_provider = tracer_provider.build();
+
+        let tracer = tracer_provider.versioned_tracer(
+            "astria-telemetry",
+            Some(env!("CARGO_PKG_VERSION")),
+            Some(opentelemetry_semantic_conventions::SCHEMA_URL),
             None,
-        )
-    };
+        );
+        let _ = global::set_tracer_provider(tracer_provider);
 
-    Ok(registry()
-        .with(stdout_log)
-        .with(json_log)
-        .with(env_filter)
-        .try_init()?)
+        let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+        tracing_subscriber::registry()
+            .with(otel_layer)
+            .with(env_filter)
+            .try_init()
+            .map_err(Error::init_subscriber)?;
+
+        Ok(())
+    }
 }

@@ -6,6 +6,7 @@ use astria_core::{
     },
     sequencer::v1alpha1::RollupId,
 };
+use bytes::Bytes;
 use celestia_client::celestia_types::Height as CelestiaHeight;
 use sequencer_client::tendermint::block::Height;
 
@@ -94,8 +95,8 @@ macro_rules! forward_impls {
 forward_impls!(
     [firm -> &Block],
     [soft -> &Block],
-    [firm_parent_hash -> [u8; 32]],
-    [soft_parent_hash -> [u8; 32]],
+    [firm_parent_hash -> Bytes],
+    [soft_parent_hash -> Bytes],
     [celestia_base_block_height -> CelestiaHeight],
     [celestia_block_variance -> u32],
     [rollup_id -> RollupId],
@@ -147,12 +148,12 @@ impl StateImpl {
         self.commitment_state.soft()
     }
 
-    pub(super) fn firm_parent_hash(&self) -> [u8; 32] {
-        self.firm().hash()
+    pub(super) fn firm_parent_hash(&self) -> Bytes {
+        self.firm().hash().clone()
     }
 
-    pub(super) fn soft_parent_hash(&self) -> [u8; 32] {
-        self.soft().hash()
+    pub(super) fn soft_parent_hash(&self) -> Bytes {
+        self.soft().hash().clone()
     }
 
     pub(super) fn celestia_base_block_height(&self) -> CelestiaHeight {
@@ -214,8 +215,8 @@ mod tests {
     fn make_commitment_state() -> CommitmentState {
         let firm = Block::try_from_raw(raw::Block {
             number: 1,
-            hash: vec![42u8; 32],
-            parent_block_hash: vec![41u8; 32],
+            hash: vec![42u8; 32].into(),
+            parent_block_hash: vec![41u8; 32].into(),
             timestamp: Some(Timestamp {
                 seconds: 123_456,
                 nanos: 789,
@@ -224,8 +225,8 @@ mod tests {
         .unwrap();
         let soft = Block::try_from_raw(raw::Block {
             number: 2,
-            hash: vec![43u8; 32],
-            parent_block_hash: vec![42u8; 32],
+            hash: vec![43u8; 32].into(),
+            parent_block_hash: vec![42u8; 32].into(),
             timestamp: Some(Timestamp {
                 seconds: 123_456,
                 nanos: 789,
@@ -241,7 +242,7 @@ mod tests {
 
     fn make_genesis_info() -> GenesisInfo {
         GenesisInfo::try_from_raw(raw::GenesisInfo {
-            rollup_id: vec![24; 32],
+            rollup_id: vec![24; 32].into(),
             sequencer_genesis_block_height: 10,
             celestia_base_block_height: 1,
             celestia_block_variance: 0,

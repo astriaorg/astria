@@ -6,8 +6,8 @@
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GenesisInfo {
     /// The rollup_id is the unique identifier for the rollup chain.
-    #[prost(bytes = "vec", tag = "1")]
-    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub rollup_id: ::prost::bytes::Bytes,
     /// The first block height of sequencer chain to use for rollup transactions.
     #[prost(uint32, tag = "2")]
     pub sequencer_genesis_block_height: u32,
@@ -27,11 +27,11 @@ pub struct Block {
     #[prost(uint32, tag = "1")]
     pub number: u32,
     /// The hash of the block
-    #[prost(bytes = "vec", tag = "2")]
-    pub hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "2")]
+    pub hash: ::prost::bytes::Bytes,
     /// The hash from the parent block
-    #[prost(bytes = "vec", tag = "3")]
-    pub parent_block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "3")]
+    pub parent_block_hash: ::prost::bytes::Bytes,
     /// Timestamp on the block, standardized to google protobuf standard.
     #[prost(message, optional, tag = "4")]
     pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
@@ -51,7 +51,7 @@ pub mod block_identifier {
         #[prost(uint32, tag = "1")]
         BlockNumber(u32),
         #[prost(bytes, tag = "2")]
-        BlockHash(::prost::alloc::vec::Vec<u8>),
+        BlockHash(::prost::bytes::Bytes),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -88,11 +88,11 @@ pub struct BatchGetBlocksResponse {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecuteBlockRequest {
     /// The hash of previous block, which new block will be created on top of.
-    #[prost(bytes = "vec", tag = "1")]
-    pub prev_block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub prev_block_hash: ::prost::bytes::Bytes,
     /// List of transactions to include in the new block.
-    #[prost(bytes = "vec", repeated, tag = "2")]
-    pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", repeated, tag = "2")]
+    pub transactions: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
     /// Timestamp to be used for new block.
     #[prost(message, optional, tag = "3")]
     pub timestamp: ::core::option::Option<::prost_types::Timestamp>,

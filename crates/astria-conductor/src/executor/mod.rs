@@ -7,6 +7,7 @@ use astria_core::{
     },
     sequencer::v1alpha1::RollupId,
 };
+use bytes::Bytes;
 use celestia_client::celestia_types::Height as CelestiaHeight;
 use eyre::{
     self,
@@ -331,7 +332,7 @@ impl Executor {
     async fn execute_block(
         &mut self,
         mut client: Client,
-        parent_block_hash: [u8; 32],
+        parent_block_hash: Bytes,
         block: ExecutableBlock,
     ) -> eyre::Result<Block> {
         let ExecutableBlock {
