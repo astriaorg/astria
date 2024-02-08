@@ -14,6 +14,10 @@ pub struct Config {
     pub validator_key_file: Option<String>,
     pub rpc_port: u16,
     pub log: String,
+    /// Forces writing trace data to stdout no matter if connected to a tty or not.
+    pub force_stdout: bool,
+    /// Disables writing trace data to an opentelemetry endpoint.
+    pub no_otel: bool,
 }
 
 impl config::Config for Config {
