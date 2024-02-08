@@ -1,4 +1,5 @@
 use anyhow::{
+    anyhow,
     ensure,
     Context as _,
     Result,
@@ -27,6 +28,9 @@ use crate::{
     },
     transaction::action_handler::ActionHandler,
 };
+
+/// Fee charged for a `Ics20Withdrawal` action.
+pub(crate) const ICS20_WITHDRAWAL_FEE: u128 = 12;
 
 fn withdrawal_to_unchecked_ibc_packet(
     withdrawal: &action::Ics20Withdrawal,
@@ -68,14 +72,42 @@ impl ActionHandler for action::Ics20Withdrawal {
             .await
             .context("packet failed send check")?;
 
-        let from_transfer_balance = state
-            .get_account_balance(from, self.denom().id())
+        let transfer_asset_id = self.denom().id();
+
+        let from_fee_balance = state
+            .get_account_balance(from, *self.fee_asset_id())
             .await
-            .context("failed getting `from` account balance for transfer")?;
-        ensure!(
-            from_transfer_balance >= self.amount(),
-            "insufficient funds for transfer"
-        );
+            .context("failed getting `from` account balance for fee payment")?;
+
+        // if fee asset is same as transfer asset, ensure accounts has enough funds
+        // to cover both the fee and the amount transferred
+        if self.fee_asset_id() == &transfer_asset_id {
+            let payment_amount = self
+                .amount()
+                .checked_add(ICS20_WITHDRAWAL_FEE)
+                .ok_or(anyhow!("transfer amount plus fee overflowed"))?;
+
+            ensure!(
+                from_fee_balance >= payment_amount,
+                "insufficient funds for transfer and fee payment"
+            );
+        } else {
+            // otherwise, check the fee asset account has enough to cover the fees,
+            // and the transfer asset account has enough to cover the transfer
+            ensure!(
+                from_fee_balance >= ICS20_WITHDRAWAL_FEE,
+                "insufficient funds for fee payment"
+            );
+
+            let from_transfer_balance = state
+                .get_account_balance(from, transfer_asset_id)
+                .await
+                .context("failed to get account balance in transfer check")?;
+            ensure!(
+                from_transfer_balance >= self.amount(),
+                "insufficient funds for transfer"
+            );
+        }
 
         Ok(())
     }
