@@ -1,9 +1,126 @@
+use bytes::Bytes;
 use prost_types::Timestamp;
 
 use crate::{
     generated::execution::v1alpha2 as raw,
+    sequencer::v1alpha1::{
+        IncorrectRollupIdLength,
+        RollupId,
+    },
     Protobuf,
 };
+
+// An error when transforming a [`raw::GenesisInfo`] into a [`GenesisInfo`].
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct GenesisInfoError(GenesisInfoErrorKind);
+
+impl GenesisInfoError {
+    fn incorrect_rollup_id_length(inner: IncorrectRollupIdLength) -> Self {
+        Self(GenesisInfoErrorKind::IncorrectRollupIdLength(inner))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum GenesisInfoErrorKind {
+    #[error("`rollup_id` field did not contain a valid rollup ID")]
+    IncorrectRollupIdLength(IncorrectRollupIdLength),
+}
+
+/// Genesis Info required from a rollup to start a an execution client.
+///
+/// Contains information about the rollup id, and base heights for both sequencer & celestia.
+///
+/// Usually constructed its [`Protobuf`] implementation from a
+/// [`raw::GenesisInfo`].
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct GenesisInfo {
+    /// The rollup id which is used to identify the rollup txs.
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "crate::serde::string::display")
+    )]
+    rollup_id: RollupId,
+    /// The Sequencer block height which contains the first block of the rollup.
+    sequencer_genesis_block_height: tendermint::block::Height,
+    /// The first Celestia height within which to look for Sequencer and Rollup blobs for the
+    /// rollup.
+    celestia_base_block_height: celestia_tendermint::block::Height,
+    /// The allowed variance in the block height of celestia when looking for sequencer blocks.
+    celestia_block_variance: u32,
+}
+
+impl GenesisInfo {
+    #[must_use]
+    pub fn rollup_id(&self) -> RollupId {
+        self.rollup_id
+    }
+
+    #[must_use]
+    pub fn sequencer_genesis_block_height(&self) -> tendermint::block::Height {
+        self.sequencer_genesis_block_height
+    }
+
+    #[must_use]
+    pub fn celestia_base_block_height(&self) -> celestia_tendermint::block::Height {
+        self.celestia_base_block_height
+    }
+
+    #[must_use]
+    pub fn celestia_block_variance(&self) -> u32 {
+        self.celestia_block_variance
+    }
+}
+
+impl Protobuf for GenesisInfo {
+    type Error = GenesisInfoError;
+    type Raw = raw::GenesisInfo;
+
+    fn try_from_raw_ref(raw: &Self::Raw) -> Result<Self, Self::Error> {
+        let raw::GenesisInfo {
+            rollup_id,
+            sequencer_genesis_block_height,
+            celestia_base_block_height,
+            celestia_block_variance,
+        } = raw;
+        let rollup_id =
+            RollupId::try_from_slice(rollup_id).map_err(Self::Error::incorrect_rollup_id_length)?;
+
+        Ok(Self {
+            rollup_id,
+            sequencer_genesis_block_height: (*sequencer_genesis_block_height).into(),
+            celestia_base_block_height: (*celestia_base_block_height).into(),
+            celestia_block_variance: *celestia_block_variance,
+        })
+    }
+
+    fn to_raw(&self) -> Self::Raw {
+        let Self {
+            rollup_id,
+            sequencer_genesis_block_height,
+            celestia_base_block_height,
+            celestia_block_variance,
+        } = self;
+
+        let sequencer_genesis_block_height: u32 =
+            (*sequencer_genesis_block_height).value().try_into().expect(
+                "block height overflow, this should not happen since tendermint heights are i64 \
+                 under the hood",
+            );
+        let celestia_base_block_height: u32 =
+            (*celestia_base_block_height).value().try_into().expect(
+                "block height overflow, this should not happen since tendermint heights are i64 \
+                 under the hood",
+            );
+        Self::Raw {
+            rollup_id: Bytes::copy_from_slice(rollup_id.as_ref()),
+            sequencer_genesis_block_height,
+            celestia_base_block_height,
+            celestia_block_variance: *celestia_block_variance,
+        }
+    }
+}
 
 /// An error when transforming a [`raw::Block`] into a [`Block`].
 #[derive(Debug, thiserror::Error)]
@@ -14,26 +131,12 @@ impl BlockError {
     fn field_not_set(field: &'static str) -> Self {
         Self(BlockErrorKind::FieldNotSet(field))
     }
-
-    fn incorrect_block_hash_length(wrong_hash: &[u8]) -> Self {
-        Self(BlockErrorKind::IncorrectBlockHashLength(wrong_hash.len()))
-    }
-
-    fn incorrect_parent_block_hash_length(wrong_hash: &[u8]) -> Self {
-        Self(BlockErrorKind::IncorrectParentBlockHashLength(
-            wrong_hash.len(),
-        ))
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum BlockErrorKind {
     #[error("{0} field not set")]
     FieldNotSet(&'static str),
-    #[error(".hash field contained wrong number of bytes; expected 32, got {0}")]
-    IncorrectBlockHashLength(usize),
-    #[error(".parent_block_hash field contained wrong number of bytes; expected 32, got {0}")]
-    IncorrectParentBlockHashLength(usize),
 }
 
 /// An Astria execution block on a rollup.
@@ -43,15 +146,22 @@ enum BlockErrorKind {
 ///
 /// Usually constructed its [`Protobuf`] implementation from a
 /// [`raw::Block`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct Block {
     /// The block number
     number: u32,
     /// The hash of the block
-    hash: [u8; 32],
-    /// The hash from the parent block
-    parent_block_hash: [u8; 32],
+    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::string::hex"))]
+    hash: Bytes,
+    /// The hash of the parent block
+    #[cfg_attr(feature = "serde", serde(serialize_with = "crate::serde::string::hex"))]
+    parent_block_hash: Bytes,
     /// Timestamp on the block, standardized to google protobuf standard.
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "crate::serde::string::display")
+    )]
     timestamp: Timestamp,
 }
 
@@ -62,13 +172,13 @@ impl Block {
     }
 
     #[must_use]
-    pub fn hash(&self) -> [u8; 32] {
-        self.hash
+    pub fn hash(&self) -> &Bytes {
+        &self.hash
     }
 
     #[must_use]
-    pub fn parent_block_hash(&self) -> [u8; 32] {
-        self.parent_block_hash
+    pub fn parent_block_hash(&self) -> &Bytes {
+        &self.parent_block_hash
     }
 
     #[must_use]
@@ -90,15 +200,6 @@ impl Protobuf for Block {
             parent_block_hash,
             timestamp,
         } = raw;
-        let hash = hash
-            .as_slice()
-            .try_into()
-            .map_err(|_| Self::Error::incorrect_block_hash_length(hash))?;
-        let parent_block_hash = parent_block_hash
-            .as_slice()
-            .try_into()
-            .map_err(|_| Self::Error::incorrect_parent_block_hash_length(parent_block_hash))?;
-
         // Clone'ing timestamp is effectively a copy because timestamp is just a (i32, i64) tuple
         let timestamp = timestamp
             .clone()
@@ -106,8 +207,8 @@ impl Protobuf for Block {
 
         Ok(Self {
             number: *number,
-            hash,
-            parent_block_hash,
+            hash: hash.clone(),
+            parent_block_hash: parent_block_hash.clone(),
             timestamp,
         })
     }
@@ -121,8 +222,8 @@ impl Protobuf for Block {
         } = self;
         Self::Raw {
             number: *number,
-            hash: hash.to_vec(),
-            parent_block_hash: parent_block_hash.to_vec(),
+            hash: hash.clone(),
+            parent_block_hash: parent_block_hash.clone(),
             // Clone'ing timestamp is effectively a copy because timestamp is just a (i32, i64)
             // tuple
             timestamp: Some(timestamp.clone()),
@@ -242,7 +343,8 @@ impl CommitmentStateBuilder<WithFirm, WithSoft> {
 /// - Block numbers are such that soft >= firm (upheld by this type).
 /// - No blocks ever decrease in block number.
 /// - The chain defined by soft is the head of the canonical chain the firm block must belong to.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct CommitmentState {
     /// Soft commitment is the rollup block matching latest sequencer block.
     soft: Block,

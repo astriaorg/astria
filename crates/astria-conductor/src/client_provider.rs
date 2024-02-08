@@ -1,13 +1,13 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use color_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
 use deadpool::managed::{
     self,
     Pool,
+};
+use eyre::{
+    self,
+    WrapErr as _,
 };
 use sequencer_client::WebSocketClient;
 use tokio::{

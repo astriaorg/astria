@@ -37,6 +37,11 @@ pub struct Config {
     /// Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
     /// public key, nonce. This is the sum of the sizes of all the `SequenceAction`s
     pub max_bytes_per_bundle: usize,
+    /// Forces writing trace data to stdout no matter if connected to a tty or not.
+    pub force_stdout: bool,
+
+    /// Disables writing trace data to an opentelemetry endpoint.
+    pub no_otel: bool,
 }
 
 impl config::Config for Config {

@@ -24,8 +24,10 @@
 //!     .expect("the json serializer should never fail when serializing to a string");
 //! eprintln!("config:\n{cfg_ser}");
 //!
-//! telemetry::init(std::io::stdout, &cfg.log).expect("failed to initialize tracing");
-//!
+//! telemetry::configure()
+//!     .filter_directives(&cfg.log)
+//!     .try_init()
+//!     .expect("failed to setup telemetry");
 //! info!(config = cfg_ser, "initializing composer",);
 //!
 //! let _composer = Composer::from_config(&cfg)
