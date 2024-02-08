@@ -6,9 +6,6 @@ use metrics::{
     describe_counter,
     describe_gauge,
     describe_histogram,
-    register_counter,
-    register_gauge,
-    register_histogram,
     Unit,
 };
 
@@ -16,21 +13,18 @@ use metrics::{
 pub fn register() {
     celestia_client::metrics_init::register();
 
-    register_counter!(CELESTIA_SUBMISSION_HEIGHT);
     describe_counter!(
         CELESTIA_SUBMISSION_HEIGHT,
         Unit::Count,
         "The height of the last blob submitted to Celestia"
     );
 
-    register_gauge!(BLOCKS_PER_CELESTIA_TX);
     describe_gauge!(
         BLOCKS_PER_CELESTIA_TX,
         Unit::Count,
         "The number of astria blocks included in the last Celestia submission"
     );
 
-    register_histogram!(CELESTIA_SUBMISSION_LATENCY);
     describe_histogram!(
         CELESTIA_SUBMISSION_LATENCY,
         Unit::Seconds,

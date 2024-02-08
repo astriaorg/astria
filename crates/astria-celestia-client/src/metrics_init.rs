@@ -4,20 +4,20 @@
 
 use metrics::{
     describe_gauge,
-    register_gauge,
+    gauge,
     Unit,
 };
 
 /// Registers all metrics used by this crate.
 pub fn register() {
-    register_gauge!(ROLLUP_BLOBS_PER_ASTRIA_BLOCK, "library" => "astria_celestia_client");
+    gauge!(ROLLUP_BLOBS_PER_ASTRIA_BLOCK, "lib" => "astria_celestia_client");
     describe_gauge!(
         ROLLUP_BLOBS_PER_ASTRIA_BLOCK,
         Unit::Count,
         "The number of rollup blobs generated from a single astria sequencer block"
     );
 
-    register_gauge!(ROLLUP_BLOBS_PER_CELESTIA_TX, "library" => "astria_celestia_client");
+    gauge!(ROLLUP_BLOBS_PER_CELESTIA_TX, "lib" => "astria_celestia_client");
     describe_gauge!(
         ROLLUP_BLOBS_PER_CELESTIA_TX,
         Unit::Count,

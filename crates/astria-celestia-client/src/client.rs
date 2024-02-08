@@ -199,10 +199,7 @@ pub trait CelestiaClientExt: BlobClient {
         // the number of blobs should always be low enough to not cause precision loss
         #[allow(clippy::cast_precision_loss)]
         let metric_rollup_count = num_of_rollup_blobs as f64;
-        metrics::gauge!(
-            metrics_init::ROLLUP_BLOBS_PER_CELESTIA_TX,
-            metric_rollup_count
-        );
+        metrics::gauge!(metrics_init::ROLLUP_BLOBS_PER_CELESTIA_TX,).set(metric_rollup_count);
 
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
         for (i, block) in blocks.into_iter().enumerate() {
@@ -253,10 +250,7 @@ fn assemble_blobs_from_sequencer_block(
     // the number of blobs should always be low enough to not cause precision loss
     #[allow(clippy::cast_precision_loss)]
     let rollup_blobs_count = rollup_blobs.len() as f64;
-    metrics::gauge!(
-        metrics_init::ROLLUP_BLOBS_PER_ASTRIA_BLOCK,
-        rollup_blobs_count
-    );
+    metrics::gauge!(metrics_init::ROLLUP_BLOBS_PER_ASTRIA_BLOCK,).set(rollup_blobs_count);
 
     let mut blobs = Vec::with_capacity(rollup_blobs.len() + 1);
 
