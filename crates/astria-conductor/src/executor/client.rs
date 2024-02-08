@@ -10,6 +10,7 @@ use astria_core::{
     },
     Protobuf as _,
 };
+use bytes::Bytes;
 use eyre::{
     self,
     WrapErr as _,
@@ -63,12 +64,13 @@ impl Client {
     #[instrument(skip_all, fields(uri = %self.uri))]
     pub(super) async fn execute_block(
         &mut self,
-        prev_block_hash: [u8; 32],
+        prev_block_hash: Bytes,
         transactions: Vec<Vec<u8>>,
         timestamp: Timestamp,
     ) -> eyre::Result<Block> {
+        let transactions = transactions.into_iter().map(Bytes::from).collect();
         let request = raw::ExecuteBlockRequest {
-            prev_block_hash: prev_block_hash.to_vec(),
+            prev_block_hash,
             transactions,
             timestamp: Some(timestamp),
         };

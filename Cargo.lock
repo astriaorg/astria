@@ -596,6 +596,7 @@ dependencies = [
  "astria-telemetry",
  "async-trait",
  "base64 0.21.5",
+ "bytes",
  "deadpool 0.10.0",
  "ed25519-consensus",
  "ethers",
@@ -640,6 +641,7 @@ name = "astria-core"
 version = "0.1.0"
 dependencies = [
  "astria-merkle",
+ "bytes",
  "ed25519-consensus",
  "hex",
  "ibc-types",

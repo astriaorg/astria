@@ -30,6 +30,7 @@ use astria_core::{
         ConfigureCometBftBlock,
     },
 };
+use bytes::Bytes;
 use ethers::{
     prelude::{
         k256::ecdsa::SigningKey,
@@ -53,7 +54,10 @@ use super::{
     SequencerHeight,
 };
 
-const GENESIS_HASH: [u8; 32] = [0u8; 32];
+// Bytes provides an escape hatch for interior mutability.
+// That's not good in general but acceptable in these tests.
+#[allow(clippy::declare_interior_mutable_const)]
+const GENESIS_HASH: Bytes = Bytes::from_static(&[0u8; 32]);
 
 #[derive(Debug)]
 struct MockExecutionServer {
@@ -88,14 +92,14 @@ impl MockExecutionServer {
 fn make_genesis_block() -> Block {
     Block {
         number: 0,
-        hash: GENESIS_HASH.to_vec(),
-        parent_block_hash: GENESIS_HASH.to_vec(),
+        hash: GENESIS_HASH,
+        parent_block_hash: GENESIS_HASH,
         timestamp: Some(std::time::SystemTime::now().into()),
     }
 }
 
 struct ExecutionServiceImpl {
-    hash_to_number: Mutex<HashMap<[u8; 32], u32>>,
+    hash_to_number: Mutex<HashMap<Bytes, u32>>,
     commitment_state: Mutex<CommitmentState>,
     genesis_info: Mutex<GenesisInfo>,
 }
@@ -113,7 +117,7 @@ impl ExecutionServiceImpl {
             }
             .into(),
             genesis_info: GenesisInfo {
-                rollup_id: vec![42u8; 32],
+                rollup_id: vec![42u8; 32].into(),
                 sequencer_genesis_block_height: 100,
                 celestia_base_block_height: 1,
                 celestia_block_variance: 1,
@@ -153,20 +157,20 @@ impl ExecutionService for ExecutionServiceImpl {
         request: tonic::Request<ExecuteBlockRequest>,
     ) -> std::result::Result<tonic::Response<Block>, tonic::Status> {
         let request = request.into_inner();
-        let parent_block_hash: [u8; 32] = request.prev_block_hash.try_into().unwrap();
+        let parent_block_hash: Bytes = request.prev_block_hash.clone();
         let hash = get_expected_execution_hash(&parent_block_hash, &request.transactions);
         let new_number = {
             let mut guard = self.hash_to_number.lock().unwrap();
             let new_number = guard.get(&parent_block_hash).unwrap() + 1;
-            guard.insert(hash, new_number);
+            guard.insert(hash.clone(), new_number);
             new_number
         };
 
         let timestamp = request.timestamp.unwrap_or_default();
         Ok(tonic::Response::new(Block {
             number: new_number,
-            hash: hash.to_vec(),
-            parent_block_hash: parent_block_hash.to_vec(),
+            hash,
+            parent_block_hash,
             timestamp: Some(timestamp),
         }))
     }
@@ -193,8 +197,17 @@ impl ExecutionService for ExecutionServiceImpl {
     }
 }
 
-fn get_expected_execution_hash(parent_block_hash: &[u8], transactions: &[Vec<u8>]) -> [u8; 32] {
-    hash(&[parent_block_hash, &transactions.concat()].concat())
+fn get_expected_execution_hash(
+    parent_block_hash: &Bytes,
+    transactions: &[impl AsRef<[u8]>],
+) -> Bytes {
+    use sha2::Digest as _;
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(parent_block_hash);
+    for tx in transactions {
+        hasher.update(tx);
+    }
+    Bytes::copy_from_slice(&hasher.finalize())
 }
 
 fn hash(s: &[u8]) -> [u8; 32] {
@@ -285,7 +298,7 @@ async fn firm_blocks_at_expected_heights_are_executed() {
     block.transactions.push(b"test_transaction".to_vec());
 
     let expected_exection_hash = get_expected_execution_hash(
-        &mock.executor.state.borrow().firm().hash(),
+        mock.executor.state.borrow().firm().hash(),
         &block.transactions,
     );
 
@@ -302,7 +315,7 @@ async fn firm_blocks_at_expected_heights_are_executed() {
     block.header.height = block.header.height.increment();
     block.transactions.push(b"a new transaction".to_vec());
     let expected_exection_hash = get_expected_execution_hash(
-        &mock.executor.state.borrow().firm().hash(),
+        mock.executor.state.borrow().firm().hash(),
         &block.transactions,
     );
 
@@ -565,7 +578,7 @@ mod optimism_tests {
         // calculate the expected mock execution hash, which includes the block txs,
         // thus confirming the deposit tx was executed
         let expected_exection_hash =
-            get_expected_execution_hash(&mock.executor.state.borrow().soft().hash(), &deposit_txs);
+            get_expected_execution_hash(mock.executor.state.borrow().soft().hash(), &deposit_txs);
         let block = make_reconstructed_block();
         mock.executor
             .execute_firm(mock.client.clone(), block)
