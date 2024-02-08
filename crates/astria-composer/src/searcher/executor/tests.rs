@@ -48,9 +48,18 @@ use crate::{
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
-        telemetry::init(std::io::stdout, &filter_directives).unwrap();
+        telemetry::configure()
+            .no_otel()
+            .stdout_writer(std::io::stdout)
+            .filter_directives(&filter_directives)
+            .try_init()
+            .unwrap();
     } else {
-        telemetry::init(std::io::sink, "").unwrap();
+        telemetry::configure()
+            .no_otel()
+            .stdout_writer(std::io::sink)
+            .try_init()
+            .unwrap();
     }
 });
 
@@ -79,6 +88,8 @@ async fn setup() -> (MockServer, MockGuard, Config) {
             .into(),
         block_time_ms: 2000,
         max_bytes_per_bundle: 1000,
+        no_otel: false,
+        force_stdout: false,
     };
     (server, startup_guard, cfg)
 }
