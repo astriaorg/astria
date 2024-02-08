@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package astria_vendored.tendermint.types;
+
+import "astria_vendored/tendermint/version/types.proto";
+import "google/protobuf/timestamp.proto";
+
+// This file contains types which are copied from the cometbft types
+// if we update the version of cometbft being used it may need to be updated.
+
+// We are copying the bare minimum of types required for use with our own types
+// this is done to avoid importing the entire cometbft types package, and proto
+// registration issues that may cause in dependent chains which also import
+// the cometbft types.
+
+message BlockID {
+  bytes hash = 1;
+  PartSetHeader part_set_header = 2;
+}
+
+message PartSetHeader {
+  uint32 total = 1;
+  bytes hash = 2;
+}
+
+message Header {
+  // basic block info
+  tendermint.version.Consensus version = 1;
+  string chain_id = 2;
+  int64 height = 3;
+  google.protobuf.Timestamp time = 4;
+  // prev block info
+  BlockID last_block_id = 5;
+  // hashes of block data
+  bytes last_commit_hash = 6;
+  bytes data_hash = 7;
+  // hashes from the app output from the prev block
+  bytes validators_hash = 8;
+  bytes next_validators_hash = 9;
+  bytes consensus_hash = 10;
+  bytes app_hash = 11;
+  bytes last_results_hash = 12;
+  // consensus info
+  bytes evidence_hash = 13;
+  bytes proposer_address = 14;
+}

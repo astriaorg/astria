@@ -33,12 +33,17 @@ jobs:
       - uses: bufbuild/buf-lint-action@v1
         with:
           input: "proto/"
-      - run: buf format proto -d --exit-code
+      - run: buf format -d --exit-code
+      # Run breaking changes against each module, running against whole workspace
+      # fails if new packages are added
       - uses: bufbuild/buf-breaking-action@v1
         with:
-          # The 'main' branch of the GitHub repository that defines the module.
-          input: "proto"
-          against: "buf.build/astria/astria:sequencer-v0.8.x"
+          input: "proto/executionapis"
+          against: "buf.build/astria/execution-apis:release/sequencer-v0.8.x"
+      - uses: bufbuild/buf-breaking-action@v1
+        with:
+          input: "proto/sequencerapis"
+          against: "buf.build/astria/astria:release/sequencer-v0.8.x"
 
   rust:
     runs-on: ubuntu-22.04

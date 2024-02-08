@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package astria.sequencer.v1alpha1;
 
-import "tendermint/types/types.proto";
+import "astria_vendored/tendermint/types/types.proto";
 
 // `IndexedTransaction` represents a sequencer transaction along with the index
 // it was originally in the sequencer block.
@@ -25,7 +25,7 @@ message RollupNamespaceData {
 // `SequencerNamespaceData`
 message SequencerNamespaceData {
   bytes block_hash = 1;
-  tendermint.types.Header header = 2;
+  astria_vendored.tendermint.types.Header header = 2;
   repeated IndexedTransaction sequencer_txs = 3;
   repeated RollupNamespace rollup_namespaces = 4;
 }

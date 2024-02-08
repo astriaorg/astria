@@ -37,8 +37,7 @@ fn main() {
     cmd.arg("build")
         .arg("--output")
         .arg(buf_img.path())
-        .arg("--as-file-descriptor-set")
-        .arg(&src_dir);
+        .arg("--as-file-descriptor-set");
 
     let buf_output = match cmd.output() {
         Err(e) => {
@@ -66,11 +65,11 @@ fn main() {
         .emit_rerun_if_changed(false)
         .client_mod_attribute(".", "#[cfg(feature=\"client\")]")
         .server_mod_attribute(".", "#[cfg(feature=\"server\")]")
-        .extern_path(".tendermint.abci", "::tendermint-proto::abci")
-        .extern_path(".tendermint.crypto", "::tendermint-proto::crypto")
-        .extern_path(".tendermint.version", "::tendermint-proto::version")
-        .extern_path(".tendermint.types", "::tendermint-proto::types")
-        .extern_path(".penumbra", "::penumbra-proto")
+        .extern_path(".astria_vendored.tendermint.abci", "::tendermint-proto::abci")
+        .extern_path(".astria_vendored.tendermint.crypto", "::tendermint-proto::crypto")
+        .extern_path(".astria_vendored.tendermint.version", "::tendermint-proto::version")
+        .extern_path(".astria_vendored.tendermint.types", "::tendermint-proto::types")
+        .extern_path(".astria_vendored.penumbra", "::penumbra-proto")
         .type_attribute(".astria.primitive.v1.Uint128", "#[derive(Copy)]")
         .out_dir(&out_dir)
         .file_descriptor_set_path(buf_img.path())

@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package astria_vendored.tendermint.crypto;
+
+// This file contains types which are copied from the cometbft types
+// if we update the version of cometbft being used it may need to be updated.
+
+// We are copying the bare minimum of types required for use with our own types
+// this is done to avoid importing the entire cometbft types package, and proto
+// registration issues that may cause in dependent chains which also import
+// the cometbft types.
+
+message PublicKey {
+  oneof sum {
+    bytes ed25519 = 1;
+    bytes secp256k1 = 2;
+  }
+}

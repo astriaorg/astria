@@ -23,7 +23,12 @@ jobs:
       - uses: bufbuild/buf-push-action@v1
         with:
           draft:  true
-          input: "proto"
+          input: "proto/executionapis"
+          buf_token: ${{ secrets.BUF_TOKEN }}
+      - uses: bufbuild/buf-push-action@v1
+        with:
+          draft: true
+          input: "proto/sequencerapis"
           buf_token: ${{ secrets.BUF_TOKEN }}
   
   sequencer:
