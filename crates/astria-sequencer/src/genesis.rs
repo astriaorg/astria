@@ -42,5 +42,5 @@ where
     D: Deserializer<'de>,
 {
     let strings: Vec<String> = serde::Deserialize::deserialize(deserializer)?;
-    Ok(strings.into_iter().map(|s| asset::Denom::from(s)).collect())
+    Ok(strings.into_iter().map(asset::Denom::from).collect())
 }
