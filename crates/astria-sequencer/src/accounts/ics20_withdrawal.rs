@@ -30,7 +30,7 @@ use crate::{
 };
 
 /// Fee charged for a `Ics20Withdrawal` action.
-pub(crate) const ICS20_WITHDRAWAL_FEE: u128 = 12;
+pub(crate) const ICS20_WITHDRAWAL_FEE: u128 = 24;
 
 fn withdrawal_to_unchecked_ibc_packet(
     withdrawal: &action::Ics20Withdrawal,
