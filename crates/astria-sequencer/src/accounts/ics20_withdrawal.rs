@@ -119,7 +119,7 @@ impl ActionHandler for action::Ics20Withdrawal {
         let from_transfer_balance = state
             .get_account_balance(from, self.denom().id())
             .await
-            .context("failed getting `from` account balance for transfer")?;
+            .context("failed getting `from` account balance for Ics20Withdrawal")?;
 
         state
             .put_account_balance(
@@ -127,7 +127,22 @@ impl ActionHandler for action::Ics20Withdrawal {
                 self.denom().id(),
                 from_transfer_balance
                     .checked_sub(self.amount())
-                    .context("insufficient funds for transfer")?,
+                    .context("insufficient funds for Ics20Withdrawal")?,
+            )
+            .context("failed to update sender balance")?;
+
+        let from_fee_balance = state
+            .get_account_balance(from, *self.fee_asset_id())
+            .await
+            .context("failed getting `from` account balance for Ics20Withdrawal fee payment")?;
+
+        state
+            .put_account_balance(
+                from,
+                *self.fee_asset_id(),
+                from_fee_balance
+                    .checked_sub(ICS20_WITHDRAWAL_FEE)
+                    .context("insufficient funds for Ics20Withdrawal fee")?,
             )
             .context("failed to update sender balance")?;
 
