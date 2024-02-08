@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package vendored.tendermint.abci;
+package astria_vendored.tendermint.abci;
 
-import "vendored/tendermint/crypto/keys.proto";
+import "astria_vendored/tendermint/crypto/keys.proto";
 
 // This file contains types which are copied from the cometbft types
 // if we update the version of cometbft being used it may need to be updated.
@@ -13,6 +13,6 @@ import "vendored/tendermint/crypto/keys.proto";
 // the cometbft types.
 
 message ValidatorUpdate {
-  vendored.tendermint.crypto.PublicKey pub_key = 1;
+  astria_vendored.tendermint.crypto.PublicKey pub_key = 1;
   int64 power = 2;
 }

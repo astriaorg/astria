@@ -6,7 +6,7 @@ breaking:
 lint:
   ignore_only:
     PACKAGE_VERSION_SUFFIX:
-      - "vendored"
+      - "astria_vendored/tendermint"
   use:
     - BASIC
     - ENUM_VALUE_PREFIX

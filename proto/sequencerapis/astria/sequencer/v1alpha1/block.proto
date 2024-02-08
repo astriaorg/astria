@@ -3,7 +3,7 @@ syntax = "proto3";
 package astria.sequencer.v1alpha1;
 
 import "astria/sequencer/v1alpha1/merkle.proto";
-import "vendored/tendermint/types/types.proto";
+import "astria_vendored/tendermint/types/types.proto";
 
 // `RollupTransactions` are a sequence of opaque bytes together with a 32 byte
 // identifier of that rollup.
@@ -21,7 +21,7 @@ message RollupTransactions {
 // converting its opaque `data` bytes into sequencer specific types.
 message SequencerBlock {
   // The original CometBFT header that was the input to this sequencer block.
-  vendored.tendermint.types.Header header = 1;
+  astria_vendored.tendermint.types.Header header = 1;
   // The collection of rollup transactions that were included in this block.
   repeated RollupTransactions rollup_transactions = 2;
   // The proof that the rollup transactions are included in the CometBFT block this

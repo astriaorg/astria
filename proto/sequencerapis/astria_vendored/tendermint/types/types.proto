@@ -1,9 +1,9 @@
 syntax = "proto3";
 
-package vendored.tendermint.types;
+package astria_vendored.tendermint.types;
 
 import "google/protobuf/timestamp.proto";
-import "vendored/tendermint/version/types.proto";
+import "astria_vendored/tendermint/version/types.proto";
 
 // This file contains types which are copied from the cometbft types
 // if we update the version of cometbft being used it may need to be updated.

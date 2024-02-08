@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package vendored.tendermint.version;
+package astria_vendored.tendermint.crypto;
 
 // This file contains types which are copied from the cometbft types
 // if we update the version of cometbft being used it may need to be updated.
@@ -10,7 +10,9 @@ package vendored.tendermint.version;
 // registration issues that may cause in dependent chains which also import
 // the cometbft types.
 
-message Consensus {
-  uint64 block = 1;
-  uint64 app = 2;
+message PublicKey {
+  oneof sum {
+    bytes ed25519 = 1;
+    bytes secp256k1 = 2;
+  }
 }
