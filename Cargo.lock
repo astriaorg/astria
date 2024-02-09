@@ -504,7 +504,7 @@ dependencies = [
  "celestia-types",
  "hex",
  "jsonrpsee",
- "metrics 0.22.0",
+ "metrics",
  "prost 0.12.3",
  "serde",
  "serde_json",
@@ -773,7 +773,7 @@ dependencies = [
  "humantime",
  "hyper",
  "jsonrpsee",
- "metrics 0.22.0",
+ "metrics",
  "once_cell",
  "prost 0.12.3",
  "rand_core 0.6.4",
@@ -1629,7 +1629,7 @@ dependencies = [
  "ibc-types",
  "ics23",
  "jmt",
- "metrics 0.19.0",
+ "metrics",
  "once_cell",
  "parking_lot 0.12.1",
  "pin-project",
@@ -4452,16 +4452,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "metrics"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77b9e10a211c839210fd7f99954bda26e5f8e26ec686ad68da6a32df7c80e782"
-dependencies = [
- "ahash 0.8.6",
- "portable-atomic",
-]
-
-[[package]]
 name = "metrics-exporter-prometheus"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4470,7 +4460,7 @@ dependencies = [
  "hyper",
  "indexmap 1.9.3",
  "ipnet",
- "metrics 0.19.0",
+ "metrics",
  "metrics-util",
  "parking_lot 0.11.2",
  "quanta",
@@ -4500,7 +4490,7 @@ dependencies = [
  "crossbeam-epoch",
  "crossbeam-utils",
  "hashbrown 0.11.2",
- "metrics 0.19.0",
+ "metrics",
  "num_cpus",
  "parking_lot 0.11.2",
  "quanta",
@@ -5291,7 +5281,7 @@ dependencies = [
  "ibc-proto",
  "ibc-types",
  "ics23",
- "metrics 0.19.0",
+ "metrics",
  "num-traits",
  "once_cell",
  "pbjson-types",
@@ -5641,12 +5631,6 @@ dependencies = [
  "opaque-debug",
  "universal-hash",
 ]
-
-[[package]]
-name = "portable-atomic"
-version = "1.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7170ef9988bc169ba16dd36a7fa041e5c4cbeb6a35b76d4c03daded371eae7c0"
 
 [[package]]
 name = "poseidon-parameters"

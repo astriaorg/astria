@@ -167,7 +167,7 @@ impl Relayer {
         // Then report update the internal state or report if submission failed
         match submission_result {
             Ok(height) => self.state_tx.send_modify(|state| {
-                metrics::counter!(metrics_init::CELESTIA_SUBMISSION_HEIGHT).absolute(height);
+                metrics::absolute_counter!(metrics_init::CELESTIA_SUBMISSION_HEIGHT, height);
                 debug!(
                     celestia_height=%height,
                     "successfully submitted blocks to data availability layer"
@@ -175,7 +175,7 @@ impl Relayer {
                 state.current_data_availability_height.replace(height);
             }),
             Err(e) => {
-                metrics::counter!(metrics_init::CELESTIA_SUBMISSION_FAILURE_COUNT).increment(1);
+                metrics::increment_counter!(metrics_init::CELESTIA_SUBMISSION_FAILURE_COUNT);
                 warn!(
                     error = AsRef::<dyn std::error::Error>::as_ref(&e),
                     "failed submitting blocks to celestia",
@@ -401,13 +401,13 @@ async fn submit_blocks_to_celestia(
     // the number of blocks should always be low enough to not cause precision loss
     #[allow(clippy::cast_precision_loss)]
     let blocks_per_celestia_tx = sequencer_blocks.len() as f64;
-    metrics::gauge!(metrics_init::BLOCKS_PER_CELESTIA_TX).set(blocks_per_celestia_tx);
+    metrics::gauge!(metrics_init::BLOCKS_PER_CELESTIA_TX, blocks_per_celestia_tx);
 
     info!(
         num_blocks = sequencer_blocks.len(),
         "submitting collected sequencer blocks to data availability layer",
     );
-    metrics::counter!(metrics_init::CELESTIA_SUBMISSION_COUNT).increment(1);
+    metrics::increment_counter!(metrics_init::CELESTIA_SUBMISSION_COUNT);
     let height = client
         .submit_sequencer_blocks(
             sequencer_blocks,
@@ -418,6 +418,6 @@ async fn submit_blocks_to_celestia(
         )
         .await
         .wrap_err("failed submitting sequencer blocks to celestia")?;
-    metrics::histogram!(metrics_init::CELESTIA_SUBMISSION_LATENCY).record(start.elapsed());
+    metrics::histogram!(metrics_init::CELESTIA_SUBMISSION_LATENCY, start.elapsed());
     Ok(height)
 }
