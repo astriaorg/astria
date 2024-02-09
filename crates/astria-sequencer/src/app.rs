@@ -26,6 +26,7 @@ use cnidarium::{
     StateDelta,
     Storage,
 };
+use penumbra_ibc::component::IBCComponent;
 use prost::Message as _;
 use sha2::{
     Digest as _,
@@ -63,8 +64,9 @@ use crate::{
             StateWriteExt as _,
         },
     },
-    component::Component,
+    component::Component as _,
     genesis::GenesisState,
+    host_interface::AstriaHost,
     proposal::commitment::{
         generate_sequence_actions_commitment,
         GeneratedCommitments,
@@ -157,6 +159,7 @@ impl App {
         &mut self,
         genesis_state: GenesisState,
         genesis_validators: Vec<tendermint::validator::Update>,
+        chain_id: String,
     ) -> anyhow::Result<()> {
         let mut state_tx = self
             .state
@@ -165,7 +168,7 @@ impl App {
 
         crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
         state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
-
+        state_tx.put_chain_id(chain_id);
         state_tx.put_block_height(0);
 
         // call init_chain on all components
@@ -175,12 +178,14 @@ impl App {
         AuthorityComponent::init_chain(
             &mut state_tx,
             &AuthorityComponentAppState {
-                authority_sudo_key: genesis_state.authority_sudo_key,
+                authority_sudo_address: genesis_state.authority_sudo_address,
                 genesis_validators,
             },
         )
         .await
         .context("failed to call init_chain on AuthorityComponent")?;
+        IBCComponent::init_chain(&mut state_tx, Some(&())).await;
+
         state_tx.apply();
         Ok(())
     }
@@ -416,6 +421,11 @@ impl App {
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .context("failed to call begin_block on AuthorityComponent")?;
+        IBCComponent::begin_block::<AstriaHost, StateDelta<Arc<StateDelta<cnidarium::Snapshot>>>>(
+            &mut arc_state_tx,
+            begin_block,
+        )
+        .await;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -534,6 +544,7 @@ impl App {
         AuthorityComponent::end_block(&mut arc_state_tx, end_block)
             .await
             .context("failed to call end_block on AuthorityComponent")?;
+        IBCComponent::end_block(&mut arc_state_tx, end_block).await;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -761,11 +772,12 @@ mod test {
 
         let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: Address::from([0; 20]),
+            authority_sudo_address: Address::from([0; 20]),
+            ibc_sudo_address: Address::from([0; 20]),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         });
 
-        app.init_chain(genesis_state, genesis_validators)
+        app.init_chain(genesis_state, genesis_validators, "test".to_string())
             .await
             .unwrap();
 
@@ -916,10 +928,10 @@ mod test {
                     to: bob_address,
                     amount: value,
                     asset_id: get_native_asset().id(),
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -969,10 +981,10 @@ mod test {
                     to: bob_address,
                     amount: value,
                     asset_id: asset,
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1031,11 +1043,12 @@ mod test {
                     to: bob,
                     amount: 0,
                     asset_id: get_native_asset().id(),
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
+
         let signed_tx = tx.into_signed(&keypair);
         let res = app
             .deliver_tx(signed_tx)
@@ -1060,10 +1073,10 @@ mod test {
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data,
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1085,7 +1098,8 @@ mod test {
 
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: alice_address,
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1099,7 +1113,6 @@ mod test {
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![Action::ValidatorUpdate(update.clone())],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1117,7 +1130,8 @@ mod test {
 
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: alice_address,
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1129,7 +1143,6 @@ mod test {
             actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
                 new_address,
             })],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1147,7 +1160,8 @@ mod test {
 
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: sudo_address,
+            authority_sudo_address: sudo_address,
+            ibc_sudo_address: [0u8; 20].into(),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1157,7 +1171,6 @@ mod test {
             actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
                 new_address: alice_address,
             })],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1177,7 +1190,8 @@ mod test {
 
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: alice_address,
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: [0u8; 20].into(),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1193,7 +1207,6 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1291,10 +1304,10 @@ mod test {
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data,
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1324,7 +1337,8 @@ mod test {
     async fn app_commit() {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: Address::from([0; 20]),
+            authority_sudo_address: Address::from([0; 20]),
+            ibc_sudo_address: Address::from([0; 20]),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
 
@@ -1406,10 +1420,10 @@ mod test {
                     to: bob_address,
                     amount,
                     asset_id: native_asset,
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: native_asset,
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);

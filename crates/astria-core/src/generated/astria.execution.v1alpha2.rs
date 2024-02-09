@@ -1,3 +1,23 @@
+/// GenesisInfo contains the information needed to start a rollup chain.
+///
+/// This information is used to determine which sequencer & celestia data to
+/// use from the Astria & Celestia networks.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GenesisInfo {
+    /// The rollup_id is the unique identifier for the rollup chain.
+    #[prost(bytes = "bytes", tag = "1")]
+    pub rollup_id: ::prost::bytes::Bytes,
+    /// The first block height of sequencer chain to use for rollup transactions.
+    #[prost(uint32, tag = "2")]
+    pub sequencer_genesis_block_height: u32,
+    /// The first block height of celestia chain to use for rollup transactions.
+    #[prost(uint32, tag = "3")]
+    pub celestia_base_block_height: u32,
+    /// The allowed variance in celestia for sequencer blocks to have been posted.
+    #[prost(uint32, tag = "4")]
+    pub celestia_block_variance: u32,
+}
 /// The set of information which deterministic driver of block production
 /// must know about a given rollup Block
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -7,11 +27,11 @@ pub struct Block {
     #[prost(uint32, tag = "1")]
     pub number: u32,
     /// The hash of the block
-    #[prost(bytes = "vec", tag = "2")]
-    pub hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "2")]
+    pub hash: ::prost::bytes::Bytes,
     /// The hash from the parent block
-    #[prost(bytes = "vec", tag = "3")]
-    pub parent_block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "3")]
+    pub parent_block_hash: ::prost::bytes::Bytes,
     /// Timestamp on the block, standardized to google protobuf standard.
     #[prost(message, optional, tag = "4")]
     pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
@@ -31,9 +51,12 @@ pub mod block_identifier {
         #[prost(uint32, tag = "1")]
         BlockNumber(u32),
         #[prost(bytes, tag = "2")]
-        BlockHash(::prost::alloc::vec::Vec<u8>),
+        BlockHash(::prost::bytes::Bytes),
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetGenesisInfoRequest {}
 /// Used in GetBlock to find a single block.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -65,11 +88,11 @@ pub struct BatchGetBlocksResponse {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecuteBlockRequest {
     /// The hash of previous block, which new block will be created on top of.
-    #[prost(bytes = "vec", tag = "1")]
-    pub prev_block_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub prev_block_hash: ::prost::bytes::Bytes,
     /// List of transactions to include in the new block.
-    #[prost(bytes = "vec", repeated, tag = "2")]
-    pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "bytes", repeated, tag = "2")]
+    pub transactions: ::prost::alloc::vec::Vec<::prost::bytes::Bytes>,
     /// Timestamp to be used for new block.
     #[prost(message, optional, tag = "3")]
     pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
@@ -193,6 +216,34 @@ pub mod execution_service_client {
         pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
+        }
+        /// GetGenesisInfo returns the necessary genesis information for rollup chain.
+        pub async fn get_genesis_info(
+            &mut self,
+            request: impl tonic::IntoRequest<super::GetGenesisInfoRequest>,
+        ) -> std::result::Result<tonic::Response<super::GenesisInfo>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::new(
+                        tonic::Code::Unknown,
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic::codec::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/astria.execution.v1alpha2.ExecutionService/GetGenesisInfo",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "astria.execution.v1alpha2.ExecutionService",
+                        "GetGenesisInfo",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
         }
         /// GetBlock will return a block given an identifier.
         pub async fn get_block(
@@ -356,6 +407,11 @@ pub mod execution_service_server {
     /// Generated trait containing gRPC methods that should be implemented for use with ExecutionServiceServer.
     #[async_trait]
     pub trait ExecutionService: Send + Sync + 'static {
+        /// GetGenesisInfo returns the necessary genesis information for rollup chain.
+        async fn get_genesis_info(
+            &self,
+            request: tonic::Request<super::GetGenesisInfoRequest>,
+        ) -> std::result::Result<tonic::Response<super::GenesisInfo>, tonic::Status>;
         /// GetBlock will return a block given an identifier.
         async fn get_block(
             &self,
@@ -472,6 +528,53 @@ pub mod execution_service_server {
         fn call(&mut self, req: http::Request<B>) -> Self::Future {
             let inner = self.inner.clone();
             match req.uri().path() {
+                "/astria.execution.v1alpha2.ExecutionService/GetGenesisInfo" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetGenesisInfoSvc<T: ExecutionService>(pub Arc<T>);
+                    impl<
+                        T: ExecutionService,
+                    > tonic::server::UnaryService<super::GetGenesisInfoRequest>
+                    for GetGenesisInfoSvc<T> {
+                        type Response = super::GenesisInfo;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::GetGenesisInfoRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as ExecutionService>::get_genesis_info(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let inner = inner.0;
+                        let method = GetGenesisInfoSvc(inner);
+                        let codec = tonic::codec::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
                 "/astria.execution.v1alpha2.ExecutionService/GetBlock" => {
                     #[allow(non_camel_case_types)]
                     struct GetBlockSvc<T: ExecutionService>(pub Arc<T>);

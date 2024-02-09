@@ -1,4 +1,5 @@
 use astria_core::sequencer::v1alpha1::{
+    asset::default_native_asset_id,
     transaction::action::SequenceAction,
     RollupId,
 };
@@ -147,6 +148,7 @@ impl Collector {
             let seq_action = SequenceAction {
                 rollup_id,
                 data,
+                fee_asset_id: default_native_asset_id(),
             };
 
             match new_bundles

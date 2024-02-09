@@ -5,7 +5,6 @@ use anyhow::{
     Result,
 };
 use astria_core::sequencer::v1alpha1::{
-    asset,
     transaction::action::TransferAction,
     Address,
 };
@@ -29,18 +28,17 @@ impl ActionHandler for TransferAction {
         &self,
         state: &S,
         from: Address,
-        fee_asset_id: asset::Id,
     ) -> Result<()> {
         let transfer_asset_id = self.asset_id;
 
         let from_fee_balance = state
-            .get_account_balance(from, fee_asset_id)
+            .get_account_balance(from, self.fee_asset_id)
             .await
             .context("failed getting `from` account balance for fee payment")?;
 
         // if fee asset is same as transfer asset, ensure accounts has enough funds
         // to cover both the fee and the amount transferred
-        if fee_asset_id == transfer_asset_id {
+        if self.fee_asset_id == transfer_asset_id {
             let payment_amount = self
                 .amount
                 .checked_add(TRANSFER_FEE)
@@ -78,14 +76,9 @@ impl ActionHandler for TransferAction {
             amount = self.amount,
         )
     )]
-    async fn execute<S: StateWriteExt>(
-        &self,
-        state: &mut S,
-        from: Address,
-        fee_asset_id: asset::Id,
-    ) -> Result<()> {
+    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         state
-            .get_and_increase_block_fees(fee_asset_id, TRANSFER_FEE)
+            .get_and_increase_block_fees(self.fee_asset_id, TRANSFER_FEE)
             .await
             .context("failed to add to block fees")?;
 
@@ -102,7 +95,7 @@ impl ActionHandler for TransferAction {
 
         // if fee payment asset is same asset as transfer asset, deduct fee
         // from same balance as asset transferred
-        if transfer_asset_id == fee_asset_id {
+        if transfer_asset_id == self.fee_asset_id {
             // check_stateful should have already checked this arithmetic
             let payment_amount = self
                 .amount
@@ -151,13 +144,13 @@ impl ActionHandler for TransferAction {
 
             // deduct fee from fee asset balance
             let from_fee_balance = state
-                .get_account_balance(from, fee_asset_id)
+                .get_account_balance(from, self.fee_asset_id)
                 .await
                 .context("failed getting `from` account balance for fee payment")?;
             state
                 .put_account_balance(
                     from,
-                    fee_asset_id,
+                    self.fee_asset_id,
                     from_fee_balance
                         .checked_sub(TRANSFER_FEE)
                         .ok_or(anyhow!("insufficient funds for fee payment"))?,

@@ -303,9 +303,21 @@ impl SequencerBlock {
         &self.header
     }
 
+    /// The height stored in this sequencer block.
+    #[must_use]
+    pub fn height(&self) -> tendermint::block::Height {
+        self.header.height
+    }
+
     #[must_use]
     pub fn rollup_transactions(&self) -> &IndexMap<RollupId, Vec<Vec<u8>>> {
         &self.rollup_transactions
+    }
+
+    /// Returns the map of rollup transactions, consuming `self`.
+    #[must_use]
+    pub fn into_rollup_transactions(self) -> IndexMap<RollupId, Vec<Vec<u8>>> {
+        self.rollup_transactions
     }
 
     #[must_use]
@@ -415,6 +427,7 @@ impl SequencerBlock {
                 if let action::Action::Sequence(action::SequenceAction {
                     rollup_id,
                     data,
+                    fee_asset_id: _,
                 }) = action
                 {
                     let elem = rollup_transactions.entry(rollup_id).or_insert(vec![]);

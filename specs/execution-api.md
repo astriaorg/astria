@@ -9,10 +9,6 @@ intended to be very simple to implement. It is a gRPC API which any state
 machine can implement and use conductor with to drive their block creation to
 integrate with the Astria Sequencer.
 
-> Note: this documentation is for the v1alpha2 API which is currently being
-> implemented, and some of the documentation is on how it should be implemented,
-> not how it is currently.
-
 ## Basic Design Principles
 
 The Execution API is a resource based API with two resources: `Block` and
@@ -25,12 +21,13 @@ to generate client libraries and server implementations.
 
 ### Startup
 
-Upon startup, conductor needs to know the state of commitments in the state
-machine and calls `GetCommitmentState`. If started on a fresh rollup these will
-all be the same block. If running against a state machine with previous block
-data, Conductor must also track the block hash of any blocks between
-commitments, it will call `BatchGetBlock` to get block information between
-commitments.
+Upon startup, conductor first grabs the basic genesis information via
+`GetGenesisInfo`. After this succeeds, it  fetches the initial commitments in
+the state machine via `GetCommitmentState`. If started on a fresh rollup
+these will all be the same block. If running against a state machine with
+previous block data, Conductor must also track the block hash of any blocks
+between commitments, it will call `BatchGetBlock` to get block information
+between commitments.
 
 ### Execution & Commitments
 
@@ -73,6 +70,13 @@ Note: For our EVM rollup, we map the `CommitmentState` to the `ForkchoiceRule`:
 - `FIRM` Commitment -> `FINAL` Forkchoice
 
 ## Rollup Implementation Details
+
+### GetGenesisInfo
+
+`GetGenesisInfo` returns information which is definitional to the rollup with
+regards to how it derves data from the sequencer & celestia networks. This RPC
+should ALWAYS succeed. The API is agnostic as to how the information is defined
+in a rollups genesis, and used by the conductor as configuration on startup.
 
 ### ExecuteBlock
 

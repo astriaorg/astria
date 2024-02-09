@@ -20,6 +20,9 @@ tracing = { workspace = true }
 
 astria-core = { path = "../astria-core" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
+telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
+  "display",
+] }
 
 ### Celestia specific imports
 #
@@ -29,6 +32,7 @@ merkle = { package = "astria-merkle", path = "../astria-merkle" }
 # when updating.
 jsonrpsee = { version = "0.20", features = ["client-core", "macros"] }
 prost = { workspace = true }
+celestia-tendermint = { workspace = true }
 
 [dependencies.celestia-rpc]
 git = "https://github.com/eigerco/celestia-node-rs"
@@ -37,8 +41,3 @@ rev = "4862eec"
 [dependencies.celestia-types]
 git = "https://github.com/eigerco/celestia-node-rs"
 rev = "4862eec"
-
-[dependencies.celestia-tendermint]
-package = "tendermint"
-git = "https://github.com/eigerco/celestia-tendermint-rs"
-rev = "bbe7de8"

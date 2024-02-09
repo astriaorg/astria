@@ -10,7 +10,6 @@ use std::{
 };
 
 use astria_core::sequencer::v1alpha1::{
-    asset::default_native_asset_id,
     transaction::{
         action::SequenceAction,
         Action,
@@ -390,7 +389,6 @@ impl Future for SubmitFut {
                     let tx = UnsignedTransaction {
                         nonce: *this.nonce,
                         actions: this.bundle.clone(),
-                        fee_asset_id: default_native_asset_id(),
                     }
                     .into_signed(this.signing_key);
                     SubmitState::WaitingForSend {
@@ -444,7 +442,6 @@ impl Future for SubmitFut {
                         let tx = UnsignedTransaction {
                             nonce: *this.nonce,
                             actions: this.bundle.clone(),
-                            fee_asset_id: default_native_asset_id(),
                         }
                         .into_signed(this.signing_key);
                         SubmitState::WaitingForSend {

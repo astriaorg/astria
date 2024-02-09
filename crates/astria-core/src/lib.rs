@@ -10,6 +10,9 @@ pub mod execution;
 pub mod primitive;
 pub mod sequencer;
 
+#[cfg(feature = "serde")]
+pub(crate) mod serde;
+
 /// A trait to convert from raw decoded protobuf types to idiomatic astria types.
 ///
 /// The primary use of this trait is to convert to/from foreign types.
