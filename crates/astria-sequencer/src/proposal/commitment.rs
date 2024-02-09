@@ -86,18 +86,19 @@ mod test {
         let sequence_action = SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
+            fee_asset_id: get_native_asset().id(),
         };
         let transfer_action = TransferAction {
             to: Address([0u8; 20]),
             amount: 1,
             asset_id: get_native_asset().id(),
+            fee_asset_id: get_native_asset().id(),
         };
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![sequence_action.clone().into(), transfer_action.into()],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&signing_key);
@@ -111,7 +112,6 @@ mod test {
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![sequence_action.into()],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&signing_key);
@@ -135,18 +135,19 @@ mod test {
         let sequence_action = SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
             data: b"helloworld".to_vec(),
+            fee_asset_id: get_native_asset().id(),
         };
         let transfer_action = TransferAction {
             to: Address([0u8; 20]),
             amount: 1,
             asset_id: get_native_asset().id(),
+            fee_asset_id: get_native_asset().id(),
         };
 
         let signing_key = SigningKey::new(OsRng);
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![sequence_action.into(), transfer_action.into()],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&signing_key);

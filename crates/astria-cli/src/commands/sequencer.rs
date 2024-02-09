@@ -86,8 +86,11 @@ pub(crate) async fn get_balance(args: &BasicAccountArgs) -> eyre::Result<()> {
         .await
         .wrap_err("failed to get balance")?;
 
-    println!("Balance for address {}:", address.0);
-    println!("    {}", res.balance);
+    println!("Balances for address {}:", address.0);
+    for balance in res.balances {
+        println!("    asset ID: {}", hex::encode(balance.denom.id()));
+        println!("    {} {}", balance.balance, balance.denom);
+    }
 
     Ok(())
 }
@@ -153,6 +156,8 @@ pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<
 /// * If the http client cannot be created
 /// * If the latest block height cannot be retrieved
 pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
+    use astria_core::sequencer::v1alpha1::asset::default_native_asset_id;
+
     // Build the signing_key
     let private_key_bytes: [u8; 32] = hex::decode(args.private_key.as_str())
         .wrap_err("failed to decode private key bytes from hex string")?
@@ -180,9 +185,9 @@ pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
         actions: vec![Action::Transfer(TransferAction {
             to: to_address,
             amount: args.amount,
-            asset_id: astria_core::sequencer::v1alpha1::asset::default_native_asset_id(),
+            asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset_id(),
         })],
-        fee_asset_id: astria_core::sequencer::v1alpha1::asset::default_native_asset_id(),
     }
     .into_signed(&sequencer_key);
     let res = sequencer_client

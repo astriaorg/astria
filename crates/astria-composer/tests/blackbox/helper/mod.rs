@@ -20,13 +20,23 @@ pub mod mock_sequencer;
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
-        telemetry::init(std::io::stdout, &filter_directives).unwrap();
+        telemetry::configure()
+            .no_otel()
+            .stdout_writer(std::io::stdout)
+            .filter_directives(&filter_directives)
+            .try_init()
+            .unwrap();
     } else {
-        telemetry::init(std::io::sink, "").unwrap();
+        telemetry::configure()
+            .no_otel()
+            .stdout_writer(std::io::sink)
+            .try_init()
+            .unwrap();
     }
 });
 
 pub struct TestComposer {
+    pub cfg: Config,
     pub composer: JoinHandle<()>,
     pub rollup_nodes: HashMap<String, Geth>,
     pub sequencer: wiremock::MockServer,
@@ -64,6 +74,10 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         private_key: "2bd806c97f0e00af1a1fc3328fa763a9269723c8db8fac4f93af71db186d6e90"
             .to_string()
             .into(),
+        block_time_ms: 2000,
+        max_bytes_per_bundle: 200_000,
+        no_otel: false,
+        force_stdout: false,
     };
     let (composer_addr, composer) = {
         let composer = Composer::from_config(&config).unwrap();
@@ -75,6 +89,7 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
     debug!("looping until composer is ready");
     loop_until_composer_is_ready(composer_addr).await;
     TestComposer {
+        cfg: config,
         composer,
         rollup_nodes,
         sequencer,

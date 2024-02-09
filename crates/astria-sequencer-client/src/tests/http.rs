@@ -128,13 +128,13 @@ fn create_signed_transaction() -> SignedTransaction {
             to: BOB_ADDRESS,
             amount: 333_333,
             asset_id: default_native_asset_id(),
+            fee_asset_id: default_native_asset_id(),
         }
         .into(),
     ];
     UnsignedTransaction {
         nonce: 1,
         actions,
-        fee_asset_id: default_native_asset_id(),
     }
     .into_signed(&alice_key)
 }
@@ -164,7 +164,11 @@ async fn get_latest_nonce() {
 
 #[tokio::test]
 async fn get_latest_balance() {
-    use astria_core::generated::sequencer::v1alpha1::BalanceResponse;
+    use astria_core::generated::sequencer::v1alpha1::{
+        AssetBalance,
+        BalanceResponse,
+    };
+
     let MockSequencer {
         server,
         client,
@@ -172,7 +176,10 @@ async fn get_latest_balance() {
 
     let expected_response = BalanceResponse {
         height: 10,
-        balance: Some(10u128.pow(18).into()),
+        balances: vec![AssetBalance {
+            denom: "nria".to_string(),
+            balance: Some(10u128.pow(18).into()),
+        }],
     };
     let _guard =
         register_abci_query_response(&server, "accounts/balance/", expected_response.clone()).await;

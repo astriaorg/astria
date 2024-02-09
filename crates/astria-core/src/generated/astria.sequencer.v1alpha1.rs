@@ -36,14 +36,22 @@ impl AbciErrorCode {
         }
     }
 }
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AssetBalance {
+    #[prost(string, tag = "1")]
+    pub denom: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "2")]
+    pub balance: ::core::option::Option<super::super::primitive::v1::Uint128>,
+}
 /// A response containing the balance of an account.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BalanceResponse {
     #[prost(uint64, tag = "2")]
     pub height: u64,
-    #[prost(message, optional, tag = "3")]
-    pub balance: ::core::option::Option<super::super::primitive::v1::Uint128>,
+    #[prost(message, repeated, tag = "3")]
+    pub balances: ::prost::alloc::vec::Vec<AssetBalance>,
 }
 /// A response containing the current nonce for an account.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -923,9 +931,6 @@ pub struct UnsignedTransaction {
     pub nonce: u32,
     #[prost(message, repeated, tag = "2")]
     pub actions: ::prost::alloc::vec::Vec<Action>,
-    /// the asset used to pay the transaction fee
-    #[prost(bytes = "vec", tag = "3")]
-    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -968,6 +973,9 @@ pub struct TransferAction {
     /// the asset to be transferred
     #[prost(bytes = "vec", tag = "3")]
     pub asset_id: ::prost::alloc::vec::Vec<u8>,
+    /// the asset used to pay the transaction fee
+    #[prost(bytes = "vec", tag = "4")]
+    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
 }
 /// `SequenceAction` represents a transaction destined for another
 /// chain, ordered by the sequencer.
@@ -981,6 +989,9 @@ pub struct SequenceAction {
     pub rollup_id: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes = "vec", tag = "2")]
     pub data: ::prost::alloc::vec::Vec<u8>,
+    /// the asset used to pay the transaction fee
+    #[prost(bytes = "vec", tag = "3")]
+    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
 }
 /// / `SudoAddressChangeAction` represents a transaction that changes
 /// / the sudo address of the chain, which is the address authorized to

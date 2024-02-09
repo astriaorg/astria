@@ -9,11 +9,12 @@ astria-core = { path = "../astria-core" }
 async-trait = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
+prost = { workspace = true }
 tendermint = { workspace = true }
+tendermint-proto = { workspace = true }
 tendermint-rpc = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
-prost.workspace = true
 
 [features]
 http = ["tendermint-rpc/http-client"]

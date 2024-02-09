@@ -26,6 +26,7 @@ use cnidarium::{
     StateDelta,
     Storage,
 };
+use penumbra_ibc::component::IBCComponent;
 use prost::Message as _;
 use sha2::{
     Digest as _,
@@ -36,6 +37,7 @@ use tendermint::{
         self,
         Event,
     },
+    account,
     Hash,
 };
 use tracing::{
@@ -45,7 +47,13 @@ use tracing::{
 };
 
 use crate::{
-    accounts::component::AccountsComponent,
+    accounts::{
+        component::AccountsComponent,
+        state_ext::{
+            StateReadExt as _,
+            StateWriteExt as _,
+        },
+    },
     authority::{
         component::{
             AuthorityComponent,
@@ -56,8 +64,9 @@ use crate::{
             StateWriteExt as _,
         },
     },
-    component::Component,
+    component::Component as _,
     genesis::GenesisState,
+    host_interface::AstriaHost,
     proposal::commitment::{
         generate_sequence_actions_commitment,
         GeneratedCommitments,
@@ -119,6 +128,12 @@ pub(crate) struct App {
     /// and `end_block` will all become one function `finalize_block`, so
     /// this will not be needed.
     processed_txs: u32,
+
+    // proposer of the block being currently executed; set in begin_block
+    // and cleared in end_block.
+    // this is used only to determine who to transfer the block fees to
+    // at the end of the block.
+    current_proposer: Option<account::Id>,
 }
 
 impl App {
@@ -135,6 +150,7 @@ impl App {
             executed_proposal_hash: Hash::default(),
             execution_result: HashMap::new(),
             processed_txs: 0,
+            current_proposer: None,
         }
     }
 
@@ -143,6 +159,7 @@ impl App {
         &mut self,
         genesis_state: GenesisState,
         genesis_validators: Vec<tendermint::validator::Update>,
+        chain_id: String,
     ) -> anyhow::Result<()> {
         let mut state_tx = self
             .state
@@ -151,7 +168,7 @@ impl App {
 
         crate::asset::initialize_native_asset(&genesis_state.native_asset_base_denomination);
         state_tx.put_native_asset_denom(&genesis_state.native_asset_base_denomination);
-
+        state_tx.put_chain_id(chain_id);
         state_tx.put_block_height(0);
 
         // call init_chain on all components
@@ -161,12 +178,14 @@ impl App {
         AuthorityComponent::init_chain(
             &mut state_tx,
             &AuthorityComponentAppState {
-                authority_sudo_key: genesis_state.authority_sudo_key,
+                authority_sudo_address: genesis_state.authority_sudo_address,
                 genesis_validators,
             },
         )
         .await
         .context("failed to call init_chain on AuthorityComponent")?;
+        IBCComponent::init_chain(&mut state_tx, Some(&())).await;
+
         state_tx.apply();
         Ok(())
     }
@@ -378,6 +397,8 @@ impl App {
     ) -> anyhow::Result<Vec<abci::Event>> {
         // clear the processed_txs count when beginning block execution
         self.processed_txs = 0;
+        // set the current proposer
+        self.current_proposer = Some(begin_block.header.proposer_address);
 
         // If we previously executed txs in a different proposal than is being processed reset
         // cached state changes.
@@ -400,6 +421,11 @@ impl App {
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .context("failed to call begin_block on AuthorityComponent")?;
+        IBCComponent::begin_block::<AstriaHost, StateDelta<Arc<StateDelta<cnidarium::Snapshot>>>>(
+            &mut arc_state_tx,
+            begin_block,
+        )
+        .await;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -499,17 +525,7 @@ impl App {
             .context("failed executing transaction")?;
         let (_, events) = state_tx.apply();
 
-        // note: deliver_tx is now called (internally) before begin_block,
-        // so increment the logged height by 1.
-        let height = self.state.get_block_height().await.expect(
-            "block height must be set, as `begin_block` is always called before `deliver_tx`",
-        );
-
-        info!(
-            height = height + 1,
-            event_count = events.len(),
-            "executed transaction"
-        );
+        info!(event_count = events.len(), "executed transaction");
         Ok(events)
     }
 
@@ -528,6 +544,10 @@ impl App {
         AuthorityComponent::end_block(&mut arc_state_tx, end_block)
             .await
             .context("failed to call end_block on AuthorityComponent")?;
+        IBCComponent::end_block(&mut arc_state_tx, end_block).await;
+
+        let mut state_tx = Arc::try_unwrap(arc_state_tx)
+            .expect("components should not retain copies of shared state");
 
         // gather and return validator updates
         let validator_updates = self
@@ -536,11 +556,39 @@ impl App {
             .await
             .expect("failed getting validator updates");
 
-        let mut state_tx = Arc::try_unwrap(arc_state_tx)
-            .expect("components should not retain copies of shared state");
-
         // clear validator updates
         state_tx.clear_validator_updates();
+
+        // gather block fees and transfer them to the block proposer
+        let fees = self
+            .state
+            .get_block_fees()
+            .await
+            .context("failed to get block fees")?;
+        let proposer = self
+            .current_proposer
+            .expect("current proposer must be set in `begin_block`");
+
+        // convert tendermint id to astria address; this assumes they are
+        // the same address, as they are both ed25519 keys
+        let proposer_address = Address::try_from_slice(proposer.as_bytes())
+            .context("failed to convert proposer tendermint id to astria address")?;
+        for (asset, amount) in fees {
+            let balance = state_tx
+                .get_account_balance(proposer_address, asset)
+                .await
+                .context("failed to get proposer account balance")?;
+            let new_balance = balance
+                .checked_add(amount)
+                .context("account balance overflowed u128")?;
+            state_tx
+                .put_account_balance(proposer_address, asset, new_balance)
+                .context("failed to put proposer account balance")?;
+        }
+
+        // clear block fees
+        state_tx.clear_block_fees().await;
+        self.current_proposer = None;
 
         let events = self.apply(state_tx);
 
@@ -654,10 +702,7 @@ mod test {
 
     use super::*;
     use crate::{
-        accounts::{
-            action::TRANSFER_FEE,
-            state_ext::StateReadExt as _,
-        },
+        accounts::action::TRANSFER_FEE,
         asset::get_native_asset,
         authority::state_ext::ValidatorSet,
         genesis::Account,
@@ -727,11 +772,12 @@ mod test {
 
         let genesis_state = genesis_state.unwrap_or_else(|| GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: Address::from([0; 20]),
+            authority_sudo_address: Address::from([0; 20]),
+            ibc_sudo_address: Address::from([0; 20]),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         });
 
-        app.init_chain(genesis_state, genesis_validators)
+        app.init_chain(genesis_state, genesis_validators, "test".to_string())
             .await
             .unwrap();
 
@@ -882,10 +928,10 @@ mod test {
                     to: bob_address,
                     amount: value,
                     asset_id: get_native_asset().id(),
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -935,10 +981,10 @@ mod test {
                     to: bob_address,
                     amount: value,
                     asset_id: asset,
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -997,11 +1043,12 @@ mod test {
                     to: bob,
                     amount: 0,
                     asset_id: get_native_asset().id(),
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
+
         let signed_tx = tx.into_signed(&keypair);
         let res = app
             .deliver_tx(signed_tx)
@@ -1026,10 +1073,10 @@ mod test {
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data,
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1051,7 +1098,8 @@ mod test {
 
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: alice_address,
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1065,7 +1113,6 @@ mod test {
         let tx = UnsignedTransaction {
             nonce: 0,
             actions: vec![Action::ValidatorUpdate(update.clone())],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1083,7 +1130,8 @@ mod test {
 
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: alice_address,
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1095,7 +1143,6 @@ mod test {
             actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
                 new_address,
             })],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1113,7 +1160,8 @@ mod test {
 
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: sudo_address,
+            authority_sudo_address: sudo_address,
+            ibc_sudo_address: [0u8; 20].into(),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1123,7 +1171,6 @@ mod test {
             actions: vec![Action::SudoAddressChange(SudoAddressChangeAction {
                 new_address: alice_address,
             })],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1143,7 +1190,8 @@ mod test {
 
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: alice_address,
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: [0u8; 20].into(),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1159,7 +1207,6 @@ mod test {
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1196,6 +1243,7 @@ mod test {
         ];
 
         let mut app = initialize_app(None, initial_validator_set).await;
+        app.current_proposer = Some(account::Id::try_from([0u8; 20].to_vec()).unwrap());
 
         let validator_updates = vec![
             validator::Update {
@@ -1256,10 +1304,10 @@ mod test {
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data,
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
@@ -1289,7 +1337,8 @@ mod test {
     async fn app_commit() {
         let genesis_state = GenesisState {
             accounts: default_genesis_accounts(),
-            authority_sudo_key: Address::from([0; 20]),
+            authority_sudo_address: Address::from([0; 20]),
+            ibc_sudo_address: Address::from([0; 20]),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
 
@@ -1328,5 +1377,72 @@ mod test {
                 balance
             );
         }
+    }
+
+    #[tokio::test]
+    async fn app_transfer_block_fees_to_proposer() {
+        let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+
+        let mut begin_block = abci::request::BeginBlock {
+            header: default_header(),
+            hash: Hash::default(),
+            last_commit_info: CommitInfo {
+                votes: vec![],
+                round: Round::default(),
+            },
+            byzantine_validators: vec![],
+        };
+        begin_block.header.height = Height::try_from(1u8).unwrap();
+        let proposer_address =
+            Address::try_from_slice(begin_block.header.proposer_address.as_bytes()).unwrap();
+
+        app.begin_block(&begin_block, storage).await.unwrap();
+        assert_eq!(app.state.get_block_height().await.unwrap(), 1);
+        assert_eq!(
+            app.state.get_block_timestamp().await.unwrap(),
+            begin_block.header.time
+        );
+        assert_eq!(
+            app.current_proposer.unwrap(),
+            begin_block.header.proposer_address
+        );
+
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let native_asset = get_native_asset().id();
+
+        // transfer funds from Alice to Bob; use native token for fee payment
+        let bob_address = address_from_hex_string(BOB_ADDRESS);
+        let amount = 333_333;
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                TransferAction {
+                    to: bob_address,
+                    amount,
+                    asset_id: native_asset,
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+
+        app.end_block(&abci::request::EndBlock {
+            height: 1u32.into(),
+        })
+        .await
+        .unwrap();
+
+        // assert that transaction fees were transferred to the block proposer
+        assert_eq!(
+            app.state
+                .get_account_balance(proposer_address, native_asset)
+                .await
+                .unwrap(),
+            TRANSFER_FEE,
+        );
+        assert_eq!(app.state.get_block_fees().await.unwrap().len(), 0);
     }
 }

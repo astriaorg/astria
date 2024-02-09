@@ -1,9 +1,11 @@
 use std::process::ExitCode;
 
 use astria_conductor::{
+    install_error_handler,
     Conductor,
     Config,
 };
+use eyre::WrapErr as _;
 use tracing::{
     error,
     info,
@@ -15,23 +17,28 @@ const EX_CONFIG: u8 = 78;
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    let cfg: Config = match config::get() {
+    install_error_handler().expect("must be able to install error formatter");
+
+    let cfg: Config = match config::get().wrap_err("failed reading config") {
         Err(e) => {
-            eprintln!("failed reading config:\n{e:?}");
+            eprintln!("failed to start conductor:\n{e}");
             // FIXME (https://github.com/astriaorg/astria/issues/368): might have to bubble up exit codes, since we might need
             //        to exit with other exit codes if something else fails
             return ExitCode::from(EX_CONFIG);
         }
         Ok(cfg) => cfg,
     };
-    if let Err(err) = telemetry::init(std::io::stdout, &cfg.log) {
-        eprintln!(
-            "failed initializing config with filter directive `{log}`\n{err:?}",
-            log = cfg.log,
-            err = err,
-        );
+
+    if let Err(e) = telemetry::configure()
+        .set_no_otel(cfg.no_otel)
+        .set_force_stdout(cfg.force_stdout)
+        .filter_directives(&cfg.log)
+        .try_init()
+        .wrap_err("failed to setup telemetry")
+    {
+        eprintln!("initializing conductor failed:\n{e:?}");
         return ExitCode::FAILURE;
-    };
+    }
 
     info!(
         config = serde_json::to_string(&cfg).expect("serializing to a string cannot fail"),

@@ -17,13 +17,13 @@ use super::{
 /// If you don't really care what's in the block, you just need it to be a valid block.
 #[must_use]
 pub fn make_cometbft_block() -> tendermint::Block {
-    use rand::rngs::OsRng;
     let height = 1;
-    let signing_key = ed25519_consensus::SigningKey::new(OsRng);
+    let rollup_id = RollupId::from_unhashed_bytes(b"test_chain_id_1");
+    let data = b"hello_world_id_1".to_vec();
     ConfigureCometBftBlock {
         height,
-        signing_key,
-        proposer_address: None,
+        rollup_transactions: vec![(rollup_id, data)],
+        ..Default::default()
     }
     .make()
 }
@@ -32,10 +32,12 @@ pub fn make_cometbft_block() -> tendermint::Block {
 /// proposer address.
 ///
 /// If the proposer address is not set it will be generated from the signing key.
+#[derive(Default)]
 pub struct ConfigureCometBftBlock {
     pub height: u32,
     pub proposer_address: Option<tendermint::account::Id>,
-    pub signing_key: ed25519_consensus::SigningKey,
+    pub signing_key: Option<ed25519_consensus::SigningKey>,
+    pub rollup_transactions: Vec<(RollupId, Vec<u8>)>,
 }
 
 impl ConfigureCometBftBlock {
@@ -57,7 +59,11 @@ impl ConfigureCometBftBlock {
             height,
             signing_key,
             proposer_address,
+            rollup_transactions,
         } = self;
+
+        let signing_key =
+            signing_key.unwrap_or_else(|| ed25519_consensus::SigningKey::new(rand::rngs::OsRng));
 
         let proposer_address = proposer_address.unwrap_or_else(|| {
             let public_key: tendermint::crypto::ed25519::VerificationKey =
@@ -65,18 +71,20 @@ impl ConfigureCometBftBlock {
             tendermint::account::Id::from(public_key)
         });
 
-        let suffix = height.to_string().into_bytes();
-        let rollup_id = RollupId::from_unhashed_bytes([b"test_chain_id_", &*suffix].concat());
-        let unsigned_transaction = UnsignedTransaction {
-            nonce: 1,
-            actions: vec![
+        let actions = rollup_transactions
+            .into_iter()
+            .map(|(rollup_id, data)| {
                 SequenceAction {
                     rollup_id,
-                    data: [b"hello_world_id_", &*suffix].concat(),
+                    data,
+                    fee_asset_id: default_native_asset_id(),
                 }
-                .into(),
-            ],
-            fee_asset_id: default_native_asset_id(),
+                .into()
+            })
+            .collect();
+        let unsigned_transaction = UnsignedTransaction {
+            nonce: 1,
+            actions,
         };
 
         let signed_transaction = unsigned_transaction.into_signed(&signing_key);
@@ -86,7 +94,15 @@ impl ConfigureCometBftBlock {
             ]);
         let rollup_transactions_tree = derive_merkle_tree_from_rollup_txs(&rollup_transactions);
 
-        let rollup_ids_root = merkle::Tree::from_leaves(std::iter::once(rollup_id)).root();
+        let rollup_ids_root = merkle::Tree::from_leaves(
+            signed_transaction
+                .unsigned_transaction()
+                .actions
+                .iter()
+                .filter_map(|act| act.as_sequence())
+                .map(|seq| seq.rollup_id),
+        )
+        .root();
         let data = vec![
             rollup_transactions_tree.root().to_vec(),
             rollup_ids_root.to_vec(),

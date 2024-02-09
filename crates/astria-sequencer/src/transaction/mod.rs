@@ -10,7 +10,6 @@ use anyhow::{
     Context as _,
 };
 use astria_core::sequencer::v1alpha1::{
-    asset,
     transaction::action::Action,
     Address,
     SignedTransaction,
@@ -18,9 +17,12 @@ use astria_core::sequencer::v1alpha1::{
 };
 use tracing::instrument;
 
-use crate::accounts::state_ext::{
-    StateReadExt,
-    StateWriteExt,
+use crate::{
+    accounts::state_ext::{
+        StateReadExt,
+        StateWriteExt,
+    },
+    host_interface::AstriaHost,
 };
 
 pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
@@ -51,9 +53,8 @@ pub(crate) async fn check_stateful<S: StateReadExt + 'static>(
     state: &S,
 ) -> anyhow::Result<()> {
     let signer_address = Address::from_verification_key(tx.verification_key());
-    let fee_asset_id = tx.unsigned_transaction().fee_asset_id;
     tx.unsigned_transaction()
-        .check_stateful(state, signer_address, fee_asset_id)
+        .check_stateful(state, signer_address)
         .await
 }
 
@@ -62,9 +63,8 @@ pub(crate) async fn execute<S: StateWriteExt>(
     state: &mut S,
 ) -> anyhow::Result<()> {
     let signer_address = Address::from_verification_key(tx.verification_key());
-    let fee_asset_id = tx.unsigned_transaction().fee_asset_id;
     tx.unsigned_transaction()
-        .execute(state, signer_address, fee_asset_id)
+        .execute(state, signer_address)
         .await
 }
 
@@ -109,8 +109,10 @@ impl ActionHandler for UnsignedTransaction {
                 Action::Ibc(act) => {
                     let action = act
                         .clone()
-                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer>();
-                    cnidarium_component::ActionHandler::check_stateless(&action, ())
+                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer, AstriaHost>(
+                        );
+                    action
+                        .check_stateless(())
                         .await
                         .context("stateless check failed for IbcAction")?;
                 }
@@ -134,7 +136,6 @@ impl ActionHandler for UnsignedTransaction {
         &self,
         state: &S,
         from: Address,
-        fee_asset_id: asset::Id,
     ) -> anyhow::Result<()> {
         // Nonce should be equal to the number of executed transactions before this tx.
         // First tx has nonce 0.
@@ -144,31 +145,38 @@ impl ActionHandler for UnsignedTransaction {
         for action in &self.actions {
             match action {
                 Action::Transfer(act) => act
-                    .check_stateful(state, from, fee_asset_id)
+                    .check_stateful(state, from)
                     .await
                     .context("stateful check failed for TransferAction")?,
                 Action::Sequence(act) => act
-                    .check_stateful(state, from, fee_asset_id)
+                    .check_stateful(state, from)
                     .await
                     .context("stateful check failed for SequenceAction")?,
                 Action::ValidatorUpdate(act) => act
-                    .check_stateful(state, from, fee_asset_id)
+                    .check_stateful(state, from)
                     .await
                     .context("stateful check failed for ValidatorUpdateAction")?,
                 Action::SudoAddressChange(act) => act
-                    .check_stateful(state, from, fee_asset_id)
+                    .check_stateful(state, from)
                     .await
                     .context("stateful check failed for SudoAddressChangeAction")?,
                 Action::Ibc(_) => {
-                    // no-op; IBC actions merge check_stateful and execute.
+                    let ibc_sudo_address = state
+                        .get_ibc_sudo_address()
+                        .await
+                        .context("failed to get IBC sudo address")?;
+                    ensure!(
+                        from == ibc_sudo_address,
+                        "only IBC sudo address can execute IBC actions"
+                    );
                 }
                 Action::Ics20Withdrawal(act) => act
-                    .check_stateful(state, from, fee_asset_id)
+                    .check_stateful(state, from)
                     .await
                     .context("stateful check failed for Ics20WithdrawalAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
-                    .check_stateful(state, from, fee_asset_id)
+                    .check_stateful(state, from)
                     .await
                     .context("stateful check failed for MintAction")?,
                 #[cfg(not(feature = "mint"))]
@@ -186,12 +194,7 @@ impl ActionHandler for UnsignedTransaction {
             from = from.to_string(),
         )
     )]
-    async fn execute<S: StateWriteExt>(
-        &self,
-        state: &mut S,
-        from: Address,
-        fee_asset_id: asset::Id,
-    ) -> anyhow::Result<()> {
+    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> anyhow::Result<()> {
         let from_nonce = state
             .get_account_nonce(from)
             .await
@@ -206,41 +209,43 @@ impl ActionHandler for UnsignedTransaction {
         for action in &self.actions {
             match action {
                 Action::Transfer(act) => {
-                    act.execute(state, from, fee_asset_id)
+                    act.execute(state, from)
                         .await
                         .context("execution failed for TransferAction")?;
                 }
                 Action::Sequence(act) => {
-                    act.execute(state, from, fee_asset_id)
+                    act.execute(state, from)
                         .await
                         .context("execution failed for SequenceAction")?;
                 }
                 Action::ValidatorUpdate(act) => {
-                    act.execute(state, from, fee_asset_id)
+                    act.execute(state, from)
                         .await
                         .context("execution failed for ValidatorUpdateAction")?;
                 }
                 Action::SudoAddressChange(act) => {
-                    act.execute(state, from, fee_asset_id)
+                    act.execute(state, from)
                         .await
                         .context("execution failed for SudoAddressChangeAction")?;
                 }
                 Action::Ibc(act) => {
                     let action = act
                         .clone()
-                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer>();
-                    cnidarium_component::ActionHandler::execute(&action, &mut *state)
+                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer, AstriaHost>(
+                        );
+                    action
+                        .execute(&mut *state)
                         .await
                         .context("execution failed for IbcAction")?;
                 }
                 Action::Ics20Withdrawal(act) => {
-                    act.execute(state, from, fee_asset_id)
+                    act.execute(state, from)
                         .await
                         .context("execution failed for Ics20WithdrawalAction")?;
                 }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => {
-                    act.execute(state, from, fee_asset_id)
+                    act.execute(state, from)
                         .await
                         .context("execution failed for MintAction")?;
                 }

@@ -40,6 +40,7 @@ use prost::{
     DecodeError,
     Message as _,
 };
+use tendermint::block::Height;
 #[cfg(feature = "http")]
 use tendermint_rpc::HttpClient;
 #[cfg(feature = "websocket")]
@@ -330,6 +331,21 @@ impl Stream for NewBlocksStream {
     }
 }
 
+pub struct LatestHeightStream {
+    inner: Pin<Box<dyn Stream<Item = Result<Height, NewBlockStreamError>> + Send>>,
+}
+
+impl Stream for LatestHeightStream {
+    type Item = Result<Height, NewBlockStreamError>;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        self.inner.as_mut().poll_next(cx)
+    }
+}
+
 #[async_trait]
 pub trait SequencerSubscriptionClientExt: SubscriptionClient {
     /// Subscribe to sequencer blocks from cometbft, returning a stream.
@@ -367,6 +383,39 @@ pub trait SequencerSubscriptionClientExt: SubscriptionClient {
             })
             .boxed();
         Ok(NewBlocksStream {
+            inner: stream,
+        })
+    }
+
+    async fn subscribe_latest_height(&self) -> Result<LatestHeightStream, SubscriptionFailed> {
+        use futures::stream::{
+            StreamExt as _,
+            TryStreamExt as _,
+        };
+        use tendermint_rpc::query::{
+            EventType,
+            Query,
+        };
+        let stream = self
+            .subscribe(Query::from(EventType::NewBlock))
+            .await?
+            .map_err(NewBlockStreamError::Rpc)
+            .and_then(|event| {
+                future::ready(match event.data {
+                    EventData::LegacyNewBlock {
+                        block: Some(block),
+                        ..
+                    } => Ok(block.header.height),
+
+                    EventData::LegacyNewBlock {
+                        block: None, ..
+                    } => Err(NewBlockStreamError::NoBlock),
+
+                    other => Err(NewBlockStreamError::unexpected_event(&other)),
+                })
+            })
+            .boxed();
+        Ok(LatestHeightStream {
             inner: stream,
         })
     }

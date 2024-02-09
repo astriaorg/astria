@@ -1,3 +1,11 @@
+use std::{
+    fmt,
+    fmt::{
+        Display,
+        Formatter,
+    },
+};
+
 /// The default sequencer asset base denomination.
 pub const DEFAULT_NATIVE_ASSET_DENOM: &str = "nria";
 
@@ -8,13 +16,23 @@ pub fn default_native_asset_id() -> Id {
 }
 
 /// Represents a denomination of a sequencer asset.
-#[derive(Debug, Clone)]
+///
+/// This can be either an IBC-bridged asset or a native asset.
+/// If it's a native asset, the prefix will be empty.
+///
+/// Note that the full denomination trace of the token is `prefix/base_denom`,
+/// in the case that a prefix is present.
+/// This is hashed to create the ID.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Denom {
     id: Id,
 
     /// The base denomination of the asset; ie. the name of
     /// the smallest unit of the asset.
     base_denom: String,
+
+    /// the IBC denomination prefix.
+    prefix: String,
 }
 
 impl Denom {
@@ -25,6 +43,7 @@ impl Denom {
         Self {
             id,
             base_denom: base_denom.to_string(),
+            prefix: String::new(),
         }
     }
 
@@ -38,11 +57,62 @@ impl Denom {
     pub fn base_denom(&self) -> &str {
         &self.base_denom
     }
+
+    #[must_use]
+    pub fn prefix(&self) -> &str {
+        &self.prefix
+    }
+
+    #[must_use]
+    pub fn prefix_is(&self, prefix: &str) -> bool {
+        self.prefix == prefix
+    }
+
+    #[must_use]
+    pub fn denomination_trace(&self) -> String {
+        if self.prefix.is_empty() {
+            return self.base_denom.clone();
+        }
+
+        format!("{}/{}", self.prefix, self.base_denom)
+    }
 }
 
+impl std::fmt::Display for Denom {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.prefix.is_empty() {
+            return write!(f, "{}", self.base_denom);
+        }
+
+        write!(f, "{}/{}", self.prefix, self.base_denom)
+    }
+}
+
+/// Creates an `Denom` given a denomination trace.
+///
+/// Note: if there is no slash in the denomination trace, then
+/// it is assumed that the asset is native, and thus the prefix is empty.
 impl From<String> for Denom {
-    fn from(base_denom: String) -> Self {
-        Self::from_base_denom(&base_denom)
+    fn from(denom: String) -> Self {
+        let Some((prefix, base_denom)) = denom.rsplit_once('/') else {
+            return Self {
+                id: Id::from_denom(&denom),
+                base_denom: denom,
+                prefix: String::new(),
+            };
+        };
+
+        Self {
+            id: Id::from_denom(&denom),
+            base_denom: base_denom.to_string(),
+            prefix: prefix.to_string(),
+        }
+    }
+}
+
+impl From<&str> for Denom {
+    fn from(denom: &str) -> Self {
+        Self::from(denom.to_string())
     }
 }
 
@@ -93,98 +163,15 @@ impl AsRef<[u8]> for Id {
     }
 }
 
+impl Display for Id {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
+
 /// Indicates that the protobuf response contained an array field that was not 32 bytes long.
 #[derive(Debug, thiserror::Error)]
 #[error("expected 32 bytes, got {received}")]
 pub struct IncorrectAssetIdLength {
     received: usize,
-}
-
-/// Represents an IBC asset.
-///
-/// Note that the full denomination trace of the token is `prefix/base_denom`.
-/// This is hashed to create the ID.
-#[allow(clippy::module_name_repetitions)]
-#[derive(Debug, Clone)]
-pub struct IbcAsset {
-    id: Id,
-
-    /// The base denomination of the asset; ie. the name of
-    /// the smallest unit of the asset.
-    base_denom: String,
-
-    /// the IBC denomination prefix.
-    prefix: String,
-}
-
-impl IbcAsset {
-    /// Returns the asset ID, which is the hash of the denomination trace.
-    #[must_use]
-    pub fn id(&self) -> Id {
-        self.id
-    }
-
-    #[must_use]
-    pub fn base_denom(&self) -> &str {
-        &self.base_denom
-    }
-
-    #[must_use]
-    pub fn prefix(&self) -> &str {
-        &self.prefix
-    }
-
-    #[must_use]
-    pub fn prefix_is(&self, prefix: &str) -> bool {
-        self.prefix == prefix
-    }
-
-    #[must_use]
-    pub fn denomination_trace(&self) -> String {
-        format!("{}/{}", self.prefix, self.base_denom)
-    }
-}
-
-impl std::fmt::Display for IbcAsset {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}/{}", self.prefix, self.base_denom)
-    }
-}
-
-/// Creates an `IbcAsset` given a denomination trace.
-///
-/// # Errors
-///
-/// - if the denomination string is invalid, ie. does not contain any slashes.
-impl std::str::FromStr for IbcAsset {
-    type Err = IbcAssetError;
-
-    fn from_str(denom: &str) -> Result<Self, Self::Err> {
-        let Some((prefix, base_denom)) = denom.rsplit_once('/') else {
-            return Err(IbcAssetError::invalid_denomination());
-        };
-        let id = Id::from_denom(denom);
-
-        Ok(Self {
-            id,
-            base_denom: base_denom.to_string(),
-            prefix: prefix.to_string(),
-        })
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
-pub struct IbcAssetError(IbcAssetErrorKind);
-
-impl IbcAssetError {
-    fn invalid_denomination() -> Self {
-        Self(IbcAssetErrorKind::InvalidDenomination)
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-enum IbcAssetErrorKind {
-    #[error("denomination must contain at least one slash")]
-    InvalidDenomination,
 }
