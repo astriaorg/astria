@@ -1,6 +1,7 @@
 use std::process::ExitCode;
 
 use astria_sequencer_relayer::{
+    metrics_init,
     telemetry,
     Config,
     SequencerRelayer,
@@ -12,10 +13,19 @@ use tracing::info;
 async fn main() -> ExitCode {
     let cfg: Config = config::get().expect("failed to read configuration");
 
-    if let Err(e) = telemetry::configure()
+    let mut telemetry_conf = telemetry::configure()
         .set_no_otel(cfg.no_otel)
         .set_force_stdout(cfg.force_stdout)
-        .filter_directives(&cfg.log)
+        .filter_directives(&cfg.log);
+
+    if cfg.metrics_enabled {
+        telemetry_conf = telemetry_conf
+            .metrics_addr(&cfg.prometheus_http_listener_addr)
+            .service_name(env!("CARGO_CRATE_NAME"));
+    }
+    metrics_init::register();
+
+    if let Err(e) = telemetry_conf
         .try_init()
         .wrap_err("failed to setup telemetry")
     {

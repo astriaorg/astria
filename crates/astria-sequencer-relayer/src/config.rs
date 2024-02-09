@@ -3,6 +3,8 @@ use serde::{
     Serialize,
 };
 
+// this is a config, may have many boolean values
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 /// The single config for creating an astria-sequencer-relayer service.
 pub struct Config {
@@ -18,6 +20,10 @@ pub struct Config {
     pub force_stdout: bool,
     /// Disables writing trace data to an opentelemetry endpoint.
     pub no_otel: bool,
+    /// Set to true to enable the metrics server
+    pub metrics_enabled: bool,
+    /// The endpoint which will be listened on for serving prometheus metrics
+    pub prometheus_http_listener_addr: String,
 }
 
 impl config::Config for Config {
