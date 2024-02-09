@@ -258,7 +258,7 @@ pub struct UnsignedTransaction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Action {
-    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6, 7")]
+    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6, 7, 8")]
     pub value: ::core::option::Option<action::Value>,
 }
 /// Nested message and enum types in `Action`.
@@ -280,6 +280,8 @@ pub mod action {
         IbcAction(::penumbra_proto::core::component::ibc::v1alpha1::IbcRelay),
         #[prost(message, tag = "7")]
         Ics20Withdrawal(super::Ics20Withdrawal),
+        #[prost(message, tag = "8")]
+        IbcRelayerChangeAction(super::IbcRelayerChangeAction),
     }
 }
 /// `TransferAction` represents a value transfer transaction.
@@ -373,4 +375,14 @@ pub struct IbcHeight {
     pub revision_number: u64,
     #[prost(uint64, tag = "2")]
     pub revision_height: u64,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IbcRelayerChangeAction {
+    /// the address to update
+    #[prost(bytes = "vec", tag = "1")]
+    pub address: ::prost::alloc::vec::Vec<u8>,
+    /// set to true to add the address to the relayer list, false to remove it
+    #[prost(bool, tag = "2")]
+    pub addition: bool,
 }

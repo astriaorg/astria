@@ -32,6 +32,7 @@ pub enum Action {
     Mint(MintAction),
     Ibc(IbcRelay),
     Ics20Withdrawal(Ics20Withdrawal),
+    IbcRelayerChange(IbcRelayerChangeAction),
 }
 
 impl Action {
@@ -46,6 +47,7 @@ impl Action {
             Action::Mint(act) => Value::MintAction(act.into_raw()),
             Action::Ibc(act) => Value::IbcAction(act.into()),
             Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.into_raw()),
+            Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.into_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -65,6 +67,7 @@ impl Action {
             Action::Mint(act) => Value::MintAction(act.to_raw()),
             Action::Ibc(act) => Value::IbcAction(act.clone().into()),
             Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.to_raw()),
+            Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -107,6 +110,10 @@ impl Action {
             }
             Value::Ics20Withdrawal(act) => Self::Ics20Withdrawal(
                 Ics20Withdrawal::try_from_raw(act).map_err(ActionError::ics20_withdrawal)?,
+            ),
+            Value::IbcRelayerChangeAction(act) => Self::IbcRelayerChange(
+                IbcRelayerChangeAction::try_from_raw(act)
+                    .map_err(ActionError::ibc_relayer_change)?,
             ),
         };
         Ok(action)
@@ -202,6 +209,10 @@ impl ActionError {
     fn ics20_withdrawal(inner: Ics20WithdrawalError) -> Self {
         Self(ActionErrorKind::Ics20Withdrawal(inner))
     }
+
+    fn ibc_relayer_change(inner: IbcRelayerChangeActionError) -> Self {
+        Self(ActionErrorKind::IbcRelayerChange(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -222,6 +233,8 @@ enum ActionErrorKind {
     Ibc(#[source] Box<dyn std::error::Error + Send + Sync>),
     #[error("ics20 withdrawal action was not valid")]
     Ics20Withdrawal(#[source] Ics20WithdrawalError),
+    #[error("ibc relayer change action was not valid")]
+    IbcRelayerChange(#[source] IbcRelayerChangeActionError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -699,7 +712,6 @@ impl Protobuf for IbcHeight {
     }
 }
 
-#[allow(clippy::module_name_repetitions)]
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct Ics20WithdrawalError(Ics20WithdrawalErrorKind);
@@ -736,4 +748,66 @@ enum Ics20WithdrawalErrorKind {
     MissingTimeoutHeight,
     #[error("`source_channel` field was invalid")]
     InvalidSourceChannel(IdentifierError),
+}
+
+#[derive(Debug, Clone)]
+pub struct IbcRelayerChangeAction {
+    address: Address,
+    addition: bool,
+}
+
+impl IbcRelayerChangeAction {
+    #[must_use]
+    pub fn address(&self) -> &Address {
+        &self.address
+    }
+
+    #[must_use]
+    pub fn addition(&self) -> bool {
+        self.addition
+    }
+
+    #[must_use]
+    pub fn into_raw(self) -> raw::IbcRelayerChangeAction {
+        raw::IbcRelayerChangeAction {
+            address: self.address.to_vec(),
+            addition: self.addition,
+        }
+    }
+
+    #[must_use]
+    pub fn to_raw(&self) -> raw::IbcRelayerChangeAction {
+        raw::IbcRelayerChangeAction {
+            address: self.address.to_vec(),
+            addition: self.addition,
+        }
+    }
+
+    pub fn try_from_raw(
+        raw: raw::IbcRelayerChangeAction,
+    ) -> Result<Self, IbcRelayerChangeActionError> {
+        let address = Address::try_from_slice(&raw.address)
+            .map_err(IbcRelayerChangeActionError::invalid_address)?;
+        Ok(Self {
+            address,
+            addition: raw.addition,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct IbcRelayerChangeActionError(IbcRelayerChangeActionErrorKind);
+
+impl IbcRelayerChangeActionError {
+    #[must_use]
+    fn invalid_address(err: IncorrectAddressLength) -> Self {
+        Self(IbcRelayerChangeActionErrorKind::InvalidAddress(err))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum IbcRelayerChangeActionErrorKind {
+    #[error("an address was invalid")]
+    InvalidAddress(IncorrectAddressLength),
 }

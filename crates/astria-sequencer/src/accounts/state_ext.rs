@@ -64,7 +64,7 @@ fn channel_balance_storage_key(channel: &ChannelId, asset: asset::Id) -> String 
     )
 }
 
-fn ibc_relayer_key(address: Address) -> String {
+fn ibc_relayer_key(address: &Address) -> String {
     format!("ibc-relayer/{}", address.encode_hex::<String>())
 }
 
@@ -179,7 +179,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip(self))]
-    async fn is_ibc_relayer(&self, address: Address) -> Result<bool> {
+    async fn is_ibc_relayer(&self, address: &Address) -> Result<bool> {
         Ok(self
             .get_raw(&ibc_relayer_key(address))
             .await
@@ -241,8 +241,13 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip(self))]
-    fn put_ibc_relayer_address(&mut self, address: Address) {
+    fn put_ibc_relayer_address(&mut self, address: &Address) {
         self.put_raw(ibc_relayer_key(address), vec![]);
+    }
+
+    #[instrument(skip(self))]
+    fn delete_ibc_relayer_address(&mut self, address: &Address) {
+        self.delete(ibc_relayer_key(address));
     }
 }
 

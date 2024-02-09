@@ -33,6 +33,7 @@ message Action {
     MintAction mint_action = 5;
     penumbra.core.component.ibc.v1alpha1.IbcRelay ibc_action = 6;
     Ics20Withdrawal ics20_withdrawal = 7;
+    IbcRelayerChangeAction ibc_relayer_change_action = 8;
   }
 }
 
@@ -101,4 +102,11 @@ message Ics20Withdrawal {
 message IbcHeight {
   uint64 revision_number = 1;
   uint64 revision_height = 2;
+}
+
+message IbcRelayerChangeAction {
+  // the address to update
+  bytes address = 1;
+  // set to true to add the address to the relayer list, false to remove it
+  bool addition = 2;
 }
