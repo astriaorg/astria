@@ -112,7 +112,7 @@ impl Action {
                 Ics20Withdrawal::try_from_raw(act).map_err(ActionError::ics20_withdrawal)?,
             ),
             Value::IbcRelayerChangeAction(act) => Self::IbcRelayerChange(
-                IbcRelayerChangeAction::try_from_raw(act)
+                IbcRelayerChangeAction::try_from_raw(&act)
                     .map_err(ActionError::ibc_relayer_change)?,
             ),
         };
@@ -750,6 +750,7 @@ enum Ics20WithdrawalErrorKind {
     InvalidSourceChannel(IdentifierError),
 }
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone)]
 pub struct IbcRelayerChangeAction {
     pub address: Address,
@@ -773,8 +774,13 @@ impl IbcRelayerChangeAction {
         }
     }
 
+    /// Convert from a raw, unchecked protobuf [`raw::IbcRelayerChangeAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `address` field is invalid
     pub fn try_from_raw(
-        raw: raw::IbcRelayerChangeAction,
+        raw: &raw::IbcRelayerChangeAction,
     ) -> Result<Self, IbcRelayerChangeActionError> {
         let address = Address::try_from_slice(&raw.address)
             .map_err(IbcRelayerChangeActionError::invalid_address)?;
