@@ -23,6 +23,7 @@ async fn main() -> ExitCode {
     let mut telemetry_conf = telemetry::configure()
         .set_no_otel(cfg.no_otel)
         .set_force_stdout(cfg.force_stdout)
+        .set_pretty_print(cfg.pretty_print)
         .filter_directives(&cfg.log);
     if !cfg.no_metrics {
         telemetry_conf = telemetry_conf

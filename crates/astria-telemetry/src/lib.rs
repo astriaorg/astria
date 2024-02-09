@@ -131,6 +131,7 @@ pub struct Config {
     filter_directives: String,
     force_stdout: bool,
     no_otel: bool,
+    pretty_print: bool,
     stdout_writer: BoxedMakeWriter,
     metrics_addr: Option<String>,
     service_name: String,
@@ -144,6 +145,7 @@ impl Config {
             filter_directives: String::new(),
             force_stdout: false,
             no_otel: false,
+            pretty_print: false,
             stdout_writer: BoxedMakeWriter::new(std::io::stdout),
             metrics_addr: None,
             service_name: String::new(),
@@ -183,6 +185,19 @@ impl Config {
     pub fn set_no_otel(self, no_otel: bool) -> Self {
         Self {
             no_otel,
+            ..self
+        }
+    }
+
+    #[must_use = "telemetry must be initialized to be useful"]
+    pub fn pretty_print(self) -> Self {
+        self.set_pretty_print(true)
+    }
+
+    #[must_use = "telemetry must be initialized to be useful"]
+    pub fn set_pretty_print(self, pretty_print: bool) -> Self {
+        Self {
+            pretty_print,
             ..self
         }
     }
@@ -232,6 +247,7 @@ impl Config {
             filter_directives,
             force_stdout,
             no_otel,
+            pretty_print,
             stdout_writer,
             metrics_addr,
             service_name,
@@ -247,8 +263,14 @@ impl Config {
 
         let mut tracer_provider = TracerProvider::builder();
         if !no_otel {
-            // XXX: the endpoint is set by the env var OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
-            //      this is hardcoded in OTEL.
+            // XXX: the endpoint is set by a hardcoded environment variable. This is a
+            //      full list of variables that opentelementry_otlp currently reads:
+            //      OTEL_EXPORTER_OTLP_ENDPOINT
+            //      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+            //      OTEL_EXPORTER_OTLP_TRACES_TIMEOUT
+            //      OTEL_EXPORTER_OTLP_TRACES_COMPRESSION
+            //      OTEL_EXPORTER_OTLP_HEADERS
+            //      OTEL_EXPORTER_OTLP_TRACE_HEADERS
             let otel_exporter = opentelemetry_otlp::new_exporter()
                 .tonic()
                 .build_span_exporter()
@@ -256,12 +278,17 @@ impl Config {
             tracer_provider = tracer_provider.with_batch_exporter(otel_exporter, Tokio);
         }
 
+        let mut pretty_printer = None;
         if force_stdout || std::io::stdout().is_terminal() {
-            tracer_provider = tracer_provider.with_simple_exporter(
-                SpanExporter::builder()
-                    .with_writer(stdout_writer.make_writer())
-                    .build(),
-            );
+            if pretty_print {
+                pretty_printer = Some(tracing_subscriber::fmt::layer().pretty());
+            } else {
+                tracer_provider = tracer_provider.with_simple_exporter(
+                    SpanExporter::builder()
+                        .with_writer(stdout_writer.make_writer())
+                        .build(),
+                );
+            }
         }
         let tracer_provider = tracer_provider.build();
 
@@ -276,6 +303,7 @@ impl Config {
         let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
         tracing_subscriber::registry()
             .with(otel_layer)
+            .with(pretty_printer)
             .with(env_filter)
             .try_init()
             .map_err(Error::init_subscriber)?;
