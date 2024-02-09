@@ -20,13 +20,16 @@ jobs:
           version: "1.15.1"
           github_token: ${{ github.token }}
       - uses: bufbuild/buf-lint-action@v1
-        with:
-          input: "proto/"
-      - run: buf format proto -d --exit-code
+      - run: buf format -d --exit-code
+      # Run breaking changes against each module, running against whole workspace
+      # fails if new packages are added
       - uses: bufbuild/buf-breaking-action@v1
         with:
-          # The 'main' branch of the GitHub repository that defines the module.
-          input: "proto"
+          input: "proto/executionapis"
+          against: "buf.build/astria/execution-apis"
+      - uses: bufbuild/buf-breaking-action@v1
+        with:
+          input: "proto/sequencerapis"
           against: "buf.build/astria/astria"
 
   rust:
