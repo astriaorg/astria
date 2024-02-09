@@ -32,10 +32,10 @@ impl ActionHandler for IbcRelayerChangeAction {
     }
 
     async fn execute<S: StateWrite>(&self, state: &mut S, _from: Address) -> Result<()> {
-        if self.addition() {
-            state.put_ibc_relayer_address(self.address());
+        if self.addition {
+            state.put_ibc_relayer_address(&self.address);
         } else {
-            state.delete_ibc_relayer_address(self.address());
+            state.delete_ibc_relayer_address(&self.address);
         }
         Ok(())
     }

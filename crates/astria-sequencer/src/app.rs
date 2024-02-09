@@ -676,6 +676,7 @@ mod test {
         asset::DEFAULT_NATIVE_ASSET_DENOM,
         transaction::action::{
             Action,
+            IbcRelayerChangeAction,
             SequenceAction,
             SudoAddressChangeAction,
             TransferAction,
@@ -1124,6 +1125,66 @@ mod test {
         let validator_updates = app.state.get_validator_updates().await.unwrap();
         assert_eq!(validator_updates.len(), 1);
         assert_eq!(validator_updates.get(&pub_key.into()).unwrap(), &update);
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_ibc_relayer_change_addition() {
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![],
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let action = IbcRelayerChangeAction {
+            address: alice_address,
+            addition: true,
+        };
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![Action::IbcRelayerChange(action)],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+
+        assert!(app.state.is_ibc_relayer(&alice_address).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_ibc_relayer_change_deletion() {
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![alice_address],
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let action = IbcRelayerChangeAction {
+            address: alice_address,
+            addition: false,
+        };
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![Action::IbcRelayerChange(action)],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+
+        assert!(!app.state.is_ibc_relayer(&alice_address).await.unwrap());
     }
 
     #[tokio::test]

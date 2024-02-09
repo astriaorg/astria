@@ -752,21 +752,11 @@ enum Ics20WithdrawalErrorKind {
 
 #[derive(Debug, Clone)]
 pub struct IbcRelayerChangeAction {
-    address: Address,
-    addition: bool,
+    pub address: Address,
+    pub addition: bool,
 }
 
 impl IbcRelayerChangeAction {
-    #[must_use]
-    pub fn address(&self) -> &Address {
-        &self.address
-    }
-
-    #[must_use]
-    pub fn addition(&self) -> bool {
-        self.addition
-    }
-
     #[must_use]
     pub fn into_raw(self) -> raw::IbcRelayerChangeAction {
         raw::IbcRelayerChangeAction {
