@@ -38,7 +38,7 @@ impl Component for AccountsComponent {
             .context("failed to set IBC sudo key")?;
 
         for address in &app_state.ibc_relayer_addresses {
-            state.put_ibc_relayer_address(address)
+            state.put_ibc_relayer_address(address);
         }
 
         Ok(())
