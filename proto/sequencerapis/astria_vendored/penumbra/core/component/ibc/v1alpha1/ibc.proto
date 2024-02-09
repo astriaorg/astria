@@ -7,6 +7,9 @@ import "google/protobuf/any.proto";
 // This file contains types which are copied from the penumbra types
 // if we update the version of penumbra being used it may need to be updated.
 
+// This is copied from the code at https://buf.build/penumbra-zone/penumbra/docs/bc443669626d4a7b823f588d95c9a528
+// Updating the version of penumbra may require updating this file/vendored imports.
+
 // We are copying the bare minimum of types required for use with our own types
 // this is done to avoid importing the entire cometbft types package (which
 // penumbra relies on), and proto registration issues that may cause in

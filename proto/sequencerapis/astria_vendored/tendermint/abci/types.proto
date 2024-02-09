@@ -4,8 +4,12 @@ package astria_vendored.tendermint.abci;
 
 import "astria_vendored/tendermint/crypto/keys.proto";
 
-// This file contains types which are copied from the cometbft types
+// This file contains types which are copied from the cosmossdk tendermint types
 // if we update the version of cometbft being used it may need to be updated.
+
+// The types here are copied from the cometbft commit matching the penumbra types
+// of this penumbra version: https://buf.build/penumbra-zone/penumbra/deps/bc443669626d4a7b823f588d95c9a528
+// This corresponds to the cosmos types here: https://buf.build/cosmos/cosmos-sdk/docs/e7a85cef453e4b999ad9aff8714ae05f
 
 // We are copying the bare minimum of types required for use with our own types
 // this is done to avoid importing the entire cometbft types package, and proto
