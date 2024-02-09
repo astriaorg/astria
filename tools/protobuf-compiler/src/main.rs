@@ -57,7 +57,7 @@ fn main() {
         "failed creating file descriptor set from protobuf: `buf` returned non-zero exit code"
     );
 
-    let files = find_protos(&src_dir);
+    let files = find_protos(src_dir);
 
     tonic_build::configure()
         .build_client(true)
