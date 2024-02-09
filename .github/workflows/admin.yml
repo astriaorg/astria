@@ -15,3 +15,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/labeler@v4
+
+  pr_title:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v3
+      - uses: CondeNast/conventional-pull-request-action@v0.2.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          ignoreCommits: "true"
+
+  admin:
+    if: ${{ always() && !cancelled() }}
+    needs: [pr_title]
+    uses: ./.github/workflows/reusable-success.yml
+    with:
+      success: ${{ !contains(needs.*.result, 'failure') }}
