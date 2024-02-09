@@ -161,12 +161,11 @@ impl ActionHandler for UnsignedTransaction {
                     .await
                     .context("stateful check failed for SudoAddressChangeAction")?,
                 Action::Ibc(_) => {
-                    let ibc_sudo_address = state
-                        .get_ibc_sudo_address()
-                        .await
-                        .context("failed to get IBC sudo address")?;
                     ensure!(
-                        from == ibc_sudo_address,
+                        state
+                            .is_ibc_relayer(from)
+                            .await
+                            .context("failed to check if address is IBC relayer")?,
                         "only IBC sudo address can execute IBC actions"
                     );
                 }

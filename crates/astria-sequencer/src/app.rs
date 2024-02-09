@@ -774,6 +774,7 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: Address::from([0; 20]),
             ibc_sudo_address: Address::from([0; 20]),
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         });
 
@@ -1100,6 +1101,7 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: alice_address,
             ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1132,6 +1134,7 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: alice_address,
             ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1162,6 +1165,7 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: sudo_address,
             ibc_sudo_address: [0u8; 20].into(),
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1192,6 +1196,7 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: alice_address,
             ibc_sudo_address: [0u8; 20].into(),
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1339,6 +1344,7 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: Address::from([0; 20]),
             ibc_sudo_address: Address::from([0; 20]),
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
         };
 

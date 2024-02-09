@@ -64,6 +64,10 @@ fn channel_balance_storage_key(channel: &ChannelId, asset: asset::Id) -> String 
     )
 }
 
+fn ibc_relayer_key(address: Address) -> String {
+    format!("ibc-relayer/{}", address.encode_hex::<String>())
+}
+
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
@@ -173,6 +177,15 @@ pub(crate) trait StateReadExt: StateRead {
             SudoAddress::try_from_slice(&bytes).context("invalid ibc sudo key bytes")?;
         Ok(Address(address))
     }
+
+    #[instrument(skip(self))]
+    async fn is_ibc_relayer(&self, address: Address) -> Result<bool> {
+        Ok(self
+            .get_raw(&ibc_relayer_key(address))
+            .await
+            .context("failed to read ibc relayer key from state")?
+            .is_some())
+    }
 }
 
 impl<T: StateRead> StateReadExt for T {}
@@ -225,6 +238,11 @@ pub(crate) trait StateWriteExt: StateWrite {
                 .context("failed to convert sudo address to vec")?,
         );
         Ok(())
+    }
+
+    #[instrument(skip(self))]
+    fn put_ibc_relayer_address(&mut self, address: Address) {
+        self.put_raw(ibc_relayer_key(address), vec![]);
     }
 }
 
