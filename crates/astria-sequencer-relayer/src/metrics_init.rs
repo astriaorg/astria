@@ -3,12 +3,12 @@
 //! Registers metrics & lists constants to be used as metric names throughout crate.
 
 use metrics::{
-    register_counter,
     describe_counter,
-    register_gauge,
     describe_gauge,
-    register_histogram,
     describe_histogram,
+    register_counter,
+    register_gauge,
+    register_histogram,
     Unit,
 };
 
