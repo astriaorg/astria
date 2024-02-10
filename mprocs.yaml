@@ -3,7 +3,7 @@ procs:
   Cometbft:
     # TODO: need more sophisticated command to wait for sequencer to finish
     # compiling. Is there a way to check if sequencer is running and wait till it is?
-    shell: "just crates/astria-sequencer/run-cometbft"
+    shell: "sleep 2 && just crates/astria-sequencer/run-cometbft"
     stop:
       send-keys:
         - "<C-c>"
@@ -14,21 +14,15 @@ procs:
       send-keys:
         - "<C-c>"
 
-  # Sequencer Relayer:
-  #   shell: "just crates/astria-sequencer-relayer/copy-env && just crates/astria-sequencer-relayer/run"
-  #   stop:
-  #     send-keys:
-  #       - "<C-c>"
-
   Composer:
-    shell: "just crates/astria-composer/copy-env && just crates/astria-composer/run"
+    shell: "sleep 5 && just crates/astria-composer/copy-env && just crates/astria-composer/run"
     stop:
       send-keys:
         - "<C-c>"
 
   Conductor:
     # TODO: add wait command for rollup/geth
-    shell: "just crates/astria-conductor/copy-env && just crates/astria-conductor/run"
+    shell: "sleep 5 && just crates/astria-conductor/copy-env && just crates/astria-conductor/run"
     stop:
       send-keys:
         - "<C-c>"

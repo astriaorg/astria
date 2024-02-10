@@ -72,3 +72,17 @@ _lint-proto:
   buf lint proto
   buf format proto -d --exit-code
   buf breaking proto --against 'buf.build/astria/astria'
+
+# --- Local Dev ---
+
+build:
+  cargo build
+
+run:
+  mprocs
+
+clean:
+  rm -rf ~/.cometbft/
+  rm -rf /tmp/astria_db
+
+clean-restart: clean run
