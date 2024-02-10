@@ -20,6 +20,6 @@ service SequencerService {
   // Given a block height, returns the sequencer block at that height.
   rpc GetSequencerBlock(GetSequencerBlockRequest) returns (SequencerBlock);
   // Given a block height and rollup id, returns a SequencerBlock which is filtered to contain
-  // only the transactions that are relevant to the given rollup. 
+  // only the transactions that are relevant to the given rollup.
   rpc GetFilteredSequencerBlock(GetFilteredSequencerBlockRequest) returns (SequencerBlock);
 }
