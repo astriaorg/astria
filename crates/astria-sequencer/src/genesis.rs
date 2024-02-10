@@ -1,4 +1,5 @@
 use astria_core::sequencer::v1alpha1::Address;
+use penumbra_ibc::params::IBCParameters;
 use serde::{
     Deserialize,
     Deserializer,
@@ -13,6 +14,7 @@ pub(crate) struct GenesisState {
     #[serde(deserialize_with = "deserialize_address")]
     pub(crate) ibc_sudo_address: Address,
     pub(crate) native_asset_base_denomination: String,
+    pub(crate) ibc_params: IBCParameters,
 }
 
 #[derive(Debug, Deserialize)]

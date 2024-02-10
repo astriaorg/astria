@@ -21,8 +21,9 @@ matchit = "0.7.2"
 tower = "0.4"
 tower-abci = "0.11.0"
 tower-actor = "0.1.0"
-cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "1b1be7e1373401eaf30d63352ee680991cb42aea" }
-cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "1b1be7e1373401eaf30d63352ee680991cb42aea" }
+# These correspond to penumbra 0.66 release
+cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "29b93231c6dc4a534b7a1177790d3d39d2dfb52c" }
+cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "29b93231c6dc4a534b7a1177790d3d39d2dfb52c" }
 
 async-trait = { workspace = true }
 bytes = { workspace = true }

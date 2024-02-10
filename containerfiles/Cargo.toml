@@ -72,15 +72,15 @@ version = '0.20'
 [workspace.dependencies.penumbra-ibc]
 default-features = false
 git = 'https://github.com/penumbra-zone/penumbra.git'
-rev = '1b1be7e1373401eaf30d63352ee680991cb42aea'
+rev = '29b93231c6dc4a534b7a1177790d3d39d2dfb52c'
 
 [workspace.dependencies.penumbra-proto]
 git = 'https://github.com/penumbra-zone/penumbra.git'
-rev = '1b1be7e1373401eaf30d63352ee680991cb42aea'
+rev = '29b93231c6dc4a534b7a1177790d3d39d2dfb52c'
 
 [workspace.dependencies.penumbra-tower-trace]
 git = 'https://github.com/penumbra-zone/penumbra.git'
-rev = '1b1be7e1373401eaf30d63352ee680991cb42aea'
+rev = '29b93231c6dc4a534b7a1177790d3d39d2dfb52c'
 
 [workspace.dependencies.reqwest]
 default-features = false
