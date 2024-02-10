@@ -19,7 +19,7 @@ To learn more about Astria, please visit [astria.org](https://astria.org).
 
 * [conductor](https://github.com/astriaorg/astria/tree/main/crates/astria-conductor):
   conducts blocks from the data availability layer to the execution layer.
-* [proto](https://github.com/astriaorg/astria/tree/main/crates/astria-proto):
+* [proto](https://github.com/astriaorg/astria/tree/main/crates/astria-core):
   relevant protobufs for Astria types.
 * [sequencer](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer):
   ABCI application that defines the sequencer state transition logic.
