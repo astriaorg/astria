@@ -131,22 +131,6 @@ pub struct SequencerBlock {
     #[prost(message, optional, tag = "4")]
     pub rollup_ids_proof: ::core::option::Option<Proof>,
 }
-/// `RollupSpecificSequencerBlock` is a subset of `SequencerBlock` that only contains
-/// transaction data for a specific rollup.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RollupSpecificSequencerBlock {
-    /// The original CometBFT header that was the input to this sequencer block.
-    #[prost(message, optional, tag = "1")]
-    pub header: ::core::option::Option<::tendermint_proto::types::Header>,
-    /// The 32 bytes identifying the rollup this blob belongs to. Matches
-    /// `astria.sequencer.v1alpha1.RollupTransactions.rollup_id`
-    #[prost(bytes = "vec", tag = "2")]
-    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
-    /// A list of opaque bytes that are serialized rollup transactions.
-    #[prost(bytes = "vec", repeated, tag = "3")]
-    pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
-}
 /// A collection of transactions belonging to a specific rollup that are submitted to celestia.
 ///
 /// The transactions contained in the item belong to a rollup identified
@@ -250,32 +234,15 @@ pub struct SequencerNamespaceData {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetSequencerBlockRequest {
     /// The height of the block to retrieve.
-    #[prost(uint64, tag = "1")]
-    pub height: u64,
+    #[prost(int64, tag = "1")]
+    pub height: i64,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetRollupSpecificSequencerBlockRequest {
+pub struct GetFilteredSequencerBlockRequest {
     /// The height of the block to retrieve.
-    #[prost(uint64, tag = "1")]
-    pub height: u64,
-    /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
-    #[prost(bytes = "vec", tag = "2")]
-    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SubscribeSequencerBlocksRequest {
-    /// The height of the block to start the subscription from.
-    #[prost(uint64, tag = "1")]
-    pub start_height: u64,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SubscribeRollupSpecificSequencerBlocksRequest {
-    /// The height of the block to start the subscription from.
-    #[prost(uint64, tag = "1")]
-    pub start_height: u64,
+    #[prost(int64, tag = "1")]
+    pub height: i64,
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
     #[prost(bytes = "vec", tag = "2")]
     pub rollup_id: ::prost::alloc::vec::Vec<u8>,
@@ -394,17 +361,12 @@ pub mod sequencer_service_client {
                 );
             self.inner.unary(req, path, codec).await
         }
-        /// Given a block height and rollup id, returns the rollup specific sequencer block
-        /// at that height for the given rollup.
-        pub async fn get_rollup_specific_sequencer_block(
+        /// Given a block height and rollup id, returns a SequencerBlock which is filtered to contain
+        /// only the transactions that are relevant to the given rollup.
+        pub async fn get_filtered_sequencer_block(
             &mut self,
-            request: impl tonic::IntoRequest<
-                super::GetRollupSpecificSequencerBlockRequest,
-            >,
-        ) -> std::result::Result<
-            tonic::Response<super::RollupSpecificSequencerBlock>,
-            tonic::Status,
-        > {
+            request: impl tonic::IntoRequest<super::GetFilteredSequencerBlockRequest>,
+        ) -> std::result::Result<tonic::Response<super::SequencerBlock>, tonic::Status> {
             self.inner
                 .ready()
                 .await
@@ -416,93 +378,17 @@ pub mod sequencer_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.sequencer.v1alpha1.SequencerService/GetRollupSpecificSequencerBlock",
+                "/astria.sequencer.v1alpha1.SequencerService/GetFilteredSequencerBlock",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "astria.sequencer.v1alpha1.SequencerService",
-                        "GetRollupSpecificSequencerBlock",
+                        "GetFilteredSequencerBlock",
                     ),
                 );
             self.inner.unary(req, path, codec).await
-        }
-        /// Starts a subscription to sequencer blocks starting from the given height.
-        /// The client will receive a stream of sequencer blocks.
-        ///
-        /// If the specified height is in the past will stream to catch up, otherwise will
-        /// wait till given height met and stream when block is committed.
-        pub async fn subscribe_sequencer_blocks(
-            &mut self,
-            request: impl tonic::IntoRequest<super::SubscribeSequencerBlocksRequest>,
-        ) -> std::result::Result<
-            tonic::Response<tonic::codec::Streaming<super::SequencerBlock>>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/astria.sequencer.v1alpha1.SequencerService/SubscribeSequencerBlocks",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "astria.sequencer.v1alpha1.SequencerService",
-                        "SubscribeSequencerBlocks",
-                    ),
-                );
-            self.inner.server_streaming(req, path, codec).await
-        }
-        /// Starts a subscription to rollup specific sequencer blocks starting from the given height.
-        /// The client will receive a stream of rollup specific sequencer blocks.
-        ///
-        /// If the specified height is in the past will stream to catch up, otherwise will
-        /// wait until height is met.
-        ///
-        /// Blocks will be streamed even if the rollup has no transactions in the block.
-        pub async fn subscribe_rollup_specific_sequencer_blocks(
-            &mut self,
-            request: impl tonic::IntoRequest<
-                super::SubscribeRollupSpecificSequencerBlocksRequest,
-            >,
-        ) -> std::result::Result<
-            tonic::Response<
-                tonic::codec::Streaming<super::RollupSpecificSequencerBlock>,
-            >,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::new(
-                        tonic::Code::Unknown,
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/astria.sequencer.v1alpha1.SequencerService/SubscribeRollupSpecificSequencerBlocks",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new(
-                        "astria.sequencer.v1alpha1.SequencerService",
-                        "SubscribeRollupSpecificSequencerBlocks",
-                    ),
-                );
-            self.inner.server_streaming(req, path, codec).await
         }
     }
 }
@@ -519,56 +405,12 @@ pub mod sequencer_service_server {
             &self,
             request: tonic::Request<super::GetSequencerBlockRequest>,
         ) -> std::result::Result<tonic::Response<super::SequencerBlock>, tonic::Status>;
-        /// Given a block height and rollup id, returns the rollup specific sequencer block
-        /// at that height for the given rollup.
-        async fn get_rollup_specific_sequencer_block(
+        /// Given a block height and rollup id, returns a SequencerBlock which is filtered to contain
+        /// only the transactions that are relevant to the given rollup.
+        async fn get_filtered_sequencer_block(
             &self,
-            request: tonic::Request<super::GetRollupSpecificSequencerBlockRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::RollupSpecificSequencerBlock>,
-            tonic::Status,
-        >;
-        /// Server streaming response type for the SubscribeSequencerBlocks method.
-        type SubscribeSequencerBlocksStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<super::SequencerBlock, tonic::Status>,
-            >
-            + Send
-            + 'static;
-        /// Starts a subscription to sequencer blocks starting from the given height.
-        /// The client will receive a stream of sequencer blocks.
-        ///
-        /// If the specified height is in the past will stream to catch up, otherwise will
-        /// wait till given height met and stream when block is committed.
-        async fn subscribe_sequencer_blocks(
-            &self,
-            request: tonic::Request<super::SubscribeSequencerBlocksRequest>,
-        ) -> std::result::Result<
-            tonic::Response<Self::SubscribeSequencerBlocksStream>,
-            tonic::Status,
-        >;
-        /// Server streaming response type for the SubscribeRollupSpecificSequencerBlocks method.
-        type SubscribeRollupSpecificSequencerBlocksStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<
-                    super::RollupSpecificSequencerBlock,
-                    tonic::Status,
-                >,
-            >
-            + Send
-            + 'static;
-        /// Starts a subscription to rollup specific sequencer blocks starting from the given height.
-        /// The client will receive a stream of rollup specific sequencer blocks.
-        ///
-        /// If the specified height is in the past will stream to catch up, otherwise will
-        /// wait until height is met.
-        ///
-        /// Blocks will be streamed even if the rollup has no transactions in the block.
-        async fn subscribe_rollup_specific_sequencer_blocks(
-            &self,
-            request: tonic::Request<super::SubscribeRollupSpecificSequencerBlocksRequest>,
-        ) -> std::result::Result<
-            tonic::Response<Self::SubscribeRollupSpecificSequencerBlocksStream>,
-            tonic::Status,
-        >;
+            request: tonic::Request<super::GetFilteredSequencerBlockRequest>,
+        ) -> std::result::Result<tonic::Response<super::SequencerBlock>, tonic::Status>;
     }
     #[derive(Debug)]
     pub struct SequencerServiceServer<T: SequencerService> {
@@ -699,17 +541,15 @@ pub mod sequencer_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.sequencer.v1alpha1.SequencerService/GetRollupSpecificSequencerBlock" => {
+                "/astria.sequencer.v1alpha1.SequencerService/GetFilteredSequencerBlock" => {
                     #[allow(non_camel_case_types)]
-                    struct GetRollupSpecificSequencerBlockSvc<T: SequencerService>(
-                        pub Arc<T>,
-                    );
+                    struct GetFilteredSequencerBlockSvc<T: SequencerService>(pub Arc<T>);
                     impl<
                         T: SequencerService,
                     > tonic::server::UnaryService<
-                        super::GetRollupSpecificSequencerBlockRequest,
-                    > for GetRollupSpecificSequencerBlockSvc<T> {
-                        type Response = super::RollupSpecificSequencerBlock;
+                        super::GetFilteredSequencerBlockRequest,
+                    > for GetFilteredSequencerBlockSvc<T> {
+                        type Response = super::SequencerBlock;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
@@ -717,12 +557,12 @@ pub mod sequencer_service_server {
                         fn call(
                             &mut self,
                             request: tonic::Request<
-                                super::GetRollupSpecificSequencerBlockRequest,
+                                super::GetFilteredSequencerBlockRequest,
                             >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as SequencerService>::get_rollup_specific_sequencer_block(
+                                <T as SequencerService>::get_filtered_sequencer_block(
                                         &inner,
                                         request,
                                     )
@@ -738,7 +578,7 @@ pub mod sequencer_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = GetRollupSpecificSequencerBlockSvc(inner);
+                        let method = GetFilteredSequencerBlockSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -750,118 +590,6 @@ pub mod sequencer_service_server {
                                 max_encoding_message_size,
                             );
                         let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/astria.sequencer.v1alpha1.SequencerService/SubscribeSequencerBlocks" => {
-                    #[allow(non_camel_case_types)]
-                    struct SubscribeSequencerBlocksSvc<T: SequencerService>(pub Arc<T>);
-                    impl<
-                        T: SequencerService,
-                    > tonic::server::ServerStreamingService<
-                        super::SubscribeSequencerBlocksRequest,
-                    > for SubscribeSequencerBlocksSvc<T> {
-                        type Response = super::SequencerBlock;
-                        type ResponseStream = T::SubscribeSequencerBlocksStream;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<
-                                super::SubscribeSequencerBlocksRequest,
-                            >,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as SequencerService>::subscribe_sequencer_blocks(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let inner = inner.0;
-                        let method = SubscribeSequencerBlocksSvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.server_streaming(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/astria.sequencer.v1alpha1.SequencerService/SubscribeRollupSpecificSequencerBlocks" => {
-                    #[allow(non_camel_case_types)]
-                    struct SubscribeRollupSpecificSequencerBlocksSvc<
-                        T: SequencerService,
-                    >(
-                        pub Arc<T>,
-                    );
-                    impl<
-                        T: SequencerService,
-                    > tonic::server::ServerStreamingService<
-                        super::SubscribeRollupSpecificSequencerBlocksRequest,
-                    > for SubscribeRollupSpecificSequencerBlocksSvc<T> {
-                        type Response = super::RollupSpecificSequencerBlock;
-                        type ResponseStream = T::SubscribeRollupSpecificSequencerBlocksStream;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<
-                                super::SubscribeRollupSpecificSequencerBlocksRequest,
-                            >,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as SequencerService>::subscribe_rollup_specific_sequencer_blocks(
-                                        &inner,
-                                        request,
-                                    )
-                                    .await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let inner = inner.0;
-                        let method = SubscribeRollupSpecificSequencerBlocksSvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.server_streaming(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)
