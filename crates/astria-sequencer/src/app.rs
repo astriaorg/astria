@@ -843,7 +843,7 @@ mod test {
             },
             byzantine_validators: vec![],
         };
-        begin_block.header.height = Height::try_from(1u8).unwrap();
+        begin_block.header.height = 1u8.into();
 
         app.begin_block(&begin_block, storage).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 1);
@@ -900,7 +900,7 @@ mod test {
             },
             byzantine_validators: vec![misbehavior],
         };
-        begin_block.header.height = Height::try_from(1u8).unwrap();
+        begin_block.header.height = 1u8.into();
 
         app.begin_block(&begin_block, storage).await.unwrap();
 
@@ -1392,7 +1392,7 @@ mod test {
             },
             byzantine_validators: vec![],
         };
-        begin_block.header.height = Height::try_from(1u8).unwrap();
+        begin_block.header.height = 1u8.into();
         let proposer_address =
             Address::try_from_slice(begin_block.header.proposer_address.as_bytes()).unwrap();
 
