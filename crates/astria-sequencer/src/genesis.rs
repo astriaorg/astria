@@ -94,7 +94,8 @@ mod test {
             "authority_sudo_address": "1c0c490f1b5528d8173c5de46d131160e4b2c0c3",
             "ibc_sudo_address": "1c0c490f1b5528d8173c5de46d131160e4b2c0c3",
             "ibc_relayer_addresses": ["1c0c490f1b5528d8173c5de46d131160e4b2c0c3", "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a"],
-            "native_asset_base_denomination": "nria"
+            "native_asset_base_denomination": "nria",
+            "allowed_fee_assets": ["nria"]
           }
           "#;
         let genesis: GenesisState = serde_json::from_str(genesis_str).unwrap();
