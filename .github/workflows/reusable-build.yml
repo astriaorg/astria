@@ -28,7 +28,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.73.0
+      - uses: dtolnay/rust-toolchain@1.76.0
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
