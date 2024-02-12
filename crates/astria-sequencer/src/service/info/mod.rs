@@ -211,6 +211,6 @@ mod test {
             InfoResponse::Query(query) => query,
             other => panic!("expected InfoResponse::Query, got {other:?}"),
         };
-        assert!(query_response.code.is_ok());
+        assert!(response.code.is_ok());
     }
 }
