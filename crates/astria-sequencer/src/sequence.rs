@@ -14,7 +14,10 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
-    state_ext::StateWriteExt as _,
+    state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     transaction::action_handler::ActionHandler,
 };
 
@@ -28,6 +31,11 @@ impl ActionHandler for SequenceAction {
         state: &S,
         from: Address,
     ) -> Result<()> {
+        ensure!(
+            state.is_allowed_fee_asset(self.fee_asset_id).await?,
+            "invalid fee asset",
+        );
+
         let curr_balance = state
             .get_account_balance(from, self.fee_asset_id)
             .await

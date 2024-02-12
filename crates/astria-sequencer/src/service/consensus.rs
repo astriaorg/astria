@@ -506,6 +506,7 @@ mod test {
                 ibc_sudo_address: Address::from([0; 20]),
                 ibc_relayer_addresses: vec![],
                 native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+                allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
             }
         }
     }
