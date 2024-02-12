@@ -208,6 +208,12 @@ impl Executor {
         let max_spread: usize = self.calculate_max_spread();
         self.soft_blocks.set_capacity(max_spread);
 
+        info!(
+            max_spread,
+            "setting capacity of soft blocks channel to maximum permitted firm<>soft commitment \
+             spread (this has no effect if conductor is set to perform soft-sync only)"
+        );
+
         loop {
             let spread_not_too_large = !self.is_spread_too_large(max_spread);
             if spread_not_too_large {
@@ -267,15 +273,31 @@ impl Executor {
         // XXX: shut down the channels here and attempt to drain them before returning.
     }
 
+    /// Calculates the maximum allowed spread between firm and soft commitments heights.
+    ///
+    /// The maximum allowed spread is taken as `max_spread = variance * 6`, where `variance`
+    /// is the `celestia_block_variance` as defined in the rollup node's genesis that this
+    /// executor/conductor talks to.
+    ///
+    /// The heuristic 6 is the largest number of Sequencer heights that will be found at
+    /// one Celestia height.
+    ///
+    /// # Panics
+    /// Panics if the `u32` underlying the celestia block variance tracked in the state could
+    /// not be converted to a `usize`. This should never happen on any reasonable architecture
+    /// that Conductor will run on.
     fn calculate_max_spread(&self) -> usize {
-        self.state
-            .borrow()
-            .celestia_block_variance()
+        usize::try_from(self.state.borrow().celestia_block_variance())
+            .expect("converting a u32 to usize should work on any architecture conductor runs on")
             .saturating_mul(6)
             .try_into()
-            .expect("converting a u32 to usize should work on any architecture conductor runs on")
     }
 
+    /// Returns if the spread between firm and soft commitment heights in the tracked state is too
+    /// large.
+    ///
+    /// Always returns `false` if this executor was configured with `consider_commitment_spread =
+    /// false`.
     fn is_spread_too_large(&self, max_spread: usize) -> bool {
         if !self.consider_commitment_spread {
             return false;
