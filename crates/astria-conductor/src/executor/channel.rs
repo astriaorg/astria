@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use sequencer_client::SequencerBlock;
 use tokio::sync::{
     mpsc::{
         error::SendError as TokioSendError,
@@ -19,7 +18,7 @@ use tokio::sync::{
 ///
 /// The initial bound of the channel is 0 and the receiver is expected to add
 /// capacity to the channel.
-pub(super) fn soft_block_channel() -> (Sender, Receiver) {
+pub(super) fn soft_block_channel<T>() -> (Sender<T>, Receiver<T>) {
     let cap = 0;
     let sem = Arc::new(Semaphore::new(0));
     let (tx, rx) = unbounded_channel();
@@ -45,8 +44,8 @@ impl From<AcquireError> for SendError {
     }
 }
 
-impl From<TokioSendError<SequencerBlock>> for SendError {
-    fn from(_: TokioSendError<SequencerBlock>) -> Self {
+impl<T> From<TokioSendError<T>> for SendError {
+    fn from(_: TokioSendError<T>) -> Self {
         Self
     }
 }
@@ -54,15 +53,15 @@ impl From<TokioSendError<SequencerBlock>> for SendError {
 // allow: this is mimicking tokio's `SendError` that returns the stack-allocated object.
 #[allow(clippy::result_large_err)]
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum TrySendError {
+pub(crate) enum TrySendError<T> {
     #[error("the channel is closed")]
-    Closed(SequencerBlock),
+    Closed(T),
     #[error("no permits available")]
-    NoPermits(SequencerBlock),
+    NoPermits(T),
 }
 
-impl TrySendError {
-    fn from_semaphore(err: &TryAcquireError, block: SequencerBlock) -> Self {
+impl<T> TrySendError<T> {
+    fn from_semaphore(err: &TryAcquireError, block: T) -> Self {
         match err {
             tokio::sync::TryAcquireError::Closed => Self::Closed(block),
             tokio::sync::TryAcquireError::NoPermits => Self::NoPermits(block),
@@ -70,23 +69,23 @@ impl TrySendError {
     }
 }
 
-impl From<TokioSendError<SequencerBlock>> for TrySendError {
-    fn from(err: TokioSendError<SequencerBlock>) -> Self {
+impl<T> From<TokioSendError<T>> for TrySendError<T> {
+    fn from(err: TokioSendError<T>) -> Self {
         Self::Closed(err.0)
     }
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct Sender {
+pub(super) struct Sender<T> {
     sem: Arc<Semaphore>,
-    chan: UnboundedSender<SequencerBlock>,
+    chan: UnboundedSender<T>,
 }
 
-impl Sender {
+impl<T> Sender<T> {
     /// Sends a block, waiting until the channel has permits.
     ///
     /// Returns an error if the channel is closed.
-    pub(super) async fn send(&self, block: SequencerBlock) -> Result<(), SendError> {
+    pub(super) async fn send(&self, block: T) -> Result<(), SendError> {
         let permit = self.sem.acquire().await?;
         permit.forget();
         self.chan.send(block)?;
@@ -98,7 +97,7 @@ impl Sender {
     /// Returns an error if the channel is out of permits or if it has been closed.
     // allow: this is mimicking tokio's `SendError` that returns the stack-allocated object.
     #[allow(clippy::result_large_err)]
-    pub(super) fn try_send(&self, block: SequencerBlock) -> Result<(), TrySendError> {
+    pub(super) fn try_send(&self, block: T) -> Result<(), TrySendError<T>> {
         let permit = match self.sem.try_acquire() {
             Ok(permit) => permit,
             Err(err) => return Err(TrySendError::from_semaphore(&err, block)),
@@ -109,13 +108,13 @@ impl Sender {
     }
 }
 
-pub(super) struct Receiver {
+pub(super) struct Receiver<T> {
     cap: usize,
     sem: Arc<Semaphore>,
-    chan: UnboundedReceiver<SequencerBlock>,
+    chan: UnboundedReceiver<T>,
 }
 
-impl Receiver {
+impl<T> Receiver<T> {
     /// Sets the channel's capacity to `cap`.
     ///
     /// `cap` will be the maximum number of blocks that can be sent
@@ -134,7 +133,7 @@ impl Receiver {
     }
 
     /// Receives a block over the channel.
-    pub(super) async fn recv(&mut self) -> Option<SequencerBlock> {
+    pub(super) async fn recv(&mut self) -> Option<T> {
         self.chan.recv().await
     }
 }

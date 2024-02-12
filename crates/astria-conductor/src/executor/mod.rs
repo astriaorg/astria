@@ -76,7 +76,7 @@ pub(crate) struct StateIsInit;
 #[derive(Debug, Clone)]
 pub(crate) struct Handle<TStateInit = StateNotInit> {
     firm_blocks: mpsc::Sender<ReconstructedBlock>,
-    soft_blocks: channel::Sender,
+    soft_blocks: channel::Sender<SequencerBlock>,
     state: watch::Receiver<State>,
     _state_init: TStateInit,
 }
@@ -132,7 +132,7 @@ impl Handle<StateIsInit> {
     pub(crate) fn try_send_soft_block(
         &self,
         block: SequencerBlock,
-    ) -> Result<(), channel::TrySendError> {
+    ) -> Result<(), channel::TrySendError<SequencerBlock>> {
         self.soft_blocks.try_send(block)
     }
 
@@ -166,7 +166,7 @@ impl Handle<StateIsInit> {
 
 pub(crate) struct Executor {
     firm_blocks: mpsc::Receiver<ReconstructedBlock>,
-    soft_blocks: channel::Receiver,
+    soft_blocks: channel::Receiver<SequencerBlock>,
 
     shutdown: oneshot::Receiver<()>,
 
