@@ -9,17 +9,6 @@ jobs:
   run_checker:
     uses: ./.github/workflows/reusable-run-checker.yml
 
-  pr_title:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v3
-      - uses: CondeNast/conventional-pull-request-action@v0.2.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          ignoreCommits: "true"
-
   proto:
     runs-on: ubuntu-latest
     needs: run_checker
@@ -31,13 +20,16 @@ jobs:
           version: "1.15.1"
           github_token: ${{ github.token }}
       - uses: bufbuild/buf-lint-action@v1
-        with:
-          input: "proto/"
-      - run: buf format proto -d --exit-code
+      - run: buf format -d --exit-code
+      # Run breaking changes against each module, running against whole workspace
+      # fails if new packages are added
       - uses: bufbuild/buf-breaking-action@v1
         with:
-          # The 'main' branch of the GitHub repository that defines the module.
-          input: "proto"
+          input: "proto/executionapis"
+          against: "buf.build/astria/execution-apis"
+      - uses: bufbuild/buf-breaking-action@v1
+        with:
+          input: "proto/sequencerapis"
           against: "buf.build/astria/astria"
 
   rust:
@@ -82,7 +74,7 @@ jobs:
             #.github
 
   lint:
-    needs: [proto, rust, toml, markdown, pr_title]
+    needs: [proto, rust, toml, markdown]
     if: ${{ always() && !cancelled() }}
     uses: ./.github/workflows/reusable-success.yml
     with:

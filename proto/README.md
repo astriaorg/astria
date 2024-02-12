@@ -40,7 +40,9 @@ $ just lint proto
 
 When creating a new package, follow the following convention:
 
-* Create a new folder `proto/astria/<pkg-name>/<version>`.
+* Create a new folder `proto/<pkg-name>/astria/<pkg-name>/<version>`.
+* Create a new `buf.yaml` file at `proto/<pkg-name>/buf.yaml`
+* Add the new package to the dependencies of workspace at `../buf.work.yaml`
 * Write protos in this folder using the convention name
   `astria.<pkg-name>.<version>`.
 
