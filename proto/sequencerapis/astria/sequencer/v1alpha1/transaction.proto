@@ -96,6 +96,8 @@ message Ics20Withdrawal {
   uint64 timeout_time = 6;
   // the source channel used for the withdrawal.
   string source_channel = 7;
+  // the asset used to pay the transaction fee
+  bytes fee_asset_id = 8;
 }
 
 message IbcHeight {
