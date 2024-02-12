@@ -20,5 +20,6 @@
     "ibc_enabled": true,
     "inbound_ics20_transfers_enabled": true,
     "outbound_ics20_transfers_enabled": true
-  }
+  },
+  "allowed_fee_assets": ["nria"]
 }

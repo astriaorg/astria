@@ -174,6 +174,10 @@ impl App {
         state_tx.put_chain_id(chain_id);
         state_tx.put_block_height(0);
 
+        for fee_asset in &genesis_state.allowed_fee_assets {
+            state_tx.put_allowed_fee_asset(fee_asset.id());
+        }
+
         // call init_chain on all components
         AccountsComponent::init_chain(&mut state_tx, &genesis_state)
             .await
@@ -786,6 +790,7 @@ mod test {
             ibc_sudo_address: Address::from([0; 20]),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         });
 
         app.init_chain(genesis_state, genesis_validators, "test".to_string())
@@ -1104,6 +1109,31 @@ mod test {
     }
 
     #[tokio::test]
+    async fn app_deliver_tx_invalid_fee_asset() {
+        let mut app = initialize_app(None, vec![]).await;
+
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let data = b"hello world".to_vec();
+
+        let fee_asset_id = asset::Id::from_denom("test");
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                    data,
+                    fee_asset_id,
+                }
+                .into(),
+            ],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        assert!(app.deliver_tx(signed_tx).await.is_err());
+    }
+
+    #[tokio::test]
     async fn app_deliver_tx_validator_update() {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
@@ -1113,6 +1143,7 @@ mod test {
             ibc_sudo_address: alice_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1146,6 +1177,7 @@ mod test {
             ibc_sudo_address: alice_address,
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1177,6 +1209,7 @@ mod test {
             ibc_sudo_address: [0u8; 20].into(),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1208,6 +1241,7 @@ mod test {
             ibc_sudo_address: [0u8; 20].into(),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1356,6 +1390,7 @@ mod test {
             ibc_sudo_address: Address::from([0; 20]),
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         };
 
         let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;

@@ -1,4 +1,7 @@
-use astria_core::sequencer::v1alpha1::Address;
+use astria_core::sequencer::v1alpha1::{
+    asset,
+    Address,
+};
 use penumbra_ibc::params::IBCParameters;
 use serde::{
     Deserialize,
@@ -15,6 +18,8 @@ pub(crate) struct GenesisState {
     pub(crate) ibc_sudo_address: Address,
     pub(crate) native_asset_base_denomination: String,
     pub(crate) ibc_params: IBCParameters,
+    #[serde(deserialize_with = "deserialize_assets")]
+    pub(crate) allowed_fee_assets: Vec<asset::Denom>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -32,4 +37,12 @@ where
     let bytes: Vec<u8> = hex::serde::deserialize(deserializer)?;
     Address::try_from_slice(&bytes)
         .map_err(|e| D::Error::custom(format!("failed constructing address from bytes: {e}")))
+}
+
+fn deserialize_assets<'de, D>(deserializer: D) -> Result<Vec<asset::Denom>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let strings: Vec<String> = serde::Deserialize::deserialize(deserializer)?;
+    Ok(strings.into_iter().map(asset::Denom::from).collect())
 }
