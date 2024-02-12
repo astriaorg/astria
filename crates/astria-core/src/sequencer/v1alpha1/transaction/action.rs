@@ -577,6 +577,8 @@ pub struct Ics20Withdrawal {
     timeout_time: u64,
     // the source channel used for the withdrawal.
     source_channel: ChannelId,
+    // the asset to use for fee payment.
+    fee_asset_id: asset::Id,
 }
 
 impl Ics20Withdrawal {
@@ -616,6 +618,11 @@ impl Ics20Withdrawal {
     }
 
     #[must_use]
+    pub fn fee_asset_id(&self) -> &asset::Id {
+        &self.fee_asset_id
+    }
+
+    #[must_use]
     pub fn to_fungible_token_packet_data(&self) -> FungibleTokenPacketData {
         FungibleTokenPacketData {
             amount: self.amount.to_string(),
@@ -635,6 +642,7 @@ impl Ics20Withdrawal {
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
+            fee_asset_id: self.fee_asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -648,6 +656,7 @@ impl Ics20Withdrawal {
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
+            fee_asset_id: self.fee_asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -680,6 +689,8 @@ impl Ics20Withdrawal {
                 .source_channel
                 .parse()
                 .map_err(Ics20WithdrawalError::invalid_source_channel)?,
+            fee_asset_id: asset::Id::try_from_slice(&proto.fee_asset_id)
+                .map_err(Ics20WithdrawalError::invalid_fee_asset_id)?,
         })
     }
 }
@@ -736,6 +747,11 @@ impl Ics20WithdrawalError {
     fn invalid_source_channel(err: IdentifierError) -> Self {
         Self(Ics20WithdrawalErrorKind::InvalidSourceChannel(err))
     }
+
+    #[must_use]
+    fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
+        Self(Ics20WithdrawalErrorKind::InvalidFeeAssetId(err))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -748,6 +764,8 @@ enum Ics20WithdrawalErrorKind {
     MissingTimeoutHeight,
     #[error("`source_channel` field was invalid")]
     InvalidSourceChannel(IdentifierError),
+    #[error("`fee_asset_id` field was invalid")]
+    InvalidFeeAssetId(asset::IncorrectAssetIdLength),
 }
 
 #[allow(clippy::module_name_repetitions)]

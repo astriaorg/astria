@@ -367,6 +367,9 @@ pub struct Ics20Withdrawal {
     /// the source channel used for the withdrawal.
     #[prost(string, tag = "7")]
     pub source_channel: ::prost::alloc::string::String,
+    /// the asset used to pay the transaction fee
+    #[prost(bytes = "vec", tag = "8")]
+    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
