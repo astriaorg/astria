@@ -198,8 +198,8 @@ impl Reader {
             namespace.rollup = %telemetry::display::base64(&rollup_namespace.as_bytes()),
             namespace.sequencer = %telemetry::display::base64(&self.sequencer_namespace.as_bytes()),
         ));
-        let mut executor_full: Fuse<BoxFuture<Result<_, _>>> = future::Fuse::terminated();
 
+        let mut scheduled_block: Fuse<BoxFuture<Result<_, _>>> = future::Fuse::terminated();
         let mut resubscribing = Fuse::terminated();
         loop {
             select!(
@@ -214,17 +214,15 @@ impl Reader {
                     break;
                 }
 
-                res = &mut executor_full, if !executor_full.is_terminated() => {
-                    // we just check the error here and drop the permit without using it.
-                    // because the future is now fused the branch fetching the next block will trigger.
+                res = &mut scheduled_block, if !scheduled_block.is_terminated() => {
                     if res.is_err() {
                         bail!("executor channel closed while waiting for it to free up");
                     }
                 }
 
-                Some(block) = sequential_blocks.next_block(), if executor_full.is_terminated() => {
+                Some(block) = sequential_blocks.next_block(), if scheduled_block.is_terminated() => {
                     let height_in_block = block.height();
-                    match executor.firm_blocks().try_send(block) {
+                    match executor.try_send_firm_block(block) {
                         Ok(()) => {
                             let (sequencer_height, celestia_height)
                                 = sequencer_height_to_celestia_height.increment_next_height();
@@ -234,15 +232,10 @@ impl Reader {
                         }
                         Err(TrySendError::Full(block)) => {
                             trace!("executor channel is full; rescheduling block fetch until the channel opens up");
-                            assert!(
-                                sequential_blocks.reschedule_block(block).is_ok(),
-                                "rescheduling the just obtained block must always work",
-                            );
-                            executor_full = executor.firm_blocks().clone().reserve_owned().boxed().fuse();
+                            scheduled_block = executor.clone().send_firm_block(block).boxed().fuse();
                         }
 
-                        Err(TrySendError::Closed(_)) =>
-                                bail!("exiting because executor channel is closed"),
+                        Err(TrySendError::Closed(_)) => bail!("exiting because executor channel is closed"),
                     }
                 }
 

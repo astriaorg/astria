@@ -25,7 +25,13 @@ use sequencer_client::{
 use tokio::{
     select,
     sync::{
-        mpsc,
+        mpsc::{
+            self,
+            error::{
+                SendError,
+                TrySendError,
+            },
+        },
         oneshot,
         watch::{
             self,
@@ -98,8 +104,20 @@ impl<T: Clone> Handle<T> {
 }
 
 impl Handle<StateIsInit> {
-    pub(crate) fn firm_blocks(&self) -> &mpsc::Sender<ReconstructedBlock> {
-        &self.firm_blocks
+    pub(crate) async fn send_firm_block(
+        self,
+        block: ReconstructedBlock,
+    ) -> Result<(), SendError<ReconstructedBlock>> {
+        self.firm_blocks.send(block).await
+    }
+
+    // allow: return value of tokio's mpsc send try_send method
+    #[allow(clippy::result_large_err)]
+    pub(crate) fn try_send_firm_block(
+        &self,
+        block: ReconstructedBlock,
+    ) -> Result<(), TrySendError<ReconstructedBlock>> {
+        self.firm_blocks.try_send(block)
     }
 
     pub(crate) async fn send_soft_block_owned(
