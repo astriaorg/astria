@@ -67,6 +67,7 @@ sha2 = "0.10"
 serde = "1"
 serde_json = "1"
 # bump to a release after https://github.com/penumbra-zone/penumbra/pull/3598 is included
+# Note that when updating the penumbra versions, vendored types in `proto/sequencerapis/astria_vendored` may need to be updated as well.
 penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "1b1be7e1373401eaf30d63352ee680991cb42aea", default-features = false }
 penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "1b1be7e1373401eaf30d63352ee680991cb42aea" }
 penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", rev = "1b1be7e1373401eaf30d63352ee680991cb42aea" }

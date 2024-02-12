@@ -4,6 +4,9 @@ version = "0.8.0"
 edition = "2021"
 rust-version = "1.73.0"
 
+[[bin]]
+name = "astria-sequencer"
+
 [dependencies]
 "astria-core" = { path = "../astria-core" }
 config = { package = "astria-config", path = "../astria-config" }

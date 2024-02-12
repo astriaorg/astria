@@ -23,13 +23,18 @@ jobs:
       - uses: bufbuild/buf-push-action@v1
         with:
           draft:  ${{ github.ref_name != 'main'}}
-          input: "proto"
+          input: "proto/executionapis"
+          buf_token: ${{ secrets.BUF_TOKEN }}
+      - uses: bufbuild/buf-push-action@v1
+        with:
+          draft:  ${{ github.ref_name != 'main'}}
+          input: "proto/sequencerapis"
           buf_token: ${{ secrets.BUF_TOKEN }}
 
   conductor:
     needs: run_checker
     if: needs.run_checker.outputs.run_release_services == 'true'
-    uses: ./.github/workflows/reusable-cargo-version.yml
+    uses: ./.github/workflows/reusable-release-cargo.yml
     with:
       package-name: 'conductor'
       display-name: 'Conductor'
@@ -37,7 +42,7 @@ jobs:
   composer:
     needs: run_checker
     if: needs.run_checker.outputs.run_release_services == 'true'
-    uses: ./.github/workflows/reusable-cargo-version.yml
+    uses: ./.github/workflows/reusable-release-cargo.yml
     with:
       package-name: 'composer'
       display-name: 'Composer'
@@ -45,7 +50,7 @@ jobs:
   sequencer:
     needs: run_checker
     if: needs.run_checker.outputs.run_release_services == 'true'
-    uses: ./.github/workflows/reusable-cargo-version.yml
+    uses: ./.github/workflows/reusable-release-cargo.yml
     with:
       package-name: 'sequencer'
       display-name: 'Sequencer'
@@ -53,7 +58,7 @@ jobs:
   sequencer-relayer:
     needs: run_checker
     if: needs.run_checker.outputs.run_release_services == 'true'
-    uses: ./.github/workflows/reusable-cargo-version.yml
+    uses: ./.github/workflows/reusable-release-cargo.yml
     with:
       package-name: 'sequencer-relayer'
       display-name: 'Sequencer Relayer'
@@ -61,7 +66,7 @@ jobs:
   cli:
     needs: run_checker
     if: needs.run_checker.outputs.run_release_services == 'true'
-    uses: ./.github/workflows/reusable-cargo-version.yml
+    uses: ./.github/workflows/reusable-release-cargo.yml
     with:
       package-name: 'cli'
       display-name: 'CLI'
