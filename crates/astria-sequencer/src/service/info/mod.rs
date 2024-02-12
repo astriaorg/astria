@@ -207,10 +207,10 @@ mod test {
                 .await
                 .unwrap()
         };
-        match response {
+        let query_response = match response {
             InfoResponse::Query(query) => query,
             other => panic!("expected InfoResponse::Query, got {other:?}"),
         };
-        assert!(response.code.is_ok());
+        assert!(query_response.code.is_ok());
     }
 }
