@@ -1,4 +1,8 @@
 //! An mpsc channel bounded by an externally driven semaphore.
+//!
+//! While the main purpose of this channel is to send [`sequencer_client::SequencerBlock`]s
+//! form a sequencer reader to the executor, the channel is generic over the values that are
+//! being sent to better test its functionality.
 
 use std::sync::Arc;
 
@@ -52,7 +56,7 @@ impl<T> From<TokioSendError<T>> for SendError {
 
 // allow: this is mimicking tokio's `SendError` that returns the stack-allocated object.
 #[allow(clippy::result_large_err)]
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq)]
 pub(crate) enum TrySendError<T> {
     #[error("the channel is closed")]
     Closed(T),
@@ -135,5 +139,56 @@ impl<T> Receiver<T> {
     /// Receives a block over the channel.
     pub(super) async fn recv(&mut self) -> Option<T> {
         self.chan.recv().await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        soft_block_channel,
+        TrySendError,
+    };
+
+    #[test]
+    fn fresh_channel_has_no_capacity() {
+        let (tx, _rx) = soft_block_channel::<()>();
+        assert_eq!(
+            tx.try_send(()).unwrap_err(),
+            TrySendError::NoPermits(()),
+            "a fresh channel starts without permits"
+        );
+    }
+
+    #[test]
+    fn permits_are_filled_to_capacity() {
+        let cap = 2;
+        let (tx, mut rx) = soft_block_channel::<()>();
+        rx.set_capacity(cap);
+        rx.fill_permits();
+        for _ in 0..cap {
+            tx.try_send(()).expect("the channel should have capacity");
+        }
+        assert_eq!(
+            tx.try_send(()).unwrap_err(),
+            TrySendError::NoPermits(()),
+            "a channel that has its permits used up is exhausted until refilled"
+        );
+    }
+
+    #[test]
+    fn refilling_twice_has_no_effect() {
+        let cap = 2;
+        let (tx, mut rx) = soft_block_channel::<()>();
+        rx.set_capacity(cap);
+        rx.fill_permits();
+        rx.fill_permits();
+        for _ in 0..cap {
+            tx.try_send(()).expect("the channel should have capacity");
+        }
+        assert_eq!(
+            tx.try_send(()).unwrap_err(),
+            TrySendError::NoPermits(()),
+            "a channel that has its permits used up is exhausted until refilled"
+        );
     }
 }
