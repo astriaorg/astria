@@ -290,7 +290,6 @@ impl Executor {
         usize::try_from(self.state.borrow().celestia_block_variance())
             .expect("converting a u32 to usize should work on any architecture conductor runs on")
             .saturating_mul(6)
-            .try_into()
     }
 
     /// Returns if the spread between firm and soft commitment heights in the tracked state is too
