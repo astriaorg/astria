@@ -222,7 +222,7 @@ async fn mount_matcher_verifying_tx_integrity(
         let sequencer_tx = signed_tx_from_request(request);
         let sequence_action = sequencer_tx
             .actions()
-            .get(0)
+            .first()
             .unwrap()
             .as_sequence()
             .unwrap();
@@ -270,7 +270,7 @@ fn chain_id_nonce_from_request(request: &Request) -> (RollupId, u32) {
     let signed_tx = signed_tx_from_request(request);
 
     // validate that the transaction's first action is a sequence action
-    let Some(sent_action) = signed_tx.actions().get(0) else {
+    let Some(sent_action) = signed_tx.actions().first() else {
         panic!("received transaction contained no actions");
     };
     let Some(sequence_action) = sent_action.as_sequence() else {

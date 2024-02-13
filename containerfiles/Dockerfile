@@ -1,5 +1,5 @@
 # build stage
-FROM --platform=$BUILDPLATFORM lukemathwalker/cargo-chef:0.1.62-rust-1.73.0-bookworm AS chef
+FROM --platform=$BUILDPLATFORM lukemathwalker/cargo-chef:0.1.63-rust-1.76.0-bookworm AS chef
 
 WORKDIR /build/
 
@@ -44,10 +44,6 @@ RUN \
 FROM chef AS planner
 ARG TARGETBINARY
 COPY . .
-# XXX: override Cargo.toml in the root with containerfiles/Cargo.toml, which
-#      does not contain the `default-members` entry. It currently throws off
-#      cargo chef.
-COPY containerfiles/Cargo.toml Cargo.toml
 RUN cargo chef prepare --bin crates/$TARGETBINARY --recipe-path recipe.json
 
 FROM chef as builder
