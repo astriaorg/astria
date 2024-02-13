@@ -6,7 +6,7 @@ use ibc_types::{
     IdentifierError,
 };
 use penumbra_ibc::IbcRelay;
-use penumbra_proto::penumbra::core::component::ibc::v1alpha1::FungibleTokenPacketData;
+use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
 
 use super::raw;
 use crate::{
