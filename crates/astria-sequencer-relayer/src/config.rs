@@ -20,10 +20,10 @@ pub struct Config {
     pub force_stdout: bool,
     /// Disables writing trace data to an opentelemetry endpoint.
     pub no_otel: bool,
-    /// Set to true to enable the metrics server
-    pub metrics_enabled: bool,
+    /// Set to true to disable the metrics server
+    pub no_metrics: bool,
     /// The endpoint which will be listened on for serving prometheus metrics
-    pub prometheus_http_listener_addr: String,
+    pub metrics_http_listener_addr: String,
 }
 
 impl config::Config for Config {

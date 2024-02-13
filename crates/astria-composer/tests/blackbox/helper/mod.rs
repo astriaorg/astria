@@ -78,8 +78,8 @@ pub async fn spawn_composer(rollup_ids: &[&str]) -> TestComposer {
         max_bytes_per_bundle: 200_000,
         no_otel: false,
         force_stdout: false,
-        metrics_enabled: false,
-        prometheus_http_listener_addr: String::new(),
+        no_metrics: true,
+        metrics_http_listener_addr: String::new(),
     };
     let (composer_addr, composer) = {
         let composer = Composer::from_config(&config).unwrap();
