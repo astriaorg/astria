@@ -106,9 +106,12 @@ message IbcHeight {
   uint64 revision_height = 2;
 }
 
+// `IbcRelayerChangeAction` represents a transaction that adds
+// or removes an IBC relayer address.
+// The bytes contained in each variant are the address to add or remove.
 message IbcRelayerChangeAction {
-  // the address to update
-  bytes address = 1;
-  // set to true to add the address to the relayer list, false to remove it
-  bool addition = 2;
+  oneof value {
+    bytes addition = 1;
+    bytes removal = 2;
+  }
 }

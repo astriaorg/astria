@@ -379,13 +379,23 @@ pub struct IbcHeight {
     #[prost(uint64, tag = "2")]
     pub revision_height: u64,
 }
+/// `IbcRelayerChangeAction` represents a transaction that adds
+/// or removes an IBC relayer address.
+/// The bytes contained in each variant are the address to add or remove.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct IbcRelayerChangeAction {
-    /// the address to update
-    #[prost(bytes = "vec", tag = "1")]
-    pub address: ::prost::alloc::vec::Vec<u8>,
-    /// set to true to add the address to the relayer list, false to remove it
-    #[prost(bool, tag = "2")]
-    pub addition: bool,
+    #[prost(oneof = "ibc_relayer_change_action::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<ibc_relayer_change_action::Value>,
+}
+/// Nested message and enum types in `IbcRelayerChangeAction`.
+pub mod ibc_relayer_change_action {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(bytes, tag = "1")]
+        Addition(::prost::alloc::vec::Vec<u8>),
+        #[prost(bytes, tag = "2")]
+        Removal(::prost::alloc::vec::Vec<u8>),
+    }
 }

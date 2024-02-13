@@ -172,6 +172,12 @@ impl From<Ics20Withdrawal> for Action {
     }
 }
 
+impl From<IbcRelayerChangeAction> for Action {
+    fn from(value: IbcRelayerChangeAction) -> Self {
+        Self::IbcRelayerChange(value)
+    }
+}
+
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -770,25 +776,41 @@ enum Ics20WithdrawalErrorKind {
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone)]
-pub struct IbcRelayerChangeAction {
-    pub address: Address,
-    pub addition: bool,
+pub enum IbcRelayerChangeAction {
+    Addition(Address),
+    Removal(Address),
 }
 
 impl IbcRelayerChangeAction {
     #[must_use]
     pub fn into_raw(self) -> raw::IbcRelayerChangeAction {
-        raw::IbcRelayerChangeAction {
-            address: self.address.to_vec(),
-            addition: self.addition,
+        match self {
+            IbcRelayerChangeAction::Addition(address) => raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Addition(
+                    address.to_vec(),
+                )),
+            },
+            IbcRelayerChangeAction::Removal(address) => raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Removal(
+                    address.to_vec(),
+                )),
+            },
         }
     }
 
     #[must_use]
     pub fn to_raw(&self) -> raw::IbcRelayerChangeAction {
-        raw::IbcRelayerChangeAction {
-            address: self.address.to_vec(),
-            addition: self.addition,
+        match self {
+            IbcRelayerChangeAction::Addition(address) => raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Addition(
+                    address.to_vec(),
+                )),
+            },
+            IbcRelayerChangeAction::Removal(address) => raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Removal(
+                    address.to_vec(),
+                )),
+            },
         }
     }
 
@@ -800,12 +822,23 @@ impl IbcRelayerChangeAction {
     pub fn try_from_raw(
         raw: &raw::IbcRelayerChangeAction,
     ) -> Result<Self, IbcRelayerChangeActionError> {
-        let address = Address::try_from_slice(&raw.address)
-            .map_err(IbcRelayerChangeActionError::invalid_address)?;
-        Ok(Self {
-            address,
-            addition: raw.addition,
-        })
+        match raw {
+            raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Addition(address)),
+            } => {
+                let address = Address::try_from_slice(address)
+                    .map_err(IbcRelayerChangeActionError::invalid_address)?;
+                Ok(IbcRelayerChangeAction::Addition(address))
+            }
+            raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Removal(address)),
+            } => {
+                let address = Address::try_from_slice(address)
+                    .map_err(IbcRelayerChangeActionError::invalid_address)?;
+                Ok(IbcRelayerChangeAction::Removal(address))
+            }
+            _ => Err(IbcRelayerChangeActionError::missing_address()),
+        }
     }
 }
 
@@ -818,10 +851,17 @@ impl IbcRelayerChangeActionError {
     fn invalid_address(err: IncorrectAddressLength) -> Self {
         Self(IbcRelayerChangeActionErrorKind::InvalidAddress(err))
     }
+
+    #[must_use]
+    fn missing_address() -> Self {
+        Self(IbcRelayerChangeActionErrorKind::MissingAddress)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum IbcRelayerChangeActionErrorKind {
-    #[error("an address was invalid")]
+    #[error("the address was invalid")]
     InvalidAddress(IncorrectAddressLength),
+    #[error("the address was missing")]
+    MissingAddress,
 }

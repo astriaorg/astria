@@ -1185,20 +1185,14 @@ mod test {
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
-        let action = IbcRelayerChangeAction {
-            address: alice_address,
-            addition: true,
-        };
-
         let tx = UnsignedTransaction {
             nonce: 0,
-            actions: vec![Action::IbcRelayerChange(action)],
+            actions: vec![IbcRelayerChangeAction::Addition(alice_address).into()],
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
         app.deliver_tx(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
-
         assert!(app.state.is_ibc_relayer(&alice_address).await.unwrap());
     }
 
@@ -1217,20 +1211,14 @@ mod test {
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
-        let action = IbcRelayerChangeAction {
-            address: alice_address,
-            addition: false,
-        };
-
         let tx = UnsignedTransaction {
             nonce: 0,
-            actions: vec![Action::IbcRelayerChange(action)],
+            actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
         };
 
         let signed_tx = tx.into_signed(&alice_signing_key);
         app.deliver_tx(signed_tx).await.unwrap();
         assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
-
         assert!(!app.state.is_ibc_relayer(&alice_address).await.unwrap());
     }
 
