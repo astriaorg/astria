@@ -26,6 +26,8 @@ use tracing::{
 
 use crate::validator::Validator;
 
+type SubmissionTaskError = (SubmitSequencerBlocksError, Vec<SequencerBlock>);
+
 pub(crate) struct Relayer {
     /// The actual client used to poll the sequencer.
     sequencer: HttpClient,
@@ -49,8 +51,7 @@ pub(crate) struct Relayer {
     // Task to submit blocks to the data availability layer. If this is set it means that
     // an RPC is currently in flight and new blocks are queued up. They will be submitted
     // once this task finishes.
-    submission_task:
-        Option<task::JoinHandle<Result<u64, (SubmitSequencerBlocksError, Vec<SequencerBlock>)>>>,
+    submission_task: Option<task::JoinHandle<Result<u64, SubmissionTaskError>>>,
 
     // Task to query the sequencer for new blocks. A new request will be sent once this
     // task returns.
@@ -148,10 +149,7 @@ impl Relayer {
     #[instrument(skip_all)]
     fn handle_submission_completed(
         &mut self,
-        join_result: Result<
-            Result<u64, (SubmitSequencerBlocksError, Vec<SequencerBlock>)>,
-            task::JoinError,
-        >,
+        join_result: Result<Result<u64, SubmissionTaskError>, task::JoinError>,
     ) {
         self.submission_task = None;
         // First check if the join task panicked
@@ -373,7 +371,7 @@ impl Relayer {
             // layer if no submission is in flight.
             if !self.queued_blocks.is_empty() && self.submission_task.is_none() {
                 let client = self.data_availability.clone();
-                let queued_blocks = std::mem::replace(&mut self.queued_blocks, vec![]);
+                let queued_blocks = std::mem::take(&mut self.queued_blocks);
                 self.submission_task = Some(task::spawn(submit_blocks_to_celestia(
                     client,
                     queued_blocks,
@@ -398,7 +396,7 @@ impl Relayer {
 async fn submit_blocks_to_celestia(
     client: celestia_client::jsonrpsee::http_client::HttpClient,
     sequencer_blocks: Vec<SequencerBlock>,
-) -> Result<u64, (SubmitSequencerBlocksError, Vec<SequencerBlock>)> {
+) -> Result<u64, SubmissionTaskError> {
     use celestia_client::{
         celestia_types::blob::SubmitOptions,
         CelestiaClientExt as _,
