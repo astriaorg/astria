@@ -282,9 +282,11 @@ impl Config {
 
         if let Some(metrics_addr) = metrics_addr {
             let addr: SocketAddr = metrics_addr.parse().map_err(Error::metrics_addr)?;
-            let mut metrics_builder = PrometheusBuilder::new()
-                .with_http_listener(addr)
-                .add_global_label("service", service_name);
+            let mut metrics_builder = PrometheusBuilder::new().with_http_listener(addr);
+
+            if !service_name.is_empty() {
+                metrics_builder = metrics_builder.add_global_label("service", service_name);
+            }
 
             if let Some(buckets) = metric_buckets {
                 metrics_builder = metrics_builder

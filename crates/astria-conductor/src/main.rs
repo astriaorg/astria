@@ -37,7 +37,7 @@ async fn main() -> ExitCode {
     if cfg.metrics_enabled {
         telemetry_conf = telemetry_conf
             .metrics_addr(&cfg.prometheus_http_listener_addr)
-            .service_name(env!("CARGO_CRATE_NAME"));
+            .service_name(env!("CARGO_PKG_NAME"));
     }
 
     if let Err(e) = telemetry_conf
