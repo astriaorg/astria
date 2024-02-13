@@ -1594,13 +1594,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 
 [[package]]
+name = "clippy_config"
+version = "0.1.77"
+source = "git+https://github.com/rust-lang/rust-clippy?rev=ac4c2094a6030530661bee3876e0228ddfeb6b8b#ac4c2094a6030530661bee3876e0228ddfeb6b8b"
+dependencies = [
+ "rustc-semver",
+ "serde",
+ "toml 0.7.8",
+]
+
+[[package]]
 name = "clippy_utils"
-version = "0.1.75"
-source = "git+https://github.com/rust-lang/rust-clippy?rev=b105fb4c39bc1a010807a6c076193cef8d93c109#b105fb4c39bc1a010807a6c076193cef8d93c109"
+version = "0.1.77"
+source = "git+https://github.com/rust-lang/rust-clippy?rev=ac4c2094a6030530661bee3876e0228ddfeb6b8b#ac4c2094a6030530661bee3876e0228ddfeb6b8b"
 dependencies = [
  "arrayvec 0.7.4",
- "if_chain",
- "itertools 0.10.5",
+ "clippy_config",
+ "itertools 0.11.0",
  "rustc-semver",
 ]
 
@@ -2230,9 +2240,9 @@ checksum = "56ce8c6da7551ec6c462cbaf3bfbc75131ebbfa1c944aeaa9dab51ca1c5f0c3b"
 
 [[package]]
 name = "dylint"
-version = "2.6.0"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71fdb7b800ab13925402f0048ed0911068db2e5ba6168dd93962269d4f39541d"
+checksum = "4d6259cf4df09300534dcfa6a49918bb442327111e370c656b31f1c10ec08145"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -2251,12 +2261,13 @@ dependencies = [
 
 [[package]]
 name = "dylint_internal"
-version = "2.6.0"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5154dada2bee2a69f75f54eae57479f56f93ca1db80725a1d82cdb5fe231ef73"
+checksum = "9400420c9ffa71c6b1b75d84225a150e3428eb12159e5bf4f56285bd9eb1c095"
 dependencies = [
  "ansi_term",
  "anyhow",
+ "bitflags 2.4.1",
  "cargo_metadata",
  "git2",
  "home",
@@ -2270,9 +2281,9 @@ dependencies = [
 
 [[package]]
 name = "dylint_linting"
-version = "2.6.0"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d203baeb8770847314632f652e0e62dd7fec6a21102a116472eec0d6931f5dd9"
+checksum = "43fc05c7103dfadd497486bbbf941899888f4e19271da70b58f66385247230c2"
 dependencies = [
  "cargo_metadata",
  "dylint_internal",
@@ -2285,9 +2296,9 @@ dependencies = [
 
 [[package]]
 name = "dylint_testing"
-version = "2.6.0"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1208b1f2c40fc2f3c3fa0d5631efbc7a95721d619410dc2da5b0496810d6a941"
+checksum = "785fa52ac8fe5f1056a71955f4ebda3ca90c269ef28b172ad85a3901752d5fdf"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -7494,6 +7505,18 @@ dependencies = [
 
 [[package]]
 name = "toml"
+version = "0.7.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd79e69d3b627db300ff956027cc6c3798cef26d22526befdfcd12feeb6d2257"
+dependencies = [
+ "serde",
+ "serde_spanned",
+ "toml_datetime",
+ "toml_edit 0.19.15",
+]
+
+[[package]]
+name = "toml"
 version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1a195ec8c9da26928f773888e0742ca3ca1040c6cd859c919c9f59c1954ab35"
@@ -7511,6 +7534,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3550f4e9685620ac18a50ed434eb3aec30db8ba93b0287467bca5826ea25baf1"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "toml_edit"
+version = "0.19.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
+dependencies = [
+ "indexmap 2.1.0",
+ "serde",
+ "serde_spanned",
+ "toml_datetime",
+ "winnow",
 ]
 
 [[package]]

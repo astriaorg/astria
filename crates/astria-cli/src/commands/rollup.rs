@@ -411,22 +411,22 @@ mod test {
     #[test]
     fn test_update_yaml_value() {
         let mut yaml_value: serde_yaml::Value = serde_yaml::from_str(
-            r#"
+            r"
             config:
                 rollup:
                     name: test
-            "#,
+            ",
         )
         .unwrap();
 
         update_yaml_value(&mut yaml_value, "config.rollup.name", "bugbug").unwrap();
 
         let updated: serde_yaml::Value = serde_yaml::from_str(
-            r#"
+            "
                 config:
                     rollup:
                         name: bugbug
-                "#,
+                ",
         )
         .unwrap();
         assert_eq!(yaml_value, updated);
@@ -435,11 +435,11 @@ mod test {
     #[test]
     fn test_update_yaml_value_errors() {
         let mut yaml_value: serde_yaml::Value = serde_yaml::from_str(
-            r#"
+            r"
             config:
                 rollup:
                     name: test
-            "#,
+            ",
         )
         .unwrap();
 
