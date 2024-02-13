@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use celestia_client::client::SubmitSequencerBlocksError;
 use eyre::{
     bail,
     WrapErr as _,
@@ -48,7 +49,8 @@ pub(crate) struct Relayer {
     // Task to submit blocks to the data availability layer. If this is set it means that
     // an RPC is currently in flight and new blocks are queued up. They will be submitted
     // once this task finishes.
-    submission_task: Option<task::JoinHandle<eyre::Result<u64>>>,
+    submission_task:
+        Option<task::JoinHandle<Result<u64, (SubmitSequencerBlocksError, Vec<SequencerBlock>)>>>,
 
     // Task to query the sequencer for new blocks. A new request will be sent once this
     // task returns.
@@ -146,7 +148,10 @@ impl Relayer {
     #[instrument(skip_all)]
     fn handle_submission_completed(
         &mut self,
-        join_result: Result<eyre::Result<u64>, task::JoinError>,
+        join_result: Result<
+            Result<u64, (SubmitSequencerBlocksError, Vec<SequencerBlock>)>,
+            task::JoinError,
+        >,
     ) {
         self.submission_task = None;
         // First check if the join task panicked
@@ -170,10 +175,19 @@ impl Relayer {
                 );
                 state.current_data_availability_height.replace(height);
             }),
-            Err(e) => warn!(
-                error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                "failed submitting blocks to celestia",
-            ),
+            Err((e, blocks)) => {
+                // if the submission to celestia fails, we don't want to drop the blocks
+                // but rather re-queue them for later submission.
+                //
+                // TODO: should we check the type of the error and only re-queue if it's a
+                // RPC submission error?
+                let e: eyre::Report = e.into();
+                warn!(
+                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
+                    "failed submitting blocks to celestia, re-queueing them for later submission",
+                );
+                self.queued_blocks.extend(blocks);
+            }
         }
     }
 
@@ -359,11 +373,11 @@ impl Relayer {
             // layer if no submission is in flight.
             if !self.queued_blocks.is_empty() && self.submission_task.is_none() {
                 let client = self.data_availability.clone();
+                let queued_blocks = std::mem::replace(&mut self.queued_blocks, vec![]);
                 self.submission_task = Some(task::spawn(submit_blocks_to_celestia(
                     client,
-                    self.queued_blocks.clone(),
+                    queued_blocks,
                 )));
-                self.queued_blocks.clear();
             }
         }
         // FIXME(https://github.com/astriaorg/astria/issues/357):
@@ -384,7 +398,7 @@ impl Relayer {
 async fn submit_blocks_to_celestia(
     client: celestia_client::jsonrpsee::http_client::HttpClient,
     sequencer_blocks: Vec<SequencerBlock>,
-) -> eyre::Result<u64> {
+) -> Result<u64, (SubmitSequencerBlocksError, Vec<SequencerBlock>)> {
     use celestia_client::{
         celestia_types::blob::SubmitOptions,
         CelestiaClientExt as _,
@@ -395,15 +409,23 @@ async fn submit_blocks_to_celestia(
         "submitting collected sequencer blocks to data availability layer",
     );
 
-    let height = client
+    match client
         .submit_sequencer_blocks(
-            sequencer_blocks,
+            sequencer_blocks.clone(),
             SubmitOptions {
                 fee: None,
                 gas_limit: None,
             },
         )
         .await
-        .wrap_err("failed submitting sequencer blocks to celestia")?;
-    Ok(height)
+    {
+        Ok(height) => {
+            debug!(
+                celestia_height=%height,
+                "successfully submitted blocks to data availability layer"
+            );
+            Ok(height)
+        }
+        Err(e) => Err((e, sequencer_blocks)),
+    }
 }
