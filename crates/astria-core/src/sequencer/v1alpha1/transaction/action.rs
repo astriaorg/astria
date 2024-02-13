@@ -765,13 +765,13 @@ enum Ics20WithdrawalErrorKind {
     #[error("`amount` field was missing")]
     MissingAmount,
     #[error("`return_address` field was invalid")]
-    InvalidReturnAddress(IncorrectAddressLength),
+    InvalidReturnAddress(#[source] IncorrectAddressLength),
     #[error("`timeout_height` field was missing")]
     MissingTimeoutHeight,
     #[error("`source_channel` field was invalid")]
-    InvalidSourceChannel(IdentifierError),
+    InvalidSourceChannel(#[source] IdentifierError),
     #[error("`fee_asset_id` field was invalid")]
-    InvalidFeeAssetId(asset::IncorrectAssetIdLength),
+    InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
 }
 
 #[allow(clippy::module_name_repetitions)]
@@ -861,7 +861,7 @@ impl IbcRelayerChangeActionError {
 #[derive(Debug, thiserror::Error)]
 enum IbcRelayerChangeActionErrorKind {
     #[error("the address was invalid")]
-    InvalidAddress(IncorrectAddressLength),
+    InvalidAddress(#[source] IncorrectAddressLength),
     #[error("the address was missing")]
     MissingAddress,
 }

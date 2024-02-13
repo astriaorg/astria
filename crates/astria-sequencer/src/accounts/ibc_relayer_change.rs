@@ -1,5 +1,6 @@
 use anyhow::{
     ensure,
+    Context as _,
     Result,
 };
 use astria_core::sequencer::v1alpha1::{
@@ -23,7 +24,10 @@ use crate::{
 #[async_trait]
 impl ActionHandler for IbcRelayerChangeAction {
     async fn check_stateful<S: StateRead + 'static>(&self, state: &S, from: Address) -> Result<()> {
-        let ibc_sudo_address = state.get_ibc_sudo_address().await?;
+        let ibc_sudo_address = state
+            .get_ibc_sudo_address()
+            .await
+            .context("failed to get IBC sudo address")?;
         ensure!(
             ibc_sudo_address == from,
             "unauthorized address for IBC relayer change"
