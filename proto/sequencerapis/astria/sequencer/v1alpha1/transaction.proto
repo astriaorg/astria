@@ -33,6 +33,7 @@ message Action {
     MintAction mint_action = 5;
     astria_vendored.penumbra.core.component.ibc.v1.IbcRelay ibc_action = 6;
     Ics20Withdrawal ics20_withdrawal = 7;
+    IbcRelayerChangeAction ibc_relayer_change_action = 8;
   }
 }
 
@@ -103,4 +104,14 @@ message Ics20Withdrawal {
 message IbcHeight {
   uint64 revision_number = 1;
   uint64 revision_height = 2;
+}
+
+// `IbcRelayerChangeAction` represents a transaction that adds
+// or removes an IBC relayer address.
+// The bytes contained in each variant are the address to add or remove.
+message IbcRelayerChangeAction {
+  oneof value {
+    bytes addition = 1;
+    bytes removal = 2;
+  }
 }

@@ -689,6 +689,7 @@ mod test {
         asset::DEFAULT_NATIVE_ASSET_DENOM,
         transaction::action::{
             Action,
+            IbcRelayerChangeAction,
             SequenceAction,
             SudoAddressChangeAction,
             TransferAction,
@@ -788,6 +789,7 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: Address::from([0; 20]),
             ibc_sudo_address: Address::from([0; 20]),
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
             allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
@@ -1141,6 +1143,7 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: alice_address,
             ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
             allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
@@ -1168,6 +1171,82 @@ mod test {
     }
 
     #[tokio::test]
+    async fn app_deliver_tx_ibc_relayer_change_addition() {
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![],
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            ibc_params: IBCParameters::default(),
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![IbcRelayerChangeAction::Addition(alice_address).into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+        assert!(app.state.is_ibc_relayer(&alice_address).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_ibc_relayer_change_deletion() {
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![alice_address],
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            ibc_params: IBCParameters::default(),
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+        assert!(!app.state.is_ibc_relayer(&alice_address).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_ibc_relayer_change_invalid() {
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: Address::from([0; 20]),
+            ibc_relayer_addresses: vec![alice_address],
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            ibc_params: IBCParameters::default(),
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        assert!(app.deliver_tx(signed_tx).await.is_err());
+    }
+
+    #[tokio::test]
     async fn app_deliver_tx_sudo_address_change() {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
@@ -1175,6 +1254,7 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: alice_address,
             ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
             allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
@@ -1207,6 +1287,7 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: sudo_address,
             ibc_sudo_address: [0u8; 20].into(),
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
             allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
@@ -1239,6 +1320,7 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: alice_address,
             ibc_sudo_address: [0u8; 20].into(),
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
             allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
@@ -1388,6 +1470,7 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: Address::from([0; 20]),
             ibc_sudo_address: Address::from([0; 20]),
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
             allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
