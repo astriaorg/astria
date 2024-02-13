@@ -16,5 +16,10 @@
   "authority_sudo_address": "1c0c490f1b5528d8173c5de46d131160e4b2c0c3",
   "ibc_sudo_address": "1c0c490f1b5528d8173c5de46d131160e4b2c0c3",
   "native_asset_base_denomination": "nria",
+  "ibc_params": {
+    "ibc_enabled": true,
+    "inbound_ics20_transfers_enabled": true,
+    "outbound_ics20_transfers_enabled": true
+  },
   "allowed_fee_assets": ["nria"]
 }
