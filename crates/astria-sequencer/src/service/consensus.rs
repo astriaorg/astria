@@ -505,6 +505,7 @@ mod test {
                 authority_sudo_address: Address::from([0; 20]),
                 ibc_sudo_address: Address::from([0; 20]),
                 native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+                ibc_params: penumbra_ibc::params::IBCParameters::default(),
                 allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
             }
         }
