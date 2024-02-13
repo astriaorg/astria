@@ -22,6 +22,8 @@ impl CommitLevel {
     }
 }
 
+// this is a config, may have many boolean values
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     /// URL of the Celestia Node
@@ -63,6 +65,12 @@ pub struct Config {
     pub force_stdout: bool,
     /// Disables writing trace data to an opentelemetry endpoint.
     pub no_otel: bool,
+
+    /// Set to true to disable the metrics server
+    pub no_metrics: bool,
+
+    /// The endpoint which will be listened on for serving prometheus metrics
+    pub metrics_http_listener_addr: String,
 }
 
 impl config::Config for Config {
