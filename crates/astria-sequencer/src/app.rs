@@ -1181,6 +1181,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            ibc_params: IBCParameters::default(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1212,6 +1213,7 @@ mod test {
             ibc_relayer_addresses: vec![alice_address],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            ibc_params: IBCParameters::default(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
