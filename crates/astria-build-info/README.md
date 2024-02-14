@@ -1,3 +1,5 @@
+# `astria-build-info`
+
 Inject build information about services and binaries at compile time.
 
 `astria-build-info` provides the `astria_build_info::emit` utility
@@ -9,14 +11,14 @@ while `get!` picks up the environment variables and constructs a `BuildInfo`
 at compile time. `get!` is a macro so that it runs in the compilation context
 of the binary and not in the context of the source package.
 
-# Features
+## Features
 
 `astria-build-info` provides two features (both disabled by default):
 
 + `build` to enable the `emit` utility.
 + `runtime` to enable `BuildInfo` and the `get!` macro.
 
-# Usage
+## Usage
 
 Set up a service's dependencies like so:
 
@@ -28,11 +30,11 @@ astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-build-info = { path = "../astria-build-info", features = ["build"] }
 ```
 
-And then use `emit` in the binary's build.rs, specifying the git tag which is used for
-the service. For example, if the service is tagged with `shaving-cats-v0.1.2`, then
-provide `emit("shaving-cats-v")` (supplying `"shaving-cats"` also works, but it is
-recommened to use `"shaving-cats-v"` in case there is another service/tag named
-`"shaving-cats-and-dogs-v1.2.3"`).
+And then use `emit` in the binary's build.rs, specifying the git tag which is
+used for the service. For example, if the service is tagged with
+`shaving-cats-v0.1.2`, then provide `emit("shaving-cats-v")` (supplying
+`"shaving-cats"` also works, but it is recommened to use `"shaving-cats-v"` in
+case there is another service/tag named `"shaving-cats-and-dogs-v1.2.3"`).
 
 ```rust,no_run
 fn main() -> Result<(), Box<dyn std::error::Error>> {
