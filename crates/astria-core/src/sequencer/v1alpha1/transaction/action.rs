@@ -6,7 +6,7 @@ use ibc_types::{
     IdentifierError,
 };
 use penumbra_ibc::IbcRelay;
-use penumbra_proto::penumbra::core::component::ibc::v1alpha1::FungibleTokenPacketData;
+use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
 
 use super::raw;
 use crate::{
@@ -32,6 +32,7 @@ pub enum Action {
     Mint(MintAction),
     Ibc(IbcRelay),
     Ics20Withdrawal(Ics20Withdrawal),
+    IbcRelayerChange(IbcRelayerChangeAction),
 }
 
 impl Action {
@@ -46,6 +47,7 @@ impl Action {
             Action::Mint(act) => Value::MintAction(act.into_raw()),
             Action::Ibc(act) => Value::IbcAction(act.into()),
             Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.into_raw()),
+            Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.into_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -65,6 +67,7 @@ impl Action {
             Action::Mint(act) => Value::MintAction(act.to_raw()),
             Action::Ibc(act) => Value::IbcAction(act.clone().into()),
             Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.to_raw()),
+            Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -107,6 +110,10 @@ impl Action {
             }
             Value::Ics20Withdrawal(act) => Self::Ics20Withdrawal(
                 Ics20Withdrawal::try_from_raw(act).map_err(ActionError::ics20_withdrawal)?,
+            ),
+            Value::IbcRelayerChangeAction(act) => Self::IbcRelayerChange(
+                IbcRelayerChangeAction::try_from_raw(&act)
+                    .map_err(ActionError::ibc_relayer_change)?,
             ),
         };
         Ok(action)
@@ -165,6 +172,12 @@ impl From<Ics20Withdrawal> for Action {
     }
 }
 
+impl From<IbcRelayerChangeAction> for Action {
+    fn from(value: IbcRelayerChangeAction) -> Self {
+        Self::IbcRelayerChange(value)
+    }
+}
+
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -202,6 +215,10 @@ impl ActionError {
     fn ics20_withdrawal(inner: Ics20WithdrawalError) -> Self {
         Self(ActionErrorKind::Ics20Withdrawal(inner))
     }
+
+    fn ibc_relayer_change(inner: IbcRelayerChangeActionError) -> Self {
+        Self(ActionErrorKind::IbcRelayerChange(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -222,6 +239,8 @@ enum ActionErrorKind {
     Ibc(#[source] Box<dyn std::error::Error + Send + Sync>),
     #[error("ics20 withdrawal action was not valid")]
     Ics20Withdrawal(#[source] Ics20WithdrawalError),
+    #[error("ibc relayer change action was not valid")]
+    IbcRelayerChange(#[source] IbcRelayerChangeActionError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -710,7 +729,6 @@ impl Protobuf for IbcHeight {
     }
 }
 
-#[allow(clippy::module_name_repetitions)]
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct Ics20WithdrawalError(Ics20WithdrawalErrorKind);
@@ -747,11 +765,103 @@ enum Ics20WithdrawalErrorKind {
     #[error("`amount` field was missing")]
     MissingAmount,
     #[error("`return_address` field was invalid")]
-    InvalidReturnAddress(IncorrectAddressLength),
+    InvalidReturnAddress(#[source] IncorrectAddressLength),
     #[error("`timeout_height` field was missing")]
     MissingTimeoutHeight,
     #[error("`source_channel` field was invalid")]
-    InvalidSourceChannel(IdentifierError),
+    InvalidSourceChannel(#[source] IdentifierError),
     #[error("`fee_asset_id` field was invalid")]
-    InvalidFeeAssetId(asset::IncorrectAssetIdLength),
+    InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
+}
+
+#[allow(clippy::module_name_repetitions)]
+#[derive(Debug, Clone)]
+pub enum IbcRelayerChangeAction {
+    Addition(Address),
+    Removal(Address),
+}
+
+impl IbcRelayerChangeAction {
+    #[must_use]
+    pub fn into_raw(self) -> raw::IbcRelayerChangeAction {
+        match self {
+            IbcRelayerChangeAction::Addition(address) => raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Addition(
+                    address.to_vec(),
+                )),
+            },
+            IbcRelayerChangeAction::Removal(address) => raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Removal(
+                    address.to_vec(),
+                )),
+            },
+        }
+    }
+
+    #[must_use]
+    pub fn to_raw(&self) -> raw::IbcRelayerChangeAction {
+        match self {
+            IbcRelayerChangeAction::Addition(address) => raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Addition(
+                    address.to_vec(),
+                )),
+            },
+            IbcRelayerChangeAction::Removal(address) => raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Removal(
+                    address.to_vec(),
+                )),
+            },
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::IbcRelayerChangeAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `address` field is invalid
+    pub fn try_from_raw(
+        raw: &raw::IbcRelayerChangeAction,
+    ) -> Result<Self, IbcRelayerChangeActionError> {
+        match raw {
+            raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Addition(address)),
+            } => {
+                let address = Address::try_from_slice(address)
+                    .map_err(IbcRelayerChangeActionError::invalid_address)?;
+                Ok(IbcRelayerChangeAction::Addition(address))
+            }
+            raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Removal(address)),
+            } => {
+                let address = Address::try_from_slice(address)
+                    .map_err(IbcRelayerChangeActionError::invalid_address)?;
+                Ok(IbcRelayerChangeAction::Removal(address))
+            }
+            _ => Err(IbcRelayerChangeActionError::missing_address()),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct IbcRelayerChangeActionError(IbcRelayerChangeActionErrorKind);
+
+impl IbcRelayerChangeActionError {
+    #[must_use]
+    fn invalid_address(err: IncorrectAddressLength) -> Self {
+        Self(IbcRelayerChangeActionErrorKind::InvalidAddress(err))
+    }
+
+    #[must_use]
+    fn missing_address() -> Self {
+        Self(IbcRelayerChangeActionErrorKind::MissingAddress)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum IbcRelayerChangeActionErrorKind {
+    #[error("the address was invalid")]
+    InvalidAddress(#[source] IncorrectAddressLength),
+    #[error("the address was missing")]
+    MissingAddress,
 }

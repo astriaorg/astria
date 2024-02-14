@@ -74,13 +74,13 @@ impl Rollup {
 mod tests {
     use super::*;
 
+    #[track_caller]
     fn expect_parse_rollups(rollups: impl AsRef<str>) -> Vec<Rollup> {
         rollups
             .as_ref()
             .split(',')
             .map(|s| {
-                Rollup::parse(s)
-                    .unwrap_or_else(|err| panic!("rollup '{s:?}' should parse: {err:?}"))
+                Rollup::parse(s).unwrap_or_else(|err| panic!("rollup '{s}' should parse: {err:?}"))
             })
             .collect()
     }
@@ -114,13 +114,13 @@ mod tests {
         assert_eq!(rollups[2].url, "foo.bar");
     }
 
-    #[should_panic]
+    #[should_panic(expected = "rollup 'chain_1::http://some.url' should parse: ParseError")]
     #[test]
     fn parse_with_non_alnum_non_dash_chain_id_fails() {
         expect_parse_rollups("chain_1::http://some.url");
     }
 
-    #[should_panic]
+    #[should_panic(expected = "rollup 'chain-1:http://some.url' should parse: ParseError")]
     #[test]
     fn parse_without_double_colon_fails() {
         expect_parse_rollups("chain-1:http://some.url");

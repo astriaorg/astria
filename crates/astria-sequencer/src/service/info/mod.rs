@@ -199,14 +199,15 @@ mod test {
             prove: false,
         });
 
-        let query_response = match {
+        let response = {
             let storage = (*storage).clone();
             let info_service = Info::new(storage).unwrap();
             info_service
                 .handle_info_request(info_request)
                 .await
                 .unwrap()
-        } {
+        };
+        let query_response = match response {
             InfoResponse::Query(query) => query,
             other => panic!("expected InfoResponse::Query, got {other:?}"),
         };

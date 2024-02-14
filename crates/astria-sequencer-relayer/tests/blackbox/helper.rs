@@ -199,6 +199,8 @@ pub async fn spawn_sequencer_relayer(
         log: String::new(),
         force_stdout: false,
         no_otel: false,
+        no_metrics: false,
+        metrics_http_listener_addr: String::new(),
     };
 
     info!(config = serde_json::to_string(&config).unwrap());

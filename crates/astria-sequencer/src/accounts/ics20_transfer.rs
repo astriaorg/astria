@@ -46,7 +46,7 @@ use penumbra_ibc::component::app_handler::{
     AppHandlerCheck,
     AppHandlerExecute,
 };
-use penumbra_proto::penumbra::core::component::ibc::v1alpha1::FungibleTokenPacketData;
+use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
 
 use super::state_ext::{
     StateReadExt as _,
