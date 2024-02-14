@@ -31,7 +31,6 @@ jobs:
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: composer
-      target-binary: astria-composer
     secrets: inherit
 
   conductor:
@@ -40,7 +39,6 @@ jobs:
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: conductor
-      target-binary: astria-conductor
     secrets: inherit
 
   sequencer:
@@ -49,7 +47,6 @@ jobs:
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: sequencer
-      target-binary: astria-sequencer
     secrets: inherit
 
   sequencer-relayer:
@@ -58,7 +55,6 @@ jobs:
     uses: './.github/workflows/reusable-docker-build.yml'
     with:
       package-name: sequencer-relayer
-      target-binary: astria-sequencer-relayer
     secrets: inherit
 
   docker:
