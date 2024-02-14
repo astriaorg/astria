@@ -1,10 +1,13 @@
 //! An mpsc channel bounded by an externally driven semaphore.
 //!
 //! While the main purpose of this channel is to send [`sequencer_client::SequencerBlock`]s
-//! form a sequencer reader to the executor, the channel is generic over the values that are
+//! from a sequencer reader to the executor, the channel is generic over the values that are
 //! being sent to better test its functionality.
 
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    Weak,
+};
 
 use tokio::sync::{
     mpsc::{
@@ -27,18 +30,18 @@ pub(super) fn soft_block_channel<T>() -> (Sender<T>, Receiver<T>) {
     let sem = Arc::new(Semaphore::new(0));
     let (tx, rx) = unbounded_channel();
     let sender = Sender {
-        sem: sem.clone(),
         chan: tx,
+        sem: Arc::downgrade(&sem),
     };
     let receiver = Receiver {
         cap,
-        sem,
         chan: rx,
+        sem,
     };
     (sender, receiver)
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq)]
 #[error("the channel is closed")]
 pub(crate) struct SendError;
 
@@ -81,7 +84,7 @@ impl<T> From<TokioSendError<T>> for TrySendError<T> {
 
 #[derive(Debug, Clone)]
 pub(super) struct Sender<T> {
-    sem: Arc<Semaphore>,
+    sem: Weak<Semaphore>,
     chan: UnboundedSender<T>,
 }
 
@@ -90,7 +93,8 @@ impl<T> Sender<T> {
     ///
     /// Returns an error if the channel is closed.
     pub(super) async fn send(&self, block: T) -> Result<(), SendError> {
-        let permit = self.sem.acquire().await?;
+        let sem = self.sem.upgrade().ok_or(SendError)?;
+        let permit = sem.acquire().await?;
         permit.forget();
         self.chan.send(block)?;
         Ok(())
@@ -99,12 +103,16 @@ impl<T> Sender<T> {
     /// Attempts to send a block without blocking.
     ///
     /// Returns an error if the channel is out of permits or if it has been closed.
-    // allow: this is mimicking tokio's `SendError` that returns the stack-allocated object.
+    // allow: this is mimicking tokio's `TrySendError` that returns the stack-allocated object.
     #[allow(clippy::result_large_err)]
     pub(super) fn try_send(&self, block: T) -> Result<(), TrySendError<T>> {
-        let permit = match self.sem.try_acquire() {
-            Ok(permit) => permit,
+        let sem = match self.sem.upgrade() {
+            None => return Err(TrySendError::Closed(block)),
+            Some(sem) => sem,
+        };
+        let permit = match sem.try_acquire() {
             Err(err) => return Err(TrySendError::from_semaphore(&err, block)),
+            Ok(permit) => permit,
         };
         permit.forget();
         self.chan.send(block)?;
@@ -116,6 +124,12 @@ pub(super) struct Receiver<T> {
     cap: usize,
     sem: Arc<Semaphore>,
     chan: UnboundedReceiver<T>,
+}
+
+impl<T> Drop for Receiver<T> {
+    fn drop(&mut self) {
+        self.sem.close();
+    }
 }
 
 impl<T> Receiver<T> {
@@ -146,6 +160,7 @@ impl<T> Receiver<T> {
 mod tests {
     use super::{
         soft_block_channel,
+        SendError,
         TrySendError,
     };
 
@@ -171,7 +186,8 @@ mod tests {
         assert_eq!(
             tx.try_send(()).unwrap_err(),
             TrySendError::NoPermits(()),
-            "a channel that has its permits used up is exhausted until refilled"
+            "a channel that has its permits used up should return with a NoPermits error until \
+             refilled or closed",
         );
     }
 
@@ -188,7 +204,39 @@ mod tests {
         assert_eq!(
             tx.try_send(()).unwrap_err(),
             TrySendError::NoPermits(()),
-            "a channel that has its permits used up is exhausted until refilled"
+            "refilling twice in a row should result in the same number of permits"
         );
+    }
+
+    #[test]
+    fn try_sending_to_dropped_receiver_returns_closed_error() {
+        let (tx, rx) = soft_block_channel::<()>();
+        std::mem::drop(rx);
+        assert_eq!(
+            tx.try_send(()).unwrap_err(),
+            TrySendError::Closed(()),
+            "a channel with a dropped receiver is considered closed",
+        );
+    }
+
+    #[tokio::test]
+    async fn async_sending_to_dropped_receiver_returns_closed_error() {
+        let (tx, rx) = soft_block_channel::<()>();
+        std::mem::drop(rx);
+        assert_eq!(
+            tx.send(()).await.unwrap_err(),
+            SendError,
+            "a channel with a dropped receiver is considered closed",
+        );
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "receiving with all senders dropped should return None")]
+    async fn receiving_without_any_remaining_receivers_returns_none() {
+        let (tx, mut rx) = soft_block_channel::<()>();
+        std::mem::drop(tx);
+        rx.recv()
+            .await
+            .expect("receiving with all senders dropped should return None");
     }
 }
