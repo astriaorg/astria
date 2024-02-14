@@ -39,6 +39,7 @@ tonic = { workspace = true }
 tracing = { workspace = true, features = ["valuable"] }
 tryhard = { workspace = true }
 
+astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core", features = ["client", "serde"] }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 optimism = { package = "astria-optimism", path = "../astria-optimism" }
@@ -63,3 +64,6 @@ optimism = { package = "astria-optimism", path = "../astria-optimism", features 
 config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
+
+[build-dependencies]
+astria-build-info = { path = "../astria-build-info", features = ["build"] }

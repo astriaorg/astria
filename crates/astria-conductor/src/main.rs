@@ -4,6 +4,7 @@ use astria_conductor::{
     install_error_handler,
     Conductor,
     Config,
+    BUILD_INFO,
 };
 use eyre::WrapErr as _;
 use tracing::{
@@ -17,6 +18,12 @@ const EX_CONFIG: u8 = 78;
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    eprintln!(
+        "{}",
+        serde_json::to_string(&BUILD_INFO)
+            .expect("build info is serializable because it contains only unicode fields")
+    );
+
     install_error_handler().expect("must be able to install error formatter");
 
     let cfg: Config = match config::get().wrap_err("failed reading config") {

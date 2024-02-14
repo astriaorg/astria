@@ -8,6 +8,7 @@ rust-version = "1.70.0"
 name = "astria-composer"
 
 [dependencies]
+astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core" }
 config = { package = "astria-config", path = "../astria-config" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
@@ -61,3 +62,6 @@ tokio-test = { workspace = true }
 
 tendermint-rpc = { workspace = true }
 wiremock = { workspace = true }
+
+[build-dependencies]
+astria-build-info = { path = "../astria-build-info", features = ["build"] }

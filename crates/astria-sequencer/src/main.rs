@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use astria_sequencer::{
     Config,
     Sequencer,
+    BUILD_INFO,
 };
 use tracing::info;
 
@@ -13,6 +14,12 @@ const EX_CONFIG: u8 = 78;
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    eprintln!(
+        "{}",
+        serde_json::to_string(&BUILD_INFO)
+            .expect("build info is serializable because it contains only unicode fields")
+    );
+
     let cfg: Config = match config::get() {
         Ok(cfg) => cfg,
         Err(e) => {

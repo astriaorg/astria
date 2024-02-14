@@ -4,12 +4,18 @@ use astria_composer::{
     telemetry,
     Composer,
     Config,
+    BUILD_INFO,
 };
 use color_eyre::eyre::WrapErr as _;
 use tracing::info;
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    eprintln!(
+        "{}",
+        serde_json::to_string(&BUILD_INFO)
+            .expect("build info is serializable because it contains only unicode fields")
+    );
     let cfg: Config = match config::get() {
         Ok(cfg) => cfg,
         Err(e) => {

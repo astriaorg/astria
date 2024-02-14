@@ -9,6 +9,7 @@
 //! execution layer until it's received from the data availability layer. In the second case, the
 //! execution layer is notified to mark the block as finalized.
 pub(crate) mod block_cache;
+mod build_info;
 pub(crate) mod celestia;
 pub(crate) mod client_provider;
 pub mod conductor;
@@ -19,6 +20,7 @@ pub(crate) mod utils;
 
 use std::fmt::Write;
 
+pub use build_info::BUILD_INFO;
 pub use conductor::Conductor;
 pub use config::Config;
 

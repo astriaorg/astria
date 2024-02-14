@@ -38,10 +38,12 @@
 //! ```
 
 pub(crate) mod api;
+mod build_info;
 mod composer;
 pub mod config;
 pub(crate) mod searcher;
 
+pub use build_info::BUILD_INFO;
 pub use composer::Composer;
 pub use config::Config;
 pub use telemetry;
