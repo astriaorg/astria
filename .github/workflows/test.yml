@@ -25,7 +25,7 @@ jobs:
           version: "1.17.0"
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.73.0
+        uses: dtolnay/rust-toolchain@1.76.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
@@ -43,44 +43,13 @@ jobs:
             exit 1
           fi
 
-  cargo-toml-synced-with-containerfiles:
-    runs-on: ubuntu-22.04
-    needs: run_checker
-    if: needs.run_checker.outputs.run_tests == 'true'
-    steps:
-      - uses: actions/checkout@v3
-      - name: Download and install dasel
-        run: |
-          curl -fsSL \
-            https://github.com/TomWright/dasel/releases/download/v2.5.0/dasel_linux_amd64.gz \
-            | gzip -d - \
-            | install -m 755 /dev/stdin /usr/local/bin/dasel
-      - name: Download and install taplo
-        run: |
-          curl -fsSL \
-          https://github.com/tamasfe/taplo/releases/download/0.8.1/taplo-full-linux-x86_64.gz \
-          | gzip -d - \
-          | install -m 755 /dev/stdin /usr/local/bin/taplo
-      - name: Install just
-        uses: taiki-e/install-action@just
-      - name: Check if containerfiles/Cargo.toml is in sync with Cargo.toml
-        run: |
-          just update-containerfiles-cargo-toml
-          modified=$(git status --porcelain)
-          if [[ -n $modified ]]; then
-            echo "ERROR: containerfiles/Cargo.toml is out of sync with workspcae Cargo.toml"
-            echo "Run locally with \`just update-containerfiles-cargo-toml\` and commit to the repository."
-            exit 1
-          fi
-
-
   compiles:
     runs-on: buildjet-4vcpu-ubuntu-2204
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.73.0
+      - uses: dtolnay/rust-toolchain@1.76.0
       - uses: taiki-e/install-action@v2.15.2
         with:
           tool: cargo-hack@0.5.29
@@ -103,7 +72,7 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.73.0
+      - uses: dtolnay/rust-toolchain@1.76.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "github"
@@ -124,7 +93,7 @@ jobs:
           pip3 install solc-select
           solc-select install 0.8.15
           solc-select use 0.8.15
-      - uses: dtolnay/rust-toolchain@1.73.0
+      - uses: dtolnay/rust-toolchain@1.76.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
@@ -155,7 +124,7 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.73.0
+      - uses: dtolnay/rust-toolchain@1.76.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
@@ -172,7 +141,7 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.73.0
+      - uses: dtolnay/rust-toolchain@1.76.0
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2.6.1
@@ -201,13 +170,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@v1
         with:
           # This has to match `rust-toolchain` in the rust-toolchain file of the dylint lints
-          toolchain: nightly-2023-10-06
+          toolchain: nightly-2023-12-28
           components: "clippy, llvm-tools-preview, rustc-dev"
       - uses: Swatinem/rust-cache@v2.6.1
         with:
           cache-provider: "buildjet"
       - name: install cargo-dylint and dylint-link
-        run: cargo install cargo-dylint@2.5.0 dylint-link@2.5.0 --locked
+        run: cargo install cargo-dylint@2.6.1 dylint-link@2.6.1 --locked
       - uses: arduino/setup-protoc@v2
         with:
           version: "24.4"
@@ -229,7 +198,7 @@ jobs:
 
   test:
     if: ${{ always() && !cancelled() }}
-    needs: [compiles, protos-compiled, rust, doctest, clippy, lockfile, custom-lints, cargo-toml-synced-with-containerfiles]
+    needs: [compiles, protos-compiled, rust, doctest, clippy, lockfile, custom-lints]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}

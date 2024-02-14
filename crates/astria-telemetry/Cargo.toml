@@ -9,6 +9,7 @@ rust-version = "1.70.0"
 [dependencies]
 base64 = { workspace = true, optional = true }
 
+metrics-exporter-prometheus = "0.13.1"
 # When updating ensure that `opentelemetry-semantic-conventions` matches
 # that used by `opentelemetry-otlp`.
 opentelemetry = "0.21.0"

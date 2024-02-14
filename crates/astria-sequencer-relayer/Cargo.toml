@@ -24,6 +24,7 @@ futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 humantime = { workspace = true }
 hyper = { workspace = true }
+metrics = { workspace = true }
 prost = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true, features = ["derive"] }

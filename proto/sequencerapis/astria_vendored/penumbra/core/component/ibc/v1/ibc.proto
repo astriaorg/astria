@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package astria_vendored.penumbra.core.component.ibc.v1alpha1;
+package astria_vendored.penumbra.core.component.ibc.v1;
 
 import "google/protobuf/any.proto";
 

@@ -467,7 +467,7 @@ impl ExecutableBlock {
         let timestamp = convert_tendermint_to_prost_timestamp(block.header().time);
         let transactions = block
             .into_rollup_transactions()
-            .remove(&id)
+            .swap_remove(&id)
             .unwrap_or_default();
         Self {
             hash,
