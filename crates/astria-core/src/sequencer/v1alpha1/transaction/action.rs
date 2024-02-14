@@ -33,6 +33,7 @@ pub enum Action {
     Ibc(IbcRelay),
     Ics20Withdrawal(Ics20Withdrawal),
     IbcRelayerChange(IbcRelayerChangeAction),
+    FeeAssetChange(FeeAssetChangeAction),
 }
 
 impl Action {
@@ -48,6 +49,7 @@ impl Action {
             Action::Ibc(act) => Value::IbcAction(act.into()),
             Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.into_raw()),
             Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.into_raw()),
+            Action::FeeAssetChange(act) => Value::FeeAssetChangeAction(act.into_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -68,6 +70,7 @@ impl Action {
             Action::Ibc(act) => Value::IbcAction(act.clone().into()),
             Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.to_raw()),
             Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.to_raw()),
+            Action::FeeAssetChange(act) => Value::FeeAssetChangeAction(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -114,6 +117,9 @@ impl Action {
             Value::IbcRelayerChangeAction(act) => Self::IbcRelayerChange(
                 IbcRelayerChangeAction::try_from_raw(&act)
                     .map_err(ActionError::ibc_relayer_change)?,
+            ),
+            Value::FeeAssetChangeAction(act) => Self::FeeAssetChange(
+                FeeAssetChangeAction::try_from_raw(&act).map_err(ActionError::fee_asset_change)?,
             ),
         };
         Ok(action)
@@ -178,6 +184,12 @@ impl From<IbcRelayerChangeAction> for Action {
     }
 }
 
+impl From<FeeAssetChangeAction> for Action {
+    fn from(value: FeeAssetChangeAction) -> Self {
+        Self::FeeAssetChange(value)
+    }
+}
+
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -219,6 +231,10 @@ impl ActionError {
     fn ibc_relayer_change(inner: IbcRelayerChangeActionError) -> Self {
         Self(ActionErrorKind::IbcRelayerChange(inner))
     }
+
+    fn fee_asset_change(inner: FeeAssetChangeActionError) -> Self {
+        Self(ActionErrorKind::FeeAssetChange(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -241,6 +257,8 @@ enum ActionErrorKind {
     Ics20Withdrawal(#[source] Ics20WithdrawalError),
     #[error("ibc relayer change action was not valid")]
     IbcRelayerChange(#[source] IbcRelayerChangeActionError),
+    #[error("fee asset change action was not valid")]
+    FeeAssetChange(#[source] FeeAssetChangeActionError),
 }
 
 #[derive(Debug, thiserror::Error)]

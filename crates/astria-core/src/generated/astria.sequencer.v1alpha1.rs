@@ -258,7 +258,7 @@ pub struct UnsignedTransaction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Action {
-    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6, 7, 8")]
+    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9")]
     pub value: ::core::option::Option<action::Value>,
 }
 /// Nested message and enum types in `Action`.
@@ -282,6 +282,8 @@ pub mod action {
         Ics20Withdrawal(super::Ics20Withdrawal),
         #[prost(message, tag = "8")]
         IbcRelayerChangeAction(super::IbcRelayerChangeAction),
+        #[prost(message, tag = "9")]
+        FeeAssetChangeAction(super::FeeAssetChangeAction),
     }
 }
 /// `TransferAction` represents a value transfer transaction.

@@ -34,6 +34,7 @@ message Action {
     astria_vendored.penumbra.core.component.ibc.v1.IbcRelay ibc_action = 6;
     Ics20Withdrawal ics20_withdrawal = 7;
     IbcRelayerChangeAction ibc_relayer_change_action = 8;
+    FeeAssetChangeAction fee_asset_change_action = 9;
   }
 }
 

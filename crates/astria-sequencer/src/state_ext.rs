@@ -214,6 +214,11 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_allowed_fee_asset(&mut self, asset: asset::Id) {
         self.nonverifiable_put_raw(fee_asset_key(asset), vec![]);
     }
+
+    #[instrument(skip(self))]
+    fn delete_allowed_fee_asset(&mut self, asset: asset::Id) {
+        self.nonverifiable_delete(fee_asset_key(asset));
+    }
 }
 
 impl<T: StateWrite> StateWriteExt for T {}
