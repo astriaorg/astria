@@ -57,13 +57,16 @@ mod runtime {
 /// Emits build infos as environment variables.
 ///
 /// The `prefix` argument is used akin to manually calling
-/// `git describe --tags --match="<prefix>*". It assumes that releases of
+/// `git describe --tags --match="<prefix>*"`. It assumes that releases of
 /// services (and binaries) are tagged using a format like `<prefix>0.1.2`.
 ///
 /// Note that if two services share a common prefix like `sequencer` and
 /// `sequencer-relayer`, `<prefix>` should be supplied as `"sequencer-v"` and
 /// `"sequencer-relayer-v"` for tags like `sequencer-v1.2.3` or
 /// `sequencer-relayer-v1.2.3`. This is to avoid matching on the wrong prefix
+///
+/// # Errors
+/// Emits the same errors as [`vergen::EmitBuilder::emit`].
 pub fn emit(prefix: &str) -> Result<(), Box<dyn std::error::Error>> {
     let git_describe_prefix = Box::leak(format!("{prefix}*").into_boxed_str());
     vergen::EmitBuilder::builder()
