@@ -115,3 +115,14 @@ message IbcRelayerChangeAction {
     bytes removal = 2;
   }
 }
+
+// `FeeAssetChangeAction` represents a transaction that adds 
+// or removes an asset for fee payments.
+// The bytes contained in each variant are the 32-byte asset ID 
+// to add or remove.
+message FeeAssetChangeAction {
+  oneof value {
+    bytes addition = 1;
+    bytes removal = 2;
+  }
+}

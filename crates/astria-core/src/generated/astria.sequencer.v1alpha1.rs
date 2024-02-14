@@ -399,3 +399,24 @@ pub mod ibc_relayer_change_action {
         Removal(::prost::alloc::vec::Vec<u8>),
     }
 }
+/// `FeeAssetChangeAction` represents a transaction that adds
+/// or removes an asset for fee payments.
+/// The bytes contained in each variant are the 32-byte asset ID
+/// to add or remove.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FeeAssetChangeAction {
+    #[prost(oneof = "fee_asset_change_action::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<fee_asset_change_action::Value>,
+}
+/// Nested message and enum types in `FeeAssetChangeAction`.
+pub mod fee_asset_change_action {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(bytes, tag = "1")]
+        Addition(::prost::alloc::vec::Vec<u8>),
+        #[prost(bytes, tag = "2")]
+        Removal(::prost::alloc::vec::Vec<u8>),
+    }
+}

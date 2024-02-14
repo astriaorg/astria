@@ -865,3 +865,95 @@ enum IbcRelayerChangeActionErrorKind {
     #[error("the address was missing")]
     MissingAddress,
 }
+
+#[allow(clippy::module_name_repetitions)]
+#[derive(Debug, Clone)]
+pub enum FeeAssetChangeAction {
+    Addition(asset::Id),
+    Removal(asset::Id),
+}
+
+impl FeeAssetChangeAction {
+    #[must_use]
+    pub fn into_raw(self) -> raw::FeeAssetChangeAction {
+        match self {
+            FeeAssetChangeAction::Addition(asset_id) => raw::FeeAssetChangeAction {
+                value: Some(raw::fee_asset_change_action::Value::Addition(
+                    asset_id.as_bytes().to_vec(),
+                )),
+            },
+            FeeAssetChangeAction::Removal(asset_id) => raw::FeeAssetChangeAction {
+                value: Some(raw::fee_asset_change_action::Value::Removal(
+                    asset_id.as_bytes().to_vec(),
+                )),
+            },
+        }
+    }
+
+    #[must_use]
+    pub fn to_raw(&self) -> raw::FeeAssetChangeAction {
+        match self {
+            FeeAssetChangeAction::Addition(asset_id) => raw::FeeAssetChangeAction {
+                value: Some(raw::fee_asset_change_action::Value::Addition(
+                    asset_id.as_bytes().to_vec(),
+                )),
+            },
+            FeeAssetChangeAction::Removal(asset_id) => raw::FeeAssetChangeAction {
+                value: Some(raw::fee_asset_change_action::Value::Removal(
+                    asset_id.as_bytes().to_vec(),
+                )),
+            },
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::FeeAssetChangeAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `asset_id` field is invalid
+    pub fn try_from_raw(
+        raw: &raw::FeeAssetChangeAction,
+    ) -> Result<Self, FeeAssetChangeActionError> {
+        match raw {
+            raw::FeeAssetChangeAction {
+                value: Some(raw::fee_asset_change_action::Value::Addition(asset_id)),
+            } => {
+                let asset_id = asset::Id::try_from_slice(asset_id)
+                    .map_err(FeeAssetChangeActionError::invalid_asset_id)?;
+                Ok(FeeAssetChangeAction::Addition(asset_id))
+            }
+            raw::FeeAssetChangeAction {
+                value: Some(raw::fee_asset_change_action::Value::Removal(asset_id)),
+            } => {
+                let asset_id = asset::Id::try_from_slice(asset_id)
+                    .map_err(FeeAssetChangeActionError::invalid_asset_id)?;
+                Ok(FeeAssetChangeAction::Removal(asset_id))
+            }
+            _ => Err(FeeAssetChangeActionError::missing_asset_id()),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct FeeAssetChangeActionError(FeeAssetChangeActionErrorKind);
+
+impl FeeAssetChangeActionError {
+    #[must_use]
+    fn invalid_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
+        Self(FeeAssetChangeActionErrorKind::InvalidAssetId(err))
+    }
+
+    #[must_use]
+    fn missing_asset_id() -> Self {
+        Self(FeeAssetChangeActionErrorKind::MissingAssetId)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum FeeAssetChangeActionErrorKind {
+    #[error("the asset_id was invalid")]
+    InvalidAssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("the asset_id was missing")]
+    MissingAssetId,
+}
