@@ -8,10 +8,10 @@ rust-version = "1.73.0"
 name = "astria-sequencer"
 
 [dependencies]
-"astria-core" = { path = "../astria-core" }
-config = { package = "astria-config", path = "../astria-config" }
-merkle = { package = "astria-merkle", path = "../astria-merkle" }
-telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
+"astria-core" = { path = "../core" }
+config = { package = "astria-config", path = "../config" }
+merkle = { package = "astria-merkle", path = "../merkle" }
+telemetry = { package = "astria-telemetry", path = "../telemetry", features = [
   "display",
 ] }
 
@@ -48,7 +48,7 @@ tonic = "0.10"
 tower-http = { version = "0.4", features = ["cors"] }
 
 [dev-dependencies]
-config = { package = "astria-config", path = "../astria-config", features = [
+config = { package = "astria-config", path = "../config", features = [
   "tests",
 ] }
 

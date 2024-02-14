@@ -8,9 +8,9 @@ rust-version = "1.70.0"
 name = "astria-composer"
 
 [dependencies]
-astria-core = { path = "../astria-core" }
-config = { package = "astria-config", path = "../astria-config" }
-telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
+astria-core = { path = "../core" }
+config = { package = "astria-config", path = "../config" }
+telemetry = { package = "astria-telemetry", path = "../telemetry" }
 
 pin-project-lite = "0.2.13"
 secrecy = { version = "0.8", features = ["serde"] }
@@ -47,14 +47,14 @@ tryhard = { workspace = true }
 
 [dependencies.sequencer-client]
 package = "astria-sequencer-client"
-path = "../astria-sequencer-client"
+path = "../sequencer-client"
 features = ["http"]
 
 [dev-dependencies]
-config = { package = "astria-config", path = "../astria-config", features = [
+config = { package = "astria-config", path = "../config", features = [
   "tests",
 ] }
-test_utils = { package = "astria-test-utils", path = "../astria-test-utils", features = [
+test_utils = { package = "astria-test-utils", path = "../test-utils", features = [
   "geth",
 ] }
 tokio-test = { workspace = true }

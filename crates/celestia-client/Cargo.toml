@@ -19,9 +19,9 @@ tendermint = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
-astria-core = { path = "../astria-core" }
-merkle = { package = "astria-merkle", path = "../astria-merkle" }
-telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
+astria-core = { path = "../core" }
+merkle = { package = "astria-merkle", path = "../merkle" }
+telemetry = { package = "astria-telemetry", path = "../telemetry", features = [
   "display",
 ] }
 

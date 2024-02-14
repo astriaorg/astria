@@ -5,7 +5,7 @@ default_docker_tag := 'local'
 
 # Builds docker image for the crate. Defaults to 'local' tag.
 docker-build crate tag=default_docker_tag:
-  docker buildx build --load --build-arg TARGETBINARY={{crate}} -f containerfiles/Dockerfile -t {{crate}}:{{tag}} .
+  docker buildx build --load --build-arg TARGETBINARY=astria-{{crate}} --build-arg TARGETFOLDER={{crate}} -f containerfiles/Dockerfile -t {{crate}}:{{tag}} .
 
 install-cli:
   cargo install --path ./crates/astria-cli --locked

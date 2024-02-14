@@ -15,7 +15,7 @@ keywords = ["astria", "grpc", "rpc", "blockchain", "execution", "protobuf"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-merkle = { package = "astria-merkle", path = "../astria-merkle" }
+merkle = { package = "astria-merkle", path = "../merkle" }
 
 bytes = { workspace = true }
 celestia-tendermint = { workspace = true }

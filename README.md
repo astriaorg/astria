@@ -17,13 +17,13 @@ To learn more about Astria, please visit [astria.org](https://astria.org).
 
 ## Components
 
-* [conductor](https://github.com/astriaorg/astria/tree/main/crates/astria-conductor):
+* [conductor](https://github.com/astriaorg/astria/tree/main/crates/conductor):
   conducts blocks from the data availability layer to the execution layer.
-* [proto](https://github.com/astriaorg/astria/tree/main/crates/astria-proto):
+* [proto](https://github.com/astriaorg/astria/tree/main/proto):
   relevant protobufs for Astria types.
-* [sequencer](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer):
+* [sequencer](https://github.com/astriaorg/astria/tree/main/crates/sequencer):
   ABCI application that defines the sequencer state transition logic.
-* [sequencer-relayer](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer-relayer):
+* [sequencer-relayer](https://github.com/astriaorg/astria/tree/main/crates/sequencer-relayer):
   relays blocks from the sequencer chain to the data availability layer.
 
 ## Build
