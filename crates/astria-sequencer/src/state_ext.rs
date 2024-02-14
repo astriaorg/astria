@@ -142,6 +142,27 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed to read raw fee asset from state")?
             .is_some())
     }
+
+    #[instrument(skip(self))]
+    async fn get_allowed_fee_assets(&self) -> Result<Vec<asset::Id>> {
+        let mut assets = Vec::new();
+
+        let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(FEE_ASSET_PREFIX.as_bytes()));
+        while let Some(Ok((key, _))) = stream.next().await {
+            // if the key isn't of the form `fee_asset/{asset_id}`, then we have a bug
+            // in `put_allowed_fee_asset`
+            let id_str = key
+                .strip_prefix(FEE_ASSET_PREFIX.as_bytes())
+                .expect("prefix must always be present");
+            let id =
+                asset::Id::try_from_slice(&hex::decode(id_str).expect("key must be hex encoded"))
+                    .context("failed to parse asset id from hex key")?;
+
+            assets.push(id);
+        }
+
+        Ok(assets)
+    }
 }
 
 impl<T: StateRead> StateReadExt for T {}

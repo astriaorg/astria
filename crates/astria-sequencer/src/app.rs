@@ -1311,6 +1311,110 @@ mod test {
         assert!(res.contains("signer is not the sudo key"));
     }
 
+    #[tokio::test]
+    async fn app_deliver_tx_fee_asset_change_addition() {
+        use astria_core::sequencer::v1alpha1::transaction::action::FeeAssetChangeAction;
+
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![],
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let new_asset = asset::Id::from_denom("test");
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Addition(
+                new_asset,
+            ))],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+
+        assert!(app.state.is_allowed_fee_asset(new_asset).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_fee_asset_change_removal() {
+        use astria_core::sequencer::v1alpha1::transaction::action::FeeAssetChangeAction;
+
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let test_asset = asset::Denom::from_base_denom("test");
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![],
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into(), test_asset.clone()],
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Removal(
+                test_asset.id(),
+            ))],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+
+        assert!(
+            !app.state
+                .is_allowed_fee_asset(test_asset.id())
+                .await
+                .unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_fee_asset_change_invalid() {
+        use astria_core::sequencer::v1alpha1::transaction::action::FeeAssetChangeAction;
+
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![],
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Removal(
+                get_native_asset().id(),
+            ))],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        let res = app
+            .deliver_tx(signed_tx)
+            .await
+            .unwrap_err()
+            .root_cause()
+            .to_string();
+        assert!(res.contains("cannot remove last allowed fee asset"));
+    }
+
     #[cfg(feature = "mint")]
     #[tokio::test]
     async fn app_deliver_tx_mint() {

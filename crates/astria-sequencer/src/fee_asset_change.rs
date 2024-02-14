@@ -1,4 +1,5 @@
 use anyhow::{
+    bail,
     ensure,
     Context as _,
     Result,
@@ -15,7 +16,10 @@ use cnidarium::{
 
 use crate::{
     authority::state_ext::StateReadExt as _,
-    state_ext::StateWriteExt as _,
+    state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     transaction::action_handler::ActionHandler,
 };
 
@@ -40,6 +44,10 @@ impl ActionHandler for FeeAssetChangeAction {
             }
             FeeAssetChangeAction::Removal(asset) => {
                 state.delete_allowed_fee_asset(*asset);
+
+                if state.get_allowed_fee_assets().await?.is_empty() {
+                    bail!("cannot remove last allowed fee asset");
+                }
             }
         }
         Ok(())
