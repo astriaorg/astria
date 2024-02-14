@@ -60,6 +60,4 @@ astria-core = { path = "../core", features = ["server", "test-utils"] }
 optimism = { package = "astria-optimism", path = "../optimism", features = [
   "test-utils",
 ] }
-config = { package = "astria-config", path = "../config", features = [
-  "tests",
-] }
+config = { package = "astria-config", path = "../config", features = ["tests"] }

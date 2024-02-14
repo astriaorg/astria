@@ -46,9 +46,7 @@ telemetry = { package = "astria-telemetry", path = "../telemetry" }
 
 [dev-dependencies]
 celestia-mock = { package = "astria-celestia-mock", path = "../celestia-mock" }
-config = { package = "astria-config", path = "../config", features = [
-  "tests",
-] }
+config = { package = "astria-config", path = "../config", features = ["tests"] }
 astria-core = { path = "../core", features = ["test-utils"] }
 merkle = { package = "astria-merkle", path = "../merkle" }
 rand_core = { version = "0.6", features = ["getrandom"] }

@@ -51,9 +51,7 @@ path = "../sequencer-client"
 features = ["http"]
 
 [dev-dependencies]
-config = { package = "astria-config", path = "../config", features = [
-  "tests",
-] }
+config = { package = "astria-config", path = "../config", features = ["tests"] }
 test_utils = { package = "astria-test-utils", path = "../test-utils", features = [
   "geth",
 ] }
