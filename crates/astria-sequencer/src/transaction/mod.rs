@@ -120,6 +120,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateless()
                     .await
                     .context("stateless check failed for Ics20WithdrawalAction")?,
+                Action::IbcRelayerChange(act) => act
+                    .check_stateless()
+                    .await
+                    .context("stateless check failed for IbcRelayerChangeAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateless()
@@ -161,12 +165,11 @@ impl ActionHandler for UnsignedTransaction {
                     .await
                     .context("stateful check failed for SudoAddressChangeAction")?,
                 Action::Ibc(_) => {
-                    let ibc_sudo_address = state
-                        .get_ibc_sudo_address()
-                        .await
-                        .context("failed to get IBC sudo address")?;
                     ensure!(
-                        from == ibc_sudo_address,
+                        state
+                            .is_ibc_relayer(&from)
+                            .await
+                            .context("failed to check if address is IBC relayer")?,
                         "only IBC sudo address can execute IBC actions"
                     );
                 }
@@ -174,6 +177,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for Ics20WithdrawalAction")?,
+                Action::IbcRelayerChange(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for IbcRelayerChangeAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateful(state, from)
@@ -242,6 +249,11 @@ impl ActionHandler for UnsignedTransaction {
                     act.execute(state, from)
                         .await
                         .context("execution failed for Ics20WithdrawalAction")?;
+                }
+                Action::IbcRelayerChange(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for IbcRelayerChangeAction")?;
                 }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => {
