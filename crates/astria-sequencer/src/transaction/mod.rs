@@ -124,6 +124,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateless()
                     .await
                     .context("stateless check failed for IbcRelayerChangeAction")?,
+                Action::FeeAssetChange(act) => act
+                    .check_stateless()
+                    .await
+                    .context("stateless check failed for FeeAssetChangeAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateless()
@@ -181,6 +185,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for IbcRelayerChangeAction")?,
+                Action::FeeAssetChange(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for FeeAssetChangeAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateful(state, from)
@@ -254,6 +262,11 @@ impl ActionHandler for UnsignedTransaction {
                     act.execute(state, from)
                         .await
                         .context("execution failed for IbcRelayerChangeAction")?;
+                }
+                Action::FeeAssetChange(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for FeeAssetChangeAction")?;
                 }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => {

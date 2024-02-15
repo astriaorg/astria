@@ -34,6 +34,7 @@ message Action {
     astria_vendored.penumbra.core.component.ibc.v1.IbcRelay ibc_action = 6;
     Ics20Withdrawal ics20_withdrawal = 7;
     IbcRelayerChangeAction ibc_relayer_change_action = 8;
+    FeeAssetChangeAction fee_asset_change_action = 9;
   }
 }
 
@@ -110,6 +111,17 @@ message IbcHeight {
 // or removes an IBC relayer address.
 // The bytes contained in each variant are the address to add or remove.
 message IbcRelayerChangeAction {
+  oneof value {
+    bytes addition = 1;
+    bytes removal = 2;
+  }
+}
+
+// `FeeAssetChangeAction` represents a transaction that adds
+// or removes an asset for fee payments.
+// The bytes contained in each variant are the 32-byte asset ID
+// to add or remove.
+message FeeAssetChangeAction {
   oneof value {
     bytes addition = 1;
     bytes removal = 2;
