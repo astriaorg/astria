@@ -52,14 +52,14 @@ impl ExecutorBuilder<WithRollupAddress, WithShutdown> {
         let WithRollupAddress(rollup_address) = rollup_address;
         let WithShutdown(shutdown) = shutdown;
 
-        let (firm_blocks_tx, firm_blocks_rx) = mpsc::channel(16);
-        let (soft_blocks_tx, soft_blocks_rx) = mpsc::channel(16);
+        let (firm_block_tx, firm_block_rx) = mpsc::channel(16);
+        let (soft_block_tx, soft_block_rx) = super::soft_block_channel();
 
         let (state_tx, state_rx) = watch::channel(State::new());
 
         let executor = Executor {
-            firm_blocks: firm_blocks_rx,
-            soft_blocks: soft_blocks_rx,
+            firm_blocks: firm_block_rx,
+            soft_blocks: soft_block_rx,
 
             consider_commitment_spread,
             rollup_address,
@@ -70,8 +70,8 @@ impl ExecutorBuilder<WithRollupAddress, WithShutdown> {
             pre_execution_hook,
         };
         let handle = Handle {
-            firm_blocks: firm_blocks_tx,
-            soft_blocks: soft_blocks_tx,
+            firm_blocks: firm_block_tx,
+            soft_blocks: soft_block_tx,
             state: state_rx,
             _state_init: StateNotInit,
         };
