@@ -30,7 +30,7 @@ use tracing::{
 use crate::{
     app::App,
     config::Config,
-    host_interface::AstriaHost,
+    ibc::host_interface::AstriaHost,
     service,
     state_ext::StateReadExt as _,
 };

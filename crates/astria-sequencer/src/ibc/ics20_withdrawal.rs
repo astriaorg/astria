@@ -26,6 +26,10 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
+    ibc::state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     transaction::action_handler::ActionHandler,
 };
 

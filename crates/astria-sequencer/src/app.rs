@@ -26,10 +26,6 @@ use cnidarium::{
     StateDelta,
     Storage,
 };
-use penumbra_ibc::{
-    component::Ibc,
-    genesis::Content,
-};
 use prost::Message as _;
 use sha2::{
     Digest as _,
@@ -69,7 +65,7 @@ use crate::{
     },
     component::Component as _,
     genesis::GenesisState,
-    host_interface::AstriaHost,
+    ibc::component::IbcComponent,
     proposal::commitment::{
         generate_sequence_actions_commitment,
         GeneratedCommitments,
@@ -191,13 +187,9 @@ impl App {
         )
         .await
         .context("failed to call init_chain on AuthorityComponent")?;
-        Ibc::init_chain(
-            &mut state_tx,
-            Some(&Content {
-                ibc_params: genesis_state.ibc_params,
-            }),
-        )
-        .await;
+        IbcComponent::init_chain(&mut state_tx, &genesis_state)
+            .await
+            .context("failed to call init_chain on IbcComponent")?;
 
         state_tx.apply();
         Ok(())
@@ -434,11 +426,9 @@ impl App {
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .context("failed to call begin_block on AuthorityComponent")?;
-        Ibc::begin_block::<AstriaHost, StateDelta<Arc<StateDelta<cnidarium::Snapshot>>>>(
-            &mut arc_state_tx,
-            begin_block,
-        )
-        .await;
+        IbcComponent::begin_block(&mut arc_state_tx, begin_block)
+            .await
+            .context("failed to call begin_block on IbcComponent")?;
 
         let state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -557,7 +547,9 @@ impl App {
         AuthorityComponent::end_block(&mut arc_state_tx, end_block)
             .await
             .context("failed to call end_block on AuthorityComponent")?;
-        Ibc::end_block(&mut arc_state_tx, end_block).await;
+        IbcComponent::end_block(&mut arc_state_tx, end_block)
+            .await
+            .context("failed to call end_block on IbcComponent")?;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -721,6 +713,7 @@ mod test {
         asset::get_native_asset,
         authority::state_ext::ValidatorSet,
         genesis::Account,
+        ibc::state_ext::StateReadExt as _,
         sequence::calculate_fee,
         transaction::InvalidNonce,
     };
