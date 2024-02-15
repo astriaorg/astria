@@ -39,6 +39,7 @@ pub struct Config {
     /// Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
     /// public key, nonce. This is the sum of the sizes of all the `SequenceAction`s
     pub max_bytes_per_bundle: usize,
+
     /// Forces writing trace data to stdout no matter if connected to a tty or not.
     pub force_stdout: bool,
 
@@ -50,6 +51,9 @@ pub struct Config {
 
     /// The endpoint which will be listened on for serving prometheus metrics
     pub metrics_http_listener_addr: String,
+
+    /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
+    pub pretty_print: bool,
 }
 
 impl config::Config for Config {
