@@ -3,6 +3,8 @@ name: buf.build/astria/astria
 breaking:
   use:
     - FILE
+deps:
+  - buf.build/googleapis/googleapis
 lint:
   ignore_only:
     PACKAGE_VERSION_SUFFIX:

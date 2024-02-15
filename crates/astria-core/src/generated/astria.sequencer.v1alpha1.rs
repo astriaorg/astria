@@ -234,18 +234,18 @@ pub struct SequencerNamespaceData {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetSequencerBlockRequest {
     /// The height of the block to retrieve.
-    #[prost(int64, tag = "1")]
-    pub height: i64,
+    #[prost(uint64, tag = "1")]
+    pub height: u64,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetFilteredSequencerBlockRequest {
+pub struct FilteredSequencerBlockRequest {
     /// The height of the block to retrieve.
-    #[prost(int64, tag = "1")]
-    pub height: i64,
+    #[prost(uint64, tag = "1")]
+    pub height: u64,
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
-    #[prost(bytes = "vec", tag = "2")]
-    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "vec", repeated, tag = "2")]
+    pub rollup_id: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
 }
 /// Generated client implementations.
 #[cfg(feature = "client")]
@@ -361,11 +361,11 @@ pub mod sequencer_service_client {
                 );
             self.inner.unary(req, path, codec).await
         }
-        /// Given a block height and rollup id, returns a SequencerBlock which is filtered to contain
-        /// only the transactions that are relevant to the given rollup.
-        pub async fn get_filtered_sequencer_block(
+        /// Given a block height and set of rollup ids, returns a SequencerBlock which
+        /// is filtered to contain only the transactions that are relevant to the given rollup.
+        pub async fn filtered_sequencer_block(
             &mut self,
-            request: impl tonic::IntoRequest<super::GetFilteredSequencerBlockRequest>,
+            request: impl tonic::IntoRequest<super::FilteredSequencerBlockRequest>,
         ) -> std::result::Result<tonic::Response<super::SequencerBlock>, tonic::Status> {
             self.inner
                 .ready()
@@ -378,14 +378,14 @@ pub mod sequencer_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.sequencer.v1alpha1.SequencerService/GetFilteredSequencerBlock",
+                "/astria.sequencer.v1alpha1.SequencerService/FilteredSequencerBlock",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "astria.sequencer.v1alpha1.SequencerService",
-                        "GetFilteredSequencerBlock",
+                        "FilteredSequencerBlock",
                     ),
                 );
             self.inner.unary(req, path, codec).await
@@ -405,11 +405,11 @@ pub mod sequencer_service_server {
             &self,
             request: tonic::Request<super::GetSequencerBlockRequest>,
         ) -> std::result::Result<tonic::Response<super::SequencerBlock>, tonic::Status>;
-        /// Given a block height and rollup id, returns a SequencerBlock which is filtered to contain
-        /// only the transactions that are relevant to the given rollup.
-        async fn get_filtered_sequencer_block(
+        /// Given a block height and set of rollup ids, returns a SequencerBlock which
+        /// is filtered to contain only the transactions that are relevant to the given rollup.
+        async fn filtered_sequencer_block(
             &self,
-            request: tonic::Request<super::GetFilteredSequencerBlockRequest>,
+            request: tonic::Request<super::FilteredSequencerBlockRequest>,
         ) -> std::result::Result<tonic::Response<super::SequencerBlock>, tonic::Status>;
     }
     #[derive(Debug)]
@@ -541,14 +541,13 @@ pub mod sequencer_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.sequencer.v1alpha1.SequencerService/GetFilteredSequencerBlock" => {
+                "/astria.sequencer.v1alpha1.SequencerService/FilteredSequencerBlock" => {
                     #[allow(non_camel_case_types)]
-                    struct GetFilteredSequencerBlockSvc<T: SequencerService>(pub Arc<T>);
+                    struct FilteredSequencerBlockSvc<T: SequencerService>(pub Arc<T>);
                     impl<
                         T: SequencerService,
-                    > tonic::server::UnaryService<
-                        super::GetFilteredSequencerBlockRequest,
-                    > for GetFilteredSequencerBlockSvc<T> {
+                    > tonic::server::UnaryService<super::FilteredSequencerBlockRequest>
+                    for FilteredSequencerBlockSvc<T> {
                         type Response = super::SequencerBlock;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
@@ -556,13 +555,11 @@ pub mod sequencer_service_server {
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<
-                                super::GetFilteredSequencerBlockRequest,
-                            >,
+                            request: tonic::Request<super::FilteredSequencerBlockRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as SequencerService>::get_filtered_sequencer_block(
+                                <T as SequencerService>::filtered_sequencer_block(
                                         &inner,
                                         request,
                                     )
@@ -578,7 +575,7 @@ pub mod sequencer_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = GetFilteredSequencerBlockSvc(inner);
+                        let method = FilteredSequencerBlockSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
