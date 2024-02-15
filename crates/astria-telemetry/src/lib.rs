@@ -281,7 +281,7 @@ impl Config {
         let mut pretty_printer = None;
         if force_stdout || std::io::stdout().is_terminal() {
             if pretty_print {
-                pretty_printer = Some(tracing_subscriber::fmt::layer().pretty());
+                pretty_printer = Some(tracing_subscriber::fmt::layer().compact());
             } else {
                 tracer_provider = tracer_provider.with_simple_exporter(
                     SpanExporter::builder()
