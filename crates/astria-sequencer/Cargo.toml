@@ -11,8 +11,13 @@ homepage = "https://astria.org"
 [[bin]]
 name = "astria-sequencer"
 
+[features]
+default = []
+mint = []
+
 [dependencies]
-"astria-core" = { path = "../astria-core" }
+astria-core = { path = "../astria-core" }
+astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 config = { package = "astria-config", path = "../astria-config" }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry", features = [
@@ -56,6 +61,5 @@ config = { package = "astria-config", path = "../astria-config", features = [
   "tests",
 ] }
 
-[features]
-default = []
-mint = []
+[build-dependencies]
+astria-build-info = { path = "../astria-build-info", features = ["build"] }
