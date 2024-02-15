@@ -36,7 +36,7 @@ used for the service. For example, if the service is tagged with
 `"shaving-cats"` also works, but it is recommened to use `"shaving-cats-v"` in
 case there is another service/tag named `"shaving-cats-and-dogs-v1.2.3"`).
 
-```rust,no_run
+```rust,ignore
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     astria_build_info::emit("<release-tag-of-service>")?;
     Ok(())
@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 And pick up the emitted variables like so:
 
-```rust,no_run
+```rust,ignore
 use astria_build_info::BuildInfo;
 const BUILD_INFO: BuildInfo = astria_build_info::get!();
 ```

@@ -32,7 +32,7 @@ mod runtime {
     /// This intended to be constructed at compile time using the
     /// [`get`] macro:
     ///
-    /// ```no_run
+    /// ```ignore
     /// # use astria_build_info::BuildInfo;
     /// const BUILD_INFO: BuildInfo = astria_build_info::get!();
     /// ```
@@ -67,6 +67,17 @@ mod runtime {
 ///
 /// # Errors
 /// Emits the same errors as [`vergen::EmitBuilder::emit`].
+///
+/// # Usage
+///
+/// In a crate's `build.rs` write:
+///
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// astria_build_info::emit("crate-release-tag")?;
+/// # Ok(())
+/// # }
+/// ```
 pub fn emit(prefix: &str) -> Result<(), Box<dyn std::error::Error>> {
     let git_describe_prefix = Box::leak(format!("{prefix}*").into_boxed_str());
     vergen::EmitBuilder::builder()
