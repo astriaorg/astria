@@ -109,7 +109,7 @@ impl Reader {
             BlocksFromHeightStream::new(next_expected_height, latest_height, pool.clone(), 20);
 
         let mut resubscribing = future::Fuse::terminated();
-        let mut executor_full: Fuse<BoxFuture<Result<_, _>>> = future::Fuse::terminated();
+        let mut scheduled_send: Fuse<BoxFuture<Result<_, _>>> = future::Fuse::terminated();
         'reader_loop: loop {
             select! {
                 shutdown = &mut shutdown => {
@@ -140,28 +140,21 @@ impl Reader {
                     sequential_blocks.drop_obsolete(next_height);
                 }
 
-                res = &mut executor_full, if !executor_full.is_terminated() => {
-                    // we just check the error here and drop the permit without using it.
-                    // because the future is now fused the branch requesting a block from the
-                    // cache will fire.
+                res = &mut scheduled_send, if !scheduled_send.is_terminated() => {
                     if res.is_err() {
                         bail!("executor channel closed while waiting for it to free up");
                     }
                 }
 
-                Some(block) = sequential_blocks.next_block(), if executor_full.is_terminated() => {
-                    if let Err(err) = executor.soft_blocks().try_send(block) {
+                Some(block) = sequential_blocks.next_block(), if scheduled_send.is_terminated() => {
+                    if let Err(err) = executor.try_send_soft_block(block) {
                         match err {
-                            tokio::sync::mpsc::error::TrySendError::Full(block) => {
-                                trace!("executor channel is full; stopping block fetch until a slot opens up");
-                                assert!(
-                                    sequential_blocks.reschedule_block(block).is_ok(),
-                                    "rescheduling the just obtained block must always work",
-                                );
-                                executor_full = executor.soft_blocks().clone().reserve_owned().boxed().fuse();
+                            executor::channel::TrySendError::Closed(_) => {
+                                bail!("executor channel is closed")
                             }
-                            tokio::sync::mpsc::error::TrySendError::Closed(_) => {
-                                bail!("exiting because executor channel is closed");
+                            executor::channel::TrySendError::NoPermits(block) => {
+                                trace!("executor channel is full; scheduling block and stopping block fetch until a slot opens up");
+                                scheduled_send = executor.clone().send_soft_block_owned(block).boxed().fuse();
                             }
                         }
                     }
