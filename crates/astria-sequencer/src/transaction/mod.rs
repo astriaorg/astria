@@ -22,7 +22,10 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
-    host_interface::AstriaHost,
+    ibc::{
+        host_interface::AstriaHost,
+        state_ext::StateReadExt as _,
+    },
 };
 
 pub(crate) async fn check_nonce_mempool<S: StateReadExt + 'static>(
@@ -109,8 +112,7 @@ impl ActionHandler for UnsignedTransaction {
                 Action::Ibc(act) => {
                     let action = act
                         .clone()
-                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer, AstriaHost>(
-                        );
+                        .with_handler::<crate::ibc::ics20_transfer::Ics20Transfer, AstriaHost>();
                     action
                         .check_stateless(())
                         .await
@@ -124,6 +126,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateless()
                     .await
                     .context("stateless check failed for IbcRelayerChangeAction")?,
+                Action::FeeAssetChange(act) => act
+                    .check_stateless()
+                    .await
+                    .context("stateless check failed for FeeAssetChangeAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateless()
@@ -181,6 +187,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for IbcRelayerChangeAction")?,
+                Action::FeeAssetChange(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for FeeAssetChangeAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateful(state, from)
@@ -238,8 +248,7 @@ impl ActionHandler for UnsignedTransaction {
                 Action::Ibc(act) => {
                     let action = act
                         .clone()
-                        .with_handler::<crate::accounts::ics20_transfer::Ics20Transfer, AstriaHost>(
-                        );
+                        .with_handler::<crate::ibc::ics20_transfer::Ics20Transfer, AstriaHost>();
                     action
                         .execute(&mut *state)
                         .await
@@ -254,6 +263,11 @@ impl ActionHandler for UnsignedTransaction {
                     act.execute(state, from)
                         .await
                         .context("execution failed for IbcRelayerChangeAction")?;
+                }
+                Action::FeeAssetChange(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for FeeAssetChangeAction")?;
                 }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => {

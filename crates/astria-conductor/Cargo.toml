@@ -3,6 +3,10 @@ name = "astria-conductor"
 version = "0.11.1"
 edition = "2021"
 rust-version = "1.73"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/astriaorg/astria"
+homepage = "https://astria.org"
 
 [[bin]]
 name = "astria-conductor"

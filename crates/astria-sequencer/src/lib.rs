@@ -5,8 +5,9 @@ pub(crate) mod authority;
 mod build_info;
 pub(crate) mod component;
 pub mod config;
+pub(crate) mod fee_asset_change;
 pub(crate) mod genesis;
-pub(crate) mod host_interface;
+pub(crate) mod ibc;
 #[cfg(feature = "mint")]
 pub(crate) mod mint;
 pub(crate) mod proposal;
