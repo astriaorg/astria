@@ -25,7 +25,13 @@ use sequencer_client::{
 use tokio::{
     select,
     sync::{
-        mpsc,
+        mpsc::{
+            self,
+            error::{
+                SendError,
+                TrySendError,
+            },
+        },
         oneshot,
         watch::{
             self,
@@ -43,7 +49,10 @@ use tracing::{
 use crate::celestia::ReconstructedBlock;
 
 mod builder;
+pub(crate) mod channel;
 pub(crate) mod optimism;
+
+use channel::soft_block_channel;
 
 mod client;
 mod state;
@@ -67,7 +76,7 @@ pub(crate) struct StateIsInit;
 #[derive(Debug, Clone)]
 pub(crate) struct Handle<TStateInit = StateNotInit> {
     firm_blocks: mpsc::Sender<ReconstructedBlock>,
-    soft_blocks: mpsc::Sender<SequencerBlock>,
+    soft_blocks: channel::Sender<SequencerBlock>,
     state: watch::Receiver<State>,
     _state_init: TStateInit,
 }
@@ -95,12 +104,36 @@ impl<T: Clone> Handle<T> {
 }
 
 impl Handle<StateIsInit> {
-    pub(crate) fn firm_blocks(&self) -> &mpsc::Sender<ReconstructedBlock> {
-        &self.firm_blocks
+    pub(crate) async fn send_firm_block(
+        self,
+        block: ReconstructedBlock,
+    ) -> Result<(), SendError<ReconstructedBlock>> {
+        self.firm_blocks.send(block).await
     }
 
-    pub(crate) fn soft_blocks(&self) -> &mpsc::Sender<SequencerBlock> {
-        &self.soft_blocks
+    // allow: return value of tokio's mpsc send try_send method
+    #[allow(clippy::result_large_err)]
+    pub(crate) fn try_send_firm_block(
+        &self,
+        block: ReconstructedBlock,
+    ) -> Result<(), TrySendError<ReconstructedBlock>> {
+        self.firm_blocks.try_send(block)
+    }
+
+    pub(crate) async fn send_soft_block_owned(
+        self,
+        block: SequencerBlock,
+    ) -> Result<(), channel::SendError> {
+        self.soft_blocks.send(block).await
+    }
+
+    // allow: this is mimicking tokio's `SendError` that returns the stack-allocated object.
+    #[allow(clippy::result_large_err)]
+    pub(crate) fn try_send_soft_block(
+        &self,
+        block: SequencerBlock,
+    ) -> Result<(), channel::TrySendError<SequencerBlock>> {
+        self.soft_blocks.try_send(block)
     }
 
     pub(crate) fn next_expected_firm_height(&mut self) -> SequencerHeight {
@@ -133,7 +166,7 @@ impl Handle<StateIsInit> {
 
 pub(crate) struct Executor {
     firm_blocks: mpsc::Receiver<ReconstructedBlock>,
-    soft_blocks: mpsc::Receiver<SequencerBlock>,
+    soft_blocks: channel::Receiver<SequencerBlock>,
 
     shutdown: oneshot::Receiver<()>,
 
@@ -172,7 +205,21 @@ impl Executor {
             .await
             .wrap_err("failed setting initial rollup node state")?;
 
+        let max_spread: usize = self.calculate_max_spread();
+        self.soft_blocks.set_capacity(max_spread);
+
+        info!(
+            max_spread,
+            "setting capacity of soft blocks channel to maximum permitted firm<>soft commitment \
+             spread (this has no effect if conductor is set to perform soft-sync only)"
+        );
+
         loop {
+            let spread_not_too_large = !self.is_spread_too_large(max_spread);
+            if spread_not_too_large {
+                self.soft_blocks.fill_permits();
+            }
+
             select!(
                 biased;
 
@@ -205,7 +252,7 @@ impl Executor {
                     }
                 }
 
-                Some(block) = self.soft_blocks.recv(), if !self.is_spread_too_large() => {
+                Some(block) = self.soft_blocks.recv(), if spread_not_too_large => {
                     debug!(
                         block.height = %block.height(),
                         block.hash = %telemetry::display::hex(&block.block_hash()),
@@ -226,13 +273,45 @@ impl Executor {
         // XXX: shut down the channels here and attempt to drain them before returning.
     }
 
-    fn is_spread_too_large(&self) -> bool {
+    /// Calculates the maximum allowed spread between firm and soft commitments heights.
+    ///
+    /// The maximum allowed spread is taken as `max_spread = variance * 6`, where `variance`
+    /// is the `celestia_block_variance` as defined in the rollup node's genesis that this
+    /// executor/conductor talks to.
+    ///
+    /// The heuristic 6 is the largest number of Sequencer heights that will be found at
+    /// one Celestia height.
+    ///
+    /// # Panics
+    /// Panics if the `u32` underlying the celestia block variance tracked in the state could
+    /// not be converted to a `usize`. This should never happen on any reasonable architecture
+    /// that Conductor will run on.
+    fn calculate_max_spread(&self) -> usize {
+        usize::try_from(self.state.borrow().celestia_block_variance())
+            .expect("converting a u32 to usize should work on any architecture conductor runs on")
+            .saturating_mul(6)
+    }
+
+    /// Returns if the spread between firm and soft commitment heights in the tracked state is too
+    /// large.
+    ///
+    /// Always returns `false` if this executor was configured with `consider_commitment_spread =
+    /// false`.
+    fn is_spread_too_large(&self, max_spread: usize) -> bool {
         if !self.consider_commitment_spread {
             return false;
         }
-        let next_firm = self.state.borrow().next_firm_sequencer_height().value();
-        let next_soft = self.state.borrow().next_soft_sequencer_height().value();
-        let is_too_far_ahead = next_soft.saturating_sub(next_firm) >= 16;
+        let (next_firm, next_soft) = {
+            let state = self.state.borrow();
+            let next_firm = state.next_firm_sequencer_height().value();
+            let next_soft = state.next_soft_sequencer_height().value();
+            (next_firm, next_soft)
+        };
+
+        let is_too_far_ahead = usize::try_from(next_soft.saturating_sub(next_firm))
+            .map(|spread| spread >= max_spread)
+            .unwrap_or(false);
+
         if is_too_far_ahead {
             debug!("soft blocks are too far ahead of firm; skipping soft blocks");
         }
@@ -467,7 +546,7 @@ impl ExecutableBlock {
         let timestamp = convert_tendermint_to_prost_timestamp(block.header().time);
         let transactions = block
             .into_rollup_transactions()
-            .remove(&id)
+            .swap_remove(&id)
             .unwrap_or_default();
         Self {
             hash,

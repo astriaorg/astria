@@ -11,8 +11,10 @@ use serde::{
     Serializer,
 };
 
-/// The high-level config for creating an astria-composer service.
+// this is a config, may have many boolean values
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Deserialize, Serialize)]
+/// The high-level config for creating an astria-composer service.
 pub struct Config {
     /// Log level. One of debug, info, warn, or error
     pub log: String,
@@ -37,11 +39,21 @@ pub struct Config {
     /// Max bytes to encode into a single sequencer `SignedTransaction`, not including signature,
     /// public key, nonce. This is the sum of the sizes of all the `SequenceAction`s
     pub max_bytes_per_bundle: usize,
+
     /// Forces writing trace data to stdout no matter if connected to a tty or not.
     pub force_stdout: bool,
 
     /// Disables writing trace data to an opentelemetry endpoint.
     pub no_otel: bool,
+
+    /// Set to true to disable the metrics server
+    pub no_metrics: bool,
+
+    /// The endpoint which will be listened on for serving prometheus metrics
+    pub metrics_http_listener_addr: String,
+
+    /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
+    pub pretty_print: bool,
 }
 
 impl config::Config for Config {

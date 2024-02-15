@@ -15,7 +15,10 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
-    state_ext::StateWriteExt as _,
+    state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     transaction::action_handler::ActionHandler,
 };
 
@@ -29,6 +32,11 @@ impl ActionHandler for TransferAction {
         state: &S,
         from: Address,
     ) -> Result<()> {
+        ensure!(
+            state.is_allowed_fee_asset(self.fee_asset_id).await?,
+            "invalid fee asset",
+        );
+
         let transfer_asset_id = self.asset_id;
 
         let from_fee_balance = state

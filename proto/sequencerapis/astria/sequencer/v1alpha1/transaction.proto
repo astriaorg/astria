@@ -3,7 +3,7 @@ syntax = "proto3";
 package astria.sequencer.v1alpha1;
 
 import "astria/primitive/v1/types.proto";
-import "astria_vendored/penumbra/core/component/ibc/v1alpha1/ibc.proto";
+import "astria_vendored/penumbra/core/component/ibc/v1/ibc.proto";
 import "astria_vendored/tendermint/abci/types.proto";
 
 // `SignedTransaction` is a transaction that has
@@ -31,8 +31,10 @@ message Action {
     astria_vendored.tendermint.abci.ValidatorUpdate validator_update_action = 3;
     SudoAddressChangeAction sudo_address_change_action = 4;
     MintAction mint_action = 5;
-    astria_vendored.penumbra.core.component.ibc.v1alpha1.IbcRelay ibc_action = 6;
+    astria_vendored.penumbra.core.component.ibc.v1.IbcRelay ibc_action = 6;
     Ics20Withdrawal ics20_withdrawal = 7;
+    IbcRelayerChangeAction ibc_relayer_change_action = 8;
+    FeeAssetChangeAction fee_asset_change_action = 9;
   }
 }
 
@@ -96,9 +98,32 @@ message Ics20Withdrawal {
   uint64 timeout_time = 6;
   // the source channel used for the withdrawal.
   string source_channel = 7;
+  // the asset used to pay the transaction fee
+  bytes fee_asset_id = 8;
 }
 
 message IbcHeight {
   uint64 revision_number = 1;
   uint64 revision_height = 2;
+}
+
+// `IbcRelayerChangeAction` represents a transaction that adds
+// or removes an IBC relayer address.
+// The bytes contained in each variant are the address to add or remove.
+message IbcRelayerChangeAction {
+  oneof value {
+    bytes addition = 1;
+    bytes removal = 2;
+  }
+}
+
+// `FeeAssetChangeAction` represents a transaction that adds
+// or removes an asset for fee payments.
+// The bytes contained in each variant are the 32-byte asset ID
+// to add or remove.
+message FeeAssetChangeAction {
+  oneof value {
+    bytes addition = 1;
+    bytes removal = 2;
+  }
 }

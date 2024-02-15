@@ -5,6 +5,9 @@ use serde::{
     Serialize,
 };
 
+// Allowed `struct_excessive_bools` because this is used as a container
+// for deserialization. Making this a builder-pattern is not actionable.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     /// The endpoint on which Sequencer will listen for ABCI requests
@@ -22,6 +25,12 @@ pub struct Config {
     pub force_stdout: bool,
     /// Disables writing trace data to an opentelemetry endpoint.
     pub no_otel: bool,
+    /// Set to true to disable the metrics server
+    pub no_metrics: bool,
+    /// The endpoint which will be listened on for serving prometheus metrics
+    pub metrics_http_listener_addr: String,
+    /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
+    pub pretty_print: bool,
 }
 
 impl config::Config for Config {

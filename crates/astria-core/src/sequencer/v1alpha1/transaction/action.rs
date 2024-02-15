@@ -6,7 +6,7 @@ use ibc_types::{
     IdentifierError,
 };
 use penumbra_ibc::IbcRelay;
-use penumbra_proto::penumbra::core::component::ibc::v1alpha1::FungibleTokenPacketData;
+use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
 
 use super::raw;
 use crate::{
@@ -32,6 +32,8 @@ pub enum Action {
     Mint(MintAction),
     Ibc(IbcRelay),
     Ics20Withdrawal(Ics20Withdrawal),
+    IbcRelayerChange(IbcRelayerChangeAction),
+    FeeAssetChange(FeeAssetChangeAction),
 }
 
 impl Action {
@@ -46,6 +48,8 @@ impl Action {
             Action::Mint(act) => Value::MintAction(act.into_raw()),
             Action::Ibc(act) => Value::IbcAction(act.into()),
             Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.into_raw()),
+            Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.into_raw()),
+            Action::FeeAssetChange(act) => Value::FeeAssetChangeAction(act.into_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -65,6 +69,8 @@ impl Action {
             Action::Mint(act) => Value::MintAction(act.to_raw()),
             Action::Ibc(act) => Value::IbcAction(act.clone().into()),
             Action::Ics20Withdrawal(act) => Value::Ics20Withdrawal(act.to_raw()),
+            Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.to_raw()),
+            Action::FeeAssetChange(act) => Value::FeeAssetChangeAction(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -107,6 +113,13 @@ impl Action {
             }
             Value::Ics20Withdrawal(act) => Self::Ics20Withdrawal(
                 Ics20Withdrawal::try_from_raw(act).map_err(ActionError::ics20_withdrawal)?,
+            ),
+            Value::IbcRelayerChangeAction(act) => Self::IbcRelayerChange(
+                IbcRelayerChangeAction::try_from_raw(&act)
+                    .map_err(ActionError::ibc_relayer_change)?,
+            ),
+            Value::FeeAssetChangeAction(act) => Self::FeeAssetChange(
+                FeeAssetChangeAction::try_from_raw(&act).map_err(ActionError::fee_asset_change)?,
             ),
         };
         Ok(action)
@@ -165,6 +178,18 @@ impl From<Ics20Withdrawal> for Action {
     }
 }
 
+impl From<IbcRelayerChangeAction> for Action {
+    fn from(value: IbcRelayerChangeAction) -> Self {
+        Self::IbcRelayerChange(value)
+    }
+}
+
+impl From<FeeAssetChangeAction> for Action {
+    fn from(value: FeeAssetChangeAction) -> Self {
+        Self::FeeAssetChange(value)
+    }
+}
+
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -202,6 +227,14 @@ impl ActionError {
     fn ics20_withdrawal(inner: Ics20WithdrawalError) -> Self {
         Self(ActionErrorKind::Ics20Withdrawal(inner))
     }
+
+    fn ibc_relayer_change(inner: IbcRelayerChangeActionError) -> Self {
+        Self(ActionErrorKind::IbcRelayerChange(inner))
+    }
+
+    fn fee_asset_change(inner: FeeAssetChangeActionError) -> Self {
+        Self(ActionErrorKind::FeeAssetChange(inner))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -222,6 +255,10 @@ enum ActionErrorKind {
     Ibc(#[source] Box<dyn std::error::Error + Send + Sync>),
     #[error("ics20 withdrawal action was not valid")]
     Ics20Withdrawal(#[source] Ics20WithdrawalError),
+    #[error("ibc relayer change action was not valid")]
+    IbcRelayerChange(#[source] IbcRelayerChangeActionError),
+    #[error("fee asset change action was not valid")]
+    FeeAssetChange(#[source] FeeAssetChangeActionError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -564,6 +601,8 @@ pub struct Ics20Withdrawal {
     timeout_time: u64,
     // the source channel used for the withdrawal.
     source_channel: ChannelId,
+    // the asset to use for fee payment.
+    fee_asset_id: asset::Id,
 }
 
 impl Ics20Withdrawal {
@@ -603,6 +642,11 @@ impl Ics20Withdrawal {
     }
 
     #[must_use]
+    pub fn fee_asset_id(&self) -> &asset::Id {
+        &self.fee_asset_id
+    }
+
+    #[must_use]
     pub fn to_fungible_token_packet_data(&self) -> FungibleTokenPacketData {
         FungibleTokenPacketData {
             amount: self.amount.to_string(),
@@ -622,6 +666,7 @@ impl Ics20Withdrawal {
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
+            fee_asset_id: self.fee_asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -635,6 +680,7 @@ impl Ics20Withdrawal {
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
+            fee_asset_id: self.fee_asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -667,6 +713,8 @@ impl Ics20Withdrawal {
                 .source_channel
                 .parse()
                 .map_err(Ics20WithdrawalError::invalid_source_channel)?,
+            fee_asset_id: asset::Id::try_from_slice(&proto.fee_asset_id)
+                .map_err(Ics20WithdrawalError::invalid_fee_asset_id)?,
         })
     }
 }
@@ -699,7 +747,6 @@ impl Protobuf for IbcHeight {
     }
 }
 
-#[allow(clippy::module_name_repetitions)]
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct Ics20WithdrawalError(Ics20WithdrawalErrorKind);
@@ -724,6 +771,11 @@ impl Ics20WithdrawalError {
     fn invalid_source_channel(err: IdentifierError) -> Self {
         Self(Ics20WithdrawalErrorKind::InvalidSourceChannel(err))
     }
+
+    #[must_use]
+    fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
+        Self(Ics20WithdrawalErrorKind::InvalidFeeAssetId(err))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -731,9 +783,195 @@ enum Ics20WithdrawalErrorKind {
     #[error("`amount` field was missing")]
     MissingAmount,
     #[error("`return_address` field was invalid")]
-    InvalidReturnAddress(IncorrectAddressLength),
+    InvalidReturnAddress(#[source] IncorrectAddressLength),
     #[error("`timeout_height` field was missing")]
     MissingTimeoutHeight,
     #[error("`source_channel` field was invalid")]
-    InvalidSourceChannel(IdentifierError),
+    InvalidSourceChannel(#[source] IdentifierError),
+    #[error("`fee_asset_id` field was invalid")]
+    InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
+}
+
+#[allow(clippy::module_name_repetitions)]
+#[derive(Debug, Clone)]
+pub enum IbcRelayerChangeAction {
+    Addition(Address),
+    Removal(Address),
+}
+
+impl IbcRelayerChangeAction {
+    #[must_use]
+    pub fn into_raw(self) -> raw::IbcRelayerChangeAction {
+        match self {
+            IbcRelayerChangeAction::Addition(address) => raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Addition(
+                    address.to_vec(),
+                )),
+            },
+            IbcRelayerChangeAction::Removal(address) => raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Removal(
+                    address.to_vec(),
+                )),
+            },
+        }
+    }
+
+    #[must_use]
+    pub fn to_raw(&self) -> raw::IbcRelayerChangeAction {
+        match self {
+            IbcRelayerChangeAction::Addition(address) => raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Addition(
+                    address.to_vec(),
+                )),
+            },
+            IbcRelayerChangeAction::Removal(address) => raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Removal(
+                    address.to_vec(),
+                )),
+            },
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::IbcRelayerChangeAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `address` field is invalid
+    pub fn try_from_raw(
+        raw: &raw::IbcRelayerChangeAction,
+    ) -> Result<Self, IbcRelayerChangeActionError> {
+        match raw {
+            raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Addition(address)),
+            } => {
+                let address = Address::try_from_slice(address)
+                    .map_err(IbcRelayerChangeActionError::invalid_address)?;
+                Ok(IbcRelayerChangeAction::Addition(address))
+            }
+            raw::IbcRelayerChangeAction {
+                value: Some(raw::ibc_relayer_change_action::Value::Removal(address)),
+            } => {
+                let address = Address::try_from_slice(address)
+                    .map_err(IbcRelayerChangeActionError::invalid_address)?;
+                Ok(IbcRelayerChangeAction::Removal(address))
+            }
+            _ => Err(IbcRelayerChangeActionError::missing_address()),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct IbcRelayerChangeActionError(IbcRelayerChangeActionErrorKind);
+
+impl IbcRelayerChangeActionError {
+    #[must_use]
+    fn invalid_address(err: IncorrectAddressLength) -> Self {
+        Self(IbcRelayerChangeActionErrorKind::InvalidAddress(err))
+    }
+
+    #[must_use]
+    fn missing_address() -> Self {
+        Self(IbcRelayerChangeActionErrorKind::MissingAddress)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum IbcRelayerChangeActionErrorKind {
+    #[error("the address was invalid")]
+    InvalidAddress(#[source] IncorrectAddressLength),
+    #[error("the address was missing")]
+    MissingAddress,
+}
+
+#[allow(clippy::module_name_repetitions)]
+#[derive(Debug, Clone)]
+pub enum FeeAssetChangeAction {
+    Addition(asset::Id),
+    Removal(asset::Id),
+}
+
+impl FeeAssetChangeAction {
+    #[must_use]
+    pub fn into_raw(self) -> raw::FeeAssetChangeAction {
+        match self {
+            FeeAssetChangeAction::Addition(asset_id) => raw::FeeAssetChangeAction {
+                value: Some(raw::fee_asset_change_action::Value::Addition(
+                    asset_id.as_bytes().to_vec(),
+                )),
+            },
+            FeeAssetChangeAction::Removal(asset_id) => raw::FeeAssetChangeAction {
+                value: Some(raw::fee_asset_change_action::Value::Removal(
+                    asset_id.as_bytes().to_vec(),
+                )),
+            },
+        }
+    }
+
+    #[must_use]
+    pub fn to_raw(&self) -> raw::FeeAssetChangeAction {
+        match self {
+            FeeAssetChangeAction::Addition(asset_id) => raw::FeeAssetChangeAction {
+                value: Some(raw::fee_asset_change_action::Value::Addition(
+                    asset_id.as_bytes().to_vec(),
+                )),
+            },
+            FeeAssetChangeAction::Removal(asset_id) => raw::FeeAssetChangeAction {
+                value: Some(raw::fee_asset_change_action::Value::Removal(
+                    asset_id.as_bytes().to_vec(),
+                )),
+            },
+        }
+    }
+
+    /// Convert from a raw, unchecked protobuf [`raw::FeeAssetChangeAction`].
+    ///
+    /// # Errors
+    ///
+    /// - if the `asset_id` field is invalid
+    pub fn try_from_raw(
+        raw: &raw::FeeAssetChangeAction,
+    ) -> Result<Self, FeeAssetChangeActionError> {
+        match raw {
+            raw::FeeAssetChangeAction {
+                value: Some(raw::fee_asset_change_action::Value::Addition(asset_id)),
+            } => {
+                let asset_id = asset::Id::try_from_slice(asset_id)
+                    .map_err(FeeAssetChangeActionError::invalid_asset_id)?;
+                Ok(FeeAssetChangeAction::Addition(asset_id))
+            }
+            raw::FeeAssetChangeAction {
+                value: Some(raw::fee_asset_change_action::Value::Removal(asset_id)),
+            } => {
+                let asset_id = asset::Id::try_from_slice(asset_id)
+                    .map_err(FeeAssetChangeActionError::invalid_asset_id)?;
+                Ok(FeeAssetChangeAction::Removal(asset_id))
+            }
+            _ => Err(FeeAssetChangeActionError::missing_asset_id()),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct FeeAssetChangeActionError(FeeAssetChangeActionErrorKind);
+
+impl FeeAssetChangeActionError {
+    #[must_use]
+    fn invalid_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
+        Self(FeeAssetChangeActionErrorKind::InvalidAssetId(err))
+    }
+
+    #[must_use]
+    fn missing_asset_id() -> Self {
+        Self(FeeAssetChangeActionErrorKind::MissingAssetId)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum FeeAssetChangeActionErrorKind {
+    #[error("the asset_id was invalid")]
+    InvalidAssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("the asset_id was missing")]
+    MissingAssetId,
 }

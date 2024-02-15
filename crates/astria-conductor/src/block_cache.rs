@@ -24,7 +24,6 @@ impl GetSequencerHeight for SequencerBlock {
 pub(crate) struct BlockCache<T> {
     inner: BTreeMap<u64, T>,
     next_height: u64,
-    prev_height: u64,
 }
 
 impl<T> BlockCache<T> {
@@ -34,11 +33,9 @@ impl<T> BlockCache<T> {
         if next_height == 0 {
             return Err(Error::ZeroHeightsNotSupported);
         }
-        let prev_height = next_height - 1;
         Ok(Self {
             inner: BTreeMap::new(),
             next_height,
-            prev_height,
         })
     }
 }
@@ -48,7 +45,6 @@ impl<T> BlockCache<T> {
     pub(crate) fn pop(&mut self) -> Option<T> {
         let block = self.inner.remove(&self.next_height)?;
         self.next_height += 1;
-        self.prev_height += 1;
         Some(block)
     }
 
@@ -95,31 +91,6 @@ impl<T: GetSequencerHeight> BlockCache<T> {
             }),
         }
     }
-
-    /// Reschedules a block at the previous height.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// + the height of the block is not equal to the previous height recorded in the struct.
-    /// + the height of the block is at level 0.
-    pub(crate) fn reschedule_block(&mut self, block: T) -> Result<(), Error> {
-        let block_height = block.get_height().value();
-        if block_height == 0 {
-            return Err(Error::ReschedulingZeroBlockHeight);
-        }
-        if block_height != self.prev_height {
-            return Err(Error::ReschedulingWrongBlockHeight {
-                block_height,
-                prev_height: self.prev_height,
-            });
-        }
-        self.prev_height -= 1;
-        self.next_height -= 1;
-        let res = self.inner.insert(block_height, block);
-        assert!(res.is_none(), "no block must exist at the previous height");
-        Ok(())
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -133,13 +104,6 @@ pub(crate) enum Error {
         block_height: u64,
         current_height: u64,
     },
-    #[error("rescheduling blocks with height 0 are not permitted")]
-    ReschedulingZeroBlockHeight,
-    #[error(
-        "can only reschdule blocks at the immediate previous height. Previous height \
-         {prev_height}, block height {block_height}"
-    )]
-    ReschedulingWrongBlockHeight { block_height: u64, prev_height: u64 },
     #[error("starting heights of zero are not supported")]
     ZeroHeightsNotSupported,
 }

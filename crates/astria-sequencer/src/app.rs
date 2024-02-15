@@ -26,7 +26,10 @@ use cnidarium::{
     StateDelta,
     Storage,
 };
-use penumbra_ibc::component::IBCComponent;
+use penumbra_ibc::{
+    component::Ibc,
+    genesis::Content,
+};
 use prost::Message as _;
 use sha2::{
     Digest as _,
@@ -171,6 +174,10 @@ impl App {
         state_tx.put_chain_id(chain_id);
         state_tx.put_block_height(0);
 
+        for fee_asset in &genesis_state.allowed_fee_assets {
+            state_tx.put_allowed_fee_asset(fee_asset.id());
+        }
+
         // call init_chain on all components
         AccountsComponent::init_chain(&mut state_tx, &genesis_state)
             .await
@@ -184,7 +191,13 @@ impl App {
         )
         .await
         .context("failed to call init_chain on AuthorityComponent")?;
-        IBCComponent::init_chain(&mut state_tx, Some(&())).await;
+        Ibc::init_chain(
+            &mut state_tx,
+            Some(&Content {
+                ibc_params: genesis_state.ibc_params,
+            }),
+        )
+        .await;
 
         state_tx.apply();
         Ok(())
@@ -421,7 +434,7 @@ impl App {
         AuthorityComponent::begin_block(&mut arc_state_tx, begin_block)
             .await
             .context("failed to call begin_block on AuthorityComponent")?;
-        IBCComponent::begin_block::<AstriaHost, StateDelta<Arc<StateDelta<cnidarium::Snapshot>>>>(
+        Ibc::begin_block::<AstriaHost, StateDelta<Arc<StateDelta<cnidarium::Snapshot>>>>(
             &mut arc_state_tx,
             begin_block,
         )
@@ -544,7 +557,7 @@ impl App {
         AuthorityComponent::end_block(&mut arc_state_tx, end_block)
             .await
             .context("failed to call end_block on AuthorityComponent")?;
-        IBCComponent::end_block(&mut arc_state_tx, end_block).await;
+        Ibc::end_block(&mut arc_state_tx, end_block).await;
 
         let mut state_tx = Arc::try_unwrap(arc_state_tx)
             .expect("components should not retain copies of shared state");
@@ -676,6 +689,7 @@ mod test {
         asset::DEFAULT_NATIVE_ASSET_DENOM,
         transaction::action::{
             Action,
+            IbcRelayerChangeAction,
             SequenceAction,
             SudoAddressChangeAction,
             TransferAction,
@@ -686,6 +700,7 @@ mod test {
         ADDRESS_LEN,
     };
     use ed25519_consensus::SigningKey;
+    use penumbra_ibc::params::IBCParameters;
     use tendermint::{
         abci::types::CommitInfo,
         account,
@@ -774,7 +789,10 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: Address::from([0; 20]),
             ibc_sudo_address: Address::from([0; 20]),
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         });
 
         app.init_chain(genesis_state, genesis_validators, "test".to_string())
@@ -843,7 +861,7 @@ mod test {
             },
             byzantine_validators: vec![],
         };
-        begin_block.header.height = Height::try_from(1u8).unwrap();
+        begin_block.header.height = 1u8.into();
 
         app.begin_block(&begin_block, storage).await.unwrap();
         assert_eq!(app.state.get_block_height().await.unwrap(), 1);
@@ -900,7 +918,7 @@ mod test {
             },
             byzantine_validators: vec![misbehavior],
         };
-        begin_block.header.height = Height::try_from(1u8).unwrap();
+        begin_block.header.height = 1u8.into();
 
         app.begin_block(&begin_block, storage).await.unwrap();
 
@@ -1093,6 +1111,31 @@ mod test {
     }
 
     #[tokio::test]
+    async fn app_deliver_tx_invalid_fee_asset() {
+        let mut app = initialize_app(None, vec![]).await;
+
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let data = b"hello world".to_vec();
+
+        let fee_asset_id = asset::Id::from_denom("test");
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                SequenceAction {
+                    rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
+                    data,
+                    fee_asset_id,
+                }
+                .into(),
+            ],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        assert!(app.deliver_tx(signed_tx).await.is_err());
+    }
+
+    #[tokio::test]
     async fn app_deliver_tx_validator_update() {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
@@ -1100,7 +1143,10 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: alice_address,
             ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1125,6 +1171,82 @@ mod test {
     }
 
     #[tokio::test]
+    async fn app_deliver_tx_ibc_relayer_change_addition() {
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![],
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            ibc_params: IBCParameters::default(),
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![IbcRelayerChangeAction::Addition(alice_address).into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+        assert!(app.state.is_ibc_relayer(&alice_address).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_ibc_relayer_change_deletion() {
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![alice_address],
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            ibc_params: IBCParameters::default(),
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+        assert!(!app.state.is_ibc_relayer(&alice_address).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_ibc_relayer_change_invalid() {
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: Address::from([0; 20]),
+            ibc_relayer_addresses: vec![alice_address],
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            ibc_params: IBCParameters::default(),
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![IbcRelayerChangeAction::Removal(alice_address).into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        assert!(app.deliver_tx(signed_tx).await.is_err());
+    }
+
+    #[tokio::test]
     async fn app_deliver_tx_sudo_address_change() {
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
@@ -1132,7 +1254,10 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: alice_address,
             ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1162,7 +1287,10 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: sudo_address,
             ibc_sudo_address: [0u8; 20].into(),
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1183,6 +1311,110 @@ mod test {
         assert!(res.contains("signer is not the sudo key"));
     }
 
+    #[tokio::test]
+    async fn app_deliver_tx_fee_asset_change_addition() {
+        use astria_core::sequencer::v1alpha1::transaction::action::FeeAssetChangeAction;
+
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![],
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let new_asset = asset::Id::from_denom("test");
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Addition(
+                new_asset,
+            ))],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+
+        assert!(app.state.is_allowed_fee_asset(new_asset).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_fee_asset_change_removal() {
+        use astria_core::sequencer::v1alpha1::transaction::action::FeeAssetChangeAction;
+
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let test_asset = asset::Denom::from_base_denom("test");
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![],
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into(), test_asset.clone()],
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Removal(
+                test_asset.id(),
+            ))],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+
+        assert!(
+            !app.state
+                .is_allowed_fee_asset(test_asset.id())
+                .await
+                .unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_fee_asset_change_invalid() {
+        use astria_core::sequencer::v1alpha1::transaction::action::FeeAssetChangeAction;
+
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+
+        let genesis_state = GenesisState {
+            accounts: default_genesis_accounts(),
+            authority_sudo_address: alice_address,
+            ibc_sudo_address: alice_address,
+            ibc_relayer_addresses: vec![],
+            native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+        };
+        let mut app = initialize_app(Some(genesis_state), vec![]).await;
+
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![Action::FeeAssetChange(FeeAssetChangeAction::Removal(
+                get_native_asset().id(),
+            ))],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        let res = app
+            .deliver_tx(signed_tx)
+            .await
+            .unwrap_err()
+            .root_cause()
+            .to_string();
+        assert!(res.contains("cannot remove last allowed fee asset"));
+    }
+
     #[cfg(feature = "mint")]
     #[tokio::test]
     async fn app_deliver_tx_mint() {
@@ -1192,7 +1424,10 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: alice_address,
             ibc_sudo_address: [0u8; 20].into(),
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1339,7 +1574,10 @@ mod test {
             accounts: default_genesis_accounts(),
             authority_sudo_address: Address::from([0; 20]),
             ibc_sudo_address: Address::from([0; 20]),
+            ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+            ibc_params: IBCParameters::default(),
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
         };
 
         let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
@@ -1392,7 +1630,7 @@ mod test {
             },
             byzantine_validators: vec![],
         };
-        begin_block.header.height = Height::try_from(1u8).unwrap();
+        begin_block.header.height = 1u8.into();
         let proposer_address =
             Address::try_from_slice(begin_block.header.proposer_address.as_bytes()).unwrap();
 
