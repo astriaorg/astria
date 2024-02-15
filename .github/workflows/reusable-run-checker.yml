@@ -61,6 +61,7 @@ jobs:
               - '.github/workflows/reusable-docker-build.yml'
               - 'containerfiles/**'
               - '.dockerignore'
+              - 'Cargo.lock'
             lint_workflow:
               - '.github/workflows/lint.yml'
             crates:
