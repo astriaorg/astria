@@ -90,6 +90,9 @@ async fn setup() -> (MockServer, MockGuard, Config) {
         max_bytes_per_bundle: 1000,
         no_otel: false,
         force_stdout: false,
+        no_metrics: false,
+        metrics_http_listener_addr: String::new(),
+        pretty_print: true,
     };
     (server, startup_guard, cfg)
 }

@@ -269,8 +269,7 @@ fn verify_vote_signature(
     public_key
         .verify(
             &signature,
-            &sequencer_client::tendermint_proto::types::CanonicalVote::try_from(canonical_vote)
-                .wrap_err("failed to turn commit canonical vote into proto type")?
+            &sequencer_client::tendermint_proto::types::CanonicalVote::from(canonical_vote)
                 .encode_length_delimited_to_vec(),
         )
         .wrap_err("failed to verify vote signature")?;
@@ -352,8 +351,7 @@ mod test {
             chain_id,
         };
 
-        let message = tendermint_proto::types::CanonicalVote::try_from(canonical_vote)
-            .unwrap()
+        let message = tendermint_proto::types::CanonicalVote::from(canonical_vote)
             .encode_length_delimited_to_vec();
 
         let signature = signing_key.sign(&message);

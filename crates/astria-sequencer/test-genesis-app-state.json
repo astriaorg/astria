@@ -15,5 +15,12 @@
   ],
   "authority_sudo_address": "1c0c490f1b5528d8173c5de46d131160e4b2c0c3",
   "ibc_sudo_address": "1c0c490f1b5528d8173c5de46d131160e4b2c0c3",
-  "native_asset_base_denomination": "nria"
+  "ibc_relayer_addresses": ["1c0c490f1b5528d8173c5de46d131160e4b2c0c3", "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a"],
+  "ibc_params": {
+    "ibc_enabled": true,
+    "inbound_ics20_transfers_enabled": true,
+    "outbound_ics20_transfers_enabled": true
+  },
+  "native_asset_base_denomination": "nria",
+  "allowed_fee_assets": ["nria"]
 }
