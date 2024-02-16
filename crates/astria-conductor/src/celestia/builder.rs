@@ -1,5 +1,7 @@
 //! Boilerplate to construct a [`super::Reader`] via a type-state builder.
 
+use std::str::FromStr;
+
 use celestia_client::celestia_types::nmt::Namespace;
 use deadpool::managed::Pool;
 use eyre::{
@@ -7,7 +9,10 @@ use eyre::{
     WrapErr as _,
 };
 use http::{
-    uri::Scheme,
+    uri::{
+        PathAndQuery,
+        Scheme,
+    },
     Uri,
 };
 use tokio::sync::oneshot;
@@ -58,28 +63,12 @@ impl
 
         let block_verifier = BlockVerifier::new(sequencer_client_pool);
 
-        let uri = celestia_endpoint
-            .parse::<Uri>()
-            .wrap_err("failed to parse the provided celestia endpoint as a URL")?;
-        let is_tls = matches!(uri.scheme().map(Scheme::as_str), Some("https" | "wss"));
-
-        let ws_endpoint = {
-            let mut parts = uri.clone().into_parts();
-            parts
-                .scheme
-                .replace(is_tls.then(wss_scheme).unwrap_or_else(ws_scheme));
-            Uri::from_parts(parts)
-        }
-        .wrap_err("failed constructing websocket endpoint from provided celestia endpoint URL")?;
-
-        let http_endpoint = {
-            let mut parts = uri.clone().into_parts();
-            parts
-                .scheme
-                .replace(if is_tls { Scheme::HTTPS } else { Scheme::HTTP });
-            Uri::from_parts(parts)
-        }
-        .wrap_err("failed constructing http endpoint from provided celestia endpoint URL")?;
+        let Endpoints {
+            http: http_endpoint,
+            websocket: ws_endpoint,
+        } = celestia_endpoint.parse::<Endpoints>().wrap_err(
+            "failed constructing Celestia HTTP and websocket RPC endpoints from provided URI",
+        )?;
 
         Ok(Reader {
             executor,
@@ -319,14 +308,176 @@ fn wss_scheme() -> Scheme {
     "wss".parse::<_>().unwrap()
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct Endpoints {
+    http: Uri,
+    websocket: Uri,
+}
+
+impl FromStr for Endpoints {
+    type Err = eyre::Report;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let uri = s.parse::<Uri>().wrap_err("failed to parse as URI")?;
+        let is_tls = matches!(uri.scheme().map(Scheme::as_str), Some("https" | "wss"));
+
+        let http = make_uri(uri.clone(), EndpointKind::Http, is_tls)
+            .wrap_err("failed constructing http endpoint from parsed URI")?;
+        let websocket = make_uri(uri.clone(), EndpointKind::Ws, is_tls)
+            .wrap_err("failed constructing websocket endpoint parsed URI")?;
+
+        Ok(Self {
+            http,
+            websocket,
+        })
+    }
+}
+
+enum EndpointKind {
+    Http,
+    Ws,
+}
+
+fn make_uri(uri: Uri, kind: EndpointKind, tls: bool) -> Result<Uri, http::uri::InvalidUriParts> {
+    let mut parts = uri.clone().into_parts();
+    let scheme = match (kind, tls) {
+        (EndpointKind::Http, true) => Scheme::HTTPS,
+        (EndpointKind::Http, false) => Scheme::HTTP,
+        (EndpointKind::Ws, true) => wss_scheme(),
+        (EndpointKind::Ws, false) => ws_scheme(),
+    };
+    parts.scheme.replace(scheme);
+    // `Uri::from_parts` fails if scheme is set but path_and_query is empty.
+    parts
+        .path_and_query
+        .get_or_insert(PathAndQuery::from_static("/"));
+    Uri::from_parts(parts)
+}
+
 #[cfg(test)]
 mod tests {
+    use http::{
+        uri::{
+            Authority,
+            Parts,
+            PathAndQuery,
+            Scheme,
+        },
+        Uri,
+    };
+
+    use super::{
+        ws_scheme,
+        wss_scheme,
+        Endpoints,
+    };
+
     #[test]
     fn ws_scheme_utility_works() {
-        assert_eq!(&super::ws_scheme(), "ws");
+        assert_eq!(&ws_scheme(), "ws");
     }
+
     #[test]
     fn wss_scheme_utility_works() {
-        assert_eq!(&super::wss_scheme(), "wss");
+        assert_eq!(&wss_scheme(), "wss");
+    }
+
+    #[test]
+    fn strings_are_parsed_as_endpoints() {
+        // This runs `astria.org` and `192.168.0.1` as inputs to various tests
+        // that should all lead to the same pair of endpoints.
+        //
+        // The following inputs are constructed:
+        //
+        // astria.org
+        // astria.org/
+        // http://astria.org
+        // https://astria.org
+        // ws://astria.org
+        // wss://astria.org
+        //
+        // 192.168.0.1
+        // 192.168.0.1/
+        // http://192.168.0.1
+        // https://192.168.0.1
+        // ws://192.168.0.1
+        // wss://192.168.0.1
+        assert_authority_is_parsed_as_endpoints("astria.org");
+        assert_authority_is_parsed_as_endpoints("192.168.0.1");
+    }
+
+    #[track_caller]
+    fn assert_endpoints_parsed(s: &str, expected: &Endpoints, assert_msg: &'static str) {
+        let actual = s
+            .parse::<Endpoints>()
+            .expect("passed string should be a valid URI");
+        assert_eq!(&actual, expected, "{assert_msg}");
+    }
+
+    fn make_endpoints(authority: &'static str, tls: bool) -> Endpoints {
+        let http_endpoint = {
+            let mut parts = Parts::default();
+            parts
+                .scheme
+                .replace(if tls { Scheme::HTTPS } else { Scheme::HTTP });
+            parts.authority.replace(Authority::from_static(authority));
+            parts.path_and_query.replace(PathAndQuery::from_static("/"));
+            Uri::from_parts(parts).expect("all required URI parts should be set")
+        };
+        let ws_endpoint = {
+            let mut parts = Parts::default();
+            parts
+                .scheme
+                .replace(if tls { wss_scheme() } else { ws_scheme() });
+            parts.authority.replace(Authority::from_static(authority));
+            parts.path_and_query.replace(PathAndQuery::from_static("/"));
+            Uri::from_parts(parts).expect("all required URI parts should be set")
+        };
+        Endpoints {
+            http: http_endpoint,
+            websocket: ws_endpoint,
+        }
+    }
+
+    #[track_caller]
+    fn assert_authority_is_parsed_as_endpoints(authority: &'static str) {
+        let non_tls_endpoints = make_endpoints(authority, false);
+        let tls_endpoints = make_endpoints(authority, true);
+        assert_endpoints_parsed(
+            authority,
+            &non_tls_endpoints,
+            "URI with only authority but no scheme nor path should give expected http and ws \
+             endpoints",
+        );
+        assert_endpoints_parsed(
+            &format!("{authority}/"),
+            &non_tls_endpoints,
+            "URI with authority and empty path but no scheme should lead to expected ws and http \
+             endpoints",
+        );
+        assert_endpoints_parsed(
+            &format!("ws://{authority}"),
+            &non_tls_endpoints,
+            "URI with authority and ws scheme but no path should lead to expected ws and http \
+             endpoints",
+        );
+        assert_endpoints_parsed(
+            &format!("http://{authority}"),
+            &non_tls_endpoints,
+            "URI with authority and http scheme but no path should lead to expected ws and http \
+             endpoints",
+        );
+        assert_endpoints_parsed(
+            &format!("wss://{authority}"),
+            &tls_endpoints,
+            "URI with authority and wss scheme but no path should lead to expected wss and https \
+             endpoints",
+        );
+        assert_endpoints_parsed(
+            &format!("https://{authority}"),
+            &tls_endpoints,
+            "URI with authority and https scheme but no path should lead to expected ws and http \
+             endpoints",
+        );
     }
 }
