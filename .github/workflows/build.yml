@@ -17,38 +17,44 @@ on:
 
 jobs:
   cli:
-    uses: './.github/workflows/reusable-build.yml'
+    uses: "./.github/workflows/reusable-build.yml"
     with:
-      package-name: 'cli'
+      package-name: "cli"
       git-ref: ${{ inputs.ref || github.ref }}
 
   conductor:
-    uses: './.github/workflows/reusable-build.yml'
+    uses: "./.github/workflows/reusable-build.yml"
     with:
-      package-name: 'conductor'
+      package-name: "conductor"
       git-ref: ${{ inputs.ref || github.ref }}
-  
+
   composer:
-    uses: './.github/workflows/reusable-build.yml'
+    uses: "./.github/workflows/reusable-build.yml"
     with:
-      package-name: 'composer'
+      package-name: "composer"
       git-ref: ${{ inputs.ref || github.ref }}
 
   sequencer:
-    uses: './.github/workflows/reusable-build.yml'
+    uses: "./.github/workflows/reusable-build.yml"
     with:
-      package-name: 'sequencer'
+      package-name: "sequencer"
       git-ref: ${{ inputs.ref || github.ref }}
 
   relayer:
-    uses: './.github/workflows/reusable-build.yml'
+    uses: "./.github/workflows/reusable-build.yml"
     with:
-      package-name: 'sequencer-relayer'
+      package-name: "sequencer-relayer"
+      git-ref: ${{ inputs.ref || github.ref }}
+
+  sequencer-utils:
+    uses: "./.github/workflows/reusable-build.yml"
+    with:
+      package-name: "sequencer-utils"
       git-ref: ${{ inputs.ref || github.ref }}
 
   build:
     if: ${{ always() && !cancelled() }}
-    needs: [cli, composer, conductor, sequencer, relayer]
+    needs: [cli, composer, conductor, sequencer, relayer, sequencer-utils]
     uses: ./.github/workflows/reusable-success.yml
     with:
       success: ${{ !contains(needs.*.result, 'failure') }}
