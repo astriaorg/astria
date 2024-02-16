@@ -159,8 +159,6 @@ impl Reader {
                 .await
                 .wrap_err("failed to subscribe to celestia headers")?;
 
-        info!("subscribed to celestia headers, in theory");
-
         let latest_celestia_height = match headers.next().await {
             Some(Ok(header)) => header.height(),
             Some(Err(e)) => {
@@ -594,7 +592,6 @@ async fn subscribe_to_celestia_headers(
                 futures::future::ready(())
             },
         );
-
 
     tryhard::retry_fn(|| async move {
         let client = connect(endpoint, token)
