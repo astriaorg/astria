@@ -1,0 +1,14 @@
+default:
+  @just --list
+
+download-binaries-macos-aarch64:
+    sh download-binaries-macos-aarch64.sh
+
+run-cometbft:
+  ./bin/cometbft/cometbft init
+  cp genesis.json ~/.cometbft/config/genesis.json
+  sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "2s"/g' ~/.cometbft/config/config.toml
+  ./bin/cometbft/cometbft node
+
+clean:
+    rm -rf bin
