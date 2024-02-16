@@ -9,6 +9,9 @@ on:
       target-binary:
         required: true
         type: string
+      git-ref:
+        required: true
+        type: string
     secrets:
       DOCKER_TOKEN:
         required: true
@@ -20,10 +23,12 @@ env:
 jobs:
   build-and-push:
     runs-on: buildjet-8vcpu-ubuntu-2204
-    if: ${{ startsWith(github.ref, format('refs/tags/{0}-v', inputs.package-name)) || github.ref == 'refs/heads/main' || github.event_name == 'pull_request' }}
+    if: ${{ startsWith(inputs.git-ref, format('refs/tags/{0}-v', inputs.package-name)) || inputs.git-ref == 'refs/heads/main' || github.event_name == 'pull_request' }}
     steps:
       # Checking out the repo
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.git-ref }}
       # https://github.com/docker/setup-qemu-action
       - name: Login to Docker Hub
         uses: docker/login-action@v2
@@ -50,10 +55,10 @@ jobs:
           images: ${{ format('ghcr.io/astriaorg/{0}', inputs.package-name) }}
           tags: |
             type=ref,event=pr
-            type=match,pattern=([a-z-]+)-v(.*),group=2
+            type=match,pattern=refs/tags/([a-z-]+)-v(.*),group=2,enable=${{ startsWith('refs/tags/', inputs.git-ref) }},value=${{ inputs.git-ref }}
             type=sha
             # set latest tag for `main` branch
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+            type=raw,value=latest,enable=${{ inputs.git-ref == format('refs/heads/{0}', 'main') }}
       - name: Build and push
         uses: docker/build-push-action@v4
         with:

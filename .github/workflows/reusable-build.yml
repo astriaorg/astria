@@ -6,13 +6,16 @@ on:
       package-name:
         required: true
         type: string
+      git-ref:
+        required: true
+        type: string
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
   upload-binaries:
-    if: startsWith(github.ref, format('refs/tags/{0}-v', inputs.package-name)) || github.event_name == 'workflow_dispatch'
+    if: startsWith(inputs.git-ref, format('refs/tags/{0}-v', inputs.package-name)) || github.event_name == 'workflow_dispatch'
     strategy:
       matrix:
         include:
@@ -28,6 +31,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.git-ref }}
       - uses: dtolnay/rust-toolchain@1.76.0
       - uses: arduino/setup-protoc@v2
         with:
@@ -35,8 +40,9 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
+          ref: ${{ inputs.git-ref }}
           bin: astria-${{ inputs.package-name }}
-          dry-run: ${{ !startsWith(github.ref, format('refs/tags/{0}-v', inputs.package-name)) }}
+          dry-run: ${{ !startsWith(inputs.git-ref, format('refs/tags/{0}-v', inputs.package-name)) }}
           # (optional) Target triple, default is host triple.
           target: ${{ matrix.target }}
           # (optional) Tool to build binaries (cargo, cross, or cargo-zigbuild)
