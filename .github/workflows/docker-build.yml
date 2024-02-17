@@ -4,10 +4,8 @@ name: Docker
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: |
-          Fully qualified git ref which will be checked out and built. Defaults to using the branch workflow is run on.
-          Example: refs/tags/sequencer-v0.8.0 will then only build sequencer code at that tag.
+      tag:
+        description: Git branch, or tag to build from.
         required: false
   push:
     branches:
@@ -38,7 +36,7 @@ jobs:
     with:
       package-name: composer
       target-binary: astria-composer
-      git-ref: ${{ inputs.ref || github.ref }}
+      tag: ${{ inputs.tag }}
     secrets: inherit
 
   conductor:
@@ -48,7 +46,7 @@ jobs:
     with:
       package-name: conductor
       target-binary: astria-conductor
-      git-ref: ${{ inputs.ref || github.ref }}
+      tag: ${{ inputs.tag }}
     secrets: inherit
 
   sequencer:
@@ -58,7 +56,7 @@ jobs:
     with:
       package-name: sequencer
       target-binary: astria-sequencer
-      git-ref: ${{ inputs.ref || github.ref }}
+      tag: ${{ inputs.tag }}
     secrets: inherit
 
   sequencer-relayer:
@@ -68,7 +66,7 @@ jobs:
     with:
       package-name: sequencer-relayer
       target-binary: astria-sequencer-relayer
-      git-ref: ${{ inputs.ref || github.ref }}
+      tag: ${{ inputs.tag }}
     secrets: inherit
 
   docker:

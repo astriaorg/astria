@@ -3,10 +3,8 @@ on:
   # TODO: allow workflow dispatch to specify which binaries to build
   workflow_dispatch:
     inputs:
-      ref:
-        description: |
-          Fully qualified git ref which will be checked out and built. Defaults to using the branch workflow is run on.
-          Example: refs/tags/sequencer-v0.8.0 will then only build sequencer code at that tag.
+      tag:
+        description: Git branch, or tag to build from
         required: false
   push:
     tags:
@@ -20,31 +18,31 @@ jobs:
     uses: './.github/workflows/reusable-build.yml'
     with:
       package-name: 'cli'
-      git-ref: ${{ inputs.ref || github.ref }}
+      tag: ${{ inputs.tag }}
 
   conductor:
     uses: './.github/workflows/reusable-build.yml'
     with:
       package-name: 'conductor'
-      git-ref: ${{ inputs.ref || github.ref }}
+      tag: ${{ inputs.tag }}
   
   composer:
     uses: './.github/workflows/reusable-build.yml'
     with:
       package-name: 'composer'
-      git-ref: ${{ inputs.ref || github.ref }}
+      tag: ${{ inputs.tag }}
 
   sequencer:
     uses: './.github/workflows/reusable-build.yml'
     with:
       package-name: 'sequencer'
-      git-ref: ${{ inputs.ref || github.ref }}
+      tag: ${{ inputs.tag }}
 
   relayer:
     uses: './.github/workflows/reusable-build.yml'
     with:
       package-name: 'sequencer-relayer'
-      git-ref: ${{ inputs.ref || github.ref }}
+      tag: ${{ inputs.tag }}
 
   build:
     if: ${{ always() && !cancelled() }}
