@@ -335,9 +335,9 @@ impl FromStr for Endpoints {
             .wrap_err("failed to parse as URI")?;
         let is_tls = matches!(uri.scheme().map(Scheme::as_str), Some("https" | "wss"));
 
-        let http = make_uri(uri.clone(), EndpointKind::Http, is_tls)
+        let http = make_uri(&uri, EndpointKind::Http, is_tls)
             .wrap_err("failed constructing http endpoint from parsed URI")?;
-        let websocket = make_uri(uri.clone(), EndpointKind::Ws, is_tls)
+        let websocket = make_uri(&uri, EndpointKind::Ws, is_tls)
             .wrap_err("failed constructing websocket endpoint parsed URI")?;
 
         Ok(Self {
@@ -352,7 +352,7 @@ enum EndpointKind {
     Ws,
 }
 
-fn make_uri(uri: Uri, kind: EndpointKind, tls: bool) -> Result<Uri, http::uri::InvalidUriParts> {
+fn make_uri(uri: &Uri, kind: EndpointKind, tls: bool) -> Result<Uri, http::uri::InvalidUriParts> {
     let mut parts = uri.clone().into_parts();
     let scheme = match (kind, tls) {
         (EndpointKind::Http, true) => Scheme::HTTPS,
