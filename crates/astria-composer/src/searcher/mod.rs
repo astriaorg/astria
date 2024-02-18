@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use astria_core::sequencer::v1alpha1::transaction::action::SequenceAction;
-use color_eyre::eyre::{
+use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
@@ -167,17 +167,11 @@ impl Searcher {
                         Ok(Ok(())) => {
                             error!("executor task exited unexpectedly");
                         }
-                        Ok(Err(e)) => {
-                            error!(
-                                error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                                "executor returned with error",
-                            );
+                        Ok(Err(error)) => {
+                            error!(%error, "executor returned with error");
                         }
-                        Err(e) => {
-                            error!(
-                                error = &e as &dyn std::error::Error,
-                                "executor task panicked",
-                            );
+                        Err(error) => {
+                            error!(%error, "executor task panicked");
                         }
                     }
                     break;
@@ -281,13 +275,11 @@ fn reconnect_exited_collector(
 ) {
     match exit_result {
         Ok(Ok(())) => warn!("collector exited unexpectedly; reconnecting"),
-        Ok(Err(e)) => {
-            let error: &(dyn std::error::Error + 'static) = e.as_ref();
-            warn!(error, "collector exit with error; reconnecting");
+        Ok(Err(error)) => {
+            warn!(%error, "collector exit with error; reconnecting");
         }
-        Err(e) => {
-            let error = &e as &(dyn std::error::Error + 'static);
-            warn!(error, "collector task failed; reconnecting");
+        Err(error) => {
+            warn!(%error, "collector task failed; reconnecting");
         }
     }
     let Some(url) = rollups.get(&rollup) else {

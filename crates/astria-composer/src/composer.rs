@@ -1,12 +1,11 @@
 use std::net::SocketAddr;
 
-use color_eyre::eyre::{
+use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
 use tokio::task::JoinError;
 use tracing::{
-    debug,
     error,
     info,
 };
@@ -39,15 +38,12 @@ impl Composer {
     /// An error is returned if the searcher fails to be initialized.
     /// See `[Searcher::from_config]` for its error scenarios.
     pub fn from_config(cfg: &Config) -> eyre::Result<Self> {
-        // parse api url from config
-        debug!("creating searcher");
         let searcher = Searcher::from_config(cfg).wrap_err("failed to initialize searcher")?;
 
         let searcher_status = searcher.subscribe_to_state();
 
-        debug!("creating API server");
         let api_server = api::start(cfg.api_listen_addr, searcher_status);
-        debug!(
+        info!(
             listen_addr = %api_server.local_addr(),
             "API server listening"
         );
@@ -86,19 +82,11 @@ impl Composer {
 fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
     match outcome {
         Ok(Ok(())) => info!(task = task_name, "task exited successfully"),
-        Ok(Err(e)) => {
-            error!(
-                error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                task = task_name,
-                "task returned with error",
-            );
+        Ok(Err(error)) => {
+            error!(%error, task = task_name, "task returned with error");
         }
-        Err(e) => {
-            error!(
-                error = &e as &dyn std::error::Error,
-                task = task_name,
-                "task failed to complete",
-            );
+        Err(error) => {
+            error!(%error, task = task_name, "task failed to complete");
         }
     }
 }
