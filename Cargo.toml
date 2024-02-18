@@ -10,6 +10,7 @@ members = [
   "crates/astria-conductor",
   "crates/astria-config",
   "crates/astria-core",
+  "crates/astria-eyre",
   "crates/astria-merkle",
   "crates/astria-optimism",
   "crates/astria-sequencer",

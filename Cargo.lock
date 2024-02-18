@@ -665,6 +665,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "astria-eyre"
+version = "0.1.0"
+dependencies = [
+ "eyre",
+ "itoa",
+ "tokio-test",
+ "tracing",
+ "tracing-subscriber 0.3.18",
+]
+
+[[package]]
 name = "astria-merkle"
 version = "0.1.0"
 dependencies = [
