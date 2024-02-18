@@ -318,7 +318,21 @@ impl FromStr for Endpoints {
     type Err = eyre::Report;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let uri = s.parse::<Uri>().wrap_err("failed to parse as URI")?;
+        // The docs promise that inputs like `<authority>/<scheme>` work,
+        // even though that is not a valid URI because it's lacking a scheme.
+        // If parsing `s` as a URI fails the code below prepends the input with
+        // `dummy://{s}` and tries parsing that instead. If that also fails, the
+        // error of the first parse is returned.
+        //
+        // XXX: This is a hack to not have a breaking change in the example config.
+        //      However, this is pretty janky and potentially confusing to the operator.
+        //      Best to have two variables for the Celestia HTTP and WS RPC endpoints.
+        let uri = s
+            .parse::<Uri>()
+            // Insert a meaningless scheme here because it will be replaced later.
+            // If parsing this fails, the error of the initial parse is returned.
+            .or_else(|e| format!("dummy://{s}").parse::<Uri>().or(Err(e)))
+            .wrap_err("failed to parse as URI")?;
         let is_tls = matches!(uri.scheme().map(Scheme::as_str), Some("https" | "wss"));
 
         let http = make_uri(uri.clone(), EndpointKind::Http, is_tls)
@@ -391,37 +405,113 @@ mod tests {
         //
         // astria.org
         // astria.org/
+        // astria.org/
         // http://astria.org
+        // http://astria.org/
+        // http://astria.org/path
         // https://astria.org
+        // https://astria.org/
+        // https://astria.org/path
         // ws://astria.org
+        // ws://astria.org/
+        // ws://astria.org/path
         // wss://astria.org
+        // wss://astria.org/
+        // wss://astria.org/path
         //
         // 192.168.0.1
         // 192.168.0.1/
+        // 192.168.0.1/
         // http://192.168.0.1
+        // http://192.168.0.1/
+        // http://192.168.0.1/path
         // https://192.168.0.1
+        // https://192.168.0.1/
+        // https://192.168.0.1/path
         // ws://192.168.0.1
+        // ws://192.168.0.1/
+        // ws://192.168.0.1/path
         // wss://192.168.0.1
-        assert_authority_is_parsed_as_endpoints("astria.org");
-        assert_authority_is_parsed_as_endpoints("192.168.0.1");
+        // wss://192.168.0.1/
+        // wss://192.168.0.1/path
+        //
+        let no_tls_domain_no_path = make_endpoints("astria.org", false, "/");
+        let no_tls_domain_w_path = make_endpoints("astria.org", false, "/path");
+        let w_tls_domain_no_path = make_endpoints("astria.org", true, "/");
+        let w_tls_domain_w_path = make_endpoints("astria.org", true, "/path");
+
+        assert_parsed_as_endpoints("astria.org", &no_tls_domain_no_path);
+        assert_parsed_as_endpoints("astria.org/", &no_tls_domain_no_path);
+        assert_parsed_as_endpoints("astria.org/path", &no_tls_domain_w_path);
+
+        assert_parsed_as_endpoints("http://astria.org", &no_tls_domain_no_path);
+        assert_parsed_as_endpoints("http://astria.org/", &no_tls_domain_no_path);
+        assert_parsed_as_endpoints("http://astria.org/path", &no_tls_domain_w_path);
+
+        assert_parsed_as_endpoints("https://astria.org", &w_tls_domain_no_path);
+        assert_parsed_as_endpoints("https://astria.org/", &w_tls_domain_no_path);
+        assert_parsed_as_endpoints("https://astria.org/path", &w_tls_domain_w_path);
+
+        assert_parsed_as_endpoints("astria.org", &no_tls_domain_no_path);
+        assert_parsed_as_endpoints("astria.org/", &no_tls_domain_no_path);
+        assert_parsed_as_endpoints("astria.org/path", &no_tls_domain_w_path);
+
+        assert_parsed_as_endpoints("ws://astria.org", &no_tls_domain_no_path);
+        assert_parsed_as_endpoints("ws://astria.org/", &no_tls_domain_no_path);
+        assert_parsed_as_endpoints("ws://astria.org/path", &no_tls_domain_w_path);
+
+        assert_parsed_as_endpoints("wss://astria.org", &w_tls_domain_no_path);
+        assert_parsed_as_endpoints("wss://astria.org/", &w_tls_domain_no_path);
+        assert_parsed_as_endpoints("wss://astria.org/path", &w_tls_domain_w_path);
+
+        let no_tls_ip_no_path = make_endpoints("192.169.0.1", false, "/");
+        let no_tls_ip_w_path = make_endpoints("192.169.0.1", false, "/path");
+        let w_tls_ip_no_path = make_endpoints("192.169.0.1", true, "/");
+        let w_tls_ip_w_path = make_endpoints("192.169.0.1", true, "/path");
+
+        assert_parsed_as_endpoints("192.169.0.1", &no_tls_ip_no_path);
+        assert_parsed_as_endpoints("192.169.0.1/", &no_tls_ip_no_path);
+        assert_parsed_as_endpoints("192.169.0.1/path", &no_tls_ip_w_path);
+
+        assert_parsed_as_endpoints("http://192.169.0.1", &no_tls_ip_no_path);
+        assert_parsed_as_endpoints("http://192.169.0.1/", &no_tls_ip_no_path);
+        assert_parsed_as_endpoints("http://192.169.0.1/path", &no_tls_ip_w_path);
+
+        assert_parsed_as_endpoints("https://192.169.0.1", &w_tls_ip_no_path);
+        assert_parsed_as_endpoints("https://192.169.0.1/", &w_tls_ip_no_path);
+        assert_parsed_as_endpoints("https://192.169.0.1/path", &w_tls_ip_w_path);
+
+        assert_parsed_as_endpoints("192.169.0.1", &no_tls_ip_no_path);
+        assert_parsed_as_endpoints("192.169.0.1/", &no_tls_ip_no_path);
+        assert_parsed_as_endpoints("192.169.0.1/path", &no_tls_ip_w_path);
+
+        assert_parsed_as_endpoints("ws://192.169.0.1", &no_tls_ip_no_path);
+        assert_parsed_as_endpoints("ws://192.169.0.1/", &no_tls_ip_no_path);
+        assert_parsed_as_endpoints("ws://192.169.0.1/path", &no_tls_ip_w_path);
+
+        assert_parsed_as_endpoints("wss://192.169.0.1", &w_tls_ip_no_path);
+        assert_parsed_as_endpoints("wss://192.169.0.1/", &w_tls_ip_no_path);
+        assert_parsed_as_endpoints("wss://192.169.0.1/path", &w_tls_ip_w_path);
     }
 
     #[track_caller]
-    fn assert_endpoints_parsed(s: &str, expected: &Endpoints, assert_msg: &'static str) {
+    fn assert_parsed_as_endpoints(s: &str, expected: &Endpoints) {
         let actual = s
             .parse::<Endpoints>()
             .expect("passed string should be a valid URI");
-        assert_eq!(&actual, expected, "{assert_msg}");
+        assert_eq!(&actual, expected);
     }
 
-    fn make_endpoints(authority: &'static str, tls: bool) -> Endpoints {
+    fn make_endpoints(authority: &'static str, tls: bool, path: &'static str) -> Endpoints {
         let http_endpoint = {
             let mut parts = Parts::default();
             parts
                 .scheme
                 .replace(if tls { Scheme::HTTPS } else { Scheme::HTTP });
             parts.authority.replace(Authority::from_static(authority));
-            parts.path_and_query.replace(PathAndQuery::from_static("/"));
+            parts
+                .path_and_query
+                .replace(PathAndQuery::from_static(path));
             Uri::from_parts(parts).expect("all required URI parts should be set")
         };
         let ws_endpoint = {
@@ -430,54 +520,14 @@ mod tests {
                 .scheme
                 .replace(if tls { wss_scheme() } else { ws_scheme() });
             parts.authority.replace(Authority::from_static(authority));
-            parts.path_and_query.replace(PathAndQuery::from_static("/"));
+            parts
+                .path_and_query
+                .replace(PathAndQuery::from_static(path));
             Uri::from_parts(parts).expect("all required URI parts should be set")
         };
         Endpoints {
             http: http_endpoint,
             websocket: ws_endpoint,
         }
-    }
-
-    #[track_caller]
-    fn assert_authority_is_parsed_as_endpoints(authority: &'static str) {
-        let non_tls_endpoints = make_endpoints(authority, false);
-        let tls_endpoints = make_endpoints(authority, true);
-        assert_endpoints_parsed(
-            authority,
-            &non_tls_endpoints,
-            "URI with only authority but no scheme nor path should give expected http and ws \
-             endpoints",
-        );
-        assert_endpoints_parsed(
-            &format!("{authority}/"),
-            &non_tls_endpoints,
-            "URI with authority and empty path but no scheme should lead to expected ws and http \
-             endpoints",
-        );
-        assert_endpoints_parsed(
-            &format!("ws://{authority}"),
-            &non_tls_endpoints,
-            "URI with authority and ws scheme but no path should lead to expected ws and http \
-             endpoints",
-        );
-        assert_endpoints_parsed(
-            &format!("http://{authority}"),
-            &non_tls_endpoints,
-            "URI with authority and http scheme but no path should lead to expected ws and http \
-             endpoints",
-        );
-        assert_endpoints_parsed(
-            &format!("wss://{authority}"),
-            &tls_endpoints,
-            "URI with authority and wss scheme but no path should lead to expected wss and https \
-             endpoints",
-        );
-        assert_endpoints_parsed(
-            &format!("https://{authority}"),
-            &tls_endpoints,
-            "URI with authority and https scheme but no path should lead to expected ws and http \
-             endpoints",
-        );
     }
 }
