@@ -11,7 +11,7 @@ use astria_core::{
     Protobuf as _,
 };
 use bytes::Bytes;
-use eyre::{
+use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };

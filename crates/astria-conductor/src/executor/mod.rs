@@ -7,14 +7,14 @@ use astria_core::{
     },
     sequencer::v1alpha1::RollupId,
 };
-use bytes::Bytes;
-use celestia_client::celestia_types::Height as CelestiaHeight;
-use eyre::{
+use astria_eyre::eyre::{
     self,
     bail,
     ensure,
     WrapErr as _,
 };
+use bytes::Bytes;
+use celestia_client::celestia_types::Height as CelestiaHeight;
 use sequencer_client::{
     tendermint::{
         block::Height as SequencerHeight,
@@ -224,10 +224,10 @@ impl Executor {
                 biased;
 
                 shutdown = &mut self.shutdown => {
-                    let ret = if let Err(e) = shutdown {
+                    let ret = if let Err(error) = shutdown {
                         let reason = "shutdown channel closed unexpectedly";
-                        error!(error = &e as &dyn std::error::Error, reason, "shutting down");
-                        Err(e).wrap_err(reason)
+                        error!(%error, reason, "shutting down");
+                        Err(error).wrap_err(reason)
                     } else {
                         info!(reason = "received shutdown signal", "shutting down");
                         Ok(())
@@ -241,14 +241,10 @@ impl Executor {
                         block.hash = %telemetry::display::hex(&block.block_hash),
                         "received block from celestia reader",
                     );
-                    if let Err(e) = self.execute_firm(client.clone(), block).await {
+                    if let Err(error) = self.execute_firm(client.clone(), block).await {
                         let reason = "failed executing firm block";
-                        error!(
-                            error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                            reason,
-                            "shutting down",
-                        );
-                        break Err(e).wrap_err(reason);
+                        error!(%error, reason, "shutting down");
+                        break Err(error).wrap_err(reason);
                     }
                 }
 
@@ -258,14 +254,10 @@ impl Executor {
                         block.hash = %telemetry::display::hex(&block.block_hash()),
                         "received block from sequencer reader",
                     );
-                    if let Err(e) = self.execute_soft(client.clone(), block).await {
+                    if let Err(error) = self.execute_soft(client.clone(), block).await {
                         let reason = "failed executing soft block";
-                        error!(
-                            error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                            reason,
-                            "shutting down",
-                        );
-                        break Err(e).wrap_err(reason);
+                        error!(%error, reason, "shutting down");
+                        break Err(error).wrap_err(reason);
                     }
                 }
             );

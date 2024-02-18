@@ -15,7 +15,7 @@ use ethers::{
     prelude::*,
     types::transaction::eip2718::TypedTransaction,
 };
-use eyre::WrapErr as _;
+use astria_eyre::eyre::WrapErr as _;
 use optimism::{
     contract::{
         make_optimism_portal_read_only,

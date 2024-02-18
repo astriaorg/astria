@@ -5,7 +5,7 @@ use ed25519_consensus::{
     Signature,
     VerificationKey,
 };
-use eyre::{
+use astria_eyre::eyre::{
     self,
     bail,
     ensure,

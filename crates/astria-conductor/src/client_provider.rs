@@ -1,13 +1,13 @@
 use std::time::Duration;
 
+use astria_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
 use async_trait::async_trait;
 use deadpool::managed::{
     self,
     Pool,
-};
-use eyre::{
-    self,
-    WrapErr as _,
 };
 use sequencer_client::WebSocketClient;
 use tokio::{
@@ -131,7 +131,8 @@ impl ClientProvider {
                         warn!(
                             error,
                             reason,
-                            "websocket driver exited, attempting to reconnect");
+                            "websocket driver exited, attempting to reconnect",
+                        );
                         client = None;
                         reconnect = tryhard::retry_fn(|| {
                             let url = url_.clone();

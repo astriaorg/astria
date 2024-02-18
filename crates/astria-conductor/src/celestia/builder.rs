@@ -2,7 +2,7 @@
 
 use celestia_client::celestia_types::nmt::Namespace;
 use deadpool::managed::Pool;
-use eyre::{
+use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
