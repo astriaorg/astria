@@ -22,7 +22,6 @@ backon = { workspace = true }
 base64 = { workspace = true }
 base64-serde = { workspace = true }
 ed25519-consensus = { workspace = true }
-eyre = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 humantime = { workspace = true }
@@ -41,6 +40,7 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core" }
+astria-eyre = { path = "../astria-eyre" }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 config = { package = "astria-config", path = "../astria-config" }
 sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequencer-client", features = [
