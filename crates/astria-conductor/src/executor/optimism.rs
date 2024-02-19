@@ -11,11 +11,11 @@
 //! funds which were deposited (locked) on the L1 on the L2 to the specified address.
 use std::sync::Arc;
 
+use astria_eyre::eyre::WrapErr as _;
 use ethers::{
     prelude::*,
     types::transaction::eip2718::TypedTransaction,
 };
-use astria_eyre::eyre::WrapErr as _;
 use optimism::{
     contract::{
         make_optimism_portal_read_only,

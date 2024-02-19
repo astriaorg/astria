@@ -10,11 +10,11 @@ use astria_core::{
     },
     Protobuf as _,
 };
-use bytes::Bytes;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use bytes::Bytes;
 use prost_types::Timestamp;
 use tonic::transport::Channel;
 use tracing::instrument;
