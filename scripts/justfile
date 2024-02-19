@@ -1,14 +1,31 @@
 default:
   @just --list
 
-download-binaries-macos-aarch64:
+set dotenv-load
+set fallback
+
+launch:
+    mprocs --config ./local-bin-mprocs.yaml
+
+default_env := 'local'
+copy-env type=default_env:
+  cp {{ type }}.env.example .env
+
+download-mac-arm:
     sh download-binaries-macos-aarch64.sh
 
+download-mac-x86:
+    sh download-binaries-macos-x86_64.sh
+
 run-cometbft:
-  ./bin/cometbft/cometbft init
-  cp genesis.json ~/.cometbft/config/genesis.json
-  sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "2s"/g' ~/.cometbft/config/config.toml
-  ./bin/cometbft/cometbft node
+    ./bin/cometbft/cometbft init
+    cp genesis.json ~/.cometbft/config/genesis.json
+    sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "2s"/g' ~/.cometbft/config/config.toml
+    ./bin/cometbft/cometbft node
+
+remove-bin:
+    rm -rf bin
 
 clean:
-    rm -rf bin
+    rm -rf ~/.cometbft/
+    rm -rf /tmp/astria_db
