@@ -77,8 +77,7 @@ cause-chain.
 
 Note that the example does not install a [`tracing-subscriber`].
 
-
-[`tracing-subsriber`]: https://docs.rs/tracing-subscriber
+[`tracing-subscriber`]: https://docs.rs/tracing-subscriber
 
 ```rust,should_panic
 use astria_eyre::eyre::{bail, Result};
