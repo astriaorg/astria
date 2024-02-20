@@ -1,9 +1,12 @@
+use astria_eyre::{
+    eyre,
+    eyre::WrapErr as _,
+};
 use ethers::{
     contract::EthAbiType,
     prelude::*,
     types::transaction::optimism::DepositTransaction,
 };
-use eyre::WrapErr as _;
 
 use crate::contract::TransactionDepositedFilter;
 

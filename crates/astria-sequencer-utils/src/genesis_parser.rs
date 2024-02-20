@@ -3,7 +3,7 @@ use std::{
     path::Path,
 };
 
-use eyre::{
+use astria_eyre::eyre::{
     Result,
     WrapErr,
 };

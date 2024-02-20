@@ -7,8 +7,11 @@
 //! contract bindings with abigen.
 use std::sync::Arc;
 
+use astria_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
 use ethers::prelude::*;
-use eyre::WrapErr as _;
 use k256::ecdsa::SigningKey;
 
 abigen!(

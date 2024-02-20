@@ -688,9 +688,9 @@ dependencies = [
 name = "astria-optimism"
 version = "0.1.0"
 dependencies = [
+ "astria-eyre",
  "astria-optimism",
  "ethers",
- "eyre",
  "hex",
  "tokio",
 ]
@@ -807,8 +807,8 @@ dependencies = [
 name = "astria-sequencer-utils"
 version = "0.1.0"
 dependencies = [
+ "astria-eyre",
  "clap",
- "eyre",
  "serde",
  "serde_json",
 ]
