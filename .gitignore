@@ -12,4 +12,7 @@ target/
 .DS_Store
 
 # scripts
-scripts/bin/
+scripts/astria-*
+scripts/cometbft*
+scripts/*.md
+scripts/LICENSE

@@ -9,19 +9,19 @@ procs:
         - "<C-c>"
 
   Sequencer:
-    shell: "./bin/astria-sequencer/astria-sequencer"
+    shell: "./astria-sequencer"
     stop:
       send-keys:
         - "<C-c>"
 
   Composer:
-    shell: "sleep 2 && ./bin/astria-composer/astria-composer"
+    shell: "sleep 2 && ./astria-composer"
     stop:
       send-keys:
         - "<C-c>"
 
   Conductor:
-    shell: "sleep 2 && ./bin/astria-conductor/astria-conductor"
+    shell: "sleep 2 && ./astria-conductor"
     stop:
       send-keys:
         - "<C-c>"

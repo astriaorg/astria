@@ -15,8 +15,8 @@ package_names=(
     "astria-conductor"
 )
 
-mkdir bin
-cd bin
+# mkdir bin
+# cd bin
 # Iterate through all URLs in the array
 for ((index=0; index<${#package_urls[@]}; index++)); do
     filename="${package_names[$index]}"
@@ -26,15 +26,15 @@ for ((index=0; index<${#package_urls[@]}; index++)); do
     if [ ! -f "$filename" ]; then
         echo "File $filename does not exist. Downloading from $url..."
 
-        mkdir $filename
-        cd $filename
+        # mkdir $filename
+        # cd $filename
         curl -L $url > ${filename}.tar.gz
         tar -xvzf ${filename}.tar.gz
         echo "Download of $filename completed."
-        cd ..  
+        # cd ..  
     else
         echo "File $filename already exists."
     fi
 done
 
-cd ..
+# cd ..

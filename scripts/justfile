@@ -18,13 +18,13 @@ download-mac-x86:
     sh download-binaries-macos-x86_64.sh
 
 run-cometbft:
-    ./bin/cometbft/cometbft init
+    ./cometbft init
     cp genesis.json ~/.cometbft/config/genesis.json
     sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "2s"/g' ~/.cometbft/config/config.toml
-    ./bin/cometbft/cometbft node
+    ./cometbft node
 
 remove-bin:
-    rm -rf bin
+    rm astria-* cometbft* *.md
 
 clean:
     rm -rf ~/.cometbft/
