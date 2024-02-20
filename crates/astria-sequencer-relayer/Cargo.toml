@@ -1,9 +1,15 @@
 [package]
 name = "astria-sequencer-relayer"
-version = "0.9.1"
+version = "0.10.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.73"
+readme = "README.md"
+repository = "https://github.com/astriaorg/astria"
+homepage = "https://astria.org"
+
+[[bin]]
+name = "astria-sequencer-relayer"
 
 [dependencies]
 dirs = "5.0"
@@ -21,6 +27,7 @@ futures = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 humantime = { workspace = true }
 hyper = { workspace = true }
+metrics = { workspace = true }
 prost = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true, features = ["derive"] }
@@ -32,6 +39,7 @@ tendermint-rpc = { workspace = true, features = ["http-client"] }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
+astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core" }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 config = { package = "astria-config", path = "../astria-config" }
@@ -54,3 +62,6 @@ once_cell = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 wiremock = { workspace = true }
+
+[build-dependencies]
+astria-build-info = { path = "../astria-build-info", features = ["build"] }

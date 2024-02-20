@@ -311,6 +311,7 @@ mod tests {
     use std::collections::HashMap;
 
     use astria_core::sequencer::v1alpha1::{
+        asset::default_native_asset_id,
         transaction::action::SequenceAction,
         RollupId,
     };
@@ -344,6 +345,7 @@ mod tests {
         let expected_seq_action = SequenceAction {
             rollup_id: RollupId::from_unhashed_bytes(&rollup_name),
             data: Transaction::default().rlp().to_vec(),
+            fee_asset_id: default_native_asset_id(),
         };
         let _ = mock_geth.push_tx(rollup_tx.clone()).unwrap();
         let collector_tx = rx.recv().await.unwrap();

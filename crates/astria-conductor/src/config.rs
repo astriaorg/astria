@@ -22,6 +22,9 @@ impl CommitLevel {
     }
 }
 
+// Allowed `struct_excessive_bools` because this is used as a container
+// for deserialization. Making this a builder-pattern is not actionable.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     /// URL of the Celestia Node
@@ -33,17 +36,11 @@ pub struct Config {
     /// URL of the sequencer cometbft websocket
     pub sequencer_url: String,
 
-    /// Chain ID that we want to work in
-    pub chain_id: String,
-
     /// Address of the RPC server for execution
     pub execution_rpc_url: String,
 
     /// log directive to use for telemetry.
     pub log: String,
-
-    /// The Sequencer block height that the rollup genesis block was in
-    pub initial_sequencer_block_height: u32,
 
     /// The execution commit level used for controlling how blocks are sent to
     /// the execution layer.
@@ -64,6 +61,21 @@ pub struct Config {
     /// OptimismPortal contract was deployed at.
     /// Only used if `enable_optimism` is true.
     pub initial_ethereum_l1_block_height: u64,
+
+    /// Forces writing trace data to stdout no matter if connected to a tty or not.
+    pub force_stdout: bool,
+
+    /// Disables writing trace data to an opentelemetry endpoint.
+    pub no_otel: bool,
+
+    /// Set to true to disable the metrics server
+    pub no_metrics: bool,
+
+    /// The endpoint which will be listened on for serving prometheus metrics
+    pub metrics_http_listener_addr: String,
+
+    /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
+    pub pretty_print: bool,
 }
 
 impl config::Config for Config {

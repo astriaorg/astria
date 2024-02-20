@@ -2,6 +2,10 @@
 name = "astria-sequencer-client"
 version = "0.1.0"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.73"
+repository = "https://github.com/astriaorg/astria"
+homepage = "https://astria.org"
 
 [dependencies]
 astria-core = { path = "../astria-core" }
@@ -9,13 +13,15 @@ astria-core = { path = "../astria-core" }
 async-trait = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
+prost = { workspace = true }
 tendermint = { workspace = true }
+tendermint-proto = { workspace = true }
 tendermint-rpc = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
-prost.workspace = true
 
 [features]
+default = ["http", "websocket"]
 http = ["tendermint-rpc/http-client"]
 websocket = ["tendermint-rpc/websocket-client"]
 

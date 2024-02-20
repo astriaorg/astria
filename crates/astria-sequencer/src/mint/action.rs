@@ -4,7 +4,6 @@ use anyhow::{
     Result,
 };
 use astria_core::sequencer::v1alpha1::{
-    asset,
     transaction::action::MintAction,
     Address,
 };
@@ -26,7 +25,6 @@ impl ActionHandler for MintAction {
         &self,
         state: &S,
         from: Address,
-        _fee_asset_id: asset::Id,
     ) -> Result<()> {
         // ensure signer is the valid `sudo` key in state
         let sudo_address = state
@@ -42,7 +40,6 @@ impl ActionHandler for MintAction {
         &self,
         state: &mut S,
         _: Address,
-        _: asset::Id,
     ) -> Result<()> {
         let native_asset = get_native_asset().id();
 

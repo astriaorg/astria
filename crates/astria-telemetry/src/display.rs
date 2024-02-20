@@ -1,4 +1,15 @@
 //! Utilities to emit fields using their [`std::fmt::Display`] implementation.
+use base64::{
+    display::Base64Display,
+    engine::general_purpose::GeneralPurpose,
+};
+
+/// Format `bytes` using standard base64 formatting.
+///
+/// See the [`base64::engine::general_purpose::STANDARD`] for the formatting definition.
+pub fn base64<T: AsRef<[u8]>>(bytes: &T) -> Base64Display<'_, 'static, GeneralPurpose> {
+    Base64Display::new(bytes.as_ref(), &base64::engine::general_purpose::STANDARD)
+}
 
 /// Format `bytes` as lower-cased hex.
 ///

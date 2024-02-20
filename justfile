@@ -14,11 +14,6 @@ install-cli:
 compile-protos:
   cargo run --manifest-path tools/protobuf-compiler/Cargo.toml
 
-update-containerfiles-cargo-toml:
-  dasel delete -r toml -f Cargo.toml -o - 'workspace.default-members' \
-  | taplo fmt - --stdin-filepath Cargo.toml \
-  > containerfiles/Cargo.toml
-
 ## Scripts related to formatting code
 default_lang := 'all'
 
@@ -43,11 +38,11 @@ _fmt-all:
 
 [no-exit-message]
 _fmt-rust:
-  cargo +nightly-2023-08-18 fmt --all 
+  cargo +nightly-2024-02-07 fmt --all 
 
 [no-exit-message]
 _lint-rust:
-  cargo +nightly-2023-08-18 fmt --all -- --check
+  cargo +nightly-2024-02-07 fmt --all -- --check
   cargo clippy -- --warn clippy::pedantic
   cargo dylint --all
 
@@ -65,13 +60,14 @@ _lint-md:
 
 [no-exit-message]
 _fmt-proto:
-  buf format proto -w
+  buf format -w
 
 [no-exit-message]
 _lint-proto:
-  buf lint proto
-  buf format proto -d --exit-code
-  buf breaking proto --against 'buf.build/astria/astria'
+  buf lint
+  buf format -d --exit-code
+  buf breaking proto/executionapis --against 'buf.build/astria/execution-apis'
+  buf breaking proto/sequencerapis --against 'buf.build/astria/astria'
 
 # --- Local Dev ---
 

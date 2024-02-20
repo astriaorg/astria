@@ -21,16 +21,18 @@ use prost::{
     Message as _,
 };
 use tracing::{
+    debug,
     instrument,
-    warn,
 };
 
 use crate::{
     celestia_namespace_v0_from_cometbft_header,
     celestia_namespace_v0_from_rollup_id,
+    metrics_init,
 };
 
 impl CelestiaClientExt for jsonrpsee::http_client::HttpClient {}
+impl CelestiaClientExt for jsonrpsee::ws_client::WsClient {}
 
 #[derive(Debug, thiserror::Error)]
 pub enum SubmitSequencerBlocksError {
@@ -131,7 +133,11 @@ pub trait CelestiaClientExt: BlobClient {
     /// Returns an error if:
     /// + the verification key could not be constructed from the data stored in `namespace_data`;
     /// + the RPC to fetch the blobs failed.
-    #[instrument(skip(self, height), fields(height = height.into()))]
+    #[instrument(skip_all, fields(
+        height = height.into(),
+        namespace = %telemetry::display::base64(&namespace.as_bytes()),
+        block_hash = %telemetry::display::hex(&sequencer_blob.block_hash()),
+    ))]
     async fn get_rollup_blobs_matching_sequencer_blob<T>(
         &self,
         height: T,
@@ -188,9 +194,16 @@ pub trait CelestiaClientExt: BlobClient {
         // + the sum of all rollup transactions in all blocks (each converted to a rollup namespaced
         //   data), and
         // + one sequencer namespaced data blob per block.
-        let num_expected_blobs = blocks
+        let num_of_rollup_blobs = blocks
             .iter()
-            .fold(0, |acc, block| acc + block.rollup_transactions().len() + 1);
+            .fold(0, |acc, block| acc + block.rollup_transactions().len());
+        let num_of_sequencer_blobs = blocks.len();
+        let num_expected_blobs = num_of_rollup_blobs + num_of_sequencer_blobs;
+
+        // the number of blobs should always be low enough to not cause precision loss
+        #[allow(clippy::cast_precision_loss)]
+        let metric_rollup_count = num_of_rollup_blobs as f64;
+        metrics::gauge!(metrics_init::ROLLUP_BLOBS_PER_CELESTIA_TX).set(metric_rollup_count);
 
         let mut all_blobs = Vec::with_capacity(num_expected_blobs);
         for (i, block) in blocks.into_iter().enumerate() {
@@ -238,6 +251,11 @@ fn assemble_blobs_from_sequencer_block(
 ) -> Result<Vec<Blob>, BlobAssemblyError> {
     let (sequencer_blob, rollup_blobs) = block.into_celestia_blobs();
 
+    // the number of blobs should always be low enough to not cause precision loss
+    #[allow(clippy::cast_precision_loss)]
+    let rollup_blobs_count = rollup_blobs.len() as f64;
+    metrics::gauge!(metrics_init::ROLLUP_BLOBS_PER_ASTRIA_BLOCK).set(rollup_blobs_count);
+
     let mut blobs = Vec::with_capacity(rollup_blobs.len() + 1);
 
     let sequencer_namespace = celestia_namespace_v0_from_cometbft_header(sequencer_blob.header());
@@ -279,7 +297,7 @@ fn convert_and_filter_rollup_blobs(
     let mut rollups = Vec::with_capacity(blobs.len());
     for blob in blobs {
         if blob.namespace != namespace {
-            warn!("blob does not belong to expected namespace; skipping");
+            debug!("blob does not belong to expected namespace; skipping");
             continue;
         }
         let proto_blob =
@@ -287,7 +305,7 @@ fn convert_and_filter_rollup_blobs(
                 &*blob.data,
             ) {
                 Err(e) => {
-                    warn!(
+                    debug!(
                         error = &e as &dyn std::error::Error,
                         target = "astria.sequencer.v1alpha.CelestiaRollupBlob",
                         blob.commitment = %Base64Display::new(&blob.commitment.0, &STANDARD),
@@ -299,7 +317,7 @@ fn convert_and_filter_rollup_blobs(
             };
         let rollup_blob = match CelestiaRollupBlob::try_from_raw(proto_blob) {
             Err(e) => {
-                warn!(
+                debug!(
                     error = &e as &dyn std::error::Error,
                     blob.commitment = %Base64Display::new(&blob.commitment.0, &STANDARD),
                     "failed converting raw protobuf blob to native type; skipping"
@@ -309,7 +327,7 @@ fn convert_and_filter_rollup_blobs(
             Ok(rollup_blob) => rollup_blob,
         };
         if rollup_blob.sequencer_block_hash() != sequencer_blob.block_hash() {
-            warn!(
+            debug!(
                 block_hash.rollup = hex::encode(rollup_blob.sequencer_block_hash()),
                 block_hash.sequencer = hex::encode(sequencer_blob.block_hash()),
                 "block hash in rollup blob does not match block hash in sequencer blob; dropping \
@@ -318,7 +336,7 @@ fn convert_and_filter_rollup_blobs(
             continue;
         }
         if !does_rollup_blob_verify_against_sequencer_blob(&rollup_blob, sequencer_blob) {
-            warn!(
+            debug!(
                 "the rollup blob proof applied to its chain ID and transactions did not match the \
                  rollup transactions root in the sequencer blob; dropping the blob"
             );

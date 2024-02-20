@@ -4,7 +4,6 @@ use anyhow::{
     Result,
 };
 use astria_core::sequencer::v1alpha1::{
-    asset,
     transaction::action::SequenceAction,
     Address,
 };
@@ -15,7 +14,10 @@ use crate::{
         StateReadExt,
         StateWriteExt,
     },
-    state_ext::StateWriteExt as _,
+    state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     transaction::action_handler::ActionHandler,
 };
 
@@ -28,10 +30,14 @@ impl ActionHandler for SequenceAction {
         &self,
         state: &S,
         from: Address,
-        fee_asset_id: asset::Id,
     ) -> Result<()> {
+        ensure!(
+            state.is_allowed_fee_asset(self.fee_asset_id).await?,
+            "invalid fee asset",
+        );
+
         let curr_balance = state
-            .get_account_balance(from, fee_asset_id)
+            .get_account_balance(from, self.fee_asset_id)
             .await
             .context("failed getting `from` account balance for fee payment")?;
         let fee = calculate_fee(&self.data).context("calculated fee overflows u128")?;
@@ -55,24 +61,19 @@ impl ActionHandler for SequenceAction {
             from = from.to_string(),
         )
     )]
-    async fn execute<S: StateWriteExt>(
-        &self,
-        state: &mut S,
-        from: Address,
-        fee_asset_id: asset::Id,
-    ) -> Result<()> {
+    async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         let fee = calculate_fee(&self.data).context("failed to calculate fee")?;
         state
-            .get_and_increase_block_fees(fee_asset_id, fee)
+            .get_and_increase_block_fees(self.fee_asset_id, fee)
             .await
             .context("failed to add to block fees")?;
 
         let from_balance = state
-            .get_account_balance(from, fee_asset_id)
+            .get_account_balance(from, self.fee_asset_id)
             .await
             .context("failed getting `from` account balance")?;
         state
-            .put_account_balance(from, fee_asset_id, from_balance - fee)
+            .put_account_balance(from, self.fee_asset_id, from_balance - fee)
             .context("failed updating `from` account balance")?;
         Ok(())
     }

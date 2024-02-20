@@ -254,14 +254,11 @@ pub struct UnsignedTransaction {
     pub nonce: u32,
     #[prost(message, repeated, tag = "2")]
     pub actions: ::prost::alloc::vec::Vec<Action>,
-    /// the asset used to pay the transaction fee
-    #[prost(bytes = "vec", tag = "3")]
-    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Action {
-    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6, 7")]
+    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9")]
     pub value: ::core::option::Option<action::Value>,
 }
 /// Nested message and enum types in `Action`.
@@ -280,9 +277,13 @@ pub mod action {
         #[prost(message, tag = "5")]
         MintAction(super::MintAction),
         #[prost(message, tag = "6")]
-        IbcAction(::penumbra_proto::core::component::ibc::v1alpha1::IbcRelay),
+        IbcAction(::penumbra_proto::core::component::ibc::v1::IbcRelay),
         #[prost(message, tag = "7")]
         Ics20Withdrawal(super::Ics20Withdrawal),
+        #[prost(message, tag = "8")]
+        IbcRelayerChangeAction(super::IbcRelayerChangeAction),
+        #[prost(message, tag = "9")]
+        FeeAssetChangeAction(super::FeeAssetChangeAction),
     }
 }
 /// `TransferAction` represents a value transfer transaction.
@@ -299,6 +300,9 @@ pub struct TransferAction {
     /// the asset to be transferred
     #[prost(bytes = "vec", tag = "3")]
     pub asset_id: ::prost::alloc::vec::Vec<u8>,
+    /// the asset used to pay the transaction fee
+    #[prost(bytes = "vec", tag = "4")]
+    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
 }
 /// `SequenceAction` represents a transaction destined for another
 /// chain, ordered by the sequencer.
@@ -312,6 +316,9 @@ pub struct SequenceAction {
     pub rollup_id: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes = "vec", tag = "2")]
     pub data: ::prost::alloc::vec::Vec<u8>,
+    /// the asset used to pay the transaction fee
+    #[prost(bytes = "vec", tag = "3")]
+    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
 }
 /// / `SudoAddressChangeAction` represents a transaction that changes
 /// / the sudo address of the chain, which is the address authorized to
@@ -362,6 +369,9 @@ pub struct Ics20Withdrawal {
     /// the source channel used for the withdrawal.
     #[prost(string, tag = "7")]
     pub source_channel: ::prost::alloc::string::String,
+    /// the asset used to pay the transaction fee
+    #[prost(bytes = "vec", tag = "8")]
+    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -370,4 +380,45 @@ pub struct IbcHeight {
     pub revision_number: u64,
     #[prost(uint64, tag = "2")]
     pub revision_height: u64,
+}
+/// `IbcRelayerChangeAction` represents a transaction that adds
+/// or removes an IBC relayer address.
+/// The bytes contained in each variant are the address to add or remove.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IbcRelayerChangeAction {
+    #[prost(oneof = "ibc_relayer_change_action::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<ibc_relayer_change_action::Value>,
+}
+/// Nested message and enum types in `IbcRelayerChangeAction`.
+pub mod ibc_relayer_change_action {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(bytes, tag = "1")]
+        Addition(::prost::alloc::vec::Vec<u8>),
+        #[prost(bytes, tag = "2")]
+        Removal(::prost::alloc::vec::Vec<u8>),
+    }
+}
+/// `FeeAssetChangeAction` represents a transaction that adds
+/// or removes an asset for fee payments.
+/// The bytes contained in each variant are the 32-byte asset ID
+/// to add or remove.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FeeAssetChangeAction {
+    #[prost(oneof = "fee_asset_change_action::Value", tags = "1, 2")]
+    pub value: ::core::option::Option<fee_asset_change_action::Value>,
+}
+/// Nested message and enum types in `FeeAssetChangeAction`.
+pub mod fee_asset_change_action {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(bytes, tag = "1")]
+        Addition(::prost::alloc::vec::Vec<u8>),
+        #[prost(bytes, tag = "2")]
+        Removal(::prost::alloc::vec::Vec<u8>),
+    }
 }

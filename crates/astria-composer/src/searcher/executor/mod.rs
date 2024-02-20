@@ -10,7 +10,6 @@ use std::{
 };
 
 use astria_core::sequencer::v1alpha1::{
-    asset::default_native_asset_id,
     transaction::{
         action::SequenceAction,
         Action,
@@ -140,8 +139,7 @@ impl Executor {
             .wrap_err("failed to decode private key bytes from hex string")?
             .try_into()
             .map_err(|_| eyre!("invalid private key length; must be 32 bytes"))?;
-        let sequencer_key =
-            SigningKey::try_from(private_key_bytes).wrap_err("failed to parse sequencer key")?;
+        let sequencer_key = SigningKey::from(private_key_bytes);
         private_key_bytes.zeroize();
 
         let sequencer_address = Address::from_verification_key(sequencer_key.verification_key());
@@ -390,7 +388,6 @@ impl Future for SubmitFut {
                     let tx = UnsignedTransaction {
                         nonce: *this.nonce,
                         actions: this.bundle.clone(),
-                        fee_asset_id: default_native_asset_id(),
                     }
                     .into_signed(this.signing_key);
                     SubmitState::WaitingForSend {
@@ -444,7 +441,6 @@ impl Future for SubmitFut {
                         let tx = UnsignedTransaction {
                             nonce: *this.nonce,
                             actions: this.bundle.clone(),
-                            fee_asset_id: default_native_asset_id(),
                         }
                         .into_signed(this.signing_key);
                         SubmitState::WaitingForSend {

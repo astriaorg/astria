@@ -1,13 +1,13 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use color_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
 use deadpool::managed::{
     self,
     Pool,
+};
+use eyre::{
+    self,
+    WrapErr as _,
 };
 use sequencer_client::WebSocketClient;
 use tokio::{
@@ -238,7 +238,7 @@ pub(crate) mod mock {
         pub(crate) async fn setup() -> Self {
             let server = Server::builder().build("127.0.0.1:0").await.unwrap();
             let mut module = RpcModule::new(());
-            module.register_method("say_hello", |_, _| "lo").unwrap();
+            module.register_method("say_hello", |_, ()| "lo").unwrap();
             let address = server.local_addr().unwrap();
             let handle = server.start(module);
             let pool = start_pool(&format!("ws://{address}")).unwrap();

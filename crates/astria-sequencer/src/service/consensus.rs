@@ -305,10 +305,10 @@ mod test {
                 SequenceAction {
                     rollup_id: RollupId::from_unhashed_bytes(b"testchainid"),
                     data: b"helloworld".to_vec(),
+                    fee_asset_id: get_native_asset().id(),
                 }
                 .into(),
             ],
-            fee_asset_id: get_native_asset().id(),
         }
     }
 
@@ -502,8 +502,12 @@ mod test {
         fn default() -> Self {
             Self {
                 accounts: vec![],
-                authority_sudo_key: Address::from([0; 20]),
+                authority_sudo_address: Address::from([0; 20]),
+                ibc_sudo_address: Address::from([0; 20]),
+                ibc_relayer_addresses: vec![],
                 native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
+                ibc_params: penumbra_ibc::params::IBCParameters::default(),
+                allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
             }
         }
     }

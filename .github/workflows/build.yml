@@ -2,6 +2,10 @@ name: Build Binaries
 on:
   # TODO: allow workflow dispatch to specify which binaries to build
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Git branch, or tag to build from
+        required: false
   push:
     tags:
       - "**-v[0-9]+.[0-9]+.[0-9]+"
@@ -10,32 +14,39 @@ on:
       - "**-v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
 
 jobs:
-  # TODO: Make generic and run on any tagged release
-  upload-cli-binaries:
-    if: startsWith(github.ref, 'refs/tags/cli-v') || github.event_name == 'workflow_dispatch'
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            os: buildjet-4vcpu-ubuntu-2004
-            build-tool: cargo
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            build-tool: cargo
-          - target: x86_64-apple-darwin
-            os: macos-latest
-            build-tool: cargo
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.73.0
-      - uses: taiki-e/upload-rust-binary-action@v1
-        with:
-          dry-run: ${{ !startsWith(github.ref, 'refs/tags/cli-v') }}
-          bin: astria-cli
-          # (optional) Target triple, default is host triple.
-          target: ${{ matrix.target }}
-          # (optional) Tool to build binaries (cargo, cross, or cargo-zigbuild)
-          build-tool: ${{ matrix.build-tool }}
-          # (required) GitHub token for uploading assets to GitHub Releases.
-          token: ${{ secrets.GITHUB_TOKEN }}
+  cli:
+    uses: './.github/workflows/reusable-build.yml'
+    with:
+      package-name: 'cli'
+      tag: ${{ inputs.tag }}
+
+  conductor:
+    uses: './.github/workflows/reusable-build.yml'
+    with:
+      package-name: 'conductor'
+      tag: ${{ inputs.tag }}
+  
+  composer:
+    uses: './.github/workflows/reusable-build.yml'
+    with:
+      package-name: 'composer'
+      tag: ${{ inputs.tag }}
+
+  sequencer:
+    uses: './.github/workflows/reusable-build.yml'
+    with:
+      package-name: 'sequencer'
+      tag: ${{ inputs.tag }}
+
+  relayer:
+    uses: './.github/workflows/reusable-build.yml'
+    with:
+      package-name: 'sequencer-relayer'
+      tag: ${{ inputs.tag }}
+
+  build:
+    if: ${{ always() && !cancelled() }}
+    needs: [cli, composer, conductor, sequencer, relayer]
+    uses: ./.github/workflows/reusable-success.yml
+    with:
+      success: ${{ !contains(needs.*.result, 'failure') }}
