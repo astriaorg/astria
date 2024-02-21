@@ -4,6 +4,11 @@ default:
 set dotenv-load
 set fallback
 
+update-cometbft-genesis-data:
+    ./cometbft init
+    jq --argjson toInsert "$(cat test-genesis-app-state.json)" '.app_state = $toInsert' ~/.cometbft/config/genesis.json > ~/.cometbft/config/tmp.json
+    mv ~/.cometbft/config/tmp.json ~/.cometbft/config/genesis.json
+
 launch:
     mprocs --config ./local-bin-mprocs.yaml
 
@@ -17,9 +22,7 @@ download-mac-arm:
 download-mac-x86:
     sh download-binaries-macos-x86_64.sh
 
-run-cometbft:
-    ./cometbft init
-    cp genesis.json ~/.cometbft/config/genesis.json
+run-cometbft: update-cometbft-genesis-data
     sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "2s"/g' ~/.cometbft/config/config.toml
     ./cometbft node
 
