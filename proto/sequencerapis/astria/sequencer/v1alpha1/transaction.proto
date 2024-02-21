@@ -35,6 +35,8 @@ message Action {
     Ics20Withdrawal ics20_withdrawal = 7;
     IbcRelayerChangeAction ibc_relayer_change_action = 8;
     FeeAssetChangeAction fee_asset_change_action = 9;
+    InitBridgeAccountAction init_bridge_account_action = 10;
+    TransferFromBridgeAccountAction transfer_from_bridge_account_action = 11;
   }
 }
 
@@ -127,3 +129,13 @@ message FeeAssetChangeAction {
     bytes removal = 2;
   }
 }
+
+message InitBridgeAccountAction {
+  bytes rollup_id = 1;
+}
+
+message TransferFromBridgeAccountAction {
+  bytes to = 1;
+  astria.primitive.v1.Uint128 amount = 2;
+}
+

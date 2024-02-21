@@ -130,6 +130,14 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateless()
                     .await
                     .context("stateless check failed for FeeAssetChangeAction")?,
+                Action::InitBridgeAccount(act) => act
+                    .check_stateless()
+                    .await
+                    .context("stateless check failed for InitBridgeAccountAction")?,
+                Action::TransferFromBridgeAccount(act) => act
+                    .check_stateless()
+                    .await
+                    .context("stateless check failed for TransferFromBridgeAccountAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateless()
@@ -191,6 +199,14 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for FeeAssetChangeAction")?,
+                Action::InitBridgeAccount(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for InitBridgeAccountAction")?,
+                Action::TransferFromBridgeAccount(act) => act
+                    .check_stateful(state, from)
+                    .await
+                    .context("stateful check failed for TransferFromBridgeAccountAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateful(state, from)
@@ -268,6 +284,16 @@ impl ActionHandler for UnsignedTransaction {
                     act.execute(state, from)
                         .await
                         .context("execution failed for FeeAssetChangeAction")?;
+                }
+                Action::InitBridgeAccount(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for InitBridgeAccountAction")?;
+                }
+                Action::TransferFromBridgeAccount(act) => {
+                    act.execute(state, from)
+                        .await
+                        .context("execution failed for TransferFromBridgeAccountAction")?;
                 }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => {

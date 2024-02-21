@@ -258,7 +258,7 @@ pub struct UnsignedTransaction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Action {
-    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9")]
+    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11")]
     pub value: ::core::option::Option<action::Value>,
 }
 /// Nested message and enum types in `Action`.
@@ -284,6 +284,10 @@ pub mod action {
         IbcRelayerChangeAction(super::IbcRelayerChangeAction),
         #[prost(message, tag = "9")]
         FeeAssetChangeAction(super::FeeAssetChangeAction),
+        #[prost(message, tag = "10")]
+        InitBridgeAccountAction(super::InitBridgeAccountAction),
+        #[prost(message, tag = "11")]
+        TransferFromBridgeAccountAction(super::TransferFromBridgeAccountAction),
     }
 }
 /// `TransferAction` represents a value transfer transaction.
@@ -421,4 +425,18 @@ pub mod fee_asset_change_action {
         #[prost(bytes, tag = "2")]
         Removal(::prost::alloc::vec::Vec<u8>),
     }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct InitBridgeAccountAction {
+    #[prost(bytes = "vec", tag = "1")]
+    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TransferFromBridgeAccountAction {
+    #[prost(bytes = "vec", tag = "1")]
+    pub to: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag = "2")]
+    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
 }
