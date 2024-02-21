@@ -29,3 +29,5 @@ remove-bin:
 clean:
     rm -rf ~/.cometbft/
     rm -rf /tmp/astria_db
+
+clean-restart: clean launch
