@@ -136,12 +136,20 @@ pub struct SequencerBlock {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Deposit {
+    /// the address the funds were locked in on the sequencer.
+    /// this is required as initializing an account as a bridge account
+    /// is permissionless, so the rollup consensus needs to know and enshrine
+    /// which accounts it accepts as valid bridge accounts.
     #[prost(bytes = "vec", tag = "1")]
+    pub bridge_address: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "vec", tag = "2")]
     pub rollup_id: ::prost::alloc::vec::Vec<u8>,
-    #[prost(message, optional, tag = "2")]
+    #[prost(message, optional, tag = "3")]
     pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
-    #[prost(bytes = "vec", tag = "3")]
+    #[prost(bytes = "vec", tag = "4")]
     pub asset_id: ::prost::alloc::vec::Vec<u8>,
+    /// the address on the destination chain which
+    /// will receive the bridged funds
     #[prost(string, tag = "5")]
     pub destination_chain_address: ::prost::alloc::string::String,
 }

@@ -5,6 +5,7 @@ use super::{
     celestia,
     raw,
     transaction,
+    Address,
     CelestiaRollupBlob,
     CelestiaSequencerBlob,
     IncorrectRollupIdLength,
@@ -17,6 +18,7 @@ use crate::{
         asset,
         derive_merkle_tree_from_rollup_txs,
         transaction::action,
+        IncorrectAddressLength,
     },
     Protobuf as _,
 };
@@ -573,6 +575,7 @@ where
 /// and stored as part of the block's events.
 #[derive(Debug, Clone)]
 pub struct Deposit {
+    pub bridge_address: Address,
     pub rollup_id: RollupId,
     pub amount: u128,
     pub asset_id: asset::Id,
@@ -583,12 +586,14 @@ impl Deposit {
     #[must_use]
     pub fn into_raw(self) -> raw::Deposit {
         let Self {
+            bridge_address,
             rollup_id,
             amount,
             asset_id,
             destination_chain_address,
         } = self;
         raw::Deposit {
+            bridge_address: bridge_address.to_vec(),
             rollup_id: rollup_id.to_vec(),
             amount: Some(amount.into()),
             asset_id: asset_id.as_bytes().to_vec(),
@@ -599,15 +604,18 @@ impl Deposit {
     #[must_use]
     pub fn try_from_raw(raw: raw::Deposit) -> Result<Self, DepositError> {
         let raw::Deposit {
+            bridge_address,
             rollup_id,
             amount,
             asset_id,
             destination_chain_address,
         } = raw;
+        let bridge_address = Address::try_from_slice(&bridge_address)?;
         let amount = amount.ok_or(DepositError::FieldNotSet("amount"))?.into();
         let rollup_id = RollupId::try_from_slice(&rollup_id)?;
         let asset_id = asset::Id::try_from_slice(&asset_id)?;
         Ok(Self {
+            bridge_address,
             rollup_id,
             amount,
             asset_id,
@@ -618,6 +626,8 @@ impl Deposit {
 
 #[derive(Debug, thiserror::Error)]
 pub enum DepositError {
+    #[error(transparent)]
+    IncorrectAddressLength(#[from] IncorrectAddressLength),
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error(transparent)]

@@ -46,8 +46,15 @@ message SequencerBlock {
 // `Deposit` represents a deposit from the sequencer
 // to a rollup.
 message Deposit {
-  bytes rollup_id = 1;
-  astria.primitive.v1.Uint128 amount = 2;
-  bytes asset_id = 3;
+  // the address the funds were locked in on the sequencer.
+  // this is required as initializing an account as a bridge account
+  // is permissionless, so the rollup consensus needs to know and enshrine
+  // which accounts it accepts as valid bridge accounts.
+  bytes bridge_address = 1;
+  bytes rollup_id = 2;
+  astria.primitive.v1.Uint128 amount = 3;
+  bytes asset_id = 4;
+  // the address on the destination chain which
+  // will receive the bridged funds
   string destination_chain_address = 5;
 }

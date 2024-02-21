@@ -72,6 +72,7 @@ impl ActionHandler for BridgeLockAction {
             .expect("recipient must be a bridge account; this is a bug in check_stateful");
 
         let deposit = Deposit {
+            bridge_address: self.to.clone(),
             rollup_id,
             asset_id: self.asset_id.clone(),
             amount: self.amount,
