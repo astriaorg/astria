@@ -77,7 +77,10 @@ impl ActionHandler for BridgeLockAction {
             amount: self.amount,
             destination_chain_address: self.destination_chain_address.clone(),
         };
-        state.put_deposit_event(deposit).await;
+        state
+            .put_deposit_event(deposit)
+            .await
+            .context("failed to put deposit event into state")?;
         Ok(())
     }
 }

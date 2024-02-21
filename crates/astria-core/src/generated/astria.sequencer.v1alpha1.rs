@@ -404,7 +404,7 @@ pub mod fee_asset_change_action {
 ///
 /// The sender of the transaction is used as the owner of the bridge account
 /// and is the only actor authorized to transfer out of this account via
-/// a `BridgeUnlockAction`.
+/// a `TransferAction`.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct InitBridgeAccountAction {

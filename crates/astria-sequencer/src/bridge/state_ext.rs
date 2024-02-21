@@ -87,7 +87,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed reading raw deposit nonce from state")?;
         let Some(bytes) = bytes else {
-            // the account has not yet been initialized; return 0
+            // no deposits for this rollup id yet; return 0
             return Ok(0);
         };
 
@@ -142,21 +142,22 @@ pub(crate) trait StateWriteExt: StateWrite {
     }
 
     #[instrument(skip(self))]
-    async fn put_deposit_event(&mut self, deposit: Deposit) {
-        let nonce = self.get_deposit_nonce(deposit.rollup_id).await.unwrap_or(0);
+    async fn put_deposit_event(&mut self, deposit: Deposit) -> Result<()> {
+        let nonce = self.get_deposit_nonce(deposit.rollup_id).await?;
         self.put_deposit_nonce(deposit.rollup_id, nonce + 1);
 
         let key = deposit_storage_key(deposit.rollup_id, nonce);
         self.nonverifiable_put_raw(key, deposit.into_raw().encode_to_vec());
+        Ok(())
     }
 
     // clears the deposit nonce and all deposits for for a given rollup ID.
     #[instrument(skip(self))]
     async fn clear_deposit_info(&mut self, rollup_id: RollupId) {
         self.nonverifiable_delete(deposit_nonce_storage_key(rollup_id));
-        let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(
-            format!("{}/deposit/", rollup_id.encode_hex::<String>()).as_bytes()
-        ));
+        let mut stream = std::pin::pin!(
+            self.nonverifiable_prefix_raw(deposit_storage_key_prefix(rollup_id).as_bytes())
+        );
         while let Some(Ok((key, _))) = stream.next().await {
             self.nonverifiable_delete(key);
         }

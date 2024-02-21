@@ -135,12 +135,12 @@ message FeeAssetChangeAction {
 //
 // The sender of the transaction is used as the owner of the bridge account
 // and is the only actor authorized to transfer out of this account via
-// a `BridgeUnlockAction`.
+// a `TransferAction`.
 message InitBridgeAccountAction {
   bytes rollup_id = 1;
 }
 
-// `BridgeLockAction` represents a transaction that transfers 
+// `BridgeLockAction` represents a transaction that transfers
 // funds from a sequencer account to a bridge account.
 //
 // It's the same as a `TransferAction` but with the added
