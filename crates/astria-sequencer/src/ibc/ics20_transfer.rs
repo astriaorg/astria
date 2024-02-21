@@ -48,13 +48,19 @@ use penumbra_ibc::component::app_handler::{
 };
 use penumbra_proto::penumbra::core::component::ibc::v1::FungibleTokenPacketData;
 
-use super::state_ext::{
-    StateReadExt as _,
-    StateWriteExt,
-};
-use crate::asset::state_ext::{
-    StateReadExt as _,
-    StateWriteExt as _,
+use crate::{
+    accounts::state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
+    asset::state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
+    ibc::state_ext::{
+        StateReadExt as _,
+        StateWriteExt,
+    },
 };
 
 /// The ICS20 transfer handler.

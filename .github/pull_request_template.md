@@ -10,6 +10,9 @@ Brief background on why these changes were made, ie "why?"
 ## Testing
 How are these changes tested?
 
+## Metrics
+- List out metrics added by PR, delete section if none. 
+
 ## Breaking Changelist
 - Bulleted list of breaking changes, any notes on migration. Delete section if none.
 

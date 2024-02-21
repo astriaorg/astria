@@ -2,6 +2,10 @@ name: Build Binaries
 on:
   # TODO: allow workflow dispatch to specify which binaries to build
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Git branch, or tag to build from
+        required: false
   push:
     tags:
       - "**-v[0-9]+.[0-9]+.[0-9]+"
@@ -10,31 +14,35 @@ on:
       - "**-v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
 
 jobs:
-  # TODO: Make generic and run on any tagged release
   cli:
     uses: './.github/workflows/reusable-build.yml'
     with:
       package-name: 'cli'
+      tag: ${{ inputs.tag }}
 
   conductor:
     uses: './.github/workflows/reusable-build.yml'
     with:
       package-name: 'conductor'
+      tag: ${{ inputs.tag }}
   
   composer:
     uses: './.github/workflows/reusable-build.yml'
     with:
-      package-name: 'conductor'
+      package-name: 'composer'
+      tag: ${{ inputs.tag }}
 
   sequencer:
     uses: './.github/workflows/reusable-build.yml'
     with:
       package-name: 'sequencer'
+      tag: ${{ inputs.tag }}
 
   relayer:
     uses: './.github/workflows/reusable-build.yml'
     with:
       package-name: 'sequencer-relayer'
+      tag: ${{ inputs.tag }}
 
   build:
     if: ${{ always() && !cancelled() }}
