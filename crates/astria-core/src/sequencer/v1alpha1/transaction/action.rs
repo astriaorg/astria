@@ -35,7 +35,7 @@ pub enum Action {
     IbcRelayerChange(IbcRelayerChangeAction),
     FeeAssetChange(FeeAssetChangeAction),
     InitBridgeAccount(InitBridgeAccountAction),
-    TransferFromBridgeAccount(TransferFromBridgeAccountAction),
+    BridgeLock(BridgeLockAction),
 }
 
 impl Action {
@@ -53,9 +53,7 @@ impl Action {
             Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.into_raw()),
             Action::FeeAssetChange(act) => Value::FeeAssetChangeAction(act.into_raw()),
             Action::InitBridgeAccount(act) => Value::InitBridgeAccountAction(act.into_raw()),
-            Action::TransferFromBridgeAccount(act) => {
-                Value::TransferFromBridgeAccountAction(act.into_raw())
-            }
+            Action::BridgeLock(act) => Value::BridgeLockAction(act.into_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -78,9 +76,7 @@ impl Action {
             Action::IbcRelayerChange(act) => Value::IbcRelayerChangeAction(act.to_raw()),
             Action::FeeAssetChange(act) => Value::FeeAssetChangeAction(act.to_raw()),
             Action::InitBridgeAccount(act) => Value::InitBridgeAccountAction(act.to_raw()),
-            Action::TransferFromBridgeAccount(act) => {
-                Value::TransferFromBridgeAccountAction(act.to_raw())
-            }
+            Action::BridgeLock(act) => Value::BridgeLockAction(act.to_raw()),
         };
         raw::Action {
             value: Some(kind),
@@ -135,9 +131,8 @@ impl Action {
                 InitBridgeAccountAction::try_from_raw(act)
                     .map_err(ActionError::init_bridge_account)?,
             ),
-            Value::TransferFromBridgeAccountAction(act) => Self::TransferFromBridgeAccount(
-                TransferFromBridgeAccountAction::try_from_raw(act)
-                    .map_err(ActionError::transfer_from_bridge_account)?,
+            Value::BridgeLockAction(act) => Self::BridgeLock(
+                BridgeLockAction::try_from_raw(act).map_err(ActionError::bridge_lock)?,
             ),
         };
         Ok(action)
@@ -208,6 +203,18 @@ impl From<FeeAssetChangeAction> for Action {
     }
 }
 
+impl From<InitBridgeAccountAction> for Action {
+    fn from(value: InitBridgeAccountAction) -> Self {
+        Self::InitBridgeAccount(value)
+    }
+}
+
+impl From<BridgeLockAction> for Action {
+    fn from(value: BridgeLockAction) -> Self {
+        Self::BridgeLock(value)
+    }
+}
+
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
@@ -258,8 +265,8 @@ impl ActionError {
         Self(ActionErrorKind::InitBridgeAccount(inner))
     }
 
-    fn transfer_from_bridge_account(inner: TransferFromBridgeAccountActionError) -> Self {
-        Self(ActionErrorKind::TransferFromBridgeAccount(inner))
+    fn bridge_lock(inner: BridgeLockActionError) -> Self {
+        Self(ActionErrorKind::BridgeLock(inner))
     }
 }
 
@@ -287,8 +294,8 @@ enum ActionErrorKind {
     FeeAssetChange(#[source] FeeAssetChangeActionError),
     #[error("init bridge account action was not valid")]
     InitBridgeAccount(#[source] InitBridgeAccountActionError),
-    #[error("transfer from bridge account action was not valid")]
-    TransferFromBridgeAccount(#[source] TransferFromBridgeAccountActionError),
+    #[error("bridge lock action was not valid")]
+    BridgeLock(#[source] BridgeLockActionError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1062,70 +1069,101 @@ enum InitBridgeAccountActionErrorKind {
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone)]
-pub struct TransferFromBridgeAccountAction {
+pub struct BridgeLockAction {
     pub to: Address,
     pub amount: u128,
+    // asset to be transferred.
+    pub asset_id: asset::Id,
+    // asset to use for fee payment.
+    pub fee_asset_id: asset::Id,
+    // the address on the destination chain to send the transfer to.
+    pub destination_chain_address: String,
 }
 
-impl TransferFromBridgeAccountAction {
+impl BridgeLockAction {
     #[must_use]
-    pub fn into_raw(self) -> raw::TransferFromBridgeAccountAction {
-        raw::TransferFromBridgeAccountAction {
+    pub fn into_raw(self) -> raw::BridgeLockAction {
+        raw::BridgeLockAction {
             to: self.to.to_vec(),
             amount: Some(self.amount.into()),
+            asset_id: self.asset_id.as_bytes().to_vec(),
+            fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
+            destination_chain_address: self.destination_chain_address,
         }
     }
 
     #[must_use]
-    pub fn to_raw(&self) -> raw::TransferFromBridgeAccountAction {
-        raw::TransferFromBridgeAccountAction {
+    pub fn to_raw(&self) -> raw::BridgeLockAction {
+        raw::BridgeLockAction {
             to: self.to.to_vec(),
             amount: Some(self.amount.into()),
+            asset_id: self.asset_id.as_bytes().to_vec(),
+            fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
+            destination_chain_address: self.destination_chain_address.clone(),
         }
     }
 
-    /// Convert from a raw, unchecked protobuf [`raw::TransferFromBridgeAccountAction`].
+    /// Convert from a raw, unchecked protobuf [`raw::BridgeLockAction`].
     ///
     /// # Errors
     ///
     /// - if the `to` field is invalid
-    pub fn try_from_raw(
-        proto: raw::TransferFromBridgeAccountAction,
-    ) -> Result<Self, TransferFromBridgeAccountActionError> {
-        let to = Address::try_from_slice(&proto.to)
-            .map_err(TransferFromBridgeAccountActionError::invalid_address)?;
+    /// - if the `asset_id` field is invalid
+    /// - if the `fee_asset_id` field is invalid
+    pub fn try_from_raw(proto: raw::BridgeLockAction) -> Result<Self, BridgeLockActionError> {
+        let to =
+            Address::try_from_slice(&proto.to).map_err(BridgeLockActionError::invalid_address)?;
         let amount = proto
             .amount
-            .ok_or(TransferFromBridgeAccountActionError::missing_amount())?;
+            .ok_or(BridgeLockActionError::missing_amount())?;
+        let asset_id = asset::Id::try_from_slice(&proto.asset_id)
+            .map_err(BridgeLockActionError::invalid_asset_id)?;
+        let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
+            .map_err(BridgeLockActionError::invalid_fee_asset_id)?;
         Ok(Self {
             to,
             amount: amount.into(),
+            asset_id,
+            fee_asset_id,
+            destination_chain_address: proto.destination_chain_address,
         })
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
-pub struct TransferFromBridgeAccountActionError(TransferFromBridgeAccountActionErrorKind);
+pub struct BridgeLockActionError(BridgeLockActionErrorKind);
 
-impl TransferFromBridgeAccountActionError {
+impl BridgeLockActionError {
     #[must_use]
     fn invalid_address(err: IncorrectAddressLength) -> Self {
-        Self(TransferFromBridgeAccountActionErrorKind::InvalidAddress(
-            err,
-        ))
+        Self(BridgeLockActionErrorKind::InvalidAddress(err))
     }
 
     #[must_use]
     fn missing_amount() -> Self {
-        Self(TransferFromBridgeAccountActionErrorKind::MissingAmount)
+        Self(BridgeLockActionErrorKind::MissingAmount)
+    }
+
+    #[must_use]
+    fn invalid_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
+        Self(BridgeLockActionErrorKind::InvalidAssetId(err))
+    }
+
+    #[must_use]
+    fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
+        Self(BridgeLockActionErrorKind::InvalidFeeAssetId(err))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-enum TransferFromBridgeAccountActionErrorKind {
+enum BridgeLockActionErrorKind {
     #[error("the address was invalid")]
     InvalidAddress(#[source] IncorrectAddressLength),
     #[error("the amount was missing")]
     MissingAmount,
+    #[error("the asset_id was invalid")]
+    InvalidAssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("the fee_asset_id was invalid")]
+    InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
 }

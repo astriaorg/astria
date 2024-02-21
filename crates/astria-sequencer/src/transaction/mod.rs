@@ -134,10 +134,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateless()
                     .await
                     .context("stateless check failed for InitBridgeAccountAction")?,
-                Action::TransferFromBridgeAccount(act) => act
+                Action::BridgeLock(act) => act
                     .check_stateless()
                     .await
-                    .context("stateless check failed for TransferFromBridgeAccountAction")?,
+                    .context("stateless check failed for BridgeLockAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateless()
@@ -203,10 +203,10 @@ impl ActionHandler for UnsignedTransaction {
                     .check_stateful(state, from)
                     .await
                     .context("stateful check failed for InitBridgeAccountAction")?,
-                Action::TransferFromBridgeAccount(act) => act
+                Action::BridgeLock(act) => act
                     .check_stateful(state, from)
                     .await
-                    .context("stateful check failed for TransferFromBridgeAccountAction")?,
+                    .context("stateful check failed for BridgeLockAction")?,
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => act
                     .check_stateful(state, from)
@@ -290,10 +290,10 @@ impl ActionHandler for UnsignedTransaction {
                         .await
                         .context("execution failed for InitBridgeAccountAction")?;
                 }
-                Action::TransferFromBridgeAccount(act) => {
+                Action::BridgeLock(act) => {
                     act.execute(state, from)
                         .await
-                        .context("execution failed for TransferFromBridgeAccountAction")?;
+                        .context("execution failed for BridgeLockAction")?;
                 }
                 #[cfg(feature = "mint")]
                 Action::Mint(act) => {

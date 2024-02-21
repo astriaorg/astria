@@ -287,7 +287,7 @@ pub mod action {
         #[prost(message, tag = "10")]
         InitBridgeAccountAction(super::InitBridgeAccountAction),
         #[prost(message, tag = "11")]
-        TransferFromBridgeAccountAction(super::TransferFromBridgeAccountAction),
+        BridgeLockAction(super::BridgeLockAction),
     }
 }
 /// `TransferAction` represents a value transfer transaction.
@@ -426,17 +426,38 @@ pub mod fee_asset_change_action {
         Removal(::prost::alloc::vec::Vec<u8>),
     }
 }
+/// `InitBridgeAccountAction` represents a transaction that initializes
+/// a bridge account for the given rollup on the chain.
+///
+/// The sender of the transaction is used as the owner of the bridge account
+/// and is the only actor authorized to transfer out of this account via
+/// a `BridgeUnlockAction`.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct InitBridgeAccountAction {
     #[prost(bytes = "vec", tag = "1")]
     pub rollup_id: ::prost::alloc::vec::Vec<u8>,
 }
+/// `BridgeLockAction` represents a transaction that transfers
+/// funds from a sequencer account to a bridge account.
+///
+/// It's the same as a `TransferAction` but with the added
+/// `destination_chain_address` field.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct TransferFromBridgeAccountAction {
+pub struct BridgeLockAction {
     #[prost(bytes = "vec", tag = "1")]
     pub to: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, optional, tag = "2")]
     pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
+    /// the asset to be transferred
+    #[prost(bytes = "vec", tag = "3")]
+    pub asset_id: ::prost::alloc::vec::Vec<u8>,
+    /// the asset used to pay the transaction fee
+    #[prost(bytes = "vec", tag = "4")]
+    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
+    /// the address on the destination chain which
+    /// will receive the bridged funds
+    #[prost(string, tag = "5")]
+    pub destination_chain_address: ::prost::alloc::string::String,
 }
