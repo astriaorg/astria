@@ -245,7 +245,7 @@ pub struct FilteredSequencerBlockRequest {
     pub height: u64,
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
     #[prost(bytes = "vec", repeated, tag = "2")]
-    pub rollup_id: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
 }
 /// Generated client implementations.
 #[cfg(feature = "client")]

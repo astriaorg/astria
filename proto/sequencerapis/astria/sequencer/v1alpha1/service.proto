@@ -15,7 +15,7 @@ message FilteredSequencerBlockRequest {
   // The height of the block to retrieve.
   uint64 height = 1 [(google.api.field_behavior) = REQUIRED];
   // The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
-  repeated bytes rollup_id = 2 [(google.api.field_behavior) = REQUIRED];
+  repeated bytes rollup_ids = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
 service SequencerService {

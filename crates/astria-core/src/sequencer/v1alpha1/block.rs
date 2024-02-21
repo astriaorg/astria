@@ -366,6 +366,24 @@ impl SequencerBlock {
         }
     }
 
+    #[must_use]
+    pub fn filtered_block(self, rollup_ids: Vec<RollupId>) -> Self {
+        let mut rollup_transactions = IndexMap::with_capacity(rollup_ids.len());
+        let mut all_rollup_transactions = self.rollup_transactions.clone();
+        rollup_ids.into_iter().for_each(|id| {
+            let transactions = all_rollup_transactions.swap_remove(&id).unwrap_or_default();
+            rollup_transactions.insert(id, transactions);
+        });
+
+        Self {
+            block_hash: self.block_hash,
+            header: self.header,
+            rollup_transactions_proof: self.rollup_transactions_proof,
+            rollup_ids_proof: self.rollup_ids_proof,
+            rollup_transactions,
+        }
+    }
+
     /// Turn the sequencer block into a [`CelestiaSequencerBlob`] and its associated list of
     /// [`CelestiaRollupBlob`]s.
     #[must_use]
