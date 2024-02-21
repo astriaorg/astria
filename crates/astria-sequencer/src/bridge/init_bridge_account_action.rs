@@ -20,6 +20,7 @@ use crate::{
     transaction::action_handler::ActionHandler,
 };
 
+// TODO: add a fee for this
 #[async_trait::async_trait]
 impl ActionHandler for InitBridgeAccountAction {
     async fn check_stateful<S: StateReadExt + 'static>(

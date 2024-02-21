@@ -14,6 +14,7 @@ use crate::{
     sequencer::v1alpha1::{
         are_rollup_ids_included,
         are_rollup_txs_included,
+        asset,
         derive_merkle_tree_from_rollup_txs,
         transaction::action,
     },
@@ -564,4 +565,63 @@ where
         Sha256,
     };
     merkle::Tree::from_leaves(iter.into_iter().map(|item| Sha256::digest(&item)))
+}
+
+/// [`Deposit`] represents a deposit from the sequencer to a rollup.
+///
+/// A [`Deposit`] is constructed whenever a [`BridgeLockAction`] is executed
+/// and stored as part of the block's events.
+#[derive(Debug, Clone)]
+pub struct Deposit {
+    pub rollup_id: RollupId,
+    pub amount: u128,
+    pub asset_id: asset::Id,
+    pub destination_chain_address: String,
+}
+
+impl Deposit {
+    #[must_use]
+    pub fn into_raw(self) -> raw::Deposit {
+        let Self {
+            rollup_id,
+            amount,
+            asset_id,
+            destination_chain_address,
+        } = self;
+        raw::Deposit {
+            rollup_id: rollup_id.to_vec(),
+            amount: Some(amount.into()),
+            asset_id: asset_id.as_bytes().to_vec(),
+            destination_chain_address,
+        }
+    }
+
+    #[must_use]
+    pub fn try_from_raw(raw: raw::Deposit) -> Result<Self, DepositError> {
+        let raw::Deposit {
+            rollup_id,
+            amount,
+            asset_id,
+            destination_chain_address,
+        } = raw;
+        let amount = amount.ok_or(DepositError::FieldNotSet("amount"))?.into();
+        let rollup_id = RollupId::try_from_slice(&rollup_id)?;
+        let asset_id = asset::Id::try_from_slice(&asset_id)?;
+        Ok(Self {
+            rollup_id,
+            amount,
+            asset_id,
+            destination_chain_address,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum DepositError {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error(transparent)]
+    IncorrectRollupIdLength(#[from] IncorrectRollupIdLength),
+    #[error(transparent)]
+    IncorrectAssetIdLength(#[from] asset::IncorrectAssetIdLength),
 }

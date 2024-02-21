@@ -63,6 +63,7 @@ use crate::{
             StateWriteExt as _,
         },
     },
+    bridge::state_ext::StateWriteExt,
     component::Component as _,
     genesis::GenesisState,
     ibc::component::IbcComponent,
@@ -537,6 +538,8 @@ impl App {
         &mut self,
         end_block: &abci::request::EndBlock,
     ) -> anyhow::Result<abci::response::EndBlock> {
+        use crate::bridge::state_ext::StateReadExt as _;
+
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
 
@@ -594,6 +597,23 @@ impl App {
         // clear block fees
         state_tx.clear_block_fees().await;
         self.current_proposer = None;
+
+        // get and clear rollup bridge deposit events
+        // TODO: we need to write these deposit events to the rollup data blob;
+        // right now these are not actually used anywhere.
+        let deposit_rollup_ids = state_tx
+            .get_deposit_rollup_ids()
+            .await
+            .context("failed to get deposit rollup IDs")?;
+        let mut deposit_events = HashMap::new();
+        for rollup_id in deposit_rollup_ids {
+            let rollup_deposit_events = state_tx
+                .get_deposit_events(rollup_id)
+                .await
+                .context("failed to get deposit events")?;
+            deposit_events.insert(rollup_id, rollup_deposit_events);
+            state_tx.clear_deposit_info(rollup_id).await;
+        }
 
         let events = self.apply(state_tx);
 
