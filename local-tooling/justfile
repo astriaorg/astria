@@ -26,7 +26,7 @@ bin-run-built:
 
 _run-cometbft:
   cometbft init
-  # NOTE - these are the development keys and genesis file. matches what is found in dev-cluster.
+  # NOTE - these are the development keys and genesis file. same dev account we use in dev-cluster.
   cp ./cometbft-local-configs/priv_validator_key.json ~/.cometbft/config/priv_validator_key.json
   cp ./cometbft-local-configs/genesis.json ~/.cometbft/config/genesis.json
   sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "2s"/g' ~/.cometbft/config/config.toml
