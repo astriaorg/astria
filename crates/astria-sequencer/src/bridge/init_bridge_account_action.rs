@@ -1,5 +1,6 @@
 use anyhow::{
     anyhow,
+    ensure,
     Context as _,
     Result,
 };
@@ -43,6 +44,11 @@ impl ActionHandler for InitBridgeAccountAction {
         if state.get_bridge_account_rollup_id(from).await?.is_some() {
             return Err(anyhow!("bridge account already exists"));
         }
+
+        ensure!(
+            !self.asset_ids.is_empty(),
+            "must initialize with at least one asset ID",
+        );
 
         Ok(())
     }
