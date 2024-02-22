@@ -10,3 +10,6 @@ copy-env type=default_env:
 
 run:
   cargo run
+
+bin-run:
+    ../../target/debug/astria-composer

@@ -9,20 +9,20 @@ procs:
         - "<C-c>"
 
   Sequencer:
-    shell: "just crates/astria-sequencer/copy-env && just crates/astria-sequencer/run"
+    shell: "just crates/astria-sequencer/copy-env && just crates/astria-sequencer/bin-run"
     stop:
       send-keys:
         - "<C-c>"
 
   Composer:
-    shell: "sleep 5 && just crates/astria-composer/copy-env && just crates/astria-composer/run"
+    shell: "sleep 5 && just crates/astria-composer/copy-env && just crates/astria-composer/bin-run"
     stop:
       send-keys:
         - "<C-c>"
 
   Conductor:
     # TODO: add wait command for rollup/geth
-    shell: "sleep 5 && just crates/astria-conductor/copy-env && just crates/astria-conductor/run"
+    shell: "sleep 5 && just crates/astria-conductor/copy-env && just crates/astria-conductor/bin-run"
     stop:
       send-keys:
         - "<C-c>"
