@@ -601,6 +601,14 @@ impl Deposit {
         }
     }
 
+    /// Attempts to transform the deposit from its raw representation.
+    ///
+    /// # Errors
+    ///
+    /// - if the bridge address is invalid
+    /// - if the amount is unset
+    /// - if the rollup ID is invalid
+    /// - if the asset ID is invalid
     pub fn try_from_raw(raw: raw::Deposit) -> Result<Self, DepositError> {
         let raw::Deposit {
             bridge_address,
