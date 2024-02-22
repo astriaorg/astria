@@ -12,4 +12,4 @@ run:
   cargo run
 
 bin-run:
-    ../../target/debug/astria-composer
+  ../../target/debug/astria-composer

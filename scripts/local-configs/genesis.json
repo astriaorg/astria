@@ -1,0 +1,62 @@
+{
+  "app_hash": "",
+  "app_state": {
+    "accounts": [
+      {
+        "address": "1c0c490f1b5528d8173c5de46d131160e4b2c0c3",
+        "balance": 1000000000000000000
+      },
+      {
+        "address": "34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a",
+        "balance": 1000000000000000000
+      },
+      {
+        "address": "60709e2d391864b732b4f0f51e387abb76743871",
+        "balance": 1000000000000000000
+      }
+    ],
+    "authority_sudo_address": "1c0c490f1b5528d8173c5de46d131160e4b2c0c3",
+    "ibc_sudo_address": "1c0c490f1b5528d8173c5de46d131160e4b2c0c3",
+    "ibc_relayer_addresses": ["1c0c490f1b5528d8173c5de46d131160e4b2c0c3","34fec43c7fcab9aef3b3cf8aba855e41ee69ca3a"],
+    "ibc_params": {
+      "ibc_enabled": true,
+      "inbound_ics20_transfers_enabled": true,
+      "outbound_ics20_transfers_enabled": true
+    },
+    "native_asset_base_denomination": "nria",
+    "allowed_fee_assets": ["nria"]
+  },
+  "chain_id": "astria",
+  "consensus_params": {
+    "block": {
+      "max_bytes": "22020096",
+      "max_gas": "-1"
+    },
+    "evidence": {
+      "max_age_duration": "172800000000000",
+      "max_age_num_blocks": "100000",
+      "max_bytes": "1048576"
+    },
+    "validator": {
+      "pub_key_types": [
+        "ed25519"
+      ]
+    },
+    "version": {
+      "app": "0"
+    }
+  },
+  "genesis_time": "2024-02-14T19:04:01.339263Z",
+  "initial_height": "0",
+  "validators": [
+    {
+      "address": "091E47761C58C474534F4D414AF104A6CAF90C22",
+      "name": "",
+      "power": "10",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "lV57+rGs2vac7mvkGHP1oBFGHPJM3a+WoAzeFDCJDNU="
+      }
+    }
+  ]
+}

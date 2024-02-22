@@ -12,7 +12,7 @@ run:
   cargo run
 
 bin-run:
-    ../../target/debug/astria-conductor
+  ../../target/debug/astria-conductor
 
 test:
   cargo test -- --nocapture --color always

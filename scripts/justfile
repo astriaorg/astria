@@ -34,3 +34,15 @@ clean:
     rm -rf /tmp/astria_db
 
 clean-restart: clean launch
+
+
+# BUGBUG - just here for devving
+jesse-build:
+  cd ..
+  cargo build
+
+jesse-cp-env:
+  cp local.env.example .env
+
+jesse-run:
+  cd .. && mprocs
