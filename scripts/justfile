@@ -35,14 +35,10 @@ clean:
 
 clean-restart: clean launch
 
+# build astria crates from source
+build-from-source:
+  cd .. && cargo build
 
-# BUGBUG - just here for devving
-jesse-build:
-  cd ..
-  cargo build
-
-jesse-cp-env:
-  cp local.env.example .env
-
-jesse-run:
+# run the built astria binaries
+bin-run:
   cd .. && mprocs
