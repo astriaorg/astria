@@ -1,0 +1,31 @@
+default:
+  @just --list
+
+set dotenv-load
+set fallback
+
+default_env := 'local'
+copy-env type=default_env:
+  cp {{ type }}.env.example .env
+
+clean:
+    rm -rf ~/.cometbft/
+    rm -rf /tmp/astria_db
+
+clean-restart: clean bin-run-built
+
+# build astria crates from source
+build-from-source:
+  cd .. && cargo build
+
+# run the built astria binaries
+bin-run-built:
+  mprocs --config ./bin-run-built-mprocs.yaml
+
+run-cometbft:
+  cometbft init
+  # NOTE - these are the development keys and genesis file. matches what is found in dev-cluster.
+  cp ./cometbft-local-configs/priv_validator_key.json ~/.cometbft/config/priv_validator_key.json
+  cp ./cometbft-local-configs/genesis.json ~/.cometbft/config/genesis.json
+  sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "2s"/g' ~/.cometbft/config/config.toml
+  cometbft node

@@ -1,0 +1,28 @@
+# runs the binaries that were built from source
+procs:
+  Cometbft:
+    # TODO: need more sophisticated command to wait for sequencer to finish
+    # compiling. Is there a way to check if sequencer is running and wait till it is?
+    shell: "sleep 2 && just run-cometbft"
+    stop:
+      send-keys:
+        - "<C-c>"
+
+  Sequencer:
+    shell: "just ../target/debug/astria-sequencer"
+    stop:
+      send-keys:
+        - "<C-c>"
+
+  Composer:
+    shell: "sleep 5 && ../target/debug/astria-composer"
+    stop:
+      send-keys:
+        - "<C-c>"
+
+  Conductor:
+    # TODO: add wait command for rollup/geth
+    shell: "sleep 5 && ../target/debug/astria-conductor"
+    stop:
+      send-keys:
+        - "<C-c>"
