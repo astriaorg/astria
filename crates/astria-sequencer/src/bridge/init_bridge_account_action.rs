@@ -29,7 +29,6 @@ use crate::{
 /// Fee charged for a `InitBridgeAccountAction`.
 pub(crate) const INIT_BRIDGE_ACCOUNT_FEE: u128 = 48;
 
-// TODO: add a fee for this
 #[async_trait::async_trait]
 impl ActionHandler for InitBridgeAccountAction {
     async fn check_stateful<S: StateReadExt + 'static>(
@@ -53,7 +52,7 @@ impl ActionHandler for InitBridgeAccountAction {
         //
         // after the account becomes a bridge account, it can no longer receive funds
         // via `TransferAction`, only via `BridgeLockAction`.
-        if state.get_bridge_account_rollup_id(from).await?.is_some() {
+        if state.get_bridge_account_rollup_id(&from).await?.is_some() {
             return Err(anyhow!("bridge account already exists"));
         }
 
@@ -77,9 +76,9 @@ impl ActionHandler for InitBridgeAccountAction {
 
     #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
-        state.put_bridge_account_rollup_id(from, self.rollup_id);
+        state.put_bridge_account_rollup_id(&from, self.rollup_id);
         state
-            .put_bridge_account_asset_ids(from, &self.asset_ids)
+            .put_bridge_account_asset_ids(&from, &self.asset_ids)
             .context("failed to put asset IDs")?;
 
         state

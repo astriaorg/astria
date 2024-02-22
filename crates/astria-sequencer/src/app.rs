@@ -732,6 +732,7 @@ mod test {
         accounts::action::TRANSFER_FEE,
         asset::get_native_asset,
         authority::state_ext::ValidatorSet,
+        bridge::state_ext::StateReadExt as _,
         genesis::Account,
         ibc::state_ext::StateReadExt as _,
         sequence::calculate_fee,
@@ -1426,6 +1427,241 @@ mod test {
             .root_cause()
             .to_string();
         assert!(res.contains("cannot remove last allowed fee asset"));
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_init_bridge_account_ok() {
+        use astria_core::sequencer::v1alpha1::transaction::action::InitBridgeAccountAction;
+
+        use crate::bridge::init_bridge_account_action::INIT_BRIDGE_ACCOUNT_FEE;
+
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let mut app = initialize_app(None, vec![]).await;
+
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let asset_id = get_native_asset().id();
+        let action = InitBridgeAccountAction {
+            rollup_id,
+            asset_ids: vec![asset_id],
+            fee_asset_id: asset_id,
+        };
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![action.into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+
+        let before_balance = app
+            .state
+            .get_account_balance(alice_address, asset_id)
+            .await
+            .unwrap();
+        app.deliver_tx(signed_tx).await.unwrap();
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+        assert_eq!(
+            app.state
+                .get_bridge_account_rollup_id(&alice_address)
+                .await
+                .unwrap()
+                .unwrap(),
+            rollup_id
+        );
+        assert_eq!(
+            app.state
+                .get_bridge_account_asset_ids(&alice_address)
+                .await
+                .unwrap(),
+            vec![asset_id]
+        );
+        assert_eq!(
+            app.state
+                .get_account_balance(alice_address, asset_id)
+                .await
+                .unwrap(),
+            before_balance - INIT_BRIDGE_ACCOUNT_FEE
+        );
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_init_bridge_account_empty_asset_ids() {
+        use astria_core::sequencer::v1alpha1::transaction::action::InitBridgeAccountAction;
+
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let mut app = initialize_app(None, vec![]).await;
+
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let asset_id = get_native_asset().id();
+        let action = InitBridgeAccountAction {
+            rollup_id,
+            asset_ids: vec![],
+            fee_asset_id: asset_id,
+        };
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![action.into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        assert!(app.deliver_tx(signed_tx).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_init_bridge_account_account_already_registered() {
+        use astria_core::sequencer::v1alpha1::transaction::action::InitBridgeAccountAction;
+
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let mut app = initialize_app(None, vec![]).await;
+
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let asset_id = get_native_asset().id();
+        let action = InitBridgeAccountAction {
+            rollup_id,
+            asset_ids: vec![asset_id],
+            fee_asset_id: asset_id,
+        };
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![action.into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        app.deliver_tx(signed_tx).await.unwrap();
+
+        let action = InitBridgeAccountAction {
+            rollup_id,
+            asset_ids: vec![asset_id],
+            fee_asset_id: asset_id,
+        };
+        let tx = UnsignedTransaction {
+            nonce: 1,
+            actions: vec![action.into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        assert!(app.deliver_tx(signed_tx).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_bridge_lock_action_ok() {
+        use astria_core::sequencer::v1alpha1::transaction::action::BridgeLockAction;
+
+        let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
+        let mut app = initialize_app(None, vec![]).await;
+
+        let bridge_address = Address::from([99; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let asset_id = get_native_asset().id();
+
+        let mut state_tx = StateDelta::new(app.state.clone());
+        state_tx.put_bridge_account_rollup_id(&bridge_address, rollup_id);
+        state_tx
+            .put_bridge_account_asset_ids(&bridge_address, &vec![asset_id])
+            .unwrap();
+        app.apply(state_tx);
+
+        let amount = 100;
+        let action = BridgeLockAction {
+            to: bridge_address,
+            amount,
+            asset_id,
+            fee_asset_id: asset_id,
+            destination_chain_address: "nootwashere".to_string(),
+        };
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![action.into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+
+        let alice_before_balance = app
+            .state
+            .get_account_balance(alice_address, asset_id)
+            .await
+            .unwrap();
+        let bridge_before_balance = app
+            .state
+            .get_account_balance(bridge_address, asset_id)
+            .await
+            .unwrap();
+
+        app.deliver_tx(signed_tx).await.unwrap();
+        assert_eq!(app.state.get_account_nonce(alice_address).await.unwrap(), 1);
+        assert_eq!(
+            app.state
+                .get_account_balance(alice_address, asset_id)
+                .await
+                .unwrap(),
+            alice_before_balance - (amount + TRANSFER_FEE)
+        );
+        assert_eq!(
+            app.state
+                .get_account_balance(bridge_address, asset_id)
+                .await
+                .unwrap(),
+            bridge_before_balance + amount
+        );
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_bridge_lock_action_invalid_for_eoa() {
+        use astria_core::sequencer::v1alpha1::transaction::action::BridgeLockAction;
+
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let mut app = initialize_app(None, vec![]).await;
+
+        // don't actually register this address as a bridge address
+        let bridge_address = Address::from([99; 20]);
+        let asset_id = get_native_asset().id();
+
+        let amount = 100;
+        let action = BridgeLockAction {
+            to: bridge_address,
+            amount,
+            asset_id,
+            fee_asset_id: asset_id,
+            destination_chain_address: "nootwashere".to_string(),
+        };
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![action.into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        assert!(app.deliver_tx(signed_tx).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn app_deliver_tx_transfer_invalid_to_bridge_account() {
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let mut app = initialize_app(None, vec![]).await;
+
+        let bridge_address = Address::from([99; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let asset_id = get_native_asset().id();
+
+        let mut state_tx = StateDelta::new(app.state.clone());
+        state_tx.put_bridge_account_rollup_id(&bridge_address, rollup_id);
+        state_tx
+            .put_bridge_account_asset_ids(&bridge_address, &vec![asset_id])
+            .unwrap();
+        app.apply(state_tx);
+
+        let amount = 100;
+        let action = TransferAction {
+            to: bridge_address,
+            amount,
+            asset_id,
+            fee_asset_id: asset_id,
+        };
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![action.into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        assert!(app.deliver_tx(signed_tx).await.is_err());
     }
 
     #[cfg(feature = "mint")]

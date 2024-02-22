@@ -54,8 +54,12 @@ fn storage_key(address: &str) -> String {
     format!("{BRIDGE_ACCOUNT_PREFIX}/{address}")
 }
 
-fn rollup_id_storage_key(address: Address) -> String {
+fn rollup_id_storage_key(address: &Address) -> String {
     format!("{}/rollupid", storage_key(&address.encode_hex::<String>()))
+}
+
+fn asset_ids_storage_key(address: &Address) -> String {
+    format!("{}/assetids", storage_key(&address.encode_hex::<String>()))
 }
 
 fn deposit_storage_key_prefix(rollup_id: RollupId) -> String {
@@ -77,7 +81,7 @@ fn deposit_nonce_storage_key(rollup_id: RollupId) -> Vec<u8> {
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
     #[instrument(skip(self))]
-    async fn get_bridge_account_rollup_id(&self, address: Address) -> Result<Option<RollupId>> {
+    async fn get_bridge_account_rollup_id(&self, address: &Address) -> Result<Option<RollupId>> {
         let Some(rollup_id_bytes) = self
             .get_raw(&rollup_id_storage_key(address))
             .await
@@ -93,9 +97,9 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip(self))]
-    async fn get_bridge_account_asset_ids(&self, address: Address) -> Result<Vec<asset::Id>> {
+    async fn get_bridge_account_asset_ids(&self, address: &Address) -> Result<Vec<asset::Id>> {
         let bytes = self
-            .get_raw(&storage_key(&address.encode_hex::<String>()))
+            .get_raw(&asset_ids_storage_key(address))
             .await
             .context("failed reading raw asset IDs from state")?
             .ok_or_else(|| anyhow!("asset IDs not found"))?;
@@ -149,18 +153,18 @@ impl<T: StateRead + ?Sized> StateReadExt for T {}
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
-    fn put_bridge_account_rollup_id(&mut self, address: Address, rollup_id: RollupId) {
+    fn put_bridge_account_rollup_id(&mut self, address: &Address, rollup_id: RollupId) {
         self.put_raw(rollup_id_storage_key(address), rollup_id.to_vec());
     }
 
     #[instrument(skip(self))]
     fn put_bridge_account_asset_ids(
         &mut self,
-        address: Address,
+        address: &Address,
         asset_ids: &[asset::Id],
     ) -> Result<()> {
         self.put_raw(
-            storage_key(&address.encode_hex::<String>()),
+            asset_ids_storage_key(address),
             AssetIds::from(asset_ids)
                 .try_to_vec()
                 .context("failed to serialize asset IDs")?,

@@ -86,7 +86,10 @@ impl ActionHandler for TransferAction {
         // ensure the recipient is not a bridge account,
         // as the explicit `BridgeLockAction` should be used to transfer to a bridge account.
         ensure!(
-            state.get_bridge_account_rollup_id(self.to).await?.is_none(),
+            state
+                .get_bridge_account_rollup_id(&self.to)
+                .await?
+                .is_none(),
             "cannot send transfer to bridge account",
         );
 

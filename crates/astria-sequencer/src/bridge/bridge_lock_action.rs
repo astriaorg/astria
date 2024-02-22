@@ -42,12 +42,15 @@ impl ActionHandler for BridgeLockAction {
 
         // ensure the recipient is a bridge account.
         ensure!(
-            state.get_bridge_account_rollup_id(self.to).await?.is_some(),
+            state
+                .get_bridge_account_rollup_id(&self.to)
+                .await?
+                .is_some(),
             "bridge lock must be sent to a bridge account",
         );
 
         let allowed_asset_ids = state
-            .get_bridge_account_asset_ids(from)
+            .get_bridge_account_asset_ids(&self.to)
             .await
             .context("failed to get bridge account asset IDs")?;
         ensure!(
@@ -76,7 +79,7 @@ impl ActionHandler for BridgeLockAction {
             .context("failed to execute bridge lock action as transfer action")?;
 
         let rollup_id = state
-            .get_bridge_account_rollup_id(self.to)
+            .get_bridge_account_rollup_id(&self.to)
             .await?
             .expect("recipient must be a bridge account; this is a bug in check_stateful");
 
