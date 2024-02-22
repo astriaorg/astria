@@ -1559,7 +1559,7 @@ mod test {
         let mut state_tx = StateDelta::new(app.state.clone());
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_asset_ids(&bridge_address, &vec![asset_id])
+            .put_bridge_account_asset_ids(&bridge_address, &[asset_id])
             .unwrap();
         app.apply(state_tx);
 
@@ -1659,7 +1659,7 @@ mod test {
         let mut state_tx = StateDelta::new(app.state.clone());
         state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
-            .put_bridge_account_asset_ids(&bridge_address, &vec![asset_id])
+            .put_bridge_account_asset_ids(&bridge_address, &[asset_id])
             .unwrap();
         app.apply(state_tx);
 
