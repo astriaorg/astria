@@ -9,7 +9,7 @@ copy-env TYPE=default_env:
   cp {{ TYPE }}.env.example .env
 
 run:
-  ../../target/debug/astria-conductor
+  cargo run
 
 test:
   cargo test -- --nocapture --color always

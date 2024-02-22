@@ -9,7 +9,7 @@ copy-env type=default_env:
   cp {{ type }}.env.example .env
 
 run:
-  ../../target/debug/astria-sequencer
+  cargo run
 
 run-cometbft:
   cometbft init

@@ -9,4 +9,4 @@ copy-env type=default_env:
   cp {{ type }}.env.example .env
 
 run:
-  ../../target/debug/astria-composer
+  cargo run
