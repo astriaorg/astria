@@ -139,6 +139,7 @@ message FeeAssetChangeAction {
 message InitBridgeAccountAction {
   bytes rollup_id = 1;
   repeated bytes asset_ids = 2;
+  bytes fee_asset_id = 3;
 }
 
 // `BridgeLockAction` represents a transaction that transfers

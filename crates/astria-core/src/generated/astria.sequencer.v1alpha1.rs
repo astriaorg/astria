@@ -420,6 +420,8 @@ pub struct InitBridgeAccountAction {
     pub rollup_id: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes = "vec", repeated, tag = "2")]
     pub asset_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    #[prost(bytes = "vec", tag = "3")]
+    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
 }
 /// `BridgeLockAction` represents a transaction that transfers
 /// funds from a sequencer account to a bridge account.

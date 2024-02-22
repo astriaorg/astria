@@ -11,6 +11,10 @@ use astria_core::sequencer::v1alpha1::{
 use tracing::instrument;
 
 use crate::{
+    accounts::state_ext::{
+        StateReadExt as _,
+        StateWriteExt as _,
+    },
     bridge::state_ext::{
         StateReadExt as _,
         StateWriteExt as _,
@@ -22,6 +26,9 @@ use crate::{
     transaction::action_handler::ActionHandler,
 };
 
+/// Fee charged for a `InitBridgeAccountAction`.
+pub(crate) const INIT_BRIDGE_ACCOUNT_FEE: u128 = 48;
+
 // TODO: add a fee for this
 #[async_trait::async_trait]
 impl ActionHandler for InitBridgeAccountAction {
@@ -30,6 +37,11 @@ impl ActionHandler for InitBridgeAccountAction {
         state: &S,
         from: Address,
     ) -> Result<()> {
+        ensure!(
+            state.is_allowed_fee_asset(self.fee_asset_id).await?,
+            "invalid fee asset",
+        );
+
         // this prevents the address from being registered as a bridge account
         // if it's been previously initialized as a bridge account.
         //
@@ -50,6 +62,16 @@ impl ActionHandler for InitBridgeAccountAction {
             "must initialize with at least one asset ID",
         );
 
+        let balance = state
+            .get_account_balance(from, self.fee_asset_id)
+            .await
+            .context("failed getting `from` account balance for fee payment")?;
+
+        ensure!(
+            balance >= INIT_BRIDGE_ACCOUNT_FEE,
+            "insufficient funds for bridge account initialization",
+        );
+
         Ok(())
     }
 
@@ -59,6 +81,11 @@ impl ActionHandler for InitBridgeAccountAction {
         state
             .put_bridge_account_asset_ids(from, &self.asset_ids)
             .context("failed to put asset IDs")?;
+
+        state
+            .decrease_balance(from, self.fee_asset_id, INIT_BRIDGE_ACCOUNT_FEE)
+            .await
+            .context("failed to deduct fee from account balance")?;
         Ok(())
     }
 }

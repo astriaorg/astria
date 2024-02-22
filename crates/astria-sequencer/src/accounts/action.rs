@@ -108,15 +108,6 @@ impl ActionHandler for TransferAction {
 
         let transfer_asset_id = self.asset_id;
 
-        let from_balance = state
-            .get_account_balance(from, transfer_asset_id)
-            .await
-            .context("failed getting `from` account balance")?;
-        let to_balance = state
-            .get_account_balance(self.to, transfer_asset_id)
-            .await
-            .context("failed getting `to` account balance")?;
-
         // if fee payment asset is same asset as transfer asset, deduct fee
         // from same balance as asset transferred
         if transfer_asset_id == self.fee_asset_id {
@@ -127,59 +118,30 @@ impl ActionHandler for TransferAction {
                 .expect("transfer amount plus fee should not overflow");
 
             state
-                .put_account_balance(
-                    from,
-                    transfer_asset_id,
-                    from_balance
-                        .checked_sub(payment_amount)
-                        .ok_or(anyhow!("insufficient funds for transfer and fee payment"))?,
-                )
-                .context("failed updating `from` account balance")?;
+                .decrease_balance(from, transfer_asset_id, payment_amount)
+                .await
+                .context("failed decreasing `from` account balance")?;
             state
-                .put_account_balance(
-                    self.to,
-                    transfer_asset_id,
-                    to_balance
-                        .checked_add(self.amount)
-                        .ok_or(anyhow!("recipient balance overflowed"))?,
-                )
-                .context("failed updating `to` account balance")?;
+                .increase_balance(self.to, transfer_asset_id, self.amount)
+                .await
+                .context("failed increasing `to` account balance")?;
         } else {
             // otherwise, just transfer the transfer asset and deduct fee from fee asset balance
             // later
             state
-                .put_account_balance(
-                    from,
-                    transfer_asset_id,
-                    from_balance
-                        .checked_sub(self.amount)
-                        .ok_or(anyhow!("insufficient funds for transfer"))?,
-                )
-                .context("failed updating `from` account balance")?;
+                .decrease_balance(from, transfer_asset_id, self.amount)
+                .await
+                .context("failed decreasing `from` account balance")?;
             state
-                .put_account_balance(
-                    self.to,
-                    transfer_asset_id,
-                    to_balance
-                        .checked_add(self.amount)
-                        .ok_or(anyhow!("recipient balance overflowed"))?,
-                )
-                .context("failed updating `to` account balance")?;
+                .increase_balance(self.to, transfer_asset_id, self.amount)
+                .await
+                .context("failed increasing `to` account balance")?;
 
             // deduct fee from fee asset balance
-            let from_fee_balance = state
-                .get_account_balance(from, self.fee_asset_id)
-                .await
-                .context("failed getting `from` account balance for fee payment")?;
             state
-                .put_account_balance(
-                    from,
-                    self.fee_asset_id,
-                    from_fee_balance
-                        .checked_sub(TRANSFER_FEE)
-                        .ok_or(anyhow!("insufficient funds for fee payment"))?,
-                )
-                .context("failed updating `from` account balance for fee payment")?;
+                .decrease_balance(from, self.fee_asset_id, TRANSFER_FEE)
+                .await
+                .context("failed decreasing `from` account balance for fee payment")?;
         }
 
         Ok(())

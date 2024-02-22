@@ -1018,6 +1018,7 @@ enum FeeAssetChangeActionErrorKind {
 pub struct InitBridgeAccountAction {
     pub rollup_id: RollupId,
     pub asset_ids: Vec<asset::Id>,
+    pub fee_asset_id: asset::Id,
 }
 
 impl InitBridgeAccountAction {
@@ -1030,6 +1031,7 @@ impl InitBridgeAccountAction {
                 .iter()
                 .map(|id| id.as_bytes().to_vec())
                 .collect(),
+            fee_asset_id: self.fee_asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -1042,6 +1044,7 @@ impl InitBridgeAccountAction {
                 .iter()
                 .map(|id| id.as_bytes().to_vec())
                 .collect(),
+            fee_asset_id: self.fee_asset_id.as_bytes().to_vec(),
         }
     }
 
@@ -1061,10 +1064,13 @@ impl InitBridgeAccountAction {
             .map(|bytes| asset::Id::try_from_slice(&bytes))
             .collect::<Result<Vec<asset::Id>, asset::IncorrectAssetIdLength>>()
             .map_err(InitBridgeAccountActionError::invalid_asset_id)?;
+        let fee_asset_id = asset::Id::try_from_slice(&proto.fee_asset_id)
+            .map_err(InitBridgeAccountActionError::invalid_fee_asset_id)?;
 
         Ok(Self {
             rollup_id,
             asset_ids,
+            fee_asset_id,
         })
     }
 }
@@ -1083,14 +1089,22 @@ impl InitBridgeAccountActionError {
     fn invalid_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
         Self(InitBridgeAccountActionErrorKind::InvalidAssetId(err))
     }
+
+    #[must_use]
+    fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
+        Self(InitBridgeAccountActionErrorKind::InvalidFeeAssetId(err))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
+#[allow(clippy::enum_variant_names)]
 enum InitBridgeAccountActionErrorKind {
     #[error("the rollup_id was invalid")]
     InvalidRollupId(#[source] IncorrectRollupIdLength),
     #[error("an asset ID was invalid")]
     InvalidAssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("the fee_asset_id was invalid")]
+    InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
 }
 
 #[allow(clippy::module_name_repetitions)]
