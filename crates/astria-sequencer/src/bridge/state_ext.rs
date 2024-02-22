@@ -1,10 +1,12 @@
 use anyhow::{
+    anyhow,
     Context,
     Result,
 };
 use astria_core::{
     generated::sequencer::v1alpha1::Deposit as RawDeposit,
     sequencer::v1alpha1::{
+        asset,
         block::Deposit,
         Address,
         RollupId,
@@ -34,6 +36,16 @@ struct Balance(u128);
 /// Newtype wrapper to read and write a u32 from rocksdb.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 struct Nonce(u32);
+
+/// Newtype wrapper to read and write a Vec<[u8; 32]> from rocksdb.
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
+struct AssetIds(Vec<[u8; 32]>);
+
+impl From<&[asset::Id]> for AssetIds {
+    fn from(ids: &[asset::Id]) -> Self {
+        Self(ids.iter().map(|id| *id.as_bytes()).collect())
+    }
+}
 
 const BRIDGE_ACCOUNT_PREFIX: &str = "bridgeacc";
 const DEPOSIT_PREFIX: &str = "deposit";
@@ -78,6 +90,17 @@ pub(crate) trait StateReadExt: StateRead {
         let rollup_id =
             RollupId::try_from_slice(&rollup_id_bytes).context("invalid rollup ID bytes")?;
         Ok(Some(rollup_id))
+    }
+
+    #[instrument(skip(self))]
+    async fn get_bridge_account_asset_ids(&self, address: Address) -> Result<Vec<asset::Id>> {
+        let bytes = self
+            .get_raw(&storage_key(&address.encode_hex::<String>()))
+            .await
+            .context("failed reading raw asset IDs from state")?
+            .ok_or_else(|| anyhow!("asset IDs not found"))?;
+        let asset_ids = AssetIds::try_from_slice(&bytes).context("invalid asset IDs bytes")?;
+        Ok(asset_ids.0.into_iter().map(asset::Id::from).collect())
     }
 
     #[instrument(skip(self))]
@@ -128,6 +151,21 @@ pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
     fn put_bridge_account_rollup_id(&mut self, address: Address, rollup_id: RollupId) {
         self.put_raw(rollup_id_storage_key(address), rollup_id.to_vec());
+    }
+
+    #[instrument(skip(self))]
+    fn put_bridge_account_asset_ids(
+        &mut self,
+        address: Address,
+        asset_ids: &[asset::Id],
+    ) -> Result<()> {
+        self.put_raw(
+            storage_key(&address.encode_hex::<String>()),
+            AssetIds::from(asset_ids)
+                .try_to_vec()
+                .context("failed to serialize asset IDs")?,
+        );
+        Ok(())
     }
 
     // the deposit "nonce" for a given rollup ID during a given block.

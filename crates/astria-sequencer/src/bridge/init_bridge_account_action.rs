@@ -1,5 +1,6 @@
 use anyhow::{
     anyhow,
+    Context as _,
     Result,
 };
 use astria_core::sequencer::v1alpha1::{
@@ -39,7 +40,7 @@ impl ActionHandler for InitBridgeAccountAction {
         //
         // after the account becomes a bridge account, it can no longer receive funds
         // via `TransferAction`, only via `BridgeLockAction`.
-        if let Some(_) = state.get_bridge_account_rollup_id(from).await? {
+        if state.get_bridge_account_rollup_id(from).await?.is_some() {
             return Err(anyhow!("bridge account already exists"));
         }
 
@@ -48,7 +49,10 @@ impl ActionHandler for InitBridgeAccountAction {
 
     #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
-        state.put_bridge_account_rollup_id(from, self.rollup_id.clone());
+        state.put_bridge_account_rollup_id(from, self.rollup_id);
+        state
+            .put_bridge_account_asset_ids(from, &self.asset_ids)
+            .context("failed to put asset IDs")?;
         Ok(())
     }
 }

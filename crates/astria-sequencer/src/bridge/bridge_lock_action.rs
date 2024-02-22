@@ -34,16 +34,25 @@ impl ActionHandler for BridgeLockAction {
         from: Address,
     ) -> Result<()> {
         let transfer_action = TransferAction {
-            to: self.to.clone(),
-            asset_id: self.asset_id.clone(),
+            to: self.to,
+            asset_id: self.asset_id,
             amount: self.amount,
-            fee_asset_id: self.fee_asset_id.clone(),
+            fee_asset_id: self.fee_asset_id,
         };
 
         // ensure the recipient is a bridge account.
         ensure!(
             state.get_bridge_account_rollup_id(self.to).await?.is_some(),
             "bridge lock must be sent to a bridge account",
+        );
+
+        let allowed_asset_ids = state
+            .get_bridge_account_asset_ids(from)
+            .await
+            .context("failed to get bridge account asset IDs")?;
+        ensure!(
+            allowed_asset_ids.contains(&self.asset_id),
+            "asset ID is not authorized for transfer to bridge account",
         );
 
         // this performs the same checks as a normal `TransferAction`,
@@ -55,10 +64,10 @@ impl ActionHandler for BridgeLockAction {
     #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         let transfer_action = TransferAction {
-            to: self.to.clone(),
-            asset_id: self.asset_id.clone(),
+            to: self.to,
+            asset_id: self.asset_id,
             amount: self.amount,
-            fee_asset_id: self.fee_asset_id.clone(),
+            fee_asset_id: self.fee_asset_id,
         };
 
         transfer_action
@@ -67,14 +76,14 @@ impl ActionHandler for BridgeLockAction {
             .context("failed to execute bridge lock action as transfer action")?;
 
         let rollup_id = state
-            .get_bridge_account_rollup_id(self.to.clone())
+            .get_bridge_account_rollup_id(self.to)
             .await?
             .expect("recipient must be a bridge account; this is a bug in check_stateful");
 
         let deposit = Deposit {
-            bridge_address: self.to.clone(),
+            bridge_address: self.to,
             rollup_id,
-            asset_id: self.asset_id.clone(),
+            asset_id: self.asset_id,
             amount: self.amount,
             destination_chain_address: self.destination_chain_address.clone(),
         };

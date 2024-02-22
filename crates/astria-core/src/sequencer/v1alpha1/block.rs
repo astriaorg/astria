@@ -601,7 +601,6 @@ impl Deposit {
         }
     }
 
-    #[must_use]
     pub fn try_from_raw(raw: raw::Deposit) -> Result<Self, DepositError> {
         let raw::Deposit {
             bridge_address,

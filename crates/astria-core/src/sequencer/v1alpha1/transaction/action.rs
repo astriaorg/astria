@@ -1017,6 +1017,7 @@ enum FeeAssetChangeActionErrorKind {
 #[derive(Debug, Clone)]
 pub struct InitBridgeAccountAction {
     pub rollup_id: RollupId,
+    pub asset_ids: Vec<asset::Id>,
 }
 
 impl InitBridgeAccountAction {
@@ -1024,6 +1025,11 @@ impl InitBridgeAccountAction {
     pub fn into_raw(self) -> raw::InitBridgeAccountAction {
         raw::InitBridgeAccountAction {
             rollup_id: self.rollup_id.to_vec(),
+            asset_ids: self
+                .asset_ids
+                .iter()
+                .map(|id| id.as_bytes().to_vec())
+                .collect(),
         }
     }
 
@@ -1031,6 +1037,11 @@ impl InitBridgeAccountAction {
     pub fn to_raw(&self) -> raw::InitBridgeAccountAction {
         raw::InitBridgeAccountAction {
             rollup_id: self.rollup_id.to_vec(),
+            asset_ids: self
+                .asset_ids
+                .iter()
+                .map(|id| id.as_bytes().to_vec())
+                .collect(),
         }
     }
 
@@ -1044,8 +1055,16 @@ impl InitBridgeAccountAction {
     ) -> Result<Self, InitBridgeAccountActionError> {
         let rollup_id = RollupId::try_from_slice(&proto.rollup_id)
             .map_err(InitBridgeAccountActionError::invalid_rollup_id)?;
+        let asset_ids = proto
+            .asset_ids
+            .into_iter()
+            .map(|bytes| asset::Id::try_from_slice(&bytes))
+            .collect::<Result<Vec<asset::Id>, asset::IncorrectAssetIdLength>>()
+            .map_err(InitBridgeAccountActionError::invalid_asset_id)?;
+
         Ok(Self {
             rollup_id,
+            asset_ids,
         })
     }
 }
@@ -1059,12 +1078,19 @@ impl InitBridgeAccountActionError {
     fn invalid_rollup_id(err: IncorrectRollupIdLength) -> Self {
         Self(InitBridgeAccountActionErrorKind::InvalidRollupId(err))
     }
+
+    #[must_use]
+    fn invalid_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
+        Self(InitBridgeAccountActionErrorKind::InvalidAssetId(err))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
 enum InitBridgeAccountActionErrorKind {
     #[error("the rollup_id was invalid")]
     InvalidRollupId(#[source] IncorrectRollupIdLength),
+    #[error("an asset ID was invalid")]
+    InvalidAssetId(#[source] asset::IncorrectAssetIdLength),
 }
 
 #[allow(clippy::module_name_repetitions)]
