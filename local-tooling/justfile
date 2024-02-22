@@ -8,10 +8,12 @@ default_env := 'local'
 copy-env type=default_env:
   cp {{ type }}.env.example .env
 
+# delete cometbft and astria_db data
 clean:
     rm -rf ~/.cometbft/
     rm -rf /tmp/astria_db
 
+# delete data and restart binaries
 clean-restart: clean bin-run-built
 
 # build astria crates from source
@@ -22,7 +24,7 @@ build-from-source:
 bin-run-built:
   mprocs --config ./bin-run-built-mprocs.yaml
 
-run-cometbft:
+_run-cometbft:
   cometbft init
   # NOTE - these are the development keys and genesis file. matches what is found in dev-cluster.
   cp ./cometbft-local-configs/priv_validator_key.json ~/.cometbft/config/priv_validator_key.json
