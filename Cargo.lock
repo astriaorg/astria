@@ -783,6 +783,7 @@ dependencies = [
  "http 0.2.11",
  "humantime",
  "hyper",
+ "itoa",
  "jsonrpsee",
  "metrics",
  "once_cell",
@@ -799,6 +800,7 @@ dependencies = [
  "tendermint-rpc",
  "tokio",
  "tracing",
+ "tryhard",
  "wiremock",
  "zeroize",
 ]

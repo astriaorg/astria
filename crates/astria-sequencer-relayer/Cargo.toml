@@ -14,6 +14,7 @@ name = "astria-sequencer-relayer"
 [dependencies]
 dirs = "5.0"
 http = "0.2.9"
+itoa = "1.0.10"
 serde_path_to_error = "0.1.13"
 zeroize = { version = "1.6.0", features = ["zeroize_derive"] }
 
@@ -36,6 +37,7 @@ tendermint = { workspace = true, features = ["rust-crypto"] }
 tendermint-config = { workspace = true }
 tendermint-rpc = { workspace = true, features = ["http-client"] }
 tracing = { workspace = true }
+tryhard = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }

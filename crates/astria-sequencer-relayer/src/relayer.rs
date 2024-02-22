@@ -1,9 +1,25 @@
-use std::time::Duration;
+use std::{
+    fmt::{
+        Display,
+        Write,
+    },
+    sync::Arc,
+    time::Duration,
+};
 
 use astria_eyre::eyre::{
     self,
     bail,
+    Report,
     WrapErr as _,
+};
+use celestia_client::{
+    celestia_types::Blob,
+    jsonrpsee::http_client::HttpClient as CelestiaClient,
+};
+use futures::{
+    future::FusedFuture as _,
+    FutureExt as _,
 };
 use humantime::format_duration;
 use sequencer_client::{
@@ -19,17 +35,17 @@ use tokio::{
 };
 use tracing::{
     debug,
+    error,
     info,
     instrument,
     warn,
+    Span,
 };
 
 use crate::{
     metrics_init,
     validator::Validator,
 };
-
-type StdError = dyn std::error::Error;
 
 pub(crate) struct Relayer {
     /// The actual client used to poll the sequencer.
@@ -39,7 +55,7 @@ pub(crate) struct Relayer {
     sequencer_poll_period: Duration,
 
     // The http client for submitting sequencer blocks to celestia.
-    data_availability: celestia_client::jsonrpsee::http_client::HttpClient,
+    data_availability: CelestiaClient,
 
     // If this is set, only relay blocks to DA which are proposed by the same validator key.
     validator: Option<Validator>,
@@ -50,11 +66,6 @@ pub(crate) struct Relayer {
     // Sequencer blocks that have been received but not yet submitted to the data availability
     // layer (for example, because a submit RPC was currently in flight) .
     queued_blocks: Vec<SequencerBlock>,
-
-    // Task to submit blocks to the data availability layer. If this is set it means that
-    // an RPC is currently in flight and new blocks are queued up. They will be submitted
-    // once this task finishes.
-    submission_task: Option<task::JoinHandle<eyre::Result<u64>>>,
 
     // Task to query the sequencer for new blocks. A new request will be sent once this
     // task returns.
@@ -121,7 +132,6 @@ impl Relayer {
             validator,
             state_tx,
             queued_blocks: Vec::new(),
-            submission_task: None,
             sequencer_task: None,
         })
     }
@@ -147,38 +157,6 @@ impl Relayer {
                 .wrap_err("timed out getting latest block from sequencer")??;
             Ok(block)
         }));
-    }
-
-    #[instrument(skip_all)]
-    fn handle_submission_completed(
-        &mut self,
-        join_result: Result<eyre::Result<u64>, task::JoinError>,
-    ) {
-        self.submission_task = None;
-        // First check if the join task panicked
-        let submission_result = match join_result {
-            Ok(submission_result) => submission_result,
-            // Report if the task failed, i.e. panicked
-            Err(e) => {
-                warn!(error = &e as &StdError, "submission task failed",);
-                return;
-            }
-        };
-        // Then report update the internal state or report if submission failed
-        match submission_result {
-            Ok(height) => self.state_tx.send_modify(|state| {
-                metrics::counter!(metrics_init::CELESTIA_SUBMISSION_HEIGHT).absolute(height);
-                debug!(
-                    celestia_height=%height,
-                    "successfully submitted blocks to data availability layer"
-                );
-                state.current_data_availability_height.replace(height);
-            }),
-            Err(error) => {
-                metrics::counter!(metrics_init::CELESTIA_SUBMISSION_FAILURE_COUNT).increment(1);
-                warn!(%error, "failed submitting blocks to celestia");
-            }
-        }
     }
 
     /// Wait until a connection to the data availability layer is established.
@@ -302,6 +280,7 @@ impl Relayer {
             .wrap_err("failed establishing connection to the sequencer")?;
 
         let mut sequencer_interval = interval(self.sequencer_poll_period);
+        let mut submission = futures::future::Fuse::terminated();
 
         loop {
             select!(
@@ -347,73 +326,182 @@ impl Relayer {
                     }
                 }
 
-                // Record the current height of the data availability layer if a submission
-                // was in flight.
-                //
-                // NOTE: + wrapping the task in an async block makes this lazy;
-                //       + `unwrap`ping can't fail because this branch is disabled if `None`
-                res = async { self.submission_task.as_mut().unwrap().await }, if self.submission_task.is_some() => {
-                    self.handle_submission_completed(res);
+                res = &mut submission, if !submission.is_terminated() => {
+                    match res {
+                        Err(error) => {
+                            metrics::counter!(metrics_init::CELESTIA_SUBMISSION_FAILURE_COUNT).increment(1);
+                            error!(%error, "failed submitting blocks to celestia");
+                        }
+                        Ok(height) => self.state_tx.send_modify(|state| {
+                            state.current_data_availability_height.replace(height);
+                        }),
+                    }
                 }
             );
             // Try to submit new blocks
             //
             // This will immediately and eagerly try to submit to the data availability
             // layer if no submission is in flight.
-            if !self.queued_blocks.is_empty() && self.submission_task.is_none() {
+            if !self.queued_blocks.is_empty() && submission.is_terminated() {
                 let client = self.data_availability.clone();
-                self.submission_task = Some(task::spawn(submit_blocks_to_celestia(
-                    client,
-                    self.queued_blocks.clone(),
-                )));
+                submission = submit_sequencer_blocks(client, self.queued_blocks.clone())
+                    .boxed()
+                    .fuse();
                 self.queued_blocks.clear();
             }
-        }
-        // FIXME(https://github.com/astriaorg/astria/issues/357):
-        // Currently relayer's event loop never stops so this code cannot be reached.
-        // This should be fixed by shutting it down when receiving a SIGKILL or something
-        // like that.
-        #[allow(unreachable_code)]
-        {
-            if let Some(task) = self.submission_task.as_mut() {
-                task.abort();
-            }
-            Ok(())
         }
     }
 }
 
-#[instrument(skip_all)]
-async fn submit_blocks_to_celestia(
-    client: celestia_client::jsonrpsee::http_client::HttpClient,
+#[instrument(skip_all, fields(heights = %ReportBlockHeights(&sequencer_blocks)))]
+async fn submit_sequencer_blocks(
+    client: CelestiaClient,
     sequencer_blocks: Vec<SequencerBlock>,
 ) -> eyre::Result<u64> {
-    use celestia_client::{
-        celestia_types::blob::SubmitOptions,
-        CelestiaClientExt as _,
+    use celestia_client::submission::ToBlobs as _;
+
+    let span = Span::current();
+    let conversion_task = tokio::task::spawn_blocking(move || {
+        let mut blobs = Vec::new();
+        for block in sequencer_blocks {
+            let height = block.height();
+            if let Err(error) = block.try_to_blobs(&mut blobs) {
+                let error = Report::new(error);
+                error!(
+                    parent: &span,
+                    %error,
+                    %height,
+                    "failed converting sequencer block to celestia blobs",
+                );
+            }
+        }
+        blobs
+    });
+    let blobs = match conversion_task.await {
+        Err(error) => {
+            // Reuse the message so it's not repeated in both the error field and in
+            // the event message. Slightly verbose bust nicer logging.
+            let message = "task panicked converting sequencer blocks to Celestia blobs";
+            let error = Report::new(error);
+            error!(%error, message);
+            return Err(error.wrap_err(message));
+        }
+        Ok(blobs) => blobs,
     };
-    let start = std::time::Instant::now();
-
-    // the number of blocks should always be low enough to not cause precision loss
-    #[allow(clippy::cast_precision_loss)]
-    let blocks_per_celestia_tx = sequencer_blocks.len() as f64;
-    metrics::gauge!(metrics_init::BLOCKS_PER_CELESTIA_TX).set(blocks_per_celestia_tx);
-
-    info!(
-        num_blocks = sequencer_blocks.len(),
-        "submitting collected sequencer blocks to data availability layer",
-    );
-    metrics::counter!(metrics_init::CELESTIA_SUBMISSION_COUNT).increment(1);
-    let height = client
-        .submit_sequencer_blocks(
-            sequencer_blocks,
-            SubmitOptions {
-                fee: None,
-                gas_limit: None,
-            },
-        )
-        .await
-        .wrap_err("failed submitting sequencer blocks to celestia")?;
-    metrics::histogram!(metrics_init::CELESTIA_SUBMISSION_LATENCY).record(start.elapsed());
+    let height = match submit_blobs(client, blobs).await {
+        Err(error) => {
+            let message = "failed submitting blobs to Celestia";
+            error!(%error, message);
+            return Err(error.wrap_err(message));
+        }
+        Ok(height) => height,
+    };
+    metrics::counter!(metrics_init::CELESTIA_SUBMISSION_HEIGHT).absolute(height);
+    info!(celestia_height = %height, "successfully submitted blocks to Celestia");
     Ok(height)
+}
+
+#[instrument(skip_all)]
+async fn submit_blobs(client: CelestiaClient, blobs: Vec<Blob>) -> eyre::Result<u64> {
+    use celestia_client::{
+        celestia_rpc::BlobClient as _,
+        celestia_types::blob::SubmitOptions,
+    };
+    // Moving the span into `on_retry`, because tryhard spawns these in a tokio
+    // task, losing the span.
+    let span = Span::current();
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        // 12 seconds is the Celestia block time
+        .max_delay(Duration::from_secs(12))
+        .on_retry(
+            move |attempt: u32, next_delay: Option<Duration>, error: &eyre::Report| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    parent: &span,
+                    attempt,
+                    wait_duration,
+                    %error,
+                    "failed submitting blobs to Celestia; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let blobs = Arc::new(blobs);
+    let height = tryhard::retry_fn(move || {
+        let client = client.clone();
+        let blobs = blobs.clone();
+        async move {
+            client
+                .blob_submit(
+                    &blobs,
+                    SubmitOptions {
+                        fee: None,
+                        gas_limit: None,
+                    },
+                )
+                .await
+                .wrap_err("failed submitting sequencer blocks to celestia")
+        }
+    })
+    .with_config(retry_config)
+    .await
+    .wrap_err("retry attempts exhausted; bailing")?;
+    Ok(height)
+}
+
+struct ReportBlockHeights<'a>(&'a [SequencerBlock]);
+
+impl<'a> Display for ReportBlockHeights<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char('[')?;
+        let mut blocks = self.0.iter();
+        if let Some(height) = blocks.next().map(SequencerBlock::height) {
+            let mut buf = itoa::Buffer::new();
+            f.write_str(buf.format(height.value()))?;
+        }
+        while let Some(height) = blocks.next().map(SequencerBlock::height) {
+            f.write_str(", ")?;
+            let mut buf = itoa::Buffer::new();
+            f.write_str(buf.format(height.value()))?;
+        }
+        f.write_char(']')?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use astria_core::sequencer::v1alpha1::{
+        test_utils::ConfigureCometBftBlock,
+        SequencerBlock,
+    };
+
+    use super::ReportBlockHeights;
+
+    fn make_sequencer_block(height: u32) -> SequencerBlock {
+        let cometbft_block = ConfigureCometBftBlock {
+            height,
+            ..ConfigureCometBftBlock::default()
+        }
+        .make();
+        SequencerBlock::try_from_cometbft(cometbft_block).unwrap()
+    }
+
+    #[track_caller]
+    fn assert_block_height_formatting(heights: &[u32], expected: &str) {
+        let blocks: Vec<_> = heights.iter().copied().map(make_sequencer_block).collect();
+        let actual = ReportBlockHeights(&blocks).to_string();
+        assert_eq!(&actual, expected);
+    }
+
+    #[test]
+    fn reported_block_heights_formatting() {
+        assert_block_height_formatting(&[], "[]");
+        assert_block_height_formatting(&[1], "[1]");
+        assert_block_height_formatting(&[4, 2, 1], "[4, 2, 1]");
+    }
 }
