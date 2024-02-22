@@ -16,9 +16,7 @@ bin-run:
 
 run-cometbft:
   cometbft init
-  # NOTE - these are the development keys and genesis file. matches what is found in dev-cluster.
-  cp ../../scripts/local-configs/priv_validator_key.json ~/.cometbft/config/priv_validator_key.json
-  cp ../../scripts/local-configs/genesis.json ~/.cometbft/config/genesis.json
+  ../../target/debug/astria-sequencer-utils --genesis-app-state-file=test-genesis-app-state.json --destination-genesis-file=$HOME/.cometbft/config/genesis.json --chain-id=astria
   sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "2s"/g' ~/.cometbft/config/config.toml
   cometbft node
 
