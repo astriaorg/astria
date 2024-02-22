@@ -76,7 +76,7 @@ impl ActionHandler for InitBridgeAccountAction {
 
     #[instrument(skip_all)]
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
-        state.put_bridge_account_rollup_id(&from, self.rollup_id);
+        state.put_bridge_account_rollup_id(&from, &self.rollup_id);
         state
             .put_bridge_account_asset_ids(&from, &self.asset_ids)
             .context("failed to put asset IDs")?;

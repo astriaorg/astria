@@ -608,11 +608,11 @@ impl App {
         let mut deposit_events = HashMap::new();
         for rollup_id in deposit_rollup_ids {
             let rollup_deposit_events = state_tx
-                .get_deposit_events(rollup_id)
+                .get_deposit_events(&rollup_id)
                 .await
                 .context("failed to get deposit events")?;
             deposit_events.insert(rollup_id, rollup_deposit_events);
-            state_tx.clear_deposit_info(rollup_id).await;
+            state_tx.clear_deposit_info(&rollup_id).await;
         }
 
         let events = self.apply(state_tx);
@@ -1544,7 +1544,10 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_bridge_lock_action_ok() {
-        use astria_core::sequencer::v1alpha1::transaction::action::BridgeLockAction;
+        use astria_core::sequencer::v1alpha1::{
+            block::Deposit,
+            transaction::action::BridgeLockAction,
+        };
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;
@@ -1554,7 +1557,7 @@ mod test {
         let asset_id = get_native_asset().id();
 
         let mut state_tx = StateDelta::new(app.state.clone());
-        state_tx.put_bridge_account_rollup_id(&bridge_address, rollup_id);
+        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
             .put_bridge_account_asset_ids(&bridge_address, &vec![asset_id])
             .unwrap();
@@ -1602,6 +1605,18 @@ mod test {
                 .unwrap(),
             bridge_before_balance + amount
         );
+
+        let expected_deposit = Deposit {
+            bridge_address,
+            rollup_id,
+            amount,
+            asset_id,
+            destination_chain_address: "nootwashere".to_string(),
+        };
+
+        let deposits = app.state.get_deposit_events(&rollup_id).await.unwrap();
+        assert_eq!(deposits.len(), 1);
+        assert_eq!(deposits[0], expected_deposit);
     }
 
     #[tokio::test]
@@ -1642,7 +1657,7 @@ mod test {
         let asset_id = get_native_asset().id();
 
         let mut state_tx = StateDelta::new(app.state.clone());
-        state_tx.put_bridge_account_rollup_id(&bridge_address, rollup_id);
+        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
         state_tx
             .put_bridge_account_asset_ids(&bridge_address, &vec![asset_id])
             .unwrap();

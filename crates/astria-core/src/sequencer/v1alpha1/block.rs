@@ -573,7 +573,7 @@ where
 ///
 /// A [`Deposit`] is constructed whenever a [`BridgeLockAction`] is executed
 /// and stored as part of the block's events.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Deposit {
     pub bridge_address: Address,
     pub rollup_id: RollupId,
