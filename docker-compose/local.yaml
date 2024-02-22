@@ -1,0 +1,54 @@
+version: '3'
+services:
+  conductor:
+    image: docker.io/library/astria-conductor:local
+    environment:
+      ASTRIA_CONDUCTOR_LOG: "astria_conductor=debug"
+      ASTRIA_CONDUCTOR_EXECUTION_RPC_URL: "http://host.docker.internal:50051"
+      ASTRIA_CONDUCTOR_EXECUTION_COMMIT_LEVEL: "SoftOnly"
+      ASTRIA_CONDUCTOR_CELESTIA_NODE_URL: ""
+      ASTRIA_CONDUCTOR_CELESTIA_BEARER_TOKEN: ""
+      ASTRIA_CONDUCTOR_SEQUENCER_URL: "ws://cometbft:26657/websocket"
+      ASTRIA_CONDUCTOR_ENABLE_OPTIMISM: false
+      ASTRIA_CONDUCTOR_ETHEREUM_L1_URL: "ws://127.0.0.1:8545"
+      ASTRIA_CONDUCTOR_OPTIMISM_PORTAL_CONTRACT_ADDRESS: ""
+      ASTRIA_CONDUCTOR_INITIAL_ETHEREUM_L1_BLOCK_HEIGHT: 1
+      ASTRIA_CONDUCTOR_FORCE_STDOUT: true
+      ASTRIA_CONDUCTOR_NO_OTEL: true
+      ASTRIA_CONDUCTOR_PRETTY_PRINT: true
+      ASTRIA_CONDUCTOR_NO_METRICS: true
+      ASTRIA_CONDUCTOR_METRICS_HTTP_LISTENER_ADDR: ""
+      RUST_BACKTRACE: 1
+    depends_on:
+      cometbft:
+        condition: service_started
+  cometbft:
+    image: docker.io/cometbft/cometbft:v0.37.x
+    environment:
+      COMET_BFT_RPC_PORT: 26657
+    volumes:
+      - ./cometbft/config/:/cometbft/config/
+      - ./.data/cometbft/:/cometbft/data/
+    ports:
+      - "26657:26657"
+    depends_on:
+      sequencer:
+        condition: service_started
+  sequencer:
+    image: docker.io/library/astria-sequencer:local
+    environment:
+      ASTRIA_SEQUENCER_LOG: "astria_sequencer=debug"
+      ASTRIA_SEQUENCER_LISTEN_ADDR: "0.0.0.0:26658"
+      ASTRIA_SEQUENCER_GRPC_ADDR: "0.0.0.0:8080"
+      ASTRIA_SEQUENCER_DB_FILEPATH: "/tmp/sequencer_db"
+      ASTRIA_SEQUENCER_ENABLE_MINT: false
+      ASTRIA_SEQUENCER_FORCE_STDOUT: true
+      ASTRIA_SEQUENCER_NO_OTEL: true
+      ASTRIA_SEQUENCER_PRETTY_PRINT: true
+      ASTRIA_SEQUENCER_NO_METRICS: true
+      ASTRIA_SEQUENCER_METRICS_HTTP_LISTENER_ADDR: ""
+      RUST_BACKTRACE: 1
+    volumes:
+      - ./.data/sequencer:/tmp/sequencer_db
+    ports:
+      - "26658:26658"
