@@ -5,12 +5,18 @@ use astria_sequencer_relayer::{
     telemetry,
     Config,
     SequencerRelayer,
+    BUILD_INFO,
 };
 use eyre::WrapErr as _;
 use tracing::info;
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    eprintln!(
+        "{}",
+        serde_json::to_string(&BUILD_INFO)
+            .expect("build info is serializable because it contains only unicode fields")
+    );
     let cfg: Config = config::get().expect("failed to read configuration");
 
     let mut telemetry_conf = telemetry::configure()

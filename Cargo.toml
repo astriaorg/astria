@@ -2,6 +2,7 @@
 exclude = ["tools/protobuf-compiler"]
 
 members = [
+  "crates/astria-build-info",
   "crates/astria-celestia-client",
   "crates/astria-celestia-mock",
   "crates/astria-cli",
@@ -22,6 +23,7 @@ members = [
 # Specify default members so that cargo invocations in github actions will
 # not act on lints
 default-members = [
+  "crates/astria-build-info",
   "crates/astria-celestia-client",
   "crates/astria-celestia-mock",
   "crates/astria-cli",
@@ -60,7 +62,7 @@ hex = "0.4"
 hex-literal = "0.4.1"
 humantime = "2.1.0"
 hyper = "0.14"
-ibc-types = "0.11.0"
+ibc-types = "0.11.1"
 jsonrpsee = { version = "0.20" }
 once_cell = "1.17.1"
 sha2 = "0.10"

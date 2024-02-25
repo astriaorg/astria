@@ -14,7 +14,7 @@ use cnidarium::{
 };
 
 use crate::{
-    accounts::state_ext::{
+    ibc::state_ext::{
         StateReadExt,
         StateWriteExt,
     },
