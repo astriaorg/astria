@@ -553,7 +553,6 @@ dependencies = [
  "astria-test-utils",
  "async-trait",
  "axum",
- "backon",
  "ed25519-consensus",
  "ethers",
  "futures",
@@ -773,12 +772,12 @@ dependencies = [
  "astria-sequencer-client",
  "astria-telemetry",
  "axum",
- "backon",
  "base64 0.21.7",
  "base64-serde",
  "dirs",
  "ed25519-consensus",
  "futures",
+ "futures-bounded",
  "hex",
  "http 0.2.11",
  "humantime",
@@ -787,6 +786,7 @@ dependencies = [
  "jsonrpsee",
  "metrics",
  "once_cell",
+ "pin-project-lite",
  "prost 0.12.3",
  "rand_core 0.6.4",
  "reqwest",
@@ -798,7 +798,10 @@ dependencies = [
  "tendermint 0.34.0",
  "tendermint-config",
  "tendermint-rpc",
+ "thiserror",
  "tokio",
+ "tokio-stream",
+ "tokio-util 0.7.10",
  "tracing",
  "tryhard",
  "wiremock",
@@ -998,18 +1001,6 @@ dependencies = [
  "rustversion",
  "tower-layer",
  "tower-service",
-]
-
-[[package]]
-name = "backon"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c1a6197b2120bb2185a267f6515038558b019e92b832bb0320e96d66268dcf9"
-dependencies = [
- "fastrand 1.9.0",
- "futures-core",
- "pin-project",
- "tokio",
 ]
 
 [[package]]

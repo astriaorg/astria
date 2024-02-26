@@ -42,6 +42,11 @@ pub trait ToBlobs: Sized {
     /// Convert a sequencer block to a sequence of blobs, writing them to `blobs`.
     ///
     /// If conversion of the sequencer block fails `blobs` is left unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if conversion to a Celestia blob failed. See `[Blob::new]`
+    /// for more information.
     fn try_to_blobs(self, blobs: &mut Vec<Blob>) -> Result<(), ToBlobsError>;
 }
 
@@ -70,7 +75,7 @@ fn convert(block: SequencerBlock, blobs: &mut Vec<Blob>) -> Result<(), ToBlobsEr
     )
     .map_err(ToBlobsError::sequencer)?;
     blobs.push(header_blob);
-    for blob in rollup_blobs.into_iter() {
+    for blob in rollup_blobs {
         let rollup_id = blob.rollup_id();
         let namespace = crate::celestia_namespace_v0_from_rollup_id(rollup_id);
         let blob = Blob::new(namespace, blob.into_raw().encode_to_vec())
