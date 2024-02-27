@@ -155,7 +155,7 @@ impl Reader {
             "setting up celestia reader",
         );
 
-        let mut headers =
+        let (mut _wsclient, mut headers) =
             subscribe_to_celestia_headers(&self.celestia_ws_endpoint, &self.celestia_auth_token)
                 .await
                 .wrap_err("failed to subscribe to celestia headers")?;
@@ -241,7 +241,7 @@ impl Reader {
 
                 new_subscription = &mut resubscribing, if !resubscribing.is_terminated() => {
                     match new_subscription {
-                        Ok(new_subscription) => headers = new_subscription,
+                        Ok(new_subscription) => (_wsclient, headers) = new_subscription,
                         Err(e) => return Err(e).wrap_err("resubscribing to celestia headers ultimately failed"),
                     }
                 }
@@ -565,7 +565,7 @@ impl SequencerHeightToCelestiaHeight {
 async fn subscribe_to_celestia_headers(
     endpoint: &str,
     token: &str,
-) -> eyre::Result<Subscription<ExtendedHeader>> {
+) -> eyre::Result<(WsClient, Subscription<ExtendedHeader>)> {
     use celestia_client::celestia_rpc::HeaderClient as _;
 
     async fn connect(endpoint: &str, token: &str) -> Result<WsClient, celestia_rpc::Error> {
@@ -597,10 +597,11 @@ async fn subscribe_to_celestia_headers(
         let client = connect(endpoint, token)
             .await
             .wrap_err("failed to connect to Celestia Websocket RPC")?;
-        client
+        let headers = client
             .header_subscribe()
             .await
-            .wrap_err("failed to subscribe to Celestia headers")
+            .wrap_err("failed to subscribe to Celestia headers")?;
+        Ok((client, headers))
     })
     .with_config(retry_config)
     .await

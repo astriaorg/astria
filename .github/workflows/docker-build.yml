@@ -3,6 +3,10 @@ name: Docker
 # Trigger on pushes to master branch, new semantic version tags, and pull request updates
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Git branch, or tag to build from.
+        required: false
   push:
     branches:
       - "main"
@@ -32,6 +36,7 @@ jobs:
     with:
       package-name: composer
       target-binary: astria-composer
+      tag: ${{ inputs.tag }}
     secrets: inherit
 
   conductor:
@@ -41,6 +46,7 @@ jobs:
     with:
       package-name: conductor
       target-binary: astria-conductor
+      tag: ${{ inputs.tag }}
     secrets: inherit
 
   sequencer:
@@ -50,6 +56,7 @@ jobs:
     with:
       package-name: sequencer
       target-binary: astria-sequencer
+      tag: ${{ inputs.tag }}
     secrets: inherit
 
   sequencer-relayer:
@@ -59,6 +66,7 @@ jobs:
     with:
       package-name: sequencer-relayer
       target-binary: astria-sequencer-relayer
+      tag: ${{ inputs.tag }}
     secrets: inherit
 
   docker:
