@@ -27,9 +27,9 @@ pub(crate) struct SequencerServer {
 }
 
 impl SequencerServer {
-    pub(crate) fn new(cometbft_endpoint: String, storage: Storage) -> Self {
+    pub(crate) fn new(cometbft_endpoint: &str, storage: Storage) -> Self {
         let client =
-            HttpClient::new(&*cometbft_endpoint).expect("should be able to create cometbft client");
+            HttpClient::new(cometbft_endpoint).expect("should be able to create cometbft client");
         Self {
             client,
             storage,

@@ -55,7 +55,7 @@ pub struct RollupTransactions {
     id: RollupId,
     /// The serialized opaque bytes of the rollup transactions.
     transactions: Vec<Vec<u8>>,
-    /// Proof that this set of transactions belongs in the merkle tree 
+    /// Proof that this set of transactions belongs in the merkle tree
     proof: merkle::Proof,
 }
 
@@ -107,12 +107,9 @@ impl RollupTransactions {
         let id = RollupId::try_from_slice(&id).map_err(RollupTransactionsError::rollup_id)?;
         let proof = 'proof: {
             let Some(proof) = proof else {
-                break 'proof Err(RollupTransactionsError::field_not_set(
-                    "proof",
-                ));
+                break 'proof Err(RollupTransactionsError::field_not_set("proof"));
             };
-            merkle::Proof::try_from_raw(proof)
-                .map_err(RollupTransactionsError::proof_invalid)
+            merkle::Proof::try_from_raw(proof).map_err(RollupTransactionsError::proof_invalid)
         }?;
         Ok(Self {
             id,
@@ -405,7 +402,7 @@ impl SequencerBlock {
             };
             rollup_transactions.insert(id, rollup_transaction.clone());
         }
-        
+
         Self {
             block_hash: self.block_hash,
             header: self.header,
@@ -491,10 +488,8 @@ impl SequencerBlock {
             return Err(SequencerBlockError::rollup_ids_root_does_not_match_reconstructed());
         }
 
-
         let rollup_transaction_tree = derive_merkle_tree_from_rollup_txs(&rollup_base_transactions);
-        if rollup_transactions_root != rollup_transaction_tree.root()
-        {
+        if rollup_transactions_root != rollup_transaction_tree.root() {
             return Err(
                 SequencerBlockError::rollup_transactions_root_does_not_match_reconstructed(),
             );
@@ -505,14 +500,16 @@ impl SequencerBlock {
             let proof = tree
                 .construct_proof(i)
                 .expect("the proof must exist because the tree was derived with the same leaf");
-            rollup_transactions.insert(id, RollupTransactions {
+            rollup_transactions.insert(
                 id,
-                transactions,
-                proof,
-            });
+                RollupTransactions {
+                    id,
+                    transactions,
+                    proof,
+                },
+            );
         }
         rollup_transactions.sort_unstable_keys();
-        
 
         // action tree root is always the first tx in a block
         let rollup_transactions_proof = tree.construct_proof(0).expect(

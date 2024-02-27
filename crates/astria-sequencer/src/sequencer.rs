@@ -116,7 +116,7 @@ impl Sequencer {
             .parse()
             .context("failed to parse grpc_addr address")?;
         let grpc_server_handle =
-            start_ibc_grpc_server(&storage, config.cometbft_rpc_addr, grpc_addr, shutdown_rx);
+            start_ibc_grpc_server(&storage, &config.cometbft_rpc_addr, grpc_addr, shutdown_rx);
 
         info!(config.listen_addr, "starting sequencer");
         let server_handle = tokio::spawn(async move {
@@ -156,7 +156,7 @@ impl Sequencer {
 
 fn start_ibc_grpc_server(
     storage: &cnidarium::Storage,
-    cometbft_rpc_addr: String,
+    cometbft_rpc_addr: &str,
     grpc_addr: std::net::SocketAddr,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> JoinHandle<Result<(), tonic::transport::Error>> {
