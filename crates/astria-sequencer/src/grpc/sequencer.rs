@@ -61,7 +61,8 @@ impl SequencerService for SequencerServer {
         let height: u32 = request
             .height
             .try_into()
-            .expect("height should be a valid u32");
+            .map_err(|_| Status::invalid_argument("height should be a valid u32"))?;
+
         let block = match self.client.sequencer_block(height).await {
             Ok(block) => block.into_raw(),
             Err(_) => {
@@ -88,14 +89,6 @@ impl SequencerService for SequencerServer {
 
         let request = request.into_inner();
 
-        let mut rollup_ids: Vec<RollupId> = vec![];
-        for id in request.rollup_ids {
-            let Ok(rollup_id) = RollupId::try_from_vec(id) else {
-                return Err(Status::invalid_argument("Rollup ID must be 32 bytes"));
-            };
-            rollup_ids.push(rollup_id);
-        }
-
         if curr_block_height < request.height {
             return Err(Status::invalid_argument(
                 "requested height is greater than current block height",
@@ -105,7 +98,16 @@ impl SequencerService for SequencerServer {
         let height: u32 = request
             .height
             .try_into()
-            .expect("height should be a valid u32");
+            .map_err(|_| Status::invalid_argument("height should be a valid u32"))?;
+
+        let mut rollup_ids: Vec<RollupId> = vec![];
+        for id in request.rollup_ids {
+            let Ok(rollup_id) = RollupId::try_from_vec(id) else {
+                return Err(Status::invalid_argument("Rollup ID must be 32 bytes"));
+            };
+            rollup_ids.push(rollup_id);
+        }
+
         let block = match self.client.sequencer_block(height).await {
             Ok(block) => block.filtered_block(rollup_ids),
             Err(_) => {

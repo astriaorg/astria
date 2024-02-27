@@ -48,11 +48,12 @@ impl CelestiaBlobBundle {
 
         let mut tail = Vec::with_capacity(rollup_transactions.len());
         for (rollup_id, rollup_txs) in rollup_transactions {
+            let (_, transactions, proof) = rollup_txs.into_values();
             tail.push(CelestiaRollupBlob {
                 sequencer_block_hash: block_hash,
                 rollup_id,
-                transactions: rollup_txs.transactions().to_vec(),
-                proof: rollup_txs.proof().clone(),
+                transactions,
+                proof,
             });
         }
         Self {

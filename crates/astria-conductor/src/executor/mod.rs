@@ -544,10 +544,11 @@ impl ExecutableBlock {
         let hash = block.block_hash();
         let height = block.height();
         let timestamp = convert_tendermint_to_prost_timestamp(block.header().time);
-        let transactions = match block.into_rollup_transactions().swap_remove(&id) {
-            Some(rollup_transactions) => rollup_transactions.transactions().to_vec(),
-            None => vec![],
-        };
+        let transactions = block
+            .into_rollup_transactions()
+            .swap_remove(&id)
+            .map(|txs| txs.transactions().to_vec())
+            .unwrap_or_default();
         Self {
             hash,
             height,
