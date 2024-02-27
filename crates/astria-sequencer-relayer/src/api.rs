@@ -25,7 +25,7 @@ use crate::relayer;
 
 pub(crate) type ApiServer = axum::Server<AddrIncoming, IntoMakeService<Router>>;
 
-type RelayerState = watch::Receiver<relayer::State>;
+type RelayerState = watch::Receiver<relayer::StateSnapshot>;
 
 #[derive(Clone)]
 /// `AppState` is used for as an axum extractor in its method handlers.
@@ -52,8 +52,8 @@ pub(crate) fn start(port: u16, relayer_state: RelayerState) -> ApiServer {
 }
 
 #[allow(clippy::unused_async)] // Permit because axum handlers must be async
-async fn get_healthz(State(relayer_status): State<RelayerState>) -> Healthz {
-    if relayer_status.borrow().is_ready() {
+async fn get_healthz(State(relayer_state): State<RelayerState>) -> Healthz {
+    if relayer_state.borrow().is_healthy() {
         Healthz::Ok
     } else {
         Healthz::Degraded
@@ -67,8 +67,8 @@ async fn get_healthz(State(relayer_status): State<RelayerState>) -> Healthz {
 /// + there is a current sequencer height (implying a block from sequencer was received)
 /// + there is a current data availability height (implying a height was received from the DA)
 #[allow(clippy::unused_async)] // Permit because axum handlers must be async
-async fn get_readyz(State(relayer_status): State<RelayerState>) -> Readyz {
-    let is_relayer_online = relayer_status.borrow().is_ready();
+async fn get_readyz(State(relayer_state): State<RelayerState>) -> Readyz {
+    let is_relayer_online = relayer_state.borrow().is_ready();
     if is_relayer_online {
         Readyz::Ok
     } else {
@@ -77,19 +77,8 @@ async fn get_readyz(State(relayer_status): State<RelayerState>) -> Readyz {
 }
 
 #[allow(clippy::unused_async)] // Permit because axum handlers must be async
-async fn get_status(State(relayer_status): State<RelayerState>) -> Json<serde_json::Value> {
-    let relayer::State {
-        data_availability_connected,
-        sequencer_connected,
-        current_sequencer_height,
-        current_data_availability_height,
-    } = *relayer_status.borrow();
-    Json(serde_json::json!({
-        "data_availability_connected": data_availability_connected,
-        "sequencer_connected": sequencer_connected,
-        "current_sequencer_height": current_sequencer_height,
-        "current_data_availability_height": current_data_availability_height,
-    }))
+async fn get_status(State(relayer_state): State<RelayerState>) -> Json<relayer::StateSnapshot> {
+    Json(relayer_state.borrow().clone())
 }
 
 enum Healthz {

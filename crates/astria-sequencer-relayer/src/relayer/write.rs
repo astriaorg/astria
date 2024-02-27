@@ -149,11 +149,16 @@ pub(super) struct BlobSubmitter {
 
     // Celestia blobs waiting to be submitted after conversion from sequencer blocks.
     blobs: QueuedBlobs,
+
+    // The state of the relayer.
+    state: Arc<super::State>,
 }
 
 impl BlobSubmitter {
-    pub(super) fn new(client: HttpClient) -> (Self, BlobSubmitterHandle) {
-        let (tx, rx) = mpsc::channel(123);
+    pub(super) fn new(client: HttpClient, state: Arc<super::State>) -> (Self, BlobSubmitterHandle) {
+        // XXX: The channel size here is just a number. It should probably be based on some
+        // heuristic about the number of expected blobs in a block.
+        let (tx, rx) = mpsc::channel(128);
         let submitter = Self {
             client,
             blocks: rx,
@@ -161,6 +166,7 @@ impl BlobSubmitter {
             conversions: JoinMap::new(),
             max_blobs: 128,
             blobs: QueuedBlobs::new(),
+            state,
         };
         let handle = BlobSubmitterHandle {
             tx,
@@ -199,7 +205,7 @@ impl BlobSubmitter {
                 }
 
                 Some((blobs, heights)) = self.blobs.take(), if submission.is_terminated() => {
-                    submission = submit_blobs(self.client.clone(), blobs, heights).boxed().fuse();
+                    submission = submit_blobs(self.client.clone(), blobs, heights, self.state.clone()).boxed().fuse();
                 }
 
                 submission_result = &mut submission, if !submission.is_terminated() => {
@@ -236,8 +242,9 @@ async fn submit_blobs(
     client: HttpClient,
     blobs: Vec<Blob>,
     sequencer_heights: Vec<SequencerHeight>,
+    state: Arc<super::State>,
 ) -> eyre::Result<u64> {
-    let height = match submit_with_retry(client, blobs).await {
+    let height = match submit_with_retry(client, blobs, state.clone()).await {
         Err(error) => {
             let message = "failed submitting blobs to Celestia";
             error!(%error, message);
@@ -245,11 +252,17 @@ async fn submit_blobs(
         }
         Ok(height) => height,
     };
+    state.set_celestia_connected(true);
+    state.set_latest_confirmed_celestia_height(height);
     info!(celestia_height = %height, "successfully submitted blocks to Celestia");
     Ok(height)
 }
 
-async fn submit_with_retry(client: HttpClient, blobs: Vec<Blob>) -> eyre::Result<u64> {
+async fn submit_with_retry(
+    client: HttpClient,
+    blobs: Vec<Blob>,
+    state: Arc<super::State>,
+) -> eyre::Result<u64> {
     use celestia_client::{
         celestia_rpc::BlobClient as _,
         celestia_types::blob::SubmitOptions,
@@ -262,12 +275,17 @@ async fn submit_with_retry(client: HttpClient, blobs: Vec<Blob>) -> eyre::Result
         // 12 seconds is the Celestia block time
         .max_delay(Duration::from_secs(12))
         .on_retry(
-            move |attempt: u32, next_delay: Option<Duration>, error: &eyre::Report| {
+            |attempt: u32, next_delay: Option<Duration>, error: &eyre::Report| {
+                let state = Arc::clone(&state);
+                state.set_celestia_connected(false);
+
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
+
                 metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_FAILURE_COUNT)
                     .increment(1);
+
                 warn!(
                     parent: &span,
                     attempt,

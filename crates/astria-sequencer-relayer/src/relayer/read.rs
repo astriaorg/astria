@@ -2,6 +2,7 @@
 use std::{
     future::Future as _,
     pin::Pin,
+    sync::Arc,
     task::Poll,
     time::Duration,
 };
@@ -37,13 +38,20 @@ struct Heights {
 }
 
 impl Heights {
+    /// Returns the next height to be fetched.
+    ///
+    /// If `last_observed` is unset, returns `None`.
+    /// If `last_requested` is unset, returns `last_observed`.
+    /// If both are set, returns `last_requested + 1` if less than
+    /// `last_observed`, `None` otherwise.
     fn next_height_to_fetch(&self) -> Option<Height> {
         let last_observed = self.last_observed?;
-        let last_requested = self.last_requested.unwrap_or(Height::from(1u32));
-        if last_requested < last_observed {
-            Some(last_requested.increment())
-        } else {
-            None
+        match self.last_requested {
+            None => Some(last_observed),
+            Some(last_requested) if last_requested < last_observed => {
+                Some(last_requested.increment())
+            }
+            Some(..) => None,
         }
     }
 }
@@ -56,17 +64,19 @@ pin_project! {
         future: Option<BoxFuture<'static, eyre::Result<SequencerBlock>>>,
         paused: bool,
         block_time: Duration,
+        state: Arc<super::State>,
     }
 }
 
 impl BlockStream {
-    pub(super) fn new(client: HttpClient) -> Self {
+    pub(super) fn new(client: HttpClient, state: Arc<super::State>) -> Self {
         Self {
             client,
             heights: Heights::default(),
             future: None,
             block_time: Duration::from_millis(1_000),
             paused: false,
+            state,
         }
     }
 
@@ -115,8 +125,16 @@ impl Stream for BlockStream {
                     .next_height_to_fetch()
                     .expect("the if condition has assured that there is a height");
                 this.future.set(Some(
-                    fetch_block(this.client.clone(), height, *this.block_time).boxed(),
+                    fetch_block(
+                        this.client.clone(),
+                        height,
+                        *this.block_time,
+                        this.state.clone(),
+                    )
+                    .boxed(),
                 ));
+                this.state
+                    .set_latest_requested_sequencer_height(height.value());
                 this.heights.last_requested.replace(height);
             } else {
                 break None;
@@ -154,6 +172,7 @@ async fn fetch_block(
     client: HttpClient,
     height: Height,
     block_time: Duration,
+    state: Arc<super::State>,
 ) -> eyre::Result<SequencerBlock> {
     use sequencer_client::SequencerClientExt as _;
 
@@ -164,10 +183,14 @@ async fn fetch_block(
         .exponential_backoff(Duration::from_millis(100))
         .max_delay(block_time)
         .on_retry(
-            move |attempt: u32, next_delay: Option<Duration>, error: &eyre::Report| {
+            |attempt: u32, next_delay: Option<Duration>, error: &eyre::Report| {
+                let state = Arc::clone(&state);
+                state.set_sequencer_connected(false);
+
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
+
                 warn!(
                     parent: &span,
                     attempt,
@@ -186,5 +209,8 @@ async fn fetch_block(
     .with_config(retry_config)
     .await
     .wrap_err("retry attempts exhausted; bailing")?;
+
+    state.set_sequencer_connected(true);
+
     Ok(block)
 }

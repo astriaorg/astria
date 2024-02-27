@@ -5,6 +5,7 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use tokio::task::JoinError;
+use tracing::info;
 
 use crate::{
     api,
@@ -48,7 +49,10 @@ impl SequencerRelayer {
         // of the future into an eyre report.
         let api_task =
             tokio::spawn(async move { api_server.await.wrap_err("api server ended unexpectedly") });
+        info!("spawned API server");
+
         let relayer_task = tokio::spawn(relayer.run());
+        info!("spawned relayer task");
 
         tokio::select!(
             o = api_task => report_exit("api server", o),

@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 use astria_eyre::eyre::{
     self,
@@ -43,21 +46,11 @@ use tracing::{
 use crate::validator::Validator;
 
 mod read;
+mod state;
 mod write;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct State {
-    pub(crate) data_availability_connected: bool,
-    pub(crate) sequencer_connected: bool,
-    pub(crate) current_sequencer_height: Option<u64>,
-    pub(crate) current_data_availability_height: Option<u64>,
-}
-
-impl State {
-    pub fn is_ready(&self) -> bool {
-        self.data_availability_connected && self.sequencer_connected
-    }
-}
+use state::State;
+pub(crate) use state::StateSnapshot;
 
 pub(crate) struct Relayer {
     /// The actual client used to poll the sequencer.
@@ -73,7 +66,7 @@ pub(crate) struct Relayer {
     validator: Option<Validator>,
 
     // A watch channel to track the state of the relayer. Used by the API service.
-    state_tx: watch::Sender<State>,
+    state: Arc<State>,
 }
 
 impl Relayer {
@@ -113,19 +106,19 @@ impl Relayer {
             bail!("expected to get a celestia HTTP client, but got a websocket client");
         };
 
-        let (state_tx, _) = watch::channel(State::default());
+        let state = Arc::new(State::new());
 
         Ok(Self {
             sequencer,
             sequencer_poll_period: Duration::from_millis(cfg.block_time),
             celestia,
             validator,
-            state_tx,
+            state,
         })
     }
 
-    pub(crate) fn subscribe_to_state(&self) -> watch::Receiver<State> {
-        self.state_tx.subscribe()
+    pub(crate) fn subscribe_to_state(&self) -> watch::Receiver<state::StateSnapshot> {
+        self.state.subscribe()
     }
 
     /// Runs the relayer worker.
@@ -140,14 +133,17 @@ impl Relayer {
             make_latest_height_stream(self.sequencer.clone(), self.sequencer_poll_period);
         pin!(latest_height_stream);
 
-        let (submitter_task, submitter) = spawn_submitter(self.celestia.clone());
+        let (submitter_task, submitter) =
+            spawn_submitter(self.celestia.clone(), self.state.clone());
 
-        let mut block_stream = read::BlockStream::new(self.sequencer.clone());
+        let mut block_stream = read::BlockStream::new(self.sequencer.clone(), self.state.clone());
         block_stream.set_block_time(self.sequencer_poll_period);
 
         let mut forward_once_free: Fuse<
             BoxFuture<Result<(), tokio::sync::mpsc::error::SendError<SequencerBlock>>>,
         > = Fuse::terminated();
+
+        self.state.set_ready();
 
         let reason = loop {
             select!(
@@ -168,13 +164,17 @@ impl Relayer {
                 Some(res) = latest_height_stream.next() => {
                     match res {
                         Ok(height) => {
+                            self.state.set_latest_observed_sequencer_height(height.value());
                             debug!(%height, "received latest height from sequencer");
                             block_stream.set_latest_sequencer_height(height);
                         }
-                        Err(error) => warn!(
-                            %error,
-                            "failed fetching latest height from sequencer; waiting until next tick",
-                        ),
+                        Err(error) => {
+                            self.state.set_sequencer_connected(false);
+                            warn!(
+                                %error,
+                                "failed fetching latest height from sequencer; waiting until next tick",
+                            );
+                        }
                     }
                 }
 
@@ -188,6 +188,7 @@ impl Relayer {
                         Err(err) => break Err(err),
                         Ok(block) => block,
                     };
+                    self.state.set_latest_fetched_sequencer_height(height.value());
                     if let Err(err) = self.forward_block_for_submission(
                         height,
                         block,
@@ -269,8 +270,9 @@ impl Relayer {
 
 fn spawn_submitter(
     client: CelestiaClient,
+    state: Arc<State>,
 ) -> (JoinHandle<eyre::Result<()>>, write::BlobSubmitterHandle) {
-    let (submitter, handle) = write::BlobSubmitter::new(client);
+    let (submitter, handle) = write::BlobSubmitter::new(client, state);
     (tokio::spawn(submitter.run()), handle)
 }
 
@@ -285,11 +287,11 @@ fn make_latest_height_stream(
     IntervalStream::new(interval).then(move |_| {
         let client = client.clone();
         async move {
-            let commit = client
-                .latest_commit()
+            let info = client
+                .abci_info()
                 .await
-                .wrap_err("failed getting latest commit")?;
-            Ok(commit.signed_header.header.height)
+                .wrap_err("failed getting ABCI info")?;
+            Ok(info.last_block_height)
         }
     })
 }
