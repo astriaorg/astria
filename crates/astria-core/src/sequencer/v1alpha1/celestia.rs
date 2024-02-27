@@ -32,7 +32,10 @@ impl CelestiaBlobBundle {
             rollup_ids_proof,
         } = block.into_unchecked();
 
-        let tree = super::derive_merkle_tree_from_rollup_txs(&rollup_transactions);
+        let rollup_base_transactions = rollup_transactions
+            .iter()
+            .map(|(rollup_id, txs)| (rollup_id, txs.transactions()));
+        let tree = super::derive_merkle_tree_from_rollup_txs(rollup_base_transactions);
 
         let head = CelestiaSequencerBlob {
             block_hash,
@@ -44,15 +47,12 @@ impl CelestiaBlobBundle {
         };
 
         let mut tail = Vec::with_capacity(rollup_transactions.len());
-        for (i, (rollup_id, transactions)) in rollup_transactions.into_iter().enumerate() {
-            let proof = tree
-                .construct_proof(i)
-                .expect("the proof must exist because the tree was derived with the same leaf");
+        for (rollup_id, rollup_txs) in rollup_transactions {
             tail.push(CelestiaRollupBlob {
                 sequencer_block_hash: block_hash,
                 rollup_id,
-                transactions,
-                proof,
+                transactions: rollup_txs.transactions().to_vec(),
+                proof: rollup_txs.proof().clone(),
             });
         }
         Self {

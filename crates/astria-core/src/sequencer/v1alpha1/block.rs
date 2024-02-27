@@ -28,21 +28,35 @@ impl RollupTransactionsError {
     fn rollup_id(source: IncorrectRollupIdLength) -> Self {
         Self(RollupTransactionsErrorKind::RollupId(source))
     }
+
+    fn field_not_set(field: &'static str) -> Self {
+        Self(RollupTransactionsErrorKind::FieldNotSet(field))
+    }
+
+    fn proof_invalid(source: merkle::audit::InvalidProof) -> Self {
+        Self(RollupTransactionsErrorKind::ProofInvalid(source))
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum RollupTransactionsErrorKind {
     #[error("`id` field is invalid")]
     RollupId(#[source] IncorrectRollupIdLength),
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("failed constructing a proof from the raw protobuf transaction proof")]
+    ProofInvalid(#[source] merkle::audit::InvalidProof),
 }
 
 /// The opaque transactions belonging to a rollup identified by its rollup ID.
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RollupTransactions {
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
     id: RollupId,
     /// The serialized opaque bytes of the rollup transactions.
     transactions: Vec<Vec<u8>>,
+    /// Proof that this set of transactions belongs in the merkle tree 
+    proof: merkle::Proof,
 }
 
 impl RollupTransactions {
@@ -58,6 +72,12 @@ impl RollupTransactions {
         &self.transactions
     }
 
+    /// Returns the opaque transactions bytes.
+    #[must_use]
+    pub fn proof(&self) -> &merkle::Proof {
+        &self.proof
+    }
+
     /// Transforms these rollup transactions into their raw representation, which can in turn be
     /// encoded as protobuf.
     #[must_use]
@@ -65,10 +85,12 @@ impl RollupTransactions {
         let Self {
             id,
             transactions,
+            proof,
         } = self;
         raw::RollupTransactions {
             id: id.get().to_vec(),
             transactions,
+            proof: Some(proof.into_raw()),
         }
     }
 
@@ -80,11 +102,22 @@ impl RollupTransactions {
         let raw::RollupTransactions {
             id,
             transactions,
+            proof,
         } = raw;
         let id = RollupId::try_from_slice(&id).map_err(RollupTransactionsError::rollup_id)?;
+        let proof = 'proof: {
+            let Some(proof) = proof else {
+                break 'proof Err(RollupTransactionsError::field_not_set(
+                    "proof",
+                ));
+            };
+            merkle::Proof::try_from_raw(proof)
+                .map_err(RollupTransactionsError::proof_invalid)
+        }?;
         Ok(Self {
             id,
             transactions,
+            proof,
         })
     }
 }
@@ -110,7 +143,7 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::CometBftHeader(source))
     }
 
-    fn parse_rollup_transactions(source: IncorrectRollupIdLength) -> Self {
+    fn parse_rollup_transactions(source: RollupTransactionsError) -> Self {
         Self(SequencerBlockErrorKind::ParseRollupTransactions(source))
     }
 
@@ -152,7 +185,7 @@ impl SequencerBlockError {
         ))
     }
 
-    fn raw_signed_transactin_conversion(source: transaction::SignedTransactionError) -> Self {
+    fn raw_signed_transaction_conversion(source: transaction::SignedTransactionError) -> Self {
         Self(SequencerBlockErrorKind::RawSignedTransactionConversion(
             source,
         ))
@@ -184,7 +217,7 @@ enum SequencerBlockErrorKind {
         "failed parsing a raw protobuf rollup transaction because it contained an invalid rollup \
          ID"
     )]
-    ParseRollupTransactions(#[source] IncorrectRollupIdLength),
+    ParseRollupTransactions(#[source] RollupTransactionsError),
     #[error("failed constructing a transaction proof from the raw protobuf transaction proof")]
     TransactionProofInvalid(#[source] merkle::audit::InvalidProof),
     #[error("failed constructing a rollup ID proof from the raw protobuf rollup ID proof")]
@@ -242,13 +275,13 @@ enum SequencerBlockErrorKind {
 ///
 /// This type does not guarantee any invariants and is mainly useful to get
 /// access the sequencer block's internal types.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[allow(clippy::module_name_repetitions)]
 pub struct UncheckedSequencerBlock {
     /// The original `CometBFT` header that was the input to this sequencer block.
     pub header: tendermint::block::header::Header,
     /// The collection of rollup transactions that were included in this block.
-    pub rollup_transactions: IndexMap<RollupId, Vec<Vec<u8>>>,
+    pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     // The proof that the rollup transactions are included in the `CometBFT` block this
     // sequencer block is derived form. This proof together with
     // `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
@@ -274,7 +307,7 @@ pub struct SequencerBlock {
     /// The original `CometBFT` header that was the input to this sequencer block.
     header: tendermint::block::header::Header,
     /// The collection of rollup transactions that were included in this block.
-    rollup_transactions: IndexMap<RollupId, Vec<Vec<u8>>>,
+    rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     // The proof that the rollup transactions are included in the `CometBFT` block this
     // sequencer block is derived form. This proof together with
     // `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
@@ -310,25 +343,22 @@ impl SequencerBlock {
     }
 
     #[must_use]
-    pub fn rollup_transactions(&self) -> &IndexMap<RollupId, Vec<Vec<u8>>> {
+    pub fn rollup_transactions(&self) -> &IndexMap<RollupId, RollupTransactions> {
         &self.rollup_transactions
     }
 
     /// Returns the map of rollup transactions, consuming `self`.
     #[must_use]
-    pub fn into_rollup_transactions(self) -> IndexMap<RollupId, Vec<Vec<u8>>> {
+    pub fn into_rollup_transactions(self) -> IndexMap<RollupId, RollupTransactions> {
         self.rollup_transactions
     }
 
     #[must_use]
     pub fn into_raw(self) -> raw::SequencerBlock {
         fn tuple_to_rollup_txs(
-            (rollup_id, transactions): (RollupId, Vec<Vec<u8>>),
+            (_rollup_id, rollup_txs): (RollupId, RollupTransactions),
         ) -> raw::RollupTransactions {
-            raw::RollupTransactions {
-                id: rollup_id.to_vec(),
-                transactions,
-            }
+            rollup_txs.into_raw()
         }
 
         let Self {
@@ -369,12 +399,13 @@ impl SequencerBlock {
     #[must_use]
     pub fn filtered_block(self, rollup_ids: Vec<RollupId>) -> Self {
         let mut rollup_transactions = IndexMap::with_capacity(rollup_ids.len());
-        let mut all_rollup_transactions = self.rollup_transactions.clone();
-        rollup_ids.into_iter().for_each(|id| {
-            let transactions = all_rollup_transactions.swap_remove(&id).unwrap_or_default();
-            rollup_transactions.insert(id, transactions);
-        });
-
+        for id in rollup_ids {
+            let Some(rollup_transaction) = self.rollup_transactions.get(&id) else {
+                continue;
+            };
+            rollup_transactions.insert(id, rollup_transaction.clone());
+        }
+        
         Self {
             block_hash: self.block_hash,
             header: self.header,
@@ -435,12 +466,12 @@ impl SequencerBlock {
             .try_into()
             .map_err(|e: Vec<_>| SequencerBlockError::incorrect_rollup_ids_root_length(e.len()))?;
 
-        let mut rollup_transactions = IndexMap::new();
+        let mut rollup_base_transactions = IndexMap::new();
         for elem in data_list {
             let raw_tx = raw::SignedTransaction::decode(&*elem)
                 .map_err(SequencerBlockError::signed_transaction_prootbof_decode)?;
             let signed_tx = SignedTransaction::try_from_raw(raw_tx)
-                .map_err(SequencerBlockError::raw_signed_transactin_conversion)?;
+                .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
             for action in signed_tx.into_unsigned().actions {
                 if let action::Action::Sequence(action::SequenceAction {
                     rollup_id,
@@ -448,25 +479,40 @@ impl SequencerBlock {
                     fee_asset_id: _,
                 }) = action
                 {
-                    let elem = rollup_transactions.entry(rollup_id).or_insert(vec![]);
+                    let elem = rollup_base_transactions.entry(rollup_id).or_insert(vec![]);
                     elem.push(data);
                 }
             }
         }
-        rollup_transactions.sort_unstable_keys();
+        rollup_base_transactions.sort_unstable_keys();
 
-        if rollup_transactions_root
-            != derive_merkle_tree_from_rollup_txs(&rollup_transactions).root()
+        // ensure the rollup IDs commitment matches the one calculated from the rollup data
+        if rollup_ids_root != merkle::Tree::from_leaves(rollup_base_transactions.keys()).root() {
+            return Err(SequencerBlockError::rollup_ids_root_does_not_match_reconstructed());
+        }
+
+
+        let rollup_transaction_tree = derive_merkle_tree_from_rollup_txs(&rollup_base_transactions);
+        if rollup_transactions_root != rollup_transaction_tree.root()
         {
             return Err(
                 SequencerBlockError::rollup_transactions_root_does_not_match_reconstructed(),
             );
         }
 
-        // ensure the rollup IDs commitment matches the one calculated from the rollup data
-        if rollup_ids_root != merkle::Tree::from_leaves(rollup_transactions.keys()).root() {
-            return Err(SequencerBlockError::rollup_ids_root_does_not_match_reconstructed());
+        let mut rollup_transactions = IndexMap::new();
+        for (i, (id, transactions)) in rollup_base_transactions.into_iter().enumerate() {
+            let proof = tree
+                .construct_proof(i)
+                .expect("the proof must exist because the tree was derived with the same leaf");
+            rollup_transactions.insert(id, RollupTransactions {
+                id,
+                transactions,
+                proof,
+            });
         }
+        rollup_transactions.sort_unstable_keys();
+        
 
         // action tree root is always the first tx in a block
         let rollup_transactions_proof = tree.construct_proof(0).expect(
@@ -495,9 +541,9 @@ impl SequencerBlock {
     pub fn try_from_raw(raw: raw::SequencerBlock) -> Result<Self, SequencerBlockError> {
         fn rollup_txs_to_tuple(
             raw: raw::RollupTransactions,
-        ) -> Result<(RollupId, Vec<Vec<u8>>), IncorrectRollupIdLength> {
-            let id = RollupId::try_from_slice(&raw.id)?;
-            Ok((id, raw.transactions))
+        ) -> Result<(RollupId, RollupTransactions), RollupTransactionsError> {
+            let rollup_transactions = RollupTransactions::try_from_raw(raw)?;
+            Ok((rollup_transactions.id, rollup_transactions))
         }
 
         let raw::SequencerBlock {

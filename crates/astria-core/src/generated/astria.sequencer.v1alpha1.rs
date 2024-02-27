@@ -100,6 +100,10 @@ pub struct RollupTransactions {
     /// The serialized opaque bytes of the rollup transactions.
     #[prost(bytes = "vec", repeated, tag = "2")]
     pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    /// The proof that these rollup transactions are included in sequencer block.
+    /// `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+    #[prost(message, optional, tag = "3")]
+    pub proof: ::core::option::Option<Proof>,
 }
 /// `SequencerBlock` is constructed from a tendermint/cometbft block by
 /// converting its opaque `data` bytes into sequencer specific types.

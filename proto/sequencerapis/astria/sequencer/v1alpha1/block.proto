@@ -15,6 +15,9 @@ message RollupTransactions {
   bytes id = 1;
   // The serialized opaque bytes of the rollup transactions.
   repeated bytes transactions = 2;
+  // The proof that these rollup transactions are included in sequencer block.
+  // `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+  astria.sequencer.v1alpha1.Proof proof = 3;
 }
 
 // `SequencerBlock` is constructed from a tendermint/cometbft block by
