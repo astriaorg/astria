@@ -1,11 +1,11 @@
 //! Boilerplate to construct a [`super::Reader`] via a type-state builder.
 
-use celestia_client::celestia_types::nmt::Namespace;
-use deadpool::managed::Pool;
-use eyre::{
+use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
+use celestia_client::celestia_types::nmt::Namespace;
+use deadpool::managed::Pool;
 use http::{
     uri::Scheme,
     Uri,

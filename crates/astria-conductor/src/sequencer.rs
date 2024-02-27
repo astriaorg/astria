@@ -6,14 +6,14 @@ use std::{
     task::Poll,
 };
 
-use deadpool::managed::{
-    Pool,
-    PoolError,
-};
-use eyre::{
+use astria_eyre::eyre::{
     self,
     bail,
     WrapErr as _,
+};
+use deadpool::managed::{
+    Pool,
+    PoolError,
 };
 use futures::{
     future::{

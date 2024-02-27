@@ -1,6 +1,7 @@
 use std::time::Duration;
 
-use eyre::{
+use astria_eyre::eyre::{
+    self,
     bail,
     WrapErr as _,
 };
@@ -27,6 +28,8 @@ use crate::{
     metrics_init,
     validator::Validator,
 };
+
+type StdError = dyn std::error::Error;
 
 pub(crate) struct Relayer {
     /// The actual client used to poll the sequencer.
@@ -157,10 +160,7 @@ impl Relayer {
             Ok(submission_result) => submission_result,
             // Report if the task failed, i.e. panicked
             Err(e) => {
-                warn!(
-                    error = &e as &dyn std::error::Error,
-                    "submission task failed",
-                );
+                warn!(error = &e as &StdError, "submission task failed",);
                 return;
             }
         };
@@ -174,12 +174,9 @@ impl Relayer {
                 );
                 state.current_data_availability_height.replace(height);
             }),
-            Err(e) => {
+            Err(error) => {
                 metrics::counter!(metrics_init::CELESTIA_SUBMISSION_FAILURE_COUNT).increment(1);
-                warn!(
-                    error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                    "failed submitting blocks to celestia",
-                );
+                warn!(%error, "failed submitting blocks to celestia");
             }
         }
     }
@@ -341,12 +338,11 @@ impl Relayer {
                             }
                         }
 
-                        Ok(Err(e)) => {
-                            let error: &dyn std::error::Error = e.as_ref();
-                            warn!(error, "failed getting the latest block from sequencer");
+                        Ok(Err(error)) => {
+                            warn!(%error, "failed getting the latest block from sequencer");
                         }
-                        Err(e) => {
-                            warn!(error = &e as &dyn std::error::Error, "task panicked getting the latest block from sequencer");
+                        Err(error) => {
+                            warn!(%error, "task panicked getting the latest block from sequencer");
                         }
                     }
                 }

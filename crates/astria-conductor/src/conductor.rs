@@ -6,15 +6,15 @@ use std::{
     time::Duration,
 };
 
+use astria_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
 use celestia_client::celestia_types::nmt::Namespace;
 use ethers::prelude::{
     Address,
     Provider,
     Ws,
-};
-use eyre::{
-    self,
-    WrapErr as _,
 };
 use tokio::{
     select,
@@ -207,7 +207,7 @@ impl Conductor {
             } => error!(
                 task.name = name,
                 reason = "task exited with error",
-                error = AsRef::<dyn StdError>::as_ref(&error),
+                %error,
                 "shutting down"
             ),
             TaskPanicked {

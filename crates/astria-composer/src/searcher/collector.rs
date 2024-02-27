@@ -3,7 +3,7 @@ use astria_core::sequencer::v1alpha1::{
     transaction::action::SequenceAction,
     RollupId,
 };
-use color_eyre::eyre::{
+use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };
@@ -24,6 +24,8 @@ use tracing::{
     instrument,
     warn,
 };
+
+type StdError = dyn std::error::Error;
 
 /// Collects transactions submitted to a rollup node and passes them downstream for further
 /// processing.
@@ -109,14 +111,13 @@ impl Collector {
             .max_delay(Duration::from_secs(60))
             .on_retry(
                 |attempt, next_delay: Option<Duration>, error: &ProviderError| {
-                    let error = error as &(dyn std::error::Error + 'static);
                     let wait_duration = next_delay
                         .map(humantime::format_duration)
                         .map(tracing::field::display);
                     warn!(
                         attempt,
                         wait_duration,
-                        error,
+                        error = error as &StdError,
                         "attempt to connect to geth node failed; retrying after backoff",
                     );
                     futures::future::ready(())

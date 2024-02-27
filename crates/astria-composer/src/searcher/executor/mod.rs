@@ -18,10 +18,10 @@ use astria_core::sequencer::v1alpha1::{
     SignedTransaction,
     UnsignedTransaction,
 };
-use color_eyre::eyre::{
+use astria_eyre::eyre::{
     self,
     eyre,
-    Context,
+    WrapErr as _,
 };
 use ed25519_consensus::SigningKey;
 use futures::{
@@ -76,6 +76,8 @@ mod bundle_factory;
 
 #[cfg(test)]
 mod tests;
+
+type StdError = dyn std::error::Error;
 
 /// The `Executor` interfaces with the sequencer. It handles account nonces, transaction signing,
 /// and transaction submission.
@@ -201,10 +203,9 @@ impl Executor {
                 rsp = &mut submission_fut, if !submission_fut.is_terminated() => {
                     match rsp {
                         Ok(new_nonce) => nonce = new_nonce,
-                        Err(e) => {
-                            let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                            error!(error, "failed submitting bundle to sequencer; aborting executor");
-                            break Err(e).wrap_err("failed submitting bundle to sequencer");
+                        Err(error) => {
+                            error!(%error, "failed submitting bundle to sequencer; aborting executor");
+                            break Err(error).wrap_err("failed submitting bundle to sequencer");
                         }
                     }
 
@@ -224,7 +225,7 @@ impl Executor {
                     if let Err(e) = bundle_factory.try_push(seq_action) {
                             warn!(
                                 rollup_id = %rollup_id,
-                                error = &e as &dyn std::error::Error,
+                                error = &e as &StdError,
                                 "failed to bundle sequence action: too large. sequence action is dropped."
                             );
                     }
@@ -424,11 +425,10 @@ impl Future for SubmitFut {
                             }
                         }
                     }
-                    Err(e) => {
-                        let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                        error!(error, "failed sending transaction to sequencer");
+                    Err(error) => {
+                        error!(%error, "failed sending transaction to sequencer");
                         return Poll::Ready(
-                            Err(e).wrap_err("failed sending transaction to sequencer"),
+                            Err(error).wrap_err("failed sending transaction to sequencer"),
                         );
                     }
                 },
@@ -447,13 +447,11 @@ impl Future for SubmitFut {
                             fut: submit_tx(this.client.clone(), tx).boxed(),
                         }
                     }
-                    Err(e) => {
-                        let error: &(dyn std::error::Error + 'static) = e.as_ref();
-                        error!(
-                            error,
-                            "critically failed getting a new nonce from the sequencer",
+                    Err(error) => {
+                        error!(%error, "critically failed getting a new nonce from the sequencer");
+                        return Poll::Ready(
+                            Err(error).wrap_err("failed getting nonce from sequencer"),
                         );
-                        return Poll::Ready(Err(e).wrap_err("failed getting nonce from sequencer"));
                     }
                 },
             };

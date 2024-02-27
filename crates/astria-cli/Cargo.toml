@@ -12,10 +12,11 @@ homepage = "https://astria.org"
 name = "astria-cli"
 
 [dependencies]
+color-eyre = "0.6"
+
 astria-core = { path = "../astria-core" }
 
 clap = { workspace = true, features = ["derive", "env"] }
-color-eyre = { workspace = true }
 ed25519-consensus = { workspace = true }
 hex = { workspace = true }
 rand = { workspace = true }

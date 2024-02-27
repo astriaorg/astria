@@ -6,7 +6,7 @@ use astria_core::sequencer::v1alpha1::{
     RollupId,
     ROLLUP_ID_LEN,
 };
-use color_eyre::eyre;
+use astria_eyre::eyre;
 use once_cell::sync::Lazy;
 use prost::Message;
 use sequencer_client::SignedTransaction;
