@@ -182,6 +182,9 @@ async fn fetch_block(
         .max_delay(block_time)
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &eyre::Report| {
+                metrics::counter!(crate::metrics_init::SEQUENCER_BLOCK_FETCH_FAILURE_COUNT)
+                    .increment(1);
+
                 let state = Arc::clone(&state);
                 state.set_sequencer_connected(false);
 
