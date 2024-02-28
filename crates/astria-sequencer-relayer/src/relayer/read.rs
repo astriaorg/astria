@@ -28,6 +28,7 @@ use tracing::{
     debug,
     instrument,
     warn,
+    Instrument as _,
     Span,
 };
 
@@ -207,6 +208,7 @@ async fn fetch_block(
         async move { client.sequencer_block(height).await.map_err(Report::new) }
     })
     .with_config(retry_config)
+    .in_current_span()
     .await
     .wrap_err("retry attempts exhausted; bailing")?;
 

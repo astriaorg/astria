@@ -45,6 +45,7 @@ use tracing::{
     info,
     instrument,
     warn,
+    Instrument as _,
     Span,
 };
 
@@ -315,6 +316,7 @@ async fn submit_with_retry(
         }
     })
     .with_config(retry_config)
+    .in_current_span()
     .await
     .wrap_err("retry attempts exhausted; bailing")?;
     Ok(height)
