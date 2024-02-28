@@ -55,7 +55,7 @@ pub struct RollupTransactions {
     id: RollupId,
     /// The serialized opaque bytes of the rollup transactions.
     transactions: Vec<Vec<u8>>,
-    /// Proof that this set of transactions belongs in the merkle tree
+    /// Proof that this set of transactions belongs in the `sequence::Action` merkle tree
     proof: merkle::Proof,
 }
 
@@ -116,6 +116,10 @@ impl RollupTransactions {
             transactions,
             proof,
         })
+    }
+
+    pub fn into_values(self) -> (RollupId, Vec<Vec<u8>>, merkle::Proof) {
+        (self.id, self.transactions, self.proof)
     }
 }
 
@@ -394,13 +398,13 @@ impl SequencerBlock {
     }
 
     #[must_use]
-    pub fn filtered_block(self, rollup_ids: Vec<RollupId>) -> Self {
-        let mut rollup_transactions = IndexMap::with_capacity(rollup_ids.len());
+    pub fn filtered_block(mut self, rollup_ids: Vec<RollupId>) -> Self {
+        let mut all_rollup_transactions = IndexMap::with_capacity(rollup_ids.len());
         for id in rollup_ids {
-            let Some(rollup_transaction) = self.rollup_transactions.get(&id) else {
+            let Some(rollup_transactions) = self.rollup_transactions.shift_remove(&id) else {
                 continue;
             };
-            rollup_transactions.insert(id, rollup_transaction.clone());
+            all_rollup_transactions.insert(id, rollup_transactions);
         }
 
         Self {
@@ -408,7 +412,7 @@ impl SequencerBlock {
             header: self.header,
             rollup_transactions_proof: self.rollup_transactions_proof,
             rollup_ids_proof: self.rollup_ids_proof,
-            rollup_transactions,
+            rollup_transactions: all_rollup_transactions,
         }
     }
 
