@@ -120,6 +120,7 @@ impl RollupTransactions {
         })
     }
 
+    #[must_use]
     pub fn into_values(self) -> (RollupId, Vec<Vec<u8>>, merkle::Proof) {
         (self.id, self.transactions, self.proof)
     }
@@ -551,7 +552,7 @@ impl SequencerBlock {
         })
     }
 
-    /// Converts from the raw decoded protobuf representatin of this type.
+    /// Converts from the raw decoded protobuf representation of this type.
     ///
     /// # Errors
     /// TODO(https://github.com/astriaorg/astria/issues/612)
@@ -645,6 +646,7 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(clippy::module_name_repetitions)]
 pub struct FilteredSequencerBlock {
     block_hash: [u8; 32],
     header: tendermint::block::header::Header,
@@ -729,6 +731,23 @@ impl FilteredSequencerBlock {
         }
     }
 
+    /// Converts from the raw decoded protobuf representation of this type.
+    ///
+    /// # Errors
+    ///
+    /// - if the rollup transactions proof is not set
+    /// - if the rollup IDs proof is not set
+    /// - if the rollup transactions proof cannot be constructed from the raw protobuf
+    /// - if the rollup IDs proof cannot be constructed from the raw protobuf
+    /// - if the cometbft header is not set
+    /// - if the cometbft header cannot be constructed from the raw protobuf
+    /// - if the cometbft block hash is None
+    /// - if the data hash is None
+    /// - if the rollup transactions cannot be parsed
+    /// - if the rollup transactions root is not 32 bytes
+    /// - if the rollup transactions are not included in the sequencer block
+    /// - if the rollup IDs root is not 32 bytes
+    /// - if the rollup IDs are not included in the sequencer block
     pub fn try_from_raw(
         raw: raw::FilteredSequencerBlock,
     ) -> Result<Self, FilteredSequencerBlockError> {
@@ -800,7 +819,7 @@ impl FilteredSequencerBlock {
 
         let rollup_ids: Vec<RollupId> = rollup_ids
             .into_iter()
-            .map(|id| RollupId::try_from_vec(id))
+            .map(RollupId::try_from_vec)
             .collect::<Result<_, _>>()
             .map_err(FilteredSequencerBlockError::invalid_rollup_id)?;
 
