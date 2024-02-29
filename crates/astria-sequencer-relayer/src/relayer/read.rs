@@ -25,7 +25,6 @@ use sequencer_client::{
 };
 use tokio_stream::Stream;
 use tracing::{
-    debug,
     instrument,
     warn,
     Instrument as _,
@@ -90,12 +89,10 @@ impl BlockStream {
     }
 
     pub(super) fn pause(&mut self) {
-        debug!("stream paused");
         self.paused = true;
     }
 
     pub(super) fn resume(&mut self) {
-        debug!("stream resumed");
         self.paused = false;
     }
 }

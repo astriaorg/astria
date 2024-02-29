@@ -6,6 +6,7 @@ use std::{
 use astria_eyre::eyre::{
     self,
     bail,
+    eyre,
     WrapErr as _,
 };
 use celestia_client::jsonrpsee::http_client::HttpClient as CelestiaClient;
@@ -139,6 +140,8 @@ impl Relayer {
         let mut block_stream = read::BlockStream::new(self.sequencer.clone(), self.state.clone());
         block_stream.set_block_time(self.sequencer_poll_period);
 
+        // future to forward a sequencer block to the celestia-submission-task.
+        // gets set in the select-loop if the task is at capacity.
         let mut forward_once_free: Fuse<
             BoxFuture<Result<(), tokio::sync::mpsc::error::SendError<SequencerBlock>>>,
         > = Fuse::terminated();
@@ -150,15 +153,13 @@ impl Relayer {
                 biased;
 
                 res = &mut forward_once_free, if !forward_once_free.is_terminated() => {
-                    block_stream.resume();
                     // XXX: exiting because submitter only returns an error after u32::MAX
                     // retries, which is practically infinity.
                     if res.is_err() {
-                        let err = res.wrap_err(
-                            "submitter exited unexpectly while trying to forward block"
-                        );
-                        break err;
+                        break Err(eyre!("submitter exited unexpectly while trying to forward block"));
                     }
+                    block_stream.resume();
+                    debug!("block stream resumed");
                 }
 
                 Some(res) = latest_height_stream.next() => {
@@ -196,8 +197,10 @@ impl Relayer {
                         submitter.clone(),
                         &mut forward_once_free,
                     ).wrap_err("submitter exited unexpectly while trying to forward block") {
-                        // XXX: exiting because submitter only returns an error after u32::MAX
-                        // retries, which is practically infinity.
+                        // XXX: exiting because there is no logic to restart the blob-submitter task.
+                        // With the current implementation of the task it should also never go down
+                        // unless it has exhausted all u32::MAX attempts to submit to Celestia and
+                        // ultimately failed (after what's practically years of trying...).
                         break Err(err);
                     }
                 }
@@ -257,6 +260,8 @@ impl Relayer {
                 pausing block stream and scheduling for later submission",
             );
             block_stream.pause();
+            debug!("block stream paused");
+
             match error {
                 TrySendError::Full(block) => {
                     *forward = async move { submitter.send(block).await }.boxed().fuse();

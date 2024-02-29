@@ -71,6 +71,11 @@ impl QueuedBlobs {
         self.heights.push(height);
     }
 
+    /// Lazily move the currently queued blobs out of the queue.
+    ///
+    /// The main reason for this method to exist is to work around async-cancellation.
+    /// Only when the returned [`TakeBlobs`] future is polled are the blobs moved
+    /// out of the queue.
     fn take(&mut self) -> TakeBlobs<'_> {
         TakeBlobs {
             queue: Some(self),
@@ -109,6 +114,9 @@ pub(super) struct BlobSubmitterHandle {
 }
 
 impl BlobSubmitterHandle {
+    /// Send a block to the blob submitter immediately.
+    ///
+    /// This is a thin wrapper around [`Sender::try_send`].
     // allow: just forwarding the error type
     #[allow(clippy::result_large_err)]
     pub(super) fn try_send(
@@ -118,6 +126,9 @@ impl BlobSubmitterHandle {
         self.tx.try_send(block)
     }
 
+    /// Sends a block to the blob submitter.
+    ///
+    /// This is a thin wrapper around [`Sender::send`].
     // allow: just forwarding the error type
     #[allow(clippy::result_large_err)]
     pub(super) async fn send(
@@ -132,7 +143,7 @@ pub(super) struct BlobSubmitter {
     // The client to submit blobs to Celestia.
     client: HttpClient,
 
-    // The channel over which sequencer blocks to receive.
+    // The channel over which sequencer blocks are received.
     blocks: Receiver<SequencerBlock>,
 
     // The maximum number of conversions that can be active at the same time.

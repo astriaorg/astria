@@ -74,7 +74,7 @@ async fn three_blocks_are_relayed() {
     };
 
     let blobs_seen = timeout(
-        // timeout after (3 + 1) block times to ensure that 3 blocks are definitley picked up
+        // timeout after (3 + 1) block times to ensure that 3 blocks are definitely picked up
         Duration::from_millis(sequencer_relayer.config.block_time * 4),
         observe_blobs,
     )
@@ -123,7 +123,7 @@ async fn block_from_other_proposer_is_skipped() {
     };
 
     let blobs_seen = timeout(
-        // timeout after (3 + 1) block times to ensure that 3 blocks are definitley picked up
+        // timeout after (3 + 1) block times to ensure that 3 blocks are definitely picked up
         Duration::from_millis(sequencer_relayer.config.block_time * 4),
         observe_blobs,
     )
