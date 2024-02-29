@@ -2,6 +2,7 @@ use anyhow::Context as _;
 use astria_core::{
     generated::sequencer::v1alpha1::{
         sequencer_service_server::SequencerService,
+        FilteredSequencerBlock as RawFilteredSequencerBlock,
         FilteredSequencerBlockRequest,
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
@@ -79,10 +80,10 @@ impl SequencerService for SequencerServer {
     /// Given a block height and set of rollup ids, returns a SequencerBlock which
     /// is filtered to contain only the transactions that are relevant to the given rollup.
     #[instrument(skip_all, fields(height = request.get_ref().height))]
-    async fn filtered_sequencer_block(
+    async fn get_filtered_sequencer_block(
         &self,
         request: Request<FilteredSequencerBlockRequest>,
-    ) -> Result<Response<RawSequencerBlock>, Status> {
+    ) -> Result<Response<RawFilteredSequencerBlock>, Status> {
         let snapshot = self.storage.latest_snapshot();
         let curr_block_height = snapshot.get_block_height().await.map_err(|e| {
             Status::internal(format!("failed to get block height from storage: {}", e))
@@ -112,7 +113,7 @@ impl SequencerService for SequencerServer {
         }
 
         let block = match self.client.sequencer_block(height).await {
-            Ok(block) => block.filtered_block(rollup_ids),
+            Ok(block) => block.into_filtered_block(rollup_ids),
             Err(e) => {
                 return Err(Status::internal(format!(
                     "failed to get sequencer block from cometbft: {}",

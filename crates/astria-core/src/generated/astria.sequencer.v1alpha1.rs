@@ -135,6 +135,47 @@ pub struct SequencerBlock {
     #[prost(message, optional, tag = "4")]
     pub rollup_ids_proof: ::core::option::Option<Proof>,
 }
+/// `FilteredSequencerBlock` is similar to `SequencerBlock` but with a subset
+/// of the rollup transactions.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct FilteredSequencerBlock {
+    /// The original CometBFT header that was the input to this sequencer block.
+    #[prost(message, optional, tag = "1")]
+    pub header: ::core::option::Option<::tendermint_proto::types::Header>,
+    /// The collection of rollup transactions that were included in this block.
+    #[prost(message, repeated, tag = "2")]
+    pub rollup_transactions: ::prost::alloc::vec::Vec<RollupTransactions>,
+    /// The Merkle Tree Hash of all the rollup transactions in the block (not just the
+    /// subset included). Corresponds to `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`,
+    ///   the Merkle Tree Hash derived from the rollup transactions.
+    /// Always 32 bytes.
+    #[prost(bytes = "vec", tag = "3")]
+    pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
+    /// The proof that the rollup transactions are included in the CometBFT block this
+    /// sequencer block is derived form. This proof together with
+    /// `rollup_transactions_root = Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
+    /// `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
+    /// rollup transactions.
+    #[prost(message, optional, tag = "4")]
+    pub rollup_transactions_proof: ::core::option::Option<Proof>,
+    /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
+    /// Corresponds to the `astria.sequencer.v1alpha1.RollupTransactions.rollup_id` field
+    /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
+    #[prost(bytes = "vec", repeated, tag = "5")]
+    pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    /// The proof that the `rollup_ids` are included
+    /// in the CometBFT block this sequencer block is derived form.
+    ///
+    /// This proof is used to verify that the relayer that posts to celestia
+    /// includes all rollup IDs and does not censor any.
+    ///
+    /// This proof together with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
+    /// `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
+    /// the rollup transactions.
+    #[prost(message, optional, tag = "6")]
+    pub rollup_ids_proof: ::core::option::Option<Proof>,
+}
 /// A collection of transactions belonging to a specific rollup that are submitted to celestia.
 ///
 /// The transactions contained in the item belong to a rollup identified
@@ -367,10 +408,13 @@ pub mod sequencer_service_client {
         }
         /// Given a block height and set of rollup ids, returns a SequencerBlock which
         /// is filtered to contain only the transactions that are relevant to the given rollup.
-        pub async fn filtered_sequencer_block(
+        pub async fn get_filtered_sequencer_block(
             &mut self,
             request: impl tonic::IntoRequest<super::FilteredSequencerBlockRequest>,
-        ) -> std::result::Result<tonic::Response<super::SequencerBlock>, tonic::Status> {
+        ) -> std::result::Result<
+            tonic::Response<super::FilteredSequencerBlock>,
+            tonic::Status,
+        > {
             self.inner
                 .ready()
                 .await
@@ -382,14 +426,14 @@ pub mod sequencer_service_client {
                 })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/astria.sequencer.v1alpha1.SequencerService/FilteredSequencerBlock",
+                "/astria.sequencer.v1alpha1.SequencerService/GetFilteredSequencerBlock",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "astria.sequencer.v1alpha1.SequencerService",
-                        "FilteredSequencerBlock",
+                        "GetFilteredSequencerBlock",
                     ),
                 );
             self.inner.unary(req, path, codec).await
@@ -411,10 +455,13 @@ pub mod sequencer_service_server {
         ) -> std::result::Result<tonic::Response<super::SequencerBlock>, tonic::Status>;
         /// Given a block height and set of rollup ids, returns a SequencerBlock which
         /// is filtered to contain only the transactions that are relevant to the given rollup.
-        async fn filtered_sequencer_block(
+        async fn get_filtered_sequencer_block(
             &self,
             request: tonic::Request<super::FilteredSequencerBlockRequest>,
-        ) -> std::result::Result<tonic::Response<super::SequencerBlock>, tonic::Status>;
+        ) -> std::result::Result<
+            tonic::Response<super::FilteredSequencerBlock>,
+            tonic::Status,
+        >;
     }
     #[derive(Debug)]
     pub struct SequencerServiceServer<T: SequencerService> {
@@ -545,14 +592,14 @@ pub mod sequencer_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/astria.sequencer.v1alpha1.SequencerService/FilteredSequencerBlock" => {
+                "/astria.sequencer.v1alpha1.SequencerService/GetFilteredSequencerBlock" => {
                     #[allow(non_camel_case_types)]
-                    struct FilteredSequencerBlockSvc<T: SequencerService>(pub Arc<T>);
+                    struct GetFilteredSequencerBlockSvc<T: SequencerService>(pub Arc<T>);
                     impl<
                         T: SequencerService,
                     > tonic::server::UnaryService<super::FilteredSequencerBlockRequest>
-                    for FilteredSequencerBlockSvc<T> {
-                        type Response = super::SequencerBlock;
+                    for GetFilteredSequencerBlockSvc<T> {
+                        type Response = super::FilteredSequencerBlock;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
@@ -563,7 +610,7 @@ pub mod sequencer_service_server {
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as SequencerService>::filtered_sequencer_block(
+                                <T as SequencerService>::get_filtered_sequencer_block(
                                         &inner,
                                         request,
                                     )
@@ -579,7 +626,7 @@ pub mod sequencer_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = FilteredSequencerBlockSvc(inner);
+                        let method = GetFilteredSequencerBlockSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

@@ -1,4 +1,5 @@
 use indexmap::IndexMap;
+use sha2::Sha256;
 use transaction::SignedTransaction;
 
 use super::{
@@ -399,21 +400,35 @@ impl SequencerBlock {
     }
 
     #[must_use]
-    pub fn filtered_block(mut self, rollup_ids: Vec<RollupId>) -> Self {
-        let mut all_rollup_transactions = IndexMap::with_capacity(rollup_ids.len());
+    pub fn into_filtered_block(mut self, rollup_ids: Vec<RollupId>) -> FilteredSequencerBlock {
+        let all_rollup_ids: Vec<RollupId> = self.rollup_transactions.keys().copied().collect();
+
+        // recreate the whole rollup tx tree so that we can get the root, as it's not stored
+        // in the sequencer block.
+        // note: we can remove this after storing the constructed root/proofs in the sequencer app.
+        let rollup_transaction_tree = derive_merkle_tree_from_rollup_txs(
+            self.rollup_transactions
+                .iter()
+                .map(|(id, txs)| (id, txs.transactions()))
+                .collect::<Vec<(&RollupId, &[Vec<u8>])>>(),
+        );
+
+        let mut filtered_rollup_transactions = IndexMap::with_capacity(rollup_ids.len());
         for id in rollup_ids {
             let Some(rollup_transactions) = self.rollup_transactions.shift_remove(&id) else {
                 continue;
             };
-            all_rollup_transactions.insert(id, rollup_transactions);
+            filtered_rollup_transactions.insert(id, rollup_transactions);
         }
 
-        Self {
+        FilteredSequencerBlock {
             block_hash: self.block_hash,
             header: self.header,
+            rollup_transactions: filtered_rollup_transactions,
+            rollup_transactions_root: rollup_transaction_tree.root(),
             rollup_transactions_proof: self.rollup_transactions_proof,
+            rollup_ids: all_rollup_ids,
             rollup_ids_proof: self.rollup_ids_proof,
-            rollup_transactions: all_rollup_transactions,
         }
     }
 
@@ -625,9 +640,235 @@ where
     I: IntoIterator<Item = B>,
     B: AsRef<[u8]>,
 {
-    use sha2::{
-        Digest as _,
-        Sha256,
-    };
+    use sha2::Digest as _;
     merkle::Tree::from_leaves(iter.into_iter().map(|item| Sha256::digest(&item)))
+}
+
+pub struct FilteredSequencerBlock {
+    block_hash: [u8; 32],
+    header: tendermint::block::header::Header,
+    rollup_transactions: IndexMap<RollupId, RollupTransactions>,
+    rollup_transactions_root: [u8; 32],
+    rollup_transactions_proof: merkle::Proof,
+    rollup_ids: Vec<RollupId>,
+    rollup_ids_proof: merkle::Proof,
+}
+
+impl FilteredSequencerBlock {
+    #[must_use]
+    pub fn block_hash(&self) -> [u8; 32] {
+        self.block_hash
+    }
+
+    #[must_use]
+    pub fn header(&self) -> &tendermint::block::header::Header {
+        &self.header
+    }
+
+    #[must_use]
+    pub fn height(&self) -> tendermint::block::Height {
+        self.header.height
+    }
+
+    #[must_use]
+    pub fn rollup_transactions(&self) -> &IndexMap<RollupId, RollupTransactions> {
+        &self.rollup_transactions
+    }
+
+    #[must_use]
+    pub fn rollup_transactions_root(&self) -> [u8; 32] {
+        self.rollup_transactions_root
+    }
+
+    #[must_use]
+    pub fn rollup_transactions_proof(&self) -> &merkle::Proof {
+        &self.rollup_transactions_proof
+    }
+
+    #[must_use]
+    pub fn rollup_ids(&self) -> &[RollupId] {
+        &self.rollup_ids
+    }
+
+    #[must_use]
+    pub fn rollup_ids_proof(&self) -> &merkle::Proof {
+        &self.rollup_ids_proof
+    }
+
+    #[must_use]
+    pub fn into_raw(self) -> raw::FilteredSequencerBlock {
+        fn tuple_to_rollup_txs(
+            (_rollup_id, rollup_txs): (RollupId, RollupTransactions),
+        ) -> raw::RollupTransactions {
+            rollup_txs.into_raw()
+        }
+
+        let Self {
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+            ..
+        } = self;
+        raw::FilteredSequencerBlock {
+            header: Some(header.into()),
+            rollup_transactions: rollup_transactions
+                .into_iter()
+                .map(tuple_to_rollup_txs)
+                .collect(),
+            rollup_transactions_root: self.rollup_transactions_root.to_vec(),
+            rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
+            rollup_ids: self.rollup_ids.iter().map(|id| id.to_vec()).collect(),
+            rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
+        }
+    }
+
+    pub fn try_from_raw(
+        raw: raw::FilteredSequencerBlock,
+    ) -> Result<Self, FilteredSequencerBlockError> {
+        use sha2::Digest as _;
+
+        fn rollup_txs_to_tuple(
+            raw: raw::RollupTransactions,
+        ) -> Result<(RollupId, RollupTransactions), RollupTransactionsError> {
+            let rollup_transactions = RollupTransactions::try_from_raw(raw)?;
+            Ok((rollup_transactions.id, rollup_transactions))
+        }
+
+        let raw::FilteredSequencerBlock {
+            header,
+            rollup_transactions,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids,
+            rollup_ids_proof,
+        } = raw;
+
+        let rollup_transactions_proof = 'proof: {
+            let Some(rollup_transactions_proof) = rollup_transactions_proof else {
+                break 'proof Err(FilteredSequencerBlockError::field_not_set(
+                    "rollup_transactions_proof",
+                ));
+            };
+            merkle::Proof::try_from_raw(rollup_transactions_proof)
+                .map_err(FilteredSequencerBlockError::transaction_proof_invalid)
+        }?;
+        let rollup_ids_proof = 'proof: {
+            let Some(rollup_ids_proof) = rollup_ids_proof else {
+                break 'proof Err(FilteredSequencerBlockError::field_not_set(
+                    "rollup_ids_proof",
+                ));
+            };
+            merkle::Proof::try_from_raw(rollup_ids_proof)
+                .map_err(FilteredSequencerBlockError::id_proof_invalid)
+        }?;
+        let header = 'header: {
+            let Some(header) = header else {
+                break 'header Err(FilteredSequencerBlockError::field_not_set("header"));
+            };
+            tendermint::block::Header::try_from(header)
+                .map_err(FilteredSequencerBlockError::cometbft_header)
+        }?;
+        let tendermint::Hash::Sha256(block_hash) = header.hash() else {
+            return Err(FilteredSequencerBlockError::comet_bft_block_hash_is_none());
+        };
+
+        // header.data_hash is Option<Hash> and Hash itself has
+        // variants Sha256([u8; 32]) or None.
+        let Some(tendermint::Hash::Sha256(data_hash)) = header.data_hash else {
+            return Err(FilteredSequencerBlockError::field_not_set(
+                "header.data_hash",
+            ));
+        };
+
+        let rollup_transactions = rollup_transactions
+            .into_iter()
+            .map(rollup_txs_to_tuple)
+            .collect::<Result<_, _>>()
+            .map_err(FilteredSequencerBlockError::parse_rollup_transactions)?;
+
+        let rollup_transactions_root: [u8; 32] =
+            rollup_transactions_root.try_into().map_err(|e: Vec<_>| {
+                FilteredSequencerBlockError::incorrect_rollup_transactions_root_length(e.len())
+            })?;
+
+        let rollup_ids: Vec<RollupId> = rollup_ids
+            .into_iter()
+            .map(|id| RollupId::try_from_vec(id))
+            .collect::<Result<_, _>>()
+            .map_err(FilteredSequencerBlockError::invalid_rollup_id)?;
+
+        if !rollup_transactions_proof.verify(&Sha256::digest(rollup_transactions_root), data_hash) {
+            return Err(FilteredSequencerBlockError::rollup_transactions_not_in_sequencer_block());
+        }
+
+        if !are_rollup_ids_included(rollup_ids.clone(), &rollup_ids_proof, data_hash) {
+            return Err(FilteredSequencerBlockError::rollup_ids_not_in_sequencer_block());
+        }
+
+        Ok(Self {
+            block_hash,
+            header,
+            rollup_transactions,
+            rollup_transactions_root,
+            rollup_transactions_proof,
+            rollup_ids,
+            rollup_ids_proof,
+        })
+    }
+}
+
+pub enum FilteredSequencerBlockError {
+    InvalidRollupId(IncorrectRollupIdLength),
+    FieldNotSet(&'static str),
+    CometBftHeader(tendermint::Error),
+    CometBftBlockHashIsNone,
+    ParseRollupTransactions(RollupTransactionsError),
+    RollupTransactionsNotInSequencerBlock,
+    RollupIdsNotInSequencerBlock,
+    TransactionProofInvalid(merkle::audit::InvalidProof),
+    IdProofInvalid(merkle::audit::InvalidProof),
+    IncorrectRollupTransactionsRootLength(usize),
+}
+
+impl FilteredSequencerBlockError {
+    fn invalid_rollup_id(source: IncorrectRollupIdLength) -> Self {
+        Self::InvalidRollupId(source)
+    }
+
+    fn field_not_set(field: &'static str) -> Self {
+        Self::FieldNotSet(field)
+    }
+
+    fn cometbft_header(source: tendermint::Error) -> Self {
+        Self::CometBftHeader(source)
+    }
+
+    fn comet_bft_block_hash_is_none() -> Self {
+        Self::CometBftBlockHashIsNone
+    }
+
+    fn parse_rollup_transactions(source: RollupTransactionsError) -> Self {
+        Self::ParseRollupTransactions(source)
+    }
+
+    fn rollup_transactions_not_in_sequencer_block() -> Self {
+        Self::RollupTransactionsNotInSequencerBlock
+    }
+
+    fn rollup_ids_not_in_sequencer_block() -> Self {
+        Self::RollupIdsNotInSequencerBlock
+    }
+
+    fn transaction_proof_invalid(source: merkle::audit::InvalidProof) -> Self {
+        Self::TransactionProofInvalid(source)
+    }
+
+    fn id_proof_invalid(source: merkle::audit::InvalidProof) -> Self {
+        Self::IdProofInvalid(source)
+    }
+
+    fn incorrect_rollup_transactions_root_length(len: usize) -> Self {
+        Self::IncorrectRollupTransactionsRootLength(len)
+    }
 }

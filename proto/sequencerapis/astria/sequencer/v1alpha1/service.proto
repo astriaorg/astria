@@ -26,7 +26,7 @@ service SequencerService {
 
   // Given a block height and set of rollup ids, returns a SequencerBlock which
   // is filtered to contain only the transactions that are relevant to the given rollup.
-  rpc FilteredSequencerBlock(FilteredSequencerBlockRequest) returns (SequencerBlock) {
+  rpc GetFilteredSequencerBlock(FilteredSequencerBlockRequest) returns (FilteredSequencerBlock) {
     option (google.api.http) = {
       post: "/v1alpha1/sequencer/{height}:filtered"
       body: "*"
