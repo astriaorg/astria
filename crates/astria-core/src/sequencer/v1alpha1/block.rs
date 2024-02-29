@@ -44,7 +44,7 @@ pub enum RollupTransactionsErrorKind {
     RollupId(#[source] IncorrectRollupIdLength),
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
-    #[error("failed constructing a proof from the raw protobuf transaction proof")]
+    #[error("failed constructing a proof from the raw protobuf `proof` field")]
     ProofInvalid(#[source] merkle::audit::InvalidProof),
 }
 
@@ -72,7 +72,8 @@ impl RollupTransactions {
         &self.transactions
     }
 
-    /// Returns the opaque transactions bytes.
+    /// Returns the merkle proof that these transactions were included
+    /// in the `action_tree_commitment`.
     #[must_use]
     pub fn proof(&self) -> &merkle::Proof {
         &self.proof
@@ -501,7 +502,7 @@ impl SequencerBlock {
 
         let mut rollup_transactions = IndexMap::new();
         for (i, (id, transactions)) in rollup_base_transactions.into_iter().enumerate() {
-            let proof = tree
+            let proof = rollup_transaction_tree
                 .construct_proof(i)
                 .expect("the proof must exist because the tree was derived with the same leaf");
             rollup_transactions.insert(

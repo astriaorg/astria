@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use astria_core::{
     generated::sequencer::v1alpha1::{
         sequencer_service_server::SequencerService,
@@ -27,13 +28,13 @@ pub(crate) struct SequencerServer {
 }
 
 impl SequencerServer {
-    pub(crate) fn new(cometbft_endpoint: &str, storage: Storage) -> Self {
-        let client =
-            HttpClient::new(cometbft_endpoint).expect("should be able to create cometbft client");
-        Self {
+    pub(crate) fn new(cometbft_endpoint: &str, storage: Storage) -> anyhow::Result<Self> {
+        let client = HttpClient::new(cometbft_endpoint)
+            .context("should be able to create cometbft client")?;
+        Ok(Self {
             client,
             storage,
-        }
+        })
     }
 }
 
@@ -46,9 +47,9 @@ impl SequencerService for SequencerServer {
         request: Request<GetSequencerBlockRequest>,
     ) -> Result<Response<RawSequencerBlock>, Status> {
         let snapshot = self.storage.latest_snapshot();
-        let Ok(curr_block_height) = snapshot.get_block_height().await else {
-            return Err(Status::internal("failed to get block height from storage"));
-        };
+        let curr_block_height = snapshot.get_block_height().await.map_err(|e| {
+            Status::internal(format!("failed to get block height from storage: {}", e))
+        })?;
 
         let request = request.into_inner();
 
@@ -83,9 +84,9 @@ impl SequencerService for SequencerServer {
         request: Request<FilteredSequencerBlockRequest>,
     ) -> Result<Response<RawSequencerBlock>, Status> {
         let snapshot = self.storage.latest_snapshot();
-        let Ok(curr_block_height) = snapshot.get_block_height().await else {
-            return Err(Status::internal("failed to get block height from storage"));
-        };
+        let curr_block_height = snapshot.get_block_height().await.map_err(|e| {
+            Status::internal(format!("failed to get block height from storage: {}", e))
+        })?;
 
         let request = request.into_inner();
 
@@ -103,17 +104,20 @@ impl SequencerService for SequencerServer {
         let mut rollup_ids: Vec<RollupId> = vec![];
         for id in request.rollup_ids {
             let Ok(rollup_id) = RollupId::try_from_vec(id) else {
-                return Err(Status::invalid_argument("Rollup ID must be 32 bytes"));
+                return Err(Status::invalid_argument(
+                    "invalid rollup ID; must be 32 bytes",
+                ));
             };
             rollup_ids.push(rollup_id);
         }
 
         let block = match self.client.sequencer_block(height).await {
             Ok(block) => block.filtered_block(rollup_ids),
-            Err(_) => {
-                return Err(Status::internal(
-                    "failed to get sequencer block from cometbft",
-                ));
+            Err(e) => {
+                return Err(Status::internal(format!(
+                    "failed to get sequencer block from cometbft: {}",
+                    e,
+                )));
             }
         };
 
