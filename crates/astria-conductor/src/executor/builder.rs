@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use eyre::{
+use astria_eyre::eyre::{
     self,
     WrapErr as _,
 };

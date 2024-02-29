@@ -25,7 +25,6 @@ base64 = { workspace = true }
 bytes = { workspace = true }
 ed25519-consensus = { workspace = true }
 ethers = { workspace = true, features = ["optimism", "ws"] }
-eyre = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 humantime = { workspace = true }
@@ -45,6 +44,7 @@ tryhard = { workspace = true }
 
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core", features = ["client", "serde"] }
+astria-eyre = { path = "../astria-eyre" }
 celestia-client = { package = "astria-celestia-client", path = "../astria-celestia-client" }
 optimism = { package = "astria-optimism", path = "../astria-optimism" }
 config = { package = "astria-config", path = "../astria-config" }

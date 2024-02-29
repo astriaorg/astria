@@ -10,7 +10,7 @@ homepage = "https://astria.org"
 
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
-
-eyre = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+astria-eyre = { path = "../astria-eyre" }

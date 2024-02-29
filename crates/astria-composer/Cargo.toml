@@ -14,6 +14,7 @@ name = "astria-composer"
 [dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core" }
+astria-eyre = { path = "../astria-eyre" }
 config = { package = "astria-config", path = "../astria-config" }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
 
@@ -22,8 +23,6 @@ secrecy = { version = "0.8", features = ["serde"] }
 
 async-trait = { workspace = true }
 axum = { workspace = true }
-backon = { workspace = true }
-color-eyre = { workspace = true }
 ed25519-consensus = { workspace = true }
 ethers = { workspace = true, features = ["ws"] }
 futures = { workspace = true }

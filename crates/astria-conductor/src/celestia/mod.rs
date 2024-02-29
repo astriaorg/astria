@@ -1,6 +1,5 @@
 use std::{
     collections::BTreeMap,
-    error::Error as StdError,
     future::ready,
     pin::Pin,
     task::{
@@ -10,6 +9,12 @@ use std::{
     time::Duration,
 };
 
+use astria_eyre::eyre::{
+    self,
+    bail,
+    ensure,
+    WrapErr as _,
+};
 use celestia_client::{
     celestia_namespace_v0_from_rollup_id,
     celestia_rpc::{
@@ -31,12 +36,6 @@ use celestia_client::{
     },
     CelestiaClientExt as _,
     CelestiaSequencerBlob,
-};
-use eyre::{
-    self,
-    bail,
-    ensure,
-    WrapErr as _,
 };
 use futures::{
     future::{
@@ -84,6 +83,8 @@ use crate::{
     executor,
 };
 mod builder;
+
+type StdError = dyn std::error::Error;
 
 #[derive(Clone, Debug)]
 pub(crate) struct ReconstructedBlock {
@@ -206,9 +207,8 @@ impl Reader {
                 shutdown_res = &mut self.shutdown => {
                     match shutdown_res {
                         Ok(()) => info!("received shutdown command; exiting"),
-                        Err(e) => {
-                            let error = &e as &(dyn std::error::Error + 'static);
-                            warn!(error, "shutdown receiver dropped; exiting");
+                        Err(error) => {
+                            warn!(%error, "shutdown receiver dropped; exiting");
                         }
                     }
                     break;
@@ -254,13 +254,16 @@ impl Reader {
 
                         Some(Err(JrpcError::ParseError(e))) => {
                             warn!(
-                                error = &e as &dyn StdError,
+                                error = &e as &StdError,
                                 "failed to parse return value of header subscription",
                             );
                         }
 
                         Some(Err(e)) => {
-                            warn!(error = &e as &dyn StdError, "Celestia header subscription failed, resubscribing");
+                            warn!(
+                                error = &e as &StdError,
+                                "Celestia header subscription failed, resubscribing",
+                            );
                             resubscribe = true;
                         }
 
@@ -270,7 +273,10 @@ impl Reader {
                         }
                     }
                     if resubscribe {
-                        resubscribing = subscribe_to_celestia_headers(&self.celestia_ws_endpoint, &self.celestia_auth_token).boxed().fuse();
+                        resubscribing = subscribe_to_celestia_headers(
+                            &self.celestia_ws_endpoint,
+                            &self.celestia_auth_token,
+                        ).boxed().fuse();
                     }
                 }
 
@@ -284,7 +290,7 @@ impl Reader {
                         sequencer_height_to_celestia_height.insert(block.height(), celestia_height);
                         if let Err(e) = sequential_blocks.insert(block) {
                             warn!(
-                                error = &e as &dyn std::error::Error,
+                                error = &e as &StdError,
                                 "failed pushing block into cache; dropping",
                             );
                         }
@@ -383,11 +389,8 @@ impl Stream for ReconstructedBlocksStream {
             // XXX: The error is silently dropped as this relies on fetch_blocks_at_celestia_height
             //      emitting an error event as part of its as part of its instrumentation.
             Ok(Err(_)) => {}
-            Err(timed_out) => {
-                warn!(
-                    %height,
-                    error = &timed_out as &dyn StdError,
-                    "request for height timed out, rescheduling",
+            Err(timeout) => {
+                warn!(%height, error = %timeout, "request for height timed out, rescheduling",
                 );
                 let res = {
                     this.in_progress.try_push(
@@ -471,11 +474,8 @@ async fn fetch_blocks_at_celestia_height(
             let verifier = verifier.clone();
             process_sequencer_blob(client, verifier, height, rollup_namespace, blob)
         })
-        .inspect_err(|err| {
-            warn!(
-                error = AsRef::<dyn std::error::Error>::as_ref(err),
-                "failed to reconstruct block from celestia blob"
-            );
+        .inspect_err(|error| {
+            warn!(%error, "failed to reconstruct block from celestia blob");
         })
         .filter_map(|x| ready(x.ok()))
         .in_current_span()
@@ -628,7 +628,7 @@ async fn connect_to_celestia(endpoint: &str, token: &str) -> eyre::Result<HttpCl
                 warn!(
                     attempt,
                     wait_duration,
-                    error = error as &dyn StdError,
+                    %error,
                     "attempt to connect to Celestia HTTP RPC failed; retrying after backoff",
                 );
                 futures::future::ready(())

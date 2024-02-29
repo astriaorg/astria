@@ -9,8 +9,9 @@ repository = "https://github.com/astriaorg/astria"
 homepage = "https://astria.org"
 
 [dependencies]
+astria-eyre = { path = "../astria-eyre" }
+
 ethers = { workspace = true, features = ["optimism", "ethers-solc", "ws"] }
-eyre = { workspace = true }
 hex = { workspace = true }
 
 [dev-dependencies]
