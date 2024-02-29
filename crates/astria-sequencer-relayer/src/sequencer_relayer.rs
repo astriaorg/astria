@@ -1,7 +1,11 @@
 use std::net::SocketAddr;
 
-use eyre::WrapErr as _;
+use astria_eyre::eyre::{
+    self,
+    WrapErr as _,
+};
 use tokio::task::JoinError;
+use tracing::info;
 
 use crate::{
     api,
@@ -45,7 +49,10 @@ impl SequencerRelayer {
         // of the future into an eyre report.
         let api_task =
             tokio::spawn(async move { api_server.await.wrap_err("api server ended unexpectedly") });
+        info!("spawned API server");
+
         let relayer_task = tokio::spawn(relayer.run());
+        info!("spawned relayer task");
 
         tokio::select!(
             o = api_task => report_exit("api server", o),
@@ -57,12 +64,8 @@ impl SequencerRelayer {
 fn report_exit(task_name: &str, outcome: Result<eyre::Result<()>, JoinError>) {
     match outcome {
         Ok(Ok(())) => tracing::info!(task = task_name, "task has exited"),
-        Ok(Err(e)) => {
-            tracing::error!(
-                task = task_name,
-                error = AsRef::<dyn std::error::Error>::as_ref(&e),
-                "task returned with error"
-            );
+        Ok(Err(error)) => {
+            tracing::error!(task = task_name, %error, "task returned with error");
         }
         Err(e) => {
             tracing::error!(

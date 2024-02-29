@@ -4,6 +4,8 @@ use astria_sequencer_utils::{
 };
 
 fn main() {
+    astria_eyre::install()
+        .expect("the astria eyre install hook must be called before eyre reports are constructed");
     let config = Config::get();
 
     println!("running genesis parser");

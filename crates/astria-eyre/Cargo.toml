@@ -1,0 +1,15 @@
+[package]
+name = "astria-eyre"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+eyre = "0.6"
+itoa = "1.0.10"
+
+[dev-dependencies]
+tracing = { workspace = true }
+tokio-test = { workspace = true }
+tracing-subscriber = "0.3.18"

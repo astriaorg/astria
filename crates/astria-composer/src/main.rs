@@ -6,11 +6,13 @@ use astria_composer::{
     Config,
     BUILD_INFO,
 };
-use color_eyre::eyre::WrapErr as _;
+use astria_eyre::eyre::WrapErr as _;
 use tracing::info;
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    astria_eyre::install().expect("astria eyre hook must be the first hook installed");
+
     eprintln!(
         "{}",
         serde_json::to_string(&BUILD_INFO)
