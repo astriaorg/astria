@@ -143,9 +143,9 @@ pub struct FilteredSequencerBlock {
     /// The original CometBFT header that was the input to this sequencer block.
     #[prost(message, optional, tag = "1")]
     pub header: ::core::option::Option<::tendermint_proto::types::Header>,
-    /// The collection of rollup transactions that were included in this block.
+    /// A subset of rollup transactions that were included in this block.
     #[prost(message, repeated, tag = "2")]
-    pub rollup_transactions: ::prost::alloc::vec::Vec<RollupTransactions>,
+    pub filtered_rollup_transactions: ::prost::alloc::vec::Vec<RollupTransactions>,
     /// The Merkle Tree Hash of all the rollup transactions in the block (not just the
     /// subset included). Corresponds to `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`,
     ///   the Merkle Tree Hash derived from the rollup transactions.
