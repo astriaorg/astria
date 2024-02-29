@@ -23,7 +23,6 @@ secrecy = { version = "0.8", features = ["serde"] }
 
 async-trait = { workspace = true }
 axum = { workspace = true }
-backon = { workspace = true }
 ed25519-consensus = { workspace = true }
 ethers = { workspace = true, features = ["ws"] }
 futures = { workspace = true }

@@ -25,22 +25,29 @@ use tracing::{
     instrument,
 };
 
-use crate::{
-    celestia_namespace_v0_from_cometbft_header,
-    celestia_namespace_v0_from_rollup_id,
-    metrics_init,
-};
+use crate::submission::ToBlobsError;
 
 impl CelestiaClientExt for jsonrpsee::http_client::HttpClient {}
 impl CelestiaClientExt for jsonrpsee::ws_client::WsClient {}
 
 #[derive(Debug, thiserror::Error)]
-pub enum SubmitSequencerBlocksError {
-    #[error("failed assembling blob for block at index `{index}`")]
-    AssembleBlobs {
-        source: BlobAssemblyError,
-        index: usize,
-    },
+#[error(transparent)]
+pub struct SubmitSequencerBlocksError(SubmitSequencerBlocksErrorKind);
+
+impl SubmitSequencerBlocksError {
+    fn assemble(source: ToBlobsError) -> Self {
+        Self(SubmitSequencerBlocksErrorKind::AssembleBlobs(source))
+    }
+
+    fn jsonrpc(source: jsonrpsee::core::Error) -> Self {
+        Self(SubmitSequencerBlocksErrorKind::JsonRpc(source))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum SubmitSequencerBlocksErrorKind {
+    #[error("failed assembling blobs from sequencer block")]
+    AssembleBlobs(#[source] ToBlobsError),
     #[error("the JSONRPC call failed")]
     JsonRpc(#[source] jsonrpsee::core::Error),
 }
@@ -171,7 +178,7 @@ pub trait CelestiaClientExt: BlobClient {
         Ok(rollup_datas)
     }
 
-    /// Submits sequencer `blocks` to celestia
+    /// Submits a sequencer `block` to celestia
     ///
     /// `Blocks` after converted into celestia blobs and then posted. Rollup
     /// data is posted to a namespace derived from the rollup chain id.
@@ -185,41 +192,22 @@ pub trait CelestiaClientExt: BlobClient {
     /// - Errors:
     ///     - SubmitSequencerBlocksError::AssembleBlobs when failed to assemble blob
     ///     - SubmitSequencerBlocksError::JsonRpc when Celestia `blob.Submit` fails
-    async fn submit_sequencer_blocks(
+    async fn submit_sequencer_block(
         &self,
-        blocks: Vec<SequencerBlock>,
+        block: SequencerBlock,
         submit_options: SubmitOptions,
     ) -> Result<u64, SubmitSequencerBlocksError> {
-        // The number of total expected blobs is:
-        // + the sum of all rollup transactions in all blocks (each converted to a rollup namespaced
-        //   data), and
-        // + one sequencer namespaced data blob per block.
-        let num_of_rollup_blobs = blocks
-            .iter()
-            .fold(0, |acc, block| acc + block.rollup_transactions().len());
-        let num_of_sequencer_blobs = blocks.len();
-        let num_expected_blobs = num_of_rollup_blobs + num_of_sequencer_blobs;
+        use crate::submission::ToBlobs as _;
+        let mut blobs = Vec::new();
 
-        // the number of blobs should always be low enough to not cause precision loss
-        #[allow(clippy::cast_precision_loss)]
-        let metric_rollup_count = num_of_rollup_blobs as f64;
-        metrics::gauge!(metrics_init::ROLLUP_BLOBS_PER_CELESTIA_TX).set(metric_rollup_count);
-
-        let mut all_blobs = Vec::with_capacity(num_expected_blobs);
-        for (i, block) in blocks.into_iter().enumerate() {
-            let mut blobs = assemble_blobs_from_sequencer_block(block).map_err(|source| {
-                SubmitSequencerBlocksError::AssembleBlobs {
-                    source,
-                    index: i,
-                }
-            })?;
-            all_blobs.append(&mut blobs);
-        }
+        block
+            .try_to_blobs(&mut blobs)
+            .map_err(SubmitSequencerBlocksError::assemble)?;
 
         let height = self
-            .blob_submit(&all_blobs, submit_options)
+            .blob_submit(&blobs, submit_options)
             .await
-            .map_err(SubmitSequencerBlocksError::JsonRpc)?;
+            .map_err(SubmitSequencerBlocksError::jsonrpc)?;
 
         Ok(height)
     }
@@ -244,41 +232,6 @@ pub enum BlobAssemblyError {
          index was outside the tree"
     )]
     ConstructProof { index: usize },
-}
-
-fn assemble_blobs_from_sequencer_block(
-    block: SequencerBlock,
-) -> Result<Vec<Blob>, BlobAssemblyError> {
-    let (sequencer_blob, rollup_blobs) = block.into_celestia_blobs();
-
-    // the number of blobs should always be low enough to not cause precision loss
-    #[allow(clippy::cast_precision_loss)]
-    let rollup_blobs_count = rollup_blobs.len() as f64;
-    metrics::gauge!(metrics_init::ROLLUP_BLOBS_PER_ASTRIA_BLOCK).set(rollup_blobs_count);
-
-    let mut blobs = Vec::with_capacity(rollup_blobs.len() + 1);
-
-    let sequencer_namespace = celestia_namespace_v0_from_cometbft_header(sequencer_blob.header());
-
-    blobs.push(
-        Blob::new(
-            sequencer_namespace,
-            sequencer_blob.into_raw().encode_to_vec(),
-        )
-        .map_err(BlobAssemblyError::ConstructBlobFromSequencerData)?,
-    );
-    for (i, blob) in rollup_blobs.into_iter().enumerate() {
-        let namespace = celestia_namespace_v0_from_rollup_id(blob.rollup_id());
-        blobs.push(
-            Blob::new(namespace, blob.into_raw().encode_to_vec()).map_err(|source| {
-                BlobAssemblyError::ConstructBlobFromRollupData {
-                    source,
-                    index: i,
-                }
-            })?,
-        );
-    }
-    Ok(blobs)
 }
 
 /// Attempts to convert the bytes stored in the celestia blobs to [`CelestiaRollupBlob`].

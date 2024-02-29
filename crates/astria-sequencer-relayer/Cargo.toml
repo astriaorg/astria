@@ -13,12 +13,14 @@ name = "astria-sequencer-relayer"
 
 [dependencies]
 dirs = "5.0"
+futures-bounded = "0.2.3"
 http = "0.2.9"
+itoa = "1.0.10"
+pin-project-lite = "0.2"
 serde_path_to_error = "0.1.13"
 zeroize = { version = "1.6.0", features = ["zeroize_derive"] }
 
 axum = { workspace = true }
-backon = { workspace = true }
 base64 = { workspace = true }
 base64-serde = { workspace = true }
 ed25519-consensus = { workspace = true }
@@ -35,8 +37,11 @@ sha2 = { workspace = true }
 tendermint = { workspace = true, features = ["rust-crypto"] }
 tendermint-config = { workspace = true }
 tendermint-rpc = { workspace = true, features = ["http-client"] }
+thiserror = { workspace = true }
 tracing = { workspace = true }
+tryhard = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio-util = { workspace = true, features = ["rt"] }
 
 astria-build-info = { path = "../astria-build-info", features = ["runtime"] }
 astria-core = { path = "../astria-core" }
@@ -47,6 +52,7 @@ sequencer-client = { package = "astria-sequencer-client", path = "../astria-sequ
   "http",
 ] }
 telemetry = { package = "astria-telemetry", path = "../astria-telemetry" }
+tokio-stream = "0.1.14"
 
 [dev-dependencies]
 celestia-mock = { package = "astria-celestia-mock", path = "../astria-celestia-mock" }
