@@ -793,10 +793,12 @@ impl FilteredSequencerBlock {
             ));
         };
 
+        // XXX: These rollup transactions are not sorted compared to those used for
+        // deriving the rollup transactions merkle tree in `SequencerBlock`.
         let rollup_transactions = rollup_transactions
             .into_iter()
             .map(rollup_txs_to_tuple)
-            .collect::<Result<_, _>>()
+            .collect::<Result<IndexMap<_, _>, _>>()
             .map_err(FilteredSequencerBlockError::parse_rollup_transactions)?;
 
         let rollup_transactions_root: [u8; 32] =
@@ -812,6 +814,19 @@ impl FilteredSequencerBlock {
 
         if !rollup_transactions_proof.verify(&Sha256::digest(rollup_transactions_root), data_hash) {
             return Err(FilteredSequencerBlockError::rollup_transactions_not_in_sequencer_block());
+        }
+
+        for rollup_transactions in rollup_transactions.values() {
+            if !super::do_rollup_transaction_match_root(
+                rollup_transactions,
+                rollup_transactions_root,
+            ) {
+                return Err(
+                    FilteredSequencerBlockError::rollup_transaction_for_id_not_in_sequencer_block(
+                        rollup_transactions.id(),
+                    ),
+                );
+            }
         }
 
         if !are_rollup_ids_included(all_rollup_ids.iter().copied(), &rollup_ids_proof, data_hash) {
@@ -850,6 +865,11 @@ enum FilteredSequencerBlockErrorKind {
         "the rollup transactions in the sequencer block were not included in the block's data hash"
     )]
     RollupTransactionsNotInSequencerBlock,
+    #[error(
+        "the rollup transaction for rollup ID `{id}` contained in the filtered sequencer block \
+         could not be verified against the rollup transactions root"
+    )]
+    RollupTransactionForIdNotInSequencerBlock { id: RollupId },
     #[error("the rollup IDs in the sequencer block were not included in the block's data hash")]
     RollupIdsNotInSequencerBlock,
     #[error("failed constructing a transaction proof from the raw protobuf transaction proof")]
@@ -890,6 +910,14 @@ impl FilteredSequencerBlockError {
         Self(FilteredSequencerBlockErrorKind::RollupTransactionsNotInSequencerBlock)
     }
 
+    fn rollup_transaction_for_id_not_in_sequencer_block(id: RollupId) -> Self {
+        Self(
+            FilteredSequencerBlockErrorKind::RollupTransactionForIdNotInSequencerBlock {
+                id,
+            },
+        )
+    }
+
     fn rollup_ids_not_in_sequencer_block() -> Self {
         Self(FilteredSequencerBlockErrorKind::RollupIdsNotInSequencerBlock)
     }
@@ -914,10 +942,7 @@ mod test {
     use sha2::Digest as _;
 
     use super::*;
-    use crate::sequencer::v1alpha1::{
-        merkle_leaf_from_rollup_txs,
-        test_utils::make_cometbft_block,
-    };
+    use crate::sequencer::v1alpha1::test_utils::make_cometbft_block;
 
     #[test]
     fn test_sequencer_block_from_cometbft_block() {
@@ -933,12 +958,13 @@ mod test {
                 .map(|(id, txs)| (id, txs.transactions())),
         );
 
-        for (id, rollup_transactions) in sequencer_block.rollup_transactions {
-            let leaf = merkle_leaf_from_rollup_txs(&id, &rollup_transactions.transactions);
+        for rollup_transactions in sequencer_block.rollup_transactions.values() {
             assert!(
-                rollup_transactions
-                    .proof()
-                    .verify(&leaf, rollup_transaction_tree.root())
+                super::super::do_rollup_transaction_match_root(
+                    rollup_transactions,
+                    rollup_transaction_tree.root()
+                ),
+                "audit failed",
             );
         }
 

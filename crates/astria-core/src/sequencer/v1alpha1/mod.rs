@@ -305,6 +305,23 @@ impl Protobuf for merkle::Proof {
     }
 }
 
+fn do_rollup_transaction_match_root(
+    rollup_transactions: &RollupTransactions,
+    root: [u8; 32],
+) -> bool {
+    let id = rollup_transactions.id();
+    let txs = rollup_transactions.transactions();
+    rollup_transactions
+        .proof()
+        .audit()
+        .with_root(root)
+        .with_leaf_builder()
+        .write(id.as_ref())
+        .write(&merkle::Tree::from_leaves(txs).root())
+        .finish_leaf()
+        .perform()
+}
+
 /// Derive a [`merkle::Tree`] from an iterable.
 ///
 /// It is the responsbility if the caller to ensure that the iterable is
@@ -317,21 +334,10 @@ where
 {
     let mut tree = merkle::Tree::new();
     for (rollup_id, txs) in rollup_ids_to_txs {
-        tree.push(&merkle_leaf_from_rollup_txs(rollup_id, txs.as_ref()));
+        let root = merkle::Tree::from_leaves(txs.as_ref()).root();
+        tree.build_leaf().write(rollup_id.as_ref()).write(&root);
     }
     tree
-}
-
-pub fn merkle_leaf_from_rollup_txs<'a, T: 'a, U: 'a>(rollup_id: &RollupId, txs: T) -> Vec<u8>
-where
-    T: IntoIterator<Item = &'a U>,
-    U: AsRef<[u8]>,
-{
-    let root = merkle::Tree::from_leaves(txs).root();
-    let mut leaf = Vec::new();
-    leaf.extend_from_slice(rollup_id.as_ref());
-    leaf.extend_from_slice(&root);
-    leaf
 }
 
 // TODO: This can all be done in-place once https://github.com/rust-lang/rust/issues/80552 is stabilized.
