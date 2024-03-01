@@ -36,7 +36,6 @@ use astria_core::{
 };
 use bytes::Bytes;
 use ethers::{
-    abi::Tokenizable,
     prelude::{
         k256::ecdsa::SigningKey,
         Middleware as _,
