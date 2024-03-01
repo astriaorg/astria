@@ -65,6 +65,9 @@ impl SequencerService for SequencerServer {
             .try_into()
             .map_err(|_| Status::invalid_argument("height should be a valid u32"))?;
 
+        // XXX: This is a potentially very expensive operation. The the cometbft block
+        // could be pulled async, and the conversion to a sequencer block be performed
+        // in a thread/blocking task.
         let block = match self.client.sequencer_block(height).await {
             Ok(block) => block.into_raw(),
             Err(_) => {
@@ -112,6 +115,9 @@ impl SequencerService for SequencerServer {
             rollup_ids.push(rollup_id);
         }
 
+        // XXX: This is a potentially very expensive operation. The the cometbft block
+        // could be pulled async, and the conversion to a sequencer block be performed
+        // in a thread/blocking task.
         let block = match self.client.sequencer_block(height).await {
             Ok(block) => block.into_filtered_block(rollup_ids),
             Err(e) => {
