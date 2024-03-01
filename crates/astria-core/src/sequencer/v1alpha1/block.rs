@@ -575,14 +575,56 @@ where
 /// and stored as part of the block's events.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Deposit {
-    pub bridge_address: Address,
-    pub rollup_id: RollupId,
-    pub amount: u128,
-    pub asset_id: asset::Id,
-    pub destination_chain_address: String,
+    bridge_address: Address,
+    rollup_id: RollupId,
+    amount: u128,
+    asset_id: asset::Id,
+    destination_chain_address: String,
 }
 
 impl Deposit {
+    #[must_use]
+    pub fn new(
+        bridge_address: Address,
+        rollup_id: RollupId,
+        amount: u128,
+        asset_id: asset::Id,
+        destination_chain_address: String,
+    ) -> Self {
+        Self {
+            bridge_address,
+            rollup_id,
+            amount,
+            asset_id,
+            destination_chain_address,
+        }
+    }
+
+    #[must_use]
+    pub fn bridge_address(&self) -> &Address {
+        &self.bridge_address
+    }
+
+    #[must_use]
+    pub fn rollup_id(&self) -> &RollupId {
+        &self.rollup_id
+    }
+
+    #[must_use]
+    pub fn amount(&self) -> u128 {
+        self.amount
+    }
+
+    #[must_use]
+    pub fn asset_id(&self) -> &asset::Id {
+        &self.asset_id
+    }
+
+    #[must_use]
+    pub fn destination_chain_address(&self) -> &str {
+        &self.destination_chain_address
+    }
+
     #[must_use]
     pub fn into_raw(self) -> raw::Deposit {
         let Self {
@@ -617,10 +659,13 @@ impl Deposit {
             asset_id,
             destination_chain_address,
         } = raw;
-        let bridge_address = Address::try_from_slice(&bridge_address)?;
-        let amount = amount.ok_or(DepositError::FieldNotSet("amount"))?.into();
-        let rollup_id = RollupId::try_from_slice(&rollup_id)?;
-        let asset_id = asset::Id::try_from_slice(&asset_id)?;
+        let bridge_address = Address::try_from_slice(&bridge_address)
+            .map_err(DepositError::incorrect_address_length)?;
+        let amount = amount.ok_or(DepositError::field_not_set("amount"))?.into();
+        let rollup_id = RollupId::try_from_slice(&rollup_id)
+            .map_err(DepositError::incorrect_rollup_id_length)?;
+        let asset_id = asset::Id::try_from_slice(&asset_id)
+            .map_err(DepositError::incorrect_asset_id_length)?;
         Ok(Self {
             bridge_address,
             rollup_id,
@@ -632,13 +677,35 @@ impl Deposit {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum DepositError {
-    #[error(transparent)]
+#[error(transparent)]
+pub struct DepositError(DepositErrorKind);
+
+impl DepositError {
+    fn incorrect_address_length(source: IncorrectAddressLength) -> Self {
+        Self(DepositErrorKind::IncorrectAddressLength(source))
+    }
+
+    fn field_not_set(field: &'static str) -> Self {
+        Self(DepositErrorKind::FieldNotSet(field))
+    }
+
+    fn incorrect_rollup_id_length(source: IncorrectRollupIdLength) -> Self {
+        Self(DepositErrorKind::IncorrectRollupIdLength(source))
+    }
+
+    fn incorrect_asset_id_length(source: asset::IncorrectAssetIdLength) -> Self {
+        Self(DepositErrorKind::IncorrectAssetIdLength(source))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum DepositErrorKind {
+    #[error("the address length is not 20 bytes")]
     IncorrectAddressLength(#[from] IncorrectAddressLength),
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
-    #[error(transparent)]
+    #[error("the rollup ID length is not 32 bytes")]
     IncorrectRollupIdLength(#[from] IncorrectRollupIdLength),
-    #[error(transparent)]
+    #[error("the asset ID length is not 32 bytes")]
     IncorrectAssetIdLength(#[from] asset::IncorrectAssetIdLength),
 }

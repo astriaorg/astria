@@ -1,5 +1,4 @@
 use anyhow::{
-    anyhow,
     ensure,
     Context,
     Result,
@@ -32,7 +31,10 @@ pub(crate) async fn transfer_check_stateful<S: StateReadExt + 'static>(
     from: Address,
 ) -> Result<()> {
     ensure!(
-        state.is_allowed_fee_asset(action.fee_asset_id).await?,
+        state
+            .is_allowed_fee_asset(action.fee_asset_id)
+            .await
+            .context("failed to check allowed fee assets in state")?,
         "invalid fee asset",
     );
 
@@ -49,7 +51,7 @@ pub(crate) async fn transfer_check_stateful<S: StateReadExt + 'static>(
         let payment_amount = action
             .amount
             .checked_add(TRANSFER_FEE)
-            .ok_or(anyhow!("transfer amount plus fee overflowed"))?;
+            .context("transfer amount plus fee overflowed")?;
 
         ensure!(
             from_fee_balance >= payment_amount,
@@ -88,12 +90,15 @@ impl ActionHandler for TransferAction {
         ensure!(
             state
                 .get_bridge_account_rollup_id(&self.to)
-                .await?
+                .await
+                .context("failed to get bridge account rollup ID from state")?
                 .is_none(),
             "cannot send transfer to bridge account",
         );
 
-        transfer_check_stateful(self, state, from).await
+        transfer_check_stateful(self, state, from)
+            .await
+            .context("stateful transfer check failed")
     }
 
     #[instrument(

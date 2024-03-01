@@ -181,10 +181,10 @@ pub(crate) trait StateWriteExt: StateWrite {
 
     #[instrument(skip(self))]
     async fn put_deposit_event(&mut self, deposit: Deposit) -> Result<()> {
-        let nonce = self.get_deposit_nonce(&deposit.rollup_id).await?;
-        self.put_deposit_nonce(&deposit.rollup_id, nonce + 1);
+        let nonce = self.get_deposit_nonce(deposit.rollup_id()).await?;
+        self.put_deposit_nonce(deposit.rollup_id(), nonce + 1);
 
-        let key = deposit_storage_key(&deposit.rollup_id, nonce);
+        let key = deposit_storage_key(deposit.rollup_id(), nonce);
         self.nonverifiable_put_raw(key, deposit.into_raw().encode_to_vec());
         Ok(())
     }

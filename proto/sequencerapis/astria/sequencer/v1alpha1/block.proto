@@ -45,12 +45,20 @@ message SequencerBlock {
 
 // `Deposit` represents a deposit from the sequencer
 // to a rollup.
+//
+// A `Deposit` is similar to an emitted event, in that the sequencer application detects 
+// transfers to bridge accounts and the corresponding rollup ID and includes a `Deposit` 
+// corresponding to that within the respective rollup's data. 
+// 
+// A `Deposit` notifies a rollup that funds were locked to some account on the sequencer,
+// however it's up to the rollup what to do with that info.
 message Deposit {
   // the address the funds were locked in on the sequencer.
   // this is required as initializing an account as a bridge account
   // is permissionless, so the rollup consensus needs to know and enshrine
   // which accounts it accepts as valid bridge accounts.
   bytes bridge_address = 1;
+  // the rollup_id which the funds are being deposited to
   bytes rollup_id = 2;
   astria.primitive.v1.Uint128 amount = 3;
   bytes asset_id = 4;

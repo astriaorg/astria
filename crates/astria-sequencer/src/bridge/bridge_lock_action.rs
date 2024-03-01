@@ -83,13 +83,13 @@ impl ActionHandler for BridgeLockAction {
             .await?
             .expect("recipient must be a bridge account; this is a bug in check_stateful");
 
-        let deposit = Deposit {
-            bridge_address: self.to,
+        let deposit = Deposit::new(
+            self.to,
             rollup_id,
-            asset_id: self.asset_id,
-            amount: self.amount,
-            destination_chain_address: self.destination_chain_address.clone(),
-        };
+            self.amount,
+            self.asset_id,
+            self.destination_chain_address.clone(),
+        );
         state
             .put_deposit_event(deposit)
             .await

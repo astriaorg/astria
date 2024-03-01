@@ -1082,29 +1082,28 @@ pub struct InitBridgeAccountActionError(InitBridgeAccountActionErrorKind);
 impl InitBridgeAccountActionError {
     #[must_use]
     fn invalid_rollup_id(err: IncorrectRollupIdLength) -> Self {
-        Self(InitBridgeAccountActionErrorKind::InvalidRollupId(err))
+        Self(InitBridgeAccountActionErrorKind::RollupId(err))
     }
 
     #[must_use]
     fn invalid_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
-        Self(InitBridgeAccountActionErrorKind::InvalidAssetId(err))
+        Self(InitBridgeAccountActionErrorKind::AssetId(err))
     }
 
     #[must_use]
     fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
-        Self(InitBridgeAccountActionErrorKind::InvalidFeeAssetId(err))
+        Self(InitBridgeAccountActionErrorKind::FeeAssetId(err))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-#[allow(clippy::enum_variant_names)]
 enum InitBridgeAccountActionErrorKind {
-    #[error("the rollup_id was invalid")]
-    InvalidRollupId(#[source] IncorrectRollupIdLength),
+    #[error("the `rollup_id` field was invalid")]
+    RollupId(#[source] IncorrectRollupIdLength),
     #[error("an asset ID was invalid")]
-    InvalidAssetId(#[source] asset::IncorrectAssetIdLength),
-    #[error("the fee_asset_id was invalid")]
-    InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
+    AssetId(#[source] asset::IncorrectAssetIdLength),
+    #[error("the `fee_asset_id` field was invalid")]
+    FeeAssetId(#[source] asset::IncorrectAssetIdLength),
 }
 
 #[allow(clippy::module_name_repetitions)]
@@ -1198,12 +1197,12 @@ impl BridgeLockActionError {
 
 #[derive(Debug, thiserror::Error)]
 enum BridgeLockActionErrorKind {
-    #[error("the address was invalid")]
+    #[error("the `address` field was invalid")]
     InvalidAddress(#[source] IncorrectAddressLength),
-    #[error("the amount was missing")]
+    #[error("the `amount` field was not set")]
     MissingAmount,
-    #[error("the asset_id was invalid")]
+    #[error("the `asset_id` field was invalid")]
     InvalidAssetId(#[source] asset::IncorrectAssetIdLength),
-    #[error("the fee_asset_id was invalid")]
+    #[error("the `fee_asset_id` field was invalid")]
     InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
 }

@@ -1,5 +1,4 @@
 use anyhow::{
-    anyhow,
     Context,
     Result,
 };
@@ -175,8 +174,9 @@ pub(crate) trait StateWriteExt: StateWrite {
             asset,
             balance
                 .checked_add(amount)
-                .ok_or(anyhow!("account balance overflow"))?,
-        )?;
+                .context("failed to update account balance due to overflow")?,
+        )
+        .context("failed to store updated account balance in database")?;
         Ok(())
     }
 
@@ -196,8 +196,9 @@ pub(crate) trait StateWriteExt: StateWrite {
             asset,
             balance
                 .checked_sub(amount)
-                .ok_or(anyhow!("account balance underflow; insufficient funds?"))?,
-        )?;
+                .context("subtracting from account balance failed due to insufficient funds")?,
+        )
+        .context("failed to store updated account balance in database")?;
         Ok(())
     }
 }
