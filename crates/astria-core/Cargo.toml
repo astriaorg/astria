@@ -45,6 +45,7 @@ server = ["dep:tonic"]
 test-utils = ["dep:rand"]
 
 [dev-dependencies]
+rand = { workspace = true }
 tonic-build = "0.10"
 walkdir = "2.4.0"
 

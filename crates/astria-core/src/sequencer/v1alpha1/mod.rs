@@ -14,7 +14,7 @@ pub mod account;
 pub mod asset;
 pub mod block;
 pub mod celestia;
-#[cfg(feature = "test-utils")]
+#[cfg(any(feature = "test-utils", test))]
 pub mod test_utils;
 pub mod transaction;
 
