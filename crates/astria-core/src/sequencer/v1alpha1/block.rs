@@ -370,7 +370,7 @@ impl SequencerBlock {
             header: Some(header.into()),
             rollup_transactions: rollup_transactions
                 .into_values()
-                .map(|tx| tx.into_raw())
+                .map(RollupTransactions::into_raw)
                 .collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
@@ -709,7 +709,7 @@ impl FilteredSequencerBlock {
             header: Some(header.into()),
             rollup_transactions: rollup_transactions
                 .into_values()
-                .map(|tx| tx.into_raw())
+                .map(RollupTransactions::into_raw)
                 .collect(),
             rollup_transactions_root: self.rollup_transactions_root.to_vec(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),

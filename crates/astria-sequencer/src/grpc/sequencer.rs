@@ -49,7 +49,7 @@ impl SequencerService for SequencerServer {
     ) -> Result<Response<RawSequencerBlock>, Status> {
         let snapshot = self.storage.latest_snapshot();
         let curr_block_height = snapshot.get_block_height().await.map_err(|e| {
-            Status::internal(format!("failed to get block height from storage: {}", e))
+            Status::internal(format!("failed to get block height from storage: {e}"))
         })?;
 
         let request = request.into_inner();
@@ -86,7 +86,7 @@ impl SequencerService for SequencerServer {
     ) -> Result<Response<RawFilteredSequencerBlock>, Status> {
         let snapshot = self.storage.latest_snapshot();
         let curr_block_height = snapshot.get_block_height().await.map_err(|e| {
-            Status::internal(format!("failed to get block height from storage: {}", e))
+            Status::internal(format!("failed to get block height from storage: {e}"))
         })?;
 
         let request = request.into_inner();
@@ -116,8 +116,7 @@ impl SequencerService for SequencerServer {
             Ok(block) => block.into_filtered_block(rollup_ids),
             Err(e) => {
                 return Err(Status::internal(format!(
-                    "failed to get sequencer block from cometbft: {}",
-                    e,
+                    "failed to get sequencer block from cometbft: {e}",
                 )));
             }
         };
