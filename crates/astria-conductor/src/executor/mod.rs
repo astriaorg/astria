@@ -344,6 +344,13 @@ impl Executor {
             .await
             .wrap_err("failed to execute block")?;
 
+        does_block_response_fulfill_contract(
+            ExecutionKind::Soft,
+            &self.state.borrow(),
+            &executed_block,
+        )
+        .wrap_err("execution API server violated contract")?;
+
         self.update_commitment_state(client.clone(), Update::OnlySoft(executed_block.clone()))
             .await
             .wrap_err("failed to update soft commitment state")?;
@@ -382,6 +389,12 @@ impl Executor {
                 .execute_block(client.clone(), parent_block_hash, executable_block)
                 .await
                 .wrap_err("failed to execute block")?;
+            does_block_response_fulfill_contract(
+                ExecutionKind::Firm,
+                &self.state.borrow(),
+                &executed_block,
+            )
+            .wrap_err("execution API server violated contract")?;
             Update::ToSame(executed_block)
         };
         self.update_commitment_state(client.clone(), update_type)
@@ -558,5 +571,56 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> prost_types::Timestamp 
     prost_types::Timestamp {
         seconds,
         nanos,
+    }
+}
+
+#[derive(Debug)]
+enum ExecutionKind {
+    Firm,
+    Soft,
+}
+
+impl std::fmt::Display for ExecutionKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let kind = match self {
+            ExecutionKind::Firm => "firm",
+            ExecutionKind::Soft => "soft",
+        };
+        f.write_str(kind)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(
+    "contract violated: execution kind: {kind}, current block number {current}, expected \
+     {expected}, received {actual}"
+)]
+struct ContractViolation {
+    kind: ExecutionKind,
+    current: u32,
+    expected: u32,
+    actual: u32,
+}
+
+fn does_block_response_fulfill_contract(
+    kind: ExecutionKind,
+    state: &State,
+    block: &Block,
+) -> Result<(), ContractViolation> {
+    let current = match kind {
+        ExecutionKind::Firm => state.firm().number(),
+        ExecutionKind::Soft => state.soft().number(),
+    };
+    let expected = current + 1;
+    let actual = block.number();
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(ContractViolation {
+            kind,
+            current,
+            expected,
+            actual,
+        })
     }
 }
