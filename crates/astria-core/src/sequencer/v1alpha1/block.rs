@@ -359,12 +359,6 @@ impl SequencerBlock {
 
     #[must_use]
     pub fn into_raw(self) -> raw::SequencerBlock {
-        fn tuple_to_rollup_txs(
-            (_rollup_id, rollup_txs): (RollupId, RollupTransactions),
-        ) -> raw::RollupTransactions {
-            rollup_txs.into_raw()
-        }
-
         let Self {
             header,
             rollup_transactions,
@@ -375,8 +369,8 @@ impl SequencerBlock {
         raw::SequencerBlock {
             header: Some(header.into()),
             rollup_transactions: rollup_transactions
-                .into_iter()
-                .map(tuple_to_rollup_txs)
+                .into_values()
+                .map(|tx| tx.into_raw())
                 .collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
@@ -425,7 +419,7 @@ impl SequencerBlock {
         FilteredSequencerBlock {
             block_hash: self.block_hash,
             header: self.header,
-            filtered_rollup_transactions,
+            rollup_transactions: filtered_rollup_transactions,
             rollup_transactions_root: rollup_transaction_tree.root(),
             rollup_transactions_proof: self.rollup_transactions_proof,
             rollup_ids: all_rollup_ids,
@@ -651,7 +645,7 @@ pub struct FilteredSequencerBlock {
     block_hash: [u8; 32],
     header: tendermint::block::header::Header,
     // filtered set of rollup transactions
-    filtered_rollup_transactions: IndexMap<RollupId, RollupTransactions>,
+    rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     // root of the rollup transactions tree
     rollup_transactions_root: [u8; 32],
     // proof that `rollup_transactions_root` is included in `data_hash`
@@ -679,8 +673,8 @@ impl FilteredSequencerBlock {
     }
 
     #[must_use]
-    pub fn filtered_rollup_transactions(&self) -> &IndexMap<RollupId, RollupTransactions> {
-        &self.filtered_rollup_transactions
+    pub fn rollup_transactions(&self) -> &IndexMap<RollupId, RollupTransactions> {
+        &self.rollup_transactions
     }
 
     #[must_use]
@@ -705,24 +699,18 @@ impl FilteredSequencerBlock {
 
     #[must_use]
     pub fn into_raw(self) -> raw::FilteredSequencerBlock {
-        fn tuple_to_rollup_txs(
-            (_rollup_id, rollup_txs): (RollupId, RollupTransactions),
-        ) -> raw::RollupTransactions {
-            rollup_txs.into_raw()
-        }
-
         let Self {
             header,
-            filtered_rollup_transactions,
+            rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
             ..
         } = self;
         raw::FilteredSequencerBlock {
             header: Some(header.into()),
-            filtered_rollup_transactions: filtered_rollup_transactions
-                .into_iter()
-                .map(tuple_to_rollup_txs)
+            rollup_transactions: rollup_transactions
+                .into_values()
+                .map(|tx| tx.into_raw())
                 .collect(),
             rollup_transactions_root: self.rollup_transactions_root.to_vec(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
@@ -762,7 +750,7 @@ impl FilteredSequencerBlock {
 
         let raw::FilteredSequencerBlock {
             header,
-            filtered_rollup_transactions,
+            rollup_transactions,
             rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids,
@@ -806,7 +794,7 @@ impl FilteredSequencerBlock {
             ));
         };
 
-        let filtered_rollup_transactions = filtered_rollup_transactions
+        let rollup_transactions = rollup_transactions
             .into_iter()
             .map(rollup_txs_to_tuple)
             .collect::<Result<_, _>>()
@@ -834,7 +822,7 @@ impl FilteredSequencerBlock {
         Ok(Self {
             block_hash,
             header,
-            filtered_rollup_transactions,
+            rollup_transactions,
             rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids,

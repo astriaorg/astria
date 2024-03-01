@@ -145,10 +145,10 @@ pub struct FilteredSequencerBlock {
     pub header: ::core::option::Option<::tendermint_proto::types::Header>,
     /// A subset of rollup transactions that were included in this block.
     #[prost(message, repeated, tag = "2")]
-    pub filtered_rollup_transactions: ::prost::alloc::vec::Vec<RollupTransactions>,
+    pub rollup_transactions: ::prost::alloc::vec::Vec<RollupTransactions>,
     /// The Merkle Tree Hash of all the rollup transactions in the block (not just the
     /// subset included). Corresponds to `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`,
-    ///   the Merkle Tree Hash derived from the rollup transactions.
+    /// the Merkle Tree Hash derived from the rollup transactions.
     /// Always 32 bytes.
     #[prost(bytes = "vec", tag = "3")]
     pub rollup_transactions_root: ::prost::alloc::vec::Vec<u8>,
