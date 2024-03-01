@@ -1082,28 +1082,32 @@ pub struct InitBridgeAccountActionError(InitBridgeAccountActionErrorKind);
 impl InitBridgeAccountActionError {
     #[must_use]
     fn invalid_rollup_id(err: IncorrectRollupIdLength) -> Self {
-        Self(InitBridgeAccountActionErrorKind::RollupId(err))
+        Self(InitBridgeAccountActionErrorKind::InvalidRollupId(err))
     }
 
     #[must_use]
     fn invalid_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
-        Self(InitBridgeAccountActionErrorKind::AssetId(err))
+        Self(InitBridgeAccountActionErrorKind::InvalidAssetId(err))
     }
 
     #[must_use]
     fn invalid_fee_asset_id(err: asset::IncorrectAssetIdLength) -> Self {
-        Self(InitBridgeAccountActionErrorKind::FeeAssetId(err))
+        Self(InitBridgeAccountActionErrorKind::InvalidFeeAssetId(err))
     }
 }
 
+// allow pedantic clippy as the errors have the same prefix (for consistency
+// with other error types) as well as the same postfix (due to the types the
+// errors are referencing), both of which cause clippy to complain.
 #[derive(Debug, thiserror::Error)]
+#[allow(clippy::enum_variant_names)]
 enum InitBridgeAccountActionErrorKind {
     #[error("the `rollup_id` field was invalid")]
-    RollupId(#[source] IncorrectRollupIdLength),
+    InvalidRollupId(#[source] IncorrectRollupIdLength),
     #[error("an asset ID was invalid")]
-    AssetId(#[source] asset::IncorrectAssetIdLength),
+    InvalidAssetId(#[source] asset::IncorrectAssetIdLength),
     #[error("the `fee_asset_id` field was invalid")]
-    FeeAssetId(#[source] asset::IncorrectAssetIdLength),
+    InvalidFeeAssetId(#[source] asset::IncorrectAssetIdLength),
 }
 
 #[allow(clippy::module_name_repetitions)]
