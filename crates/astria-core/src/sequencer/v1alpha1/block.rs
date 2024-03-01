@@ -815,7 +815,7 @@ impl FilteredSequencerBlock {
             return Err(FilteredSequencerBlockError::rollup_transactions_not_in_sequencer_block());
         }
 
-        if !are_rollup_ids_included(all_rollup_ids.clone(), &rollup_ids_proof, data_hash) {
+        if !are_rollup_ids_included(all_rollup_ids.iter().copied(), &rollup_ids_proof, data_hash) {
             return Err(FilteredSequencerBlockError::rollup_ids_not_in_sequencer_block());
         }
 
