@@ -404,8 +404,7 @@ impl SequencerBlock {
         let rollup_transaction_tree = derive_merkle_tree_from_rollup_txs(
             self.rollup_transactions
                 .iter()
-                .map(|(id, txs)| (id, txs.transactions()))
-                .collect::<Vec<(&RollupId, &[Vec<u8>])>>(),
+                .map(|(id, txs)| (id, txs.transactions())),
         );
 
         let mut filtered_rollup_transactions = IndexMap::with_capacity(rollup_ids.len());
@@ -923,8 +922,7 @@ mod test {
             sequencer_block
                 .rollup_transactions
                 .iter()
-                .map(|(id, txs)| (id, txs.transactions()))
-                .collect::<Vec<(&RollupId, &[Vec<u8>])>>(),
+                .map(|(id, txs)| (id, txs.transactions())),
         );
 
         for (id, rollup_transactions) in sequencer_block.rollup_transactions {
