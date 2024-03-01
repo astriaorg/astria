@@ -40,7 +40,7 @@ impl RollupTransactionsError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum RollupTransactionsErrorKind {
+enum RollupTransactionsErrorKind {
     #[error("`id` field is invalid")]
     RollupId(#[source] IncorrectRollupIdLength),
     #[error("the expected field in the raw source type was not set: `{0}`")]
@@ -831,7 +831,11 @@ impl FilteredSequencerBlock {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum FilteredSequencerBlockError {
+#[error(transparent)]
+pub struct FilteredSequencerBlockError(FilteredSequencerBlockErrorKind);
+
+#[derive(Debug, thiserror::Error)]
+enum FilteredSequencerBlockErrorKind {
     #[error("the rollup ID in the raw protobuf rollup transaction was not 32 bytes long")]
     InvalidRollupId(IncorrectRollupIdLength),
     #[error("the expected field in the raw source type was not set: `{0}`")]
@@ -861,43 +865,47 @@ pub enum FilteredSequencerBlockError {
 
 impl FilteredSequencerBlockError {
     fn invalid_rollup_id(source: IncorrectRollupIdLength) -> Self {
-        Self::InvalidRollupId(source)
+        Self(FilteredSequencerBlockErrorKind::InvalidRollupId(source))
     }
 
     fn field_not_set(field: &'static str) -> Self {
-        Self::FieldNotSet(field)
+        Self(FilteredSequencerBlockErrorKind::FieldNotSet(field))
     }
 
     fn cometbft_header(source: tendermint::Error) -> Self {
-        Self::CometBftHeader(source)
+        Self(FilteredSequencerBlockErrorKind::CometBftHeader(source))
     }
 
     fn comet_bft_block_hash_is_none() -> Self {
-        Self::CometBftBlockHashIsNone
+        Self(FilteredSequencerBlockErrorKind::CometBftBlockHashIsNone)
     }
 
     fn parse_rollup_transactions(source: RollupTransactionsError) -> Self {
-        Self::ParseRollupTransactions(source)
+        Self(FilteredSequencerBlockErrorKind::ParseRollupTransactions(
+            source,
+        ))
     }
 
     fn rollup_transactions_not_in_sequencer_block() -> Self {
-        Self::RollupTransactionsNotInSequencerBlock
+        Self(FilteredSequencerBlockErrorKind::RollupTransactionsNotInSequencerBlock)
     }
 
     fn rollup_ids_not_in_sequencer_block() -> Self {
-        Self::RollupIdsNotInSequencerBlock
+        Self(FilteredSequencerBlockErrorKind::RollupIdsNotInSequencerBlock)
     }
 
     fn transaction_proof_invalid(source: merkle::audit::InvalidProof) -> Self {
-        Self::TransactionProofInvalid(source)
+        Self(FilteredSequencerBlockErrorKind::TransactionProofInvalid(
+            source,
+        ))
     }
 
     fn id_proof_invalid(source: merkle::audit::InvalidProof) -> Self {
-        Self::IdProofInvalid(source)
+        Self(FilteredSequencerBlockErrorKind::IdProofInvalid(source))
     }
 
     fn incorrect_rollup_transactions_root_length(len: usize) -> Self {
-        Self::IncorrectRollupTransactionsRootLength(len)
+        Self(FilteredSequencerBlockErrorKind::IncorrectRollupTransactionsRootLength(len))
     }
 }
 
