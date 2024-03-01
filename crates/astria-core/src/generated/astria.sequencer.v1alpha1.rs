@@ -162,8 +162,10 @@ pub struct FilteredSequencerBlock {
     /// The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
     /// Corresponds to the `astria.sequencer.v1alpha1.RollupTransactions.rollup_id` field
     /// and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
+    /// Note that these are all the rollup IDs in the sequencer block, not merely those in
+    /// `rollup_transactions` field. This is necessary to prove that no rollup IDs were omitted.
     #[prost(bytes = "vec", repeated, tag = "5")]
-    pub rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    pub all_rollup_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
     /// The proof that the `rollup_ids` are included
     /// in the CometBFT block this sequencer block is derived form.
     ///

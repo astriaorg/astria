@@ -66,7 +66,9 @@ message FilteredSequencerBlock {
   // The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
   // Corresponds to the `astria.sequencer.v1alpha1.RollupTransactions.rollup_id` field
   // and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
-  repeated bytes rollup_ids = 5;
+  // Note that these are all the rollup IDs in the sequencer block, not merely those in
+  // `rollup_transactions` field. This is necessary to prove that no rollup IDs were omitted.
+  repeated bytes all_rollup_ids = 5;
   // The proof that the `rollup_ids` are included
   // in the CometBFT block this sequencer block is derived form.
   //

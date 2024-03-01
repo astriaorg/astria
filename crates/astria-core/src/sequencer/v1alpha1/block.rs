@@ -422,7 +422,7 @@ impl SequencerBlock {
             rollup_transactions: filtered_rollup_transactions,
             rollup_transactions_root: rollup_transaction_tree.root(),
             rollup_transactions_proof: self.rollup_transactions_proof,
-            rollup_ids: all_rollup_ids,
+            all_rollup_ids,
             rollup_ids_proof: self.rollup_ids_proof,
         }
     }
@@ -651,7 +651,7 @@ pub struct FilteredSequencerBlock {
     // proof that `rollup_transactions_root` is included in `data_hash`
     rollup_transactions_proof: merkle::Proof,
     // all rollup ids in the sequencer block
-    rollup_ids: Vec<RollupId>,
+    all_rollup_ids: Vec<RollupId>,
     // proof that `rollup_ids` is included in `data_hash`
     rollup_ids_proof: merkle::Proof,
 }
@@ -688,8 +688,8 @@ impl FilteredSequencerBlock {
     }
 
     #[must_use]
-    pub fn rollup_ids(&self) -> &[RollupId] {
-        &self.rollup_ids
+    pub fn all_rollup_ids(&self) -> &[RollupId] {
+        &self.all_rollup_ids
     }
 
     #[must_use]
@@ -714,7 +714,7 @@ impl FilteredSequencerBlock {
                 .collect(),
             rollup_transactions_root: self.rollup_transactions_root.to_vec(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
-            rollup_ids: self.rollup_ids.iter().map(|id| id.to_vec()).collect(),
+            all_rollup_ids: self.all_rollup_ids.iter().map(|id| id.to_vec()).collect(),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
         }
     }
@@ -753,7 +753,7 @@ impl FilteredSequencerBlock {
             rollup_transactions,
             rollup_transactions_root,
             rollup_transactions_proof,
-            rollup_ids,
+            all_rollup_ids,
             rollup_ids_proof,
         } = raw;
 
@@ -805,7 +805,7 @@ impl FilteredSequencerBlock {
                 FilteredSequencerBlockError::incorrect_rollup_transactions_root_length(e.len())
             })?;
 
-        let rollup_ids: Vec<RollupId> = rollup_ids
+        let all_rollup_ids: Vec<RollupId> = all_rollup_ids
             .into_iter()
             .map(RollupId::try_from_vec)
             .collect::<Result<_, _>>()
@@ -815,7 +815,7 @@ impl FilteredSequencerBlock {
             return Err(FilteredSequencerBlockError::rollup_transactions_not_in_sequencer_block());
         }
 
-        if !are_rollup_ids_included(rollup_ids.clone(), &rollup_ids_proof, data_hash) {
+        if !are_rollup_ids_included(all_rollup_ids.clone(), &rollup_ids_proof, data_hash) {
             return Err(FilteredSequencerBlockError::rollup_ids_not_in_sequencer_block());
         }
 
@@ -825,7 +825,7 @@ impl FilteredSequencerBlock {
             rollup_transactions,
             rollup_transactions_root,
             rollup_transactions_proof,
-            rollup_ids,
+            all_rollup_ids,
             rollup_ids_proof,
         })
     }
