@@ -16,7 +16,6 @@ use super::{
     State,
     StateNotInit,
 };
-use crate::executor::optimism;
 
 pub(crate) struct NoRollupAddress;
 pub(crate) struct WithRollupAddress(tonic::transport::Uri);
@@ -25,7 +24,6 @@ pub(crate) struct WithShutdown(oneshot::Receiver<()>);
 
 pub(crate) struct ExecutorBuilder<TRollupAddress = NoRollupAddress, TShutdown = NoShutdown> {
     consider_commitment_spread: bool,
-    optimism_hook: Option<optimism::Handler>,
     rollup_address: TRollupAddress,
     shutdown: TShutdown,
 }
@@ -34,7 +32,6 @@ impl ExecutorBuilder {
     pub(super) fn new() -> Self {
         Self {
             consider_commitment_spread: true,
-            optimism_hook: None,
             rollup_address: NoRollupAddress,
             shutdown: NoShutdown,
         }
@@ -45,7 +42,6 @@ impl ExecutorBuilder<WithRollupAddress, WithShutdown> {
     pub(crate) fn build(self) -> (Executor, Handle) {
         let Self {
             consider_commitment_spread,
-            optimism_hook: pre_execution_hook,
             rollup_address,
             shutdown,
         } = self;
@@ -67,7 +63,6 @@ impl ExecutorBuilder<WithRollupAddress, WithShutdown> {
             shutdown,
             state: state_tx,
             blocks_pending_finalization: HashMap::new(),
-            pre_execution_hook,
         };
         let handle = Handle {
             firm_blocks: firm_block_tx,
@@ -88,18 +83,12 @@ impl<TRollupAddress, TShutdown> ExecutorBuilder<TRollupAddress, TShutdown> {
         self
     }
 
-    pub(crate) fn set_optimism_hook(mut self, handler: Option<optimism::Handler>) -> Self {
-        self.optimism_hook = handler;
-        self
-    }
-
     pub(crate) fn rollup_address(
         self,
         rollup_address: &str,
     ) -> eyre::Result<ExecutorBuilder<WithRollupAddress, TShutdown>> {
         let Self {
             consider_commitment_spread,
-            optimism_hook,
             shutdown,
             ..
         } = self;
@@ -110,7 +99,6 @@ impl<TRollupAddress, TShutdown> ExecutorBuilder<TRollupAddress, TShutdown> {
         );
         Ok(ExecutorBuilder {
             consider_commitment_spread,
-            optimism_hook,
             rollup_address,
             shutdown,
         })
@@ -122,13 +110,11 @@ impl<TRollupAddress, TShutdown> ExecutorBuilder<TRollupAddress, TShutdown> {
     ) -> ExecutorBuilder<TRollupAddress, WithShutdown> {
         let Self {
             consider_commitment_spread,
-            optimism_hook,
             rollup_address,
             ..
         } = self;
         ExecutorBuilder {
             consider_commitment_spread,
-            optimism_hook,
             rollup_address,
             shutdown: WithShutdown(shutdown),
         }
