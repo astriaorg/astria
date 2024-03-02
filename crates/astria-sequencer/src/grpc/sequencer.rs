@@ -3,7 +3,7 @@ use astria_core::{
     generated::sequencer::v1alpha1::{
         sequencer_service_server::SequencerService,
         FilteredSequencerBlock as RawFilteredSequencerBlock,
-        FilteredSequencerBlockRequest,
+        GetFilteredSequencerBlockRequest,
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
     },
@@ -85,7 +85,7 @@ impl SequencerService for SequencerServer {
     #[instrument(skip_all, fields(height = request.get_ref().height))]
     async fn get_filtered_sequencer_block(
         &self,
-        request: Request<FilteredSequencerBlockRequest>,
+        request: Request<GetFilteredSequencerBlockRequest>,
     ) -> Result<Response<RawFilteredSequencerBlock>, Status> {
         let snapshot = self.storage.latest_snapshot();
         let curr_block_height = snapshot.get_block_height().await.map_err(|e| {

@@ -286,7 +286,7 @@ pub struct GetSequencerBlockRequest {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct FilteredSequencerBlockRequest {
+pub struct GetFilteredSequencerBlockRequest {
     /// The height of the block to retrieve.
     #[prost(uint64, tag = "1")]
     pub height: u64,
@@ -412,7 +412,7 @@ pub mod sequencer_service_client {
         /// is filtered to contain only the transactions that are relevant to the given rollup.
         pub async fn get_filtered_sequencer_block(
             &mut self,
-            request: impl tonic::IntoRequest<super::FilteredSequencerBlockRequest>,
+            request: impl tonic::IntoRequest<super::GetFilteredSequencerBlockRequest>,
         ) -> std::result::Result<
             tonic::Response<super::FilteredSequencerBlock>,
             tonic::Status,
@@ -459,7 +459,7 @@ pub mod sequencer_service_server {
         /// is filtered to contain only the transactions that are relevant to the given rollup.
         async fn get_filtered_sequencer_block(
             &self,
-            request: tonic::Request<super::FilteredSequencerBlockRequest>,
+            request: tonic::Request<super::GetFilteredSequencerBlockRequest>,
         ) -> std::result::Result<
             tonic::Response<super::FilteredSequencerBlock>,
             tonic::Status,
@@ -599,8 +599,9 @@ pub mod sequencer_service_server {
                     struct GetFilteredSequencerBlockSvc<T: SequencerService>(pub Arc<T>);
                     impl<
                         T: SequencerService,
-                    > tonic::server::UnaryService<super::FilteredSequencerBlockRequest>
-                    for GetFilteredSequencerBlockSvc<T> {
+                    > tonic::server::UnaryService<
+                        super::GetFilteredSequencerBlockRequest,
+                    > for GetFilteredSequencerBlockSvc<T> {
                         type Response = super::FilteredSequencerBlock;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
@@ -608,7 +609,9 @@ pub mod sequencer_service_server {
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::FilteredSequencerBlockRequest>,
+                            request: tonic::Request<
+                                super::GetFilteredSequencerBlockRequest,
+                            >,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {

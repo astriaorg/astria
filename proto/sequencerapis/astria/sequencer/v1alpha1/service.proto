@@ -11,7 +11,7 @@ message GetSequencerBlockRequest {
   uint64 height = 1 [(google.api.field_behavior) = REQUIRED];
 }
 
-message FilteredSequencerBlockRequest {
+message GetFilteredSequencerBlockRequest {
   // The height of the block to retrieve.
   uint64 height = 1 [(google.api.field_behavior) = REQUIRED];
   // The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
@@ -26,7 +26,7 @@ service SequencerService {
 
   // Given a block height and set of rollup ids, returns a SequencerBlock which
   // is filtered to contain only the transactions that are relevant to the given rollup.
-  rpc GetFilteredSequencerBlock(FilteredSequencerBlockRequest) returns (FilteredSequencerBlock) {
+  rpc GetFilteredSequencerBlock(GetFilteredSequencerBlockRequest) returns (FilteredSequencerBlock) {
     option (google.api.http) = {
       post: "/v1alpha1/sequencer/{height}:filtered"
       body: "*"
