@@ -80,4 +80,3 @@ message FilteredSequencerBlock {
   // the rollup transactions.
   astria.sequencer.v1alpha1.Proof rollup_ids_proof = 6;
 }
-
