@@ -703,6 +703,7 @@ dependencies = [
  "astria-config",
  "astria-core",
  "astria-merkle",
+ "astria-sequencer-client",
  "astria-telemetry",
  "async-trait",
  "borsh",
