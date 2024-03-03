@@ -552,6 +552,7 @@ impl ExecutableBlock {
         let transactions = block
             .into_rollup_transactions()
             .swap_remove(&id)
+            .map(|txs| txs.transactions().to_vec())
             .unwrap_or_default();
         Self {
             hash,

@@ -382,7 +382,9 @@ async fn first_firm_then_soft_leads_to_soft_being_dropped() {
             .rollup_transactions()
             .get(&rollup_id)
             .cloned()
-            .unwrap(),
+            .unwrap()
+            .transactions()
+            .to_vec(),
     };
     mock.executor
         .execute_firm(mock.client.clone(), firm_block)
@@ -433,7 +435,9 @@ async fn first_soft_then_firm_update_state_correctly() {
             .rollup_transactions()
             .get(&rollup_id)
             .cloned()
-            .unwrap(),
+            .unwrap()
+            .transactions()
+            .to_vec(),
     };
     mock.executor
         .execute_soft(mock.client.clone(), soft_block)

@@ -14,7 +14,7 @@ pub mod account;
 pub mod asset;
 pub mod block;
 pub mod celestia;
-#[cfg(feature = "test-utils")]
+#[cfg(any(feature = "test-utils", test))]
 pub mod test_utils;
 pub mod transaction;
 
@@ -35,6 +35,8 @@ pub use transaction::{
     SignedTransaction,
     UnsignedTransaction,
 };
+
+use self::block::RollupTransactions;
 
 pub const ADDRESS_LEN: usize = 20;
 pub const ROLLUP_ID_LEN: usize = 32;
@@ -303,18 +305,36 @@ impl Protobuf for merkle::Proof {
     }
 }
 
+fn do_rollup_transaction_match_root(
+    rollup_transactions: &RollupTransactions,
+    root: [u8; 32],
+) -> bool {
+    let id = rollup_transactions.id();
+    let txs = rollup_transactions.transactions();
+    rollup_transactions
+        .proof()
+        .audit()
+        .with_root(root)
+        .with_leaf_builder()
+        .write(id.as_ref())
+        .write(&merkle::Tree::from_leaves(txs).root())
+        .finish_leaf()
+        .perform()
+}
+
 /// Derive a [`merkle::Tree`] from an iterable.
 ///
 /// It is the responsbility if the caller to ensure that the iterable is
 /// deterministic. Prefer types like `Vec`, `BTreeMap` or `IndexMap` over
 /// `HashMap`.
-pub fn derive_merkle_tree_from_rollup_txs<'a, T: 'a>(rollup_ids_to_txs: T) -> merkle::Tree
+pub fn derive_merkle_tree_from_rollup_txs<'a, T: 'a, U: 'a>(rollup_ids_to_txs: T) -> merkle::Tree
 where
-    T: IntoIterator<Item = (&'a RollupId, &'a Vec<Vec<u8>>)>,
+    T: IntoIterator<Item = (&'a RollupId, &'a U)>,
+    U: AsRef<[Vec<u8>]> + 'a + ?Sized,
 {
     let mut tree = merkle::Tree::new();
     for (rollup_id, txs) in rollup_ids_to_txs {
-        let root = merkle::Tree::from_leaves(txs).root();
+        let root = merkle::Tree::from_leaves(txs.as_ref()).root();
         tree.build_leaf().write(rollup_id.as_ref()).write(&root);
     }
     tree
@@ -352,11 +372,14 @@ where
 }
 
 fn are_rollup_txs_included(
-    rollup_txs: &IndexMap<RollupId, Vec<Vec<u8>>>,
+    rollup_txs: &IndexMap<RollupId, RollupTransactions>,
     rollup_proof: &merkle::Proof,
     data_hash: [u8; 32],
 ) -> bool {
-    let rollup_tree = derive_merkle_tree_from_rollup_txs(rollup_txs);
+    let rollup_base_transactions = rollup_txs
+        .iter()
+        .map(|(rollup_id, tx_data)| (rollup_id, tx_data.transactions()));
+    let rollup_tree = derive_merkle_tree_from_rollup_txs(rollup_base_transactions);
     let hash_of_rollup_root = Sha256::digest(rollup_tree.root());
     rollup_proof.verify(&hash_of_rollup_root, data_hash)
 }
