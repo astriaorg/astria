@@ -120,7 +120,7 @@ impl TestSequencerRelayer {
         Mock::given(body_partial_json(json!({"method": "abci_info"})))
             .respond_with(ResponseTemplate::new(200).set_body_json(abci_response))
             .up_to_n_times(1)
-            .expect(1)
+            .expect(1..)
             .mount_as_scoped(&self.sequencer)
             .await
     }
@@ -142,6 +142,20 @@ impl TestSequencerRelayer {
         Mock::given(matcher)
             .respond_with(ResponseTemplate::new(200).set_body_json(wrapped))
             .expect(1)
+            .mount_as_scoped(&self.sequencer)
+            .await
+    }
+
+    pub async fn mount_bad_block_response(&self, height: u32) -> MockGuard {
+        let matcher = body_partial_json(json!({
+            "method": "block",
+            "params": {
+                "height": format!("{height}")
+            }
+        }));
+        Mock::given(matcher)
+            .respond_with(ResponseTemplate::new(500))
+            .expect(1..)
             .mount_as_scoped(&self.sequencer)
             .await
     }
@@ -185,7 +199,7 @@ pub async fn spawn_sequencer_relayer<const RELAY_SELF: bool>() -> TestSequencerR
         block_time: 1000,
         relay_only_validator_key_blocks: RELAY_SELF,
         validator_key_file: Some(keyfile.path().to_string_lossy().to_string()),
-        rpc_port: 0,
+        api_addr: "0.0.0.0:0".into(),
         log: String::new(),
         force_stdout: false,
         no_otel: false,

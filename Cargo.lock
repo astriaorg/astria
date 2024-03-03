@@ -763,6 +763,7 @@ dependencies = [
 name = "astria-sequencer-relayer"
 version = "0.10.0"
 dependencies = [
+ "assert-json-diff",
  "astria-build-info",
  "astria-celestia-client",
  "astria-celestia-mock",

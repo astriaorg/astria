@@ -4,11 +4,61 @@ pub mod helper;
 
 use std::time::Duration;
 
+use assert_json_diff::assert_json_include;
 use helper::spawn_sequencer_relayer;
+use reqwest::StatusCode;
+use serde_json::json;
 use tokio::time::timeout;
 
 const RELAY_SELF: bool = true;
 const RELAY_ALL: bool = false;
+
+#[tokio::test(flavor = "current_thread")]
+async fn report_degraded_if_block_fetch_fails() {
+    let sequencer_relayer = spawn_sequencer_relayer::<RELAY_ALL>().await;
+
+    // Relayer reports 200 on /readyz after start
+    let readyz = reqwest::get(format!("http://{}/readyz", sequencer_relayer.api_address))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        StatusCode::OK,
+        readyz.status(),
+        "relayer should report 200 after start"
+    );
+    assert_json_include!(
+        expected: json!({"status": "ok"}),
+        actual: readyz.json::<serde_json::Value>().await.unwrap(),
+    );
+
+    let abci_guard = sequencer_relayer.mount_abci_response(1).await;
+    let block_guard = sequencer_relayer.mount_bad_block_response(1).await;
+    timeout(
+        Duration::from_millis(2 * sequencer_relayer.config.block_time),
+        futures::future::join(
+            abci_guard.wait_until_satisfied(),
+            block_guard.wait_until_satisfied(),
+        ),
+    )
+    .await
+    .expect("requesting abci info and block must have occured");
+
+    // Relayer reports 500 on /healthz after fetching the block failed
+    let readyz = reqwest::get(format!("http://{}/healthz", sequencer_relayer.api_address))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        readyz.status(),
+        "relayer should report 500 when failing to fetch block"
+    );
+    assert_json_include!(
+        expected: json!({"status": "degraded"}),
+        actual: readyz.json::<serde_json::Value>().await.unwrap(),
+    );
+}
 
 #[tokio::test(flavor = "current_thread")]
 async fn one_block_is_relayed_to_celestia() {
