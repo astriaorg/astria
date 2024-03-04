@@ -1016,8 +1016,11 @@ enum FeeAssetChangeActionErrorKind {
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone)]
 pub struct InitBridgeAccountAction {
+    // the rollup ID to register for the sender of this action
     pub rollup_id: RollupId,
+    // the assets accepted by the bridge account
     pub asset_ids: Vec<asset::Id>,
+    // the fee asset which to pay this action's fees with
     pub fee_asset_id: asset::Id,
 }
 

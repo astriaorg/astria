@@ -851,6 +851,7 @@ impl FilteredSequencerBlock {
     }
 }
 
+#[derive(Debug)]
 pub struct FilteredSequencerBlockError(FilteredSequencerBlockErrorKind);
 
 #[derive(Debug, thiserror::Error)]
@@ -947,10 +948,15 @@ impl FilteredSequencerBlockError {
 /// and stored as part of the block's events.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Deposit {
+    // the address on the sequencer to which the funds were sent to.
     bridge_address: Address,
+    // the rollup ID registered to the `bridge_address`
     rollup_id: RollupId,
+    // the amount that was transferred to `bridge_address`
     amount: u128,
+    // the asset ID of the asset that was transferred
     asset_id: asset::Id,
+    // the address on the destination chain (rollup) which to send the bridged funds to
     destination_chain_address: String,
 }
 
