@@ -170,6 +170,8 @@ impl Relayer {
                             block_stream.set_latest_sequencer_height(height);
                         }
                         Err(error) => {
+                            metrics::counter!(crate::metrics_init::SEQUENCER_HEIGHT_FETCH_FAILURE_COUNT)
+                                .increment(1);
                             self.state.set_sequencer_connected(false);
                             warn!(
                                 %error,
