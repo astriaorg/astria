@@ -130,14 +130,14 @@ impl Conductor {
             };
 
             let reader = celestia::Reader::builder()
-                .celestia_endpoint(&cfg.celestia_node_url)
+                .celestia_http_endpoint(&cfg.celestia_node_http_url)
+                .celestia_websocket_endpoint(&cfg.celestia_node_websocket_url)
                 .celestia_token(&cfg.celestia_bearer_token)
                 .executor(executor_handle.clone())
                 .sequencer_client_pool(sequencer_client_pool.clone())
                 .sequencer_namespace(sequencer_namespace)
                 .shutdown(shutdown_rx)
-                .build()
-                .wrap_err("failed constructing data availability reader")?;
+                .build();
 
             tasks.spawn(Self::CELESTIA, reader.run_until_stopped());
         };

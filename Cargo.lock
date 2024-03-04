@@ -602,7 +602,6 @@ dependencies = [
  "futures",
  "futures-bounded",
  "hex",
- "http 1.0.0",
  "humantime",
  "jsonrpsee",
  "pin-project-lite",
@@ -780,7 +779,7 @@ dependencies = [
  "futures",
  "futures-bounded",
  "hex",
- "http 0.2.11",
+ "http",
  "humantime",
  "hyper",
  "itoa",
@@ -966,7 +965,7 @@ dependencies = [
  "bitflags 1.3.2",
  "bytes",
  "futures-util",
- "http 0.2.11",
+ "http",
  "http-body",
  "hyper",
  "itoa",
@@ -996,7 +995,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures-util",
- "http 0.2.11",
+ "http",
  "http-body",
  "mime",
  "rustversion",
@@ -1420,7 +1419,7 @@ source = "git+https://github.com/eigerco/celestia-node-rs?rev=4862eec#4862eec404
 dependencies = [
  "async-trait",
  "celestia-types",
- "http 0.2.11",
+ "http",
  "jsonrpsee",
  "serde",
  "thiserror",
@@ -2751,7 +2750,7 @@ dependencies = [
  "futures-timer",
  "futures-util",
  "hashers",
- "http 0.2.11",
+ "http",
  "instant",
  "jsonwebtoken",
  "once_cell",
@@ -3245,7 +3244,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "futures-util",
- "http 0.2.11",
+ "http",
  "indexmap 2.2.3",
  "slab",
  "tokio",
@@ -3369,24 +3368,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "http"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b32afd38673a8016f7c9ae69e5af41a58f81b1d31689040f2f1959594ce194ea"
-dependencies = [
- "bytes",
- "fnv",
- "itoa",
-]
-
-[[package]]
 name = "http-body"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ceab25649e9960c0311ea418d17bee82c0dcec1bd053b5f9a66e265a693bed2"
 dependencies = [
  "bytes",
- "http 0.2.11",
+ "http",
  "pin-project-lite",
 ]
 
@@ -3406,7 +3394,7 @@ dependencies = [
  "async-channel",
  "base64 0.13.1",
  "futures-lite",
- "http 0.2.11",
+ "http",
  "infer",
  "pin-project-lite",
  "rand 0.7.3",
@@ -3446,7 +3434,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "h2",
- "http 0.2.11",
+ "http",
  "http-body",
  "httparse",
  "httpdate",
@@ -3466,7 +3454,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec3efd23720e2049821a693cbc7e65ea87c72f1c58ff2f9522ff332b1491e590"
 dependencies = [
  "futures-util",
- "http 0.2.11",
+ "http",
  "hyper",
  "log",
  "rustls",
@@ -4061,7 +4049,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5b005c793122d03217da09af68ba9383363caa950b90d3436106df8cabce935"
 dependencies = [
  "futures-util",
- "http 0.2.11",
+ "http",
  "jsonrpsee-core",
  "pin-project",
  "rustls-native-certs",
@@ -4139,7 +4127,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "82c39a00449c9ef3f50b84fc00fc4acba20ef8f559f07902244abf4c15c5ab9c"
 dependencies = [
  "futures-util",
- "http 0.2.11",
+ "http",
  "hyper",
  "jsonrpsee-core",
  "jsonrpsee-types",
@@ -4175,7 +4163,7 @@ version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bca9cb3933ccae417eb6b08c3448eb1cb46e39834e5b503e395e5e5bd08546c0"
 dependencies = [
- "http 0.2.11",
+ "http",
  "jsonrpsee-client-transport",
  "jsonrpsee-core",
  "jsonrpsee-types",
@@ -4872,7 +4860,7 @@ checksum = "f24cda83b20ed2433c68241f918d0f6fdec8b1d43b7a9590ab4420c5095ca930"
 dependencies = [
  "async-trait",
  "futures-core",
- "http 0.2.11",
+ "http",
  "opentelemetry",
  "opentelemetry-proto",
  "opentelemetry-semantic-conventions",
@@ -5420,7 +5408,7 @@ source = "git+https://github.com/penumbra-zone/penumbra.git?tag=v0.66.0#29b93231
 dependencies = [
  "futures",
  "hex",
- "http 0.2.11",
+ "http",
  "pin-project",
  "pin-project-lite",
  "sha2 0.10.8",
@@ -6159,7 +6147,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "h2",
- "http 0.2.11",
+ "http",
  "http-body",
  "hyper",
  "hyper-rustls",
@@ -6985,7 +6973,7 @@ dependencies = [
  "base64 0.13.1",
  "bytes",
  "futures",
- "http 0.2.11",
+ "http",
  "httparse",
  "log",
  "rand 0.8.5",
@@ -7713,7 +7701,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "h2",
- "http 0.2.11",
+ "http",
  "http-body",
  "hyper",
  "hyper-timeout",
@@ -7740,7 +7728,7 @@ dependencies = [
  "base64 0.21.7",
  "bytes",
  "h2",
- "http 0.2.11",
+ "http",
  "http-body",
  "hyper",
  "hyper-timeout",
@@ -7833,7 +7821,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-util",
- "http 0.2.11",
+ "http",
  "http-body",
  "http-range-header",
  "pin-project-lite",
@@ -8038,7 +8026,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "data-encoding",
- "http 0.2.11",
+ "http",
  "httparse",
  "log",
  "rand 0.8.5",
