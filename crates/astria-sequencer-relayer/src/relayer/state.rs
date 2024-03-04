@@ -21,7 +21,7 @@ impl State {
     }
 }
 
-macro_rules! forward_impls {
+macro_rules! forward_setter {
     ($([$fn:ident <- $val:ty]),*$(,)?) => {
         impl State {
             $(
@@ -31,16 +31,34 @@ macro_rules! forward_impls {
             }
             )*
         }
-    }
+    };
 }
 
-forward_impls!(
+forward_setter!(
     [set_celestia_connected <- bool],
     [set_sequencer_connected <- bool],
     [set_latest_confirmed_celestia_height <- u64],
     [set_latest_fetched_sequencer_height <- u64],
     [set_latest_observed_sequencer_height <- u64],
     [set_latest_requested_sequencer_height <- u64],
+);
+
+macro_rules! forward_getter {
+    ($([$fn:ident -> $ret:ty]),*$(,)?) => {
+        impl State {
+            $(
+            pub(super) fn $fn(&self) -> Option<$ret> {
+                self.inner
+                    .borrow()
+                    .$fn()
+            }
+            )*
+        }
+    };
+}
+
+forward_getter!(
+    [get_latest_confirmed_celestia_height -> u64],
 );
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
@@ -60,6 +78,10 @@ pub(crate) struct StateSnapshot {
 impl StateSnapshot {
     fn set_ready(&mut self) {
         self.ready = true;
+    }
+
+    fn get_latest_confirmed_celestia_height(&self) -> Option<u64> {
+        self.latest_confirmed_celestia_height
     }
 
     fn set_latest_confirmed_celestia_height(&mut self, height: u64) -> bool {

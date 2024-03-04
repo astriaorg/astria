@@ -1,4 +1,8 @@
 use std::{
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Duration,
 };
@@ -25,6 +29,7 @@ use sequencer_client::{
     HttpClient as SequencerClient,
     SequencerBlock,
 };
+use serde::de::DeserializeOwned;
 use tokio::{
     pin,
     select,
@@ -68,6 +73,9 @@ pub(crate) struct Relayer {
 
     // A watch channel to track the state of the relayer. Used by the API service.
     state: Arc<State>,
+
+    presubmit_path: PathBuf,
+    postsubmit_path: PathBuf,
 }
 
 impl Relayer {
@@ -115,6 +123,8 @@ impl Relayer {
             celestia,
             validator,
             state,
+            presubmit_path: cfg.presubmit_path.clone(),
+            postsubmit_path: cfg.postsubmit_path.clone(),
         })
     }
 
@@ -130,15 +140,28 @@ impl Relayer {
     /// failed catastrophically (after `u32::MAX` retries).
     #[instrument(skip_all)]
     pub(crate) async fn run(self) -> eyre::Result<()> {
+        let last_submitted_sequencer_height = self
+            .determine_last_submitted_sequencer_height()
+            .await
+            .wrap_err("failed determining starting point to read blocks from sequencer")?;
+
         let latest_height_stream =
             make_latest_height_stream(self.sequencer.clone(), self.sequencer_poll_period);
         pin!(latest_height_stream);
 
-        let (submitter_task, submitter) =
-            spawn_submitter(self.celestia.clone(), self.state.clone());
+        let (submitter_task, submitter) = spawn_submitter(
+            self.celestia.clone(),
+            self.state.clone(),
+            self.presubmit_path.clone(),
+            self.postsubmit_path.clone(),
+        );
 
-        let mut block_stream = read::BlockStream::new(self.sequencer.clone(), self.state.clone());
-        block_stream.set_block_time(self.sequencer_poll_period);
+        let mut block_stream = read::BlockStream::builder()
+            .block_time(self.sequencer_poll_period)
+            .client(self.sequencer.clone())
+            .set_last_fetched_height(last_submitted_sequencer_height)
+            .state(self.state.clone())
+            .build();
 
         // future to forward a sequencer block to the celestia-submission-task.
         // gets set in the select-loop if the task is at capacity.
@@ -273,13 +296,63 @@ impl Relayer {
         }
         Ok(())
     }
+
+    async fn determine_last_submitted_sequencer_height(
+        &self,
+    ) -> eyre::Result<Option<SequencerHeight>> {
+        let presubmit_path = self.presubmit_path.clone();
+        let presubmit_state = crate::utils::flatten(
+            tokio::task::spawn_blocking(move || read_state_file(presubmit_path)).await,
+        )
+        .wrap_err("failed reading presubmit state from provided file")?;
+        let postsubmit_path = self.postsubmit_path.clone();
+        let postsubmit_state = crate::utils::flatten(
+            tokio::task::spawn_blocking(move || read_state_file(postsubmit_path)).await,
+        )
+        .wrap_err("failed reading postsubmit state from provided file")?;
+
+        match (presubmit_state, postsubmit_state) {
+            (None, None) => Ok(None),
+            (Some(pre), Some(post)) if write::are_states_consistent(pre, post) => {
+                let determined_height = post.sequencer_height();
+                let height = determined_height.try_into().wrap_err_with(|| {
+                    format!(
+                        "last submitted sequencer height was determined to be \
+                         `{determined_height}`, but couldn't be turned into cometbft/sequencer \
+                         height"
+                    )
+                })?;
+                Ok(Some(height))
+            }
+            (..) => bail!(
+                "manual intervention required: pre- and post-submit states must either both be \
+                 unset (their files present but empty),
+                    or both be set and consistent (files present and deserializable, equal \
+                 sequencer heights, celestia heights pre-submission less
+                    then post-submission)"
+            ),
+        }
+    }
+}
+
+fn read_state_file<P: AsRef<Path>, T: DeserializeOwned>(path: P) -> eyre::Result<Option<T>> {
+    let buf = std::fs::read(&path).wrap_err("failed reading provided state file")?;
+    if buf.is_empty() {
+        return Ok(None);
+    }
+    let state =
+        serde_json::from_slice(&buf).wrap_err("failed deserializing contents of state file")?;
+    Ok(Some(state))
 }
 
 fn spawn_submitter(
     client: CelestiaClient,
     state: Arc<State>,
+    presubmit_path: PathBuf,
+    postsubmit_path: PathBuf,
 ) -> (JoinHandle<eyre::Result<()>>, write::BlobSubmitterHandle) {
-    let (submitter, handle) = write::BlobSubmitter::new(client, state);
+    let (submitter, handle) =
+        write::BlobSubmitter::new(client, state, presubmit_path, postsubmit_path);
     (tokio::spawn(submitter.run()), handle)
 }
 

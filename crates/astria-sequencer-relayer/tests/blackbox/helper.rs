@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use assert_json_diff::assert_json_include;
 use astria_core::sequencer::v1alpha1::{
     test_utils::ConfigureCometBftBlock,
     RollupId,
@@ -40,6 +41,7 @@ use wiremock::{
 };
 
 static TELEMETRY: Lazy<()> = Lazy::new(|| {
+    astria_eyre::install().unwrap();
     if std::env::var_os("TEST_LOG").is_some() {
         let filter_directives = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
         println!("initializing telemetry");
@@ -98,6 +100,9 @@ pub struct TestSequencerRelayer {
     pub account: tendermint::account::Id,
 
     pub keyfile: NamedTempFile,
+
+    pub presubmit_file: NamedTempFile,
+    pub postsubmit_file: NamedTempFile,
 }
 
 impl TestSequencerRelayer {
@@ -159,71 +164,150 @@ impl TestSequencerRelayer {
             .mount_as_scoped(&self.sequencer)
             .await
     }
+
+    #[track_caller]
+    pub fn assert_state_files_are_as_expected(
+        &self,
+        pre_sequencer_height: u64,
+        post_sequencer_height: u64,
+    ) {
+        let presubmit_state: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&self.config.presubmit_path).unwrap())
+                .unwrap();
+        assert_json_include!(
+            actual: presubmit_state,
+            expected: json!({
+                "sequencer_height": pre_sequencer_height
+            }),
+        );
+
+        let postsubmit_state: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&self.config.postsubmit_path).unwrap())
+                .unwrap();
+        assert_json_include!(
+            actual: postsubmit_state,
+            expected: json!({
+                "sequencer_height": post_sequencer_height,
+            }),
+        );
+    }
 }
 
-pub async fn spawn_sequencer_relayer<const RELAY_SELF: bool>() -> TestSequencerRelayer {
-    Lazy::force(&TELEMETRY);
+pub struct TestSequencerRelayerConfig {
+    // Sets up the test relayer to ignore all blocks except those proposed by the same address
+    // stored in its validator key.
+    pub relay_only_self: bool,
+    // Sets the start height of relayer and configures the on-disk pre- and post-submit files to
+    // look accordingly.
+    pub last_written_sequencer_height: Option<u64>,
+}
 
-    let mut celestia = MockCelestia::start().await;
-    let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
+impl TestSequencerRelayerConfig {
+    pub async fn spawn_relayer(self) -> TestSequencerRelayer {
+        Lazy::force(&TELEMETRY);
 
-    let keyfile = tokio::task::spawn_blocking(|| {
-        use std::io::Write as _;
+        let mut celestia = MockCelestia::start().await;
+        let celestia_addr = (&mut celestia.addr_rx).await.unwrap();
 
-        let keyfile = NamedTempFile::new().unwrap();
-        (&keyfile)
-            .write_all(PRIVATE_VALIDATOR_KEY.as_bytes())
-            .unwrap();
-        keyfile
-    })
-    .await
-    .unwrap();
-    let PrivValidatorKey {
-        address,
-        priv_key,
-        ..
-    } = PrivValidatorKey::parse_json(PRIVATE_VALIDATOR_KEY).unwrap();
-    let signing_key = priv_key
-        .ed25519_signing_key()
-        .cloned()
-        .unwrap()
-        .try_into()
+        let keyfile = tokio::task::spawn_blocking(|| {
+            use std::io::Write as _;
+
+            let keyfile = NamedTempFile::new().unwrap();
+            (&keyfile)
+                .write_all(PRIVATE_VALIDATOR_KEY.as_bytes())
+                .unwrap();
+            keyfile
+        })
+        .await
         .unwrap();
+        let PrivValidatorKey {
+            address,
+            priv_key,
+            ..
+        } = PrivValidatorKey::parse_json(PRIVATE_VALIDATOR_KEY).unwrap();
+        let signing_key = priv_key
+            .ed25519_signing_key()
+            .cloned()
+            .unwrap()
+            .try_into()
+            .unwrap();
 
-    let sequencer = MockServer::start().await;
+        let sequencer = MockServer::start().await;
 
-    let config = Config {
-        sequencer_endpoint: sequencer.uri(),
-        celestia_endpoint: format!("http://{celestia_addr}"),
-        celestia_bearer_token: String::new(),
-        block_time: 1000,
-        relay_only_validator_key_blocks: RELAY_SELF,
-        validator_key_file: Some(keyfile.path().to_string_lossy().to_string()),
-        api_addr: "0.0.0.0:0".into(),
-        log: String::new(),
-        force_stdout: false,
-        no_otel: false,
-        no_metrics: false,
-        metrics_http_listener_addr: String::new(),
-        pretty_print: true,
-    };
+        let (presubmit_file, postsubmit_file) =
+            if let Some(last_written_sequencer_height) = self.last_written_sequencer_height {
+                create_state_files_at_height(last_written_sequencer_height)
+            } else {
+                create_empty_state_files()
+            };
 
-    info!(config = serde_json::to_string(&config).unwrap());
-    let config_clone = config.clone();
-    let sequencer_relayer = SequencerRelayer::new(&config_clone).await.unwrap();
-    let api_address = sequencer_relayer.local_addr();
-    let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
+        let config = Config {
+            sequencer_endpoint: sequencer.uri(),
+            celestia_endpoint: format!("http://{celestia_addr}"),
+            celestia_bearer_token: String::new(),
+            block_time: 1000,
+            relay_only_validator_key_blocks: self.relay_only_self,
+            validator_key_file: Some(keyfile.path().to_string_lossy().to_string()),
+            api_addr: "0.0.0.0:0".into(),
+            log: String::new(),
+            force_stdout: false,
+            no_otel: false,
+            no_metrics: false,
+            metrics_http_listener_addr: String::new(),
+            pretty_print: true,
+            presubmit_path: presubmit_file.path().to_owned(),
+            postsubmit_path: postsubmit_file.path().to_owned(),
+        };
 
-    TestSequencerRelayer {
-        api_address,
-        celestia,
-        config,
-        sequencer,
-        sequencer_relayer,
-        signing_key,
-        account: address,
-        keyfile,
+        info!(config = serde_json::to_string(&config).unwrap());
+        let config_clone = config.clone();
+        let sequencer_relayer = SequencerRelayer::new(&config_clone).await.unwrap();
+        let api_address = sequencer_relayer.local_addr();
+        let sequencer_relayer = tokio::task::spawn(sequencer_relayer.run());
+
+        TestSequencerRelayer {
+            api_address,
+            celestia,
+            config,
+            sequencer,
+            sequencer_relayer,
+            signing_key,
+            account: address,
+            keyfile,
+            presubmit_file,
+            postsubmit_file,
+        }
     }
+}
+
+fn create_empty_state_files() -> (NamedTempFile, NamedTempFile) {
+    let pre = NamedTempFile::new()
+        .expect("must be able to create an empty pre submit state file to run tests");
+    let post = NamedTempFile::new()
+        .expect("must be able to create an empty post submit state file to run tests");
+    (pre, post)
+}
+
+fn create_state_files_at_height(height: u64) -> (NamedTempFile, NamedTempFile) {
+    let (pre, post) = create_empty_state_files();
+
+    serde_json::to_writer(
+        &pre,
+        &json!({
+            "celestia_height_at_init": 4,
+            "sequencer_height": height
+        }),
+    )
+    .expect("must be able to write pre state to file to run tests");
+    serde_json::to_writer_pretty(
+        &post,
+        &json!({
+            "celestia_height_at_submit": 5,
+            "sequencer_height": height
+        }),
+    )
+    .expect("must be able to write post state to file to run tests");
+    (pre, post)
 }
 
 use celestia_mock::{

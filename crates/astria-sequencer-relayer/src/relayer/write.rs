@@ -10,6 +10,10 @@
 //! they will be written in that order.
 use std::{
     future::Future,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     task::Poll,
     time::Duration,
@@ -17,6 +21,7 @@ use std::{
 
 use astria_eyre::eyre::{
     self,
+    eyre,
     WrapErr as _,
 };
 use celestia_client::{
@@ -38,7 +43,12 @@ use sequencer_client::{
     tendermint::block::Height as SequencerHeight,
     SequencerBlock,
 };
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use tokio::{
+    io::AsyncWriteExt,
     select,
     sync::mpsc::{
         self,
@@ -59,6 +69,38 @@ use tracing::{
     Instrument as _,
     Span,
 };
+
+pub(super) fn are_states_consistent(pre: PreSubmissionState, post: PostSubmissionState) -> bool {
+    pre.sequencer_height == post.sequencer_height
+        && pre.celestia_height_at_init < post.celestia_height_at_submit
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+pub(super) struct PreSubmissionState {
+    celestia_height_at_init: u64,
+    sequencer_height: u64,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+pub(super) struct PostSubmissionState {
+    celestia_height_at_submit: u64,
+    sequencer_height: u64,
+}
+
+impl PostSubmissionState {
+    pub(super) fn sequencer_height(&self) -> u64 {
+        self.sequencer_height
+    }
+}
+
+impl PreSubmissionState {
+    fn into_submitted(self, celestia_height_at_submit: u64) -> PostSubmissionState {
+        PostSubmissionState {
+            celestia_height_at_submit,
+            sequencer_height: self.sequencer_height,
+        }
+    }
+}
 
 struct QueuedBlobs {
     // The maximum number of blobs permitted to sit in the blob queue.
@@ -169,10 +211,23 @@ pub(super) struct BlobSubmitter {
 
     // The state of the relayer.
     state: Arc<super::State>,
+
+    // The path to which blob submitter will write the submission state before attempting to submit
+    // to Celestia
+    presubmit_path: PathBuf,
+
+    // The path to which blob submitter will write the submission state after successfully
+    // submitting to Celestia
+    postsubmit_path: PathBuf,
 }
 
 impl BlobSubmitter {
-    pub(super) fn new(client: HttpClient, state: Arc<super::State>) -> (Self, BlobSubmitterHandle) {
+    pub(super) fn new(
+        client: HttpClient,
+        state: Arc<super::State>,
+        presubmit_path: PathBuf,
+        postsubmit_path: PathBuf,
+    ) -> (Self, BlobSubmitterHandle) {
         // XXX: The channel size here is just a number. It should probably be based on some
         // heuristic about the number of expected blobs in a block.
         let (tx, rx) = mpsc::channel(128);
@@ -182,6 +237,8 @@ impl BlobSubmitter {
             conversions: Conversions::new(8),
             blobs: QueuedBlobs::new(128),
             state,
+            presubmit_path,
+            postsubmit_path,
         };
         let handle = BlobSubmitterHandle {
             tx,
@@ -192,6 +249,13 @@ impl BlobSubmitter {
     pub(super) async fn run(mut self) -> eyre::Result<()> {
         let mut submission = Fuse::terminated();
 
+        // Fetch the latest Celestia height so there is a starting point when tracking
+        // submissions.
+        fetch_latest_celestia_height(self.client.clone(), self.state.clone())
+            .await
+            .wrap_err("failed fetching latest celestia height after many retries")?;
+
+        let mut latest_submission = None;
         loop {
             select!(
                 Some(block) = self.blocks.recv(), if self.has_capacity() => {
@@ -226,13 +290,16 @@ impl BlobSubmitter {
                         blobs,
                         heights,
                         self.state.clone(),
+                        self.presubmit_path.clone(),
+                        self.postsubmit_path.clone(),
                     ).boxed().fuse();
                 }
 
                 submission_result = &mut submission, if !submission.is_terminated() => {
                     // XXX: Breaks the select-loop and returns. With the current retry-logic in
                     // `submit_blobs` this happens after u32::MAX retries which is effectively never.
-                    submission_result.wrap_err("failed submitting blobs to Celestia")?;
+                    let new_submission = submission_result.wrap_err("failed submitting blobs to Celestia")?;
+                    latest_submission.replace(new_submission);
                 }
             );
         }
@@ -244,6 +311,11 @@ impl BlobSubmitter {
     }
 }
 
+/// Submits new blobs Celestia.
+///
+/// # Panics
+/// Panics if `blobs` or `sequencer_heights` are empty. This function
+/// should only be called if there is something to submit.
 #[instrument(
     skip_all,
     fields(
@@ -255,7 +327,9 @@ async fn submit_blobs(
     blobs: Vec<Blob>,
     sequencer_heights: Vec<SequencerHeight>,
     state: Arc<super::State>,
-) -> eyre::Result<()> {
+    presubmit_path: PathBuf,
+    postsubmit_path: PathBuf,
+) -> eyre::Result<PostSubmissionState> {
     let start = std::time::Instant::now();
 
     metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_COUNT).increment(1);
@@ -267,12 +341,31 @@ async fn submit_blobs(
     let blocks_per_celestia_tx = sequencer_heights.len() as f64;
     metrics::gauge!(crate::metrics_init::BLOCKS_PER_CELESTIA_TX).set(blocks_per_celestia_tx);
 
+    let latest_celestia_height = state
+        .get_latest_confirmed_celestia_height()
+        .ok_or_else(|| {
+            eyre!(
+                "internal state tracking latest celestia height was unexpectedtly unset, which \
+                 should never happen"
+            )
+        })?;
+
     // allow: the number of blobs should always be low enough to not cause precision loss
     #[allow(clippy::cast_precision_loss)]
     let blobs_per_celestia_tx = blobs.len() as f64;
     metrics::gauge!(crate::metrics_init::BLOBS_PER_CELESTIA_TX).set(blobs_per_celestia_tx);
 
-    let height = match submit_with_retry(client, blobs, state.clone()).await {
+    let presubmit_state =
+        match initialize_submission(&sequencer_heights, latest_celestia_height, &presubmit_path)
+            .await
+        {
+            Err(error) => {
+                error!(%error, "failed to initialize submission; abandoning");
+                return Err(error);
+            }
+            Ok(state) => state,
+        };
+    let celestia_height = match submit_with_retry(client, blobs, state.clone()).await {
         Err(error) => {
             let message = "failed submitting blobs to Celestia";
             error!(%error, message);
@@ -280,13 +373,24 @@ async fn submit_blobs(
         }
         Ok(height) => height,
     };
-    state.set_celestia_connected(true);
-    state.set_latest_confirmed_celestia_height(height);
-    info!(celestia_height = %height, "successfully submitted blocks to Celestia");
+    let latest_submission =
+        match finalize_submission(presubmit_state, celestia_height, postsubmit_path).await {
+            Err(error) => {
+                error!(%error, "failed to finalize submission; abandoning");
+                return Err(error);
+            }
+            Ok(state) => state,
+        };
 
-    metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_HEIGHT).absolute(height);
+    state.set_celestia_connected(true);
+    state.set_latest_confirmed_celestia_height(celestia_height);
+
+    metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_HEIGHT).absolute(celestia_height);
     metrics::histogram!(crate::metrics_init::CELESTIA_SUBMISSION_LATENCY).record(start.elapsed());
-    Ok(())
+
+    info!(%celestia_height, "successfully submitted blocks to Celestia");
+
+    Ok(latest_submission)
 }
 
 async fn submit_with_retry(
@@ -350,6 +454,51 @@ async fn submit_with_retry(
     .await
     .wrap_err("retry attempts exhausted; bailing")?;
     Ok(height)
+}
+
+#[instrument(skip_all)]
+async fn fetch_latest_celestia_height(
+    client: HttpClient,
+    state: Arc<super::State>,
+) -> eyre::Result<()> {
+    use celestia_client::celestia_rpc::HeaderClient as _;
+
+    let span = Span::current();
+    let retry_config = tryhard::RetryFutureConfig::new(u32::MAX)
+        .exponential_backoff(Duration::from_millis(100))
+        .max_delay(Duration::from_secs(5))
+        .on_retry(
+            |attempt: u32, next_delay: Option<Duration>, error: &eyre::Report| {
+                let wait_duration = next_delay
+                    .map(humantime::format_duration)
+                    .map(tracing::field::display);
+                warn!(
+                    parent: &span,
+                    attempt,
+                    wait_duration,
+                    %error,
+                    "attempt to fetch latest Celestia height failed; retrying after backoff",
+                );
+                futures::future::ready(())
+            },
+        );
+
+    let height = tryhard::retry_fn(|| {
+        let client = client.clone();
+        async move {
+            let header = client
+                .header_network_head()
+                .await
+                .wrap_err("failed to fetch network head from Celestia node")?;
+            Ok(header.height().value())
+        }
+    })
+    .with_config(retry_config)
+    .in_current_span()
+    .await
+    .wrap_err("retry attempts exhausted; bailing")?;
+    state.set_latest_confirmed_celestia_height(height);
+    Ok(())
 }
 
 struct ReportSequencerHeights<'a>(&'a [SequencerHeight]);
@@ -427,6 +576,70 @@ fn convert(block: SequencerBlock) -> eyre::Result<Vec<Blob>> {
         .try_to_blobs(&mut blobs)
         .wrap_err("failed converting sequencer block to celestia blobs")?;
     Ok(blobs)
+}
+
+#[instrument(skip_all)]
+async fn initialize_submission<P: AsRef<Path>>(
+    sequencer_heights: &[SequencerHeight],
+    celestia_height_at_init: u64,
+    presubmit_path: P,
+) -> eyre::Result<PreSubmissionState> {
+    let largest_height = sequencer_heights
+        .iter()
+        .copied()
+        .max()
+        .expect("there should be blobs and accompanying sequencer heights to submit");
+    let presubmit_state = PreSubmissionState {
+        celestia_height_at_init,
+        sequencer_height: largest_height.value(),
+    };
+    debug!(
+        state = serde_json::to_string(&presubmit_state).expect("type contains no non-ascii keys"),
+        "initializing submission by writing state to file",
+    );
+    let bytes = serde_json::to_vec(&presubmit_state)
+        .wrap_err("failed to serialize presubmission state as JSON")?;
+    let mut file = tokio::fs::File::options()
+        .write(true)
+        .truncate(true)
+        .open(presubmit_path)
+        .await
+        .wrap_err("failed opening file to store presubmission state")?;
+    file.write_all(&bytes)
+        .await
+        .wrap_err("failed to write presubmission state to file")?;
+    file.sync_all()
+        .await
+        .wrap_err("failed fully syncing presubmission state to disk")?;
+    Ok(presubmit_state)
+}
+
+async fn finalize_submission<P: AsRef<Path>>(
+    presubmit_state: PreSubmissionState,
+    celestia_height: u64,
+    postsubmit_path: P,
+) -> eyre::Result<PostSubmissionState> {
+    let postsubmit_state = presubmit_state.into_submitted(celestia_height);
+    debug!(
+        state = serde_json::to_string(&postsubmit_state).expect("type contains no non-ascii keys"),
+        "finalizing submission by writing state to file",
+    );
+
+    let bytes = serde_json::to_vec(&postsubmit_state)
+        .wrap_err("failed to serialize postsubmission state as JSON")?;
+    let mut file = tokio::fs::File::options()
+        .write(true)
+        .truncate(true)
+        .open(postsubmit_path)
+        .await
+        .wrap_err("failed opening file to store postsubmission state")?;
+    file.write_all(&bytes)
+        .await
+        .wrap_err("failed to write postsubmission state to file")?;
+    file.sync_all()
+        .await
+        .wrap_err("failed fully syncing postsubmission state to disk")?;
+    Ok(postsubmit_state)
 }
 
 #[cfg(test)]
