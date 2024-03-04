@@ -590,6 +590,7 @@ dependencies = [
  "astria-core",
  "astria-eyre",
  "astria-merkle",
+ "astria-optimism",
  "astria-sequencer-client",
  "astria-telemetry",
  "async-trait",
@@ -597,6 +598,7 @@ dependencies = [
  "bytes",
  "deadpool 0.10.0",
  "ed25519-consensus",
+ "ethers",
  "futures",
  "futures-bounded",
  "hex",
@@ -607,6 +609,7 @@ dependencies = [
  "prost 0.12.3",
  "prost-types",
  "rand 0.8.5",
+ "reqwest",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -678,6 +681,17 @@ dependencies = [
  "hex-literal",
  "serde",
  "sha2 0.10.8",
+]
+
+[[package]]
+name = "astria-optimism"
+version = "0.1.0"
+dependencies = [
+ "astria-eyre",
+ "astria-optimism",
+ "ethers",
+ "hex",
+ "tokio",
 ]
 
 [[package]]
@@ -2684,6 +2698,7 @@ checksum = "16d45b981f5fa769e1d0343ebc2a44cfa88c9bc312eb681b676318b40cef6fb1"
 dependencies = [
  "chrono",
  "ethers-core",
+ "ethers-solc",
  "reqwest",
  "semver 1.0.21",
  "serde",

@@ -85,6 +85,14 @@ jobs:
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10' 
+      - name: Install solc-select for smart contract tests
+        run: |
+          pip3 install solc-select
+          solc-select install 0.8.15
+          solc-select use 0.8.15
       - uses: dtolnay/rust-toolchain@1.76.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
@@ -93,6 +101,10 @@ jobs:
         with:
           version: "24.4"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: "nightly-09fe3e041369a816365a020f715ad6f94dbce9f2"
       - name: Build tests
         run: |
           cargo test --no-run --release \
