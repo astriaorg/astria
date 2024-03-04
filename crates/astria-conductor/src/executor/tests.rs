@@ -1,25 +1,24 @@
 use std::{
     collections::HashMap,
     net::SocketAddr,
-    sync::{
-        Arc,
-        Mutex,
-    },
+    sync::Mutex,
 };
 
-use ::optimism::test_utils::deploy_mock_optimism_portal;
 use astria_core::{
+    execution::v1alpha2::{
+        Block,
+        CommitmentState,
+        GenesisInfo,
+    },
     generated::execution::v1alpha2::{
+        self as raw,
         execution_service_server::{
             ExecutionService,
             ExecutionServiceServer,
         },
         BatchGetBlocksRequest,
         BatchGetBlocksResponse,
-        Block,
-        CommitmentState,
         ExecuteBlockRequest,
-        GenesisInfo,
         GetBlockRequest,
         GetCommitmentStateRequest,
         GetGenesisInfoRequest,
@@ -29,15 +28,9 @@ use astria_core::{
         make_cometbft_block,
         ConfigureCometBftBlock,
     },
+    Protobuf,
 };
 use bytes::Bytes;
-use ethers::{
-    prelude::{
-        k256::ecdsa::SigningKey,
-        Middleware as _,
-    },
-    utils::AnvilInstance,
-};
 use tokio::{
     sync::oneshot,
     task::JoinHandle,
@@ -45,7 +38,6 @@ use tokio::{
 use tonic::transport::Server;
 
 use super::{
-    optimism,
     Client,
     Executor,
     ReconstructedBlock,
@@ -89,8 +81,8 @@ impl MockExecutionServer {
     }
 }
 
-fn make_genesis_block() -> Block {
-    Block {
+fn make_genesis_block() -> raw::Block {
+    raw::Block {
         number: 0,
         hash: GENESIS_HASH,
         parent_block_hash: GENESIS_HASH,
@@ -100,8 +92,8 @@ fn make_genesis_block() -> Block {
 
 struct ExecutionServiceImpl {
     hash_to_number: Mutex<HashMap<Bytes, u32>>,
-    commitment_state: Mutex<CommitmentState>,
-    genesis_info: Mutex<GenesisInfo>,
+    commitment_state: Mutex<raw::CommitmentState>,
+    genesis_info: Mutex<raw::GenesisInfo>,
 }
 
 impl ExecutionServiceImpl {
@@ -111,12 +103,12 @@ impl ExecutionServiceImpl {
         hash_to_number.insert(GENESIS_HASH, 0);
         Self {
             hash_to_number: hash_to_number.into(),
-            commitment_state: CommitmentState {
+            commitment_state: raw::CommitmentState {
                 soft: Some(make_genesis_block()),
                 firm: Some(make_genesis_block()),
             }
             .into(),
-            genesis_info: GenesisInfo {
+            genesis_info: raw::GenesisInfo {
                 rollup_id: vec![42u8; 32].into(),
                 sequencer_genesis_block_height: 100,
                 celestia_base_block_height: 1,
@@ -132,14 +124,14 @@ impl ExecutionService for ExecutionServiceImpl {
     async fn get_block(
         &self,
         _request: tonic::Request<GetBlockRequest>,
-    ) -> std::result::Result<tonic::Response<Block>, tonic::Status> {
+    ) -> std::result::Result<tonic::Response<raw::Block>, tonic::Status> {
         unimplemented!("get_block")
     }
 
     async fn get_genesis_info(
         &self,
         _request: tonic::Request<GetGenesisInfoRequest>,
-    ) -> std::result::Result<tonic::Response<GenesisInfo>, tonic::Status> {
+    ) -> std::result::Result<tonic::Response<raw::GenesisInfo>, tonic::Status> {
         Ok(tonic::Response::new(
             self.genesis_info.lock().unwrap().clone(),
         ))
@@ -155,7 +147,7 @@ impl ExecutionService for ExecutionServiceImpl {
     async fn execute_block(
         &self,
         request: tonic::Request<ExecuteBlockRequest>,
-    ) -> std::result::Result<tonic::Response<Block>, tonic::Status> {
+    ) -> std::result::Result<tonic::Response<raw::Block>, tonic::Status> {
         let request = request.into_inner();
         let parent_block_hash: Bytes = request.prev_block_hash.clone();
         let hash = get_expected_execution_hash(&parent_block_hash, &request.transactions);
@@ -167,7 +159,7 @@ impl ExecutionService for ExecutionServiceImpl {
         };
 
         let timestamp = request.timestamp.unwrap_or_default();
-        Ok(tonic::Response::new(Block {
+        Ok(tonic::Response::new(raw::Block {
             number: new_number,
             hash,
             parent_block_hash,
@@ -178,7 +170,7 @@ impl ExecutionService for ExecutionServiceImpl {
     async fn get_commitment_state(
         &self,
         _request: tonic::Request<GetCommitmentStateRequest>,
-    ) -> std::result::Result<tonic::Response<CommitmentState>, tonic::Status> {
+    ) -> std::result::Result<tonic::Response<raw::CommitmentState>, tonic::Status> {
         Ok(tonic::Response::new(
             self.commitment_state.lock().unwrap().clone(),
         ))
@@ -187,7 +179,7 @@ impl ExecutionService for ExecutionServiceImpl {
     async fn update_commitment_state(
         &self,
         request: tonic::Request<UpdateCommitmentStateRequest>,
-    ) -> std::result::Result<tonic::Response<CommitmentState>, tonic::Status> {
+    ) -> std::result::Result<tonic::Response<raw::CommitmentState>, tonic::Status> {
         let new_state = {
             let mut guard = self.commitment_state.lock().unwrap();
             *guard = request.into_inner().commitment_state.unwrap();
@@ -235,7 +227,7 @@ struct MockEnvironment {
     client: Client,
 }
 
-async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnvironment {
+async fn start_mock() -> MockEnvironment {
     let server = MockExecutionServer::spawn().await;
     let server_url = format!("http://{}", server.local_addr());
 
@@ -245,7 +237,6 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
         .rollup_address(&server_url)
         .unwrap()
         .shutdown(shutdown_rx)
-        .set_optimism_hook(pre_execution_hook)
         .build();
 
     let client = Client::connect(executor.rollup_address.clone())
@@ -265,34 +256,9 @@ async fn start_mock(pre_execution_hook: Option<optimism::Handler>) -> MockEnviro
     }
 }
 
-struct MockEnvironmentWithEthereum {
-    environment: MockEnvironment,
-    optimism_portal_address: ethers::prelude::Address,
-    provider: Arc<ethers::prelude::Provider<ethers::prelude::Ws>>,
-    wallet: ethers::prelude::Wallet<SigningKey>,
-    anvil: AnvilInstance,
-}
-
-async fn start_mock_with_optimism_handler() -> MockEnvironmentWithEthereum {
-    let (contract_address, provider, wallet, anvil) = deploy_mock_optimism_portal().await;
-
-    let pre_execution_hook = Some(optimism::Handler::new(
-        provider.clone(),
-        contract_address,
-        1,
-    ));
-    MockEnvironmentWithEthereum {
-        environment: start_mock(pre_execution_hook).await,
-        optimism_portal_address: contract_address,
-        provider,
-        wallet,
-        anvil,
-    }
-}
-
 #[tokio::test]
 async fn firm_blocks_at_expected_heights_are_executed() {
-    let mut mock = start_mock(None).await;
+    let mut mock = start_mock().await;
 
     let mut block = make_reconstructed_block();
     block.transactions.push(b"test_transaction".to_vec());
@@ -331,7 +297,7 @@ async fn firm_blocks_at_expected_heights_are_executed() {
 
 #[tokio::test]
 async fn soft_blocks_at_expected_heights_are_executed() {
-    let mut mock = start_mock(None).await;
+    let mut mock = start_mock().await;
 
     let mut block = make_cometbft_block();
     block.header.height = SequencerHeight::from(100u32);
@@ -358,7 +324,7 @@ async fn soft_blocks_at_expected_heights_are_executed() {
 
 #[tokio::test]
 async fn first_firm_then_soft_leads_to_soft_being_dropped() {
-    let mut mock = start_mock(None).await;
+    let mut mock = start_mock().await;
 
     let rollup_id = RollupId::new([42u8; 32]);
     let block = ConfigureCometBftBlock {
@@ -378,7 +344,9 @@ async fn first_firm_then_soft_leads_to_soft_being_dropped() {
             .rollup_transactions()
             .get(&rollup_id)
             .cloned()
-            .unwrap(),
+            .unwrap()
+            .transactions()
+            .to_vec(),
     };
     mock.executor
         .execute_firm(mock.client.clone(), firm_block)
@@ -409,7 +377,7 @@ async fn first_firm_then_soft_leads_to_soft_being_dropped() {
 
 #[tokio::test]
 async fn first_soft_then_firm_update_state_correctly() {
-    let mut mock = start_mock(None).await;
+    let mut mock = start_mock().await;
 
     let rollup_id = RollupId::new([42u8; 32]);
     let block = ConfigureCometBftBlock {
@@ -429,7 +397,9 @@ async fn first_soft_then_firm_update_state_correctly() {
             .rollup_transactions()
             .get(&rollup_id)
             .cloned()
-            .unwrap(),
+            .unwrap()
+            .transactions()
+            .to_vec(),
     };
     mock.executor
         .execute_soft(mock.client.clone(), soft_block)
@@ -458,7 +428,7 @@ async fn first_soft_then_firm_update_state_correctly() {
 
 #[tokio::test]
 async fn old_soft_blocks_are_ignored() {
-    let mut mock = start_mock(None).await;
+    let mut mock = start_mock().await;
     let mut block = make_cometbft_block();
     block.header.height = SequencerHeight::from(99u32);
     let sequencer_block = SequencerBlock::try_from_cometbft(block).unwrap();
@@ -485,7 +455,7 @@ async fn old_soft_blocks_are_ignored() {
 
 #[tokio::test]
 async fn non_sequential_future_soft_blocks_give_error() {
-    let mut mock = start_mock(None).await;
+    let mut mock = start_mock().await;
 
     let mut block = make_cometbft_block();
     block.header.height = SequencerHeight::from(101u32);
@@ -510,7 +480,7 @@ async fn non_sequential_future_soft_blocks_give_error() {
 
 #[tokio::test]
 async fn out_of_order_firm_blocks_are_rejected() {
-    let mut mock = start_mock(None).await;
+    let mut mock = start_mock().await;
     let mut block = make_reconstructed_block();
 
     block.header.height = SequencerHeight::from(99u32);
@@ -538,55 +508,137 @@ async fn out_of_order_firm_blocks_are_rejected() {
     );
 }
 
-mod optimism_tests {
-    use super::*;
-
-    #[tokio::test]
-    #[ignore = "install solc-select and foundry-rs and run with --ignored"]
-    async fn deposit_events_are_converted_and_executed() {
-        use ::optimism::contract::*;
-
-        // make a deposit transaction
-        let MockEnvironmentWithEthereum {
-            environment: mut mock,
-            optimism_portal_address: contract_address,
-            provider,
-            wallet,
-            anvil: _anvil,
-        } = start_mock_with_optimism_handler().await;
-        let contract = make_optimism_portal_with_signer(provider.clone(), wallet, contract_address);
-        let to = ethers::prelude::Address::zero();
-        let value = ethers::prelude::U256::from(100);
-        let receipt = make_deposit_transaction(&contract, Some(to), value, None)
-            .await
-            .unwrap()
-            .unwrap();
-        assert!(receipt.status.unwrap().as_u64() == 1);
-
-        // get the event and the expected deposit transaction
-        let to_block = provider.get_block_number().await.unwrap();
-        let event_filter = contract
-            .event::<TransactionDepositedFilter>()
-            .from_block(1)
-            .to_block(to_block);
-
-        let events = event_filter.query_with_meta().await.unwrap();
-
-        let deposit_txs =
-            crate::executor::optimism::convert_deposit_events_to_encoded_txs(events).unwrap();
-
-        // calculate the expected mock execution hash, which includes the block txs,
-        // thus confirming the deposit tx was executed
-        let expected_exection_hash =
-            get_expected_execution_hash(mock.executor.state.borrow().soft().hash(), &deposit_txs);
-        let block = make_reconstructed_block();
-        mock.executor
-            .execute_firm(mock.client.clone(), block)
-            .await
-            .unwrap();
-        assert_eq!(
-            expected_exection_hash,
-            mock.executor.state.borrow().firm().hash(),
-        );
+fn make_block(number: u32) -> raw::Block {
+    raw::Block {
+        number,
+        hash: Bytes::from_static(&[0u8; 32]),
+        parent_block_hash: Bytes::from_static(&[0u8; 32]),
+        timestamp: Some(prost_types::Timestamp {
+            seconds: 0,
+            nanos: 0,
+        }),
     }
+}
+
+struct MakeState {
+    firm: u32,
+    soft: u32,
+}
+
+fn make_state(
+    MakeState {
+        firm,
+        soft,
+    }: MakeState,
+) -> super::State {
+    let genesis_info = GenesisInfo::try_from_raw(raw::GenesisInfo {
+        rollup_id: Bytes::from_static(&[0u8; 32]),
+        sequencer_genesis_block_height: 1,
+        celestia_base_block_height: 1,
+        celestia_block_variance: 1,
+    })
+    .unwrap();
+    let commitment_state = CommitmentState::try_from_raw(raw::CommitmentState {
+        firm: Some(make_block(firm)),
+        soft: Some(make_block(soft)),
+    })
+    .unwrap();
+    let mut state = super::State::new();
+    state.init(genesis_info, commitment_state);
+    state
+}
+
+#[track_caller]
+fn assert_contract_fulfilled(kind: super::ExecutionKind, state: MakeState, number: u32) {
+    let block = Block::try_from_raw(make_block(number)).unwrap();
+    let state = make_state(state);
+    super::does_block_response_fulfill_contract(kind, &state, &block)
+        .expect("number stored in response block must be one more than in tracked state");
+}
+
+#[track_caller]
+fn assert_contract_violated(kind: super::ExecutionKind, state: MakeState, number: u32) {
+    let block = Block::try_from_raw(make_block(number)).unwrap();
+    let state = make_state(state);
+    super::does_block_response_fulfill_contract(kind, &state, &block)
+        .expect_err("number stored in response block must not be one more than in tracked state");
+}
+
+#[test]
+fn foo() {
+    use super::ExecutionKind::{
+        Firm,
+        Soft,
+    };
+    assert_contract_fulfilled(
+        Firm,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        3,
+    );
+
+    assert_contract_fulfilled(
+        Soft,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        4,
+    );
+
+    assert_contract_violated(
+        Firm,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        1,
+    );
+
+    assert_contract_violated(
+        Firm,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        2,
+    );
+
+    assert_contract_violated(
+        Firm,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        4,
+    );
+
+    assert_contract_violated(
+        Soft,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        2,
+    );
+
+    assert_contract_violated(
+        Soft,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        3,
+    );
+
+    assert_contract_violated(
+        Soft,
+        MakeState {
+            firm: 2,
+            soft: 3,
+        },
+        5,
+    );
 }

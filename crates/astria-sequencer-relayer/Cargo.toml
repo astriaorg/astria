@@ -30,7 +30,6 @@ humantime = { workspace = true }
 hyper = { workspace = true }
 metrics = { workspace = true }
 prost = { workspace = true }
-reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
@@ -62,12 +61,14 @@ config = { package = "astria-config", path = "../astria-config", features = [
 astria-core = { path = "../astria-core", features = ["test-utils"] }
 merkle = { package = "astria-merkle", path = "../astria-merkle" }
 rand_core = { version = "0.6", features = ["getrandom"] }
+reqwest = { workspace = true, features = ["json"] }
 
 jsonrpsee = { workspace = true, features = ["server"] }
 once_cell = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 wiremock = { workspace = true }
+assert-json-diff = "2.0.2"
 
 [build-dependencies]
 astria-build-info = { path = "../astria-build-info", features = ["build"] }

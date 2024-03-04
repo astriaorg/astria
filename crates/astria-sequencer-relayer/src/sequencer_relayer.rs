@@ -29,7 +29,13 @@ impl SequencerRelayer {
             .await
             .wrap_err("failed to create relayer")?;
         let state_rx = relayer.subscribe_to_state();
-        let api_server = api::start(cfg.rpc_port, state_rx);
+        let api_socket_addr = cfg.api_addr.parse::<SocketAddr>().wrap_err_with(|| {
+            format!(
+                "failed to parse provided `api_addr` string as socket address: `{}`",
+                cfg.api_addr
+            )
+        })?;
+        let api_server = api::start(api_socket_addr, state_rx);
         Ok(Self {
             api_server,
             relayer,

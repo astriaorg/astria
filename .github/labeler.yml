@@ -7,7 +7,8 @@ composer:
 docker:
   - 'containerfiles/**'
 proto:
-  - 'crates/astria-proto/**'
+  - 'proto/**'
+  - 'crates/astria-core/src/generated/**'
 sequencer:
   - 'crates/astria-sequencer/**'
   - 'crates/astria-sequencer-client/**'

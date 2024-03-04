@@ -95,12 +95,9 @@ impl ConfigureCometBftBlock {
         let rollup_transactions_tree = derive_merkle_tree_from_rollup_txs(&rollup_transactions);
 
         let rollup_ids_root = merkle::Tree::from_leaves(
-            signed_transaction
-                .unsigned_transaction()
-                .actions
-                .iter()
-                .filter_map(|act| act.as_sequence())
-                .map(|seq| seq.rollup_id),
+            rollup_transactions
+                .keys()
+                .map(|rollup_id| rollup_id.as_ref().to_vec()),
         )
         .root();
         let data = vec![

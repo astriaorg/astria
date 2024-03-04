@@ -3,6 +3,7 @@ use anyhow::{
     Context as _,
     Result,
 };
+use astria_core::generated::sequencer::v1alpha1::sequencer_service_server::SequencerServiceServer;
 use penumbra_tower_trace::{
     trace::request_span,
     v037::RequestExt as _,
@@ -30,6 +31,7 @@ use tracing::{
 use crate::{
     app::App,
     config::Config,
+    grpc::sequencer::SequencerServer,
     ibc::host_interface::AstriaHost,
     service,
     state_ext::StateReadExt as _,
@@ -113,7 +115,9 @@ impl Sequencer {
             .grpc_addr
             .parse()
             .context("failed to parse grpc_addr address")?;
-        let grpc_server_handle = start_ibc_grpc_server(&storage, grpc_addr, shutdown_rx);
+        let grpc_server_handle =
+            start_grpc_server(&storage, &config.cometbft_rpc_addr, grpc_addr, shutdown_rx)
+                .context("failed to start grpc server")?;
 
         info!(config.listen_addr, "starting sequencer");
         let server_handle = tokio::spawn(async move {
@@ -151,11 +155,12 @@ impl Sequencer {
     }
 }
 
-fn start_ibc_grpc_server(
+fn start_grpc_server(
     storage: &cnidarium::Storage,
+    cometbft_rpc_addr: &str,
     grpc_addr: std::net::SocketAddr,
     shutdown_rx: oneshot::Receiver<()>,
-) -> JoinHandle<Result<(), tonic::transport::Error>> {
+) -> Result<JoinHandle<Result<(), tonic::transport::Error>>> {
     use futures::TryFutureExt as _;
     use ibc_proto::ibc::core::{
         channel::v1::query_server::QueryServer as ChannelQueryServer,
@@ -166,6 +171,8 @@ fn start_ibc_grpc_server(
     use tower_http::cors::CorsLayer;
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
+    let sequencer_api = SequencerServer::new(cometbft_rpc_addr, storage.clone())
+        .context("failed to create sequencer service grpc server")?;
     let cors_layer = CorsLayer::permissive();
 
     // TODO: setup HTTPS?
@@ -188,12 +195,14 @@ fn start_ibc_grpc_server(
         .layer(cors_layer)
         .add_service(ClientQueryServer::new(ibc.clone()))
         .add_service(ChannelQueryServer::new(ibc.clone()))
-        .add_service(ConnectionQueryServer::new(ibc.clone()));
+        .add_service(ConnectionQueryServer::new(ibc.clone()))
+        .add_service(SequencerServiceServer::new(sequencer_api));
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
-    tokio::task::spawn(
-        grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.unwrap_or_else(|_| ())),
-    )
+    Ok(tokio::task::spawn(grpc_server.serve_with_shutdown(
+        grpc_addr,
+        shutdown_rx.unwrap_or_else(|_| ()),
+    )))
 }
 
 struct SignalReceiver {

@@ -50,7 +50,6 @@ use crate::celestia::ReconstructedBlock;
 
 mod builder;
 pub(crate) mod channel;
-pub(crate) mod optimism;
 
 use channel::soft_block_channel;
 
@@ -184,10 +183,6 @@ pub(crate) struct Executor {
     /// Required to mark firm blocks received from celestia as executed
     /// without re-executing on top of the rollup node on top of the rollup node..
     blocks_pending_finalization: HashMap<[u8; 32], Block>,
-
-    /// optional hook which is called to modify the rollup transaction list
-    /// right before it's sent to the execution layer via `ExecuteBlock`.
-    pre_execution_hook: Option<optimism::Handler>,
 }
 
 impl Executor {
@@ -344,6 +339,13 @@ impl Executor {
             .await
             .wrap_err("failed to execute block")?;
 
+        does_block_response_fulfill_contract(
+            ExecutionKind::Soft,
+            &self.state.borrow(),
+            &executed_block,
+        )
+        .wrap_err("execution API server violated contract")?;
+
         self.update_commitment_state(client.clone(), Update::OnlySoft(executed_block.clone()))
             .await
             .wrap_err("failed to update soft commitment state")?;
@@ -382,6 +384,12 @@ impl Executor {
                 .execute_block(client.clone(), parent_block_hash, executable_block)
                 .await
                 .wrap_err("failed to execute block")?;
+            does_block_response_fulfill_contract(
+                ExecutionKind::Firm,
+                &self.state.borrow(),
+                &executed_block,
+            )
+            .wrap_err("execution API server violated contract")?;
             Update::ToSame(executed_block)
         };
         self.update_commitment_state(client.clone(), update_type)
@@ -407,17 +415,10 @@ impl Executor {
         block: ExecutableBlock,
     ) -> eyre::Result<Block> {
         let ExecutableBlock {
-            mut transactions,
+            transactions,
             timestamp,
             ..
         } = block;
-
-        if let Some(hook) = self.pre_execution_hook.as_mut() {
-            transactions = hook
-                .populate_rollup_transactions(transactions)
-                .await
-                .wrap_err("failed to populate rollup transactions with pre execution hook")?;
-        }
 
         let executed_block = client
             .execute_block(parent_block_hash, transactions, timestamp)
@@ -539,6 +540,7 @@ impl ExecutableBlock {
         let transactions = block
             .into_rollup_transactions()
             .swap_remove(&id)
+            .map(|txs| txs.transactions().to_vec())
             .unwrap_or_default();
         Self {
             hash,
@@ -558,5 +560,56 @@ fn convert_tendermint_to_prost_timestamp(value: Time) -> prost_types::Timestamp 
     prost_types::Timestamp {
         seconds,
         nanos,
+    }
+}
+
+#[derive(Debug)]
+enum ExecutionKind {
+    Firm,
+    Soft,
+}
+
+impl std::fmt::Display for ExecutionKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let kind = match self {
+            ExecutionKind::Firm => "firm",
+            ExecutionKind::Soft => "soft",
+        };
+        f.write_str(kind)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(
+    "contract violated: execution kind: {kind}, current block number {current}, expected \
+     {expected}, received {actual}"
+)]
+struct ContractViolation {
+    kind: ExecutionKind,
+    current: u32,
+    expected: u32,
+    actual: u32,
+}
+
+fn does_block_response_fulfill_contract(
+    kind: ExecutionKind,
+    state: &State,
+    block: &Block,
+) -> Result<(), ContractViolation> {
+    let current = match kind {
+        ExecutionKind::Firm => state.firm().number(),
+        ExecutionKind::Soft => state.soft().number(),
+    };
+    let expected = current + 1;
+    let actual = block.number();
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(ContractViolation {
+            kind,
+            current,
+            expected,
+            actual,
+        })
     }
 }
