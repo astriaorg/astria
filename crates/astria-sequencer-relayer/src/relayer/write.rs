@@ -206,25 +206,30 @@ impl BlobSubmitter {
                         // continue chugging along.
                         // XXX: Should there instead be a mechanism to bubble up the error and
                         // have sequencer-relayer return with an error code (so that k8s can halt
-                        // the chain)? This should probably be part of the protocal/sequencer proper.
+                        // the chain)? This should probably be part of the protocal/sequencer
+                        // proper.
                         Err(error) => error!(
                             %sequencer_height,
                             %error,
-                            "failed converting sequencer blocks to celestia Blobs",
+                            "failed converting sequencer blocks to celestia blobs",
                         ),
                         Ok(blobs) => self.blobs.push(blobs, sequencer_height),
                     };
                 }
 
                 Some((blobs, heights)) = self.blobs.take(), if submission.is_terminated() => {
-                    submission = submit_blobs(self.client.clone(), blobs, heights, self.state.clone()).boxed().fuse();
+                    submission = submit_blobs(
+                        self.client.clone(),
+                        blobs,
+                        heights,
+                        self.state.clone(),
+                    ).boxed().fuse();
                 }
 
                 submission_result = &mut submission, if !submission.is_terminated() => {
                     // XXX: Breaks the select-loop and returns. With the current retry-logic in
                     // `submit_blobs` this happens after u32::MAX retries which is effectively never.
-                    let height = submission_result.wrap_err("failed submitting blobs to Celestia")?;
-                    metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_HEIGHT).absolute(height);
+                    submission_result.wrap_err("failed submitting blobs to Celestia")?;
                 }
             );
         }
@@ -255,7 +260,23 @@ async fn submit_blobs(
     blobs: Vec<Blob>,
     sequencer_heights: Vec<SequencerHeight>,
     state: Arc<super::State>,
-) -> eyre::Result<u64> {
+) -> eyre::Result<()> {
+    let start = std::time::Instant::now();
+
+    metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_COUNT).increment(1);
+    // XXX: The number of blocks per celestia tx is equal to the number of heights passed
+    // into this function. This comes from the way that `QueuedBlocks::take` is implemented.
+    //
+    // allow: the number of blocks should always be low enough to not cause precision loss
+    #[allow(clippy::cast_precision_loss)]
+    let blocks_per_celestia_tx = sequencer_heights.len() as f64;
+    metrics::gauge!(crate::metrics_init::BLOCKS_PER_CELESTIA_TX).set(blocks_per_celestia_tx);
+
+    // allow: the number of blobs should always be low enough to not cause precision loss
+    #[allow(clippy::cast_precision_loss)]
+    let blobs_per_celestia_tx = blobs.len() as f64;
+    metrics::gauge!(crate::metrics_init::BLOBS_PER_CELESTIA_TX).set(blobs_per_celestia_tx);
+
     let height = match submit_with_retry(client, blobs, state.clone()).await {
         Err(error) => {
             let message = "failed submitting blobs to Celestia";
@@ -267,7 +288,10 @@ async fn submit_blobs(
     state.set_celestia_connected(true);
     state.set_latest_confirmed_celestia_height(height);
     info!(celestia_height = %height, "successfully submitted blocks to Celestia");
-    Ok(height)
+
+    metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_HEIGHT).absolute(height);
+    metrics::histogram!(crate::metrics_init::CELESTIA_SUBMISSION_LATENCY).record(start.elapsed());
+    Ok(())
 }
 
 async fn submit_with_retry(
@@ -288,15 +312,15 @@ async fn submit_with_retry(
         .max_delay(Duration::from_secs(12))
         .on_retry(
             |attempt: u32, next_delay: Option<Duration>, error: &eyre::Report| {
+                metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_FAILURE_COUNT)
+                    .increment(1);
+
                 let state = Arc::clone(&state);
                 state.set_celestia_connected(false);
 
                 let wait_duration = next_delay
                     .map(humantime::format_duration)
                     .map(tracing::field::display);
-
-                metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_FAILURE_COUNT)
-                    .increment(1);
 
                 warn!(
                     parent: &span,
