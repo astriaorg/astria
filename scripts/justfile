@@ -1,0 +1,44 @@
+default:
+  @just --list
+
+set dotenv-load
+set fallback
+
+update-cometbft-genesis-data:
+    ./cometbft init
+    jq --argjson toInsert "$(cat test-genesis-app-state.json)" '.app_state = $toInsert' ~/.cometbft/config/genesis.json > ~/.cometbft/config/tmp.json
+    mv ~/.cometbft/config/tmp.json ~/.cometbft/config/genesis.json
+
+launch:
+    mprocs --config ./local-bin-mprocs.yaml
+
+default_env := 'local'
+copy-env type=default_env:
+  cp {{ type }}.env.example .env
+
+download-mac-arm:
+    sh download-binaries-macos-aarch64.sh
+
+download-mac-x86:
+    sh download-binaries-macos-x86_64.sh
+
+run-cometbft: update-cometbft-genesis-data
+    sed -i'.bak' 's/timeout_commit = "1s"/timeout_commit = "2s"/g' ~/.cometbft/config/config.toml
+    ./cometbft node
+
+remove-bin:
+    rm astria-* cometbft* *.md
+
+clean:
+    rm -rf ~/.cometbft/
+    rm -rf /tmp/astria_db
+
+clean-restart: clean launch
+
+# build astria crates from source
+build-from-source:
+  cd .. && cargo build
+
+# run the built astria binaries
+bin-run:
+  cd .. && mprocs

@@ -10,3 +10,9 @@ target/
 
 # mac os
 .DS_Store
+
+# scripts
+scripts/astria-*
+scripts/cometbft*
+scripts/*.md
+scripts/LICENSE
