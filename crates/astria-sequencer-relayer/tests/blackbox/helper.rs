@@ -101,8 +101,8 @@ pub struct TestSequencerRelayer {
 
     pub keyfile: NamedTempFile,
 
-    pub presubmit_file: NamedTempFile,
-    pub postsubmit_file: NamedTempFile,
+    pub pre_submit_file: NamedTempFile,
+    pub post_submit_file: NamedTempFile,
 }
 
 impl TestSequencerRelayer {
@@ -171,21 +171,21 @@ impl TestSequencerRelayer {
         pre_sequencer_height: u64,
         post_sequencer_height: u64,
     ) {
-        let presubmit_state: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(&self.config.presubmit_path).unwrap())
+        let pre_submit_state: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&self.config.pre_submit_path).unwrap())
                 .unwrap();
         assert_json_include!(
-            actual: presubmit_state,
+            actual: pre_submit_state,
             expected: json!({
                 "sequencer_height": pre_sequencer_height
             }),
         );
 
-        let postsubmit_state: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(&self.config.postsubmit_path).unwrap())
+        let post_submit_state: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&self.config.post_submit_path).unwrap())
                 .unwrap();
         assert_json_include!(
-            actual: postsubmit_state,
+            actual: post_submit_state,
             expected: json!({
                 "sequencer_height": post_sequencer_height,
             }),
@@ -234,11 +234,11 @@ impl TestSequencerRelayerConfig {
 
         let sequencer = MockServer::start().await;
 
-        let (presubmit_file, postsubmit_file) =
+        let (pre_submit_file, post_submit_file) =
             if let Some(last_written_sequencer_height) = self.last_written_sequencer_height {
-                create_state_files_at_height(last_written_sequencer_height)
+                create_files_for_start_at_height(last_written_sequencer_height)
             } else {
-                create_empty_state_files()
+                create_files_for_fresh_start()
             };
 
         let config = Config {
@@ -255,8 +255,8 @@ impl TestSequencerRelayerConfig {
             no_metrics: false,
             metrics_http_listener_addr: String::new(),
             pretty_print: true,
-            presubmit_path: presubmit_file.path().to_owned(),
-            postsubmit_path: postsubmit_file.path().to_owned(),
+            pre_submit_path: pre_submit_file.path().to_owned(),
+            post_submit_path: post_submit_file.path().to_owned(),
         };
 
         info!(config = serde_json::to_string(&config).unwrap());
@@ -274,35 +274,52 @@ impl TestSequencerRelayerConfig {
             signing_key,
             account: address,
             keyfile,
-            presubmit_file,
-            postsubmit_file,
+            pre_submit_file,
+            post_submit_file,
         }
     }
 }
 
-fn create_empty_state_files() -> (NamedTempFile, NamedTempFile) {
+fn create_files_for_fresh_start() -> (NamedTempFile, NamedTempFile) {
     let pre = NamedTempFile::new()
         .expect("must be able to create an empty pre submit state file to run tests");
     let post = NamedTempFile::new()
         .expect("must be able to create an empty post submit state file to run tests");
+    serde_json::to_writer(
+        &pre,
+        &json!({
+            "state": "ignore"
+        }),
+    )
+    .expect("must be able to write pre-submit state to run tests");
+    serde_json::to_writer(
+        &post,
+        &json!({
+            "state": "fresh"
+        }),
+    )
+    .expect("must be able to write post-submit state to run tests");
     (pre, post)
 }
 
-fn create_state_files_at_height(height: u64) -> (NamedTempFile, NamedTempFile) {
-    let (pre, post) = create_empty_state_files();
+fn create_files_for_start_at_height(height: u64) -> (NamedTempFile, NamedTempFile) {
+    let pre = NamedTempFile::new()
+        .expect("must be able to create an empty pre submit state file to run tests");
+    let post = NamedTempFile::new()
+        .expect("must be able to create an empty post submit state file to run tests");
 
     serde_json::to_writer(
         &pre,
         &json!({
-            "celestia_height_at_init": 4,
-            "sequencer_height": height
+            "state": "ignore",
         }),
     )
     .expect("must be able to write pre state to file to run tests");
     serde_json::to_writer_pretty(
         &post,
         &json!({
-            "celestia_height_at_submit": 5,
+            "state": "submitted",
+            "celestia_height": 5,
             "sequencer_height": height
         }),
     )

@@ -31,9 +31,9 @@ pub struct Config {
     /// Writes a human readable format to stdout instead of JSON formatted OTEL trace data.
     pub pretty_print: bool,
     /// The path to which relayer will write its state prior to submitting to Celestia.
-    pub presubmit_path: PathBuf,
+    pub pre_submit_path: PathBuf,
     /// The path to which relayer will write its state after submitting to Celestia.
-    pub postsubmit_path: PathBuf,
+    pub post_submit_path: PathBuf,
 }
 
 impl config::Config for Config {
