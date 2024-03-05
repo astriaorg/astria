@@ -445,13 +445,20 @@ impl SequencerBlock {
     /// TODO(https://github.com/astriaorg/astria/issues/612)
     #[allow(clippy::missing_panics_doc)] // the panic sources are checked before hand; revisit if refactoring
     pub fn try_from_cometbft(block: tendermint::Block) -> Result<Self, SequencerBlockError> {
-        use prost::Message as _;
-
         let tendermint::Block {
             header,
             data,
             ..
         } = block;
+
+        Self::try_from_header_and_data(header, data)
+    }
+
+    pub fn try_from_header_and_data(
+        header: tendermint::block::Header,
+        data: Vec<Vec<u8>>,
+    ) -> Result<Self, SequencerBlockError> {
+        use prost::Message as _;
 
         let Some(tendermint::Hash::Sha256(data_hash)) = header.data_hash else {
             // header.data_hash is Option<Hash> and Hash itself has

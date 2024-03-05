@@ -82,6 +82,8 @@ pub(crate) trait StateReadExt: StateRead {
     }
 }
 
+impl<T: StateRead> StateReadExt for T {}
+
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
     fn put_sequencer_block(&mut self, block: SequencerBlock) {
@@ -93,3 +95,5 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.put_raw(key, bytes);
     }
 }
+
+impl<T: StateWrite> StateWriteExt for T {}

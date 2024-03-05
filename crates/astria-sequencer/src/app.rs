@@ -27,6 +27,7 @@ use cnidarium::{
     Storage,
 };
 use prost::Message as _;
+use sequencer_client::SequencerBlock;
 use sha2::{
     Digest as _,
     Sha256,
@@ -134,6 +135,33 @@ pub(crate) struct App {
     // this is used only to determine who to transfer the block fees to
     // at the end of the block.
     current_proposer: Option<account::Id>,
+
+    // builder of the current `SequencerBlock`.
+    // initialized during `begin_block`, completed and written to state during `end_block`.
+    current_sequencer_block_builder: Option<SequencerBlockBuilder>,
+}
+
+#[derive(Debug)]
+struct SequencerBlockBuilder {
+    header: tendermint::block::Header,
+    data: Vec<Vec<u8>>,
+}
+
+impl SequencerBlockBuilder {
+    fn new(header: tendermint::block::Header) -> Self {
+        Self {
+            header,
+            data: Vec::new(),
+        }
+    }
+
+    fn push_transaction(&mut self, tx: Vec<u8>) {
+        self.data.push(tx);
+    }
+
+    fn build(self) -> anyhow::Result<SequencerBlock> {
+        SequencerBlock::try_from_header_and_data(self.header, self.data).map_err(Into::into)
+    }
 }
 
 impl App {
@@ -151,6 +179,7 @@ impl App {
             execution_result: HashMap::new(),
             processed_txs: 0,
             current_proposer: None,
+            current_sequencer_block_builder: None,
         }
     }
 
@@ -406,6 +435,9 @@ impl App {
         // set the current proposer
         self.current_proposer = Some(begin_block.header.proposer_address);
 
+        self.current_sequencer_block_builder =
+            Some(SequencerBlockBuilder::new(begin_block.header.clone()));
+
         // If we previously executed txs in a different proposal than is being processed reset
         // cached state changes.
         if self.executed_proposal_hash != begin_block.hash {
@@ -454,6 +486,14 @@ impl App {
         &mut self,
         tx: abci::request::DeliverTx,
     ) -> Option<anyhow::Result<Vec<abci::Event>>> {
+        self.current_sequencer_block_builder
+            .as_mut()
+            .expect(
+                "begin_block must be called before deliver_tx, thus \
+                 current_sequencer_block_builder must be set",
+            )
+            .push_transaction(tx.tx.to_vec());
+
         if self.processed_txs < 2 {
             self.processed_txs += 1;
             return Some(Ok(vec![]));
@@ -467,6 +507,7 @@ impl App {
 
         let signed_tx = match signed_transaction_from_bytes(&tx.tx) {
             Err(e) => {
+                // this is actually a protocol error, as only valid txs should be finalized
                 debug!(
                     error = AsRef::<dyn std::error::Error>::as_ref(&e),
                     "failed to decode deliver tx payload to signed transaction; ignoring it",
@@ -538,7 +579,10 @@ impl App {
         &mut self,
         end_block: &abci::request::EndBlock,
     ) -> anyhow::Result<abci::response::EndBlock> {
-        use crate::bridge::state_ext::StateReadExt as _;
+        use crate::{
+            api_state_ext::StateWriteExt as _,
+            bridge::state_ext::StateReadExt as _,
+        };
 
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
@@ -614,6 +658,18 @@ impl App {
             deposit_events.insert(rollup_id, rollup_deposit_events);
             state_tx.clear_deposit_info(&rollup_id).await;
         }
+
+        // store the `SequencerBlock` in the state
+        let sequencer_block = self
+            .current_sequencer_block_builder
+            .take()
+            .expect(
+                "begin_block must be called before end_block, thus \
+                 current_sequencer_block_builder must be set",
+            )
+            .build()
+            .context("failed to build sequencer block")?;
+        state_tx.put_sequencer_block(sequencer_block);
 
         let events = self.apply(state_tx);
 
