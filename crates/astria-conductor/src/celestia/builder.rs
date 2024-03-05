@@ -1,15 +1,7 @@
 //! Boilerplate to construct a [`super::Reader`] via a type-state builder.
 
-use astria_eyre::eyre::{
-    self,
-    WrapErr as _,
-};
 use celestia_client::celestia_types::nmt::Namespace;
 use deadpool::managed::Pool;
-use http::{
-    uri::Scheme,
-    Uri,
-};
 use tokio::sync::oneshot;
 
 use super::Reader;
@@ -20,14 +12,16 @@ use crate::{
 };
 
 pub(crate) struct ReaderBuilder<
-    TCelestiaEndpoint = NoCelestiaEndpoint,
+    TCelestiaHttpEndpoint = NoCelestiaHttpEndpoint,
+    TCelestiaWebsocketEndpoint = NoCelestiaWebsocketEndpoint,
     TCelestiaToken = NoCelestiaToken,
     TExecutor = NoExecutor,
     TSequencerClientPool = NoSequencerClientPool,
     TSequencerNamespace = NoSequencerNamespace,
     TShutdown = NoShutdown,
 > {
-    celestia_endpoint: TCelestiaEndpoint,
+    celestia_http_endpoint: TCelestiaHttpEndpoint,
+    celestia_websocket_endpoint: TCelestiaWebsocketEndpoint,
     celestia_token: TCelestiaToken,
     executor: TExecutor,
     sequencer_client_pool: TSequencerClientPool,
@@ -37,7 +31,8 @@ pub(crate) struct ReaderBuilder<
 
 impl
     ReaderBuilder<
-        WithCelestiaEndpoint,
+        WithCelestiaHttpEndpoint,
+        WithCelestiaWebsocketEndpoint,
         WithCelestiaToken,
         WithExecutor,
         WithSequencerClientPool,
@@ -46,9 +41,10 @@ impl
     >
 {
     /// Creates a new Reader instance and returns a command sender.
-    pub(crate) fn build(self) -> eyre::Result<Reader> {
+    pub(crate) fn build(self) -> Reader {
         let Self {
-            celestia_endpoint: WithCelestiaEndpoint(celestia_endpoint),
+            celestia_http_endpoint: WithCelestiaHttpEndpoint(celestia_http_endpoint),
+            celestia_websocket_endpoint: WithCelestiaWebsocketEndpoint(celestia_ws_endpoint),
             celestia_token: WithCelestiaToken(celestia_token),
             executor: WithExecutor(executor),
             sequencer_client_pool: WithSequencerClientPool(sequencer_client_pool),
@@ -58,45 +54,23 @@ impl
 
         let block_verifier = BlockVerifier::new(sequencer_client_pool);
 
-        let uri = celestia_endpoint
-            .parse::<Uri>()
-            .wrap_err("failed to parse the provided celestia endpoint as a URL")?;
-        let is_tls = matches!(uri.scheme().map(Scheme::as_str), Some("https" | "wss"));
-
-        let ws_endpoint = {
-            let mut parts = uri.clone().into_parts();
-            parts
-                .scheme
-                .replace(is_tls.then(wss_scheme).unwrap_or_else(ws_scheme));
-            Uri::from_parts(parts)
-        }
-        .wrap_err("failed constructing websocket endpoint from provided celestia endpoint URL")?;
-
-        let http_endpoint = {
-            let mut parts = uri.clone().into_parts();
-            parts
-                .scheme
-                .replace(if is_tls { Scheme::HTTPS } else { Scheme::HTTP });
-            Uri::from_parts(parts)
-        }
-        .wrap_err("failed constructing http endpoint from provided celestia endpoint URL")?;
-
-        Ok(Reader {
+        Reader {
             executor,
-            celestia_http_endpoint: http_endpoint.to_string(),
-            celestia_ws_endpoint: ws_endpoint.to_string(),
+            celestia_http_endpoint,
+            celestia_ws_endpoint,
             celestia_auth_token: celestia_token,
             block_verifier,
             sequencer_namespace,
             shutdown,
-        })
+        }
     }
 }
 
 impl ReaderBuilder {
     pub(super) fn new() -> Self {
         ReaderBuilder {
-            celestia_endpoint: NoCelestiaEndpoint,
+            celestia_http_endpoint: NoCelestiaHttpEndpoint,
+            celestia_websocket_endpoint: NoCelestiaWebsocketEndpoint,
             celestia_token: NoCelestiaToken,
             executor: NoExecutor,
             sequencer_client_pool: NoSequencerClientPool,
@@ -107,7 +81,8 @@ impl ReaderBuilder {
 }
 
 impl<
-    TCelestiaEndpoint,
+    TCelestiaHttpEndpoint,
+    TCelestiaWebsocketEndpoint,
     TCelestiaToken,
     TExecutor,
     TSequencerClientPool,
@@ -115,7 +90,8 @@ impl<
     TShutdown,
 >
     ReaderBuilder<
-        TCelestiaEndpoint,
+        TCelestiaHttpEndpoint,
+        TCelestiaWebsocketEndpoint,
         TCelestiaToken,
         TExecutor,
         TSequencerClientPool,
@@ -123,11 +99,12 @@ impl<
         TShutdown,
     >
 {
-    pub(crate) fn celestia_endpoint(
+    pub(crate) fn celestia_http_endpoint(
         self,
-        celestia_endpoint: &str,
+        celestia_http_endpoint: &str,
     ) -> ReaderBuilder<
-        WithCelestiaEndpoint,
+        WithCelestiaHttpEndpoint,
+        TCelestiaWebsocketEndpoint,
         TCelestiaToken,
         TExecutor,
         TSequencerClientPool,
@@ -135,6 +112,7 @@ impl<
         TShutdown,
     > {
         let Self {
+            celestia_websocket_endpoint,
             celestia_token,
             executor,
             sequencer_client_pool,
@@ -143,7 +121,42 @@ impl<
             ..
         } = self;
         ReaderBuilder {
-            celestia_endpoint: WithCelestiaEndpoint(celestia_endpoint.to_string()),
+            celestia_http_endpoint: WithCelestiaHttpEndpoint(celestia_http_endpoint.to_string()),
+            celestia_websocket_endpoint,
+            celestia_token,
+            executor,
+            sequencer_client_pool,
+            sequencer_namespace,
+            shutdown,
+        }
+    }
+
+    pub(crate) fn celestia_websocket_endpoint(
+        self,
+        celestia_websocket_endpoint: &str,
+    ) -> ReaderBuilder<
+        TCelestiaHttpEndpoint,
+        WithCelestiaWebsocketEndpoint,
+        TCelestiaToken,
+        TExecutor,
+        TSequencerClientPool,
+        TSequencerNamespace,
+        TShutdown,
+    > {
+        let Self {
+            celestia_http_endpoint,
+            celestia_token,
+            executor,
+            sequencer_client_pool,
+            sequencer_namespace,
+            shutdown,
+            ..
+        } = self;
+        ReaderBuilder {
+            celestia_http_endpoint,
+            celestia_websocket_endpoint: WithCelestiaWebsocketEndpoint(
+                celestia_websocket_endpoint.to_string(),
+            ),
             celestia_token,
             executor,
             sequencer_client_pool,
@@ -156,7 +169,8 @@ impl<
         self,
         celestia_token: &str,
     ) -> ReaderBuilder<
-        TCelestiaEndpoint,
+        TCelestiaHttpEndpoint,
+        TCelestiaWebsocketEndpoint,
         WithCelestiaToken,
         TExecutor,
         TSequencerClientPool,
@@ -164,7 +178,8 @@ impl<
         TShutdown,
     > {
         let Self {
-            celestia_endpoint,
+            celestia_http_endpoint,
+            celestia_websocket_endpoint,
             executor,
             sequencer_client_pool,
             sequencer_namespace,
@@ -172,7 +187,8 @@ impl<
             ..
         } = self;
         ReaderBuilder {
-            celestia_endpoint,
+            celestia_http_endpoint,
+            celestia_websocket_endpoint,
             celestia_token: WithCelestiaToken(celestia_token.to_string()),
             executor,
             sequencer_client_pool,
@@ -185,7 +201,8 @@ impl<
         self,
         sequencer_client_pool: Pool<ClientProvider>,
     ) -> ReaderBuilder<
-        TCelestiaEndpoint,
+        TCelestiaHttpEndpoint,
+        TCelestiaWebsocketEndpoint,
         TCelestiaToken,
         TExecutor,
         WithSequencerClientPool,
@@ -193,7 +210,8 @@ impl<
         TShutdown,
     > {
         let Self {
-            celestia_endpoint,
+            celestia_http_endpoint,
+            celestia_websocket_endpoint,
             celestia_token,
             executor,
             sequencer_namespace,
@@ -201,7 +219,8 @@ impl<
             ..
         } = self;
         ReaderBuilder {
-            celestia_endpoint,
+            celestia_http_endpoint,
+            celestia_websocket_endpoint,
             celestia_token,
             executor,
             sequencer_client_pool: WithSequencerClientPool(sequencer_client_pool),
@@ -214,7 +233,8 @@ impl<
         self,
         sequencer_namespace: Namespace,
     ) -> ReaderBuilder<
-        TCelestiaEndpoint,
+        TCelestiaHttpEndpoint,
+        TCelestiaWebsocketEndpoint,
         TCelestiaToken,
         TExecutor,
         TSequencerClientPool,
@@ -222,7 +242,8 @@ impl<
         TShutdown,
     > {
         let Self {
-            celestia_endpoint,
+            celestia_http_endpoint,
+            celestia_websocket_endpoint,
             celestia_token,
             executor,
             sequencer_client_pool,
@@ -230,7 +251,8 @@ impl<
             ..
         } = self;
         ReaderBuilder {
-            celestia_endpoint,
+            celestia_http_endpoint,
+            celestia_websocket_endpoint,
             celestia_token,
             executor,
             sequencer_client_pool,
@@ -243,7 +265,8 @@ impl<
         self,
         shutdown: oneshot::Receiver<()>,
     ) -> ReaderBuilder<
-        TCelestiaEndpoint,
+        TCelestiaHttpEndpoint,
+        TCelestiaWebsocketEndpoint,
         TCelestiaToken,
         TExecutor,
         TSequencerClientPool,
@@ -251,7 +274,8 @@ impl<
         WithShutdown,
     > {
         let Self {
-            celestia_endpoint,
+            celestia_http_endpoint,
+            celestia_websocket_endpoint,
             celestia_token,
             executor,
             sequencer_client_pool,
@@ -259,7 +283,8 @@ impl<
             ..
         } = self;
         ReaderBuilder {
-            celestia_endpoint,
+            celestia_http_endpoint,
+            celestia_websocket_endpoint,
             celestia_token,
             executor,
             sequencer_client_pool,
@@ -272,7 +297,8 @@ impl<
         self,
         executor: executor::Handle,
     ) -> ReaderBuilder<
-        TCelestiaEndpoint,
+        TCelestiaHttpEndpoint,
+        TCelestiaWebsocketEndpoint,
         TCelestiaToken,
         WithExecutor,
         TSequencerClientPool,
@@ -280,7 +306,8 @@ impl<
         TShutdown,
     > {
         let Self {
-            celestia_endpoint,
+            celestia_http_endpoint,
+            celestia_websocket_endpoint,
             celestia_token,
             sequencer_client_pool,
             sequencer_namespace,
@@ -288,7 +315,8 @@ impl<
             ..
         } = self;
         ReaderBuilder {
-            celestia_endpoint,
+            celestia_http_endpoint,
+            celestia_websocket_endpoint,
             celestia_token,
             executor: WithExecutor(executor),
             sequencer_client_pool,
@@ -298,8 +326,10 @@ impl<
     }
 }
 
-pub(crate) struct NoCelestiaEndpoint;
-pub(crate) struct WithCelestiaEndpoint(String);
+pub(crate) struct NoCelestiaHttpEndpoint;
+pub(crate) struct WithCelestiaHttpEndpoint(String);
+pub(crate) struct NoCelestiaWebsocketEndpoint;
+pub(crate) struct WithCelestiaWebsocketEndpoint(String);
 pub(crate) struct NoCelestiaToken;
 pub(crate) struct WithCelestiaToken(String);
 pub(crate) struct NoExecutor;
@@ -310,23 +340,3 @@ pub(crate) struct NoSequencerNamespace;
 pub(crate) struct WithSequencerNamespace(Namespace);
 pub(crate) struct NoShutdown;
 pub(crate) struct WithShutdown(oneshot::Receiver<()>);
-
-fn ws_scheme() -> Scheme {
-    "ws".parse::<_>().unwrap()
-}
-
-fn wss_scheme() -> Scheme {
-    "wss".parse::<_>().unwrap()
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn ws_scheme_utility_works() {
-        assert_eq!(&super::ws_scheme(), "ws");
-    }
-    #[test]
-    fn wss_scheme_utility_works() {
-        assert_eq!(&super::wss_scheme(), "wss");
-    }
-}
