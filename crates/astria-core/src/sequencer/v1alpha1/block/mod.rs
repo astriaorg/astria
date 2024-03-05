@@ -6,6 +6,7 @@ use super::{
     celestia,
     raw,
     transaction,
+    Address,
     CelestiaRollupBlob,
     CelestiaSequencerBlob,
     IncorrectRollupIdLength,
@@ -15,8 +16,10 @@ use crate::{
     sequencer::v1alpha1::{
         are_rollup_ids_included,
         are_rollup_txs_included,
+        asset,
         derive_merkle_tree_from_rollup_txs,
         transaction::action,
+        IncorrectAddressLength,
     },
     Protobuf as _,
 };
@@ -848,8 +851,7 @@ impl FilteredSequencerBlock {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error(transparent)]
+#[derive(Debug)]
 pub struct FilteredSequencerBlockError(FilteredSequencerBlockErrorKind);
 
 #[derive(Debug, thiserror::Error)]
@@ -938,4 +940,150 @@ impl FilteredSequencerBlockError {
     fn incorrect_rollup_transactions_root_length(len: usize) -> Self {
         Self(FilteredSequencerBlockErrorKind::IncorrectRollupTransactionsRootLength(len))
     }
+}
+
+/// [`Deposit`] represents a deposit from the sequencer to a rollup.
+///
+/// A [`Deposit`] is constructed whenever a [`BridgeLockAction`] is executed
+/// and stored as part of the block's events.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Deposit {
+    // the address on the sequencer to which the funds were sent to.
+    bridge_address: Address,
+    // the rollup ID registered to the `bridge_address`
+    rollup_id: RollupId,
+    // the amount that was transferred to `bridge_address`
+    amount: u128,
+    // the asset ID of the asset that was transferred
+    asset_id: asset::Id,
+    // the address on the destination chain (rollup) which to send the bridged funds to
+    destination_chain_address: String,
+}
+
+impl Deposit {
+    #[must_use]
+    pub fn new(
+        bridge_address: Address,
+        rollup_id: RollupId,
+        amount: u128,
+        asset_id: asset::Id,
+        destination_chain_address: String,
+    ) -> Self {
+        Self {
+            bridge_address,
+            rollup_id,
+            amount,
+            asset_id,
+            destination_chain_address,
+        }
+    }
+
+    #[must_use]
+    pub fn bridge_address(&self) -> &Address {
+        &self.bridge_address
+    }
+
+    #[must_use]
+    pub fn rollup_id(&self) -> &RollupId {
+        &self.rollup_id
+    }
+
+    #[must_use]
+    pub fn amount(&self) -> u128 {
+        self.amount
+    }
+
+    #[must_use]
+    pub fn asset_id(&self) -> &asset::Id {
+        &self.asset_id
+    }
+
+    #[must_use]
+    pub fn destination_chain_address(&self) -> &str {
+        &self.destination_chain_address
+    }
+
+    #[must_use]
+    pub fn into_raw(self) -> raw::Deposit {
+        let Self {
+            bridge_address,
+            rollup_id,
+            amount,
+            asset_id,
+            destination_chain_address,
+        } = self;
+        raw::Deposit {
+            bridge_address: bridge_address.to_vec(),
+            rollup_id: rollup_id.to_vec(),
+            amount: Some(amount.into()),
+            asset_id: asset_id.as_bytes().to_vec(),
+            destination_chain_address,
+        }
+    }
+
+    /// Attempts to transform the deposit from its raw representation.
+    ///
+    /// # Errors
+    ///
+    /// - if the bridge address is invalid
+    /// - if the amount is unset
+    /// - if the rollup ID is invalid
+    /// - if the asset ID is invalid
+    pub fn try_from_raw(raw: raw::Deposit) -> Result<Self, DepositError> {
+        let raw::Deposit {
+            bridge_address,
+            rollup_id,
+            amount,
+            asset_id,
+            destination_chain_address,
+        } = raw;
+        let bridge_address = Address::try_from_slice(&bridge_address)
+            .map_err(DepositError::incorrect_address_length)?;
+        let amount = amount.ok_or(DepositError::field_not_set("amount"))?.into();
+        let rollup_id = RollupId::try_from_slice(&rollup_id)
+            .map_err(DepositError::incorrect_rollup_id_length)?;
+        let asset_id = asset::Id::try_from_slice(&asset_id)
+            .map_err(DepositError::incorrect_asset_id_length)?;
+        Ok(Self {
+            bridge_address,
+            rollup_id,
+            amount,
+            asset_id,
+            destination_chain_address,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct DepositError(DepositErrorKind);
+
+impl DepositError {
+    fn incorrect_address_length(source: IncorrectAddressLength) -> Self {
+        Self(DepositErrorKind::IncorrectAddressLength(source))
+    }
+
+    fn field_not_set(field: &'static str) -> Self {
+        Self(DepositErrorKind::FieldNotSet(field))
+    }
+
+    fn incorrect_rollup_id_length(source: IncorrectRollupIdLength) -> Self {
+        Self(DepositErrorKind::IncorrectRollupIdLength(source))
+    }
+
+    fn incorrect_asset_id_length(source: asset::IncorrectAssetIdLength) -> Self {
+        Self(DepositErrorKind::IncorrectAssetIdLength(source))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum DepositErrorKind {
+    #[error("the address length is not 20 bytes")]
+    IncorrectAddressLength(#[from] IncorrectAddressLength),
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("the rollup ID length is not 32 bytes")]
+    IncorrectRollupIdLength(#[from] IncorrectRollupIdLength),
+    #[error("the asset ID length is not 32 bytes")]
+    IncorrectAssetIdLength(#[from] asset::IncorrectAssetIdLength),
 }
