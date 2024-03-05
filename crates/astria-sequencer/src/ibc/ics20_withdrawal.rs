@@ -120,35 +120,15 @@ impl ActionHandler for action::Ics20Withdrawal {
     async fn execute<S: StateWriteExt>(&self, state: &mut S, from: Address) -> Result<()> {
         let checked_packet = withdrawal_to_unchecked_ibc_packet(self).assume_checked();
 
-        let from_transfer_balance = state
-            .get_account_balance(from, self.denom().id())
+        state
+            .decrease_balance(from, self.denom().id(), self.amount())
             .await
-            .context("failed getting `from` account balance for Ics20Withdrawal")?;
+            .context("failed to decrease sender balance")?;
 
         state
-            .put_account_balance(
-                from,
-                self.denom().id(),
-                from_transfer_balance
-                    .checked_sub(self.amount())
-                    .context("insufficient funds for Ics20Withdrawal")?,
-            )
-            .context("failed to update sender balance")?;
-
-        let from_fee_balance = state
-            .get_account_balance(from, *self.fee_asset_id())
+            .decrease_balance(from, *self.fee_asset_id(), ICS20_WITHDRAWAL_FEE)
             .await
-            .context("failed getting `from` account balance for Ics20Withdrawal fee payment")?;
-
-        state
-            .put_account_balance(
-                from,
-                *self.fee_asset_id(),
-                from_fee_balance
-                    .checked_sub(ICS20_WITHDRAWAL_FEE)
-                    .context("insufficient funds for Ics20Withdrawal fee")?,
-            )
-            .context("failed to update sender balance")?;
+            .context("failed to subtract fee from sender balance")?;
 
         // if we're the source, move tokens to the escrow account,
         // otherwise the tokens are just burned

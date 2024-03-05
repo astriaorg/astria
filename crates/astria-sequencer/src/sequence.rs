@@ -68,12 +68,9 @@ impl ActionHandler for SequenceAction {
             .await
             .context("failed to add to block fees")?;
 
-        let from_balance = state
-            .get_account_balance(from, self.fee_asset_id)
-            .await
-            .context("failed getting `from` account balance")?;
         state
-            .put_account_balance(from, self.fee_asset_id, from_balance - fee)
+            .decrease_balance(from, self.fee_asset_id, fee)
+            .await
             .context("failed updating `from` account balance")?;
         Ok(())
     }

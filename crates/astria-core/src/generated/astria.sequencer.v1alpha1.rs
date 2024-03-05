@@ -135,6 +135,36 @@ pub struct SequencerBlock {
     #[prost(message, optional, tag = "4")]
     pub rollup_ids_proof: ::core::option::Option<Proof>,
 }
+/// `Deposit` represents a deposit from the sequencer
+/// to a rollup.
+///
+/// A `Deposit` is similar to an emitted event, in that the sequencer application detects
+/// transfers to bridge accounts and the corresponding rollup ID and includes a `Deposit`
+/// corresponding to that within the respective rollup's data.
+///
+/// A `Deposit` notifies a rollup that funds were locked to some account on the sequencer,
+/// however it's up to the rollup what to do with that info.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Deposit {
+    /// the address the funds were locked in on the sequencer.
+    /// this is required as initializing an account as a bridge account
+    /// is permissionless, so the rollup consensus needs to know and enshrine
+    /// which accounts it accepts as valid bridge accounts.
+    #[prost(bytes = "vec", tag = "1")]
+    pub bridge_address: ::prost::alloc::vec::Vec<u8>,
+    /// the rollup_id which the funds are being deposited to
+    #[prost(bytes = "vec", tag = "2")]
+    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag = "3")]
+    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
+    #[prost(bytes = "vec", tag = "4")]
+    pub asset_id: ::prost::alloc::vec::Vec<u8>,
+    /// the address on the destination chain which
+    /// will receive the bridged funds
+    #[prost(string, tag = "5")]
+    pub destination_chain_address: ::prost::alloc::string::String,
+}
 /// `FilteredSequencerBlock` is similar to `SequencerBlock` but with a subset
 /// of the rollup transactions.
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -716,7 +746,7 @@ pub struct UnsignedTransaction {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Action {
-    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9")]
+    #[prost(oneof = "action::Value", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11")]
     pub value: ::core::option::Option<action::Value>,
 }
 /// Nested message and enum types in `Action`.
@@ -742,6 +772,10 @@ pub mod action {
         IbcRelayerChangeAction(super::IbcRelayerChangeAction),
         #[prost(message, tag = "9")]
         FeeAssetChangeAction(super::FeeAssetChangeAction),
+        #[prost(message, tag = "10")]
+        InitBridgeAccountAction(super::InitBridgeAccountAction),
+        #[prost(message, tag = "11")]
+        BridgeLockAction(super::BridgeLockAction),
     }
 }
 /// `TransferAction` represents a value transfer transaction.
@@ -879,4 +913,48 @@ pub mod fee_asset_change_action {
         #[prost(bytes, tag = "2")]
         Removal(::prost::alloc::vec::Vec<u8>),
     }
+}
+/// `InitBridgeAccountAction` represents a transaction that initializes
+/// a bridge account for the given rollup on the chain.
+///
+/// The sender of the transaction is used as the owner of the bridge account
+/// and is the only actor authorized to transfer out of this account via
+/// a `TransferAction`.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct InitBridgeAccountAction {
+    /// the rollup ID to register with the bridge account (the tx sender)
+    #[prost(bytes = "vec", tag = "1")]
+    pub rollup_id: ::prost::alloc::vec::Vec<u8>,
+    /// the asset IDs accepted as an incoming transfer by the bridge account
+    #[prost(bytes = "vec", repeated, tag = "2")]
+    pub asset_ids: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+    /// the asset used to pay the transaction fee
+    #[prost(bytes = "vec", tag = "3")]
+    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
+}
+/// `BridgeLockAction` represents a transaction that transfers
+/// funds from a sequencer account to a bridge account.
+///
+/// It's the same as a `TransferAction` but with the added
+/// `destination_chain_address` field.
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BridgeLockAction {
+    /// the address of the bridge account to transfer to
+    #[prost(bytes = "vec", tag = "1")]
+    pub to: ::prost::alloc::vec::Vec<u8>,
+    /// the amount to transfer
+    #[prost(message, optional, tag = "2")]
+    pub amount: ::core::option::Option<super::super::primitive::v1::Uint128>,
+    /// the asset to be transferred
+    #[prost(bytes = "vec", tag = "3")]
+    pub asset_id: ::prost::alloc::vec::Vec<u8>,
+    /// the asset used to pay the transaction fee
+    #[prost(bytes = "vec", tag = "4")]
+    pub fee_asset_id: ::prost::alloc::vec::Vec<u8>,
+    /// the address on the destination chain which
+    /// will receive the bridged funds
+    #[prost(string, tag = "5")]
+    pub destination_chain_address: ::prost::alloc::string::String,
 }
