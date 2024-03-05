@@ -12,7 +12,6 @@ members = [
   "crates/astria-core",
   "crates/astria-eyre",
   "crates/astria-merkle",
-  "crates/astria-optimism",
   "crates/astria-sequencer",
   "crates/astria-sequencer-client",
   "crates/astria-sequencer-relayer",
@@ -33,7 +32,6 @@ default-members = [
   "crates/astria-config",
   "crates/astria-core",
   "crates/astria-merkle",
-  "crates/astria-optimism",
   "crates/astria-sequencer",
   "crates/astria-sequencer-client",
   "crates/astria-sequencer-relayer",
@@ -60,7 +58,7 @@ hex = "0.4"
 hex-literal = "0.4.1"
 humantime = "2.1.0"
 hyper = "0.14"
-ibc-types = "0.11.1"
+ibc-types = "0.12"
 jsonrpsee = { version = "0.20" }
 once_cell = "1.17.1"
 sha2 = "0.10"
@@ -68,9 +66,9 @@ serde = "1"
 serde_json = "1"
 metrics = "0.22.1"
 # Note that when updating the penumbra versions, vendored types in `proto/sequencerapis/astria_vendored` may need to be updated as well.
-penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.66.0", default-features = false }
-penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.66.0" }
-penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.66.0" }
+penumbra-ibc = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.68.1", default-features = false }
+penumbra-proto = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.68.1" }
+penumbra-tower-trace = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.68.1" }
 prost = "0.12"
 prost-types = "0.12"
 rand = "0.8.5"

@@ -39,8 +39,7 @@ impl FromRef<AppState> for RelayerState {
     }
 }
 
-pub(crate) fn start(port: u16, relayer_state: RelayerState) -> ApiServer {
-    let socket_addr = SocketAddr::from(([127, 0, 0, 1], port));
+pub(crate) fn start(socket_addr: SocketAddr, relayer_state: RelayerState) -> ApiServer {
     let app = Router::new()
         .route("/healthz", get(get_healthz))
         .route("/readyz", get(get_readyz))
@@ -94,7 +93,7 @@ impl IntoResponse for Healthz {
         }
         let (status, msg) = match self {
             Self::Ok => (StatusCode::OK, "ok"),
-            Self::Degraded => (StatusCode::GATEWAY_TIMEOUT, "degraded"),
+            Self::Degraded => (StatusCode::INTERNAL_SERVER_ERROR, "degraded"),
         };
         let mut response = Json(ReadyzBody {
             status: msg,

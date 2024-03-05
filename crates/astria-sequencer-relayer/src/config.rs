@@ -15,7 +15,8 @@ pub struct Config {
     pub block_time: u64,
     pub relay_only_validator_key_blocks: bool,
     pub validator_key_file: Option<String>,
-    pub rpc_port: u16,
+    // The socket address at which sequencer relayer will server healthz, readyz, and status calls.
+    pub api_addr: String,
     pub log: String,
     /// Forces writing trace data to stdout no matter if connected to a tty or not.
     pub force_stdout: bool,
