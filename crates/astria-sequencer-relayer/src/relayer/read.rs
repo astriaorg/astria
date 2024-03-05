@@ -138,7 +138,7 @@ impl Stream for BlockStream {
         let next_height = self.heights.next.value();
         let mut lower_limit = latest_height.saturating_sub(next_height);
 
-        // A new future will be spawned as long as next_heigth <= latest_height. So
+        // A new future will be spawned as long as next_height <= latest_height. So
         // 10 - 10 = 0, but there 1 future stil to be spawned at next height = 10.
         lower_limit += Into::<u64>::into(next_height <= latest_height);
 
