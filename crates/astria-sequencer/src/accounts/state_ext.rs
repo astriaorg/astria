@@ -131,7 +131,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 }
 
-impl<T: StateRead> StateReadExt for T {}
+impl<T: StateRead + ?Sized> StateReadExt for T {}
 
 #[async_trait]
 pub(crate) trait StateWriteExt: StateWrite {
@@ -155,6 +155,50 @@ pub(crate) trait StateWriteExt: StateWrite {
             .try_to_vec()
             .context("failed to serialize nonce")?;
         self.put_raw(nonce_storage_key(address), bytes);
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    async fn increase_balance(
+        &mut self,
+        address: Address,
+        asset: asset::Id,
+        amount: u128,
+    ) -> Result<()> {
+        let balance = self
+            .get_account_balance(address, asset)
+            .await
+            .context("failed to get account balance")?;
+        self.put_account_balance(
+            address,
+            asset,
+            balance
+                .checked_add(amount)
+                .context("failed to update account balance due to overflow")?,
+        )
+        .context("failed to store updated account balance in database")?;
+        Ok(())
+    }
+
+    #[instrument(skip(self))]
+    async fn decrease_balance(
+        &mut self,
+        address: Address,
+        asset: asset::Id,
+        amount: u128,
+    ) -> Result<()> {
+        let balance = self
+            .get_account_balance(address, asset)
+            .await
+            .context("failed to get account balance")?;
+        self.put_account_balance(
+            address,
+            asset,
+            balance
+                .checked_sub(amount)
+                .context("subtracting from account balance failed due to insufficient funds")?,
+        )
+        .context("failed to store updated account balance in database")?;
         Ok(())
     }
 }

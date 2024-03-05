@@ -35,6 +35,8 @@ message Action {
     Ics20Withdrawal ics20_withdrawal = 7;
     IbcRelayerChangeAction ibc_relayer_change_action = 8;
     FeeAssetChangeAction fee_asset_change_action = 9;
+    InitBridgeAccountAction init_bridge_account_action = 10;
+    BridgeLockAction bridge_lock_action = 11;
   }
 }
 
@@ -126,4 +128,38 @@ message FeeAssetChangeAction {
     bytes addition = 1;
     bytes removal = 2;
   }
+}
+
+// `InitBridgeAccountAction` represents a transaction that initializes
+// a bridge account for the given rollup on the chain.
+//
+// The sender of the transaction is used as the owner of the bridge account
+// and is the only actor authorized to transfer out of this account via
+// a `TransferAction`.
+message InitBridgeAccountAction {
+  // the rollup ID to register with the bridge account (the tx sender)
+  bytes rollup_id = 1;
+  // the asset IDs accepted as an incoming transfer by the bridge account
+  repeated bytes asset_ids = 2;
+  // the asset used to pay the transaction fee
+  bytes fee_asset_id = 3;
+}
+
+// `BridgeLockAction` represents a transaction that transfers
+// funds from a sequencer account to a bridge account.
+//
+// It's the same as a `TransferAction` but with the added
+// `destination_chain_address` field.
+message BridgeLockAction {
+  // the address of the bridge account to transfer to
+  bytes to = 1;
+  // the amount to transfer
+  astria.primitive.v1.Uint128 amount = 2;
+  // the asset to be transferred
+  bytes asset_id = 3;
+  // the asset used to pay the transaction fee
+  bytes fee_asset_id = 4;
+  // the address on the destination chain which
+  // will receive the bridged funds
+  string destination_chain_address = 5;
 }

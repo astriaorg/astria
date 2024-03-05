@@ -157,6 +157,12 @@ impl From<String> for Id {
     }
 }
 
+impl From<[u8; 32]> for Id {
+    fn from(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+}
+
 impl AsRef<[u8]> for Id {
     fn as_ref(&self) -> &[u8] {
         &self.0
