@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     error::Error as StdError,
     rc::Rc,
+    sync::Arc,
     time::Duration,
 };
 
@@ -10,6 +11,11 @@ use astria_eyre::eyre::{
     WrapErr as _,
 };
 use celestia_client::celestia_types::nmt::Namespace;
+use ethers::prelude::{
+    Address,
+    Provider,
+    Ws,
+};
 use tokio::{
     select,
     signal::unix::{
@@ -72,11 +78,16 @@ impl Conductor {
         let executor_handle = {
             let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
+            let hook = make_optimism_hook(&cfg)
+                .await
+                .wrap_err("failed constructing optimism hook")?;
+
             let (executor, handle) = Executor::builder()
                 .set_consider_commitment_spread(!cfg.execution_commit_level.is_soft_only())
                 .rollup_address(&cfg.execution_rpc_url)
                 .wrap_err("failed to assign rollup node address")?
                 .shutdown(shutdown_rx)
+                .set_optimism_hook(hook)
                 .build();
 
             tasks.spawn(Self::EXECUTOR, executor.run_until_stopped());
@@ -266,6 +277,33 @@ impl Conductor {
                 .await;
         }
     }
+}
+
+async fn make_optimism_hook(
+    cfg: &Config,
+) -> eyre::Result<Option<crate::executor::optimism::Handler>> {
+    if !cfg.enable_optimism {
+        return Ok(None);
+    }
+    let provider = Arc::new(
+        Provider::<Ws>::connect(cfg.ethereum_l1_url.clone())
+            .await
+            .wrap_err("failed to connect to provider")?,
+    );
+    let contract_address: Address = hex::decode(cfg.optimism_portal_contract_address.clone())
+        .wrap_err("failed to decode contract address as hex")
+        .and_then(|bytes| {
+            TryInto::<[u8; 20]>::try_into(bytes)
+                .map_err(|_| eyre::eyre!("contract address must be 20 bytes"))
+        })
+        .wrap_err("failed to parse contract address")?
+        .into();
+
+    Ok(Some(crate::executor::optimism::Handler::new(
+        provider,
+        contract_address,
+        cfg.initial_ethereum_l1_block_height,
+    )))
 }
 
 /// Get the sequencer namespace from the latest sequencer block.

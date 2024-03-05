@@ -50,6 +50,7 @@ use crate::celestia::ReconstructedBlock;
 
 mod builder;
 pub(crate) mod channel;
+pub(crate) mod optimism;
 
 use channel::soft_block_channel;
 
@@ -183,6 +184,10 @@ pub(crate) struct Executor {
     /// Required to mark firm blocks received from celestia as executed
     /// without re-executing on top of the rollup node on top of the rollup node..
     blocks_pending_finalization: HashMap<[u8; 32], Block>,
+
+    /// optional hook which is called to modify the rollup transaction list
+    /// right before it's sent to the execution layer via `ExecuteBlock`.
+    pre_execution_hook: Option<optimism::Handler>,
 }
 
 impl Executor {
@@ -415,10 +420,17 @@ impl Executor {
         block: ExecutableBlock,
     ) -> eyre::Result<Block> {
         let ExecutableBlock {
-            transactions,
+            mut transactions,
             timestamp,
             ..
         } = block;
+
+        if let Some(hook) = self.pre_execution_hook.as_mut() {
+            transactions = hook
+                .populate_rollup_transactions(transactions)
+                .await
+                .wrap_err("failed to populate rollup transactions with pre execution hook")?;
+        }
 
         let executed_block = client
             .execute_block(parent_block_hash, transactions, timestamp)
