@@ -690,6 +690,7 @@ impl Ics20Withdrawal {
             denom: self.denom.to_string(),
             sender: self.return_address.to_string(),
             receiver: self.destination_chain_address.clone(),
+            memo: String::new(),
         }
     }
 

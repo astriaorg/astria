@@ -33,8 +33,8 @@ matchit = "0.7.2"
 tower = "0.4"
 tower-abci = "0.11.0"
 tower-actor = "0.1.0"
-cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.66.0" }
-cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.66.0" }
+cnidarium = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.68.1" }
+cnidarium-component = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.68.1" }
 
 async-trait = { workspace = true }
 bytes = { workspace = true }
@@ -55,7 +55,7 @@ tendermint = { workspace = true }
 tokio = { workspace = true, features = ["rt", "tracing"] }
 tracing = { workspace = true }
 
-ibc-proto = { version = "0.40.0", features = ["server"] }
+ibc-proto = { version = "0.41.0", features = ["server"] }
 tonic = "0.10"
 tower-http = { version = "0.4", features = ["cors"] }
 
