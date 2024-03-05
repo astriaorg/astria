@@ -321,15 +321,15 @@ mod tests {
         (pre, post)
     }
 
-    fn write(f: &NamedTempFile, val: serde_json::Value) {
-        serde_json::to_writer(f, &val).expect("must be able to write state to run tests");
+    fn write(f: &NamedTempFile, val: &serde_json::Value) {
+        serde_json::to_writer(f, val).expect("must be able to write state to run tests");
     }
 
     #[test]
     fn fresh_with_ignored_is_ok() {
         let (pre, post) = create_files();
-        write(&pre, json!({ "state": "ignore" }));
-        write(&post, json!({ "state": "fresh" }));
+        write(&pre, &json!({ "state": "ignore" }));
+        write(&post, &json!({ "state": "fresh" }));
         SubmissionState::from_paths(pre.path(), post.path())
             .expect("states `ignore` and `fresh` give a working submission state");
     }
@@ -337,10 +337,10 @@ mod tests {
     #[test]
     fn submitted_with_ignored_is_ok() {
         let (pre, post) = create_files();
-        write(&pre, json!({ "state": "ignore" }));
+        write(&pre, &json!({ "state": "ignore" }));
         write(
             &post,
-            json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
+            &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
         SubmissionState::from_paths(pre.path(), post.path())
             .expect("states `ignore` and `submitted` give a working submission state");
@@ -351,9 +351,9 @@ mod tests {
         let (pre, post) = create_files();
         write(
             &pre,
-            json!({ "state": "started", "sequencer_height": 5, "last_submission": { "state": "fresh"} }),
+            &json!({ "state": "started", "sequencer_height": 5, "last_submission": { "state": "fresh"} }),
         );
-        write(&post, json!({ "state": "fresh" }));
+        write(&post, &json!({ "state": "fresh" }));
         let _ = SubmissionState::from_paths(pre.path(), post.path())
             .expect_err("started state with `fresh` in last and current gives error");
     }
@@ -363,11 +363,11 @@ mod tests {
         let (pre, post) = create_files();
         write(
             &pre,
-            json!({ "state": "started", "sequencer_height": 5, "last_submission": { "state": "fresh"} }),
+            &json!({ "state": "started", "sequencer_height": 5, "last_submission": { "state": "fresh"} }),
         );
         write(
             &post,
-            json!({ "state": "submitted", "sequencer_height": 6, "celestia_height": 2 }),
+            &json!({ "state": "submitted", "sequencer_height": 6, "celestia_height": 2 }),
         );
         let _ = SubmissionState::from_paths(pre.path(), post.path()).expect_err(
             "started state with sequencer height less then sequencer height recorded submitted \
@@ -380,11 +380,11 @@ mod tests {
         let (pre, post) = create_files();
         write(
             &pre,
-            json!({ "state": "started", "sequencer_height": 2, "last_submission": { "state": "submitted", "celestia_height": 5, "sequencer_height": 2} }),
+            &json!({ "state": "started", "sequencer_height": 2, "last_submission": { "state": "submitted", "celestia_height": 5, "sequencer_height": 2} }),
         );
         write(
             &post,
-            json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
+            &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
         let _ = SubmissionState::from_paths(pre.path(), post.path()).expect_err(
             "started state with the same `submitted` in last and current give an error",
@@ -396,11 +396,11 @@ mod tests {
         let (pre, post) = create_files();
         write(
             &pre,
-            json!({ "state": "started", "sequencer_height": 2, "last_submission": { "state": "fresh" }}),
+            &json!({ "state": "started", "sequencer_height": 2, "last_submission": { "state": "fresh" }}),
         );
         write(
             &post,
-            json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
+            &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
         let _ = SubmissionState::from_paths(pre.path(), post.path()).expect(
             "started state with the `fresh` in last and `submitted` in current gives working \
@@ -413,11 +413,11 @@ mod tests {
         let (pre, post) = create_files();
         write(
             &pre,
-            json!({ "state": "started", "sequencer_height": 2, "last_submission": { "state": "fresh" }}),
+            &json!({ "state": "started", "sequencer_height": 2, "last_submission": { "state": "fresh" }}),
         );
         write(
             &post,
-            json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
+            &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
         let state = SubmissionState::from_paths(pre.path(), post.path()).expect(
             "started state with the `fresh` in last and `submitted` in current gives working \
@@ -433,7 +433,7 @@ mod tests {
             panic!("the post submission state should be `submitted`");
         };
         assert_eq!(celestia_height, 6);
-        assert_eq!(sequencer_height, 3)
+        assert_eq!(sequencer_height, 3);
     }
 
     #[test]
@@ -441,11 +441,11 @@ mod tests {
         let (pre, post) = create_files();
         write(
             &pre,
-            json!({ "state": "started", "sequencer_height": 2, "last_submission": { "state": "fresh" }}),
+            &json!({ "state": "started", "sequencer_height": 2, "last_submission": { "state": "fresh" }}),
         );
         write(
             &post,
-            json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
+            &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
         let state = SubmissionState::from_paths(pre.path(), post.path()).expect(
             "started state with the `fresh` in last and `submitted` in current gives working \
