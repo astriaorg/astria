@@ -1,0 +1,107 @@
+syntax = "proto3";
+
+package astria.sequencer.v1;
+
+import "astria/primitive/v1/types.proto";
+import "astria/sequencer/v1/merkle.proto";
+import "astria_vendored/tendermint/types/types.proto";
+
+// `RollupTransactions` are a sequence of opaque bytes together with a 32 byte
+// identifier of that rollup.
+//
+// The binary encoding is understood as an implementation detail of the
+// services sending and receiving the transactions.
+message RollupTransactions {
+  // The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
+  bytes id = 1;
+  // The serialized opaque bytes of the rollup transactions.
+  repeated bytes transactions = 2;
+  // The proof that these rollup transactions are included in sequencer block.
+  // `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
+  astria.sequencer.v1.Proof proof = 3;
+}
+
+// `SequencerBlock` is constructed from a tendermint/cometbft block by
+// converting its opaque `data` bytes into sequencer specific types.
+message SequencerBlock {
+  // The original CometBFT header that was the input to this sequencer block.
+  astria_vendored.tendermint.types.Header header = 1;
+  // The collection of rollup transactions that were included in this block.
+  repeated RollupTransactions rollup_transactions = 2;
+  // The proof that the rollup transactions are included in the CometBFT block this
+  // sequencer block is derived form. This proof together with
+  // `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
+  // `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
+  // rollup transactions.
+  astria.sequencer.v1.Proof rollup_transactions_proof = 3;
+  // The proof that the rollup IDs listed in `rollup_transactions` are included
+  // in the CometBFT block this sequencer block is derived form.
+  //
+  // This proof is used to verify that the relayer that posts to celestia
+  // includes all rollup IDs and does not censor any.
+  //
+  // This proof together with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
+  // `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
+  // the rollup transactions.
+  astria.sequencer.v1.Proof rollup_ids_proof = 4;
+}
+
+// `Deposit` represents a deposit from the sequencer
+// to a rollup.
+//
+// A `Deposit` is similar to an emitted event, in that the sequencer application detects
+// transfers to bridge accounts and the corresponding rollup ID and includes a `Deposit`
+// corresponding to that within the respective rollup's data.
+//
+// A `Deposit` notifies a rollup that funds were locked to some account on the sequencer,
+// however it's up to the rollup what to do with that info.
+message Deposit {
+  // the address the funds were locked in on the sequencer.
+  // this is required as initializing an account as a bridge account
+  // is permissionless, so the rollup consensus needs to know and enshrine
+  // which accounts it accepts as valid bridge accounts.
+  bytes bridge_address = 1;
+  // the rollup_id which the funds are being deposited to
+  bytes rollup_id = 2;
+  astria.primitive.v1.Uint128 amount = 3;
+  bytes asset_id = 4;
+  // the address on the destination chain which
+  // will receive the bridged funds
+  string destination_chain_address = 5;
+}
+
+// `FilteredSequencerBlock` is similar to `SequencerBlock` but with a subset
+// of the rollup transactions.
+message FilteredSequencerBlock {
+  // The original CometBFT header that was the input to this sequencer block.
+  astria_vendored.tendermint.types.Header header = 1;
+  // A subset of rollup transactions that were included in this block.
+  repeated RollupTransactions rollup_transactions = 2;
+  // The Merkle Tree Hash of all the rollup transactions in the block (not just the
+  // subset included). Corresponds to `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`,
+  // the Merkle Tree Hash derived from the rollup transactions.
+  // Always 32 bytes.
+  bytes rollup_transactions_root = 3;
+  // The proof that the rollup transactions are included in the CometBFT block this
+  // sequencer block is derived form. This proof together with
+  // `rollup_transactions_root = Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
+  // `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
+  // rollup transactions.
+  astria.sequencer.v1.Proof rollup_transactions_proof = 4;
+  // The rollup IDs for which `CelestiaRollupBlob`s were submitted to celestia.
+  // Corresponds to the `astria.sequencer.v1alpha1.RollupTransactions.rollup_id` field
+  // and is extracted from `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions`.
+  // Note that these are all the rollup IDs in the sequencer block, not merely those in
+  // `rollup_transactions` field. This is necessary to prove that no rollup IDs were omitted.
+  repeated bytes all_rollup_ids = 5;
+  // The proof that the `rollup_ids` are included
+  // in the CometBFT block this sequencer block is derived form.
+  //
+  // This proof is used to verify that the relayer that posts to celestia
+  // includes all rollup IDs and does not censor any.
+  //
+  // This proof together with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
+  // `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
+  // the rollup transactions.
+  astria.sequencer.v1.Proof rollup_ids_proof = 6;
+}
