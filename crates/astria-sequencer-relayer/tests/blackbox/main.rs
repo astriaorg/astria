@@ -15,7 +15,7 @@ const RELAY_ALL: bool = false;
 
 #[tokio::test(flavor = "current_thread")]
 async fn report_degraded_if_block_fetch_fails() {
-    let mut sequencer_relayer = TestSequencerRelayerConfig {
+    let sequencer_relayer = TestSequencerRelayerConfig {
         relay_only_self: false,
         last_written_sequencer_height: None,
     }
