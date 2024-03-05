@@ -1,12 +1,12 @@
 version: v1
 name: buf.build/astria/astria
 breaking:
+  ignore_unstable_packages: true
   use:
     - FILE
 deps:
   - buf.build/googleapis/googleapis
 lint:
-  ignore_unstable_packages: true
   ignore_only:
     PACKAGE_VERSION_SUFFIX:
       - "astria_vendored/tendermint"
