@@ -49,10 +49,10 @@ message SequencerBlock {
 // `Deposit` represents a deposit from the sequencer
 // to a rollup.
 //
-// A `Deposit` is similar to an emitted event, in that the sequencer application detects 
-// transfers to bridge accounts and the corresponding rollup ID and includes a `Deposit` 
-// corresponding to that within the respective rollup's data. 
-// 
+// A `Deposit` is similar to an emitted event, in that the sequencer application detects
+// transfers to bridge accounts and the corresponding rollup ID and includes a `Deposit`
+// corresponding to that within the respective rollup's data.
+//
 // A `Deposit` notifies a rollup that funds were locked to some account on the sequencer,
 // however it's up to the rollup what to do with that info.
 message Deposit {
