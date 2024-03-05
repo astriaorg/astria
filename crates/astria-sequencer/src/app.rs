@@ -700,13 +700,11 @@ mod test {
         asset,
         asset::DEFAULT_NATIVE_ASSET_DENOM,
         transaction::action::{
-            Action,
             IbcRelayerChangeAction,
             SequenceAction,
             SudoAddressChangeAction,
             TransferAction,
         },
-        Address,
         RollupId,
         UnsignedTransaction,
         ADDRESS_LEN,
@@ -715,7 +713,6 @@ mod test {
     use penumbra_ibc::params::IBCParameters;
     use tendermint::{
         abci::types::CommitInfo,
-        account,
         block::{
             header::Version,
             Header,
@@ -723,7 +720,6 @@ mod test {
             Round,
         },
         AppHash,
-        Hash,
         Time,
     };
 
@@ -1606,13 +1602,13 @@ mod test {
             bridge_before_balance + amount
         );
 
-        let expected_deposit = Deposit {
+        let expected_deposit = Deposit::new(
             bridge_address,
             rollup_id,
             amount,
             asset_id,
-            destination_chain_address: "nootwashere".to_string(),
-        };
+            "nootwashere".to_string(),
+        );
 
         let deposits = app.state.get_deposit_events(&rollup_id).await.unwrap();
         assert_eq!(deposits.len(), 1);
