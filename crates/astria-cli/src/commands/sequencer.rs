@@ -1,4 +1,4 @@
-use astria_core::sequencer::v1alpha1::{
+use astria_core::sequencer::v1::{
     transaction::action::{
         Action,
         TransferAction,
@@ -156,7 +156,7 @@ pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<
 /// * If the http client cannot be created
 /// * If the latest block height cannot be retrieved
 pub(crate) async fn send_transfer(args: &TransferArgs) -> eyre::Result<()> {
-    use astria_core::sequencer::v1alpha1::asset::default_native_asset_id;
+    use astria_core::sequencer::v1::asset::default_native_asset_id;
 
     // Build the signing_key
     let private_key_bytes: [u8; 32] = hex::decode(args.private_key.as_str())

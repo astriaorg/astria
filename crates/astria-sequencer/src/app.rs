@@ -12,8 +12,8 @@ use anyhow::{
     Context,
 };
 use astria_core::{
-    generated::sequencer::v1alpha1 as raw,
-    sequencer::v1alpha1::{
+    generated::sequencer::v1 as raw,
+    sequencer::v1::{
         transaction::Action,
         Address,
         SignedTransaction,
@@ -499,7 +499,7 @@ impl App {
     ))]
     pub(crate) async fn deliver_tx(
         &mut self,
-        signed_tx: astria_core::sequencer::v1alpha1::SignedTransaction,
+        signed_tx: astria_core::sequencer::v1::SignedTransaction,
     ) -> anyhow::Result<Vec<abci::Event>> {
         let signed_tx_2 = signed_tx.clone();
         let stateless =
@@ -695,8 +695,8 @@ fn signed_transaction_from_bytes(bytes: &[u8]) -> anyhow::Result<SignedTransacti
 #[cfg(test)]
 mod test {
     #[cfg(feature = "mint")]
-    use astria_core::sequencer::v1alpha1::transaction::action::MintAction;
-    use astria_core::sequencer::v1alpha1::{
+    use astria_core::sequencer::v1::transaction::action::MintAction;
+    use astria_core::sequencer::v1::{
         asset,
         asset::DEFAULT_NATIVE_ASSET_DENOM,
         transaction::action::{
@@ -1323,7 +1323,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_fee_asset_change_addition() {
-        use astria_core::sequencer::v1alpha1::transaction::action::FeeAssetChangeAction;
+        use astria_core::sequencer::v1::transaction::action::FeeAssetChangeAction;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
@@ -1356,7 +1356,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_fee_asset_change_removal() {
-        use astria_core::sequencer::v1alpha1::transaction::action::FeeAssetChangeAction;
+        use astria_core::sequencer::v1::transaction::action::FeeAssetChangeAction;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
         let test_asset = asset::Denom::from_base_denom("test");
@@ -1393,7 +1393,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_fee_asset_change_invalid() {
-        use astria_core::sequencer::v1alpha1::transaction::action::FeeAssetChangeAction;
+        use astria_core::sequencer::v1::transaction::action::FeeAssetChangeAction;
 
         let (alice_signing_key, alice_address) = get_alice_signing_key_and_address();
 
@@ -1427,7 +1427,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_init_bridge_account_ok() {
-        use astria_core::sequencer::v1alpha1::transaction::action::InitBridgeAccountAction;
+        use astria_core::sequencer::v1::transaction::action::InitBridgeAccountAction;
 
         use crate::bridge::init_bridge_account_action::INIT_BRIDGE_ACCOUNT_FEE;
 
@@ -1481,7 +1481,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_init_bridge_account_empty_asset_ids() {
-        use astria_core::sequencer::v1alpha1::transaction::action::InitBridgeAccountAction;
+        use astria_core::sequencer::v1::transaction::action::InitBridgeAccountAction;
 
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;
@@ -1504,7 +1504,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_init_bridge_account_account_already_registered() {
-        use astria_core::sequencer::v1alpha1::transaction::action::InitBridgeAccountAction;
+        use astria_core::sequencer::v1::transaction::action::InitBridgeAccountAction;
 
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;
@@ -1540,7 +1540,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_bridge_lock_action_ok() {
-        use astria_core::sequencer::v1alpha1::{
+        use astria_core::sequencer::v1::{
             block::Deposit,
             transaction::action::BridgeLockAction,
         };
@@ -1617,7 +1617,7 @@ mod test {
 
     #[tokio::test]
     async fn app_deliver_tx_bridge_lock_action_invalid_for_eoa() {
-        use astria_core::sequencer::v1alpha1::transaction::action::BridgeLockAction;
+        use astria_core::sequencer::v1::transaction::action::BridgeLockAction;
 
         let (alice_signing_key, _) = get_alice_signing_key_and_address();
         let mut app = initialize_app(None, vec![]).await;

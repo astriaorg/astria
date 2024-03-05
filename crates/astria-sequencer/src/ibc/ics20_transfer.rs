@@ -14,7 +14,7 @@ use anyhow::{
     Context as _,
     Result,
 };
-use astria_core::sequencer::v1alpha1::{
+use astria_core::sequencer::v1::{
     asset::Denom,
     Address,
 };

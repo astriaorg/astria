@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use astria_core::sequencer::v1alpha1::{
+use astria_core::sequencer::v1::{
     test_utils::ConfigureCometBftBlock,
     RollupId,
 };

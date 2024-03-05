@@ -1,4 +1,4 @@
-use astria_core::sequencer::v1alpha1::SignedTransaction;
+use astria_core::sequencer::v1::SignedTransaction;
 use bytes::Bytes;
 
 /// Wrapper for values returned by [`generate_sequence_actions_commitment`].
@@ -40,14 +40,14 @@ impl GeneratedCommitments {
 pub(crate) fn generate_sequence_actions_commitment(
     signed_txs: &[SignedTransaction],
 ) -> GeneratedCommitments {
-    let rollup_ids_to_txs = astria_core::sequencer::v1alpha1::group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(signed_txs);
+    let rollup_ids_to_txs = astria_core::sequencer::v1::group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(signed_txs);
     let rollup_ids_root = merkle::Tree::from_leaves(rollup_ids_to_txs.keys()).root();
 
     // each leaf of the action tree is the root of a merkle tree of the `sequence::Action`s
     // with the same `rollup_id`, prepended with `rollup_id`.
     // the leaves are sorted in ascending order by `rollup_id`.
     let sequence_actions_root =
-        astria_core::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(&rollup_ids_to_txs)
+        astria_core::sequencer::v1::derive_merkle_tree_from_rollup_txs(&rollup_ids_to_txs)
             .root();
     GeneratedCommitments {
         sequence_actions_root,
@@ -57,7 +57,7 @@ pub(crate) fn generate_sequence_actions_commitment(
 
 #[cfg(test)]
 mod test {
-    use astria_core::sequencer::v1alpha1::{
+    use astria_core::sequencer::v1::{
         asset::{
             Denom,
             DEFAULT_NATIVE_ASSET_DENOM,

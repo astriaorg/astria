@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-use astria_core::sequencer::v1alpha1::{
+use astria_core::sequencer::v1::{
     transaction::{
         action::SequenceAction,
         Action,

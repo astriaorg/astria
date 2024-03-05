@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use astria_core::{
-    generated::sequencer::v1alpha1::NonceResponse,
-    sequencer::v1alpha1::{
+    generated::sequencer::v1::NonceResponse,
+    sequencer::v1::{
         AbciErrorCode,
         RollupId,
         SignedTransaction,
@@ -251,7 +251,7 @@ async fn mount_matcher_verifying_tx_integrity(
 }
 
 fn signed_tx_from_request(request: &Request) -> SignedTransaction {
-    use astria_core::generated::sequencer::v1alpha1::SignedTransaction as RawSignedTransaction;
+    use astria_core::generated::sequencer::v1::SignedTransaction as RawSignedTransaction;
     use prost::Message as _;
 
     let wrapped_tx_sync_req: request::Wrapper<tx_sync::Request> =

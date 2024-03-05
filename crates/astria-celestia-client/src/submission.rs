@@ -1,6 +1,6 @@
 //! Logic to convert sequencer blocks to celestia blobs before submission.
 
-use astria_core::sequencer::v1alpha1::{
+use astria_core::sequencer::v1::{
     RollupId,
     SequencerBlock,
 };

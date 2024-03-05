@@ -24,7 +24,7 @@ use astria_core::{
         GetGenesisInfoRequest,
         UpdateCommitmentStateRequest,
     },
-    sequencer::v1alpha1::test_utils::{
+    sequencer::v1::test_utils::{
         make_cometbft_block,
         ConfigureCometBftBlock,
     },

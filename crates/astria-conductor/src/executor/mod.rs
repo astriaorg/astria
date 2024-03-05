@@ -5,7 +5,7 @@ use astria_core::{
         Block,
         CommitmentState,
     },
-    sequencer::v1alpha1::RollupId,
+    sequencer::v1::RollupId,
 };
 use astria_eyre::eyre::{
     self,

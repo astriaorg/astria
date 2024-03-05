@@ -1,13 +1,13 @@
 use anyhow::Context as _;
 use astria_core::{
-    generated::sequencer::v1alpha1::{
+    generated::sequencer::v1::{
         sequencer_service_server::SequencerService,
         FilteredSequencerBlock as RawFilteredSequencerBlock,
         GetFilteredSequencerBlockRequest,
         GetSequencerBlockRequest,
         SequencerBlock as RawSequencerBlock,
     },
-    sequencer::v1alpha1::RollupId,
+    sequencer::v1::RollupId,
 };
 use cnidarium::Storage;
 use sequencer_client::{
