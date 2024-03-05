@@ -308,35 +308,16 @@ async fn read_submission_state<P1: AsRef<Path>, P2: AsRef<Path>>(
     pre: P1,
     post: P2,
 ) -> eyre::Result<SubmissionState> {
-    // This is not a formatted string with linebreaks but just a very long string. The reason for
-    // this is that it will be displayed in tracing events where extra formatting (like linebreaks)
-    // is not desired.
-    let msg = "\
-failed reading the submission state from the configured pre- and post-submit files. 
-The files must exist in the file system, be readable and writable, and contain valid 
-JSON. The post-submit file located at ASTRIA_SEQUENCER_RELAYER_POST_SUBMIT_PATH must 
-contain one of: 
-1. `{{\"state\": \"fresh\"}}`, for relaying sequencer blocks starting at sequencer height 1. 
-2. `{{\"state\": \"submitted\", \"celestia_height\": <number>, \"sequencer_height\": <number>}}`, 
-for relaying blocks starting at `<number> + 1`. 
-The pre-submit file located at `ASTRIA_SEQUENCER_RELAYER_PRE_SUBMIT_PATH` must contain one of: 
-1. `{{\"state\": \"ignore\"}}`, to ignore the pre-submit state entirely and only consider the 
-post-submit state to dermine from where to start relaying. Set this value also if you manually 
-configured the post-submit state to be `fresh`. 
-2. `{{\"state\": \"started\", \"last_submission\": <post_submission_state> }}`, which is updated 
-by sequencer-relayer during normal operation and its principal way to detect if something went 
-wrong. `last_submission` is set from the object in the post-submission file prior to attempting 
-a new submission. If they are a match then either submission failed completely (which is the 
-optimal scenario in this case), or something went wrong after submission went through (including
-failure to write the post-submit file). In either case manual intervention is required prior to
-a restart of sequencer-relayer.";
     let pre = pre.as_ref().to_path_buf();
     let post = post.as_ref().to_path_buf();
     crate::utils::flatten(
         tokio::task::spawn_blocking(move || submission::SubmissionState::from_paths(pre, post))
             .await,
     )
-    .wrap_err(msg)
+    .wrap_err(
+        "failed reading submission state from the configured pre- and post-submit files. Refer to \
+         the values documented in `local.env.example` of the astria-sequencer-relayer service",
+    )
 }
 
 fn spawn_submitter(
