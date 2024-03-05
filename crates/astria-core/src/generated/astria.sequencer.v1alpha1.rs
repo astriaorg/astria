@@ -236,47 +236,6 @@ pub struct CelestiaSequencerBlob {
     #[prost(message, optional, tag = "5")]
     pub rollup_ids_proof: ::core::option::Option<Proof>,
 }
-/// `IndexedTransaction` represents a sequencer transaction along with the index
-/// it was originally in the sequencer block.
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct IndexedTransaction {
-    /// TODO: this is usize - how to define for variable size?
-    #[prost(uint64, tag = "1")]
-    pub block_index: u64,
-    #[prost(bytes = "vec", tag = "2")]
-    pub transaction: ::prost::alloc::vec::Vec<u8>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RollupNamespace {
-    #[prost(uint64, tag = "1")]
-    pub block_height: u64,
-    #[prost(bytes = "vec", tag = "2")]
-    pub namespace: ::prost::alloc::vec::Vec<u8>,
-}
-/// `RollupNamespaceData`
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RollupNamespaceData {
-    #[prost(bytes = "vec", tag = "1")]
-    pub block_hash: ::prost::alloc::vec::Vec<u8>,
-    #[prost(message, repeated, tag = "2")]
-    pub rollup_txs: ::prost::alloc::vec::Vec<IndexedTransaction>,
-}
-/// `SequencerNamespaceData`
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct SequencerNamespaceData {
-    #[prost(bytes = "vec", tag = "1")]
-    pub block_hash: ::prost::alloc::vec::Vec<u8>,
-    #[prost(message, optional, tag = "2")]
-    pub header: ::core::option::Option<::tendermint_proto::types::Header>,
-    #[prost(message, repeated, tag = "3")]
-    pub sequencer_txs: ::prost::alloc::vec::Vec<IndexedTransaction>,
-    #[prost(message, repeated, tag = "4")]
-    pub rollup_namespaces: ::prost::alloc::vec::Vec<RollupNamespace>,
-}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetSequencerBlockRequest {
