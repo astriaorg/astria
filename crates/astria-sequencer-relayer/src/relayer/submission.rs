@@ -7,7 +7,7 @@ use std::path::{
 
 use astria_eyre::eyre::{
     self,
-    bail,
+    ensure,
     WrapErr as _,
 };
 use sequencer_client::tendermint::block::Height as SequencerHeight;
@@ -27,7 +27,16 @@ enum PostSubmission {
         sequencer_height: u64,
     },
 }
+
 impl PostSubmission {
+    fn is_fresh(&self) -> bool {
+        matches!(self, PostSubmission::Fresh)
+    }
+
+    fn is_submitted(&self) -> bool {
+        matches!(self, PostSubmission::Submitted { .. })
+    }
+
     fn from_path<P: AsRef<Path>>(path: P) -> eyre::Result<Self> {
         let file = std::fs::File::open(&path)
             .wrap_err("failed opening provided file path for reading post-submission state")?;
@@ -65,6 +74,7 @@ pub(super) struct SubmissionState {
     post_path: PathBuf,
 }
 
+#[derive(Debug)]
 pub(super) struct Started(SubmissionState);
 
 impl Started {
@@ -124,6 +134,17 @@ impl SubmissionState {
     }
 
     pub(super) fn initialize(self, sequencer_height: SequencerHeight) -> eyre::Result<Started> {
+        if let PostSubmission::Submitted {
+            sequencer_height: latest_submitted,
+            ..
+        } = self.post
+        {
+            ensure!(
+                sequencer_height.value() > latest_submitted,
+                "refusing to submit a sequencer block at heights below or at what was already \
+                 submitted"
+            );
+        }
         let new = Self {
             pre: PreSubmission::Started {
                 sequencer_height: sequencer_height.value(),
@@ -170,19 +191,7 @@ impl SubmissionState {
         )?;
 
         let state = match (pre, post) {
-            (PreSubmission::Ignore, PostSubmission::Fresh) => Self {
-                pre,
-                post,
-                pre_path,
-                post_path,
-            },
-
-            (
-                pre @ PreSubmission::Ignore,
-                post @ PostSubmission::Submitted {
-                    ..
-                },
-            ) => Self {
+            (PreSubmission::Ignore, post) => Self {
                 pre,
                 post,
                 pre_path,
@@ -192,26 +201,258 @@ impl SubmissionState {
             (
                 PreSubmission::Started {
                     sequencer_height,
-                    last_submission: post_state_in_pre,
+                    last_submission,
                 },
-                post_state_in_post,
-            ) if post_state_in_pre == post_state_in_post => bail!(
-                "the last post-submission state recorded in the pre-submit file matches the state \
-                 in the post-submission file. This indicates that either submission to Celestia \
-                 failed, or that relayer failed to write its post-submission state to disk. \
-                 Verify that the block at sequencer height `{sequencer_height}` was written to \
-                 Celestia and update the post-submission file with the sequencer and Celestia \
-                 heights or, if you want to have relayer start submitting from sequencer height \
-                 1, update the pre-submission file to read `{{\"state\": \"fresh\"}}`"
-            ),
-
-            (pre, post) => Self {
-                pre,
                 post,
-                pre_path,
-                post_path,
-            },
+            ) => {
+                ensure_consistent(sequencer_height, last_submission, post)
+                    .wrap_err("on-disk states are inconsistent")?;
+                Self {
+                    pre,
+                    post,
+                    pre_path,
+                    post_path,
+                }
+            }
         };
         Ok(state)
+    }
+}
+
+fn ensure_consistent(
+    sequencer_height_started: u64,
+    last_submission: PostSubmission,
+    current_submission: PostSubmission,
+) -> eyre::Result<()> {
+    ensure_last_and_current_are_different(last_submission, current_submission)?;
+    ensure_last_is_not_submitted_while_current_is_fresh(last_submission, current_submission)?;
+    ensure_height_in_last_does_not_exceed_height_in_current(last_submission, current_submission)?;
+    ensure_next_height_is_not_less_than_current(sequencer_height_started, current_submission)?;
+    Ok(())
+}
+
+fn ensure_last_and_current_are_different(
+    last_submission: PostSubmission,
+    current_submission: PostSubmission,
+) -> eyre::Result<()> {
+    ensure!(
+        last_submission != current_submission,
+        "the last post-submission state recorded in the pre-submit file matches the state in the \
+         post-submission file. This indicates that either submission to Celestia failed, or that \
+         relayer failed to write its post-submission state to disk. Verify that the sequencer \
+         height in the pre-submit file was written to Celestia and update the post-submission \
+         file with the sequencer and Celestia heights or, if you want to have relayer start \
+         submitting from the currently set post-submission file, update the pre-submission file \
+         to read `{{\"state\": \"ignore\"}}`"
+    );
+    Ok(())
+}
+fn ensure_last_is_not_submitted_while_current_is_fresh(
+    last_submission: PostSubmission,
+    current_submission: PostSubmission,
+) -> eyre::Result<()> {
+    ensure!(
+        !(last_submission.is_submitted() && current_submission.is_fresh()),
+        "the submission recorded in the post-submit file cannot be `fresh` while \
+         `last_submission` in the pre-submit file is `submitted`",
+    );
+    Ok(())
+}
+
+fn ensure_height_in_last_does_not_exceed_height_in_current(
+    last_submission: PostSubmission,
+    current_submission: PostSubmission,
+) -> eyre::Result<()> {
+    let PostSubmission::Submitted {
+        sequencer_height: height_in_last,
+        ..
+    } = last_submission
+    else {
+        return Ok(());
+    };
+    let PostSubmission::Submitted {
+        sequencer_height: height_in_current,
+        ..
+    } = current_submission
+    else {
+        return Ok(());
+    };
+    ensure!(
+        height_in_last <= height_in_current,
+        "sequencer height in `last_submission` in the pre-submit file cannot exceed the sequencer \
+         height recorded as submitted in the post-submit file"
+    );
+    Ok(())
+}
+
+fn ensure_next_height_is_not_less_than_current(
+    next_height: u64,
+    current_submission: PostSubmission,
+) -> eyre::Result<()> {
+    let PostSubmission::Submitted {
+        sequencer_height: height_in_current,
+        ..
+    } = current_submission
+    else {
+        return Ok(());
+    };
+    ensure!(
+        next_height >= height_in_current,
+        "sequencer height as next submitted height in the pre-submit file cannot be less than the \
+         sequencer height recorded as submitted in the post-submit file"
+    );
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use tempfile::NamedTempFile;
+
+    use super::SubmissionState;
+    use crate::relayer::submission::PostSubmission;
+
+    #[track_caller]
+    fn create_files() -> (NamedTempFile, NamedTempFile) {
+        let pre = NamedTempFile::new()
+            .expect("must be able to create an empty pre submit state file to run tests");
+        let post = NamedTempFile::new()
+            .expect("must be able to create an empty post submit state file to run tests");
+        (pre, post)
+    }
+
+    fn write(f: &NamedTempFile, val: serde_json::Value) {
+        serde_json::to_writer(f, &val).expect("must be able to write state to run tests");
+    }
+
+    #[test]
+    fn fresh_with_ignored_is_ok() {
+        let (pre, post) = create_files();
+        write(&pre, json!({ "state": "ignore" }));
+        write(&post, json!({ "state": "fresh" }));
+        SubmissionState::from_paths(pre.path(), post.path())
+            .expect("states `ignore` and `fresh` give a working submission state");
+    }
+
+    #[test]
+    fn submitted_with_ignored_is_ok() {
+        let (pre, post) = create_files();
+        write(&pre, json!({ "state": "ignore" }));
+        write(
+            &post,
+            json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
+        );
+        SubmissionState::from_paths(pre.path(), post.path())
+            .expect("states `ignore` and `submitted` give a working submission state");
+    }
+
+    #[test]
+    fn started_with_same_fresh_in_last_and_current_is_err() {
+        let (pre, post) = create_files();
+        write(
+            &pre,
+            json!({ "state": "started", "sequencer_height": 5, "last_submission": { "state": "fresh"} }),
+        );
+        write(&post, json!({ "state": "fresh" }));
+        let _ = SubmissionState::from_paths(pre.path(), post.path())
+            .expect_err("started state with `fresh` in last and current gives error");
+    }
+
+    #[test]
+    fn started_with_height_before_current_is_err() {
+        let (pre, post) = create_files();
+        write(
+            &pre,
+            json!({ "state": "started", "sequencer_height": 5, "last_submission": { "state": "fresh"} }),
+        );
+        write(
+            &post,
+            json!({ "state": "submitted", "sequencer_height": 6, "celestia_height": 2 }),
+        );
+        let _ = SubmissionState::from_paths(pre.path(), post.path()).expect_err(
+            "started state with sequencer height less then sequencer height recorded submitted \
+             gives error",
+        );
+    }
+
+    #[test]
+    fn started_with_same_submitted_in_last_and_current_is_err() {
+        let (pre, post) = create_files();
+        write(
+            &pre,
+            json!({ "state": "started", "sequencer_height": 2, "last_submission": { "state": "submitted", "celestia_height": 5, "sequencer_height": 2} }),
+        );
+        write(
+            &post,
+            json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
+        );
+        let _ = SubmissionState::from_paths(pre.path(), post.path()).expect_err(
+            "started state with the same `submitted` in last and current give an error",
+        );
+    }
+
+    #[test]
+    fn started_with_different_last_fresh_and_current_submitted_is_ok() {
+        let (pre, post) = create_files();
+        write(
+            &pre,
+            json!({ "state": "started", "sequencer_height": 2, "last_submission": { "state": "fresh" }}),
+        );
+        write(
+            &post,
+            json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
+        );
+        let _ = SubmissionState::from_paths(pre.path(), post.path()).expect(
+            "started state with the `fresh` in last and `submitted` in current gives working \
+             submission state",
+        );
+    }
+
+    #[test]
+    fn submit_initialize_finalize_flow_works() {
+        let (pre, post) = create_files();
+        write(
+            &pre,
+            json!({ "state": "started", "sequencer_height": 2, "last_submission": { "state": "fresh" }}),
+        );
+        write(
+            &post,
+            json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
+        );
+        let state = SubmissionState::from_paths(pre.path(), post.path()).expect(
+            "started state with the `fresh` in last and `submitted` in current gives working \
+             submission state",
+        );
+        let started = state.initialize(3u32.into()).unwrap();
+        let finalized = started.finalize(6).unwrap();
+        let PostSubmission::Submitted {
+            celestia_height,
+            sequencer_height,
+        } = finalized.post
+        else {
+            panic!("the post submission state should be `submitted`");
+        };
+        assert_eq!(celestia_height, 6);
+        assert_eq!(sequencer_height, 3)
+    }
+
+    #[test]
+    fn submit_old_blocks_gives_error() {
+        let (pre, post) = create_files();
+        write(
+            &pre,
+            json!({ "state": "started", "sequencer_height": 2, "last_submission": { "state": "fresh" }}),
+        );
+        write(
+            &post,
+            json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
+        );
+        let state = SubmissionState::from_paths(pre.path(), post.path()).expect(
+            "started state with the `fresh` in last and `submitted` in current gives working \
+             submission state",
+        );
+        let _ = state
+            .initialize(2u32.into())
+            .expect_err("trying to submit the same sequencer height is an error");
     }
 }
