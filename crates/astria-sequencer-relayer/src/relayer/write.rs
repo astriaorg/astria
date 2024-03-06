@@ -477,7 +477,7 @@ impl<'a> std::fmt::Display for ReportSequencerHeights<'a> {
 /// The conversion result will be returned in the order they are pushed
 /// into this queue.
 ///
-/// Note on the implementation: the conversions are done in a block tokio
+/// Note on the implementation: the conversions are done in a blocking tokio
 /// task so that conversions are started immediately without needing extra
 /// polling. This means that the only contribution that `FuturesOrdered`
 /// provides is ordering the conversion result by the order the blocks are
@@ -505,9 +505,9 @@ impl Conversions {
 
     fn push(&mut self, block: SequencerBlock) {
         let height = block.height();
+        let conversion = tokio::task::spawn_blocking(move || convert(block));
         let fut = async move {
-            let res = tokio::task::spawn_blocking(move || convert(block)).await;
-            let res = crate::utils::flatten(res);
+            let res = crate::utils::flatten(conversion.await);
             (height, res)
         }
         .boxed();
