@@ -24,7 +24,7 @@ enum PostSubmission {
     Fresh,
     Submitted {
         celestia_height: u64,
-        sequencer_height: u64,
+        sequencer_height: SequencerHeight,
     },
 }
 
@@ -52,7 +52,7 @@ impl PostSubmission {
 enum PreSubmission {
     Ignore,
     Started {
-        sequencer_height: u64,
+        sequencer_height: SequencerHeight,
         last_submission: PostSubmission,
     },
 }
@@ -124,7 +124,7 @@ impl Started {
 }
 
 impl SubmissionState {
-    pub(super) fn last_fetched_height(&self) -> Option<u64> {
+    pub(super) fn last_submitted_height(&self) -> Option<SequencerHeight> {
         match self.post {
             PostSubmission::Fresh => None,
             PostSubmission::Submitted {
@@ -140,14 +140,14 @@ impl SubmissionState {
         } = self.post
         {
             ensure!(
-                sequencer_height.value() > latest_submitted,
+                sequencer_height > latest_submitted,
                 "refusing to submit a sequencer block at heights below or at what was already \
                  submitted"
             );
         }
         let new = Self {
             pre: PreSubmission::Started {
-                sequencer_height: sequencer_height.value(),
+                sequencer_height,
                 last_submission: self.post,
             },
             ..self
@@ -220,7 +220,7 @@ impl SubmissionState {
 }
 
 fn ensure_consistent(
-    sequencer_height_started: u64,
+    sequencer_height_started: SequencerHeight,
     last_submission: PostSubmission,
     current_submission: PostSubmission,
 ) -> eyre::Result<()> {
@@ -286,7 +286,7 @@ fn ensure_height_in_last_does_not_exceed_height_in_current(
 }
 
 fn ensure_next_height_is_not_less_than_current(
-    next_height: u64,
+    next_height: SequencerHeight,
     current_submission: PostSubmission,
 ) -> eyre::Result<()> {
     let PostSubmission::Submitted {
@@ -433,7 +433,7 @@ mod tests {
             panic!("the post submission state should be `submitted`");
         };
         assert_eq!(celestia_height, 6);
-        assert_eq!(sequencer_height, 3);
+        assert_eq!(sequencer_height.value(), 3);
     }
 
     #[test]

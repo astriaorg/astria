@@ -146,14 +146,7 @@ impl Relayer {
             .await
             .wrap_err("failed reading submission state from files")?;
 
-        let last_submitted_sequencer_height = submission_state
-            .last_fetched_height()
-            .map(TryInto::try_into)
-            .transpose()
-            .wrap_err(
-                "failed converting u64 height in submission state to cometbft Height. Does it fit \
-                 into a non-negative i64?",
-            )?;
+        let last_submitted_sequencer_height = submission_state.last_submitted_height();
 
         let latest_height_stream =
             make_latest_height_stream(self.sequencer.clone(), self.sequencer_poll_period);
