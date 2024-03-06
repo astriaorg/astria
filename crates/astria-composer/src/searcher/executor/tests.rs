@@ -144,7 +144,7 @@ fn signed_tx_from_request(request: &Request) -> SignedTransaction {
 }
 
 /// Deserizalizes the bytes contained in a `tx_sync::Request` to a signed sequencer transaction
-/// and verifies that the contained sequence action is in the given `expected_chain_ids` and
+/// and verifies that the contained sequence action is in the given `expected_rolup_ids` and
 /// `expected_nonces`.
 async fn mount_broadcast_tx_sync_seq_actions_mock(server: &MockServer) -> MockGuard {
     let matcher = move |request: &Request| {
