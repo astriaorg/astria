@@ -28,18 +28,18 @@ use prost::Message;
 use tracing::instrument;
 
 fn block_hash_by_height_key(height: u64) -> String {
-    format!("blockheader/{height}")
+    format!("blockhash/{height}")
 }
 
 fn sequencer_block_header_by_hash_key(hash: &[u8]) -> String {
-    format!("blockhash/{}", hex::encode(hash))
+    format!("blockheader/{}", hex::encode(hash))
 }
 
-fn rollup_data_by_block_hash_and_rollup_id_key(hash: &[u8], rollup_id: &RollupId) -> String {
+fn rollup_data_by_hash_and_rollup_id_key(hash: &[u8], rollup_id: &RollupId) -> String {
     format!("rollupdata/{}/{}", hex::encode(hash), rollup_id)
 }
 
-fn rollup_ids_by_block_hash_key(hash: &[u8]) -> String {
+fn rollup_ids_by_hash_key(hash: &[u8]) -> String {
     format!("rollupids/{}", hex::encode(hash))
 }
 
@@ -57,7 +57,7 @@ struct RollupIds(Vec<[u8; 32]>);
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_block_hash_by_height(&self, height: u64) -> Result<[u8; 32]> {
         let key = block_hash_by_height_key(height);
         let Some(hash) = self
@@ -75,7 +75,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(hash)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_sequencer_block_header_by_hash(
         &self,
         hash: &[u8],
@@ -96,9 +96,9 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(header)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_rollup_ids_by_block_hash(&self, hash: &[u8]) -> Result<Vec<RollupId>> {
-        let key = rollup_ids_by_block_hash_key(hash);
+        let key = rollup_ids_by_hash_key(hash);
         let Some(rollup_ids_bytes) = self
             .get_raw(&key)
             .await
@@ -116,7 +116,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(rollup_ids)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_sequencer_block_by_hash(&self, hash: &[u8]) -> Result<SequencerBlock> {
         let Some(header_bytes) = self
             .get_raw(&sequencer_block_header_by_hash_key(hash))
@@ -136,7 +136,7 @@ pub(crate) trait StateReadExt: StateRead {
 
         let mut rollup_transactions = Vec::with_capacity(rollup_ids.len());
         for (i, id) in rollup_ids.iter().enumerate() {
-            let key = rollup_data_by_block_hash_and_rollup_id_key(hash, id);
+            let key = rollup_data_by_hash_and_rollup_id_key(hash, id);
             let raw = self
                 .get_raw(&key)
                 .await
@@ -186,7 +186,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(block)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_sequencer_block_by_height(&self, height: u64) -> Result<SequencerBlock> {
         let hash = self
             .get_block_hash_by_height(height)
@@ -197,13 +197,13 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed to get sequencer block by hash")
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_rollup_data(
         &self,
         hash: &[u8],
         rollup_id: &RollupId,
     ) -> Result<RollupTransactions> {
-        let key = rollup_data_by_block_hash_and_rollup_id_key(hash, rollup_id);
+        let key = rollup_data_by_hash_and_rollup_id_key(hash, rollup_id);
         let Some(bytes) = self
             .get_raw(&key)
             .await
@@ -222,7 +222,7 @@ pub(crate) trait StateReadExt: StateRead {
         Ok(rollup_transactions)
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     async fn get_block_proofs_by_block_hash(
         &self,
         hash: &[u8],
@@ -258,7 +258,7 @@ pub(crate) trait StateReadExt: StateRead {
 impl<T: StateRead> StateReadExt for T {}
 
 pub(crate) trait StateWriteExt: StateWrite {
-    #[instrument(skip(self))]
+    #[instrument(skip_all)]
     fn put_sequencer_block(&mut self, block: SequencerBlock) -> Result<()> {
         // split up and write the sequencer block to state in the following order:
         // 1. height to block hash
@@ -277,7 +277,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             .copied()
             .map(RollupId::get)
             .collect();
-        let key = rollup_ids_by_block_hash_key(&block.block_hash());
+        let key = rollup_ids_by_hash_key(&block.block_hash());
         self.put_raw(
             key,
             RollupIds(rollup_ids)
@@ -292,7 +292,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         self.put_raw(key, header.encode_to_vec());
 
         for (id, rollup_data) in rollup_transactions {
-            let key = rollup_data_by_block_hash_and_rollup_id_key(&block_hash, &id);
+            let key = rollup_data_by_hash_and_rollup_id_key(&block_hash, &id);
             self.put_raw(key, rollup_data.into_raw().encode_to_vec());
         }
 

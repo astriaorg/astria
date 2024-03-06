@@ -327,8 +327,11 @@ pub struct UncheckedSequencerBlock {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SequencerBlockHeader {
+    // the cometbft header for this sequencer block
     cometbft_header: tendermint::block::header::Header,
+    // the 32-byte merkle root of all the rollup transactions in the block
     rollup_transactions_root: [u8; 32],
+    // the 32-byte merkle root of all the rollup IDs in the block
     rollup_ids_root: [u8; 32],
 }
 
