@@ -18,7 +18,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install `buf` protobuf manager
         uses: bufbuild/buf-setup-action@v1
         with:
@@ -48,7 +48,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.76.0
       - uses: taiki-e/install-action@v2.15.2
         with:
@@ -71,7 +71,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.76.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
@@ -84,7 +84,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.76.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
@@ -111,7 +111,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.76.0
       - uses: Swatinem/rust-cache@v2.6.1
         with:
@@ -128,7 +128,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.76.0
         with:
           components: clippy
@@ -154,7 +154,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_tests == 'true' && needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@v1
         with:
           # This has to match `rust-toolchain` in the rust-toolchain file of the dylint lints
