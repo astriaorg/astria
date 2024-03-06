@@ -16,6 +16,7 @@ use astria_core::{
     sequencer::v1alpha1::{
         transaction::Action,
         Address,
+        SequencerBlock,
         SignedTransaction,
     },
 };
@@ -27,7 +28,6 @@ use cnidarium::{
     Storage,
 };
 use prost::Message as _;
-use sequencer_client::SequencerBlock;
 use sha2::{
     Digest as _,
     Sha256,
@@ -827,7 +827,7 @@ mod test {
             app_hash: AppHash::try_from(vec![]).unwrap(),
             chain_id: "test".to_string().try_into().unwrap(),
             consensus_hash: Hash::default(),
-            data_hash: Some(Hash::default()),
+            data_hash: Some(Hash::try_from([0u8; 32].to_vec()).unwrap()),
             evidence_hash: Some(Hash::default()),
             height: Height::default(),
             last_block_id: None,
@@ -1820,6 +1820,9 @@ mod test {
             .unwrap();
         app.apply(state_tx);
 
+        let (_, sequencer_block_builder) = block_data_from_txs(vec![]);
+        app.current_sequencer_block_builder = Some(sequencer_block_builder);
+
         let resp = app
             .end_block(&abci::request::EndBlock {
                 height: 1u32.into(),
@@ -1940,8 +1943,31 @@ mod test {
     async fn app_transfer_block_fees_to_proposer() {
         let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let native_asset = get_native_asset().id();
+
+        // transfer funds from Alice to Bob; use native token for fee payment
+        let bob_address = address_from_hex_string(BOB_ADDRESS);
+        let amount = 333_333;
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                TransferAction {
+                    to: bob_address,
+                    amount,
+                    asset_id: native_asset,
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        let (header, sequencer_block_builder) =
+            block_data_from_txs(vec![signed_tx.to_raw().encode_to_vec()]);
+
         let mut begin_block = abci::request::BeginBlock {
-            header: default_header(),
+            header,
             hash: Hash::default(),
             last_commit_info: CommitInfo {
                 votes: vec![],
@@ -1964,28 +1990,9 @@ mod test {
             begin_block.header.proposer_address
         );
 
-        let (alice_signing_key, _) = get_alice_signing_key_and_address();
-        let native_asset = get_native_asset().id();
-
-        // transfer funds from Alice to Bob; use native token for fee payment
-        let bob_address = address_from_hex_string(BOB_ADDRESS);
-        let amount = 333_333;
-        let tx = UnsignedTransaction {
-            nonce: 0,
-            actions: vec![
-                TransferAction {
-                    to: bob_address,
-                    amount,
-                    asset_id: native_asset,
-                    fee_asset_id: get_native_asset().id(),
-                }
-                .into(),
-            ],
-        };
-
-        let signed_tx = tx.into_signed(&alice_signing_key);
         app.deliver_tx(signed_tx).await.unwrap();
 
+        app.current_sequencer_block_builder = Some(sequencer_block_builder);
         app.end_block(&abci::request::EndBlock {
             height: 1u32.into(),
         })
@@ -2001,5 +2008,21 @@ mod test {
             TRANSFER_FEE,
         );
         assert_eq!(app.state.get_block_fees().await.unwrap().len(), 0);
+    }
+
+    fn block_data_from_txs(txs: Vec<Vec<u8>>) -> (Header, SequencerBlockBuilder) {
+        let empty_hash = merkle::Tree::from_leaves(Vec::<Vec<u8>>::new()).root();
+        let mut block_data = vec![empty_hash.to_vec(), empty_hash.to_vec()];
+        block_data.extend(txs);
+
+        let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
+        let mut header = default_header();
+        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+
+        let mut sequencer_block_builder = SequencerBlockBuilder::new(header.clone());
+        for tx in block_data {
+            sequencer_block_builder.push_transaction(tx);
+        }
+        (header, sequencer_block_builder)
     }
 }

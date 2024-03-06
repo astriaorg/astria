@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use astria_core::{
     generated::sequencer::v1alpha1::{
         sequencer_service_server::SequencerService,
@@ -10,10 +9,6 @@ use astria_core::{
     sequencer::v1alpha1::RollupId,
 };
 use cnidarium::Storage;
-use sequencer_client::{
-    HttpClient,
-    SequencerClientExt as _,
-};
 use tonic::{
     Request,
     Response,
@@ -27,16 +22,12 @@ use crate::{
 };
 
 pub(crate) struct SequencerServer {
-    client: HttpClient,
     storage: Storage,
 }
 
 impl SequencerServer {
-    pub(crate) fn new(cometbft_endpoint: &str, storage: Storage) -> anyhow::Result<Self> {
-        let client = HttpClient::new(cometbft_endpoint)
-            .context("should be able to create cometbft client")?;
+    pub(crate) fn new(storage: Storage) -> anyhow::Result<Self> {
         Ok(Self {
-            client,
             storage,
         })
     }
@@ -93,10 +84,10 @@ impl SequencerService for SequencerServer {
             ));
         }
 
-        let height: u32 = request
-            .height
-            .try_into()
-            .map_err(|_| Status::invalid_argument("height should be a valid u32"))?;
+        // let height: u32 = request
+        //     .height
+        //     .try_into()
+        //     .map_err(|_| Status::invalid_argument("height should be a valid u32"))?;
 
         let mut rollup_ids: Vec<RollupId> = vec![];
         for id in request.rollup_ids {
@@ -108,18 +99,70 @@ impl SequencerService for SequencerServer {
             rollup_ids.push(rollup_id);
         }
 
-        // XXX: This is a potentially very expensive operation. The the cometbft block
-        // could be pulled async, and the conversion to a sequencer block be performed
-        // in a thread/blocking task.
-        let block = match self.client.sequencer_block(height).await {
-            Ok(block) => block.into_filtered_block(rollup_ids),
-            Err(e) => {
-                return Err(Status::internal(format!(
-                    "failed to get sequencer block from cometbft: {e}",
-                )));
-            }
+        let block_hash = snapshot
+            .get_block_hash_by_height(request.height)
+            .await
+            .map_err(|e| Status::internal(format!("failed to get block hash from storage: {e}")))?;
+
+        let (header, rollup_transactions_root, _) = snapshot
+            .get_sequencer_block_header_by_hash(&block_hash)
+            .await
+            .map_err(|e| {
+                Status::internal(format!(
+                    "failed to get sequencer block header from storage: {e}"
+                ))
+            })?
+            .into_values();
+
+        let (rollup_transactions_proof, rollup_ids_proof) = snapshot
+            .get_block_proofs_by_block_hash(&block_hash)
+            .await
+            .map_err(|e| {
+                Status::internal(format!(
+                    "failed to get sequencer block proofs from storage: {e}"
+                ))
+            })?;
+
+        let all_rollup_ids = snapshot
+            .get_rollup_ids_by_block_hash(&block_hash)
+            .await
+            .map_err(|e| Status::internal(format!("failed to get rollup ids from storage: {e}")))?
+            .into_iter()
+            .map(|id| id.to_vec())
+            .collect::<Vec<_>>();
+
+        let mut rollup_transactions = Vec::with_capacity(rollup_ids.len());
+        for rollup_id in rollup_ids {
+            let rollup_data = snapshot
+                .get_rollup_data(&block_hash, &rollup_id)
+                .await
+                .map_err(|e| {
+                    Status::internal(format!("failed to get rollup data from storage: {e}",))
+                })?;
+            rollup_transactions.push(rollup_data.into_raw());
+        }
+
+        let block = RawFilteredSequencerBlock {
+            header: Some(header.into()),
+            rollup_transactions,
+            rollup_transactions_root: rollup_transactions_root.to_vec(),
+            rollup_transactions_proof: rollup_transactions_proof.into(),
+            rollup_ids_proof: rollup_ids_proof.into(),
+            all_rollup_ids,
         };
 
-        Ok(Response::new(block.into_raw()))
+        // // XXX: This is a potentially very expensive operation. The the cometbft block
+        // // could be pulled async, and the conversion to a sequencer block be performed
+        // // in a thread/blocking task.
+        // let block = match self.client.sequencer_block(height).await {
+        //     Ok(block) => block.into_filtered_block(rollup_ids),
+        //     Err(e) => {
+        //         return Err(Status::internal(format!(
+        //             "failed to get sequencer block from cometbft: {e}",
+        //         )));
+        //     }
+        // };
+
+        Ok(Response::new(block))
     }
 }

@@ -9,6 +9,7 @@ use astria_core::{
         block::{
             RollupTransactions,
             SequencerBlock,
+            SequencerBlockHeader,
         },
         RollupId,
     },
@@ -75,20 +76,31 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip(self))]
-    async fn get_sequencer_block_by_hash(&self, hash: &[u8]) -> Result<SequencerBlock> {
+    async fn get_sequencer_block_header_by_hash(
+        &self,
+        hash: &[u8],
+    ) -> Result<SequencerBlockHeader> {
+        let key = sequencer_block_header_by_hash_key(hash);
         let Some(header_bytes) = self
-            .get_raw(&sequencer_block_header_by_hash_key(hash))
+            .get_raw(&key)
             .await
             .context("failed to read raw sequencer block from state")?
         else {
             return Err(anyhow!("header not found for given block hash"));
         };
 
-        let header_raw = raw::SequencerBlockHeader::decode(header_bytes.as_slice())
+        let raw = raw::SequencerBlockHeader::decode(header_bytes.as_slice())
             .context("failed to decode sequencer block from raw bytes")?;
+        let header = SequencerBlockHeader::try_from_raw(raw)
+            .context("failed to convert raw sequencer block to sequencer block")?;
+        Ok(header)
+    }
 
+    #[instrument(skip(self))]
+    async fn get_rollup_ids_by_block_hash(&self, hash: &[u8]) -> Result<Vec<RollupId>> {
+        let key = rollup_ids_by_block_hash_key(hash);
         let Some(rollup_ids_bytes) = self
-            .get_raw(&rollup_ids_by_block_hash_key(hash))
+            .get_raw(&key)
             .await
             .context("failed to read rollup IDs by block hash from state")?
         else {
@@ -101,6 +113,26 @@ pub(crate) trait StateReadExt: StateRead {
             .into_iter()
             .map(RollupId::new)
             .collect();
+        Ok(rollup_ids)
+    }
+
+    #[instrument(skip(self))]
+    async fn get_sequencer_block_by_hash(&self, hash: &[u8]) -> Result<SequencerBlock> {
+        let Some(header_bytes) = self
+            .get_raw(&sequencer_block_header_by_hash_key(hash))
+            .await
+            .context("failed to read raw sequencer block from state")?
+        else {
+            return Err(anyhow!("header not found for given block hash"));
+        };
+
+        let header_raw = raw::SequencerBlockHeader::decode(header_bytes.as_slice())
+            .context("failed to decode sequencer block from raw bytes")?;
+
+        let rollup_ids = self
+            .get_rollup_ids_by_block_hash(hash)
+            .await
+            .context("failed to get rollup IDs by block hash")?;
 
         let mut rollup_transactions = Vec::with_capacity(rollup_ids.len());
         for (i, id) in rollup_ids.iter().enumerate() {
@@ -166,7 +198,7 @@ pub(crate) trait StateReadExt: StateRead {
     }
 
     #[instrument(skip(self))]
-    async fn get_rollup_data_by_block_hash(
+    async fn get_rollup_data(
         &self,
         hash: &[u8],
         rollup_id: &RollupId,

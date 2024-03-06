@@ -115,9 +115,8 @@ impl Sequencer {
             .grpc_addr
             .parse()
             .context("failed to parse grpc_addr address")?;
-        let grpc_server_handle =
-            start_grpc_server(&storage, &config.cometbft_rpc_addr, grpc_addr, shutdown_rx)
-                .context("failed to start grpc server")?;
+        let grpc_server_handle = start_grpc_server(&storage, grpc_addr, shutdown_rx)
+            .context("failed to start grpc server")?;
 
         info!(config.listen_addr, "starting sequencer");
         let server_handle = tokio::spawn(async move {
@@ -157,7 +156,6 @@ impl Sequencer {
 
 fn start_grpc_server(
     storage: &cnidarium::Storage,
-    cometbft_rpc_addr: &str,
     grpc_addr: std::net::SocketAddr,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> Result<JoinHandle<Result<(), tonic::transport::Error>>> {
@@ -171,7 +169,7 @@ fn start_grpc_server(
     use tower_http::cors::CorsLayer;
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
-    let sequencer_api = SequencerServer::new(cometbft_rpc_addr, storage.clone())
+    let sequencer_api = SequencerServer::new(storage.clone())
         .context("failed to create sequencer service grpc server")?;
     let cors_layer = CorsLayer::permissive();
 
