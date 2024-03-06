@@ -32,18 +32,26 @@ use tracing::{
     Span,
 };
 
+/// Tracks the latest sequencer height and returns the next height the stream should fetch.
+///
+/// This type exists primarily to make it convenient to determine the next height. Accessing
+/// methods on `&self` behind a `Pin<&mut BlockStream>` (as is the case its `Stream` implementation)
+/// is very roundabout, whereas methods on `Unpin` fields can be called directly.
 #[derive(Debug)]
 struct Heights {
+    // The last observed sequencer height. Set externally and important for dermining if another
+    // block at `next` height can be fetched.
     last_observed: Option<Height>,
+    // The next sequencer height to be fetched.
     next: Height,
 }
 
 impl Heights {
     /// Returns the next height to be fetched.
     ///
-    /// Returns `None` if `last_observed` is unset or if `next` is greater than or equal to
-    /// `last_observed`.
-    /// Returns `next` otherwise.
+    /// Returns `None` if `last_observed` is unset.
+    /// Returns `None` if `next` exceeds `last_observed`.
+    /// Returns `Some(next)` otherwise.
     fn next_height_to_fetch(&self) -> Option<Height> {
         let last_observed = self.last_observed?;
         if self.next <= last_observed {
@@ -53,8 +61,14 @@ impl Heights {
         }
     }
 
+    /// Increments the next height to be fetched by 1.
     fn increment_next(&mut self) {
         self.next = self.next.increment();
+    }
+
+    /// Sets the last observed sequencer height to `height`.
+    fn set_last_observed(&mut self, height: Height) {
+        self.last_observed.replace(height);
     }
 }
 
@@ -77,7 +91,7 @@ impl BlockStream {
     }
 
     pub(super) fn set_latest_sequencer_height(&mut self, height: Height) {
-        self.heights.last_observed.replace(height);
+        self.heights.set_last_observed(height);
     }
 
     pub(super) fn pause(&mut self) {
