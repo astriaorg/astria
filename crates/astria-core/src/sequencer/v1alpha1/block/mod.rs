@@ -606,6 +606,10 @@ impl SequencerBlock {
     ///
     /// # Errors
     /// TODO(https://github.com/astriaorg/astria/issues/612)
+    ///
+    /// # Panics
+    ///
+    /// - if a rollup data merkle proof cannot be constructed.
     pub fn try_from_cometbft_header_and_data(
         cometbft_header: tendermint::block::Header,
         data: Vec<Vec<u8>>,
