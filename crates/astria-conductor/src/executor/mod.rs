@@ -536,7 +536,7 @@ impl ExecutableBlock {
     fn from_sequencer(block: SequencerBlock, id: RollupId) -> Self {
         let hash = block.block_hash();
         let height = block.height();
-        let timestamp = convert_tendermint_to_prost_timestamp(block.header().header().time);
+        let timestamp = convert_tendermint_to_prost_timestamp(block.header().cometbft_header().time);
         let transactions = block
             .into_rollup_transactions()
             .swap_remove(&id)

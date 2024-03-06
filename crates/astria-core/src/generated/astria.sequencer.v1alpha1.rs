@@ -140,7 +140,7 @@ pub struct SequencerBlock {
 pub struct SequencerBlockHeader {
     /// The original CometBFT header that was the input to this sequencer block.
     #[prost(message, optional, tag = "1")]
-    pub header: ::core::option::Option<::tendermint_proto::types::Header>,
+    pub cometbft_header: ::core::option::Option<::tendermint_proto::types::Header>,
     /// The 32-byte merkle root of all the rollup transactions in the block (not just the
     /// subset included). Corresponds to `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`,
     #[prost(bytes = "vec", tag = "2")]

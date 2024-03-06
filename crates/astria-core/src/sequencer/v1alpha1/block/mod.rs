@@ -308,14 +308,14 @@ pub struct UncheckedSequencerBlock {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SequencerBlockHeader {
-    header: tendermint::block::header::Header,
+    cometbft_header: tendermint::block::header::Header,
     rollup_transactions_root: [u8; 32],
     rollup_ids_root: [u8; 32],
 }
 
 impl SequencerBlockHeader {
-    pub fn header(&self) -> &tendermint::block::header::Header {
-        &self.header
+    pub fn cometbft_header(&self) -> &tendermint::block::header::Header {
+        &self.cometbft_header
     }
 
     pub fn rollup_transactions_root(&self) -> [u8; 32] {
@@ -328,7 +328,7 @@ impl SequencerBlockHeader {
 
     pub fn into_values(self) -> (tendermint::block::header::Header, [u8; 32], [u8; 32]) {
         (
-            self.header,
+            self.cometbft_header,
             self.rollup_transactions_root,
             self.rollup_ids_root,
         )
@@ -336,7 +336,7 @@ impl SequencerBlockHeader {
 
     pub fn into_raw(self) -> raw::SequencerBlockHeader {
         raw::SequencerBlockHeader {
-            header: Some(self.header.into()),
+            cometbft_header: Some(self.cometbft_header.into()),
             rollup_transactions_root: self.rollup_transactions_root.to_vec(),
             rollup_ids_root: self.rollup_ids_root.to_vec(),
         }
@@ -344,14 +344,14 @@ impl SequencerBlockHeader {
 
     pub fn try_from_raw(raw: raw::SequencerBlockHeader) -> Result<Self, SequencerBlockHeaderError> {
         let raw::SequencerBlockHeader {
-            header,
+            cometbft_header,
             rollup_transactions_root,
             rollup_ids_root,
         } = raw;
-        let Some(header) = header else {
-            return Err(SequencerBlockHeaderError::field_not_set("header"));
+        let Some(cometbft_header) = cometbft_header else {
+            return Err(SequencerBlockHeaderError::field_not_set("cometbft_header"));
         };
-        let header = tendermint::block::header::Header::try_from(header)
+        let cometbft_header = tendermint::block::header::Header::try_from(cometbft_header)
             .map_err(SequencerBlockHeaderError::cometbft_header)?;
 
         let rollup_transactions_root =
@@ -362,7 +362,7 @@ impl SequencerBlockHeader {
             SequencerBlockHeaderError::incorrect_rollup_ids_root_length(e.len())
         })?;
         Ok(Self {
-            header,
+            cometbft_header,
             rollup_transactions_root,
             rollup_ids_root,
         })
@@ -397,7 +397,7 @@ impl SequencerBlockHeaderError {
 enum SequencerBlockHeaderErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
-    #[error("failed creating a native cometbft Header from the raw protobuf header")]
+    #[error("failed to create a cometbft header from the raw protobuf header")]
     CometBftHeader(#[source] tendermint::Error),
     #[error(
         "the rollup transaction root in the cometbft block.data field was expected to be 32 bytes \
@@ -454,7 +454,7 @@ impl SequencerBlock {
     /// The height stored in this sequencer block.
     #[must_use]
     pub fn height(&self) -> tendermint::block::Height {
-        self.header.header.height
+        self.header.cometbft_header.height
     }
 
     #[must_use]
@@ -547,7 +547,7 @@ impl SequencerBlock {
 
         FilteredSequencerBlock {
             block_hash: self.block_hash,
-            header: self.header.header,
+            header: self.header.cometbft_header,
             rollup_transactions: filtered_rollup_transactions,
             rollup_transactions_root: rollup_transaction_tree.root(),
             rollup_transactions_proof: self.rollup_transactions_proof,
@@ -579,18 +579,18 @@ impl SequencerBlock {
     }
 
     pub fn try_from_cometbft_header_and_data(
-        header: tendermint::block::Header,
+        cometbft_header: tendermint::block::Header,
         data: Vec<Vec<u8>>,
     ) -> Result<Self, SequencerBlockError> {
         use prost::Message as _;
 
-        let Some(tendermint::Hash::Sha256(data_hash)) = header.data_hash else {
+        let Some(tendermint::Hash::Sha256(data_hash)) = cometbft_header.data_hash else {
             // header.data_hash is Option<Hash> and Hash itself has
             // variants Sha256([u8; 32]) or None.
             return Err(SequencerBlockError::field_not_set("header.data_hash"));
         };
 
-        let tendermint::Hash::Sha256(block_hash) = header.hash() else {
+        let tendermint::Hash::Sha256(block_hash) = cometbft_header.hash() else {
             return Err(SequencerBlockError::comet_bft_block_hash_is_none());
         };
 
@@ -676,7 +676,7 @@ impl SequencerBlock {
         Ok(Self {
             block_hash,
             header: SequencerBlockHeader {
-                header,
+                cometbft_header,
                 rollup_transactions_root,
                 rollup_ids_root,
             },
@@ -727,13 +727,13 @@ impl SequencerBlock {
             };
             SequencerBlockHeader::try_from_raw(header).map_err(SequencerBlockError::header)
         }?;
-        let tendermint::Hash::Sha256(block_hash) = header.header.hash() else {
+        let tendermint::Hash::Sha256(block_hash) = header.cometbft_header.hash() else {
             return Err(SequencerBlockError::comet_bft_block_hash_is_none());
         };
 
         // header.data_hash is Option<Hash> and Hash itself has
         // variants Sha256([u8; 32]) or None.
-        let Some(tendermint::Hash::Sha256(data_hash)) = header.header.data_hash else {
+        let Some(tendermint::Hash::Sha256(data_hash)) = header.cometbft_header.data_hash else {
             return Err(SequencerBlockError::field_not_set("header.data_hash"));
         };
 

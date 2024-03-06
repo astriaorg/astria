@@ -84,11 +84,6 @@ impl SequencerService for SequencerServer {
             ));
         }
 
-        // let height: u32 = request
-        //     .height
-        //     .try_into()
-        //     .map_err(|_| Status::invalid_argument("height should be a valid u32"))?;
-
         let mut rollup_ids: Vec<RollupId> = vec![];
         for id in request.rollup_ids {
             let Ok(rollup_id) = RollupId::try_from_vec(id) else {
@@ -150,18 +145,6 @@ impl SequencerService for SequencerServer {
             rollup_ids_proof: rollup_ids_proof.into(),
             all_rollup_ids,
         };
-
-        // // XXX: This is a potentially very expensive operation. The the cometbft block
-        // // could be pulled async, and the conversion to a sequencer block be performed
-        // // in a thread/blocking task.
-        // let block = match self.client.sequencer_block(height).await {
-        //     Ok(block) => block.into_filtered_block(rollup_ids),
-        //     Err(e) => {
-        //         return Err(Status::internal(format!(
-        //             "failed to get sequencer block from cometbft: {e}",
-        //         )));
-        //     }
-        // };
 
         Ok(Response::new(block))
     }
