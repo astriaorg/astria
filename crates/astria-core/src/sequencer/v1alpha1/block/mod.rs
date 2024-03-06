@@ -208,6 +208,14 @@ impl SequencerBlockError {
     fn rollup_ids_root_does_not_match_reconstructed() -> Self {
         Self(SequencerBlockErrorKind::RollupIdsRootDoesNotMatchReconstructed)
     }
+
+    fn invalid_rollup_transactions_root() -> Self {
+        Self(SequencerBlockErrorKind::InvalidRollupTransactionsRoot)
+    }
+
+    fn invalid_rollup_ids_root() -> Self {
+        Self(SequencerBlockErrorKind::InvalidRollupIdsRoot)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -279,6 +287,16 @@ enum SequencerBlockErrorKind {
          root stored in the same block.data field"
     )]
     RollupIdsRootDoesNotMatchReconstructed,
+    #[error(
+        "the rollup transactionss root in the header did not match the root derived from the \
+         rollup transactions and proof"
+    )]
+    InvalidRollupTransactionsRoot,
+    #[error(
+        "the rollup IDs root in the header did not match the root derived from the rollup IDs and \
+         proof"
+    )]
+    InvalidRollupIdsRoot,
 }
 
 /// A shadow of [`SequencerBlock`] with full public access to its fields.
@@ -528,15 +546,6 @@ impl SequencerBlock {
     pub fn into_filtered_block(mut self, rollup_ids: Vec<RollupId>) -> FilteredSequencerBlock {
         let all_rollup_ids: Vec<RollupId> = self.rollup_transactions.keys().copied().collect();
 
-        // recreate the whole rollup tx tree so that we can get the root, as it's not stored
-        // in the sequencer block.
-        // note: we can remove this after storing the constructed root/proofs in the sequencer app.
-        let rollup_transaction_tree = derive_merkle_tree_from_rollup_txs(
-            self.rollup_transactions
-                .iter()
-                .map(|(id, txs)| (id, txs.transactions())),
-        );
-
         let mut filtered_rollup_transactions = IndexMap::with_capacity(rollup_ids.len());
         for id in rollup_ids {
             let Some(rollup_transactions) = self.rollup_transactions.shift_remove(&id) else {
@@ -549,7 +558,7 @@ impl SequencerBlock {
             block_hash: self.block_hash,
             header: self.header.cometbft_header,
             rollup_transactions: filtered_rollup_transactions,
-            rollup_transactions_root: rollup_transaction_tree.root(),
+            rollup_transactions_root: self.header.rollup_transactions_root,
             rollup_transactions_proof: self.rollup_transactions_proof,
             all_rollup_ids,
             rollup_ids_proof: self.rollup_ids_proof,
@@ -742,6 +751,14 @@ impl SequencerBlock {
             .map(rollup_txs_to_tuple)
             .collect::<Result<_, _>>()
             .map_err(SequencerBlockError::parse_rollup_transactions)?;
+
+        if !rollup_transactions_proof.verify(&header.rollup_transactions_root, data_hash) {
+            return Err(SequencerBlockError::invalid_rollup_transactions_root());
+        };
+
+        if !rollup_ids_proof.verify(&header.rollup_ids_root, data_hash) {
+            return Err(SequencerBlockError::invalid_rollup_ids_root());
+        };
 
         if !are_rollup_txs_included(&rollup_transactions, &rollup_transactions_proof, data_hash) {
             return Err(SequencerBlockError::rollup_transactions_not_in_sequencer_block());
