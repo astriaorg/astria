@@ -115,8 +115,7 @@ impl Sequencer {
             .grpc_addr
             .parse()
             .context("failed to parse grpc_addr address")?;
-        let grpc_server_handle = start_grpc_server(&storage, grpc_addr, shutdown_rx)
-            .context("failed to start grpc server")?;
+        let grpc_server_handle = start_grpc_server(&storage, grpc_addr, shutdown_rx);
 
         info!(config.listen_addr, "starting sequencer");
         let server_handle = tokio::spawn(async move {
@@ -158,7 +157,7 @@ fn start_grpc_server(
     storage: &cnidarium::Storage,
     grpc_addr: std::net::SocketAddr,
     shutdown_rx: oneshot::Receiver<()>,
-) -> Result<JoinHandle<Result<(), tonic::transport::Error>>> {
+) -> JoinHandle<Result<(), tonic::transport::Error>> {
     use futures::TryFutureExt as _;
     use ibc_proto::ibc::core::{
         channel::v1::query_server::QueryServer as ChannelQueryServer,
@@ -196,10 +195,9 @@ fn start_grpc_server(
         .add_service(SequencerServiceServer::new(sequencer_api));
 
     info!(grpc_addr = grpc_addr.to_string(), "starting grpc server");
-    Ok(tokio::task::spawn(grpc_server.serve_with_shutdown(
-        grpc_addr,
-        shutdown_rx.unwrap_or_else(|_| ()),
-    )))
+    tokio::task::spawn(
+        grpc_server.serve_with_shutdown(grpc_addr, shutdown_rx.unwrap_or_else(|_| ())),
+    )
 }
 
 struct SignalReceiver {
