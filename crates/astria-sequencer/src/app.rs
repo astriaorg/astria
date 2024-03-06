@@ -1820,7 +1820,7 @@ mod test {
             .unwrap();
         app.apply(state_tx);
 
-        let (_, sequencer_block_builder) = block_data_from_txs(vec![]);
+        let (_, sequencer_block_builder) = block_data_from_txs_no_sequence_actions(vec![]);
         app.current_sequencer_block_builder = Some(sequencer_block_builder);
 
         let resp = app
@@ -1964,7 +1964,7 @@ mod test {
 
         let signed_tx = tx.into_signed(&alice_signing_key);
         let (header, sequencer_block_builder) =
-            block_data_from_txs(vec![signed_tx.to_raw().encode_to_vec()]);
+            block_data_from_txs_no_sequence_actions(vec![signed_tx.to_raw().encode_to_vec()]);
 
         let mut begin_block = abci::request::BeginBlock {
             header,
@@ -2010,7 +2010,9 @@ mod test {
         assert_eq!(app.state.get_block_fees().await.unwrap().len(), 0);
     }
 
-    fn block_data_from_txs(txs: Vec<Vec<u8>>) -> (Header, SequencerBlockBuilder) {
+    fn block_data_from_txs_no_sequence_actions(
+        txs: Vec<Vec<u8>>,
+    ) -> (Header, SequencerBlockBuilder) {
         let empty_hash = merkle::Tree::from_leaves(Vec::<Vec<u8>>::new()).root();
         let mut block_data = vec![empty_hash.to_vec(), empty_hash.to_vec()];
         block_data.extend(txs);
