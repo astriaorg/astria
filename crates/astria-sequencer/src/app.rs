@@ -669,7 +669,9 @@ impl App {
             )
             .build()
             .context("failed to build sequencer block")?;
-        state_tx.put_sequencer_block(sequencer_block);
+        state_tx
+            .put_sequencer_block(sequencer_block)
+            .context("failed to write sequencer block to state")?;
 
         let events = self.apply(state_tx);
 

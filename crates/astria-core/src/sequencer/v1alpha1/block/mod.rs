@@ -357,6 +357,25 @@ impl SequencerBlock {
         &self.rollup_transactions
     }
 
+    #[must_use]
+    pub fn into_values(
+        self,
+    ) -> (
+        [u8; 32],
+        tendermint::block::header::Header,
+        IndexMap<RollupId, RollupTransactions>,
+        merkle::Proof,
+        merkle::Proof,
+    ) {
+        (
+            self.block_hash,
+            self.header,
+            self.rollup_transactions,
+            self.rollup_transactions_proof,
+            self.rollup_ids_proof,
+        )
+    }
+
     /// Returns the map of rollup transactions, consuming `self`.
     #[must_use]
     pub fn into_rollup_transactions(self) -> IndexMap<RollupId, RollupTransactions> {

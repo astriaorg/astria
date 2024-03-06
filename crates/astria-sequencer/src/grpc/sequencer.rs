@@ -21,7 +21,10 @@ use tonic::{
 };
 use tracing::instrument;
 
-use crate::state_ext::StateReadExt as _;
+use crate::{
+    api_state_ext::StateReadExt as _,
+    state_ext::StateReadExt as _,
+};
 
 pub(crate) struct SequencerServer {
     client: HttpClient,
@@ -60,24 +63,14 @@ impl SequencerService for SequencerServer {
             ));
         }
 
-        let height: u32 = request
-            .height
-            .try_into()
-            .map_err(|_| Status::invalid_argument("height should be a valid u32"))?;
+        let block = snapshot
+            .get_sequencer_block_by_height(request.height)
+            .await
+            .map_err(|e| {
+                Status::internal(format!("failed to get sequencer block from storage: {e}"))
+            })?;
 
-        // XXX: This is a potentially very expensive operation. The the cometbft block
-        // could be pulled async, and the conversion to a sequencer block be performed
-        // in a thread/blocking task.
-        let block = match self.client.sequencer_block(height).await {
-            Ok(block) => block.into_raw(),
-            Err(_) => {
-                return Err(Status::internal(
-                    "failed to get sequencer block from cometbft",
-                ));
-            }
-        };
-
-        Ok(Response::new(block))
+        Ok(Response::new(block.into_raw()))
     }
 
     /// Given a block height and set of rollup ids, returns a SequencerBlock which
