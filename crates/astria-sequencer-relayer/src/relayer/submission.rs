@@ -7,6 +7,7 @@ use std::path::{
 
 use astria_eyre::eyre::{
     self,
+    bail,
     ensure,
     WrapErr as _,
 };
@@ -24,6 +25,7 @@ enum PostSubmission {
     Fresh,
     Submitted {
         celestia_height: u64,
+        #[serde(with = "as_number")]
         sequencer_height: SequencerHeight,
     },
 }
@@ -52,6 +54,7 @@ impl PostSubmission {
 enum PreSubmission {
     Ignore,
     Started {
+        #[serde(with = "as_number")]
         sequencer_height: SequencerHeight,
         last_submission: PostSubmission,
     },
@@ -224,10 +227,37 @@ fn ensure_consistent(
     last_submission: PostSubmission,
     current_submission: PostSubmission,
 ) -> eyre::Result<()> {
+    ensure_height_pre_submission_is_height_post_submission(
+        sequencer_height_started,
+        current_submission,
+    )?;
     ensure_last_and_current_are_different(last_submission, current_submission)?;
     ensure_last_is_not_submitted_while_current_is_fresh(last_submission, current_submission)?;
-    ensure_height_in_last_does_not_exceed_height_in_current(last_submission, current_submission)?;
-    ensure_next_height_is_not_less_than_current(sequencer_height_started, current_submission)?;
+    ensure_height_in_last_is_less_than_height_in_current(last_submission, current_submission)?;
+    Ok(())
+}
+
+fn ensure_height_pre_submission_is_height_post_submission(
+    sequencer_height_started: SequencerHeight,
+    current_submission: PostSubmission,
+) -> eyre::Result<()> {
+    let PostSubmission::Submitted {
+        sequencer_height, ..
+    } = current_submission
+    else {
+        bail!(
+            "the pre-submit file indicated that a new submission was started, but the post-submit \
+             file still contained a \"fresh\" state. This indicates that the submission was not \
+             finalized."
+        );
+    };
+    ensure!(
+        sequencer_height_started == sequencer_height,
+        "the initialized `sequencer_height` in the pre-submit file does not match the sequencer \
+         height in the post-submit file. This indicates that a new submission to Celestia was \
+         started but not finalized. This is becasue a succesful submission records the very same \
+         `sequencer_height` in the post-submit file."
+    );
     Ok(())
 }
 
@@ -237,16 +267,14 @@ fn ensure_last_and_current_are_different(
 ) -> eyre::Result<()> {
     ensure!(
         last_submission != current_submission,
-        "the last post-submission state recorded in the pre-submit file matches the state in the \
-         post-submission file. This indicates that either submission to Celestia failed, or that \
-         relayer failed to write its post-submission state to disk. Verify that the sequencer \
-         height in the pre-submit file was written to Celestia and update the post-submission \
-         file with the sequencer and Celestia heights or, if you want to have relayer start \
-         submitting from the currently set post-submission file, update the pre-submission file \
-         to read `{{\"state\": \"ignore\"}}`"
+        "the `last_submission` field of the pre-submit file matches the object found in the \
+         post-submit file. This indicates that a new submission to Celestia was started but not \
+         finalized. This is because when starting a new submission the object in the post-submit \
+         file is written to `last_submission`."
     );
     Ok(())
 }
+
 fn ensure_last_is_not_submitted_while_current_is_fresh(
     last_submission: PostSubmission,
     current_submission: PostSubmission,
@@ -259,7 +287,7 @@ fn ensure_last_is_not_submitted_while_current_is_fresh(
     Ok(())
 }
 
-fn ensure_height_in_last_does_not_exceed_height_in_current(
+fn ensure_height_in_last_is_less_than_height_in_current(
     last_submission: PostSubmission,
     current_submission: PostSubmission,
 ) -> eyre::Result<()> {
@@ -278,30 +306,42 @@ fn ensure_height_in_last_does_not_exceed_height_in_current(
         return Ok(());
     };
     ensure!(
-        height_in_last <= height_in_current,
-        "sequencer height in `last_submission` in the pre-submit file cannot exceed the sequencer \
-         height recorded as submitted in the post-submit file"
+        height_in_last < height_in_current,
+        "the `sequencer_height` in the post-submit file is not greater than the \
+         `sequencer_height` stored in the `last_submission` field of the pre-submit file.
+        This indicates that a new submission was started not but finalized."
     );
     Ok(())
 }
 
-fn ensure_next_height_is_not_less_than_current(
-    next_height: SequencerHeight,
-    current_submission: PostSubmission,
-) -> eyre::Result<()> {
-    let PostSubmission::Submitted {
-        sequencer_height: height_in_current,
-        ..
-    } = current_submission
-    else {
-        return Ok(());
+mod as_number {
+    //! Logic to serialize sequencer heights as number, deserialize numbers as sequencer heights.
+    //!
+    //! This is unfortunately necessary because the [`serde::Serialize`], [`serde::Deserialize`]
+    //! implementations for [`sequencer_client::tendermint::block::Height`] write the integer as
+    //! string, probably due to tendermint's/cometbft's go-legacy.
+    use serde::{
+        Deserialize as _,
+        Deserializer,
+        Serializer,
     };
-    ensure!(
-        next_height >= height_in_current,
-        "sequencer height as next submitted height in the pre-submit file cannot be less than the \
-         sequencer height recorded as submitted in the post-submit file"
-    );
-    Ok(())
+
+    use super::SequencerHeight;
+    pub(super) fn serialize<S>(height: &SequencerHeight, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u64(height.value())
+    }
+
+    pub(super) fn deserialize<'de, D>(deserializer: D) -> Result<SequencerHeight, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let height = u64::deserialize(deserializer)?;
+        SequencerHeight::try_from(height).map_err(Error::custom)
+    }
 }
 
 #[cfg(test)]
@@ -448,7 +488,7 @@ mod tests {
             &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
         let state = SubmissionState::from_paths(pre.path(), post.path()).expect(
-            "started state with the `fresh` in last and `submitted` in current gives working \
+            "started state with `fresh` in last and `submitted` in current gives working \
              submission state",
         );
         let _ = state
