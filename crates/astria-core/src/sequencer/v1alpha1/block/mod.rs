@@ -306,7 +306,8 @@ enum SequencerBlockErrorKind {
 #[derive(Clone, Debug, PartialEq)]
 #[allow(clippy::module_name_repetitions)]
 pub struct UncheckedSequencerBlock {
-    /// The original `CometBFT` header that was the input to this sequencer block.
+    /// the block header, which contains the cometbft header and additional sequencer-specific
+    /// commitments.
     pub header: SequencerBlockHeader,
     /// The collection of rollup transactions that were included in this block.
     pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
@@ -434,10 +435,11 @@ enum SequencerBlockHeaderErrorKind {
 #[derive(Clone, Debug, PartialEq)]
 #[allow(clippy::module_name_repetitions)]
 pub struct SequencerBlock {
-    /// The result of hashing `header`. Guaranteed to not be `None` as compared to
+    /// The result of hashing the cometbft header. Guaranteed to not be `None` as compared to
     /// the cometbft/tendermint-rs return type.
     block_hash: [u8; 32],
-    /// The original `CometBFT` header that was the input to this sequencer block.
+    /// the block header, which contains the cometbft header and additional sequencer-specific
+    /// commitments.
     header: SequencerBlockHeader,
     /// The collection of rollup transactions that were included in this block.
     rollup_transactions: IndexMap<RollupId, RollupTransactions>,
