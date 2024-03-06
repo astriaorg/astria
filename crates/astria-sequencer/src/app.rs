@@ -160,7 +160,8 @@ impl SequencerBlockBuilder {
     }
 
     fn build(self) -> anyhow::Result<SequencerBlock> {
-        SequencerBlock::try_from_header_and_data(self.header, self.data).map_err(Into::into)
+        SequencerBlock::try_from_cometbft_header_and_data(self.header, self.data)
+            .map_err(Into::into)
     }
 }
 

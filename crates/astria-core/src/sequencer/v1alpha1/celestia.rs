@@ -32,16 +32,18 @@ impl CelestiaBlobBundle {
             rollup_ids_proof,
         } = block.into_unchecked();
 
-        let rollup_base_transactions = rollup_transactions
-            .iter()
-            .map(|(rollup_id, txs)| (rollup_id, txs.transactions()));
-        let tree = super::derive_merkle_tree_from_rollup_txs(rollup_base_transactions);
+        // let rollup_base_transactions = rollup_transactions
+        //     .iter()
+        //     .map(|(rollup_id, txs)| (rollup_id, txs.transactions()));
+        // let tree = super::derive_merkle_tree_from_rollup_txs(rollup_base_transactions);
+
+        let (header, rollup_transactions_root, ..) = header.into_values();
 
         let head = CelestiaSequencerBlob {
             block_hash,
             header,
             rollup_ids: rollup_transactions.keys().copied().collect(),
-            rollup_transactions_root: tree.root(),
+            rollup_transactions_root,
             rollup_transactions_proof,
             rollup_ids_proof,
         };

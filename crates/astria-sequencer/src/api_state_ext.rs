@@ -84,7 +84,7 @@ pub(crate) trait StateReadExt: StateRead {
             return Err(anyhow!("header not found for given block hash"));
         };
 
-        let header_raw = tendermint_proto::types::Header::decode(header_bytes.as_slice())
+        let header_raw = raw::SequencerBlockHeader::decode(header_bytes.as_slice())
             .context("failed to decode sequencer block from raw bytes")?;
 
         let Some(rollup_ids_bytes) = self
@@ -256,7 +256,7 @@ pub(crate) trait StateWriteExt: StateWrite {
         let key = sequencer_block_header_by_hash_key(&block.block_hash());
         let (block_hash, header, rollup_transactions, rollup_transactions_proof, rollup_ids_proof) =
             block.into_values();
-        let header: tendermint_proto::types::Header = header.into();
+        let header = header.into_raw();
         self.put_raw(key, header.encode_to_vec());
 
         for (id, rollup_data) in rollup_transactions {

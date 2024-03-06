@@ -226,7 +226,7 @@ impl Relayer {
     fn block_does_not_match_validator(&self, block: &SequencerBlock) -> bool {
         self.validator
             .as_ref()
-            .is_some_and(|val| val.address != block.header().proposer_address)
+            .is_some_and(|val| val.address != block.header().header().proposer_address)
     }
 
     #[instrument(skip_all, fields(%height))]
@@ -249,7 +249,7 @@ impl Relayer {
         if self.block_does_not_match_validator(&block) {
             info!(
                 address.validator = self.report_validator(),
-                address.block_proposer = %block.header().proposer_address,
+                address.block_proposer = %block.header().header().proposer_address,
                 "block proposer does not match internal validator; dropping",
             );
             return Ok(());

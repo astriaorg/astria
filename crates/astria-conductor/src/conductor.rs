@@ -300,6 +300,6 @@ async fn get_sequencer_namespace(
         .wrap_err("failed to get block from sequencer after 10 attempts")?;
 
     Ok(celestia_client::celestia_namespace_v0_from_cometbft_header(
-        block.header(),
+        block.header().header(),
     ))
 }

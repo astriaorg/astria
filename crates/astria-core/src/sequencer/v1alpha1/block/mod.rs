@@ -149,8 +149,8 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::FieldNotSet(field))
     }
 
-    fn cometbft_header(source: tendermint::Error) -> Self {
-        Self(SequencerBlockErrorKind::CometBftHeader(source))
+    fn header(source: SequencerBlockHeaderError) -> Self {
+        Self(SequencerBlockErrorKind::Header(source))
     }
 
     fn parse_rollup_transactions(source: RollupTransactionsError) -> Self {
@@ -221,8 +221,8 @@ enum SequencerBlockErrorKind {
     CometBftBlockHashIsNone,
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
-    #[error("failed creating a native cometbft Header from the raw protobuf header")]
-    CometBftHeader(#[source] tendermint::Error),
+    #[error("failed constructing a sequencer block header from the raw protobuf header")]
+    Header(#[from] SequencerBlockHeaderError),
     #[error(
         "failed parsing a raw protobuf rollup transaction because it contained an invalid rollup \
          ID"
@@ -289,7 +289,7 @@ enum SequencerBlockErrorKind {
 #[allow(clippy::module_name_repetitions)]
 pub struct UncheckedSequencerBlock {
     /// The original `CometBFT` header that was the input to this sequencer block.
-    pub header: tendermint::block::header::Header,
+    pub header: SequencerBlockHeader,
     /// The collection of rollup transactions that were included in this block.
     pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     // The proof that the rollup transactions are included in the `CometBFT` block this
@@ -306,6 +306,111 @@ pub struct UncheckedSequencerBlock {
     pub rollup_ids_proof: merkle::Proof,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct SequencerBlockHeader {
+    header: tendermint::block::header::Header,
+    rollup_transactions_root: [u8; 32],
+    rollup_ids_root: [u8; 32],
+}
+
+impl SequencerBlockHeader {
+    pub fn header(&self) -> &tendermint::block::header::Header {
+        &self.header
+    }
+
+    pub fn rollup_transactions_root(&self) -> [u8; 32] {
+        self.rollup_transactions_root
+    }
+
+    pub fn rollup_ids_root(&self) -> [u8; 32] {
+        self.rollup_ids_root
+    }
+
+    pub fn into_values(self) -> (tendermint::block::header::Header, [u8; 32], [u8; 32]) {
+        (
+            self.header,
+            self.rollup_transactions_root,
+            self.rollup_ids_root,
+        )
+    }
+
+    pub fn into_raw(self) -> raw::SequencerBlockHeader {
+        raw::SequencerBlockHeader {
+            header: Some(self.header.into()),
+            rollup_transactions_root: self.rollup_transactions_root.to_vec(),
+            rollup_ids_root: self.rollup_ids_root.to_vec(),
+        }
+    }
+
+    pub fn try_from_raw(raw: raw::SequencerBlockHeader) -> Result<Self, SequencerBlockHeaderError> {
+        let raw::SequencerBlockHeader {
+            header,
+            rollup_transactions_root,
+            rollup_ids_root,
+        } = raw;
+        let Some(header) = header else {
+            return Err(SequencerBlockHeaderError::field_not_set("header"));
+        };
+        let header = tendermint::block::header::Header::try_from(header)
+            .map_err(SequencerBlockHeaderError::cometbft_header)?;
+
+        let rollup_transactions_root =
+            rollup_transactions_root.try_into().map_err(|e: Vec<_>| {
+                SequencerBlockHeaderError::incorrect_rollup_transactions_root_length(e.len())
+            })?;
+        let rollup_ids_root = rollup_ids_root.try_into().map_err(|e: Vec<_>| {
+            SequencerBlockHeaderError::incorrect_rollup_ids_root_length(e.len())
+        })?;
+        Ok(Self {
+            header,
+            rollup_transactions_root,
+            rollup_ids_root,
+        })
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct SequencerBlockHeaderError(SequencerBlockHeaderErrorKind);
+
+impl SequencerBlockHeaderError {
+    fn field_not_set(field: &'static str) -> Self {
+        Self(SequencerBlockHeaderErrorKind::FieldNotSet(field))
+    }
+
+    fn cometbft_header(source: tendermint::Error) -> Self {
+        Self(SequencerBlockHeaderErrorKind::CometBftHeader(source))
+    }
+
+    fn incorrect_rollup_transactions_root_length(len: usize) -> Self {
+        Self(SequencerBlockHeaderErrorKind::IncorrectRollupTransactionsRootLength(len))
+    }
+
+    fn incorrect_rollup_ids_root_length(len: usize) -> Self {
+        Self(SequencerBlockHeaderErrorKind::IncorrectRollupIdsRootLength(
+            len,
+        ))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum SequencerBlockHeaderErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error("failed creating a native cometbft Header from the raw protobuf header")]
+    CometBftHeader(#[source] tendermint::Error),
+    #[error(
+        "the rollup transaction root in the cometbft block.data field was expected to be 32 bytes \
+         long, but was actually `{0}`"
+    )]
+    IncorrectRollupTransactionsRootLength(usize),
+    #[error(
+        "the rollup ID root in the cometbft block.data field was expected to be 32 bytes long, \
+         but was actually `{0}`"
+    )]
+    IncorrectRollupIdsRootLength(usize),
+}
+
 /// `SequencerBlock` is constructed from a tendermint/cometbft block by
 /// converting its opaque `data` bytes into sequencer specific types.
 #[derive(Clone, Debug, PartialEq)]
@@ -315,7 +420,7 @@ pub struct SequencerBlock {
     /// the cometbft/tendermint-rs return type.
     block_hash: [u8; 32],
     /// The original `CometBFT` header that was the input to this sequencer block.
-    header: tendermint::block::header::Header,
+    header: SequencerBlockHeader,
     /// The collection of rollup transactions that were included in this block.
     rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     // The proof that the rollup transactions are included in the `CometBFT` block this
@@ -342,14 +447,14 @@ impl SequencerBlock {
     }
 
     #[must_use]
-    pub fn header(&self) -> &tendermint::block::header::Header {
+    pub fn header(&self) -> &SequencerBlockHeader {
         &self.header
     }
 
     /// The height stored in this sequencer block.
     #[must_use]
     pub fn height(&self) -> tendermint::block::Height {
-        self.header.height
+        self.header.header.height
     }
 
     #[must_use]
@@ -362,7 +467,7 @@ impl SequencerBlock {
         self,
     ) -> (
         [u8; 32],
-        tendermint::block::header::Header,
+        SequencerBlockHeader,
         IndexMap<RollupId, RollupTransactions>,
         merkle::Proof,
         merkle::Proof,
@@ -392,7 +497,7 @@ impl SequencerBlock {
             ..
         } = self;
         raw::SequencerBlock {
-            header: Some(header.into()),
+            header: Some(header.into_raw()),
             rollup_transactions: rollup_transactions
                 .into_values()
                 .map(RollupTransactions::into_raw)
@@ -442,7 +547,7 @@ impl SequencerBlock {
 
         FilteredSequencerBlock {
             block_hash: self.block_hash,
-            header: self.header,
+            header: self.header.header,
             rollup_transactions: filtered_rollup_transactions,
             rollup_transactions_root: rollup_transaction_tree.root(),
             rollup_transactions_proof: self.rollup_transactions_proof,
@@ -470,10 +575,10 @@ impl SequencerBlock {
             ..
         } = block;
 
-        Self::try_from_header_and_data(header, data)
+        Self::try_from_cometbft_header_and_data(header, data)
     }
 
-    pub fn try_from_header_and_data(
+    pub fn try_from_cometbft_header_and_data(
         header: tendermint::block::Header,
         data: Vec<Vec<u8>>,
     ) -> Result<Self, SequencerBlockError> {
@@ -570,7 +675,11 @@ impl SequencerBlock {
 
         Ok(Self {
             block_hash,
-            header,
+            header: SequencerBlockHeader {
+                header,
+                rollup_transactions_root,
+                rollup_ids_root,
+            },
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
@@ -616,16 +725,15 @@ impl SequencerBlock {
             let Some(header) = header else {
                 break 'header Err(SequencerBlockError::field_not_set("header"));
             };
-            tendermint::block::Header::try_from(header)
-                .map_err(SequencerBlockError::cometbft_header)
+            SequencerBlockHeader::try_from_raw(header).map_err(SequencerBlockError::header)
         }?;
-        let tendermint::Hash::Sha256(block_hash) = header.hash() else {
+        let tendermint::Hash::Sha256(block_hash) = header.header.hash() else {
             return Err(SequencerBlockError::comet_bft_block_hash_is_none());
         };
 
         // header.data_hash is Option<Hash> and Hash itself has
         // variants Sha256([u8; 32]) or None.
-        let Some(tendermint::Hash::Sha256(data_hash)) = header.data_hash else {
+        let Some(tendermint::Hash::Sha256(data_hash)) = header.header.data_hash else {
             return Err(SequencerBlockError::field_not_set("header.data_hash"));
         };
 

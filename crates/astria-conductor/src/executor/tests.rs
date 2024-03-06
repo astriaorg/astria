@@ -339,7 +339,7 @@ async fn first_firm_then_soft_leads_to_soft_being_dropped() {
 
     let firm_block = ReconstructedBlock {
         block_hash: soft_block.block_hash(),
-        header: soft_block.header().clone(),
+        header: soft_block.header().header().clone(),
         transactions: soft_block
             .rollup_transactions()
             .get(&rollup_id)
@@ -392,7 +392,7 @@ async fn first_soft_then_firm_update_state_correctly() {
 
     let firm_block = ReconstructedBlock {
         block_hash: soft_block.block_hash(),
-        header: soft_block.header().clone(),
+        header: soft_block.header().header().clone(),
         transactions: soft_block
             .rollup_transactions()
             .get(&rollup_id)
