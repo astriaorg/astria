@@ -141,30 +141,6 @@ pub(crate) struct App {
     current_sequencer_block_builder: Option<SequencerBlockBuilder>,
 }
 
-#[derive(Debug)]
-struct SequencerBlockBuilder {
-    header: tendermint::block::Header,
-    data: Vec<Vec<u8>>,
-}
-
-impl SequencerBlockBuilder {
-    fn new(header: tendermint::block::Header) -> Self {
-        Self {
-            header,
-            data: Vec::new(),
-        }
-    }
-
-    fn push_transaction(&mut self, tx: Vec<u8>) {
-        self.data.push(tx);
-    }
-
-    fn build(self) -> anyhow::Result<SequencerBlock> {
-        SequencerBlock::try_from_cometbft_header_and_data(self.header, self.data)
-            .map_err(Into::into)
-    }
-}
-
 impl App {
     pub(crate) fn new(snapshot: Snapshot) -> Self {
         tracing::debug!("initializing App instance");
@@ -739,6 +715,30 @@ impl App {
         );
 
         events
+    }
+}
+
+#[derive(Debug)]
+struct SequencerBlockBuilder {
+    header: tendermint::block::Header,
+    data: Vec<Vec<u8>>,
+}
+
+impl SequencerBlockBuilder {
+    fn new(header: tendermint::block::Header) -> Self {
+        Self {
+            header,
+            data: Vec::new(),
+        }
+    }
+
+    fn push_transaction(&mut self, tx: Vec<u8>) {
+        self.data.push(tx);
+    }
+
+    fn build(self) -> anyhow::Result<SequencerBlock> {
+        SequencerBlock::try_from_cometbft_header_and_data(self.header, self.data)
+            .map_err(Into::into)
     }
 }
 
