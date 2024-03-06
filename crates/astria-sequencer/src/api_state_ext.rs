@@ -275,7 +275,7 @@ pub(crate) trait StateWriteExt: StateWrite {
             .rollup_transactions()
             .keys()
             .copied()
-            .map(|id| id.get())
+            .map(RollupId::get)
             .collect();
         let key = rollup_ids_by_block_hash_key(&block.block_hash());
         self.put_raw(

@@ -169,9 +169,8 @@ fn start_grpc_server(
     use tower_http::cors::CorsLayer;
 
     let ibc = penumbra_ibc::component::rpc::IbcQuery::<AstriaHost>::new(storage.clone());
-    let sequencer_api = SequencerServer::new(storage.clone())
-        .context("failed to create sequencer service grpc server")?;
-    let cors_layer = CorsLayer::permissive();
+    let sequencer_api = SequencerServer::new(storage.clone());
+    let cors_layer: CorsLayer = CorsLayer::permissive();
 
     // TODO: setup HTTPS?
     let grpc_server = tonic::transport::Server::builder()

@@ -26,10 +26,10 @@ pub(crate) struct SequencerServer {
 }
 
 impl SequencerServer {
-    pub(crate) fn new(storage: Storage) -> anyhow::Result<Self> {
-        Ok(Self {
+    pub(crate) fn new(storage: Storage) -> Self {
+        Self {
             storage,
-        })
+        }
     }
 }
 
@@ -123,7 +123,7 @@ impl SequencerService for SequencerServer {
             .await
             .map_err(|e| Status::internal(format!("failed to get rollup ids from storage: {e}")))?
             .into_iter()
-            .map(|id| id.to_vec())
+            .map(RollupId::to_vec)
             .collect::<Vec<_>>();
 
         let mut rollup_transactions = Vec::with_capacity(rollup_ids.len());
