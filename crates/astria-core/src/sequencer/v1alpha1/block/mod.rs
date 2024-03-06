@@ -333,18 +333,22 @@ pub struct SequencerBlockHeader {
 }
 
 impl SequencerBlockHeader {
+    #[must_use]
     pub fn cometbft_header(&self) -> &tendermint::block::header::Header {
         &self.cometbft_header
     }
 
+    #[must_use]
     pub fn rollup_transactions_root(&self) -> [u8; 32] {
         self.rollup_transactions_root
     }
 
+    #[must_use]
     pub fn rollup_ids_root(&self) -> [u8; 32] {
         self.rollup_ids_root
     }
 
+    #[must_use]
     pub fn into_values(self) -> (tendermint::block::header::Header, [u8; 32], [u8; 32]) {
         (
             self.cometbft_header,
@@ -353,6 +357,7 @@ impl SequencerBlockHeader {
         )
     }
 
+    #[must_use]
     pub fn into_raw(self) -> raw::SequencerBlockHeader {
         raw::SequencerBlockHeader {
             cometbft_header: Some(self.cometbft_header.into()),
@@ -361,6 +366,14 @@ impl SequencerBlockHeader {
         }
     }
 
+    /// Attempts to transform the sequencer block header from its raw representation.
+    ///
+    /// # Errors
+    ///
+    /// - If the `cometbft_header` field is not set.
+    /// - If the `cometbft_header` field cannot be converted.
+    /// - If the `rollup_transactions_root` field is not 32 bytes long.
+    /// - If the `rollup_ids_root` field is not 32 bytes long.
     pub fn try_from_raw(raw: raw::SequencerBlockHeader) -> Result<Self, SequencerBlockHeaderError> {
         let raw::SequencerBlockHeader {
             cometbft_header,
@@ -589,6 +602,10 @@ impl SequencerBlock {
         Self::try_from_cometbft_header_and_data(header, data)
     }
 
+    /// Converts from a [`tendermint::block::Header`] and the block data.
+    ///
+    /// # Errors
+    /// TODO(https://github.com/astriaorg/astria/issues/612)
     pub fn try_from_cometbft_header_and_data(
         cometbft_header: tendermint::block::Header,
         data: Vec<Vec<u8>>,

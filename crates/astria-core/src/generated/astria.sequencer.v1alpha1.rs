@@ -110,7 +110,8 @@ pub struct RollupTransactions {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SequencerBlock {
-    /// The original CometBFT header that was the input to this sequencer block.
+    /// / the block header, which contains the cometbft header and additional sequencer-specific
+    /// / commitments.
     #[prost(message, optional, tag = "1")]
     pub header: ::core::option::Option<SequencerBlockHeader>,
     /// The collection of rollup transactions that were included in this block.
