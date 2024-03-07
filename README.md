@@ -19,8 +19,8 @@ To learn more about Astria, please visit [astria.org](https://astria.org).
 
 * [conductor](https://github.com/astriaorg/astria/tree/main/crates/astria-conductor):
   conducts blocks from the data availability layer to the execution layer.
-* [proto](https://github.com/astriaorg/astria/tree/main/crates/astria-proto):
-  relevant protobufs for Astria types.
+* [proto](https://github.com/astriaorg/astria/tree/main/proto):
+  the protobuf spec to interact with Astria services.
 * [sequencer](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer):
   ABCI application that defines the sequencer state transition logic.
 * [sequencer-relayer](https://github.com/astriaorg/astria/tree/main/crates/astria-sequencer-relayer):
@@ -71,10 +71,6 @@ To run unit tests:
 ```sh
 cargo test
 ```
-
-Note that the `astria-proto` generates its code by running tests (and verifying
-that nothing changed). In order for its tests to run you also need
-[Buf](https://buf.build/docs/installation/) installed.
 
 ## Formatting
 
