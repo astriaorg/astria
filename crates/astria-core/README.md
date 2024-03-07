@@ -1,4 +1,4 @@
-# Astria Proto
+# Astria Core
 
 This crate contains code to interact with the public API of Astria. In particularly
 it contains definitions to convert Rust sources generated from the Astria protobuf
