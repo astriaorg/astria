@@ -237,8 +237,8 @@ impl Searcher {
             if let Err(e) = maybe_err {
                 return Err(e).wrap_err_with(|| {
                     format!(
-                        "collector for rollup_name {rollup_name} failed while waiting for it to become \
-                         ready"
+                        "collector for rollup_name {rollup_name} failed while waiting for it to \
+                         become ready"
                     )
                 });
             }

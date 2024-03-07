@@ -329,7 +329,7 @@ fn create_block_response(
         block,
         Hash,
     };
-    let rollup_id = RollupId::from_unhashed_bytes(b"test_chain_name_1");
+    let rollup_id = RollupId::from_unhashed_bytes(b"test_rollup_name_1");
     let data = b"hello_world_id_1".to_vec();
     let block = ConfigureCometBftBlock {
         height,
