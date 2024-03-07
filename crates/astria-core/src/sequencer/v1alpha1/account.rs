@@ -19,7 +19,7 @@ impl AssetBalance {
             balance,
         } = proto;
         Self {
-            denom: Denom::from(denom.as_str()),
+            denom: Denom::from(denom.to_owned()),
             balance: balance.map_or(0, Into::into),
         }
     }

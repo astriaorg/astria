@@ -73,7 +73,7 @@ pub(crate) trait StateReadExt: StateRead {
         };
         let SudoAddress(address) =
             SudoAddress::try_from_slice(&bytes).context("invalid ibc sudo key bytes")?;
-        Ok(Address(address))
+        Ok(Address::from(address))
     }
 
     #[instrument(skip(self))]
@@ -106,7 +106,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_ibc_sudo_address(&mut self, address: Address) -> Result<()> {
         self.put_raw(
             IBC_SUDO_STORAGE_KEY.to_string(),
-            borsh::to_vec(&SudoAddress(address.0))
+            borsh::to_vec(&SudoAddress(address.get()))
                 .context("failed to convert sudo address to vec")?,
         );
         Ok(())

@@ -39,9 +39,14 @@ pub const ADDRESS_LEN: usize = 20;
 pub const ROLLUP_ID_LEN: usize = 32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Address(pub [u8; ADDRESS_LEN]);
+pub struct Address([u8; ADDRESS_LEN]);
 
 impl Address {
+    #[must_use]
+    pub fn get(self) -> [u8; ADDRESS_LEN] {
+        self.0
+    }
+
     #[must_use]
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_vec()

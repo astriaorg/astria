@@ -53,7 +53,7 @@ pub(crate) trait StateReadExt: StateRead {
 
         let DenominationTrace(denom_str) =
             DenominationTrace::try_from_slice(&bytes).context("invalid asset bytes")?;
-        let denom: Denom = denom_str.as_str().into();
+        let denom: Denom = denom_str.into();
         Ok(denom)
     }
 }
