@@ -4,6 +4,10 @@ use sha2::{
 };
 
 use super::{
+    block::{
+        RollupTransactionsParts,
+        SequencerBlockHeaderParts,
+    },
     raw,
     IncorrectRollupIdLength,
     RollupId,
@@ -25,18 +29,22 @@ impl CelestiaBlobBundle {
     #[allow(clippy::missing_panics_doc)] // the proofs are guaranteed to exist; revisit if refactoring
     pub(super) fn from_sequencer_block(block: super::SequencerBlock) -> Self {
         let block_hash = block.block_hash();
-        let super::UncheckedSequencerBlock {
+        let super::block::SequencerBlockParts {
             header,
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
-        } = block.into_unchecked();
+        } = block.into_parts();
 
-        let (header, rollup_transactions_root, ..) = header.into_values();
+        let SequencerBlockHeaderParts {
+            cometbft_header,
+            rollup_transactions_root,
+            ..
+        } = header.into_parts();
 
         let head = CelestiaSequencerBlob {
             block_hash,
-            header,
+            header: cometbft_header,
             rollup_ids: rollup_transactions.keys().copied().collect(),
             rollup_transactions_root,
             rollup_transactions_proof,
@@ -45,7 +53,11 @@ impl CelestiaBlobBundle {
 
         let mut tail = Vec::with_capacity(rollup_transactions.len());
         for (rollup_id, rollup_txs) in rollup_transactions {
-            let (_, transactions, proof) = rollup_txs.into_values();
+            let RollupTransactionsParts {
+                transactions,
+                proof,
+                ..
+            } = rollup_txs.into_parts();
             tail.push(CelestiaRollupBlob {
                 sequencer_block_hash: block_hash,
                 rollup_id,

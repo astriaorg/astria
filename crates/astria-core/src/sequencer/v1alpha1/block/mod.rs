@@ -55,6 +55,16 @@ enum RollupTransactionsErrorKind {
     ProofInvalid(#[source] merkle::audit::InvalidProof),
 }
 
+/// The individual parts that make up a [`RollupTransaction`].
+///
+/// Provides convenient access to the fields of a rollup transaction.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RollupTransactionsParts {
+    pub id: RollupId,
+    pub transactions: Vec<Vec<u8>>,
+    pub proof: merkle::Proof,
+}
+
 /// The opaque transactions belonging to a rollup identified by its rollup ID.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RollupTransactions {
@@ -126,9 +136,19 @@ impl RollupTransactions {
         })
     }
 
+    /// Convert [`RollupTransactions`] into [`RollupTransactionsParts`].
     #[must_use]
-    pub fn into_values(self) -> (RollupId, Vec<Vec<u8>>, merkle::Proof) {
-        (self.id, self.transactions, self.proof)
+    pub fn into_parts(self) -> RollupTransactionsParts {
+        let Self {
+            id,
+            transactions,
+            proof,
+        } = self;
+        RollupTransactionsParts {
+            id,
+            transactions,
+            proof,
+        }
     }
 }
 
@@ -299,30 +319,15 @@ enum SequencerBlockErrorKind {
     InvalidRollupIdsRoot,
 }
 
-/// A shadow of [`SequencerBlock`] with full public access to its fields.
+/// The individual parts that make up a [`SequencerBlockHeader`].
 ///
-/// This type does not guarantee any invariants and is mainly useful to get
-/// access the sequencer block's internal types.
-#[derive(Clone, Debug, PartialEq)]
-#[allow(clippy::module_name_repetitions)]
-pub struct UncheckedSequencerBlock {
-    /// the block header, which contains the cometbft header and additional sequencer-specific
-    /// commitments.
-    pub header: SequencerBlockHeader,
-    /// The collection of rollup transactions that were included in this block.
-    pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
-    // The proof that the rollup transactions are included in the `CometBFT` block this
-    // sequencer block is derived form. This proof together with
-    // `Sha256(MTH(rollup_transactions))` must match `header.data_hash`.
-    // `MTH(rollup_transactions)` is the Merkle Tree Hash derived from the
-    // rollup transactions.
-    pub rollup_transactions_proof: merkle::Proof,
-    // The proof that the rollup IDs listed in `rollup_transactions` are included
-    // in the `CometBFT` block this sequencer block is derived form. This proof together
-    // with `Sha256(MTH(rollup_ids))` must match `header.data_hash`.
-    // `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
-    // the rollup transactions.
-    pub rollup_ids_proof: merkle::Proof,
+/// This type exists to provide convenient access to the fields of
+/// a `[SequencerBlockHeader]`.
+#[derive(Debug)]
+pub struct SequencerBlockHeaderParts {
+    pub cometbft_header: tendermint::block::header::Header,
+    pub rollup_transactions_root: [u8; 32],
+    pub rollup_ids_root: [u8; 32],
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -351,13 +356,19 @@ impl SequencerBlockHeader {
         self.rollup_ids_root
     }
 
+    /// Convert [`SequencerBlockHeader`] into its [`SequencerBlockHeaderParts`].
     #[must_use]
-    pub fn into_values(self) -> (tendermint::block::header::Header, [u8; 32], [u8; 32]) {
-        (
-            self.cometbft_header,
-            self.rollup_transactions_root,
-            self.rollup_ids_root,
-        )
+    pub fn into_parts(self) -> SequencerBlockHeaderParts {
+        let Self {
+            cometbft_header,
+            rollup_transactions_root,
+            rollup_ids_root,
+        } = self;
+        SequencerBlockHeaderParts {
+            cometbft_header,
+            rollup_transactions_root,
+            rollup_ids_root,
+        }
     }
 
     #[must_use]
@@ -446,6 +457,18 @@ enum SequencerBlockHeaderErrorKind {
     IncorrectRollupIdsRootLength(usize),
 }
 
+/// The individual parts that make up a [`SequencerBlock`].
+///
+/// Exists to provide convenient access to fields of a [`SequencerBlock`].
+#[derive(Clone, Debug, PartialEq)]
+#[allow(clippy::module_name_repetitions)]
+pub struct SequencerBlockParts {
+    pub header: SequencerBlockHeader,
+    pub rollup_transactions: IndexMap<RollupId, RollupTransactions>,
+    pub rollup_transactions_proof: merkle::Proof,
+    pub rollup_ids_proof: merkle::Proof,
+}
+
 /// `SequencerBlock` is constructed from a tendermint/cometbft block by
 /// converting its opaque `data` bytes into sequencer specific types.
 #[derive(Clone, Debug, PartialEq)]
@@ -498,23 +521,22 @@ impl SequencerBlock {
         &self.rollup_transactions
     }
 
+    /// Converst a [`SequencerBlock`] into its [`SequencerBlockParts`].
     #[must_use]
-    pub fn into_values(
-        self,
-    ) -> (
-        [u8; 32],
-        SequencerBlockHeader,
-        IndexMap<RollupId, RollupTransactions>,
-        merkle::Proof,
-        merkle::Proof,
-    ) {
-        (
-            self.block_hash,
-            self.header,
-            self.rollup_transactions,
-            self.rollup_transactions_proof,
-            self.rollup_ids_proof,
-        )
+    pub fn into_parts(self) -> SequencerBlockParts {
+        let Self {
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+            ..
+        } = self;
+        SequencerBlockParts {
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        }
     }
 
     /// Returns the map of rollup transactions, consuming `self`.
@@ -540,23 +562,6 @@ impl SequencerBlock {
                 .collect(),
             rollup_transactions_proof: Some(rollup_transactions_proof.into_raw()),
             rollup_ids_proof: Some(rollup_ids_proof.into_raw()),
-        }
-    }
-
-    #[must_use]
-    pub fn into_unchecked(self) -> UncheckedSequencerBlock {
-        let Self {
-            header,
-            rollup_transactions,
-            rollup_transactions_proof,
-            rollup_ids_proof,
-            ..
-        } = self;
-        UncheckedSequencerBlock {
-            header,
-            rollup_transactions,
-            rollup_transactions_proof,
-            rollup_ids_proof,
         }
     }
 

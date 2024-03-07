@@ -23,10 +23,7 @@ pub use account::{
     BalanceResponse,
     NonceResponse,
 };
-pub use block::{
-    SequencerBlock,
-    UncheckedSequencerBlock,
-};
+pub use block::SequencerBlock;
 pub use celestia::{
     CelestiaRollupBlob,
     CelestiaSequencerBlob,
