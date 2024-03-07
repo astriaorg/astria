@@ -19,7 +19,7 @@ pub fn base64<T: AsRef<[u8]>>(bytes: &T) -> Base64Display<'_, 'static, GeneralPu
 /// let signature = vec![1u8, 2, 3, 4, 5, 6, 7, 8];
 /// tracing::info!(signature = %display::hex(&signature), "received signature");
 /// ```
-pub fn hex<T: AsRef<[u8]>>(bytes: &T) -> Hex<'_> {
+pub fn hex<T: AsRef<[u8]> + ?Sized>(bytes: &T) -> Hex<'_> {
     Hex(bytes.as_ref())
 }
 

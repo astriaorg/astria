@@ -30,6 +30,7 @@ fn test_sequencer_block_from_cometbft_block() {
 
     let data_hash: [u8; 32] = sequencer_block
         .header
+        .cometbft_header
         .data_hash
         .unwrap()
         .as_bytes()

@@ -110,27 +110,21 @@ impl From<String> for Denom {
     }
 }
 
-impl From<&str> for Denom {
-    fn from(denom: &str) -> Self {
-        Self::from(denom.to_string())
-    }
-}
-
 /// Asset ID, which is the hash of the denomination trace.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id([u8; 32]);
 
 impl Id {
     #[must_use]
+    pub fn get(self) -> [u8; 32] {
+        self.0
+    }
+
+    #[must_use]
     pub fn from_denom(denom: &str) -> Self {
         use sha2::Digest as _;
         let hash = sha2::Sha256::digest(denom.as_bytes());
         Self(hash.into())
-    }
-
-    #[must_use]
-    pub fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
     }
 
     /// Returns an ID given a 32-byte slice.

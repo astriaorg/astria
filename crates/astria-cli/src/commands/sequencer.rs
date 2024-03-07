@@ -140,7 +140,7 @@ pub(crate) async fn get_block_height(args: &BlockHeightGetArgs) -> eyre::Result<
         .wrap_err("failed to get sequencer block")?;
 
     println!("Block Height:");
-    println!("    {}", res.header().height);
+    println!("    {}", res.header().cometbft_header().height);
 
     Ok(())
 }

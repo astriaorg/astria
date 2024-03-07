@@ -24,8 +24,9 @@ message RollupTransactions {
 // `SequencerBlock` is constructed from a tendermint/cometbft block by
 // converting its opaque `data` bytes into sequencer specific types.
 message SequencerBlock {
-  // The original CometBFT header that was the input to this sequencer block.
-  astria_vendored.tendermint.types.Header header = 1;
+  /// the block header, which contains the cometbft header and additional sequencer-specific
+  /// commitments.
+  SequencerBlockHeader header = 1;
   // The collection of rollup transactions that were included in this block.
   repeated RollupTransactions rollup_transactions = 2;
   // The proof that the rollup transactions are included in the CometBFT block this
@@ -44,6 +45,16 @@ message SequencerBlock {
   // `MTH(rollup_ids)` is the Merkle Tree Hash derived from the rollup IDs listed in
   // the rollup transactions.
   astria.sequencer.v1alpha1.Proof rollup_ids_proof = 4;
+}
+
+message SequencerBlockHeader {
+  // The original CometBFT header that was the input to this sequencer block.
+  astria_vendored.tendermint.types.Header cometbft_header = 1;
+  // The 32-byte merkle root of all the rollup transactions in the block,
+  // Corresponds to `MHT(astria.sequencer.v1alpha.SequencerBlock.rollup_transactions)`,
+  bytes rollup_transactions_root = 2;
+  // The 32-byte merkle root of all the rollup IDs in the block.
+  bytes rollup_ids_root = 3;
 }
 
 // `Deposit` represents a deposit from the sequencer
@@ -74,7 +85,7 @@ message Deposit {
 // of the rollup transactions.
 message FilteredSequencerBlock {
   // The original CometBFT header that was the input to this sequencer block.
-  astria_vendored.tendermint.types.Header header = 1;
+  astria_vendored.tendermint.types.Header cometbft_header = 1;
   // A subset of rollup transactions that were included in this block.
   repeated RollupTransactions rollup_transactions = 2;
   // The Merkle Tree Hash of all the rollup transactions in the block (not just the

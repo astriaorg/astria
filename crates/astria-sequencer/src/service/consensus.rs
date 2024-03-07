@@ -507,7 +507,7 @@ mod test {
                 ibc_relayer_addresses: vec![],
                 native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
                 ibc_params: penumbra_ibc::params::IBCParameters::default(),
-                allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+                allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
             }
         }
     }
@@ -550,8 +550,12 @@ mod test {
         let txs = vec![tx_bytes.clone().into()];
         let res = generate_sequence_actions_commitment(&vec![signed_tx]);
 
-        let txs = res.into_transactions(txs);
-        let process_proposal = new_process_proposal_request(txs.clone());
+        let block_data = res.into_transactions(txs.clone());
+        let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
+        let mut header = default_header();
+        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+
+        let process_proposal = new_process_proposal_request(block_data.clone());
         consensus_service
             .handle_request(ConsensusRequest::ProcessProposal(process_proposal))
             .await
@@ -559,7 +563,7 @@ mod test {
 
         let begin_block = request::BeginBlock {
             hash: Hash::default(),
-            header: default_header(),
+            header,
             last_commit_info: tendermint::abci::types::CommitInfo {
                 round: 0u16.into(),
                 votes: vec![],
@@ -571,7 +575,7 @@ mod test {
             .await
             .unwrap();
 
-        for tx in txs {
+        for tx in block_data {
             let deliver_tx = request::DeliverTx {
                 tx,
             };

@@ -16,6 +16,7 @@ use astria_core::{
     sequencer::v1alpha1::{
         transaction::Action,
         Address,
+        SequencerBlock,
         SignedTransaction,
     },
 };
@@ -134,6 +135,10 @@ pub(crate) struct App {
     // this is used only to determine who to transfer the block fees to
     // at the end of the block.
     current_proposer: Option<account::Id>,
+
+    // builder of the current `SequencerBlock`.
+    // initialized during `begin_block`, completed and written to state during `end_block`.
+    current_sequencer_block_builder: Option<SequencerBlockBuilder>,
 }
 
 impl App {
@@ -151,6 +156,7 @@ impl App {
             execution_result: HashMap::new(),
             processed_txs: 0,
             current_proposer: None,
+            current_sequencer_block_builder: None,
         }
     }
 
@@ -406,6 +412,9 @@ impl App {
         // set the current proposer
         self.current_proposer = Some(begin_block.header.proposer_address);
 
+        self.current_sequencer_block_builder =
+            Some(SequencerBlockBuilder::new(begin_block.header.clone()));
+
         // If we previously executed txs in a different proposal than is being processed reset
         // cached state changes.
         if self.executed_proposal_hash != begin_block.hash {
@@ -454,6 +463,14 @@ impl App {
         &mut self,
         tx: abci::request::DeliverTx,
     ) -> Option<anyhow::Result<Vec<abci::Event>>> {
+        self.current_sequencer_block_builder
+            .as_mut()
+            .expect(
+                "begin_block must be called before deliver_tx, thus \
+                 current_sequencer_block_builder must be set",
+            )
+            .push_transaction(tx.tx.to_vec());
+
         if self.processed_txs < 2 {
             self.processed_txs += 1;
             return Some(Ok(vec![]));
@@ -467,6 +484,7 @@ impl App {
 
         let signed_tx = match signed_transaction_from_bytes(&tx.tx) {
             Err(e) => {
+                // this is actually a protocol error, as only valid txs should be finalized
                 debug!(
                     error = AsRef::<dyn std::error::Error>::as_ref(&e),
                     "failed to decode deliver tx payload to signed transaction; ignoring it",
@@ -538,7 +556,10 @@ impl App {
         &mut self,
         end_block: &abci::request::EndBlock,
     ) -> anyhow::Result<abci::response::EndBlock> {
-        use crate::bridge::state_ext::StateReadExt as _;
+        use crate::{
+            api_state_ext::StateWriteExt as _,
+            bridge::state_ext::StateReadExt as _,
+        };
 
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
@@ -615,6 +636,20 @@ impl App {
             state_tx.clear_deposit_info(&rollup_id).await;
         }
 
+        // store the `SequencerBlock` in the state
+        let sequencer_block = self
+            .current_sequencer_block_builder
+            .take()
+            .expect(
+                "begin_block must be called before end_block, thus \
+                 current_sequencer_block_builder must be set",
+            )
+            .build()
+            .context("failed to build sequencer block")?;
+        state_tx
+            .put_sequencer_block(sequencer_block)
+            .context("failed to write sequencer block to state")?;
+
         let events = self.apply(state_tx);
 
         Ok(abci::response::EndBlock {
@@ -680,6 +715,30 @@ impl App {
         );
 
         events
+    }
+}
+
+#[derive(Debug)]
+struct SequencerBlockBuilder {
+    header: tendermint::block::Header,
+    data: Vec<Vec<u8>>,
+}
+
+impl SequencerBlockBuilder {
+    fn new(header: tendermint::block::Header) -> Self {
+        Self {
+            header,
+            data: Vec::new(),
+        }
+    }
+
+    fn push_transaction(&mut self, tx: Vec<u8>) {
+        self.data.push(tx);
+    }
+
+    fn build(self) -> anyhow::Result<SequencerBlock> {
+        SequencerBlock::try_from_cometbft_header_and_data(self.header, self.data)
+            .map_err(Into::into)
     }
 }
 
@@ -768,7 +827,7 @@ mod test {
             app_hash: AppHash::try_from(vec![]).unwrap(),
             chain_id: "test".to_string().try_into().unwrap(),
             consensus_hash: Hash::default(),
-            data_hash: Some(Hash::default()),
+            data_hash: Some(Hash::try_from([0u8; 32].to_vec()).unwrap()),
             evidence_hash: Some(Hash::default()),
             height: Height::default(),
             last_block_id: None,
@@ -802,7 +861,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         });
 
         app.init_chain(genesis_state, genesis_validators, "test".to_string())
@@ -1156,7 +1215,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1190,7 +1249,7 @@ mod test {
             ibc_sudo_address: alice_address,
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
             ibc_params: IBCParameters::default(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1216,7 +1275,7 @@ mod test {
             ibc_sudo_address: alice_address,
             ibc_relayer_addresses: vec![alice_address],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
             ibc_params: IBCParameters::default(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1242,7 +1301,7 @@ mod test {
             ibc_sudo_address: Address::from([0; 20]),
             ibc_relayer_addresses: vec![alice_address],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
             ibc_params: IBCParameters::default(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1267,7 +1326,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1300,7 +1359,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1334,7 +1393,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1368,7 +1427,10 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into(), test_asset.clone()],
+            allowed_fee_assets: vec![
+                DEFAULT_NATIVE_ASSET_DENOM.to_owned().into(),
+                test_asset.clone(),
+            ],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1404,7 +1466,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1687,7 +1749,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1760,6 +1822,9 @@ mod test {
             .put_validator_updates(ValidatorSet::new_from_updates(validator_updates.clone()))
             .unwrap();
         app.apply(state_tx);
+
+        let (_, sequencer_block_builder) = block_data_from_txs_no_sequence_actions(vec![]);
+        app.current_sequencer_block_builder = Some(sequencer_block_builder);
 
         let resp = app
             .end_block(&abci::request::EndBlock {
@@ -1837,7 +1902,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
 
         let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;
@@ -1881,8 +1946,31 @@ mod test {
     async fn app_transfer_block_fees_to_proposer() {
         let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
 
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let native_asset = get_native_asset().id();
+
+        // transfer funds from Alice to Bob; use native token for fee payment
+        let bob_address = address_from_hex_string(BOB_ADDRESS);
+        let amount = 333_333;
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![
+                TransferAction {
+                    to: bob_address,
+                    amount,
+                    asset_id: native_asset,
+                    fee_asset_id: get_native_asset().id(),
+                }
+                .into(),
+            ],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+        let (header, sequencer_block_builder) =
+            block_data_from_txs_no_sequence_actions(vec![signed_tx.to_raw().encode_to_vec()]);
+
         let mut begin_block = abci::request::BeginBlock {
-            header: default_header(),
+            header,
             hash: Hash::default(),
             last_commit_info: CommitInfo {
                 votes: vec![],
@@ -1905,28 +1993,9 @@ mod test {
             begin_block.header.proposer_address
         );
 
-        let (alice_signing_key, _) = get_alice_signing_key_and_address();
-        let native_asset = get_native_asset().id();
-
-        // transfer funds from Alice to Bob; use native token for fee payment
-        let bob_address = address_from_hex_string(BOB_ADDRESS);
-        let amount = 333_333;
-        let tx = UnsignedTransaction {
-            nonce: 0,
-            actions: vec![
-                TransferAction {
-                    to: bob_address,
-                    amount,
-                    asset_id: native_asset,
-                    fee_asset_id: get_native_asset().id(),
-                }
-                .into(),
-            ],
-        };
-
-        let signed_tx = tx.into_signed(&alice_signing_key);
         app.deliver_tx(signed_tx).await.unwrap();
 
+        app.current_sequencer_block_builder = Some(sequencer_block_builder);
         app.end_block(&abci::request::EndBlock {
             height: 1u32.into(),
         })
@@ -1942,5 +2011,23 @@ mod test {
             TRANSFER_FEE,
         );
         assert_eq!(app.state.get_block_fees().await.unwrap().len(), 0);
+    }
+
+    fn block_data_from_txs_no_sequence_actions(
+        txs: Vec<Vec<u8>>,
+    ) -> (Header, SequencerBlockBuilder) {
+        let empty_hash = merkle::Tree::from_leaves(Vec::<Vec<u8>>::new()).root();
+        let mut block_data = vec![empty_hash.to_vec(), empty_hash.to_vec()];
+        block_data.extend(txs);
+
+        let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
+        let mut header = default_header();
+        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+
+        let mut sequencer_block_builder = SequencerBlockBuilder::new(header.clone());
+        for tx in block_data {
+            sequencer_block_builder.push_transaction(tx);
+        }
+        (header, sequencer_block_builder)
     }
 }

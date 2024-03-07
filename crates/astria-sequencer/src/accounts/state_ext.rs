@@ -85,7 +85,7 @@ pub(crate) trait StateReadExt: StateRead {
                 // TODO: this is jank, just have 1 denom type.
                 balances.push(AssetBalance {
                     denom: astria_core::sequencer::v1alpha1::asset::Denom::from(
-                        native_asset.base_denom(),
+                        native_asset.base_denom().to_owned(),
                     ),
                     balance,
                 });
@@ -142,18 +142,14 @@ pub(crate) trait StateWriteExt: StateWrite {
         asset: asset::Id,
         balance: u128,
     ) -> Result<()> {
-        let bytes = Balance(balance)
-            .try_to_vec()
-            .context("failed to serialize balance")?;
+        let bytes = borsh::to_vec(&Balance(balance)).context("failed to serialize balance")?;
         self.put_raw(balance_storage_key(address, asset), bytes);
         Ok(())
     }
 
     #[instrument(skip(self))]
     fn put_account_nonce(&mut self, address: Address, nonce: u32) -> Result<()> {
-        let bytes = Nonce(nonce)
-            .try_to_vec()
-            .context("failed to serialize nonce")?;
+        let bytes = borsh::to_vec(&Nonce(nonce)).context("failed to serialize nonce")?;
         self.put_raw(nonce_storage_key(address), bytes);
         Ok(())
     }

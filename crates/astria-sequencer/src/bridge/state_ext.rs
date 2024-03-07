@@ -43,7 +43,7 @@ struct AssetIds(Vec<[u8; 32]>);
 
 impl From<&[asset::Id]> for AssetIds {
     fn from(ids: &[asset::Id]) -> Self {
-        Self(ids.iter().map(|id| *id.as_bytes()).collect())
+        Self(ids.iter().copied().map(asset::Id::get).collect())
     }
 }
 
@@ -161,9 +161,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     ) -> Result<()> {
         self.put_raw(
             asset_ids_storage_key(address),
-            AssetIds::from(asset_ids)
-                .try_to_vec()
-                .context("failed to serialize asset IDs")?,
+            borsh::to_vec(&AssetIds::from(asset_ids)).context("failed to serialize asset IDs")?,
         );
         Ok(())
     }
