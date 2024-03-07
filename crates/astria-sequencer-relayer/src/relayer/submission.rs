@@ -46,6 +46,18 @@ impl PostSubmission {
             .wrap_err("failed reading contents of post-submission file")?;
         Ok(state)
     }
+
+    fn write_to_path<P: AsRef<Path>>(&self, path: P) -> eyre::Result<()> {
+        let f = std::fs::File::options()
+            .write(true)
+            .truncate(true)
+            .open(path)
+            .wrap_err("failed opening file for writing state")?;
+        serde_json::to_writer(&f, self).wrap_err("failed writing json-serialized state to file")?;
+        f.sync_all()
+            .wrap_err("failed fully syncing state write to disk")?;
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
@@ -66,6 +78,18 @@ impl PreSubmission {
         let state = serde_json::from_reader(file)
             .wrap_err("failed reading contents of pre-submission file")?;
         Ok(state)
+    }
+
+    fn write_to_path<P: AsRef<Path>>(&self, path: P) -> eyre::Result<()> {
+        let f = std::fs::File::options()
+            .write(true)
+            .truncate(true)
+            .open(path)
+            .wrap_err("failed opening file for writing state")?;
+        serde_json::to_writer(&f, self).wrap_err("failed writing json-serialized state to file")?;
+        f.sync_all()
+            .wrap_err("failed fully syncing state write to disk")?;
+        Ok(())
     }
 }
 
@@ -113,15 +137,9 @@ impl Started {
             state = serde_json::to_string(&new.post).expect("type contains no non-ascii keys"),
             "finalizing submission by writing post-submit state to file",
         );
-        let f = std::fs::File::options()
-            .write(true)
-            .truncate(true)
-            .open(&new.post_path)
-            .wrap_err("failed opening post-submit file for writing state")?;
-        serde_json::to_writer(&f, &new.post)
-            .wrap_err("failed writing post-submit state to file")?;
-        f.sync_all()
-            .wrap_err("failed syncing post-submit file to disk")?;
+        new.post
+            .write_to_path(&new.post_path)
+            .wrap_err("failed comitting post-submission state to disk")?;
         Ok(new)
     }
 }
@@ -159,15 +177,9 @@ impl SubmissionState {
             state = serde_json::to_string(&new.pre).expect("type contains no non-ascii keys"),
             "initializing submission by writing pre-submit state to file",
         );
-        let f = std::fs::File::options()
-            .write(true)
-            .truncate(true)
-            .open(&new.pre_path)
-            .wrap_err("failed opening presubmit file for writing state")?;
-        serde_json::to_writer(&f, &new.pre)
-            .wrap_err("failed writing presubmission state to file")?;
-        f.sync_all()
-            .wrap_err("failed syncing presubmission file to disk")?;
+        new.pre
+            .write_to_path(&new.pre_path)
+            .wrap_err("failed commiting pre-submission state to disk")?;
         Ok(Started(new))
     }
 
@@ -218,6 +230,26 @@ impl SubmissionState {
                 }
             }
         };
+
+        // testing if the states can be written to the provided paths
+        state.pre.write_to_path(&state.pre_path).wrap_err_with(|| {
+            format!(
+                "failed writing just-read pre-submission state to disk; is the file writable? \
+                 Write destination: {}",
+                state.pre_path.display(),
+            )
+        })?;
+        state
+            .post
+            .write_to_path(&state.post_path)
+            .wrap_err_with(|| {
+                format!(
+                    "failed writing just-read post-submission state to disk; is the file \
+                     writable? Write destination: {}",
+                    state.post_path.display(),
+                )
+            })?;
+
         Ok(state)
     }
 }

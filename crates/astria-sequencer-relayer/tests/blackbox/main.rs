@@ -8,7 +8,10 @@ use assert_json_diff::assert_json_include;
 use helper::TestSequencerRelayerConfig;
 use reqwest::StatusCode;
 use serde_json::json;
-use tokio::time::timeout;
+use tokio::time::{
+    sleep,
+    timeout,
+};
 
 const RELAY_SELF: bool = true;
 const RELAY_ALL: bool = false;
@@ -23,9 +26,20 @@ async fn report_degraded_if_block_fetch_fails() {
     .await;
 
     // Relayer reports 200 on /readyz after start
-    let readyz = reqwest::get(format!("http://{}/readyz", sequencer_relayer.api_address))
+    let wait_for_readyz = async {
+        loop {
+            let readyz = reqwest::get(format!("http://{}/readyz", sequencer_relayer.api_address))
+                .await
+                .unwrap();
+            if readyz.status().is_success() {
+                break readyz;
+            }
+            sleep(Duration::from_millis(100)).await;
+        }
+    };
+    let readyz = timeout(Duration::from_secs(1), wait_for_readyz)
         .await
-        .unwrap();
+        .expect("sequencer must report ready for test to work");
 
     assert_eq!(
         StatusCode::OK,
