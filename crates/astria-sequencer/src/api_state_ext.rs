@@ -10,6 +10,7 @@ use astria_core::{
             RollupTransactions,
             SequencerBlock,
             SequencerBlockHeader,
+            SequencerBlockParts,
         },
         RollupId,
     },
@@ -285,9 +286,14 @@ pub(crate) trait StateWriteExt: StateWrite {
                 .context("failed to serialize rollup IDs list")?,
         );
 
+        let block_hash = block.block_hash();
         let key = sequencer_block_header_by_hash_key(&block.block_hash());
-        let (block_hash, header, rollup_transactions, rollup_transactions_proof, rollup_ids_proof) =
-            block.into_values();
+        let SequencerBlockParts {
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        } = block.into_parts();
         let header = header.into_raw();
         self.put_raw(key, header.encode_to_vec());
 
