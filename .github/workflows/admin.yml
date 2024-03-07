@@ -1,14 +1,11 @@
 name: Repo Admin
 on:
-  # TODO(!!!): Remove before merge
-  - pull_request
-  # TODO(!!!): Uncomment before merge
-  # pull_request_target:
-  #   types:
-  #     - opened
-  #     - edited
-  #     - synchronize
-  #     - reopened
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
 
 jobs:
   triage:
