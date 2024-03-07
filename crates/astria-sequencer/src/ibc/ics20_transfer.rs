@@ -168,7 +168,7 @@ async fn refund_tokens_check<S: StateRead>(
 ) -> Result<()> {
     let packet_data: FungibleTokenPacketData =
         serde_json::from_slice(data).context("failed to decode fungible token packet data json")?;
-    let mut denom: Denom = packet_data.denom.as_str().into();
+    let mut denom: Denom = packet_data.denom.clone().into();
 
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
     // so we need to look up the full trace from storage.
@@ -330,7 +330,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
         &hex::decode(packet_data.receiver).context("failed to decode receiver as hex string")?,
     )
     .context("invalid receiver address")?;
-    let mut denom: Denom = packet_data.denom.as_str().into();
+    let mut denom: Denom = packet_data.denom.clone().into();
 
     // if the asset is prefixed with `ibc`, the rest of the denomination string is the asset ID,
     // so we need to look up the full trace from storage.
@@ -382,7 +382,7 @@ async fn execute_ics20_transfer<S: StateWriteExt>(
             format!("{dest_port}/{dest_channel}/{}", packet_data.denom)
         };
 
-        let denom: Denom = prefixed_denomination.as_str().into();
+        let denom: Denom = prefixed_denomination.into();
 
         // register denomination in global ID -> denom map if it's not already there
         if !state

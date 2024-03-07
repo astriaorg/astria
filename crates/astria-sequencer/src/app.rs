@@ -861,7 +861,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         });
 
         app.init_chain(genesis_state, genesis_validators, "test".to_string())
@@ -1215,7 +1215,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1249,7 +1249,7 @@ mod test {
             ibc_sudo_address: alice_address,
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
             ibc_params: IBCParameters::default(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1275,7 +1275,7 @@ mod test {
             ibc_sudo_address: alice_address,
             ibc_relayer_addresses: vec![alice_address],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
             ibc_params: IBCParameters::default(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1301,7 +1301,7 @@ mod test {
             ibc_sudo_address: Address::from([0; 20]),
             ibc_relayer_addresses: vec![alice_address],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
             ibc_params: IBCParameters::default(),
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
@@ -1326,7 +1326,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1359,7 +1359,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1393,7 +1393,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1427,7 +1427,10 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into(), test_asset.clone()],
+            allowed_fee_assets: vec![
+                DEFAULT_NATIVE_ASSET_DENOM.to_owned().into(),
+                test_asset.clone(),
+            ],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1463,7 +1466,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1746,7 +1749,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
         let mut app = initialize_app(Some(genesis_state), vec![]).await;
 
@@ -1899,7 +1902,7 @@ mod test {
             ibc_relayer_addresses: vec![],
             native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
             ibc_params: IBCParameters::default(),
-            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+            allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
         };
 
         let (mut app, storage) = initialize_app_with_storage(Some(genesis_state), vec![]).await;

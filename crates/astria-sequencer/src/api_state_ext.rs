@@ -1,5 +1,6 @@
 use anyhow::{
     anyhow,
+    bail,
     Context as _,
     Result,
 };
@@ -10,6 +11,7 @@ use astria_core::{
             RollupTransactions,
             SequencerBlock,
             SequencerBlockHeader,
+            SequencerBlockParts,
         },
         RollupId,
     },
@@ -32,28 +34,99 @@ fn block_hash_by_height_key(height: u64) -> String {
 }
 
 fn sequencer_block_header_by_hash_key(hash: &[u8]) -> String {
-    format!("blockheader/{}", hex::encode(hash))
+    format!("blockheader/{}", telemetry::display::hex(hash))
 }
 
 fn rollup_data_by_hash_and_rollup_id_key(hash: &[u8], rollup_id: &RollupId) -> String {
-    format!("rollupdata/{}/{}", hex::encode(hash), rollup_id)
+    format!("rollupdata/{}/{}", telemetry::display::hex(hash), rollup_id)
 }
 
 fn rollup_ids_by_hash_key(hash: &[u8]) -> String {
-    format!("rollupids/{}", hex::encode(hash))
+    format!("rollupids/{}", telemetry::display::hex(hash))
 }
 
 fn rollup_transactions_proof_by_hash_key(hash: &[u8]) -> String {
-    format!("rolluptxsproof/{}", hex::encode(hash))
+    format!("rolluptxsproof/{}", telemetry::display::hex(hash))
 }
 
 fn rollup_ids_proof_by_hash_key(hash: &[u8]) -> String {
-    format!("rollupidsproof/{}", hex::encode(hash))
+    format!("rollupidsproof/{}", telemetry::display::hex(hash))
 }
 
-/// Wrapper type for writing a list of rollup IDs to state
 #[derive(BorshSerialize, BorshDeserialize)]
-struct RollupIds(Vec<[u8; 32]>);
+struct RollupIdSeq(
+    #[borsh(
+        deserialize_with = "rollup_id_impl::deserialize_many",
+        serialize_with = "rollup_id_impl::serialize_many"
+    )]
+    Vec<RollupId>,
+);
+
+impl From<Vec<RollupId>> for RollupIdSeq {
+    fn from(value: Vec<RollupId>) -> Self {
+        RollupIdSeq(value)
+    }
+}
+
+mod rollup_id_impl {
+    use super::{
+        RollupId,
+        RollupIdSer,
+    };
+
+    pub(super) fn deserialize<R: borsh::io::Read>(
+        reader: &mut R,
+    ) -> ::core::result::Result<RollupId, borsh::io::Error> {
+        let inner: [u8; 32] = borsh::BorshDeserialize::deserialize_reader(reader)?;
+        Ok(RollupId::from(inner))
+    }
+
+    pub(super) fn serialize<W: borsh::io::Write>(
+        obj: &RollupId,
+        writer: &mut W,
+    ) -> ::core::result::Result<(), borsh::io::Error> {
+        borsh::BorshSerialize::serialize(&obj.get(), writer)?;
+        Ok(())
+    }
+
+    pub(super) fn deserialize_many<R: borsh::io::Read>(
+        reader: &mut R,
+    ) -> ::core::result::Result<Vec<RollupId>, borsh::io::Error> {
+        let deser: Vec<RollupIdSer> = borsh::BorshDeserialize::deserialize_reader(reader)?;
+        let ids = deser.into_iter().map(RollupIdSer::get).collect();
+        Ok(ids)
+    }
+
+    pub(super) fn serialize_many<W: borsh::io::Write>(
+        obj: &[RollupId],
+        writer: &mut W,
+    ) -> ::core::result::Result<(), borsh::io::Error> {
+        let inner: Vec<_> = obj.iter().copied().map(RollupIdSer::from).collect();
+        borsh::BorshSerialize::serialize(&inner, writer)?;
+        Ok(())
+    }
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+struct RollupIdSer(
+    #[borsh(
+        deserialize_with = "rollup_id_impl::deserialize",
+        serialize_with = "rollup_id_impl::serialize"
+    )]
+    RollupId,
+);
+
+impl RollupIdSer {
+    fn get(self) -> RollupId {
+        self.0
+    }
+}
+
+impl From<RollupId> for RollupIdSer {
+    fn from(value: RollupId) -> Self {
+        Self(value)
+    }
+}
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
@@ -65,13 +138,12 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read block hash by height from state")?
         else {
-            return Err(anyhow!("block hash not found for given height"));
+            bail!("block hash not found for given height");
         };
 
-        let hash: [u8; 32] = hash
-            .as_slice()
-            .try_into()
-            .expect("block hash must be 32 bytes");
+        let hash: [u8; 32] = hash.try_into().map_err(|bytes: Vec<_>| {
+            anyhow!("expected 32 bytes block hash, but got {}", bytes.len())
+        })?;
         Ok(hash)
     }
 
@@ -86,7 +158,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read raw sequencer block from state")?
         else {
-            return Err(anyhow!("header not found for given block hash"));
+            bail!("header not found for given block hash");
         };
 
         let raw = raw::SequencerBlockHeader::decode(header_bytes.as_slice())
@@ -104,15 +176,11 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read rollup IDs by block hash from state")?
         else {
-            return Err(anyhow!("rollup IDs not found for given block hash"));
+            bail!("rollup IDs not found for given block hash");
         };
 
-        let rollup_ids: Vec<RollupId> = RollupIds::try_from_slice(&rollup_ids_bytes)
-            .context("failed to deserialize rollup IDs list")?
-            .0
-            .into_iter()
-            .map(RollupId::new)
-            .collect();
+        let RollupIdSeq(rollup_ids) = RollupIdSeq::try_from_slice(&rollup_ids_bytes)
+            .context("failed to deserialize rollup IDs list")?;
         Ok(rollup_ids)
     }
 
@@ -123,7 +191,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read raw sequencer block from state")?
         else {
-            return Err(anyhow!("header not found for given block hash"));
+            bail!("header not found for given block hash");
         };
 
         let header_raw = raw::SequencerBlockHeader::decode(header_bytes.as_slice())
@@ -154,9 +222,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read rollup transactions proof by block hash from state")?
         else {
-            return Err(anyhow!(
-                "rollup transactions proof not found for given block hash"
-            ));
+            bail!("rollup transactions proof not found for given block hash");
         };
 
         let rollup_transactions_proof = raw::Proof::decode(rollup_transactions_proof.as_slice())
@@ -167,7 +233,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read rollup IDs proof by block hash from state")?
         else {
-            return Err(anyhow!("rollup IDs proof not found for given block hash"));
+            bail!("rollup IDs proof not found for given block hash");
         };
 
         let rollup_ids_proof = raw::Proof::decode(rollup_ids_proof.as_slice())
@@ -209,9 +275,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read rollup data by block hash and rollup ID from state")?
         else {
-            return Err(anyhow!(
-                "rollup data not found for given block hash and rollup ID"
-            ));
+            bail!("rollup data not found for given block hash and rollup ID");
         };
         let raw = raw::RollupTransactions::decode(bytes.as_slice())
             .context("failed to decode rollup data from raw bytes")?;
@@ -232,9 +296,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read rollup transactions proof by block hash from state")?
         else {
-            return Err(anyhow!(
-                "rollup transactions proof not found for given block hash"
-            ));
+            bail!("rollup transactions proof not found for given block hash");
         };
 
         let rollup_transactions_proof = raw::Proof::decode(rollup_transactions_proof.as_slice())
@@ -245,7 +307,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read rollup IDs proof by block hash from state")?
         else {
-            return Err(anyhow!("rollup IDs proof not found for given block hash"));
+            bail!("rollup IDs proof not found for given block hash");
         };
 
         let rollup_ids_proof = raw::Proof::decode(rollup_ids_proof.as_slice())
@@ -271,23 +333,29 @@ pub(crate) trait StateWriteExt: StateWrite {
         let key = block_hash_by_height_key(block.height().into());
         self.put_raw(key, block.block_hash().to_vec());
 
-        let rollup_ids: Vec<[u8; 32]> = block
+        let rollup_ids = block
             .rollup_transactions()
             .keys()
             .copied()
-            .map(RollupId::get)
-            .collect();
+            .map(From::from)
+            .collect::<Vec<_>>();
+
         let key = rollup_ids_by_hash_key(&block.block_hash());
+
         self.put_raw(
             key,
-            RollupIds(rollup_ids)
-                .try_to_vec()
+            borsh::to_vec(&RollupIdSeq(rollup_ids))
                 .context("failed to serialize rollup IDs list")?,
         );
 
+        let block_hash = block.block_hash();
         let key = sequencer_block_header_by_hash_key(&block.block_hash());
-        let (block_hash, header, rollup_transactions, rollup_transactions_proof, rollup_ids_proof) =
-            block.into_values();
+        let SequencerBlockParts {
+            header,
+            rollup_transactions,
+            rollup_transactions_proof,
+            rollup_ids_proof,
+        } = block.into_parts();
         let header = header.into_raw();
         self.put_raw(key, header.encode_to_vec());
 

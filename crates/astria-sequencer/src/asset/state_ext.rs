@@ -53,7 +53,7 @@ pub(crate) trait StateReadExt: StateRead {
 
         let DenominationTrace(denom_str) =
             DenominationTrace::try_from_slice(&bytes).context("invalid asset bytes")?;
-        let denom: Denom = denom_str.as_str().into();
+        let denom: Denom = denom_str.into();
         Ok(denom)
     }
 }
@@ -64,8 +64,7 @@ impl<T: ?Sized + StateRead> StateReadExt for T {}
 pub(crate) trait StateWriteExt: StateWrite {
     #[instrument(skip(self))]
     fn put_ibc_asset(&mut self, id: asset::Id, asset: &Denom) -> Result<()> {
-        let bytes = DenominationTrace(asset.denomination_trace())
-            .try_to_vec()
+        let bytes = borsh::to_vec(&DenominationTrace(asset.denomination_trace()))
             .context("failed to serialize asset")?;
         self.put_raw(asset_storage_key(id), bytes);
         Ok(())

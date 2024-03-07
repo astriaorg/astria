@@ -85,7 +85,7 @@ message Deposit {
 // of the rollup transactions.
 message FilteredSequencerBlock {
   // The original CometBFT header that was the input to this sequencer block.
-  astria_vendored.tendermint.types.Header header = 1;
+  astria_vendored.tendermint.types.Header cometbft_header = 1;
   // A subset of rollup transactions that were included in this block.
   repeated RollupTransactions rollup_transactions = 2;
   // The Merkle Tree Hash of all the rollup transactions in the block (not just the
