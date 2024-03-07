@@ -25,34 +25,50 @@ use sequencer_client::{
 };
 use tokio_stream::Stream;
 use tracing::{
+    info,
     instrument,
     warn,
     Instrument as _,
     Span,
 };
 
-#[derive(Default, Debug)]
+/// Tracks the latest sequencer height and returns the next height the stream should fetch.
+///
+/// This type exists primarily to make it convenient to determine the next height. Accessing
+/// methods on `&self` behind a `Pin<&mut BlockStream>` (as is the case its `Stream` implementation)
+/// is very roundabout, whereas methods on `Unpin` fields can be called directly.
+#[derive(Debug)]
 struct Heights {
+    // The last observed sequencer height. Set externally and important for dermining if another
+    // block at `next` height can be fetched.
     last_observed: Option<Height>,
-    last_requested: Option<Height>,
+    // The next sequencer height to be fetched.
+    next: Height,
 }
 
 impl Heights {
     /// Returns the next height to be fetched.
     ///
-    /// If `last_observed` is unset, returns `None`.
-    /// If `last_requested` is unset, returns `last_observed`.
-    /// If both are set, returns `last_requested + 1` if less than
-    /// `last_observed`, `None` otherwise.
+    /// Returns `None` if `last_observed` is unset.
+    /// Returns `None` if `next` exceeds `last_observed`.
+    /// Returns `Some(next)` otherwise.
     fn next_height_to_fetch(&self) -> Option<Height> {
         let last_observed = self.last_observed?;
-        match self.last_requested {
-            None => Some(last_observed),
-            Some(last_requested) if last_requested < last_observed => {
-                Some(last_requested.increment())
-            }
-            Some(..) => None,
+        if self.next <= last_observed {
+            Some(self.next)
+        } else {
+            None
         }
+    }
+
+    /// Increments the next height to be fetched by 1.
+    fn increment_next(&mut self) {
+        self.next = self.next.increment();
+    }
+
+    /// Sets the last observed sequencer height to `height`.
+    fn set_last_observed(&mut self, height: Height) {
+        self.last_observed.replace(height);
     }
 }
 
@@ -62,6 +78,7 @@ pin_project! {
         heights: Heights,
         #[pin]
         future: Option<BoxFuture<'static, eyre::Result<SequencerBlock>>>,
+        height_in_flight: Option<Height>,
         paused: bool,
         block_time: Duration,
         state: Arc<super::State>,
@@ -69,23 +86,12 @@ pin_project! {
 }
 
 impl BlockStream {
-    pub(super) fn new(client: HttpClient, state: Arc<super::State>) -> Self {
-        Self {
-            client,
-            heights: Heights::default(),
-            future: None,
-            block_time: Duration::from_millis(1_000),
-            paused: false,
-            state,
-        }
-    }
-
-    pub(super) fn set_block_time(&mut self, block_time: Duration) {
-        self.block_time = block_time;
+    pub(super) fn builder() -> BlockStreamBuilder {
+        BlockStreamBuilder::new()
     }
 
     pub(super) fn set_latest_sequencer_height(&mut self, height: Height) {
-        self.heights.last_observed.replace(height);
+        self.heights.set_last_observed(height);
     }
 
     pub(super) fn pause(&mut self) {
@@ -110,8 +116,8 @@ impl Stream for BlockStream {
             if let Some(fut) = this.future.as_mut().as_pin_mut() {
                 let item = ready!(fut.poll(cx));
                 let height = this
-                    .heights
-                    .last_requested
+                    .height_in_flight
+                    .take()
                     .expect("must be set if a future was scheduled");
                 this.future.set(None);
                 break Some((height, item));
@@ -133,7 +139,8 @@ impl Stream for BlockStream {
                 ));
                 this.state
                     .set_latest_requested_sequencer_height(height.value());
-                this.heights.last_requested.replace(height);
+                this.height_in_flight.replace(height);
+                this.heights.increment_next();
             } else {
                 break None;
             }
@@ -142,21 +149,24 @@ impl Stream for BlockStream {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         let latest_height = self.heights.last_observed.map_or(0, |h| h.value());
-        let requested_height = self.heights.last_requested.map_or(0, |h| h.value());
-        let mut lower_limit = latest_height
-            .saturating_sub(requested_height)
-            .try_into()
-            .expect(
-                "height differences should convert to usize on all reasonable architectures; 64 \
-                 bit: heights are represented as u64; 32 bit: cometbft heights are non-negative \
-                 i64",
-            );
+        let next_height = self.heights.next.value();
+        let mut lower_limit = latest_height.saturating_sub(next_height);
+
+        // A new future will be spawned as long as next_height <= latest_height. So
+        // 10 - 10 = 0, but there 1 future stil to be spawned at next height = 10.
+        lower_limit += Into::<u64>::into(next_height <= latest_height);
+
         // Add 1 if a fetch is in-flight. Example: if requested and latest heights are
         // both 10, then (latest - requested) = 0. But that is only true if the future already
         // resolved and its result was returned. If requested height is 9 and latest is 10,
         // then `(latest - requested) = 1`, meaning there is one more height to be fetched plus
         // the one that's currently in-flight.
-        lower_limit += Into::<usize>::into(self.future.is_some());
+        lower_limit += Into::<u64>::into(self.future.is_some());
+
+        let lower_limit = lower_limit.try_into().expect(
+            "height differences should convert to usize on all reasonable architectures; 64 bit: \
+             heights are represented as u64; 32 bit: cometbft heights are non-negative i64",
+        );
         (lower_limit, None)
     }
 }
@@ -215,4 +225,175 @@ async fn fetch_block(
     state.set_sequencer_connected(true);
 
     Ok(block)
+}
+
+pub(super) struct NoBlockTime;
+pub(super) struct WithBlockTime(Duration);
+pub(super) struct NoClient;
+pub(super) struct WithClient(HttpClient);
+pub(super) struct NoState;
+pub(super) struct WithState(Arc<super::State>);
+
+pub(super) struct BlockStreamBuilder<TBlockTime = NoBlockTime, TClient = NoClient, TState = NoState>
+{
+    block_time: TBlockTime,
+    client: TClient,
+    last_fetched_height: Option<Height>,
+    state: TState,
+}
+
+impl<TBlockTime, TClient, TState> BlockStreamBuilder<TBlockTime, TClient, TState> {
+    pub(super) fn block_time(
+        self,
+        block_time: Duration,
+    ) -> BlockStreamBuilder<WithBlockTime, TClient, TState> {
+        let Self {
+            client,
+            last_fetched_height,
+            state,
+            ..
+        } = self;
+        BlockStreamBuilder {
+            block_time: WithBlockTime(block_time),
+            client,
+            last_fetched_height,
+            state,
+        }
+    }
+
+    pub(super) fn client(
+        self,
+        client: HttpClient,
+    ) -> BlockStreamBuilder<TBlockTime, WithClient, TState> {
+        let Self {
+            block_time,
+            last_fetched_height,
+            state,
+            ..
+        } = self;
+        BlockStreamBuilder {
+            block_time,
+            client: WithClient(client),
+            last_fetched_height,
+            state,
+        }
+    }
+
+    pub(super) fn set_last_fetched_height(
+        self,
+        last_fetched_height: Option<Height>,
+    ) -> BlockStreamBuilder<TBlockTime, TClient, TState> {
+        let Self {
+            block_time,
+            client,
+            state,
+            ..
+        } = self;
+        BlockStreamBuilder {
+            block_time,
+            client,
+            last_fetched_height,
+            state,
+        }
+    }
+
+    pub(super) fn state(
+        self,
+        state: Arc<super::State>,
+    ) -> BlockStreamBuilder<TBlockTime, TClient, WithState> {
+        let Self {
+            block_time,
+            client,
+            last_fetched_height,
+            ..
+        } = self;
+        BlockStreamBuilder {
+            block_time,
+            client,
+            last_fetched_height,
+            state: WithState(state),
+        }
+    }
+}
+
+impl BlockStreamBuilder {
+    fn new() -> Self {
+        BlockStreamBuilder {
+            block_time: NoBlockTime,
+            client: NoClient,
+            last_fetched_height: None,
+            state: NoState,
+        }
+    }
+}
+
+impl BlockStreamBuilder<WithBlockTime, WithClient, WithState> {
+    pub(super) fn build(self) -> BlockStream {
+        let Self {
+            block_time: WithBlockTime(block_time),
+            client: WithClient(client),
+            last_fetched_height,
+            state: WithState(state),
+        } = self;
+        let next = match last_fetched_height {
+            None => {
+                let next = Height::from(1u32);
+                info!(
+                    "last fetched height was not set, so next height fetched from sequencer will \
+                     be `{next}`"
+                );
+                next
+            }
+            Some(last_fetched) => {
+                let next = last_fetched.increment();
+                info!(
+                    "last fetched height was set to `{last_fetched}`, so next height fetched from \
+                     sequencer will be `{next}`"
+                );
+                next
+            }
+        };
+        BlockStream {
+            client,
+            heights: Heights {
+                last_observed: None,
+                next,
+            },
+            future: None,
+            height_in_flight: None,
+            block_time,
+            paused: false,
+            state,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        Height,
+        Heights,
+    };
+
+    #[track_caller]
+    fn assert_next_height_is_expected(
+        last_observed: Option<u32>,
+        next: u32,
+        expected: Option<u32>,
+    ) {
+        let heights = Heights {
+            last_observed: last_observed.map(Height::from),
+            next: Height::from(next),
+        };
+        let expected = expected.map(Height::from);
+        assert_eq!(expected, heights.next_height_to_fetch());
+    }
+
+    #[test]
+    fn next_heights() {
+        assert_next_height_is_expected(None, 1, None);
+        assert_next_height_is_expected(Some(1), 1, Some(1));
+        assert_next_height_is_expected(Some(2), 1, Some(1));
+        assert_next_height_is_expected(Some(1), 2, None);
+    }
 }

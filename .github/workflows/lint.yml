@@ -14,7 +14,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_lint_proto == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: bufbuild/buf-setup-action@v1
         with:
           version: "1.15.1"
@@ -37,7 +37,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_lint_rust == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2024-02-07
@@ -50,7 +50,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_lint_toml == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: download taplo
         run: |
           curl -fsSL https://github.com/tamasfe/taplo/releases/download/0.8.1/taplo-full-linux-x86_64.gz \
@@ -64,7 +64,7 @@ jobs:
     needs: run_checker
     if: needs.run_checker.outputs.run_lint_markdown == 'true'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: DavidAnson/markdownlint-cli2-action@v11
         with:
           globs: |
