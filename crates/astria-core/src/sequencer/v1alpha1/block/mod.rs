@@ -579,7 +579,7 @@ impl SequencerBlock {
 
         FilteredSequencerBlock {
             block_hash: self.block_hash,
-            header: self.header.cometbft_header,
+            cometbft_header: self.header.cometbft_header,
             rollup_transactions: filtered_rollup_transactions,
             rollup_transactions_root: self.header.rollup_transactions_root,
             rollup_transactions_proof: self.rollup_transactions_proof,
@@ -830,7 +830,7 @@ where
 #[allow(clippy::module_name_repetitions)]
 pub struct FilteredSequencerBlock {
     block_hash: [u8; 32],
-    header: tendermint::block::header::Header,
+    cometbft_header: tendermint::block::header::Header,
     // filtered set of rollup transactions
     rollup_transactions: IndexMap<RollupId, RollupTransactions>,
     // root of the rollup transactions tree
@@ -850,13 +850,13 @@ impl FilteredSequencerBlock {
     }
 
     #[must_use]
-    pub fn header(&self) -> &tendermint::block::header::Header {
-        &self.header
+    pub fn cometbft_header(&self) -> &tendermint::block::header::Header {
+        &self.cometbft_header
     }
 
     #[must_use]
     pub fn height(&self) -> tendermint::block::Height {
-        self.header.height
+        self.cometbft_header.height
     }
 
     #[must_use]
@@ -887,14 +887,14 @@ impl FilteredSequencerBlock {
     #[must_use]
     pub fn into_raw(self) -> raw::FilteredSequencerBlock {
         let Self {
-            header,
+            cometbft_header,
             rollup_transactions,
             rollup_transactions_proof,
             rollup_ids_proof,
             ..
         } = self;
         raw::FilteredSequencerBlock {
-            header: Some(header.into()),
+            cometbft_header: Some(cometbft_header.into()),
             rollup_transactions: rollup_transactions
                 .into_values()
                 .map(RollupTransactions::into_raw)
@@ -936,7 +936,7 @@ impl FilteredSequencerBlock {
         }
 
         let raw::FilteredSequencerBlock {
-            header,
+            cometbft_header,
             rollup_transactions,
             rollup_transactions_root,
             rollup_transactions_proof,
@@ -962,20 +962,22 @@ impl FilteredSequencerBlock {
             merkle::Proof::try_from_raw(rollup_ids_proof)
                 .map_err(FilteredSequencerBlockError::id_proof_invalid)
         }?;
-        let header = {
-            let Some(header) = header else {
-                return Err(FilteredSequencerBlockError::field_not_set("header"));
+        let cometbft_header = {
+            let Some(cometbft_header) = cometbft_header else {
+                return Err(FilteredSequencerBlockError::field_not_set(
+                    "cometbft_header",
+                ));
             };
-            tendermint::block::Header::try_from(header)
+            tendermint::block::Header::try_from(cometbft_header)
                 .map_err(FilteredSequencerBlockError::cometbft_header)
         }?;
-        let tendermint::Hash::Sha256(block_hash) = header.hash() else {
+        let tendermint::Hash::Sha256(block_hash) = cometbft_header.hash() else {
             return Err(FilteredSequencerBlockError::comet_bft_block_hash_is_none());
         };
 
         // header.data_hash is Option<Hash> and Hash itself has
         // variants Sha256([u8; 32]) or None.
-        let Some(tendermint::Hash::Sha256(data_hash)) = header.data_hash else {
+        let Some(tendermint::Hash::Sha256(data_hash)) = cometbft_header.data_hash else {
             return Err(FilteredSequencerBlockError::field_not_set(
                 "header.data_hash",
             ));
@@ -1023,7 +1025,7 @@ impl FilteredSequencerBlock {
 
         Ok(Self {
             block_hash,
-            header,
+            cometbft_header,
             rollup_transactions,
             rollup_transactions_root,
             rollup_transactions_proof,

@@ -138,7 +138,7 @@ impl SequencerService for SequencerServer {
         }
 
         let block = RawFilteredSequencerBlock {
-            header: Some(header_parts.cometbft_header.into()),
+            cometbft_header: Some(header_parts.cometbft_header.into()),
             rollup_transactions,
             rollup_transactions_root: header_parts.rollup_transactions_root.to_vec(),
             rollup_transactions_proof: rollup_transactions_proof.into(),
