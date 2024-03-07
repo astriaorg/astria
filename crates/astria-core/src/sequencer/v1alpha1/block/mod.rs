@@ -55,9 +55,9 @@ enum RollupTransactionsErrorKind {
     ProofInvalid(#[source] merkle::audit::InvalidProof),
 }
 
-/// The individual parts that make up a [`RollupTransaction`].
+/// The individual parts that make up a [`RollupTransactions`] type.
 ///
-/// Provides convenient access to the fields of a rollup transaction.
+/// Provides convenient access to the fields of [`RollupTransactions`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct RollupTransactionsParts {
     pub id: RollupId,
