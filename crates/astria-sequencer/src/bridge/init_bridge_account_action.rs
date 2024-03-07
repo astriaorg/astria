@@ -1,5 +1,5 @@
 use anyhow::{
-    anyhow,
+    bail,
     ensure,
     Context as _,
     Result,
@@ -53,7 +53,7 @@ impl ActionHandler for InitBridgeAccountAction {
         // after the account becomes a bridge account, it can no longer receive funds
         // via `TransferAction`, only via `BridgeLockAction`.
         if state.get_bridge_account_rollup_id(&from).await?.is_some() {
-            return Err(anyhow!("bridge account already exists"));
+            bail!("bridge account already exists");
         }
 
         ensure!(

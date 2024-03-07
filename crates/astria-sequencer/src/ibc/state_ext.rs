@@ -1,4 +1,5 @@
 use anyhow::{
+    bail,
     Context,
     Result,
 };
@@ -68,7 +69,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed reading raw ibc sudo key from state")?
         else {
             // ibc sudo key must be set
-            return Err(anyhow::anyhow!("ibc sudo key not found"));
+            bail!("ibc sudo key not found");
         };
         let SudoAddress(address) =
             SudoAddress::try_from_slice(&bytes).context("invalid ibc sudo key bytes")?;

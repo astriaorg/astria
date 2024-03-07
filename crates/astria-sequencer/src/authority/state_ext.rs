@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 
 use anyhow::{
-    anyhow,
     bail,
     Context,
     Result,
@@ -99,7 +98,7 @@ pub(crate) trait StateReadExt: StateRead {
             .context("failed reading raw sudo key from state")?
         else {
             // return error because sudo key must be set
-            return Err(anyhow!("sudo key not found"));
+            bail!("sudo key not found");
         };
         let SudoAddress(address) =
             SudoAddress::try_from_slice(&bytes).context("invalid sudo key bytes")?;

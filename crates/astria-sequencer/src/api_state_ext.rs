@@ -1,5 +1,5 @@
 use anyhow::{
-    anyhow,
+    bail,
     Context as _,
     Result,
 };
@@ -66,7 +66,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read block hash by height from state")?
         else {
-            return Err(anyhow!("block hash not found for given height"));
+            bail!("block hash not found for given height");
         };
 
         let hash: [u8; 32] = hash
@@ -87,7 +87,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read raw sequencer block from state")?
         else {
-            return Err(anyhow!("header not found for given block hash"));
+            bail!("header not found for given block hash");
         };
 
         let raw = raw::SequencerBlockHeader::decode(header_bytes.as_slice())
@@ -105,7 +105,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read rollup IDs by block hash from state")?
         else {
-            return Err(anyhow!("rollup IDs not found for given block hash"));
+            bail!("rollup IDs not found for given block hash");
         };
 
         let rollup_ids: Vec<RollupId> = RollupIds::try_from_slice(&rollup_ids_bytes)
@@ -124,7 +124,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read raw sequencer block from state")?
         else {
-            return Err(anyhow!("header not found for given block hash"));
+            bail!("header not found for given block hash");
         };
 
         let header_raw = raw::SequencerBlockHeader::decode(header_bytes.as_slice())
@@ -155,9 +155,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read rollup transactions proof by block hash from state")?
         else {
-            return Err(anyhow!(
-                "rollup transactions proof not found for given block hash"
-            ));
+            bail!("rollup transactions proof not found for given block hash");
         };
 
         let rollup_transactions_proof = raw::Proof::decode(rollup_transactions_proof.as_slice())
@@ -168,7 +166,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read rollup IDs proof by block hash from state")?
         else {
-            return Err(anyhow!("rollup IDs proof not found for given block hash"));
+            bail!("rollup IDs proof not found for given block hash");
         };
 
         let rollup_ids_proof = raw::Proof::decode(rollup_ids_proof.as_slice())
@@ -210,9 +208,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read rollup data by block hash and rollup ID from state")?
         else {
-            return Err(anyhow!(
-                "rollup data not found for given block hash and rollup ID"
-            ));
+            bail!("rollup data not found for given block hash and rollup ID");
         };
         let raw = raw::RollupTransactions::decode(bytes.as_slice())
             .context("failed to decode rollup data from raw bytes")?;
@@ -233,9 +229,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read rollup transactions proof by block hash from state")?
         else {
-            return Err(anyhow!(
-                "rollup transactions proof not found for given block hash"
-            ));
+            bail!("rollup transactions proof not found for given block hash");
         };
 
         let rollup_transactions_proof = raw::Proof::decode(rollup_transactions_proof.as_slice())
@@ -246,7 +240,7 @@ pub(crate) trait StateReadExt: StateRead {
             .await
             .context("failed to read rollup IDs proof by block hash from state")?
         else {
-            return Err(anyhow!("rollup IDs proof not found for given block hash"));
+            bail!("rollup IDs proof not found for given block hash");
         };
 
         let rollup_ids_proof = raw::Proof::decode(rollup_ids_proof.as_slice())
