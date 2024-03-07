@@ -1,7 +1,7 @@
 # The Astria protobuf specifications
 
 This directory holds the Protobuf specifications that are used
-by all Astria services. See the [`astria-proto`](../crates/astria-proto) crate
+by all Astria services. See the [`astria-core`](../crates/astria-core) crate
 for how to use them.
 
 ## Protos and Buf Build

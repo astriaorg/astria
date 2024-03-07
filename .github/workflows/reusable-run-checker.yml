@@ -45,8 +45,8 @@ jobs:
       markdown: ${{ steps.filters.outputs.markdown }}
       rustfmt: ${{ steps.filters.outputs.rustfmt }}
     steps:
-      - uses: actions/checkout@v3
-      - uses: dorny/paths-filter@v2
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
         id: filters
         with:
           list-files: json
