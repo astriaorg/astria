@@ -411,7 +411,7 @@ mod test {
         let rollup_id = RollupId::from_unhashed_bytes(b"test-chain");
         let grouped_txs = BTreeMap::from([(rollup_id, vec![test_tx.clone()])]);
         let rollup_transactions_tree =
-            astria_core::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(&grouped_txs);
+            astria_core::sequencer::v1alpha1::derive_merkle_tree_from_rollup_datas(&grouped_txs);
         let rollup_transactions_root = rollup_transactions_tree.root();
         let rollup_ids_root = merkle::Tree::from_leaves(std::iter::once(rollup_id)).root();
 

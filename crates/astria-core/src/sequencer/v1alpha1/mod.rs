@@ -329,7 +329,7 @@ fn do_rollup_transaction_match_root(
 /// It is the responsbility if the caller to ensure that the iterable is
 /// deterministic. Prefer types like `Vec`, `BTreeMap` or `IndexMap` over
 /// `HashMap`.
-pub fn derive_merkle_tree_from_rollup_txs<'a, T: 'a, U: 'a>(rollup_ids_to_txs: T) -> merkle::Tree
+pub fn derive_merkle_tree_from_rollup_datas<'a, T: 'a, U: 'a>(rollup_ids_to_txs: T) -> merkle::Tree
 where
     T: IntoIterator<Item = (&'a RollupId, &'a U)>,
     U: AsRef<[Vec<u8>]> + 'a + ?Sized,
@@ -381,7 +381,7 @@ fn are_rollup_txs_included(
     let rollup_base_transactions = rollup_txs
         .iter()
         .map(|(rollup_id, tx_data)| (rollup_id, tx_data.transactions()));
-    let rollup_tree = derive_merkle_tree_from_rollup_txs(rollup_base_transactions);
+    let rollup_tree = derive_merkle_tree_from_rollup_datas(rollup_base_transactions);
     let hash_of_rollup_root = Sha256::digest(rollup_tree.root());
     rollup_proof.verify(&hash_of_rollup_root, data_hash)
 }

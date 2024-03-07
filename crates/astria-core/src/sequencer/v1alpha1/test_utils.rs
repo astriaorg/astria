@@ -3,9 +3,8 @@
 use prost::Message as _;
 
 use super::{
-    // FIXME(github....): bring these assets under v1alpha1
     asset::default_native_asset_id,
-    derive_merkle_tree_from_rollup_txs,
+    derive_merkle_tree_from_rollup_datas,
     group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
     transaction::action::SequenceAction,
     RollupId,
@@ -92,7 +91,7 @@ impl ConfigureCometBftBlock {
             group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(&[
                 signed_transaction.clone(),
             ]);
-        let rollup_transactions_tree = derive_merkle_tree_from_rollup_txs(&rollup_transactions);
+        let rollup_transactions_tree = derive_merkle_tree_from_rollup_datas(&rollup_transactions);
 
         let rollup_ids_root = merkle::Tree::from_leaves(
             rollup_transactions

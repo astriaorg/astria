@@ -152,6 +152,8 @@ impl SequencerService for SequencerServer {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
     use astria_core::sequencer::v1alpha1::SequencerBlock;
     use cnidarium::StateDelta;
     use sha2::{
@@ -202,7 +204,8 @@ mod test {
         let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
         header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
         header.height = height.into();
-        SequencerBlock::try_from_cometbft_header_and_data(header, block_data).unwrap()
+        SequencerBlock::try_from_cometbft_header_and_data(header, block_data, HashMap::new())
+            .unwrap()
     }
 
     #[tokio::test]

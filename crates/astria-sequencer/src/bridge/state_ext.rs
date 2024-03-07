@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::{
     anyhow,
     Context,
@@ -142,6 +144,23 @@ pub(crate) trait StateReadExt: StateRead {
         }
         Ok(deposits)
     }
+
+    #[instrument(skip(self))]
+    async fn get_block_deposits(&self) -> Result<HashMap<RollupId, Vec<Deposit>>> {
+        let deposit_rollup_ids = self
+            .get_deposit_rollup_ids()
+            .await
+            .context("failed to get deposit rollup IDs")?;
+        let mut deposit_events = HashMap::new();
+        for rollup_id in deposit_rollup_ids {
+            let rollup_deposit_events = self
+                .get_deposit_events(&rollup_id)
+                .await
+                .context("failed to get deposit events")?;
+            deposit_events.insert(rollup_id, rollup_deposit_events);
+        }
+        Ok(deposit_events)
+    }
 }
 
 impl<T: StateRead + ?Sized> StateReadExt for T {}
@@ -197,6 +216,15 @@ pub(crate) trait StateWriteExt: StateWrite {
         while let Some(Ok((key, _))) = stream.next().await {
             self.nonverifiable_delete(key);
         }
+    }
+
+    #[instrument(skip(self))]
+    async fn clear_block_deposits(&mut self) -> Result<()> {
+        let deposit_rollup_ids = self.get_deposit_rollup_ids().await?;
+        for rollup_id in deposit_rollup_ids {
+            self.clear_deposit_info(&rollup_id).await;
+        }
+        Ok(())
     }
 }
 

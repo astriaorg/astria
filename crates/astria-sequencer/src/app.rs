@@ -14,8 +14,10 @@ use anyhow::{
 use astria_core::{
     generated::sequencer::v1alpha1 as raw,
     sequencer::v1alpha1::{
+        block::Deposit,
         transaction::Action,
         Address,
+        RollupId,
         SequencerBlock,
         SignedTransaction,
     },
@@ -64,12 +66,15 @@ use crate::{
             StateWriteExt as _,
         },
     },
-    bridge::state_ext::StateWriteExt,
+    bridge::state_ext::{
+        StateReadExt as _,
+        StateWriteExt,
+    },
     component::Component as _,
     genesis::GenesisState,
     ibc::component::IbcComponent,
     proposal::commitment::{
-        generate_sequence_actions_commitment,
+        generate_rollup_datas_commitment,
         GeneratedCommitments,
     },
     state_ext::{
@@ -108,15 +113,15 @@ pub(crate) struct App {
 
     // This is set to the executed hash of the proposal during `process_proposal`
     //
-    // If it does not match the hash given during begin_block, then we clear and
-    // reset the execution results cache + state delta. Transactions are reexecuted.
-    // If it does match we utilize cached results to reduce computation.
+    // If it does not match the hash given during `begin_block`, then we clear and
+    // reset the execution results cache + state delta. Transactions are re-executed.
+    // If it does match, we utilize cached results to reduce computation.
     //
-    // Resets to default hash at the begginning of prepare_proposal, and process_proposal if
-    // prepare_proposal was not called
+    // Resets to default hash at the beginning of `prepare_proposal`, and `process_proposal` if
+    // `prepare_proposal` was not called.
     executed_proposal_hash: Hash,
 
-    // cache of results of executing of transactions in prepare_proposal or process_proposal.
+    // cache of results of executing of transactions in `prepare_proposal` or `process_proposal`.
     // cleared at the end of each block.
     execution_result: HashMap<[u8; 32], anyhow::Result<Vec<abci::Event>>>,
 
@@ -228,19 +233,25 @@ impl App {
         &mut self,
         prepare_proposal: abci::request::PrepareProposal,
         storage: Storage,
-    ) -> abci::response::PrepareProposal {
+    ) -> anyhow::Result<abci::response::PrepareProposal> {
         self.is_proposer = true;
         self.update_state_for_new_round(&storage);
 
         let (signed_txs, txs_to_include) = self.execute_block_data(prepare_proposal.txs).await;
 
-        // generate commitment to sequence::Actions and commitment to the chain IDs included in the
-        // sequence::Actions
-        let res = generate_sequence_actions_commitment(&signed_txs);
+        let deposits = self
+            .state
+            .get_block_deposits()
+            .await
+            .context("failed to get block deposits in prepare_proposal")?;
 
-        abci::response::PrepareProposal {
+        // generate commitment to sequence::Actions and deposits and commitment to the rollup IDs
+        // included in the block
+        let res = generate_rollup_datas_commitment(&signed_txs, deposits);
+
+        Ok(abci::response::PrepareProposal {
             txs: res.into_transactions(txs_to_include),
-        }
+        })
     }
 
     /// Generates a commitment to the `sequence::Actions` in the block's transactions
@@ -295,10 +306,16 @@ impl App {
             "transactions to be included do not match expected",
         );
 
+        let deposits = self
+            .state
+            .get_block_deposits()
+            .await
+            .context("failed to get block deposits in process_proposal")?;
+
         let GeneratedCommitments {
             sequence_actions_root: expected_sequence_actions_root,
             rollup_ids_root: expected_rollup_ids_root,
-        } = generate_sequence_actions_commitment(&signed_txs);
+        } = generate_rollup_datas_commitment(&signed_txs, deposits);
         ensure!(
             received_sequence_actions_root == expected_sequence_actions_root,
             "transaction commitment does not match expected",
@@ -556,10 +573,7 @@ impl App {
         &mut self,
         end_block: &abci::request::EndBlock,
     ) -> anyhow::Result<abci::response::EndBlock> {
-        use crate::{
-            api_state_ext::StateWriteExt as _,
-            bridge::state_ext::StateReadExt as _,
-        };
+        use crate::api_state_ext::StateWriteExt as _;
 
         let state_tx = StateDelta::new(self.state.clone());
         let mut arc_state_tx = Arc::new(state_tx);
@@ -619,22 +633,23 @@ impl App {
         state_tx.clear_block_fees().await;
         self.current_proposer = None;
 
-        // get and clear rollup bridge deposit events
-        // TODO: we need to write these deposit events to the rollup data blob;
-        // right now these are not actually used anywhere.
-        let deposit_rollup_ids = state_tx
-            .get_deposit_rollup_ids()
+        // get and clear block deposits from state
+        let deposits = self
+            .state
+            .get_block_deposits()
             .await
-            .context("failed to get deposit rollup IDs")?;
-        let mut deposit_events = HashMap::new();
-        for rollup_id in deposit_rollup_ids {
-            let rollup_deposit_events = state_tx
-                .get_deposit_events(&rollup_id)
-                .await
-                .context("failed to get deposit events")?;
-            deposit_events.insert(rollup_id, rollup_deposit_events);
-            state_tx.clear_deposit_info(&rollup_id).await;
-        }
+            .context("failed to get block deposits in end_block")?;
+        self.current_sequencer_block_builder
+            .as_mut()
+            .expect(
+                "begin_block must be called before end_block, thus \
+                 current_sequencer_block_builder must be set",
+            )
+            .deposits(deposits);
+        state_tx
+            .clear_block_deposits()
+            .await
+            .context("failed to clear block deposits")?;
 
         // store the `SequencerBlock` in the state
         let sequencer_block = self
@@ -722,6 +737,7 @@ impl App {
 struct SequencerBlockBuilder {
     header: tendermint::block::Header,
     data: Vec<Vec<u8>>,
+    deposits: HashMap<RollupId, Vec<Deposit>>,
 }
 
 impl SequencerBlockBuilder {
@@ -729,6 +745,7 @@ impl SequencerBlockBuilder {
         Self {
             header,
             data: Vec::new(),
+            deposits: HashMap::new(),
         }
     }
 
@@ -736,8 +753,12 @@ impl SequencerBlockBuilder {
         self.data.push(tx);
     }
 
+    fn deposits(&mut self, deposits: HashMap<RollupId, Vec<Deposit>>) {
+        self.deposits = deposits;
+    }
+
     fn build(self) -> anyhow::Result<SequencerBlock> {
-        SequencerBlock::try_from_cometbft_header_and_data(self.header, self.data)
+        SequencerBlock::try_from_cometbft_header_and_data(self.header, self.data, self.deposits)
             .map_err(Into::into)
     }
 }
@@ -764,7 +785,6 @@ mod test {
             SudoAddressChangeAction,
             TransferAction,
         },
-        RollupId,
         UnsignedTransaction,
         ADDRESS_LEN,
     };
@@ -787,7 +807,6 @@ mod test {
         accounts::action::TRANSFER_FEE,
         asset::get_native_asset,
         authority::state_ext::ValidatorSet,
-        bridge::state_ext::StateReadExt as _,
         genesis::Account,
         ibc::state_ext::StateReadExt as _,
         sequence::calculate_fee,
