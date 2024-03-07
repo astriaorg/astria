@@ -27,7 +27,7 @@ jobs:
     if: ${{ startsWith(inputs.tag, inputs.package-name) || startsWith(github.ref, format('refs/tags/{0}-v', inputs.package-name)) || github.ref == 'refs/heads/main' || github.ref == 'pull_request' }}
     steps:
       # Checking out the repo
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag }}
       # https://github.com/docker/setup-qemu-action
