@@ -161,9 +161,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     ) -> Result<()> {
         self.put_raw(
             asset_ids_storage_key(address),
-            AssetIds::from(asset_ids)
-                .try_to_vec()
-                .context("failed to serialize asset IDs")?,
+            borsh::to_vec(&AssetIds::from(asset_ids)).context("failed to serialize asset IDs")?,
         );
         Ok(())
     }

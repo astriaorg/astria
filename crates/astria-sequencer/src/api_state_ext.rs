@@ -1,4 +1,5 @@
 use anyhow::{
+    anyhow,
     bail,
     Context as _,
     Result,
@@ -52,9 +53,80 @@ fn rollup_ids_proof_by_hash_key(hash: &[u8]) -> String {
     format!("rollupidsproof/{}", telemetry::display::hex(hash))
 }
 
-/// Wrapper type for writing a list of rollup IDs to state
 #[derive(BorshSerialize, BorshDeserialize)]
-struct RollupIds(Vec<[u8; 32]>);
+struct RollupIdSeq(
+    #[borsh(
+        deserialize_with = "rollup_id_impl::deserialize_many",
+        serialize_with = "rollup_id_impl::serialize_many"
+    )]
+    Vec<RollupId>,
+);
+
+impl From<Vec<RollupId>> for RollupIdSeq {
+    fn from(value: Vec<RollupId>) -> Self {
+        RollupIdSeq(value)
+    }
+}
+
+mod rollup_id_impl {
+    use super::{
+        RollupId,
+        RollupIdSer,
+    };
+
+    pub(super) fn deserialize<R: borsh::io::Read>(
+        reader: &mut R,
+    ) -> ::core::result::Result<RollupId, borsh::io::Error> {
+        let inner: [u8; 32] = borsh::BorshDeserialize::deserialize_reader(reader)?;
+        Ok(RollupId::from(inner))
+    }
+
+    pub(super) fn serialize<W: borsh::io::Write>(
+        obj: &RollupId,
+        writer: &mut W,
+    ) -> ::core::result::Result<(), borsh::io::Error> {
+        borsh::BorshSerialize::serialize(&obj.get(), writer)?;
+        Ok(())
+    }
+
+    pub(super) fn deserialize_many<R: borsh::io::Read>(
+        reader: &mut R,
+    ) -> ::core::result::Result<Vec<RollupId>, borsh::io::Error> {
+        let deser: Vec<RollupIdSer> = borsh::BorshDeserialize::deserialize_reader(reader)?;
+        let ids = deser.into_iter().map(RollupIdSer::get).collect();
+        Ok(ids)
+    }
+
+    pub(super) fn serialize_many<W: borsh::io::Write>(
+        obj: &Vec<RollupId>,
+        writer: &mut W,
+    ) -> ::core::result::Result<(), borsh::io::Error> {
+        let inner: Vec<_> = obj.iter().copied().map(RollupIdSer::from).collect();
+        borsh::BorshSerialize::serialize(&inner, writer)?;
+        Ok(())
+    }
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+struct RollupIdSer(
+    #[borsh(
+        deserialize_with = "rollup_id_impl::deserialize",
+        serialize_with = "rollup_id_impl::serialize"
+    )]
+    RollupId,
+);
+
+impl RollupIdSer {
+    fn get(self) -> RollupId {
+        self.0
+    }
+}
+
+impl From<RollupId> for RollupIdSer {
+    fn from(value: RollupId) -> Self {
+        Self(value)
+    }
+}
 
 #[async_trait]
 pub(crate) trait StateReadExt: StateRead {
@@ -69,10 +141,9 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("block hash not found for given height");
         };
 
-        let hash: [u8; 32] = hash
-            .as_slice()
-            .try_into()
-            .expect("block hash must be 32 bytes");
+        let hash: [u8; 32] = hash.try_into().map_err(|bytes: Vec<_>| {
+            anyhow!("expected 32 bytes block hash, but got {}", bytes.len())
+        })?;
         Ok(hash)
     }
 
@@ -108,12 +179,8 @@ pub(crate) trait StateReadExt: StateRead {
             bail!("rollup IDs not found for given block hash");
         };
 
-        let rollup_ids: Vec<RollupId> = RollupIds::try_from_slice(&rollup_ids_bytes)
-            .context("failed to deserialize rollup IDs list")?
-            .0
-            .into_iter()
-            .map(RollupId::new)
-            .collect();
+        let RollupIdSeq(rollup_ids) = RollupIdSeq::try_from_slice(&rollup_ids_bytes)
+            .context("failed to deserialize rollup IDs list")?;
         Ok(rollup_ids)
     }
 
@@ -266,17 +333,18 @@ pub(crate) trait StateWriteExt: StateWrite {
         let key = block_hash_by_height_key(block.height().into());
         self.put_raw(key, block.block_hash().to_vec());
 
-        let rollup_ids: Vec<[u8; 32]> = block
+        let rollup_ids = block
             .rollup_transactions()
             .keys()
             .copied()
-            .map(RollupId::get)
-            .collect();
+            .map(From::from)
+            .collect::<Vec<_>>();
+
         let key = rollup_ids_by_hash_key(&block.block_hash());
+
         self.put_raw(
             key,
-            RollupIds(rollup_ids)
-                .try_to_vec()
+            borsh::to_vec(&RollupIdSeq(rollup_ids))
                 .context("failed to serialize rollup IDs list")?,
         );
 

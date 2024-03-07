@@ -146,8 +146,7 @@ pub(crate) trait StateWriteExt: StateWrite {
     fn put_sudo_address(&mut self, address: Address) -> Result<()> {
         self.put_raw(
             SUDO_STORAGE_KEY.to_string(),
-            SudoAddress(address.0)
-                .try_to_vec()
+            borsh::to_vec(&SudoAddress(address.0))
                 .context("failed to convert sudo address to vec")?,
         );
         Ok(())
