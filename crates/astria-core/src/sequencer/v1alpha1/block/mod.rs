@@ -250,7 +250,7 @@ enum SequencerBlockErrorKind {
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("failed constructing a sequencer block header from the raw protobuf header")]
-    Header(#[from] SequencerBlockHeaderError),
+    Header(#[source] SequencerBlockHeaderError),
     #[error(
         "failed parsing a raw protobuf rollup transaction because it contained an invalid rollup \
          ID"
@@ -1263,11 +1263,11 @@ impl DepositError {
 #[derive(Debug, thiserror::Error)]
 enum DepositErrorKind {
     #[error("the address length is not 20 bytes")]
-    IncorrectAddressLength(#[from] IncorrectAddressLength),
+    IncorrectAddressLength(#[source] IncorrectAddressLength),
     #[error("the expected field in the raw source type was not set: `{0}`")]
     FieldNotSet(&'static str),
     #[error("the rollup ID length is not 32 bytes")]
-    IncorrectRollupIdLength(#[from] IncorrectRollupIdLength),
+    IncorrectRollupIdLength(#[source] IncorrectRollupIdLength),
     #[error("the asset ID length is not 32 bytes")]
-    IncorrectAssetIdLength(#[from] asset::IncorrectAssetIdLength),
+    IncorrectAssetIdLength(#[source] asset::IncorrectAssetIdLength),
 }
