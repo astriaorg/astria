@@ -43,7 +43,7 @@ struct AssetIds(Vec<[u8; 32]>);
 
 impl From<&[asset::Id]> for AssetIds {
     fn from(ids: &[asset::Id]) -> Self {
-        Self(ids.iter().map(|id| *id.as_bytes()).collect())
+        Self(ids.iter().copied().map(asset::Id::get).collect())
     }
 }
 

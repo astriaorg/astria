@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn balance_roundtrip_is_correct() {
         let balances = vec![AssetBalance {
-            denom: "nria".into(),
+            denom: "nria".to_owned().into(),
             balance: 999,
         }];
         let expected = BalanceResponse {

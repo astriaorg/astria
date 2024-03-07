@@ -507,7 +507,7 @@ mod test {
                 ibc_relayer_addresses: vec![],
                 native_asset_base_denomination: DEFAULT_NATIVE_ASSET_DENOM.to_string(),
                 ibc_params: penumbra_ibc::params::IBCParameters::default(),
-                allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.into()],
+                allowed_fee_assets: vec![DEFAULT_NATIVE_ASSET_DENOM.to_owned().into()],
             }
         }
     }

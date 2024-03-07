@@ -89,7 +89,7 @@ mod test {
             fee_asset_id: get_native_asset().id(),
         };
         let transfer_action = TransferAction {
-            to: Address([0u8; 20]),
+            to: Address::from([0u8; 20]),
             amount: 1,
             asset_id: get_native_asset().id(),
             fee_asset_id: get_native_asset().id(),
@@ -138,7 +138,7 @@ mod test {
             fee_asset_id: get_native_asset().id(),
         };
         let transfer_action = TransferAction {
-            to: Address([0u8; 20]),
+            to: Address::from([0u8; 20]),
             amount: 1,
             asset_id: get_native_asset().id(),
             fee_asset_id: get_native_asset().id(),

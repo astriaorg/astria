@@ -82,7 +82,7 @@ impl Address {
     }
 
     #[must_use]
-    pub fn from_array(array: [u8; ADDRESS_LEN]) -> Self {
+    pub const fn from_array(array: [u8; ADDRESS_LEN]) -> Self {
         Self(array)
     }
 }
