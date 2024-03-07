@@ -21,7 +21,7 @@ impl State {
     }
 }
 
-macro_rules! forward_impls {
+macro_rules! forward_setter {
     ($([$fn:ident <- $val:ty]),*$(,)?) => {
         impl State {
             $(
@@ -31,10 +31,10 @@ macro_rules! forward_impls {
             }
             )*
         }
-    }
+    };
 }
 
-forward_impls!(
+forward_setter!(
     [set_celestia_connected <- bool],
     [set_sequencer_connected <- bool],
     [set_latest_confirmed_celestia_height <- u64],

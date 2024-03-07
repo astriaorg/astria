@@ -1,4 +1,8 @@
 use std::{
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Duration,
 };
@@ -48,10 +52,13 @@ use crate::validator::Validator;
 
 mod read;
 mod state;
+mod submission;
 mod write;
 
 use state::State;
 pub(crate) use state::StateSnapshot;
+
+use self::submission::SubmissionState;
 
 pub(crate) struct Relayer {
     /// The actual client used to poll the sequencer.
@@ -68,6 +75,9 @@ pub(crate) struct Relayer {
 
     // A watch channel to track the state of the relayer. Used by the API service.
     state: Arc<State>,
+
+    pre_submit_path: PathBuf,
+    post_submit_path: PathBuf,
 }
 
 impl Relayer {
@@ -115,6 +125,8 @@ impl Relayer {
             celestia,
             validator,
             state,
+            pre_submit_path: cfg.pre_submit_path.clone(),
+            post_submit_path: cfg.post_submit_path.clone(),
         })
     }
 
@@ -130,15 +142,25 @@ impl Relayer {
     /// failed catastrophically (after `u32::MAX` retries).
     #[instrument(skip_all)]
     pub(crate) async fn run(self) -> eyre::Result<()> {
+        let submission_state = read_submission_state(&self.pre_submit_path, &self.post_submit_path)
+            .await
+            .wrap_err("failed reading submission state from files")?;
+
+        let last_submitted_sequencer_height = submission_state.last_submitted_height();
+
         let latest_height_stream =
             make_latest_height_stream(self.sequencer.clone(), self.sequencer_poll_period);
         pin!(latest_height_stream);
 
         let (submitter_task, submitter) =
-            spawn_submitter(self.celestia.clone(), self.state.clone());
+            spawn_submitter(self.celestia.clone(), self.state.clone(), submission_state);
 
-        let mut block_stream = read::BlockStream::new(self.sequencer.clone(), self.state.clone());
-        block_stream.set_block_time(self.sequencer_poll_period);
+        let mut block_stream = read::BlockStream::builder()
+            .block_time(self.sequencer_poll_period)
+            .client(self.sequencer.clone())
+            .set_last_fetched_height(last_submitted_sequencer_height)
+            .state(self.state.clone())
+            .build();
 
         // future to forward a sequencer block to the celestia-submission-task.
         // gets set in the select-loop if the task is at capacity.
@@ -275,11 +297,28 @@ impl Relayer {
     }
 }
 
+async fn read_submission_state<P1: AsRef<Path>, P2: AsRef<Path>>(
+    pre: P1,
+    post: P2,
+) -> eyre::Result<SubmissionState> {
+    let pre = pre.as_ref().to_path_buf();
+    let post = post.as_ref().to_path_buf();
+    crate::utils::flatten(
+        tokio::task::spawn_blocking(move || submission::SubmissionState::from_paths(pre, post))
+            .await,
+    )
+    .wrap_err(
+        "failed reading submission state from the configured pre- and post-submit files. Refer to \
+         the values documented in `local.env.example` of the astria-sequencer-relayer service",
+    )
+}
+
 fn spawn_submitter(
     client: CelestiaClient,
     state: Arc<State>,
+    submission_state: submission::SubmissionState,
 ) -> (JoinHandle<eyre::Result<()>>, write::BlobSubmitterHandle) {
-    let (submitter, handle) = write::BlobSubmitter::new(client, state);
+    let (submitter, handle) = write::BlobSubmitter::new(client, state, submission_state);
     (tokio::spawn(submitter.run()), handle)
 }
 
