@@ -308,12 +308,12 @@ enum SequencerBlockErrorKind {
     )]
     RollupIdsRootDoesNotMatchReconstructed,
     #[error(
-        "the rollup transactionss root in the header did not match the root derived from the \
-         rollup transactions and proof"
+        "the rollup transactions root in the header did not verify against data_hash given the \
+         rollup transactions proof"
     )]
     InvalidRollupTransactionsRoot,
     #[error(
-        "the rollup IDs root in the header did not match the root derived from the rollup IDs and \
+        "the rollup IDs root in the header did not verify against data_hash given the rollup IDs \
          proof"
     )]
     InvalidRollupIdsRoot,
@@ -731,6 +731,8 @@ impl SequencerBlock {
     /// # Errors
     /// TODO(https://github.com/astriaorg/astria/issues/612)
     pub fn try_from_raw(raw: raw::SequencerBlock) -> Result<Self, SequencerBlockError> {
+        use sha2::Digest as _;
+
         fn rollup_txs_to_tuple(
             raw: raw::RollupTransactions,
         ) -> Result<(RollupId, RollupTransactions), RollupTransactionsError> {
@@ -783,11 +785,13 @@ impl SequencerBlock {
             .collect::<Result<_, _>>()
             .map_err(SequencerBlockError::parse_rollup_transactions)?;
 
-        if !rollup_transactions_proof.verify(&header.rollup_transactions_root, data_hash) {
+        if !rollup_transactions_proof
+            .verify(&Sha256::digest(header.rollup_transactions_root), data_hash)
+        {
             return Err(SequencerBlockError::invalid_rollup_transactions_root());
         };
 
-        if !rollup_ids_proof.verify(&header.rollup_ids_root, data_hash) {
+        if !rollup_ids_proof.verify(&Sha256::digest(header.rollup_ids_root), data_hash) {
             return Err(SequencerBlockError::invalid_rollup_ids_root());
         };
 
