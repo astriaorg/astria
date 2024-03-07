@@ -403,7 +403,7 @@ impl TransferAction {
         raw::TransferAction {
             to: to.to_vec(),
             amount: Some(amount.into()),
-            asset_id: asset_id.as_bytes().to_vec(),
+            asset_id: asset_id.get().to_vec(),
             fee_asset_id: fee_asset_id.as_ref().to_vec(),
         }
     }
@@ -419,7 +419,7 @@ impl TransferAction {
         raw::TransferAction {
             to: to.to_vec(),
             amount: Some((*amount).into()),
-            asset_id: asset_id.as_bytes().to_vec(),
+            asset_id: asset_id.get().to_vec(),
             fee_asset_id: fee_asset_id.as_ref().to_vec(),
         }
     }
@@ -704,7 +704,7 @@ impl Ics20Withdrawal {
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
-            fee_asset_id: self.fee_asset_id.as_bytes().to_vec(),
+            fee_asset_id: self.fee_asset_id.get().to_vec(),
         }
     }
 
@@ -718,7 +718,7 @@ impl Ics20Withdrawal {
             timeout_height: Some(self.timeout_height.into_raw()),
             timeout_time: self.timeout_time,
             source_channel: self.source_channel.to_string(),
-            fee_asset_id: self.fee_asset_id.as_bytes().to_vec(),
+            fee_asset_id: self.fee_asset_id.get().to_vec(),
         }
     }
 
@@ -935,12 +935,12 @@ impl FeeAssetChangeAction {
         match self {
             FeeAssetChangeAction::Addition(asset_id) => raw::FeeAssetChangeAction {
                 value: Some(raw::fee_asset_change_action::Value::Addition(
-                    asset_id.as_bytes().to_vec(),
+                    asset_id.get().to_vec(),
                 )),
             },
             FeeAssetChangeAction::Removal(asset_id) => raw::FeeAssetChangeAction {
                 value: Some(raw::fee_asset_change_action::Value::Removal(
-                    asset_id.as_bytes().to_vec(),
+                    asset_id.get().to_vec(),
                 )),
             },
         }
@@ -951,12 +951,12 @@ impl FeeAssetChangeAction {
         match self {
             FeeAssetChangeAction::Addition(asset_id) => raw::FeeAssetChangeAction {
                 value: Some(raw::fee_asset_change_action::Value::Addition(
-                    asset_id.as_bytes().to_vec(),
+                    asset_id.get().to_vec(),
                 )),
             },
             FeeAssetChangeAction::Removal(asset_id) => raw::FeeAssetChangeAction {
                 value: Some(raw::fee_asset_change_action::Value::Removal(
-                    asset_id.as_bytes().to_vec(),
+                    asset_id.get().to_vec(),
                 )),
             },
         }
@@ -1030,12 +1030,8 @@ impl InitBridgeAccountAction {
     pub fn into_raw(self) -> raw::InitBridgeAccountAction {
         raw::InitBridgeAccountAction {
             rollup_id: self.rollup_id.to_vec(),
-            asset_ids: self
-                .asset_ids
-                .iter()
-                .map(|id| id.as_bytes().to_vec())
-                .collect(),
-            fee_asset_id: self.fee_asset_id.as_bytes().to_vec(),
+            asset_ids: self.asset_ids.iter().map(|id| id.get().to_vec()).collect(),
+            fee_asset_id: self.fee_asset_id.get().to_vec(),
         }
     }
 
@@ -1043,12 +1039,8 @@ impl InitBridgeAccountAction {
     pub fn to_raw(&self) -> raw::InitBridgeAccountAction {
         raw::InitBridgeAccountAction {
             rollup_id: self.rollup_id.to_vec(),
-            asset_ids: self
-                .asset_ids
-                .iter()
-                .map(|id| id.as_bytes().to_vec())
-                .collect(),
-            fee_asset_id: self.fee_asset_id.as_bytes().to_vec(),
+            asset_ids: self.asset_ids.iter().map(|id| id.get().to_vec()).collect(),
+            fee_asset_id: self.fee_asset_id.get().to_vec(),
         }
     }
 
@@ -1133,7 +1125,7 @@ impl BridgeLockAction {
         raw::BridgeLockAction {
             to: self.to.to_vec(),
             amount: Some(self.amount.into()),
-            asset_id: self.asset_id.as_bytes().to_vec(),
+            asset_id: self.asset_id.get().to_vec(),
             fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
             destination_chain_address: self.destination_chain_address,
         }
@@ -1144,7 +1136,7 @@ impl BridgeLockAction {
         raw::BridgeLockAction {
             to: self.to.to_vec(),
             amount: Some(self.amount.into()),
-            asset_id: self.asset_id.as_bytes().to_vec(),
+            asset_id: self.asset_id.get().to_vec(),
             fee_asset_id: self.fee_asset_id.as_ref().to_vec(),
             destination_chain_address: self.destination_chain_address.clone(),
         }

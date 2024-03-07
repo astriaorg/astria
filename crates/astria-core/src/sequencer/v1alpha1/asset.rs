@@ -127,11 +127,6 @@ impl Id {
         Self(hash.into())
     }
 
-    #[must_use]
-    pub fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-
     /// Returns an ID given a 32-byte slice.
     ///
     /// # Errors

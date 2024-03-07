@@ -1200,7 +1200,7 @@ impl Deposit {
             bridge_address: bridge_address.to_vec(),
             rollup_id: rollup_id.to_vec(),
             amount: Some(amount.into()),
-            asset_id: asset_id.as_bytes().to_vec(),
+            asset_id: asset_id.get().to_vec(),
             destination_chain_address,
         }
     }
