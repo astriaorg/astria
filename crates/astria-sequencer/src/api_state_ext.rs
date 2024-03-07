@@ -33,23 +33,23 @@ fn block_hash_by_height_key(height: u64) -> String {
 }
 
 fn sequencer_block_header_by_hash_key(hash: &[u8]) -> String {
-    format!("blockheader/{}", hex::encode(hash))
+    format!("blockheader/{}", telemetry::display::hex(hash))
 }
 
 fn rollup_data_by_hash_and_rollup_id_key(hash: &[u8], rollup_id: &RollupId) -> String {
-    format!("rollupdata/{}/{}", hex::encode(hash), rollup_id)
+    format!("rollupdata/{}/{}", telemetry::display::hex(hash), rollup_id)
 }
 
 fn rollup_ids_by_hash_key(hash: &[u8]) -> String {
-    format!("rollupids/{}", hex::encode(hash))
+    format!("rollupids/{}", telemetry::display::hex(hash))
 }
 
 fn rollup_transactions_proof_by_hash_key(hash: &[u8]) -> String {
-    format!("rolluptxsproof/{}", hex::encode(hash))
+    format!("rolluptxsproof/{}", telemetry::display::hex(hash))
 }
 
 fn rollup_ids_proof_by_hash_key(hash: &[u8]) -> String {
-    format!("rollupidsproof/{}", hex::encode(hash))
+    format!("rollupidsproof/{}", telemetry::display::hex(hash))
 }
 
 /// Wrapper type for writing a list of rollup IDs to state
