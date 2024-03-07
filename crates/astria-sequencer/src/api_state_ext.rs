@@ -98,7 +98,7 @@ mod rollup_id_impl {
     }
 
     pub(super) fn serialize_many<W: borsh::io::Write>(
-        obj: &Vec<RollupId>,
+        obj: &[RollupId],
         writer: &mut W,
     ) -> ::core::result::Result<(), borsh::io::Error> {
         let inner: Vec<_> = obj.iter().copied().map(RollupIdSer::from).collect();

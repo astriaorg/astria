@@ -742,7 +742,7 @@ impl Ics20Withdrawal {
 
         Ok(Self {
             amount: amount.into(),
-            denom: proto.denom.to_owned().into(),
+            denom: proto.denom.clone().into(),
             destination_chain_address: proto.destination_chain_address,
             return_address,
             timeout_height,
