@@ -59,7 +59,7 @@ pub(crate) fn generate_rollup_datas_commitment(
         group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(signed_txs);
     let rollup_ids_root = merkle::Tree::from_leaves(rollup_ids_to_txs.keys()).root();
 
-    for (rollup_id, deposit) in deposits.into_iter() {
+    for (rollup_id, deposit) in deposits {
         rollup_ids_to_txs.entry(rollup_id).or_default().extend(
             deposit
                 .into_iter()
