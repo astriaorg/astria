@@ -72,7 +72,7 @@ pub struct RollupTransactionsParts {
 pub struct RollupTransactions {
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
     id: RollupId,
-    /// The serialized opaque bytes of the rollup transactions.
+    /// The block data for this rollup.
     transactions: Vec<Vec<u8>>,
     /// Proof that this set of transactions belongs in the `sequence::Action` merkle tree
     proof: merkle::Proof,
@@ -85,7 +85,7 @@ impl RollupTransactions {
         self.id
     }
 
-    /// Returns the opaque transactions bytes.
+    /// Returns the block data for this rollup.
     #[must_use]
     pub fn transactions(&self) -> &[Vec<u8>] {
         &self.transactions
@@ -211,7 +211,7 @@ impl SequencerBlockError {
         Self(SequencerBlockErrorKind::RollupIdsNotInSequencerBlock)
     }
 
-    fn signed_transaction_prootbof_decode(source: prost::DecodeError) -> Self {
+    fn signed_transaction_protobuf_decode(source: prost::DecodeError) -> Self {
         Self(SequencerBlockErrorKind::SignedTransactionProtobufDecode(
             source,
         ))
@@ -663,7 +663,7 @@ impl SequencerBlock {
         let mut rollup_datas = IndexMap::new();
         for elem in data_list {
             let raw_tx = raw::SignedTransaction::decode(&*elem)
-                .map_err(SequencerBlockError::signed_transaction_prootbof_decode)?;
+                .map_err(SequencerBlockError::signed_transaction_protobuf_decode)?;
             let signed_tx = SignedTransaction::try_from_raw(raw_tx)
                 .map_err(SequencerBlockError::raw_signed_transaction_conversion)?;
             for action in signed_tx.into_unsigned().actions {
@@ -674,6 +674,7 @@ impl SequencerBlock {
                 }) = action
                 {
                     let elem = rollup_datas.entry(rollup_id).or_insert(vec![]);
+                    let data = RollupData::SequencedData(data).into_raw().encode_to_vec();
                     elem.push(data);
                 }
             }
@@ -682,7 +683,7 @@ impl SequencerBlock {
             rollup_datas.entry(id).or_default().extend(
                 deposits
                     .into_iter()
-                    .map(|deposit| deposit.into_raw().encode_to_vec()),
+                    .map(|deposit| RollupData::Deposit(deposit).into_raw().encode_to_vec()),
             );
         }
         rollup_datas.sort_unstable_keys();
@@ -1287,4 +1288,60 @@ enum DepositErrorKind {
     IncorrectRollupIdLength(#[source] IncorrectRollupIdLength),
     #[error("the asset ID length is not 32 bytes")]
     IncorrectAssetIdLength(#[source] asset::IncorrectAssetIdLength),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RollupData {
+    SequencedData(Vec<u8>),
+    Deposit(Deposit),
+}
+
+impl RollupData {
+    #[must_use]
+    pub fn into_raw(self) -> raw::RollupData {
+        match self {
+            Self::SequencedData(data) => raw::RollupData {
+                value: Some(raw::rollup_data::Value::SequencedData(data)),
+            },
+            Self::Deposit(deposit) => raw::RollupData {
+                value: Some(raw::rollup_data::Value::Deposit(deposit.into_raw())),
+            },
+        }
+    }
+
+    #[must_use]
+    pub fn try_from_raw(raw: raw::RollupData) -> Result<Self, RollupDataError> {
+        let raw::RollupData {
+            value,
+        } = raw;
+        match value {
+            Some(raw::rollup_data::Value::SequencedData(data)) => Ok(Self::SequencedData(data)),
+            Some(raw::rollup_data::Value::Deposit(deposit)) => Deposit::try_from_raw(deposit)
+                .map(Self::Deposit)
+                .map_err(RollupDataError::deposit),
+            None => Err(RollupDataError::field_not_set("data")),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct RollupDataError(RollupDataErrorKind);
+
+impl RollupDataError {
+    fn field_not_set(field: &'static str) -> Self {
+        Self(RollupDataErrorKind::FieldNotSet(field))
+    }
+
+    fn deposit(source: DepositError) -> Self {
+        Self(RollupDataErrorKind::Deposit(source))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum RollupDataErrorKind {
+    #[error("the expected field in the raw source type was not set: `{0}`")]
+    FieldNotSet(&'static str),
+    #[error(transparent)]
+    Deposit(#[from] DepositError),
 }

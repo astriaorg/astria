@@ -312,14 +312,13 @@ fn do_rollup_transaction_match_root(
     root: [u8; 32],
 ) -> bool {
     let id = rollup_transactions.id();
-    let txs = rollup_transactions.transactions();
     rollup_transactions
         .proof()
         .audit()
         .with_root(root)
         .with_leaf_builder()
         .write(id.as_ref())
-        .write(&merkle::Tree::from_leaves(txs).root())
+        .write(&merkle::Tree::from_leaves(rollup_transactions.transactions()).root())
         .finish_leaf()
         .perform()
 }
@@ -374,14 +373,14 @@ where
 }
 
 fn are_rollup_txs_included(
-    rollup_txs: &IndexMap<RollupId, RollupTransactions>,
+    rollup_datas: &IndexMap<RollupId, RollupTransactions>,
     rollup_proof: &merkle::Proof,
     data_hash: [u8; 32],
 ) -> bool {
-    let rollup_base_transactions = rollup_txs
+    let rollup_datas = rollup_datas
         .iter()
         .map(|(rollup_id, tx_data)| (rollup_id, tx_data.transactions()));
-    let rollup_tree = derive_merkle_tree_from_rollup_datas(rollup_base_transactions);
+    let rollup_tree = derive_merkle_tree_from_rollup_datas(rollup_datas);
     let hash_of_rollup_root = Sha256::digest(rollup_tree.root());
     rollup_proof.verify(&hash_of_rollup_root, data_hash)
 }
