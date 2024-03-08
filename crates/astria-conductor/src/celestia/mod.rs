@@ -55,7 +55,10 @@ use sequencer_client::tendermint::{
 use tokio::{
     select,
     sync::{
-        mpsc::error::{SendError, TrySendError},
+        mpsc::error::{
+            SendError,
+            TrySendError,
+        },
         oneshot,
     },
 };
@@ -197,7 +200,8 @@ impl Reader {
             namespace.sequencer = %telemetry::display::base64(&self.sequencer_namespace.as_bytes()),
         ));
 
-        let mut scheduled_block: Fuse<BoxFuture<Result<_, SendError<ReconstructedBlock>>>> = future::Fuse::terminated();
+        let mut scheduled_block: Fuse<BoxFuture<Result<_, SendError<ReconstructedBlock>>>> =
+            future::Fuse::terminated();
         let mut resubscribing = Fuse::terminated();
         loop {
             select!(
