@@ -328,7 +328,7 @@ fn do_rollup_transaction_match_root(
 /// It is the responsbility if the caller to ensure that the iterable is
 /// deterministic. Prefer types like `Vec`, `BTreeMap` or `IndexMap` over
 /// `HashMap`.
-pub fn derive_merkle_tree_from_rollup_datas<'a, T: 'a, U: 'a>(rollup_ids_to_txs: T) -> merkle::Tree
+pub fn derive_merkle_tree_from_rollup_txs<'a, T: 'a, U: 'a>(rollup_ids_to_txs: T) -> merkle::Tree
 where
     T: IntoIterator<Item = (&'a RollupId, &'a U)>,
     U: AsRef<[Vec<u8>]> + 'a + ?Sized,
@@ -341,10 +341,17 @@ where
     tree
 }
 
-// TODO: This can all be done in-place once https://github.com/rust-lang/rust/issues/80552 is stabilized.
+/// Extracts all data within [`SequenceAction`]s in the given [`SignedTransaction`]s, wraps them as
+/// [`RollupData::SequencedData`] and groups them by [`RollupId`].
+///
+/// TODO: This can all be done in-place once https://github.com/rust-lang/rust/issues/80552 is stabilized.
 pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
     signed_transactions: &[SignedTransaction],
 ) -> IndexMap<RollupId, Vec<Vec<u8>>> {
+    use prost::Message as _;
+
+    use crate::sequencer::v1alpha1::block::RollupData;
+
     let mut map = IndexMap::new();
     for action in signed_transactions
         .iter()
@@ -352,7 +359,8 @@ pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
     {
         if let Some(action) = action.as_sequence() {
             let txs_for_rollup: &mut Vec<Vec<u8>> = map.entry(action.rollup_id).or_insert(vec![]);
-            txs_for_rollup.push(action.data.clone());
+            let rollup_data = RollupData::SequencedData(action.data.clone());
+            txs_for_rollup.push(rollup_data.into_raw().encode_to_vec());
         }
     }
     map.sort_unstable_keys();
@@ -380,7 +388,7 @@ fn are_rollup_txs_included(
     let rollup_datas = rollup_datas
         .iter()
         .map(|(rollup_id, tx_data)| (rollup_id, tx_data.transactions()));
-    let rollup_tree = derive_merkle_tree_from_rollup_datas(rollup_datas);
+    let rollup_tree = derive_merkle_tree_from_rollup_txs(rollup_datas);
     let hash_of_rollup_root = Sha256::digest(rollup_tree.root());
     rollup_proof.verify(&hash_of_rollup_root, data_hash)
 }

@@ -19,7 +19,7 @@ use crate::{
         are_rollup_ids_included,
         are_rollup_txs_included,
         asset,
-        derive_merkle_tree_from_rollup_datas,
+        derive_merkle_tree_from_rollup_txs,
         transaction::action,
         IncorrectAddressLength,
     },
@@ -72,9 +72,9 @@ pub struct RollupTransactionsParts {
 pub struct RollupTransactions {
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
     id: RollupId,
-    /// The block data for this rollup.
+    /// The block data for this rollup in the form of encoded [`RollupData`].
     transactions: Vec<Vec<u8>>,
-    /// Proof that this set of transactions belongs in the `sequence::Action` merkle tree
+    /// Proof that this set of transactions belongs in the rollup datas merkle tree
     proof: merkle::Proof,
 }
 
@@ -612,6 +612,8 @@ impl SequencerBlock {
         // TODO: see https://github.com/astriaorg/astria/issues/774#issuecomment-1981584681
         // deposits are not included in a block pulled from cometbft, so they don't match what's
         // stored in the sequencer any more.
+        // this function can be removed after relayer/conductor are updated to use the sequencer
+        // API.
         Self::try_from_cometbft_header_and_data(header, data, HashMap::new())
     }
 
@@ -693,7 +695,7 @@ impl SequencerBlock {
             return Err(SequencerBlockError::rollup_ids_root_does_not_match_reconstructed());
         }
 
-        let rollup_transaction_tree = derive_merkle_tree_from_rollup_datas(&rollup_datas);
+        let rollup_transaction_tree = derive_merkle_tree_from_rollup_txs(&rollup_datas);
         if rollup_transactions_root != rollup_transaction_tree.root() {
             return Err(
                 SequencerBlockError::rollup_transactions_root_does_not_match_reconstructed(),
@@ -1290,6 +1292,13 @@ enum DepositErrorKind {
     IncorrectAssetIdLength(#[source] asset::IncorrectAssetIdLength),
 }
 
+/// A piece of data that is sent to a rollup execution node.
+///
+/// The data can be either sequenced data (originating from a [`SequenceAction`]
+/// submitted by a user) or a [`Deposit`] originating from a [`BridgeLockAction`].
+///
+/// The rollup node receives this type, protobuf-encoded, from conductor and
+/// must decode it accordingly.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RollupData {
     SequencedData(Vec<u8>),

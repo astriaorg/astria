@@ -10,7 +10,7 @@ fn test_sequencer_block_from_cometbft_block() {
     let rollup_ids_root =
         merkle::Tree::from_leaves(sequencer_block.rollup_transactions.keys()).root();
 
-    let rollup_transaction_tree = derive_merkle_tree_from_rollup_datas(
+    let rollup_transaction_tree = derive_merkle_tree_from_rollup_txs(
         sequencer_block
             .rollup_transactions
             .iter()

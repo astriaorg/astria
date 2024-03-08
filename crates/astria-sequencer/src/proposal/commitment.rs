@@ -1,7 +1,11 @@
 use std::collections::HashMap;
 
 use astria_core::sequencer::v1alpha1::{
-    block::Deposit,
+    block::{
+        Deposit,
+        RollupData,
+    },
+    group_sequence_actions_in_signed_transaction_transactions_by_rollup_id,
     RollupId,
     SignedTransaction,
 };
@@ -51,14 +55,15 @@ pub(crate) fn generate_rollup_datas_commitment(
 ) -> GeneratedCommitments {
     use prost::Message as _;
 
-    let mut rollup_ids_to_txs = astria_core::sequencer::v1alpha1::group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(signed_txs);
+    let mut rollup_ids_to_txs =
+        group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(signed_txs);
     let rollup_ids_root = merkle::Tree::from_leaves(rollup_ids_to_txs.keys()).root();
 
     deposits.into_iter().for_each(|(rollup_id, deposit)| {
         rollup_ids_to_txs.entry(rollup_id).or_default().extend(
             deposit
                 .into_iter()
-                .map(|deposit| deposit.into_raw().encode_to_vec()),
+                .map(|deposit| RollupData::Deposit(deposit).into_raw().encode_to_vec()),
         );
     });
 
@@ -66,7 +71,7 @@ pub(crate) fn generate_rollup_datas_commitment(
     // with the same `rollup_id`, prepended with `rollup_id`.
     // the leaves are sorted in ascending order by `rollup_id`.
     let sequence_actions_root =
-        astria_core::sequencer::v1alpha1::derive_merkle_tree_from_rollup_datas(&rollup_ids_to_txs)
+        astria_core::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(&rollup_ids_to_txs)
             .root();
     GeneratedCommitments {
         sequence_actions_root,
@@ -176,8 +181,8 @@ mod test {
         } = generate_rollup_datas_commitment(&txs, HashMap::new());
 
         let expected: [u8; 32] = [
-            74, 113, 242, 162, 39, 84, 89, 175, 130, 76, 171, 61, 17, 189, 247, 101, 151, 181, 174,
-            181, 52, 122, 131, 245, 56, 22, 11, 80, 217, 112, 44, 31,
+            189, 156, 127, 228, 51, 249, 64, 237, 150, 91, 219, 216, 1, 99, 135, 28, 235, 15, 249,
+            129, 3, 59, 231, 75, 92, 72, 103, 106, 173, 167, 251, 238,
         ];
         assert_eq!(expected, actual);
     }

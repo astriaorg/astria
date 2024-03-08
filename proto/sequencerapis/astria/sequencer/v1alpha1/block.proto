@@ -14,7 +14,8 @@ import "astria_vendored/tendermint/types/types.proto";
 message RollupTransactions {
   // The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
   bytes id = 1;
-  // The serialized opaque bytes of the rollup data.
+  // The serialized bytes of the rollup data. 
+  // Each entry is a protobuf-encoded `RollupData` message.
   repeated bytes transactions = 2;
   // The proof that these rollup transactions are included in sequencer block.
   // `astria.sequencer.v1alpha.SequencerBlock.rollup_transactions_proof`.
@@ -120,7 +121,7 @@ message FilteredSequencerBlock {
 // A piece of data that is sent to a rollup execution node.
 //
 // The data can be either sequenced data (originating from a `SequenceAction`
-// submitted by a user) or a `Deposit` originating from a `BridgeLockAction``.
+// submitted by a user) or a `Deposit` originating from a `BridgeLockAction`.
 //
 // The rollup node receives this type from conductor and must decode them accordingly.
 message RollupData {
