@@ -97,7 +97,8 @@ pub struct RollupTransactions {
     /// The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
     #[prost(bytes = "vec", tag = "1")]
     pub id: ::prost::alloc::vec::Vec<u8>,
-    /// The serialized opaque bytes of the rollup data.
+    /// The serialized bytes of the rollup data.
+    /// Each entry is a protobuf-encoded `RollupData` message.
     #[prost(bytes = "vec", repeated, tag = "2")]
     pub transactions: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
     /// The proof that these rollup transactions are included in sequencer block.
@@ -226,7 +227,7 @@ pub struct FilteredSequencerBlock {
 /// A piece of data that is sent to a rollup execution node.
 ///
 /// The data can be either sequenced data (originating from a `SequenceAction`
-/// submitted by a user) or a `Deposit` originating from a `BridgeLockAction``.
+/// submitted by a user) or a `Deposit` originating from a `BridgeLockAction`.
 ///
 /// The rollup node receives this type from conductor and must decode them accordingly.
 #[allow(clippy::derive_partial_eq_without_eq)]

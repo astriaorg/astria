@@ -14,7 +14,7 @@ import "astria_vendored/tendermint/types/types.proto";
 message RollupTransactions {
   // The 32 bytes identifying a rollup. Usually the sha256 hash of a plain rollup name.
   bytes id = 1;
-  // The serialized bytes of the rollup data. 
+  // The serialized bytes of the rollup data.
   // Each entry is a protobuf-encoded `RollupData` message.
   repeated bytes transactions = 2;
   // The proof that these rollup transactions are included in sequencer block.
