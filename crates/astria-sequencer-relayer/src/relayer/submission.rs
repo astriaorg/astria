@@ -16,7 +16,10 @@ use serde::{
     Deserialize,
     Serialize,
 };
-use tracing::debug;
+use tracing::{
+    debug,
+    warn,
+};
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -183,14 +186,14 @@ impl SubmissionState {
         Ok(Started(new))
     }
 
-    pub(super) fn from_paths<P1: AsRef<Path>, P2: AsRef<Path>>(
+    pub(super) fn from_paths<const LEANIENT: bool, P1: AsRef<Path>, P2: AsRef<Path>>(
         pre_path: P1,
         post_path: P2,
     ) -> eyre::Result<Self> {
         let pre_path = pre_path.as_ref().to_path_buf();
         let post_path = post_path.as_ref().to_path_buf();
 
-        let pre = PreSubmission::from_path(&pre_path).wrap_err(
+        let mut pre = PreSubmission::from_path(&pre_path).wrap_err(
             "failed constructing post submit state from provided path; if the post-submit state is
                 otherwise present and correctly formatted - and contains the correct information \
              about the
@@ -220,8 +223,14 @@ impl SubmissionState {
                 },
                 post,
             ) => {
-                ensure_consistent(sequencer_height, last_submission, post)
-                    .wrap_err("on-disk states are inconsistent")?;
+                if let Err(error) = ensure_consistent(sequencer_height, last_submission, post) {
+                    if LEANIENT {
+                        warn!(%error, "pre- and post-submission states were inconsistent. Setting pre-state to `ignore` and continuing from last post-state. This could to double submission!!");
+                        pre = PreSubmission::Ignore;
+                    } else {
+                        return Err(error).wrap_err("on-disk states are inconsistent");
+                    }
+                }
                 Self {
                     pre,
                     post,
@@ -386,6 +395,8 @@ mod tests {
     use super::SubmissionState;
     use crate::relayer::submission::PostSubmission;
 
+    const STRICT_CONCISTENCY_CHECK: bool = false;
+
     #[track_caller]
     fn create_files() -> (NamedTempFile, NamedTempFile) {
         let pre = NamedTempFile::new()
@@ -404,7 +415,7 @@ mod tests {
         let (pre, post) = create_files();
         write(&pre, &json!({ "state": "ignore" }));
         write(&post, &json!({ "state": "fresh" }));
-        SubmissionState::from_paths(pre.path(), post.path())
+        SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
             .expect("states `ignore` and `fresh` give a working submission state");
     }
 
@@ -416,7 +427,7 @@ mod tests {
             &post,
             &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
-        SubmissionState::from_paths(pre.path(), post.path())
+        SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
             .expect("states `ignore` and `submitted` give a working submission state");
     }
 
@@ -428,8 +439,9 @@ mod tests {
             &json!({ "state": "started", "sequencer_height": 5, "last_submission": { "state": "fresh"} }),
         );
         write(&post, &json!({ "state": "fresh" }));
-        let _ = SubmissionState::from_paths(pre.path(), post.path())
-            .expect_err("started state with `fresh` in last and current gives error");
+        let _ =
+            SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
+                .expect_err("started state with `fresh` in last and current gives error");
     }
 
     #[test]
@@ -443,10 +455,12 @@ mod tests {
             &post,
             &json!({ "state": "submitted", "sequencer_height": 6, "celestia_height": 2 }),
         );
-        let _ = SubmissionState::from_paths(pre.path(), post.path()).expect_err(
-            "started state with sequencer height less then sequencer height recorded submitted \
-             gives error",
-        );
+        let _ =
+            SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
+                .expect_err(
+                    "started state with sequencer height less then sequencer height recorded \
+                     submitted gives error",
+                );
     }
 
     #[test]
@@ -460,9 +474,11 @@ mod tests {
             &post,
             &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
-        let _ = SubmissionState::from_paths(pre.path(), post.path()).expect_err(
-            "started state with the same `submitted` in last and current give an error",
-        );
+        let _ =
+            SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
+                .expect_err(
+                    "started state with the same `submitted` in last and current give an error",
+                );
     }
 
     #[test]
@@ -476,10 +492,12 @@ mod tests {
             &post,
             &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
-        let _ = SubmissionState::from_paths(pre.path(), post.path()).expect(
-            "started state with the `fresh` in last and `submitted` in current gives working \
-             submission state",
-        );
+        let _ =
+            SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
+                .expect(
+                    "started state with the `fresh` in last and `submitted` in current gives \
+                     working submission state",
+                );
     }
 
     #[test]
@@ -493,10 +511,12 @@ mod tests {
             &post,
             &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
-        let state = SubmissionState::from_paths(pre.path(), post.path()).expect(
-            "started state with the `fresh` in last and `submitted` in current gives working \
-             submission state",
-        );
+        let state =
+            SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
+                .expect(
+                    "started state with the `fresh` in last and `submitted` in current gives \
+                     working submission state",
+                );
         let started = state.initialize(3u32.into()).unwrap();
         let finalized = started.finalize(6).unwrap();
         let PostSubmission::Submitted {
@@ -521,12 +541,79 @@ mod tests {
             &post,
             &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
         );
-        let state = SubmissionState::from_paths(pre.path(), post.path()).expect(
-            "started state with `fresh` in last and `submitted` in current gives working \
-             submission state",
-        );
+        let state =
+            SubmissionState::from_paths::<STRICT_CONCISTENCY_CHECK, _, _>(pre.path(), post.path())
+                .expect(
+                    "started state with `fresh` in last and `submitted` in current gives working \
+                     submission state",
+                );
         let _ = state
             .initialize(2u32.into())
             .expect_err("trying to submit the same sequencer height is an error");
+    }
+
+    mod leanient {
+        //! These test the same scenarios as the tests of the same name in the super module, but
+        //! whereas those are strict and should fail, the tests in this module should pass
+
+        use super::{
+            create_files,
+            json,
+            write,
+            SubmissionState,
+        };
+
+        const LEANIENT_CONCISTENCY_CHECK: bool = true;
+
+        #[test]
+        fn started_with_same_fresh_in_last_and_current_is_err() {
+            let (pre, post) = create_files();
+            write(
+                &pre,
+                &json!({ "state": "started", "sequencer_height": 5, "last_submission": { "state": "fresh"} }),
+            );
+            write(&post, &json!({ "state": "fresh" }));
+            let _ = SubmissionState::from_paths::<LEANIENT_CONCISTENCY_CHECK, _, _>(
+                pre.path(),
+                post.path(),
+            )
+            .expect("this test should not fail when doing a leaning concistency check");
+        }
+
+        #[test]
+        fn started_with_height_before_current_is_err() {
+            let (pre, post) = create_files();
+            write(
+                &pre,
+                &json!({ "state": "started", "sequencer_height": 5, "last_submission": { "state": "fresh"} }),
+            );
+            write(
+                &post,
+                &json!({ "state": "submitted", "sequencer_height": 6, "celestia_height": 2 }),
+            );
+            let _ = SubmissionState::from_paths::<LEANIENT_CONCISTENCY_CHECK, _, _>(
+                pre.path(),
+                post.path(),
+            )
+            .expect("this test should not fail when doing a leaning concistency check");
+        }
+
+        #[test]
+        fn started_with_same_submitted_in_last_and_current_is_err() {
+            let (pre, post) = create_files();
+            write(
+                &pre,
+                &json!({ "state": "started", "sequencer_height": 2, "last_submission": { "state": "submitted", "celestia_height": 5, "sequencer_height": 2} }),
+            );
+            write(
+                &post,
+                &json!({ "state": "submitted", "celestia_height": 5, "sequencer_height": 2 }),
+            );
+            let _ = SubmissionState::from_paths::<LEANIENT_CONCISTENCY_CHECK, _, _>(
+                pre.path(),
+                post.path(),
+            )
+            .expect("this test should not fail when doing a leaning concistency check");
+        }
     }
 }
