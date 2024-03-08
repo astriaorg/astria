@@ -328,7 +328,7 @@ impl TrackHeights {
     }
 
     fn next_height_to_fetch(&self) -> Option<u64> {
-        if self.next_height < self.max_permitted() && self.next_height <= self.last_observed {
+        if self.next_height <= self.max_permitted() && self.next_height <= self.last_observed {
             Some(self.next_height)
         } else {
             None
@@ -336,7 +336,8 @@ impl TrackHeights {
     }
 
     fn increment_next_height_to_fetch(&mut self) {
-        self.next_height
+        self.next_height = self
+            .next_height
             .checked_add(1)
             .expect("this value should never reach u64::MAX");
     }
@@ -652,4 +653,68 @@ async fn connect_to_celestia(endpoint: &str, token: &str) -> eyre::Result<HttpCl
         .with_config(retry_config)
         .await
         .wrap_err("retry attempts exhausted; bailing")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TrackHeights;
+
+    #[test]
+    fn next_height_within_allowed_and_observed_is_some() {
+        let tracked = TrackHeights {
+            reference_height: 10,
+            variance: 10,
+            last_observed: 20,
+            next_height: 20,
+        };
+        assert_eq!(Some(20), tracked.next_height_to_fetch());
+    }
+
+    #[test]
+    fn next_height_ahead_of_observed_is_none() {
+        let tracked = TrackHeights {
+            reference_height: 10,
+            variance: 20,
+            last_observed: 20,
+            next_height: 21,
+        };
+        assert_eq!(None, tracked.next_height_to_fetch());
+    }
+
+    #[test]
+    fn next_height_ahead_of_permitted_is_none() {
+        let tracked = TrackHeights {
+            reference_height: 10,
+            variance: 10,
+            last_observed: 30,
+            next_height: 21,
+        };
+        assert_eq!(None, tracked.next_height_to_fetch());
+    }
+
+    #[test]
+    fn incrementing_next_height_past_observed_flips_to_none() {
+        let mut tracked = TrackHeights {
+            reference_height: 10,
+            variance: 20,
+            last_observed: 20,
+            next_height: 20,
+        };
+        assert_eq!(Some(20), tracked.next_height_to_fetch());
+        tracked.increment_next_height_to_fetch();
+        assert_eq!(None, tracked.next_height_to_fetch());
+    }
+
+    #[test]
+    fn incrementing_next_height_past_variance_flips_to_none() {
+        let mut tracked = TrackHeights {
+            reference_height: 10,
+            variance: 10,
+            last_observed: 30,
+            next_height: 20,
+        };
+        assert_eq!(Some(20), tracked.next_height_to_fetch());
+        tracked.increment_next_height_to_fetch();
+        assert_eq!(None, tracked.next_height_to_fetch());
+    }
 }
