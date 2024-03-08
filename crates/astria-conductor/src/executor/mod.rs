@@ -232,7 +232,7 @@ impl Executor {
 
                 Some(block) = self.firm_blocks.recv() => {
                     debug!(
-                        block.height = %block.height(),
+                        block.height = %block.sequencer_height(),
                         block.hash = %telemetry::display::hex(&block.block_hash),
                         "received block from celestia reader",
                     );
@@ -358,7 +358,7 @@ impl Executor {
 
     #[instrument(skip_all, fields(
         block.hash = %telemetry::display::hex(&block.block_hash),
-        block.height = block.height().value(),
+        block.height = block.sequencer_height().value(),
     ))]
     async fn execute_firm(
         &mut self,
@@ -523,6 +523,7 @@ impl ExecutableBlock {
             block_hash,
             header,
             transactions,
+            ..
         } = block;
         let timestamp = convert_tendermint_to_prost_timestamp(header.time);
         Self {
