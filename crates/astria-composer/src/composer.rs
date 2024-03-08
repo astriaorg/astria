@@ -51,16 +51,16 @@ use crate::{
 /// Composer is a service responsible for submitting transactions to the Astria
 /// Shared Sequencer.
 pub struct Composer {
-    /// ApiServer is used for monitoring status of the Composer service.
+    /// `ApiServer` is used for monitoring status of the Composer service.
     api_server: ApiServer,
-    /// Searcher establishes connections to individual rollup nodes, receiving
+    /// `Searcher` establishes connections to individual rollup nodes, receiving
     /// pending transactions from them and wraps them as sequencer transactions
     /// for submission.
     searcher: Searcher,
-    /// The handle to communicate SequenceActions to the Executor
+    /// `ExecutorHandle` to communicate SequenceActions to the Executor
     /// This is at the Composer level to allow its sharing to various different collectors.
     executor_handle: ExecutorHandle,
-    /// GrpcCollectorListener is the tcp connection on which the gRPC collector is running
+    /// `GrpcCollectorListener` is the tcp connection on which the gRPC collector is running
     grpc_collector_listener: TcpListener,
 }
 
@@ -114,6 +114,8 @@ impl Composer {
         self.api_server.local_addr()
     }
 
+    /// Returns the socker address the grpc collector is served over
+    /// # Error: Returns an error if the listener is not bound
     pub fn grpc_collector_local_addr(&self) -> io::Result<SocketAddr> {
         self.grpc_collector_listener.local_addr()
     }
