@@ -1,11 +1,6 @@
-use std::{
-    net::SocketAddr,
-    sync::mpsc,
-};
+use std::net::SocketAddr;
 
-use astria_core::{
-    sequencer::v1alpha1::transaction::action::SequenceAction,
-};
+use astria_core::sequencer::v1alpha1::transaction::action::SequenceAction;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -39,10 +34,10 @@ pub struct Composer {
     searcher: Searcher,
     /// The handle to communicate SequenceActions to the Executor
     /// This is at the Composer level to allow its sharing to various different collectors.
-    executor_handle: ExecutorHandle
+    executor_handle: ExecutorHandle,
 }
 
-pub struct ExecutorHandle {
+struct ExecutorHandle {
     send_bundles: Sender<SequenceAction>,
 }
 
@@ -61,7 +56,12 @@ impl Composer {
             send_bundles: serialized_rollup_transactions_tx.clone(),
         };
 
-        let searcher = Searcher::from_config(cfg, serialized_rollup_transactions_tx.clone(), serialized_rollup_transactions_rx).wrap_err("failed to initialize searcher")?;
+        let searcher = Searcher::from_config(
+            cfg,
+            serialized_rollup_transactions_tx.clone(),
+            serialized_rollup_transactions_rx,
+        )
+        .wrap_err("failed to initialize searcher")?;
 
         let searcher_status = searcher.subscribe_to_state();
 
@@ -74,7 +74,7 @@ impl Composer {
         Ok(Self {
             api_server,
             searcher,
-            executor_handle
+            executor_handle,
         })
     }
 
@@ -90,7 +90,7 @@ impl Composer {
         let Self {
             api_server,
             searcher,
-            executor_handle
+            ..
         } = self;
 
         let api_task =

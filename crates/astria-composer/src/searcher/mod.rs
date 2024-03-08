@@ -9,7 +9,6 @@ use tokio::{
     select,
     sync::{
         mpsc::{
-            self,
             Receiver,
             Sender,
         },
