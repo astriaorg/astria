@@ -1318,7 +1318,12 @@ impl RollupData {
         }
     }
 
-    #[must_use]
+    /// Attempts to transform the `RollupData` from its raw representation.
+    ///
+    /// # Errors
+    ///
+    /// - if the `data` field is not set
+    /// - if the variant is `Deposit` but a `Deposit` cannot be constructed from the raw proto
     pub fn try_from_raw(raw: raw::RollupData) -> Result<Self, RollupDataError> {
         let raw::RollupData {
             value,

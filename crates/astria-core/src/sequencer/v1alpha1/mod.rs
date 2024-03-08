@@ -344,7 +344,7 @@ where
 /// Extracts all data within [`SequenceAction`]s in the given [`SignedTransaction`]s, wraps them as
 /// [`RollupData::SequencedData`] and groups them by [`RollupId`].
 ///
-/// TODO: This can all be done in-place once https://github.com/rust-lang/rust/issues/80552 is stabilized.
+/// TODO: This can all be done in-place once <https://github.com/rust-lang/rust/issues/80552> is stabilized.
 pub fn group_sequence_actions_in_signed_transaction_transactions_by_rollup_id(
     signed_transactions: &[SignedTransaction],
 ) -> IndexMap<RollupId, Vec<Vec<u8>>> {

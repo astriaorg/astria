@@ -11,9 +11,9 @@ use astria_core::sequencer::v1alpha1::{
 };
 use bytes::Bytes;
 
-/// Wrapper for values returned by [`generate_sequence_actions_commitment`].
+/// Wrapper for values returned by [`generate_rollup_datas_commitment`].
 pub(crate) struct GeneratedCommitments {
-    pub(crate) sequence_actions_root: [u8; 32],
+    pub(crate) rollup_datas_root: [u8; 32],
     pub(crate) rollup_ids_root: [u8; 32],
 }
 
@@ -23,7 +23,7 @@ impl GeneratedCommitments {
     #[must_use]
     pub(crate) fn into_transactions(self, mut tx_data: Vec<Bytes>) -> Vec<Bytes> {
         let mut txs = Vec::with_capacity(tx_data.len() + 2);
-        txs.push(self.sequence_actions_root.to_vec().into());
+        txs.push(self.rollup_datas_root.to_vec().into());
         txs.push(self.rollup_ids_root.to_vec().into());
         txs.append(&mut tx_data);
         txs
@@ -70,11 +70,11 @@ pub(crate) fn generate_rollup_datas_commitment(
     // each leaf of the action tree is the root of a merkle tree of the `sequence::Action`s
     // with the same `rollup_id`, prepended with `rollup_id`.
     // the leaves are sorted in ascending order by `rollup_id`.
-    let sequence_actions_root =
+    let rollup_datas_root =
         astria_core::sequencer::v1alpha1::derive_merkle_tree_from_rollup_txs(&rollup_ids_to_txs)
             .root();
     GeneratedCommitments {
-        sequence_actions_root,
+        rollup_datas_root,
         rollup_ids_root,
     }
 }
@@ -103,7 +103,7 @@ mod test {
     };
 
     #[test]
-    fn generate_sequence_actions_commitment_should_ignore_transfers() {
+    fn generate_rollup_datas_commitment_should_ignore_transfers() {
         let _ = NATIVE_ASSET.set(Denom::from_base_denom(DEFAULT_NATIVE_ASSET_DENOM));
 
         let sequence_action = SequenceAction {
@@ -127,7 +127,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let txs = vec![signed_tx];
         let GeneratedCommitments {
-            sequence_actions_root: commitment_0,
+            rollup_datas_root: commitment_0,
             ..
         } = generate_rollup_datas_commitment(&txs, HashMap::new());
 
@@ -140,7 +140,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let txs = vec![signed_tx];
         let GeneratedCommitments {
-            sequence_actions_root: commitment_1,
+            rollup_datas_root: commitment_1,
             ..
         } = generate_rollup_datas_commitment(&txs, HashMap::new());
         assert_eq!(commitment_0, commitment_1);
@@ -149,7 +149,7 @@ mod test {
     #[test]
     // TODO(https://github.com/astriaorg/astria/issues/312): ensure this test is stable
     // against changes in the serialization format (protobuf is not deterministic)
-    fn generate_sequence_actions_commitment_snapshot() {
+    fn generate_rollup_datas_commitment_snapshot() {
         // this tests that the commitment generated is what is expected via a test vector.
         // this test will only break in the case of a breaking change to the commitment scheme,
         // thus if this test needs to be updated, we should cut a new release.
@@ -176,7 +176,7 @@ mod test {
         let signed_tx = tx.into_signed(&signing_key);
         let txs = vec![signed_tx];
         let GeneratedCommitments {
-            sequence_actions_root: actual,
+            rollup_datas_root: actual,
             ..
         } = generate_rollup_datas_commitment(&txs, HashMap::new());
 

@@ -279,7 +279,7 @@ impl App {
         self.update_state_for_new_round(&storage);
 
         let mut txs = VecDeque::from(process_proposal.txs);
-        let received_sequence_actions_root: [u8; 32] = txs
+        let received_rollup_datas_root: [u8; 32] = txs
             .pop_front()
             .context("no transaction commitment in proposal")?
             .to_vec()
@@ -313,11 +313,11 @@ impl App {
             .context("failed to get block deposits in process_proposal")?;
 
         let GeneratedCommitments {
-            sequence_actions_root: expected_sequence_actions_root,
+            rollup_datas_root: expected_rollup_datas_root,
             rollup_ids_root: expected_rollup_ids_root,
         } = generate_rollup_datas_commitment(&signed_txs, deposits);
         ensure!(
-            received_sequence_actions_root == expected_sequence_actions_root,
+            received_rollup_datas_root == expected_rollup_datas_root,
             "transaction commitment does not match expected",
         );
 
@@ -2032,6 +2032,105 @@ mod test {
         assert_eq!(app.state.get_block_fees().await.unwrap().len(), 0);
     }
 
+    #[tokio::test]
+    async fn app_create_sequencer_block_with_sequenced_data_and_deposits() {
+        use astria_core::sequencer::v1alpha1::{
+            block::Deposit,
+            transaction::action::BridgeLockAction,
+        };
+
+        let (alice_signing_key, _) = get_alice_signing_key_and_address();
+        let (mut app, storage) = initialize_app_with_storage(None, vec![]).await;
+
+        let bridge_address = Address::from([99; 20]);
+        let rollup_id = RollupId::from_unhashed_bytes(b"testchainid");
+        let asset_id = get_native_asset().id();
+
+        let mut state_tx = StateDelta::new(app.state.clone());
+        state_tx.put_bridge_account_rollup_id(&bridge_address, &rollup_id);
+        state_tx
+            .put_bridge_account_asset_ids(&bridge_address, &[asset_id])
+            .unwrap();
+        app.apply(state_tx);
+
+        let amount = 100;
+        let lock_action = BridgeLockAction {
+            to: bridge_address,
+            amount,
+            asset_id,
+            fee_asset_id: asset_id,
+            destination_chain_address: "nootwashere".to_string(),
+        };
+        let sequence_action = SequenceAction {
+            rollup_id,
+            data: b"hello world".to_vec(),
+            fee_asset_id: asset_id,
+        };
+        let tx = UnsignedTransaction {
+            nonce: 0,
+            actions: vec![lock_action.into(), sequence_action.into()],
+        };
+
+        let signed_tx = tx.into_signed(&alice_signing_key);
+
+        let expected_deposit = Deposit::new(
+            bridge_address,
+            rollup_id,
+            amount,
+            asset_id,
+            "nootwashere".to_string(),
+        );
+        let deposits = HashMap::from_iter(vec![(rollup_id, vec![expected_deposit.clone()])]);
+
+        let (header, commitments) =
+            block_data_from_txs_with_sequence_actions_and_deposits(&[signed_tx.clone()], deposits);
+
+        let begin_block = abci::request::BeginBlock {
+            header,
+            hash: Hash::default(),
+            last_commit_info: CommitInfo {
+                votes: vec![],
+                round: Round::default(),
+            },
+            byzantine_validators: vec![],
+        };
+        app.begin_block(&begin_block, storage).await.unwrap();
+
+        // deliver the commitments and the signed tx to simulate the
+        // action block execution and put them in the `app.current_sequencer_block_builder`
+        app.deliver_tx_after_proposal(abci::request::DeliverTx {
+            tx: commitments.rollup_datas_root.to_vec().into(),
+        })
+        .await
+        .unwrap()
+        .unwrap();
+        app.deliver_tx_after_proposal(abci::request::DeliverTx {
+            tx: commitments.rollup_ids_root.to_vec().into(),
+        })
+        .await
+        .unwrap()
+        .unwrap();
+        app.deliver_tx_after_proposal(abci::request::DeliverTx {
+            tx: signed_tx.to_raw().encode_to_vec().into(),
+        })
+        .await
+        .unwrap()
+        .unwrap();
+        let deposits = app.state.get_deposit_events(&rollup_id).await.unwrap();
+        assert_eq!(deposits.len(), 1);
+        assert_eq!(deposits[0], expected_deposit);
+
+        app.end_block(&abci::request::EndBlock {
+            height: 1u32.into(),
+        })
+        .await
+        .unwrap();
+
+        // ensure deposits are cleared at the end of the block
+        let deposit_events = app.state.get_deposit_events(&rollup_id).await.unwrap();
+        assert_eq!(deposit_events.len(), 0);
+    }
+
     fn block_data_from_txs_no_sequence_actions(
         txs: Vec<Vec<u8>>,
     ) -> (Header, SequencerBlockBuilder) {
@@ -2048,5 +2147,34 @@ mod test {
             sequencer_block_builder.push_transaction(tx);
         }
         (header, sequencer_block_builder)
+    }
+
+    fn block_data_from_txs_with_sequence_actions_and_deposits(
+        txs: &[SignedTransaction],
+        deposits: HashMap<RollupId, Vec<Deposit>>,
+    ) -> (Header, GeneratedCommitments) {
+        let GeneratedCommitments {
+            rollup_datas_root,
+            rollup_ids_root,
+        } = generate_rollup_datas_commitment(txs, deposits.clone());
+        let mut block_data = vec![rollup_datas_root.to_vec(), rollup_ids_root.to_vec()];
+        block_data.extend(txs.iter().map(|tx| tx.to_raw().encode_to_vec()));
+
+        let data_hash = merkle::Tree::from_leaves(block_data.iter().map(Sha256::digest)).root();
+        let mut header = default_header();
+        header.data_hash = Some(Hash::try_from(data_hash.to_vec()).unwrap());
+
+        let mut sequencer_block_builder = SequencerBlockBuilder::new(header.clone());
+        for tx in block_data {
+            sequencer_block_builder.push_transaction(tx);
+        }
+        sequencer_block_builder.deposits = deposits;
+        (
+            header,
+            GeneratedCommitments {
+                rollup_datas_root,
+                rollup_ids_root,
+            },
+        )
     }
 }

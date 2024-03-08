@@ -124,8 +124,18 @@ pub(crate) trait StateReadExt: StateRead {
     async fn get_deposit_rollup_ids(&self) -> Result<Vec<RollupId>> {
         let mut stream = std::pin::pin!(self.nonverifiable_prefix_raw(DEPOSIT_PREFIX.as_bytes()));
         let mut rollup_ids = Vec::new();
-        while let Some(Ok((_, value))) = stream.next().await {
-            let rollup_id = RollupId::try_from_slice(&value).context("invalid rollup ID bytes")?;
+        while let Some(Ok((key, _))) = stream.next().await {
+            // the deposit key is of the form "deposit/{rollup_id}/{nonce}"
+            let key_str =
+                String::from_utf8(key).context("failed to convert deposit key to string")?;
+            let key_parts = key_str.split('/').collect::<Vec<_>>();
+            if key_parts.len() != 3 {
+                continue;
+            }
+            let rollup_id_bytes =
+                hex::decode(key_parts[1]).context("invalid rollup ID hex string")?;
+            let rollup_id =
+                RollupId::try_from_slice(&rollup_id_bytes).context("invalid rollup ID bytes")?;
             rollup_ids.push(rollup_id);
         }
         Ok(rollup_ids)
