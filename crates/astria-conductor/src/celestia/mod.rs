@@ -314,8 +314,10 @@ impl TrackHeights {
         }
     }
 
-    fn increment_next(&mut self) {
-        self.next_height += 1;
+    fn increment_next_height_to_fetch(&mut self) {
+        self.next_height
+            .checked_add(1)
+            .expect("this value should never reach u64::MAX");
     }
 
     fn update_reference_height_if_greater(&mut self, height: u64) -> bool {
@@ -391,7 +393,7 @@ impl Stream for ReconstructedBlocksStream {
                 }
                 Ok(()) => {
                     debug!(height = %height, "scheduled fetch of blocks");
-                    this.track_heights.increment_next();
+                    this.track_heights.increment_next_height_to_fetch();
                 }
             }
         }
