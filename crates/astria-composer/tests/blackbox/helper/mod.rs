@@ -6,7 +6,6 @@ use std::{
 
 use astria_composer::{
     config::Config,
-    telemetry,
     Composer,
 };
 use once_cell::sync::Lazy;
