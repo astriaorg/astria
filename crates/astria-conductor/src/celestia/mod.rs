@@ -241,6 +241,16 @@ impl Reader {
 
                 maybe_header = headers.next(), if resubscribing.is_terminated() => {
                     let mut resubscribe = false;
+
+                    if block_stream.inner().is_exhausted() {
+                        info!(
+                            reference_height = block_stream.inner().track_heights.reference_height(),
+                            variance = block_stream.inner().track_heights.variance(),
+                            max_permitted_height = block_stream.inner().track_heights.max_permitted(),
+                            "received a new header from Celestia, but the stream is exhausted and won't fetch past its permitted window",
+                        );
+                    }
+
                     match maybe_header {
                         Some(Ok(header)) => {
                             if !block_stream.inner_mut().update_latest_observed_height_if_greater(header.height().value()) {
@@ -305,9 +315,20 @@ struct TrackHeights {
 }
 
 impl TrackHeights {
+    fn reference_height(&self) -> u64 {
+        self.reference_height
+    }
+
+    fn variance(&self) -> u32 {
+        self.variance
+    }
+
+    fn max_permitted(&self) -> u64 {
+        self.reference_height.saturating_add(self.variance.into())
+    }
+
     fn next_height_to_fetch(&self) -> Option<u64> {
-        let max_permissible = self.reference_height.saturating_add(self.variance.into());
-        if self.next_height < max_permissible && self.next_height <= self.last_observed {
+        if self.next_height < self.max_permitted() && self.next_height <= self.last_observed {
             Some(self.next_height)
         } else {
             None
@@ -351,6 +372,10 @@ pin_project! {
 }
 
 impl ReconstructedBlocksStream {
+    fn is_exhausted(&self) -> bool {
+        self.in_progress.is_empty() && self.track_heights.next_height_to_fetch().is_some()
+    }
+
     fn update_reference_height_if_greater(&mut self, height: u64) -> bool {
         self.track_heights
             .update_reference_height_if_greater(height)
