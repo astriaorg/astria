@@ -194,6 +194,7 @@ impl Executor {
         let block_timer = time::sleep(self.block_time);
         tokio::pin!(block_timer);
         let mut bundle_factory = BundleFactory::new(self.max_bytes_per_bundle);
+        let reset_time = || { Instant::now() + self.block_time };
 
         loop {
             select! {
@@ -209,7 +210,7 @@ impl Executor {
                         }
                     }
 
-                    block_timer.as_mut().reset(Instant::now() + self.block_time);
+                    block_timer.as_mut().reset(reset_time());
                 }
 
                 Some(next_bundle) = future::ready(bundle_factory.next_finished()), if submission_fut.is_terminated() => {
@@ -236,6 +237,7 @@ impl Executor {
                     let bundle = bundle_factory.pop_now();
                     if bundle.is_empty() {
                         debug!("block timer ticked, but no bundle to submit to sequencer");
+                        block_timer.as_mut().reset(reset_time());
                     } else {
                         debug!(
                             bundle_len=bundle.len(),
