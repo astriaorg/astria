@@ -10,6 +10,7 @@ use tokio::{
     sync::{
         mpsc::{
             self,
+            Receiver,
             Sender,
         },
         watch,
@@ -76,7 +77,11 @@ impl Searcher {
     /// Errors are returned in the following scenarios:
     /// + failed to connect to the eth RPC server;
     /// + failed to construct a sequencer clinet
-    pub(super) fn from_config(cfg: &Config) -> eyre::Result<Self> {
+    pub(super) fn from_config(
+        cfg: &Config,
+        serialized_rollup_transactions_tx: Sender<SequenceAction>,
+        serialized_rollup_transactions_rx: Receiver<SequenceAction>,
+    ) -> eyre::Result<Self> {
         use rollup::Rollup;
         let rollups = cfg
             .rollups
@@ -85,9 +90,6 @@ impl Searcher {
             .map(|s| Rollup::parse(s).map(Rollup::into_parts))
             .collect::<Result<HashMap<_, _>, _>>()
             .wrap_err("failed parsing provided <rollup_name>::<url> pairs as rollups")?;
-
-        let (serialized_rollup_transactions_tx, serialized_rollup_transactions_rx) =
-            mpsc::channel(256);
 
         let geth_collectors = rollups
             .iter()
