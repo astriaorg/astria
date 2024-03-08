@@ -217,6 +217,7 @@ fn make_reconstructed_block() -> ReconstructedBlock {
         block_hash: hash(b"block1"),
         header: block.header,
         transactions: vec![],
+        celestia_height: 1,
     }
 }
 
@@ -347,6 +348,7 @@ async fn first_firm_then_soft_leads_to_soft_being_dropped() {
             .unwrap()
             .transactions()
             .to_vec(),
+        celestia_height: 1,
     };
     mock.executor
         .execute_firm(mock.client.clone(), firm_block)
@@ -400,6 +402,7 @@ async fn first_soft_then_firm_update_state_correctly() {
             .unwrap()
             .transactions()
             .to_vec(),
+        celestia_height: 1,
     };
     mock.executor
         .execute_soft(mock.client.clone(), soft_block)

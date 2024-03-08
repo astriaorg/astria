@@ -1,5 +1,4 @@
 use std::{
-    collections::BTreeMap,
     future::ready,
     pin::Pin,
     task::{
@@ -24,7 +23,6 @@ use celestia_client::{
     celestia_types::{
         nmt::Namespace,
         ExtendedHeader,
-        Height as CelestiaHeight,
     },
     jsonrpsee::{
         core::{
@@ -91,17 +89,18 @@ pub(crate) struct ReconstructedBlock {
     pub(crate) block_hash: [u8; 32],
     pub(crate) header: tendermint::block::Header,
     pub(crate) transactions: Vec<Vec<u8>>,
+    pub(crate) celestia_height: u64,
 }
 
 impl ReconstructedBlock {
-    pub(crate) fn height(&self) -> SequencerHeight {
+    pub(crate) fn sequencer_height(&self) -> SequencerHeight {
         self.header.height
     }
 }
 
 impl GetSequencerHeight for ReconstructedBlock {
     fn get_height(&self) -> SequencerHeight {
-        self.height()
+        self.sequencer_height()
     }
 }
 
@@ -175,19 +174,17 @@ impl Reader {
             BlockCache::<ReconstructedBlock>::with_next_height(initial_expected_sequencer_height)
                 .wrap_err("failed constructing sequential block cache")?;
 
-        let mut sequencer_height_to_celestia_height =
-            SequencerHeightToCelestiaHeight::new(initial_expected_sequencer_height);
-
-        let greatest_permissible_height =
-            initial_celestia_height.value() + u64::from(celestia_variance);
         let http_client =
             connect_to_celestia(&self.celestia_http_endpoint, &self.celestia_auth_token)
                 .await
                 .wrap_err("failed to connect to the Celestia node HTTP RPC")?;
         let mut block_stream = ReconstructedBlocksStream {
-            greatest_permissible_height,
-            latest_observed_height: latest_celestia_height,
-            next_height: initial_celestia_height,
+            track_heights: TrackHeights {
+                reference_height: initial_celestia_height.value(),
+                variance: celestia_variance,
+                last_observed: latest_celestia_height.value(),
+                next_height: initial_celestia_height.value(),
+            },
             in_progress: FuturesMap::new(std::time::Duration::from_secs(10), 10),
             client: http_client,
             verifier: self.block_verifier.clone(),
@@ -221,14 +218,10 @@ impl Reader {
                 }
 
                 Some(block) = sequential_blocks.next_block(), if scheduled_block.is_terminated() => {
-                    let height_in_block = block.height();
+                    let celestia_height = block.celestia_height;
                     match executor.try_send_firm_block(block) {
                         Ok(()) => {
-                            let (sequencer_height, celestia_height)
-                                = sequencer_height_to_celestia_height.increment_next_height();
-                            assert_eq!(height_in_block, sequencer_height);
-                            let new_permissible_height = celestia_height.value() + u64::from(celestia_variance);
-                            block_stream.inner_mut().set_permissible_height(new_permissible_height);
+                            block_stream.inner_mut().update_reference_height_if_greater(celestia_height);
                         }
                         Err(TrySendError::Full(block)) => {
                             trace!("executor channel is full; rescheduling block fetch until the channel opens up");
@@ -248,9 +241,21 @@ impl Reader {
 
                 maybe_header = headers.next(), if resubscribing.is_terminated() => {
                     let mut resubscribe = false;
+
+                    if block_stream.inner().is_exhausted() {
+                        info!(
+                            reference_height = block_stream.inner().track_heights.reference_height(),
+                            variance = block_stream.inner().track_heights.variance(),
+                            max_permitted_height = block_stream.inner().track_heights.max_permitted(),
+                            "received a new header from Celestia, but the stream is exhausted and won't fetch past its permitted window",
+                        );
+                    }
+
                     match maybe_header {
-                        Some(Ok(header)) =>
-                            block_stream.inner_mut().record_latest_height(header.height()),
+                        Some(Ok(header)) => {
+                            if !block_stream.inner_mut().update_latest_observed_height_if_greater(header.height().value()) {
+                                info!("received a new Celestia header, but the height therein was already seen");
+                        }}
 
                         Some(Err(JrpcError::ParseError(e))) => {
                             warn!(
@@ -287,7 +292,6 @@ impl Reader {
                         "read sequencer blocks from celestia",
                     );
                     for block in blocks {
-                        sequencer_height_to_celestia_height.insert(block.height(), celestia_height);
                         if let Err(e) = sequential_blocks.insert(block) {
                             warn!(
                                 error = &e as &StdError,
@@ -302,13 +306,63 @@ impl Reader {
     }
 }
 
+#[derive(Debug)]
+struct TrackHeights {
+    reference_height: u64,
+    variance: u32,
+    last_observed: u64,
+    next_height: u64,
+}
+
+impl TrackHeights {
+    fn reference_height(&self) -> u64 {
+        self.reference_height
+    }
+
+    fn variance(&self) -> u32 {
+        self.variance
+    }
+
+    fn max_permitted(&self) -> u64 {
+        self.reference_height.saturating_add(self.variance.into())
+    }
+
+    fn next_height_to_fetch(&self) -> Option<u64> {
+        if self.next_height < self.max_permitted() && self.next_height <= self.last_observed {
+            Some(self.next_height)
+        } else {
+            None
+        }
+    }
+
+    fn increment_next_height_to_fetch(&mut self) {
+        self.next_height
+            .checked_add(1)
+            .expect("this value should never reach u64::MAX");
+    }
+
+    fn update_reference_height_if_greater(&mut self, height: u64) -> bool {
+        let updated = self.reference_height < height;
+        if updated {
+            self.reference_height = height;
+        }
+        updated
+    }
+
+    fn update_latest_observed_height_if_greater(&mut self, height: u64) -> bool {
+        let updated = self.last_observed < height;
+        if updated {
+            self.last_observed = height;
+        }
+        updated
+    }
+}
+
 pin_project! {
     struct ReconstructedBlocksStream {
-        greatest_permissible_height: u64,
-        latest_observed_height: CelestiaHeight,
-        next_height: CelestiaHeight,
+        track_heights: TrackHeights,
 
-        in_progress: FuturesMap<CelestiaHeight, eyre::Result<Vec<ReconstructedBlock>>>,
+        in_progress: FuturesMap<u64, eyre::Result<Vec<ReconstructedBlock>>>,
 
         client: HttpClient,
         verifier: BlockVerifier,
@@ -318,40 +372,31 @@ pin_project! {
 }
 
 impl ReconstructedBlocksStream {
-    fn next_height_to_fetch(&self) -> Option<CelestiaHeight> {
-        if self.next_height.value() > self.greatest_permissible_height
-            || self.next_height > self.latest_observed_height
-        {
-            return None;
-        }
-        Some(self.next_height)
+    fn is_exhausted(&self) -> bool {
+        self.in_progress.is_empty() && self.track_heights.next_height_to_fetch().is_some()
     }
 
-    fn set_permissible_height(&mut self, height: u64) {
-        if height < self.greatest_permissible_height {
-            info!("provided permissible celestia height older than previous; ignoring it",);
-        }
-        self.greatest_permissible_height = height;
+    fn update_reference_height_if_greater(&mut self, height: u64) -> bool {
+        self.track_heights
+            .update_reference_height_if_greater(height)
     }
 
-    fn record_latest_height(&mut self, height: CelestiaHeight) {
-        if height < self.latest_observed_height {
-            info!("observed latest celestia height older than previous; ignoring it",);
-        }
-        self.latest_observed_height = height;
+    fn update_latest_observed_height_if_greater(&mut self, height: u64) -> bool {
+        self.track_heights
+            .update_latest_observed_height_if_greater(height)
     }
 }
 
 impl Stream for ReconstructedBlocksStream {
-    type Item = (CelestiaHeight, Vec<ReconstructedBlock>);
+    type Item = (u64, Vec<ReconstructedBlock>);
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         use futures_bounded::PushError;
 
+        let this = self.project();
         // Try to spawn off as many futures as possible by filling up
         // our queue of futures.
-        while let Some(height) = self.as_ref().get_ref().next_height_to_fetch() {
-            let this = self.as_mut().project();
+        while let Some(height) = this.track_heights.next_height_to_fetch() {
             match this.in_progress.try_push(
                 height,
                 fetch_blocks_at_celestia_height(
@@ -373,12 +418,11 @@ impl Stream for ReconstructedBlocksStream {
                 }
                 Ok(()) => {
                     debug!(height = %height, "scheduled fetch of blocks");
-                    *this.next_height = this.next_height.increment();
+                    this.track_heights.increment_next_height_to_fetch();
                 }
             }
         }
 
-        let this = self.as_mut().project();
         let (height, res) = futures::ready!(this.in_progress.poll_unpin(cx));
 
         // Ok branch (contains the block or a fetch error): propagate the error up
@@ -413,7 +457,7 @@ impl Stream for ReconstructedBlocksStream {
 
         // We only reach this part if `futures::ready!` above didn't short circuit and
         // if no result was ready.
-        if self.as_ref().get_ref().next_height_to_fetch().is_none() {
+        if this.track_heights.next_height_to_fetch().is_none() {
             Poll::Ready(None)
         } else {
             Poll::Pending
@@ -444,7 +488,7 @@ impl Stream for ReconstructedBlocksStream {
 async fn fetch_blocks_at_celestia_height(
     client: HttpClient,
     verifier: BlockVerifier,
-    height: CelestiaHeight,
+    height: u64,
     sequencer_namespace: Namespace,
     rollup_namespace: Namespace,
 ) -> eyre::Result<Vec<ReconstructedBlock>> {
@@ -498,7 +542,7 @@ async fn fetch_blocks_at_celestia_height(
 async fn process_sequencer_blob(
     client: HttpClient,
     verifier: BlockVerifier,
-    height: CelestiaHeight,
+    celestia_height: u64,
     rollup_namespace: Namespace,
     sequencer_blob: CelestiaSequencerBlob,
 ) -> eyre::Result<ReconstructedBlock> {
@@ -507,7 +551,11 @@ async fn process_sequencer_blob(
         .await
         .wrap_err("failed validating sequencer blob retrieved from celestia")?;
     let mut rollup_blobs = client
-        .get_rollup_blobs_matching_sequencer_blob(height, rollup_namespace, &sequencer_blob)
+        .get_rollup_blobs_matching_sequencer_blob(
+            celestia_height,
+            rollup_namespace,
+            &sequencer_blob,
+        )
         .await
         .wrap_err("failed fetching rollup blobs from celestia")?;
     ensure!(
@@ -519,46 +567,11 @@ async fn process_sequencer_blob(
         .map(|blob| blob.into_unchecked().transactions)
         .unwrap_or_default();
     Ok(ReconstructedBlock {
+        celestia_height,
         block_hash: sequencer_blob.block_hash(),
         header: sequencer_blob.header().clone(),
         transactions,
     })
-}
-
-struct SequencerHeightToCelestiaHeight {
-    next_height: SequencerHeight,
-    inner: BTreeMap<SequencerHeight, CelestiaHeight>,
-}
-
-impl SequencerHeightToCelestiaHeight {
-    fn new(next_height: SequencerHeight) -> Self {
-        Self {
-            next_height,
-            inner: BTreeMap::new(),
-        }
-    }
-
-    fn increment_next_height(&mut self) -> (SequencerHeight, CelestiaHeight) {
-        let old_height = self.next_height;
-        self.next_height = self.next_height.increment();
-        self.inner
-            .remove_entry(&old_height)
-            .expect("the sequencer height must have been recorded")
-    }
-
-    fn insert(&mut self, sequencer_height: SequencerHeight, celestia_height: CelestiaHeight) {
-        if sequencer_height < self.next_height {
-            return;
-        }
-        if let Some(prev_celestia_height) = self.inner.insert(sequencer_height, celestia_height) {
-            warn!(
-                height.sequencer = %sequencer_height,
-                height.celestia.new = %celestia_height,
-                height.celestia.old = %prev_celestia_height,
-                "sequencer height was already mapped to another celestia height; dropping old",
-            );
-        }
-    }
 }
 
 #[instrument(err)]
