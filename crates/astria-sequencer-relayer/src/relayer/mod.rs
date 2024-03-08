@@ -301,11 +301,14 @@ async fn read_submission_state<P1: AsRef<Path>, P2: AsRef<Path>>(
     pre: P1,
     post: P2,
 ) -> eyre::Result<SubmissionState> {
+    const LEANIENT_CONSISTENCY_CHECK: bool = true;
     let pre = pre.as_ref().to_path_buf();
     let post = post.as_ref().to_path_buf();
     crate::utils::flatten(
-        tokio::task::spawn_blocking(move || submission::SubmissionState::from_paths(pre, post))
-            .await,
+        tokio::task::spawn_blocking(move || {
+            submission::SubmissionState::from_paths::<LEANIENT_CONSISTENCY_CHECK, _, _>(pre, post)
+        })
+        .await,
     )
     .wrap_err(
         "failed reading submission state from the configured pre- and post-submit files. Refer to \
