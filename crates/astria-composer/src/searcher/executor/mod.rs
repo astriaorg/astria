@@ -194,7 +194,7 @@ impl Executor {
         let block_timer = time::sleep(self.block_time);
         tokio::pin!(block_timer);
         let mut bundle_factory = BundleFactory::new(self.max_bytes_per_bundle);
-        let reset_time = || { Instant::now() + self.block_time };
+        let reset_time = || Instant::now() + self.block_time;
 
         loop {
             select! {
