@@ -235,7 +235,7 @@ impl Reader {
                         Err(TrySendError::Full(block)) => {
                             trace!("executor channel is full; rescheduling block fetch until the channel opens up");
                             let executor_clone = executor.clone();
-                            // Using async block returning celestia height so reference height be updated
+                            // must return the celestia height to update the reference height upon completion
                             scheduled_block = async move {
                                 let celestia_height = block.celestia_height;
                                 executor_clone.send_firm_block(block).await?;
