@@ -11,6 +11,8 @@ use prost::Message as _;
 use sequencer_client::SequencerBlock;
 use tendermint::block::Height as SequencerHeight;
 
+// allow: the signature is dictated by the `serde(serialize_with = ...)` attribute.
+#[allow(clippy::trivially_copy_pass_by_ref)]
 fn serialize_height<S>(height: &SequencerHeight, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::ser::Serializer,

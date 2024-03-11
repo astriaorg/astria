@@ -73,6 +73,8 @@ where
 /// panic otherwise.
 pub struct Json<'a, T>(&'a T);
 
+// NOTE: This implementation is lifted straight from serde_json:
+// https://docs.rs/serde_json/1.0.114/src/serde_json/value/mod.rs.html#197
 impl<'a, T> Display for Json<'a, T>
 where
     T: serde::Serialize,
@@ -84,7 +86,8 @@ where
 
         impl<'a, 'b> io::Write for WriterFormatter<'a, 'b> {
             fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-                // NOTE: This implementation is lifted straight from serde_json.
+                // NOTE: Same argument for safety as in
+                // https://docs.rs/serde_json/1.0.114/src/serde_json/value/mod.rs.html#229
                 // Safety: the serializer below only emits valid utf8 when using
                 // the default formatter.
                 let s = unsafe { str::from_utf8_unchecked(buf) };
