@@ -7,6 +7,7 @@ on:
       tag:
         description: Git branch, or tag to build from.
         required: false
+  merge_group:
   push:
     branches:
       - "main"
@@ -68,6 +69,26 @@ jobs:
       target-binary: astria-sequencer-relayer
       tag: ${{ inputs.tag }}
     secrets: inherit
+  
+  smoke-test:
+    needs: [run_checker, composer, conductor, sequencer, sequencer-relayer]
+    if: github.event_name == 'merge_group' || needs.run_checker.outputs.run_docker == 'true'
+    runs-on: buildjet-8vcpu-ubuntu-2204
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create k8s Kind Cluster
+        uses: helm/kind-action@v1
+      - name: Install just
+        uses: taiki-e/install-action@just
+      - name: Create k8s Kind Cluster
+        uses: helm/kind-action@v1 
+        with:
+          install_only: true
+      - run: |
+          TAG=sha-$(git rev-parse --short HEAD)
+          just create-cluster
+          just deploy smoke-test $TAG
+          just run-smoke-test
 
   docker:
     if: ${{ always() && !cancelled() }}

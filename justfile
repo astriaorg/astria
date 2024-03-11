@@ -204,3 +204,27 @@ clean-persisted-data:
 
 deploy-local-metrics:
   kubectl apply -f kubernetes/metrics-server-local.yml
+
+
+defaultTag := 'latest'
+deploy-smoke-test tag=defaultTag:
+  just deploy-ingress-controller
+  just wait-for-ingress-controller
+  just deploy celestia-local
+  helm dependency build charts/sequencer
+  helm dependency build charts/evm-rollup
+  helm install -n astria-dev-cluster single-sequencer-chart ./charts/sequencer -f dev/values/validators/single.yml --set images.sequencer.devTag={{tag}} --set images.sequencer-relayer.devTag={{tag}}
+  just wait-for-sequencer
+  helm install -n astria-dev-cluster astria-chain-chart ./charts/evm-rollup -f dev/values/rollup/dev.yaml --set images.conductor.devTag={{tag}} --set images.composer.devTag={{tag}} --set config.blockscout.enabled=false --set config.faucet.enabled=false
+
+run-smoke-test:
+  echo "Testing Transfer..."
+  @cast send 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE --rpc-url "http://executor.astria.localdev.me/" --value 1ether --private-key=8b3a7999072c9c9314c084044fe705db11714c6c4ed7cddb64da18ea270dd203 >/dev/null
+  @if [ $(cast balance 0x830B0e9Bb0B1ebad01F2805278Ede64c69e068FE --rpc-url "http://executor.astria.localdev.me/") -eq 1000000000000000000 ]; then echo "Transfer success"; else echo "Transfer failure"; exit 1; fi;
+  @echo "Testing finalization..."
+  @if [ $(cast block finalized --rpc-url "http://executor.astria.localdev.me/" --field number) -gt 0 ]; then echo "Finalized success"; else echo "Finalization failure"; exit 1; fi;
+delete-smoke-test:
+  just delete rollup
+  just delete sequencer
+  just delete celestia-local
+
