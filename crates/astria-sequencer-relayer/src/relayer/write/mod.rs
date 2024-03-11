@@ -292,17 +292,17 @@ impl BlobSubmitter {
 /// # Panics
 /// Panics if `blocks` is empty. This function should only be called if there is something to
 /// submit.
-#[instrument(
-    skip_all,
-    fields(blocks = %telemetry::display::json(&blocks.infos))
-)]
+#[instrument(skip_all)]
 async fn submit_blobs(
     client: HttpClient,
     blocks: QueuedConvertedBlocks,
     state: Arc<super::State>,
     submission_state: SubmissionState,
 ) -> eyre::Result<SubmissionState> {
-    debug!("initialized block submission to Celestia");
+    info!(
+        blocks = %telemetry::display::json(&blocks.infos),
+        "initiated submission of sequencer blocks converted to Celestia blobs",
+    );
 
     let start = std::time::Instant::now();
 
