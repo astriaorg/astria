@@ -55,7 +55,10 @@ use sequencer_client::tendermint::{
 use tokio::{
     select,
     sync::{
-        mpsc::error::TrySendError,
+        mpsc::error::{
+            SendError,
+            TrySendError,
+        },
         oneshot,
     },
 };
@@ -197,7 +200,8 @@ impl Reader {
             namespace.sequencer = %telemetry::display::base64(&self.sequencer_namespace.as_bytes()),
         ));
 
-        let mut scheduled_block: Fuse<BoxFuture<Result<_, _>>> = future::Fuse::terminated();
+        let mut scheduled_block: Fuse<BoxFuture<Result<_, SendError<ReconstructedBlock>>>> =
+            future::Fuse::terminated();
         let mut resubscribing = Fuse::terminated();
         loop {
             select!(
@@ -211,12 +215,17 @@ impl Reader {
                     break;
                 }
 
+                // Processing block executions which were scheduled due to channel being full
                 res = &mut scheduled_block, if !scheduled_block.is_terminated() => {
-                    if res.is_err() {
-                        bail!("executor channel closed while waiting for it to free up");
+                    match res {
+                        Ok(celestia_height) => {
+                            block_stream.inner_mut().update_reference_height_if_greater(celestia_height);
+                        }
+                        Err(_) => bail!("executor channel closed while waiting for it to free up"),
                     }
                 }
 
+                // Attempt sending next sequential block, if channel is full will be scheduled
                 Some(block) = sequential_blocks.next_block(), if scheduled_block.is_terminated() => {
                     let celestia_height = block.celestia_height;
                     match executor.try_send_firm_block(block) {
@@ -225,7 +234,13 @@ impl Reader {
                         }
                         Err(TrySendError::Full(block)) => {
                             trace!("executor channel is full; rescheduling block fetch until the channel opens up");
-                            scheduled_block = executor.clone().send_firm_block(block).boxed().fuse();
+                            let executor_clone = executor.clone();
+                            // must return the celestia height to update the reference height upon completion
+                            scheduled_block = async move {
+                                let celestia_height = block.celestia_height;
+                                executor_clone.send_firm_block(block).await?;
+                                Ok(celestia_height)
+                            }.boxed().fuse();
                         }
 
                         Err(TrySendError::Closed(_)) => bail!("exiting because executor channel is closed"),
@@ -241,6 +256,16 @@ impl Reader {
 
                 maybe_header = headers.next(), if resubscribing.is_terminated() => {
                     let mut resubscribe = false;
+
+                    if block_stream.inner().is_exhausted() {
+                        info!(
+                            reference_height = block_stream.inner().track_heights.reference_height(),
+                            variance = block_stream.inner().track_heights.variance(),
+                            max_permitted_height = block_stream.inner().track_heights.max_permitted(),
+                            "received a new header from Celestia, but the stream is exhausted and won't fetch past its permitted window",
+                        );
+                    }
+
                     match maybe_header {
                         Some(Ok(header)) => {
                             if !block_stream.inner_mut().update_latest_observed_height_if_greater(header.height().value()) {
@@ -279,7 +304,8 @@ impl Reader {
                     debug!(
                         height.celestia = %celestia_height,
                         num_sequencer_blocks = blocks.len(),
-                        "read sequencer blocks from celestia",
+                        sequencer_heights = %ReportSequencerHeights(&blocks),
+                        "validated sequencer blocks from celestia",
                     );
                     for block in blocks {
                         if let Err(e) = sequential_blocks.insert(block) {
@@ -305,9 +331,20 @@ struct TrackHeights {
 }
 
 impl TrackHeights {
+    fn reference_height(&self) -> u64 {
+        self.reference_height
+    }
+
+    fn variance(&self) -> u32 {
+        self.variance
+    }
+
+    fn max_permitted(&self) -> u64 {
+        self.reference_height.saturating_add(self.variance.into())
+    }
+
     fn next_height_to_fetch(&self) -> Option<u64> {
-        let max_permissible = self.reference_height.saturating_add(self.variance.into());
-        if self.next_height < max_permissible && self.next_height <= self.last_observed {
+        if self.next_height <= self.max_permitted() && self.next_height <= self.last_observed {
             Some(self.next_height)
         } else {
             None
@@ -315,7 +352,8 @@ impl TrackHeights {
     }
 
     fn increment_next_height_to_fetch(&mut self) {
-        self.next_height
+        self.next_height = self
+            .next_height
             .checked_add(1)
             .expect("this value should never reach u64::MAX");
     }
@@ -351,6 +389,10 @@ pin_project! {
 }
 
 impl ReconstructedBlocksStream {
+    fn is_exhausted(&self) -> bool {
+        self.in_progress.is_empty() && self.track_heights.next_height_to_fetch().is_none()
+    }
+
     fn update_reference_height_if_greater(&mut self, height: u64) -> bool {
         self.track_heights
             .update_reference_height_if_greater(height)
@@ -483,6 +525,13 @@ async fn fetch_blocks_at_celestia_height(
         Err(e) => return Err(e).wrap_err("failed to fetch sequencer data from celestia"),
         Ok(response) => response.sequencer_blobs,
     };
+
+    debug!(
+        celestia_height = height,
+        num_sequencer_blocks = sequencer_blobs.len(),
+        sequencer_heights = %ReportSequencerHeights(&sequencer_blobs),
+        "received sequencer blobs from Celestia"
+    );
 
     // FIXME(https://github.com/astriaorg/astria/issues/729): Sequencer blobs can have duplicate block hashes.
     // We ignore this here and handle that in downstream processing (the sequential cash will reject
@@ -627,4 +676,91 @@ async fn connect_to_celestia(endpoint: &str, token: &str) -> eyre::Result<HttpCl
         .with_config(retry_config)
         .await
         .wrap_err("retry attempts exhausted; bailing")
+}
+
+struct ReportSequencerHeights<'a, T>(&'a [T]);
+
+impl<'a, T> std::fmt::Display for ReportSequencerHeights<'a, T>
+where
+    T: GetSequencerHeight,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use std::fmt::Write as _;
+        f.write_char('[')?;
+        let mut blobs = self.0.iter();
+        if let Some(blob) = blobs.next() {
+            let mut buf = itoa::Buffer::new();
+            f.write_str(buf.format(blob.get_height().value()))?;
+        }
+        for blob in blobs {
+            f.write_str(", ")?;
+            let mut buf = itoa::Buffer::new();
+            f.write_str(buf.format(blob.get_height().value()))?;
+        }
+        f.write_char(']')?;
+        Ok(())
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::TrackHeights;
+
+    #[test]
+    fn next_height_within_allowed_and_observed_is_some() {
+        let tracked = TrackHeights {
+            reference_height: 10,
+            variance: 10,
+            last_observed: 20,
+            next_height: 20,
+        };
+        assert_eq!(Some(20), tracked.next_height_to_fetch());
+    }
+
+    #[test]
+    fn next_height_ahead_of_observed_is_none() {
+        let tracked = TrackHeights {
+            reference_height: 10,
+            variance: 20,
+            last_observed: 20,
+            next_height: 21,
+        };
+        assert_eq!(None, tracked.next_height_to_fetch());
+    }
+
+    #[test]
+    fn next_height_ahead_of_permitted_is_none() {
+        let tracked = TrackHeights {
+            reference_height: 10,
+            variance: 10,
+            last_observed: 30,
+            next_height: 21,
+        };
+        assert_eq!(None, tracked.next_height_to_fetch());
+    }
+
+    #[test]
+    fn incrementing_next_height_past_observed_flips_to_none() {
+        let mut tracked = TrackHeights {
+            reference_height: 10,
+            variance: 20,
+            last_observed: 20,
+            next_height: 20,
+        };
+        assert_eq!(Some(20), tracked.next_height_to_fetch());
+        tracked.increment_next_height_to_fetch();
+        assert_eq!(None, tracked.next_height_to_fetch());
+    }
+
+    #[test]
+    fn incrementing_next_height_past_variance_flips_to_none() {
+        let mut tracked = TrackHeights {
+            reference_height: 10,
+            variance: 10,
+            last_observed: 30,
+            next_height: 20,
+        };
+        assert_eq!(Some(20), tracked.next_height_to_fetch());
+        tracked.increment_next_height_to_fetch();
+        assert_eq!(None, tracked.next_height_to_fetch());
+    }
 }
