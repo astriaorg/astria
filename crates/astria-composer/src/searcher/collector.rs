@@ -21,6 +21,7 @@ use tokio::sync::{
 };
 use tracing::{
     debug,
+    info,
     instrument,
     warn,
 };
@@ -75,8 +76,14 @@ impl Collector {
         new_bundles: Sender<SequenceAction>,
     ) -> Self {
         let (status, _) = watch::channel(Status::new());
+        let rollup_id = RollupId::from_unhashed_bytes(&chain_name);
+        info!(
+            chain_name = %chain_name,
+            rollup_id = %rollup_id,
+            "Creating new collector for rollup",
+        );
         Self {
-            rollup_id: RollupId::from_unhashed_bytes(&chain_name),
+            rollup_id,
             chain_name,
             new_bundles,
             status,

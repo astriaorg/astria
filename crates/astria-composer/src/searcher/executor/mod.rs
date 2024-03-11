@@ -4,9 +4,7 @@
 /// - Managing the connection to the sequencer
 /// - Submitting transactions to the sequencer
 use std::{
-    pin::Pin,
-    task::Poll,
-    time::Duration,
+    collections::HashMap, pin::Pin, task::Poll, time::Duration
 };
 
 use astria_core::sequencer::v1alpha1::{
@@ -165,7 +163,7 @@ impl Executor {
     }
 
     /// Create a future to submit a bundle to the sequencer.
-    #[instrument(skip(self), fields(nonce.initial = %nonce))]
+    #[instrument(skip_all, fields(nonce.initial = %nonce, rollup_counts = %ReportBundleRollupIdCounts(&bundle)))]
     fn submit_bundle(&self, nonce: u32, bundle: Vec<Action>) -> Fuse<Instrumented<SubmitFut>> {
         SubmitFut {
             client: self.sequencer_client.clone(),
@@ -465,4 +463,34 @@ impl Future for SubmitFut {
 fn sha256(data: &[u8]) -> [u8; 32] {
     use sha2::Sha256;
     Sha256::digest(data)
+}
+
+/// A helper struct to report the number of sequence actions per rollup id in a bundle.
+struct ReportBundleRollupIdCounts<'a>(&'a [Action]);
+impl<'a> std::fmt::Display for ReportBundleRollupIdCounts<'a>
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use std::fmt::Write as _;
+
+        let mut counts = HashMap::new();
+        for action in self.0.iter() {
+            match action {
+                Action::Sequence(seq_action) => {
+                    *counts.entry(seq_action.rollup_id).or_insert(0) += 1;
+                }
+                _ => {}
+            }
+        }
+
+        f.write_char('[')?;
+        let mut counts_iter = counts.iter();
+        if let Some((rollup_id, count)) = counts_iter.next() {
+            write!(f, "{}: {}", rollup_id, count)?;
+        };
+        for (rollup_id, count) in counts {
+            write!(f, "{}: {}, ", rollup_id, count)?;
+        }
+        f.write_char(']')?;
+        Ok(())
+    }
 }
