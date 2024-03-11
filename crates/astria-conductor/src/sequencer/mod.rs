@@ -53,6 +53,9 @@ use crate::{
     executor,
 };
 
+mod reporting;
+use reporting::ReportBlock;
+
 pub(crate) struct Reader {
     executor: executor::Handle,
 
@@ -128,6 +131,11 @@ impl Reader {
 
                 Some(block) = blocks_from_heights.next() => {
                     let block = block.wrap_err("failed getting block")?;
+                    info!(
+                        height = %block.height(),
+                        block = %telemetry::display::json(&ReportBlock(&block)),
+                        "received block from sequencer",
+                    );
 
                     if let Err(e) = sequential_blocks.insert(block) {
                         // XXX: we could temporarily kill the subscription if we put an upper limit on the cache size
