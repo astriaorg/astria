@@ -475,22 +475,20 @@ impl<'a> std::fmt::Display for ReportBundleRollupIdCounts<'a> {
         use std::fmt::Write as _;
 
         let mut counts = HashMap::new();
-        for action in self.0.iter() {
-            match action {
-                Action::Sequence(seq_action) => {
-                    *counts.entry(seq_action.rollup_id).or_insert(0) += 1;
-                }
-                _ => {}
+        for action in self.0 {
+            if let Some(action) = action.as_sequence() {
+                *counts.entry(action.rollup_id).or_insert(0) += 1;
             }
         }
 
         f.write_char('[')?;
         let mut counts_iter = counts.iter();
         if let Some((rollup_id, count)) = counts_iter.next() {
-            write!(f, "{}: {}", rollup_id, count)?;
+            write!(f, "{rollup_id}: {count}")?;
         };
         for (rollup_id, count) in counts {
-            write!(f, "{}: {}, ", rollup_id, count)?;
+            f.write_str(", ")?;
+            write!(f, "{rollup_id}: {count}")?;
         }
         f.write_char(']')?;
         Ok(())
