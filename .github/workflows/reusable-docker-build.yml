@@ -24,7 +24,7 @@ env:
 jobs:
   build-and-push:
     runs-on: buildjet-8vcpu-ubuntu-2204
-    if: ${{ startsWith(inputs.tag, inputs.package-name) || startsWith(github.ref, format('refs/tags/{0}-v', inputs.package-name)) || github.ref == 'refs/heads/main' || github.ref == 'pull_request' }}
+    if: ${{ startsWith(inputs.tag, inputs.package-name) || startsWith(github.ref, format('refs/tags/{0}-v', inputs.package-name)) || github.ref == 'refs/heads/main' || github.event_name == 'pull_request' }}
     steps:
       # Checking out the repo
       - uses: actions/checkout@v4
