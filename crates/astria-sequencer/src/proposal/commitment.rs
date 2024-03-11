@@ -67,6 +67,8 @@ pub(crate) fn generate_rollup_datas_commitment(
         );
     }
 
+    rollup_ids_to_txs.sort_unstable_keys();
+
     // each leaf of the action tree is the root of a merkle tree of the `sequence::Action`s
     // with the same `rollup_id`, prepended with `rollup_id`.
     // the leaves are sorted in ascending order by `rollup_id`.
