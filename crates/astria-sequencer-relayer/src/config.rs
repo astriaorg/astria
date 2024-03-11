@@ -11,6 +11,7 @@ use serde::{
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 /// The single config for creating an astria-sequencer-relayer service.
 pub struct Config {
+    pub cometbft_endpoint: String,
     pub sequencer_endpoint: String,
     pub celestia_endpoint: String,
     pub celestia_bearer_token: String,

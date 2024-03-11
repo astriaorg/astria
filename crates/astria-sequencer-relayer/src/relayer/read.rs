@@ -7,6 +7,13 @@ use std::{
     time::Duration,
 };
 
+use astria_core::{
+    generated::sequencer::v1alpha1::{
+        sequencer_service_client::SequencerServiceClient,
+        GetSequencerBlockRequest,
+    },
+    sequencer::v1alpha1::SequencerBlock,
+};
 use astria_eyre::eyre::{
     self,
     Report,
@@ -18,11 +25,7 @@ use futures::{
     FutureExt as _,
 };
 use pin_project_lite::pin_project;
-use sequencer_client::{
-    tendermint::block::Height,
-    HttpClient,
-    SequencerBlock,
-};
+use sequencer_client::tendermint::block::Height;
 use tokio_stream::Stream;
 use tracing::{
     info,
@@ -74,7 +77,7 @@ impl Heights {
 
 pin_project! {
     pub(super) struct BlockStream {
-        client: HttpClient,
+        client: SequencerServiceClient<tonic::transport::Channel>,
         heights: Heights,
         #[pin]
         future: Option<BoxFuture<'static, eyre::Result<SequencerBlock>>>,
@@ -177,13 +180,11 @@ impl Stream for BlockStream {
 /// up to a maximum of `block_time` duration between subsequent requests.
 #[instrument(skip_all, fields(%height))]
 async fn fetch_block(
-    client: HttpClient,
+    client: SequencerServiceClient<tonic::transport::Channel>,
     height: Height,
     block_time: Duration,
     state: Arc<super::State>,
 ) -> eyre::Result<SequencerBlock> {
-    use sequencer_client::SequencerClientExt as _;
-
     // Moving the span into `on_retry`, because tryhard spawns these in a tokio
     // task, losing the span.
     let span = Span::current();
@@ -214,8 +215,18 @@ async fn fetch_block(
         );
 
     let block = tryhard::retry_fn(move || {
-        let client = client.clone();
-        async move { client.sequencer_block(height).await.map_err(Report::new) }
+        let mut client = client.clone();
+
+        let request = GetSequencerBlockRequest {
+            height: height.value(),
+        };
+
+        async move {
+            client
+                .get_sequencer_block(request)
+                .await
+                .map_err(Report::new)
+        }
     })
     .with_config(retry_config)
     .in_current_span()
@@ -224,13 +235,15 @@ async fn fetch_block(
 
     state.set_sequencer_connected(true);
 
+    let block = SequencerBlock::try_from_raw(block.into_inner())
+        .wrap_err("failed to parse raw proto block from grpc response")?;
     Ok(block)
 }
 
 pub(super) struct NoBlockTime;
 pub(super) struct WithBlockTime(Duration);
 pub(super) struct NoClient;
-pub(super) struct WithClient(HttpClient);
+pub(super) struct WithClient(SequencerServiceClient<tonic::transport::Channel>);
 pub(super) struct NoState;
 pub(super) struct WithState(Arc<super::State>);
 
@@ -263,7 +276,7 @@ impl<TBlockTime, TClient, TState> BlockStreamBuilder<TBlockTime, TClient, TState
 
     pub(super) fn client(
         self,
-        client: HttpClient,
+        client: SequencerServiceClient<tonic::transport::Channel>,
     ) -> BlockStreamBuilder<TBlockTime, WithClient, TState> {
         let Self {
             block_time,

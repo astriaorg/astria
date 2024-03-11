@@ -7,6 +7,10 @@ use std::{
     time::Duration,
 };
 
+use astria_core::{
+    generated::sequencer::v1alpha1::sequencer_service_client::SequencerServiceClient,
+    sequencer::v1alpha1::SequencerBlock,
+};
 use astria_eyre::eyre::{
     self,
     bail,
@@ -27,7 +31,6 @@ use sequencer_client::{
     tendermint_rpc::Client as _,
     HttpClient,
     HttpClient as SequencerClient,
-    SequencerBlock,
 };
 use tokio::{
     pin,
@@ -61,8 +64,11 @@ pub(crate) use state::StateSnapshot;
 use self::submission::SubmissionState;
 
 pub(crate) struct Relayer {
-    /// The actual client used to poll the sequencer.
-    sequencer: HttpClient,
+    /// The client use to query the  sequencer cometbft endpoint.
+    cometbft_client: SequencerClient,
+
+    /// The client used to poll the sequencer via the sequencer gRPC API.
+    sequencer_client: SequencerServiceClient<tonic::transport::Channel>,
 
     /// The poll period defines the fixed interval at which the sequencer is polled.
     sequencer_poll_period: Duration,
@@ -90,7 +96,11 @@ impl Relayer {
     /// + failed to construct a client to the data availability layer (unless `cfg.disable_writing`
     ///   is set).
     pub(crate) async fn new(cfg: &crate::config::Config) -> eyre::Result<Self> {
-        let sequencer = HttpClient::new(&*cfg.sequencer_endpoint)
+        let cometbft_client = HttpClient::new(&*cfg.cometbft_endpoint)
+            .wrap_err("failed constructing cometbft http client")?;
+
+        let sequencer_client = SequencerServiceClient::connect(cfg.sequencer_endpoint.clone())
+            .await
             .wrap_err("failed to create sequencer client")?;
 
         let validator = match (
@@ -120,7 +130,8 @@ impl Relayer {
         let state = Arc::new(State::new());
 
         Ok(Self {
-            sequencer,
+            cometbft_client,
+            sequencer_client,
             sequencer_poll_period: Duration::from_millis(cfg.block_time),
             celestia,
             validator,
@@ -149,7 +160,7 @@ impl Relayer {
         let last_submitted_sequencer_height = submission_state.last_submitted_height();
 
         let latest_height_stream =
-            make_latest_height_stream(self.sequencer.clone(), self.sequencer_poll_period);
+            make_latest_height_stream(self.cometbft_client.clone(), self.sequencer_poll_period);
         pin!(latest_height_stream);
 
         let (submitter_task, submitter) =
@@ -157,7 +168,7 @@ impl Relayer {
 
         let mut block_stream = read::BlockStream::builder()
             .block_time(self.sequencer_poll_period)
-            .client(self.sequencer.clone())
+            .client(self.sequencer_client.clone())
             .set_last_fetched_height(last_submitted_sequencer_height)
             .state(self.state.clone())
             .build();
