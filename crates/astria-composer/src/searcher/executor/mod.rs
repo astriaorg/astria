@@ -4,7 +4,10 @@
 /// - Managing the connection to the sequencer
 /// - Submitting transactions to the sequencer
 use std::{
-    collections::HashMap, pin::Pin, task::Poll, time::Duration
+    collections::HashMap,
+    pin::Pin,
+    task::Poll,
+    time::Duration,
 };
 
 use astria_core::sequencer::v1alpha1::{
@@ -467,8 +470,7 @@ fn sha256(data: &[u8]) -> [u8; 32] {
 
 /// A helper struct to report the number of sequence actions per rollup id in a bundle.
 struct ReportBundleRollupIdCounts<'a>(&'a [Action]);
-impl<'a> std::fmt::Display for ReportBundleRollupIdCounts<'a>
-{
+impl<'a> std::fmt::Display for ReportBundleRollupIdCounts<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use std::fmt::Write as _;
 

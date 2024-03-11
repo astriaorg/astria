@@ -78,7 +78,7 @@ impl Collector {
         let (status, _) = watch::channel(Status::new());
         let rollup_id = RollupId::from_unhashed_bytes(&chain_name);
         info!(
-            chain_name = %chain_name,
+            rollup_name = %chain_name,
             rollup_id = %rollup_id,
             "Creating new collector for rollup",
         );
