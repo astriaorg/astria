@@ -290,8 +290,8 @@ impl BlobSubmitter {
 /// Submits new blobs Celestia.
 ///
 /// # Panics
-/// Panics if `blobs`. This function
-/// should only be called if there is something to submit.
+/// Panics if `blocks` is empty. This function should only be called if there is something to
+/// submit.
 #[instrument(
     skip_all,
     fields(blocks = %telemetry::display::json(&blocks.infos))
