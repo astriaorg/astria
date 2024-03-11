@@ -9,12 +9,18 @@
 //! another task sends sequencer blocks ordered by their heights, then
 //! they will be written in that order.
 use std::{
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     future::Future,
+    mem,
     sync::Arc,
     task::Poll,
     time::Duration,
 };
 
+use astria_core::sequencer::v1alpha1::RollupId;
 use astria_eyre::eyre::{
     self,
     WrapErr as _,
@@ -38,6 +44,7 @@ use sequencer_client::{
     tendermint::block::Height as SequencerHeight,
     SequencerBlock,
 };
+use telemetry::display;
 use tokio::{
     select,
     sync::mpsc::{
@@ -62,19 +69,51 @@ use tracing::{
 
 use super::submission::SubmissionState;
 
+/// Information about the blocks that were converted to blobs and queued.
+#[derive(Debug, serde::Serialize)]
+struct ConvertedBlockInfo {
+    height: SequencerHeight,
+    rollup_transactions: HashMap<RollupId, usize>,
+}
+
+impl ConvertedBlockInfo {
+    fn from_block(block: &SequencerBlock) -> Self {
+        Self {
+            height: block.height(),
+            rollup_transactions: block
+                .rollup_transactions()
+                .iter()
+                .map(|(id, value)| (*id, value.transactions().len()))
+                .collect(),
+        }
+    }
+}
+
 struct QueuedBlobs {
     // The maximum number of blobs permitted to sit in the blob queue.
     max_blobs: usize,
     blobs: Vec<Blob>,
-    heights: Vec<SequencerHeight>,
+    info: BTreeMap<SequencerHeight, ConvertedBlockInfo>,
 }
 
 impl QueuedBlobs {
-    fn new(max_blobs: usize) -> Self {
+    fn is_empty(&self) -> bool {
+        self.blobs.is_empty()
+    }
+
+    fn num_blobs(&self) -> usize {
+        self.blobs.len()
+    }
+
+    fn num_converted_blocks(&self) -> usize {
+        self.info.len()
+    }
+
+    fn with_max_blobs(max_blobs: usize) -> Self {
         Self {
             max_blobs,
-            heights: Vec::new(),
             blobs: Vec::new(),
+            info: BTreeMap::new(),
         }
     }
 
@@ -82,9 +121,15 @@ impl QueuedBlobs {
         self.blobs.len() < self.max_blobs
     }
 
-    fn push(&mut self, mut blobs: Vec<Blob>, height: SequencerHeight) {
+    fn push(
+        &mut self,
+        Converted {
+            mut blobs,
+            block_info,
+        }: Converted,
+    ) {
         self.blobs.append(&mut blobs);
-        self.heights.push(height);
+        self.info.insert(block_info.height, block_info);
     }
 
     /// Lazily move the currently queued blobs out of the queue.
@@ -94,32 +139,32 @@ impl QueuedBlobs {
     /// out of the queue.
     fn take(&mut self) -> TakeBlobs<'_> {
         TakeBlobs {
-            queue: Some(self),
+            queued: Some(self),
         }
     }
 }
 
 pin_project! {
     struct TakeBlobs<'a> {
-        queue: Option<&'a mut QueuedBlobs>,
+        queued: Option<&'a mut QueuedBlobs>,
     }
 }
 
 impl<'a> Future for TakeBlobs<'a> {
-    type Output = Option<(Vec<Blob>, Vec<SequencerHeight>)>;
+    type Output = Option<QueuedBlobs>;
 
     fn poll(self: std::pin::Pin<&mut Self>, _: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        let queue = self
+        let queued = self
             .project()
-            .queue
+            .queued
             .take()
             .expect("this future must not be polled twice");
-        let blobs = std::mem::take(&mut queue.blobs);
-        let heights = std::mem::take(&mut queue.heights);
-        if blobs.is_empty() {
+        let empty = QueuedBlobs::with_max_blobs(queued.max_blobs);
+        let queued = mem::replace(queued, empty);
+        if queued.is_empty() {
             Poll::Ready(None)
         } else {
-            Poll::Ready(Some((blobs, heights)))
+            Poll::Ready(Some(queued))
         }
     }
 }
@@ -189,7 +234,7 @@ impl BlobSubmitter {
             client,
             blocks: rx,
             conversions: Conversions::new(8),
-            blobs: QueuedBlobs::new(128),
+            blobs: QueuedBlobs::with_max_blobs(128),
             state,
             submission_state,
         };
@@ -232,15 +277,14 @@ impl BlobSubmitter {
                             %error,
                             "failed converting sequencer blocks to celestia blobs",
                         ),
-                        Ok(blobs) => self.blobs.push(blobs, sequencer_height),
+                        Ok(converted) => self.blobs.push(converted),
                     };
                 }
 
-                Some((blobs, heights)) = self.blobs.take(), if submission.is_terminated() => {
+                Some(blobs) = self.blobs.take(), if submission.is_terminated() => {
                     submission = submit_blobs(
                         self.client.clone(),
                         blobs,
-                        heights,
                         self.state.clone(),
                         self.submission_state.clone(),
                     ).boxed().fuse();
@@ -264,21 +308,17 @@ impl BlobSubmitter {
 /// Submits new blobs Celestia.
 ///
 /// # Panics
-/// Panics if `blobs` or `sequencer_heights` are empty. This function
+/// Panics if `blobs`. This function
 /// should only be called if there is something to submit.
-#[instrument(
-    skip_all,
-    fields(
-        num_blobs = blobs.len(),
-        sequencer_heights = %ReportSequencerHeights(&sequencer_heights),
-))]
+#[instrument(skip_all, fields(blocks = %display::json(&blobs.info)))]
 async fn submit_blobs(
     client: HttpClient,
-    blobs: Vec<Blob>,
-    sequencer_heights: Vec<SequencerHeight>,
+    blobs: QueuedBlobs,
     state: Arc<super::State>,
     submission_state: SubmissionState,
 ) -> eyre::Result<SubmissionState> {
+    info!("started submitting blocks to Celestia",);
+
     let start = std::time::Instant::now();
 
     metrics::counter!(crate::metrics_init::CELESTIA_SUBMISSION_COUNT).increment(1);
@@ -287,18 +327,22 @@ async fn submit_blobs(
     //
     // allow: the number of blocks should always be low enough to not cause precision loss
     #[allow(clippy::cast_precision_loss)]
-    let blocks_per_celestia_tx = sequencer_heights.len() as f64;
+    let blocks_per_celestia_tx = blobs.num_converted_blocks() as f64;
     metrics::gauge!(crate::metrics_init::BLOCKS_PER_CELESTIA_TX).set(blocks_per_celestia_tx);
 
     // allow: the number of blobs should always be low enough to not cause precision loss
     #[allow(clippy::cast_precision_loss)]
-    let blobs_per_celestia_tx = blobs.len() as f64;
+    let blobs_per_celestia_tx = blobs.num_blobs() as f64;
     metrics::gauge!(crate::metrics_init::BLOBS_PER_CELESTIA_TX).set(blobs_per_celestia_tx);
 
-    let largest_height = sequencer_heights.iter().copied().max().expect(
-        "there should always be blobs and accompanying sequencer heights when this function is \
-         called",
-    );
+    let largest_height = *blobs
+        .info
+        .last_key_value()
+        .expect(
+            "there should always be blobs and accompanying sequencer heights when this function \
+             is called",
+        )
+        .0;
 
     let submission_started = match crate::utils::flatten(
         tokio::task::spawn_blocking(move || submission_state.initialize(largest_height))
@@ -312,7 +356,7 @@ async fn submit_blobs(
         Ok(state) => state,
     };
 
-    let celestia_height = match submit_with_retry(client, blobs, state.clone()).await {
+    let celestia_height = match submit_with_retry(client, blobs.blobs, state.clone()).await {
         Err(error) => {
             let message = "failed submitting blobs to Celestia";
             error!(%error, message);
@@ -339,7 +383,6 @@ async fn submit_blobs(
         }
         Ok(state) => state,
     };
-
     Ok(final_state)
 }
 
@@ -485,7 +528,7 @@ impl<'a> std::fmt::Display for ReportSequencerHeights<'a> {
 /// blocks in the order of their heights to Celestia.
 struct Conversions {
     // The currently active conversions.
-    active: FuturesOrdered<BoxFuture<'static, (SequencerHeight, eyre::Result<Vec<Blob>>)>>,
+    active: FuturesOrdered<BoxFuture<'static, (SequencerHeight, eyre::Result<Converted>)>>,
 
     // The maximum number of conversions that can be active at the same time.
     max_conversions: usize,
@@ -514,18 +557,27 @@ impl Conversions {
         self.active.push_back(fut);
     }
 
-    async fn next(&mut self) -> Option<(SequencerHeight, eyre::Result<Vec<Blob>>)> {
+    async fn next(&mut self) -> Option<(SequencerHeight, eyre::Result<Converted>)> {
         use tokio_stream::StreamExt as _;
         self.active.next().await
     }
 }
 
-fn convert(block: SequencerBlock) -> eyre::Result<Vec<Blob>> {
+struct Converted {
+    blobs: Vec<Blob>,
+    block_info: ConvertedBlockInfo,
+}
+
+fn convert(block: SequencerBlock) -> eyre::Result<Converted> {
     let mut blobs = Vec::new();
+    let block_info = ConvertedBlockInfo::from_block(&block);
     block
         .try_to_blobs(&mut blobs)
         .wrap_err("failed converting sequencer block to celestia blobs")?;
-    Ok(blobs)
+    Ok(Converted {
+        blobs,
+        block_info,
+    })
 }
 
 #[cfg(test)]
